@@ -2,8 +2,8 @@ package query
 
 // optimizeArrowDirection chooses the optimal execution direction for Arrow iterators
 // based on cost estimates from statistics
-func optimizeArrowDirection(source StatisticsSource) TypedOptimizerFunc[*Arrow] {
-	return func(a *Arrow) (Iterator, bool, error) {
+func optimizeArrowDirection(source StatisticsSource) TypedOptimizerFunc[*ArrowIterator] {
+	return func(a *ArrowIterator) (Iterator, bool, error) {
 		if source == nil {
 			// No statistics available, keep default
 			return a, false, nil
@@ -29,7 +29,7 @@ func optimizeArrowDirection(source StatisticsSource) TypedOptimizerFunc[*Arrow] 
 		// Choose the cheaper direction
 		if rightToLeftCost < leftToRightCost && a.direction != rightToLeft {
 			// Create new arrow with inverted direction
-			newArrow := &Arrow{
+			newArrow := &ArrowIterator{
 				id:        a.id, // Keep same ID
 				left:      a.left,
 				right:     a.right,

@@ -43,7 +43,7 @@ func NewRistrettoCacheWithMetrics[K KeyString, V any](name string, config *Confi
 		return nil, err
 	}
 
-	cache := wrapped[K, V]{name, config, config.DefaultTTL, rcache}
+	cache := ristretoCache[K, V]{name, config, config.DefaultTTL, rcache}
 	mustRegisterCache(name, cache)
 	return &cache, nil
 }
@@ -51,24 +51,24 @@ func NewRistrettoCacheWithMetrics[K KeyString, V any](name string, config *Confi
 // NewRistrettoCache creates a new ristretto cache from the given config.
 func NewRistrettoCache[K KeyString, V any](config *Config) (Cache[K, V], error) {
 	rcache, err := ristretto.NewCache(ristrettoConfig(config))
-	return &wrapped[K, V]{"", config, config.DefaultTTL, rcache}, err
+	return &ristretoCache[K, V]{"", config, config.DefaultTTL, rcache}, err
 }
 
-type wrapped[K any, V any] struct {
+type ristretoCache[K any, V any] struct {
 	name       string
 	config     *Config
 	defaultTTL time.Duration
 	ristretto  *ristretto.Cache
 }
 
-func (w wrapped[K, V]) Set(key K, entry V, cost int64) bool {
+func (w ristretoCache[K, V]) Set(key K, entry V, cost int64) bool {
 	if w.defaultTTL <= 0 {
 		return w.ristretto.Set(key, entry, cost)
 	}
 	return w.ristretto.SetWithTTL(key, entry, cost, w.defaultTTL)
 }
 
-func (w wrapped[K, V]) Get(key K) (V, bool) {
+func (w ristretoCache[K, V]) Get(key K) (V, bool) {
 	found, ok := w.ristretto.Get(key)
 	if !ok {
 		return *new(V), false
@@ -77,16 +77,20 @@ func (w wrapped[K, V]) Get(key K) (V, bool) {
 	return found.(V), true
 }
 
-func (w wrapped[K, V]) Wait() {
+func (w ristretoCache[K, V]) Wait() {
 	w.ristretto.Wait()
 }
 
-var _ Cache[StringKey, any] = (*wrapped[StringKey, any])(nil)
+func (w ristretoCache[K, V]) GetTTL() time.Duration {
+	return w.defaultTTL
+}
 
-func (w wrapped[K, V]) GetMetrics() Metrics                   { return w.ristretto.Metrics }
-func (w wrapped[K, V]) MarshalZerologObject(e *zerolog.Event) { e.EmbedObject(w.config) }
+var _ Cache[StringKey, any] = (*ristretoCache[StringKey, any])(nil)
 
-func (w wrapped[K, V]) Close() {
+func (w ristretoCache[K, V]) GetMetrics() Metrics                   { return w.ristretto.Metrics }
+func (w ristretoCache[K, V]) MarshalZerologObject(e *zerolog.Event) { e.EmbedObject(w.config) }
+
+func (w ristretoCache[K, V]) Close() {
 	w.ristretto.Close()
 	unregisterCache(w.name)
 }

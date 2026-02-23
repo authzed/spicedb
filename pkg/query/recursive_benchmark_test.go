@@ -165,7 +165,7 @@ func BenchmarkRecursiveDeepGraph(b *testing.B) {
 // Tests early termination on empty results
 func BenchmarkRecursiveEmptyGraph(b *testing.B) {
 	// Empty sentinel - no paths
-	sentinel := NewRecursiveSentinel("folder", "parent", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
 	recursive := NewRecursiveIterator(sentinel, "folder", "parent")
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

@@ -52,13 +52,9 @@ func TestConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, filePath := range consistencyTestFiles {
-		filePath := filePath
-
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			t.Parallel()
 			for _, dispatcherKind := range []string{"local", "caching"} {
-				dispatcherKind := dispatcherKind
-
 				t.Run(dispatcherKind, func(t *testing.T) {
 					for _, chunkSize := range []uint16{5, 10} {
 						t.Run(fmt.Sprintf("chunk-size-%d", chunkSize), func(t *testing.T) {
@@ -92,6 +88,12 @@ func TestConsistency(t *testing.T) {
 
 		for _, nsDef := range cad.Populated.NamespaceDefinitions {
 			_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
+			require.NoError(t, err)
+
+			_, err = development.AddDefinitionWarnings(cad.Ctx, nsDef, ts)
+			// We would normally check to see if there were any warnings; however, some of the integration tests are
+			// here to intentionally test things that are warnings-but-not-errors in a schema (like arrow-references-relation).
+			// So instead, just validate that warning validation succeeds.
 			require.NoError(t, err)
 		}
 
@@ -250,13 +252,17 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	for _, nsDef := range cad.Populated.NamespaceDefinitions {
 		_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
 		require.NoError(t, err)
+
+		_, err = development.AddDefinitionWarnings(cad.Ctx, nsDef, ts)
+		// We would normally check to see if there were any warnings; however, some of the integration tests are
+		// here to intentionally test things that are warnings-but-not-errors in a schema (like arrow-references-relation).
+		// So instead, just validate that warning validation succeeds.
+		require.NoError(t, err)
 	}
 
 	// Run consistency tests.
 	testers := consistencytestutil.ServiceTesters(cad.Conn)
 	for _, tester := range testers {
-		tester := tester
-
 		t.Run(tester.Name(), func(t *testing.T) {
 			runConsistencyTestsWithServiceTester(t, cad, tester, headRevision, useCachingDispatcher)
 		})
@@ -330,7 +336,6 @@ func testForEachRelationship(
 	t.Helper()
 
 	for _, relationship := range vctx.clusterAndData.Populated.Relationships {
-		relationship := relationship
 		t.Run(fmt.Sprintf("%s_%s", prefix, tuple.MustString(relationship)),
 			func(t *testing.T) {
 				handler(t, relationship)
@@ -355,9 +360,7 @@ func testForEachResource(
 
 		resourceType := resourceType
 		for _, relation := range resourceType.Relation {
-			relation := relation
 			for _, resource := range resources {
-				resource := resource
 				t.Run(fmt.Sprintf("%s_%s_%s_%s", prefix, resourceType.Name, resource.ObjectID, relation.Name),
 					func(t *testing.T) {
 						handler(t, tuple.ObjectAndRelation{
@@ -379,9 +382,7 @@ func testForEachResourceType(
 	handler func(t *testing.T, resourceType tuple.RelationReference),
 ) {
 	for _, resourceType := range vctx.clusterAndData.Populated.NamespaceDefinitions {
-		resourceType := resourceType
 		for _, relation := range resourceType.Relation {
-			relation := relation
 			t.Run(fmt.Sprintf("%s_%s_%s_", prefix, resourceType.Name, relation.Name),
 				func(t *testing.T) {
 					handler(t, tuple.RelationReference{
@@ -511,10 +512,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 	testForEachResourceType(t, vctx, "validate_lookup_resources",
 		func(t *testing.T, resourceRelation tuple.RelationReference) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
-				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					for _, pageSize := range []uint32{0, 2} {
-						pageSize := pageSize
 						t.Run(fmt.Sprintf("pagesize-%d", pageSize), func(t *testing.T) {
 							accessibleResources := vctx.accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
 
@@ -522,7 +521,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							// Loop until all resources have been found or we've hit max iterations.
 							var currentCursor *v1.Cursor
 							resolvedResources := map[string]*v1.LookupResourcesResponse{}
-							for i := 0; i < 100; i++ {
+							for range 100 {
 								foundResources, lastCursor, err := vctx.serviceTester.LookupResources(t.Context(), resourceRelation, subject, vctx.revision, currentCursor, pageSize, nil)
 								require.NoError(t, err)
 
@@ -620,7 +619,6 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_lookup_subjects",
 		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			for _, subjectType := range vctx.accessibilitySet.SubjectTypes() {
-				subjectType := subjectType
 				t.Run(fmt.Sprintf("%s#%s", subjectType.ObjectType, subjectType.Relation),
 					func(t *testing.T) {
 						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(t.Context(), resource, subjectType, vctx.revision, nil)
@@ -804,7 +802,6 @@ func runAssertions(t *testing.T, vctx validationContext) {
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			} {
-				entry := entry
 				t.Run(entry.name, func(t *testing.T) {
 					bulkCheckItems := make([]*v1.BulkCheckPermissionRequestItem, 0, len(entry.assertions))
 
@@ -955,7 +952,6 @@ func validateDevelopmentChecks(t *testing.T, devContext *development.DevContext,
 	testForEachResource(t, vctx, "validate_check_watch",
 		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
-				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					require.NotNil(t, devContext)
 					cr, err := development.RunCheck(devContext, resource, subject, nil)

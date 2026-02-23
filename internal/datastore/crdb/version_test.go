@@ -40,7 +40,6 @@ func TestParseVersionString(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.versionStr, func(t *testing.T) {
 			var version crdbVersion
 			err := parseVersionStringInto(tc.versionStr, &version)

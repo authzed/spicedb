@@ -239,7 +239,6 @@ func TestDiffableSchema(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
@@ -249,7 +248,6 @@ func TestDiffableSchema(t *testing.T) {
 
 			diffableSchema := NewDiffableSchemaFromCompiledSchema(schema)
 			for index, check := range tc.checkers {
-				check := check
 				t.Run(fmt.Sprintf("check-%d", index), func(t *testing.T) {
 					check(t, &diffableSchema)
 				})

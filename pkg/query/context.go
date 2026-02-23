@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"strings"
 	"sync"
@@ -10,7 +11,9 @@ import (
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // TraceLogger is used for debugging iterator execution
@@ -18,6 +21,7 @@ type TraceLogger struct {
 	traces []string
 	depth  int
 	stack  []Iterator // Stack of iterator pointers for proper indentation context
+	writer io.Writer  // Optional writer to output traces in real-time
 }
 
 // NewTraceLogger creates a new trace logger
@@ -26,6 +30,28 @@ func NewTraceLogger() *TraceLogger {
 		traces: make([]string, 0),
 		depth:  0,
 		stack:  make([]Iterator, 0),
+		writer: nil,
+	}
+}
+
+// NewTraceLoggerWithWriter creates a new trace logger with an optional writer
+// for real-time trace output
+func NewTraceLoggerWithWriter(w io.Writer) *TraceLogger {
+	return &TraceLogger{
+		traces: make([]string, 0),
+		depth:  0,
+		stack:  make([]Iterator, 0),
+		writer: w,
+	}
+}
+
+// appendTrace appends a trace line to the traces slice and optionally writes it
+// to the writer if one is configured
+func (t *TraceLogger) appendTrace(line string) {
+	t.traces = append(t.traces, line)
+	if t.writer != nil {
+		// Write the line with a newline
+		fmt.Fprintln(t.writer, line)
 	}
 }
 
@@ -53,14 +79,11 @@ func (t *TraceLogger) EnterIterator(it Iterator, traceString string) {
 	indent := strings.Repeat("  ", t.depth)
 	idPrefix := iteratorIDPrefix(it)
 
-	t.traces = append(
-		t.traces,
-		fmt.Sprintf("%s-> %s: %s",
-			indent,
-			idPrefix,
-			traceString,
-		),
-	)
+	t.appendTrace(fmt.Sprintf("%s-> %s: %s",
+		indent,
+		idPrefix,
+		traceString,
+	))
 	t.depth++
 	t.stack = append(t.stack, it) // Push iterator pointer onto stack
 }
@@ -129,7 +152,7 @@ func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
 			p.Resource.ObjectType, p.Resource.ObjectID, p.Relation,
 			p.Subject.ObjectType, p.Subject.ObjectID, caveatInfo)
 	}
-	t.traces = append(t.traces, fmt.Sprintf("%s<- %s: returned %d paths: [%s]",
+	t.appendTrace(fmt.Sprintf("%s<- %s: returned %d paths: [%s]",
 		indent, idPrefix, len(paths), strings.Join(pathStrs, ", ")))
 }
 
@@ -155,7 +178,7 @@ func (t *TraceLogger) LogStep(it Iterator, step string, data ...any) {
 	indent := strings.Repeat("  ", indentLevel)
 	idPrefix := iteratorIDPrefix(it)
 	message := fmt.Sprintf(step, data...)
-	t.traces = append(t.traces, fmt.Sprintf("%s   %s: %s", indent, idPrefix, message))
+	t.appendTrace(fmt.Sprintf("%s   %s: %s", indent, idPrefix, message))
 }
 
 // DumpTrace returns all traces as a string
@@ -258,6 +281,17 @@ type Context struct {
 	TraceLogger       *TraceLogger      // For debugging iterator execution
 	Analyze           *AnalyzeCollector // Thread-safe collector for query analysis stats
 	MaxRecursionDepth int               // Maximum depth for recursive iterators (0 = use default of 10)
+
+	// Pagination options for IterSubjects and IterResources
+	PaginationCursors map[string]*tuple.Relationship // Cursors for pagination, keyed by iterator ID
+	PaginationLimit   *uint64                        // Limit for pagination (max number of results to return)
+	PaginationSort    options.SortOrder              // Sort order for pagination
+
+	// recursiveFrontierCollectors holds frontier collections for BFS IterSubjects.
+	// Key: RecursiveIterator.ID()
+	// Value: collected Objects for the next frontier
+	// A non-nil entry for an ID enables collection mode for that RecursiveIterator.
+	recursiveFrontierCollectors map[string][]Object
 }
 
 // NewLocalContext creates a new query execution context with a LocalExecutor.
@@ -304,6 +338,32 @@ func WithCaveatContext(caveatCtx map[string]any) ContextOption {
 // WithMaxRecursionDepth sets the maximum recursion depth for the context.
 func WithMaxRecursionDepth(depth int) ContextOption {
 	return func(ctx *Context) { ctx.MaxRecursionDepth = depth }
+}
+
+// WithPaginationLimit sets the pagination limit for the context.
+func WithPaginationLimit(limit uint64) ContextOption {
+	return func(ctx *Context) { ctx.PaginationLimit = &limit }
+}
+
+// WithPaginationSort sets the pagination sort order for the context.
+func WithPaginationSort(sort options.SortOrder) ContextOption {
+	return func(ctx *Context) { ctx.PaginationSort = sort }
+}
+
+// GetPaginationCursor retrieves the cursor for a specific iterator ID.
+func (ctx *Context) GetPaginationCursor(iteratorID string) *tuple.Relationship {
+	if ctx.PaginationCursors == nil {
+		return nil
+	}
+	return ctx.PaginationCursors[iteratorID]
+}
+
+// SetPaginationCursor sets the cursor for a specific iterator ID.
+func (ctx *Context) SetPaginationCursor(iteratorID string, cursor *tuple.Relationship) {
+	if ctx.PaginationCursors == nil {
+		ctx.PaginationCursors = make(map[string]*tuple.Relationship)
+	}
+	ctx.PaginationCursors[iteratorID] = cursor
 }
 
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
@@ -482,4 +542,43 @@ type Executor interface {
 	// The filterResourceType parameter filters results to only include resources matching the
 	// specified ObjectType. If filterResourceType.Type is empty, no filtering is applied.
 	IterResources(ctx *Context, it Iterator, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error)
+}
+
+// EnableFrontierCollection enables frontier collection for a RecursiveIterator.
+// Creates a non-nil entry in the map, which signals collection mode.
+func (ctx *Context) EnableFrontierCollection(iteratorID string) {
+	if ctx.recursiveFrontierCollectors == nil {
+		ctx.recursiveFrontierCollectors = make(map[string][]Object)
+	}
+	ctx.recursiveFrontierCollectors[iteratorID] = []Object{}
+}
+
+// CollectFrontierObject appends an object to the frontier collection.
+// Only appends if collection mode is enabled (non-nil entry exists).
+func (ctx *Context) CollectFrontierObject(iteratorID string, obj Object) {
+	if ctx.recursiveFrontierCollectors == nil {
+		return
+	}
+	if collection, exists := ctx.recursiveFrontierCollectors[iteratorID]; exists {
+		ctx.recursiveFrontierCollectors[iteratorID] = append(collection, obj)
+	}
+}
+
+// ExtractFrontierCollection retrieves and removes the collected frontier.
+func (ctx *Context) ExtractFrontierCollection(iteratorID string) []Object {
+	if ctx.recursiveFrontierCollectors == nil {
+		return nil
+	}
+	collection := ctx.recursiveFrontierCollectors[iteratorID]
+	delete(ctx.recursiveFrontierCollectors, iteratorID)
+	return collection
+}
+
+// IsCollectingFrontier checks if collection mode is enabled (non-nil entry exists).
+func (ctx *Context) IsCollectingFrontier(iteratorID string) bool {
+	if ctx.recursiveFrontierCollectors == nil {
+		return false
+	}
+	_, exists := ctx.recursiveFrontierCollectors[iteratorID]
+	return exists
 }

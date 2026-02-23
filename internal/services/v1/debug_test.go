@@ -482,7 +482,6 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 			conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
@@ -497,7 +496,6 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 			ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 			for _, stc := range tc.toTest {
-				stc := stc
 				t.Run(stc.name, func(t *testing.T) {
 					req := require.New(t)
 
@@ -738,39 +736,38 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 				// 100 IDs is the default batch size, so 99 + `first`.
 				docsSlice := make([]string, 0, 99)
 				docsSlice = append(docsSlice, "first")
-				for i := 0; i < 99; i++ {
+				for i := range 99 {
 					docsSlice = append(docsSlice, fmt.Sprintf("doc-%d", i))
 				}
 
-				items := []bulkCheckItem{
-					{
-						toCheck: "document:first#view@user:tom",
-						rda: []rda{
-							expectOrderedFrames(
-								frameInfo{
-									resourceType:   "document",
-									resourceIDs:    []string{"first"},
-									permission:     "view",
-									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
-								},
-								frameInfo{
-									resourceType:   "document",
-									resourceIDs:    docsSlice,
-									permission:     "view",
-									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
-								},
-								frameInfo{
-									resourceType:   "document",
-									resourceIDs:    docsSlice,
-									permission:     "viewer",
-									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
-								},
-							),
-						},
+				items := make([]bulkCheckItem, 0, 501) //nolint:prealloc  // for some reason prealloc thinks this should be 1002
+				items = append(items, bulkCheckItem{
+					toCheck: "document:first#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    docsSlice,
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    docsSlice,
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+						),
 					},
-				}
+				})
 
-				for i := 0; i < 500; i++ {
+				for i := range 500 {
 					items = append(items, bulkCheckItem{
 						toCheck: fmt.Sprintf("document:doc-%d#view@user:tom", i),
 						rda:     nil,
@@ -879,7 +876,6 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 			conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,

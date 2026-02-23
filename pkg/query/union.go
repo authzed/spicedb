@@ -3,35 +3,29 @@ package query
 import (
 	"github.com/google/uuid"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 
-// Union the set of paths that are in any of underlying subiterators.
+// UnionIterator the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
-type Union struct {
+type UnionIterator struct {
 	id     string
 	subIts []Iterator
 }
 
-var _ Iterator = &Union{}
+var _ Iterator = &UnionIterator{}
 
-func NewUnion(subiterators ...Iterator) *Union {
+func NewUnionIterator(subiterators ...Iterator) Iterator {
 	if len(subiterators) == 0 {
-		return &Union{
-			id: uuid.NewString(),
-		}
+		return NewFixedIterator() // Return empty FixedIterator instead of empty Union
 	}
-	return &Union{
+	return &UnionIterator{
 		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
 }
 
-func (u *Union) addSubIterator(subIt Iterator) {
-	u.subIts = append(u.subIts, subIt)
-}
-
-func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (u *UnionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	ctx.TraceStep(u, "processing %d sub-iterators with %d resources", len(u.subIts), len(resources))
 
 	// Create a concatenated sequence from all sub-iterators
@@ -65,7 +59,7 @@ func (u *Union) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRel
 	return DeduplicatePathSeq(combinedSeq), nil
 }
 
-func (u *Union) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (u *UnionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(u, "processing %d sub-iterators for resource %s:%s", len(u.subIts), resource.ObjectType, resource.ObjectID)
 
 	// Create a concatenated sequence from all sub-iterators
@@ -99,7 +93,7 @@ func (u *Union) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectTyp
 	return DeduplicatePathSeq(combinedSeq), nil
 }
 
-func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (u *UnionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	ctx.TraceStep(u, "processing %d sub-iterators for subject %s:%s#%s", len(u.subIts), subject.ObjectType, subject.ObjectID, subject.Relation)
 
 	// Create a concatenated sequence from all sub-iterators
@@ -133,8 +127,8 @@ func (u *Union) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filte
 	return DeduplicatePathSeq(combinedSeq), nil
 }
 
-func (u *Union) Clone() Iterator {
-	cloned := &Union{
+func (u *UnionIterator) Clone() Iterator {
+	cloned := &UnionIterator{
 		id:     uuid.NewString(),
 		subIts: make([]Iterator, len(u.subIts)),
 	}
@@ -144,7 +138,7 @@ func (u *Union) Clone() Iterator {
 	return cloned
 }
 
-func (u *Union) Explain() Explain {
+func (u *UnionIterator) Explain() Explain {
 	subs := make([]Explain, len(u.subIts))
 	for i, it := range u.subIts {
 		subs[i] = it.Explain()
@@ -156,44 +150,37 @@ func (u *Union) Explain() Explain {
 	}
 }
 
-func (u *Union) Subiterators() []Iterator {
+func (u *UnionIterator) Subiterators() []Iterator {
 	return u.subIts
 }
 
-func (u *Union) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &Union{id: uuid.NewString(), subIts: newSubs}, nil
+func (u *UnionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return &UnionIterator{id: uuid.NewString(), subIts: newSubs}, nil
 }
 
-func (u *Union) ID() string {
+func (u *UnionIterator) ID() string {
 	return u.id
 }
 
-func (u *Union) ResourceType() (ObjectType, error) {
+func (u *UnionIterator) ResourceType() ([]ObjectType, error) {
 	if len(u.subIts) == 0 {
-		return ObjectType{}, nil
+		return []ObjectType{}, nil
 	}
 
-	// Get the resource type from the first subiterator
-	firstType, err := u.subIts[0].ResourceType()
-	if err != nil {
-		return ObjectType{}, err
-	}
+	// Collect all resource types from sub-iterators and deduplicate
+	result := mapz.NewSet[ObjectType]()
 
-	// Validate that all subiterators have the same resource type
-	for idx, subIt := range u.subIts[1:] {
-		subType, err := subIt.ResourceType()
+	for _, subIt := range u.subIts {
+		subTypes, err := subIt.ResourceType()
 		if err != nil {
-			return ObjectType{}, err
+			return nil, err
 		}
-		if firstType != subType {
-			return ObjectType{}, spiceerrors.MustBugf("union resource type mismatch: subiterator 0 has type %s, subiterator %d has type %s",
-				firstType.String(), idx+1, subType.String())
-		}
+		result.Extend(subTypes)
 	}
 
-	return firstType, nil
+	return result.AsSlice(), nil
 }
 
-func (u *Union) SubjectTypes() ([]ObjectType, error) {
+func (u *UnionIterator) SubjectTypes() ([]ObjectType, error) {
 	return collectAndDeduplicateSubjectTypes(u.subIts)
 }

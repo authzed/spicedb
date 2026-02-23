@@ -38,7 +38,6 @@ func TestPaginatedIterator(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("%d/%d-%d", tc.pageSize, tc.totalRelationships, tc.order), func(t *testing.T) {
 			t.Parallel()
 			require := require.New(t)
@@ -88,10 +87,7 @@ func generateMock(t *testing.T, rels []tuple.Relationship, pageSize int, order o
 
 	var last options.Cursor
 	for i := 0; i <= relsLen; i += pageSize {
-		pastLastIndex := i + pageSize
-		if pastLastIndex > relsLen {
-			pastLastIndex = relsLen
-		}
+		pastLastIndex := min(i+pageSize, relsLen)
 
 		pageSize64, err := safecast.Convert[uint64](pageSize)
 		require.NoError(t, err)

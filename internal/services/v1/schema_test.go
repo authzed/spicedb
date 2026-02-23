@@ -766,7 +766,6 @@ func TestSchemaDiff(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the existing schema.
 			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -1179,7 +1178,6 @@ definition user {}`,
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the schema.
 			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -1406,7 +1404,6 @@ func TestDependentRelations(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			schemaClient := v1.NewSchemaServiceClient(conn)
@@ -1605,7 +1602,6 @@ func TestComputablePermissions(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			schemaClient := v1.NewSchemaServiceClient(conn)

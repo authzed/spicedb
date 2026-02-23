@@ -73,7 +73,7 @@ func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToC
 	if err != nil {
 		return err
 	}
-	foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, nsNames.AsSlice())
+	foundDefs, err := schemaReader.LookupTypeDefinitionsByNames(ctx, nsNames.AsSlice())
 	if err != nil {
 		return err
 	}

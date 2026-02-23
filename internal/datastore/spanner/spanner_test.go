@@ -36,8 +36,13 @@ func TestSpannerDatastore(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri,
 				RevisionQuantization(revisionQuantization),
-				WatchBufferLength(watchBufferLength))
+				WatchBufferLength(watchBufferLength),
+				WithDatastoreMetricsOption(DatastoreMetricsOptionOpenTelemetry),
+			)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, ds.Close())
+			})
 			return ds
 		})
 		return ds, nil

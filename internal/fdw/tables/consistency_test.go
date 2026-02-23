@@ -37,7 +37,7 @@ func TestConsistencyFromFields(t *testing.T) {
 			},
 			expectedConsistencyType: "FullyConsistent",
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name: "at_least_as_fresh with token",
 			fields: fieldMap[string]{
 				"consistency": {value: "GhUKEzE3MzU2OTQzMDkwMDAwMDAwMDA="},
@@ -45,7 +45,7 @@ func TestConsistencyFromFields(t *testing.T) {
 			expectedConsistencyType: "AtLeastAsFresh",
 			expectedToken:           "GhUKEzE3MzU2OTQzMDkwMDAwMDAwMDA=",
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name: "at_exact_snapshot with @ prefix",
 			fields: fieldMap[string]{
 				"consistency": {value: "@GhUKEzE3MzU2OTQzMDkwMDAwMDAwMDA="},

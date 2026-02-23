@@ -150,7 +150,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 
 	// make placeholder resolved addresses, 1 per node
 	addresses := make([]resolver.Address, 0, size)
-	for i := uint(0); i < size; i++ {
+	for i := range size {
 		addresses = append(addresses, resolver.Address{
 			Addr:       fmt.Sprintf("%s_%d", prefix, i),
 			ServerName: "",
@@ -162,7 +162,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 	conns := make([]*grpc.ClientConn, 0, size)
 	cancelFuncs := make([]func(), 0, size)
 
-	for i := uint(0); i < size; i++ {
+	for i := range size {
 		dispatcherOptions := []combineddispatch.Option{
 			combineddispatch.UpstreamAddr("test://" + prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),

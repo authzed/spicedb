@@ -191,7 +191,6 @@ func TestReadRelationshipsHashStability(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			verr := tc.request.Validate()
 			require.NoError(t, verr)
@@ -386,7 +385,6 @@ func TestLRHashStability(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			verr := tc.request.Validate()
 			require.NoError(t, verr)
@@ -594,7 +592,6 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			verr := tc.request.Validate()
 			require.NoError(t, verr)
@@ -802,7 +799,6 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			verr := tc.request.Validate()
 			require.NoError(t, verr)

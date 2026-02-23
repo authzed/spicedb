@@ -180,6 +180,9 @@ func (as *ArrowSet) collectArrowInformationForSetOperation(ctx context.Context, 
 		case *core.SetOperation_Child_XNil:
 			// Nothing to do
 
+		case *core.SetOperation_Child_XSelf:
+			// Nothing to do
+
 		default:
 			return fmt.Errorf("unknown set operation child `%T` in addArrowRelationsInSetOperation", child)
 		}

@@ -794,7 +794,6 @@ func TestSchemaQueryFilterer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			for _, filterType := range []PaginationFilterType{TupleComparison, ExpandedLogicComparison} {
 				t.Run(fmt.Sprintf("filter type: %v", filterType), func(t *testing.T) {

@@ -57,7 +57,6 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("%d-%v", tc.numTuples, tc.expectFallBehind), func(t *testing.T) {
 			require := require.New(t)
 

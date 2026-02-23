@@ -88,10 +88,7 @@ func (pgd *pgDatastore) Watch(
 	}
 
 	afterRevision := afterRevisionRaw.(postgresRevision)
-	watchSleep := options.CheckpointInterval
-	if watchSleep < minimumWatchSleep {
-		watchSleep = minimumWatchSleep
-	}
+	watchSleep := max(options.CheckpointInterval, minimumWatchSleep)
 
 	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
 	if watchBufferWriteTimeout <= 0 {
@@ -159,7 +156,6 @@ func (pgd *pgDatastore) Watch(
 				}
 
 				for _, changeToWrite := range changesToWrite {
-					changeToWrite := changeToWrite
 					if !sendChange(changeToWrite) {
 						return
 					}

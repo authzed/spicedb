@@ -385,8 +385,6 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 			}
 
 			for _, revChange := range filtered {
-				revChange := revChange
-
 				// TODO(jschorr): Change this to a new event type if/when we decide to report these
 				// row GCs.
 

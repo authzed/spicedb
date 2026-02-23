@@ -147,7 +147,7 @@ func TestTestServer(t *testing.T) {
 	req, err := http.NewRequest("POST", readURL, nil)
 	require.NoError(err)
 	req.Header.Add("Authorization", "Bearer "+key)
-	hresp, err := http.DefaultClient.Do(req)
+	hresp, err := http.DefaultClient.Do(req) //nolint:gosec  // SSRF isn't an issue in a test
 	require.NoError(err)
 
 	body, err := io.ReadAll(hresp.Body)

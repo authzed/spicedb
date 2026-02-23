@@ -282,7 +282,6 @@ var lexerTests = []lexerTest{
 
 func TestLexer(t *testing.T) {
 	for _, test := range lexerTests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			test := test // Close over test and not the pointer that is reused.
 			tokens := performLex(&test)

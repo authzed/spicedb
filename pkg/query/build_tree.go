@@ -11,7 +11,7 @@ import (
 )
 
 type recursiveSentinelInfo struct {
-	sentinel       *RecursiveSentinel
+	sentinel       *RecursiveSentinelIterator
 	definitionName string
 	relationName   string
 }
@@ -60,7 +60,7 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	// Check both with the same flag and opposite flag, since recursion can cross the boundary
 	if b.building[id] {
 		// Recursion detected - create sentinel and remember where
-		sentinel := NewRecursiveSentinel(definitionName, relationName, withSubRelations)
+		sentinel := NewRecursiveSentinelIterator(definitionName, relationName, withSubRelations)
 		// Track this sentinel with its location info
 		sentinelInfo := &recursiveSentinelInfo{
 			sentinel:       sentinel,
@@ -109,7 +109,7 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 	if len(sentinelsAdded) > 0 {
 		// Filter sentinels to only include those matching this definition/relation
 		// Non-matching sentinels are left in the list for parent builds to handle
-		var matchingSentinels []*RecursiveSentinel
+		var matchingSentinels []*RecursiveSentinelIterator
 		var nonMatchingSentinels []*recursiveSentinelInfo
 
 		for _, info := range sentinelsAdded {
@@ -136,21 +136,22 @@ func (b *iteratorBuilder) buildIteratorFromSchemaInternal(definitionName string,
 
 func (b *iteratorBuilder) buildIteratorFromRelation(r *schema.Relation, withSubRelations bool) (Iterator, error) {
 	if len(r.BaseRelations()) == 1 {
-		baseIt, err := b.buildBaseRelationIterator(r.BaseRelations()[0], withSubRelations)
+		baseIt, err := b.buildBaseDatastoreIterator(r.BaseRelations()[0], withSubRelations)
 		if err != nil {
 			return nil, err
 		}
-		return NewAlias(r.Name(), baseIt), nil
+		return NewAliasIterator(r.Name(), baseIt), nil
 	}
-	union := NewUnion()
+	subIts := make([]Iterator, 0, len(r.BaseRelations()))
 	for _, br := range r.BaseRelations() {
-		it, err := b.buildBaseRelationIterator(br, withSubRelations)
+		it, err := b.buildBaseDatastoreIterator(br, withSubRelations)
 		if err != nil {
 			return nil, err
 		}
-		union.addSubIterator(it)
+		subIts = append(subIts, it)
 	}
-	return NewAlias(r.Name(), union), nil
+	union := NewUnionIterator(subIts...)
+	return NewAliasIterator(r.Name(), union), nil
 }
 
 func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Iterator, error) {
@@ -158,15 +159,17 @@ func (b *iteratorBuilder) buildIteratorFromPermission(p *schema.Permission) (Ite
 	if err != nil {
 		return nil, err
 	}
-	return NewAlias(p.Name(), baseIt), nil
+	return NewAliasIterator(p.Name(), baseIt), nil
 }
 
 func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op schema.Operation) (Iterator, error) {
+	parentDef := p.Definition()
+
 	switch perm := op.(type) {
 	case *schema.ArrowReference:
-		rel, ok := p.Parent().GetRelation(perm.Left())
+		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), p.Parent().Name())
+			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), parentDef.Name())
 		}
 		return b.buildArrowIterators(rel, perm.Right())
 
@@ -174,32 +177,32 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 		return NewFixedIterator(), nil
 
 	case *schema.SelfReference:
-		return NewSelf(p.Name(), p.Parent().Name()), nil
+		return NewSelfIterator(p.Name(), p.Definition().Name()), nil
 
 	case *schema.RelationReference:
-		return b.buildIteratorFromSchemaInternal(p.Parent().Name(), perm.RelationName(), true)
+		return b.buildIteratorFromSchemaInternal(parentDef.Name(), perm.RelationName(), true)
 
 	case *schema.UnionOperation:
-		union := NewUnion()
+		subIts := make([]Iterator, 0, len(perm.Children()))
 		for _, op := range perm.Children() {
 			it, err := b.buildIteratorFromOperation(p, op)
 			if err != nil {
 				return nil, err
 			}
-			union.addSubIterator(it)
+			subIts = append(subIts, it)
 		}
-		return union, nil
+		return NewUnionIterator(subIts...), nil
 
 	case *schema.IntersectionOperation:
-		inter := NewIntersection()
+		subIts := make([]Iterator, 0, len(perm.Children()))
 		for _, op := range perm.Children() {
 			it, err := b.buildIteratorFromOperation(p, op)
 			if err != nil {
 				return nil, err
 			}
-			inter.addSubIterator(it)
+			subIts = append(subIts, it)
 		}
-		return inter, nil
+		return NewIntersectionIterator(subIts...), nil
 
 	case *schema.ExclusionOperation:
 		mainIt, err := b.buildIteratorFromOperation(p, perm.Left())
@@ -212,12 +215,12 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 			return nil, err
 		}
 
-		return NewExclusion(mainIt, excludedIt), nil
+		return NewExclusionIterator(mainIt, excludedIt), nil
 
 	case *schema.FunctionedArrowReference:
-		rel, ok := p.Parent().GetRelation(perm.Left())
+		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), p.Parent().Name())
+			return nil, fmt.Errorf("BuildIteratorFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), parentDef.Name())
 		}
 
 		switch perm.Function() {
@@ -237,8 +240,8 @@ func (b *iteratorBuilder) buildIteratorFromOperation(p *schema.Permission, op sc
 	return nil, fmt.Errorf("uncovered schema permission operation: %T", op)
 }
 
-func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
-	base := NewRelationIterator(br)
+func (b *iteratorBuilder) buildBaseDatastoreIterator(br *schema.BaseRelation, withSubRelations bool) (Iterator, error) {
+	base := NewDatastoreIterator(br)
 
 	// Collect caveat to apply at top level instead of wrapping immediately
 	if br.Caveat() != "" {
@@ -283,19 +286,19 @@ func (b *iteratorBuilder) buildBaseRelationIterator(br *schema.BaseRelation, wit
 	}
 
 	// We must check the effective arrow of a subrelation if we have one
-	arrow := NewArrow(base.Clone(), rightside)
-	union := NewUnion(base, arrow)
+	arrow := NewArrowIterator(base.Clone(), rightside)
+	union := NewUnionIterator(base, arrow)
 	return union, nil
 }
 
 // buildArrowIterators creates a union of arrow iterators for the given relation and right-hand side
 func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
-	union := NewUnion()
+	subIts := make([]Iterator, 0, len(rel.BaseRelations()))
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
 	for _, br := range rel.BaseRelations() {
-		left, err := b.buildBaseRelationIterator(br, false)
+		left, err := b.buildBaseDatastoreIterator(br, false)
 		if err != nil {
 			return nil, err
 		}
@@ -306,7 +309,7 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 			// applies to some of them. If there's only one base relation, we should error.
 			if errors.As(err, &RelationNotFoundError{}) {
 				if hasMultipleBaseRelations {
-					union.addSubIterator(NewEmptyFixedIterator())
+					subIts = append(subIts, NewFixedIterator())
 					continue
 				}
 				lastNotFoundError = err
@@ -314,26 +317,36 @@ func (b *iteratorBuilder) buildArrowIterators(rel *schema.Relation, rightSide st
 			}
 			return nil, err
 		}
-		arrow := NewArrow(left, right)
-		union.addSubIterator(arrow)
+		// Use NewSchemaArrow only for BaseRelations without subrelations.
+		// BaseRelations with subrelations (like folder#parent) should use regular arrows
+		// because they need strict subrelation matching.
+		var arrow Iterator
+		if br.Subrelation() != "" && br.Subrelation() != tuple.Ellipsis {
+			// Has a specific subrelation: use regular arrow (no ellipsis queries)
+			arrow = NewArrowIterator(left, right)
+		} else {
+			// No subrelation or ellipsis: use schema arrow (with ellipsis queries)
+			arrow = NewSchemaArrow(left, right)
+		}
+		subIts = append(subIts, arrow)
 	}
 
 	// If we have no sub-iterators and only have a not-found error, return that error
-	if len(union.Subiterators()) == 0 && lastNotFoundError != nil {
+	if len(subIts) == 0 && lastNotFoundError != nil {
 		return nil, lastNotFoundError
 	}
 
-	return union, nil
+	return NewUnionIterator(subIts...), nil
 }
 
 // buildIntersectionArrowIterators creates a union of intersection arrow iterators for the given relation and right-hand side
 func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, rightSide string) (Iterator, error) {
-	union := NewUnion()
+	subIts := make([]Iterator, 0, len(rel.BaseRelations()))
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
 	for _, br := range rel.BaseRelations() {
-		left, err := b.buildBaseRelationIterator(br, false)
+		left, err := b.buildBaseDatastoreIterator(br, false)
 		if err != nil {
 			return nil, err
 		}
@@ -344,7 +357,7 @@ func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, 
 			// applies to some of them. If there's only one base relation, we should error.
 			if errors.As(err, &RelationNotFoundError{}) {
 				if hasMultipleBaseRelations {
-					union.addSubIterator(NewEmptyFixedIterator())
+					subIts = append(subIts, NewFixedIterator())
 					continue
 				}
 				lastNotFoundError = err
@@ -352,16 +365,16 @@ func (b *iteratorBuilder) buildIntersectionArrowIterators(rel *schema.Relation, 
 			}
 			return nil, err
 		}
-		intersectionArrow := NewIntersectionArrow(left, right)
-		union.addSubIterator(intersectionArrow)
+		intersectionArrow := NewIntersectionArrowIterator(left, right)
+		subIts = append(subIts, intersectionArrow)
 	}
 
 	// If we have no sub-iterators and only have a not-found error, return that error
-	if len(union.Subiterators()) == 0 && lastNotFoundError != nil {
+	if len(subIts) == 0 && lastNotFoundError != nil {
 		return nil, lastNotFoundError
 	}
 
-	return union, nil
+	return NewUnionIterator(subIts...), nil
 }
 
 func functionTypeString(ft schema.FunctionType) string {

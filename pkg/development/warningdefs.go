@@ -17,6 +17,7 @@ var lintRelationReferencesParentType = relationCheck{
 		ctx context.Context,
 		relation *corev1.Relation,
 		def *schema.Definition,
+		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentDef := def.Namespace()
 		if strings.HasSuffix(relation.Name, parentDef.Name) {
@@ -48,6 +49,7 @@ var lintPermissionReferencingItself = computedUsersetCheck{
 		computedUserset *corev1.ComputedUserset,
 		sourcePosition *corev1.SourcePosition,
 		def *schema.Definition,
+		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 		permName := parentRelation.Name
@@ -71,6 +73,7 @@ var lintArrowReferencingUnreachable = ttuCheck{
 		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
 		def *schema.Definition,
+		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
@@ -86,7 +89,7 @@ var lintArrowReferencingUnreachable = ttuCheck{
 
 		wasFound := false
 		for _, subjectType := range allowedSubjectTypes {
-			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.Namespace)
+			nts, err := ts.GetDefinition(ctx, subjectType.Namespace)
 			if err != nil {
 				return nil, err
 			}
@@ -128,6 +131,7 @@ var lintArrowOverSubRelation = ttuCheck{
 		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
 		def *schema.Definition,
+		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
@@ -175,6 +179,7 @@ var lintArrowReferencingRelation = ttuCheck{
 		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
 		def *schema.Definition,
+		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
@@ -201,7 +206,7 @@ var lintArrowReferencingRelation = ttuCheck{
 				continue
 			}
 
-			nts, err := def.TypeSystem().GetDefinition(ctx, subjectType.Namespace)
+			nts, err := ts.GetDefinition(ctx, subjectType.Namespace)
 			if err != nil {
 				return nil, err
 			}

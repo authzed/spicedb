@@ -297,7 +297,7 @@ func BenchmarkQueryRelsWithIntegrity(b *testing.B) {
 			require.NoError(b, err)
 
 			_, err = pds.ReadWriteTx(b.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-				for i := 0; i < 1000; i++ {
+				for i := range 1000 {
 					rel := tuple.MustParse(fmt.Sprintf("resource:foo#viewer@user:user-%d", i))
 					if err := tx.WriteRelationships(b.Context(), []tuple.RelationshipUpdate{
 						tuple.Create(rel),

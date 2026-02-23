@@ -238,7 +238,7 @@ func checkServiceMethods[T any](
 	client T,
 	handlers map[string]func(t *testing.T, client T) metadata.MD,
 ) {
-	et := reflect.TypeOf(new(T)).Elem()
+	et := reflect.TypeFor[T]()
 	for i := 0; i < et.NumMethod(); i++ {
 		methodName := et.Method(i).Name
 		t.Run(methodName, func(t *testing.T) {

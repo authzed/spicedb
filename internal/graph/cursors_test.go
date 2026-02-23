@@ -271,9 +271,9 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	}, limits, 1)
 	require.NoError(t, err)
 
-	items := []int{}
-	expected := []int{}
-	for i := 0; i < 500; i++ {
+	items := make([]int, 0, 500)    //nolint:prealloc  // for some reason prealloc thinks this should be doubled
+	expected := make([]int, 0, 500) //nolint:prealloc  // for some reason prealloc thinks this should be doubled
+	for i := range 500 {
 		items = append(items, i)
 		expected = append(expected, i*10)
 	}
@@ -343,6 +343,44 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, expected, parentStream.Results())
+}
+
+// This test is exactly like the above, except with a malformed cursor section
+func TestWithDatastoreCursorInCursorWithMalformedCursor(t *testing.T) {
+	limits := newLimitTracker(500)
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		DispatchVersion: 1,
+		// NOTE: this is what we're expecting to cause the error
+		Sections: []string{"this is not a valid tuple"},
+	}, limits, 1)
+	require.NoError(t, err)
+
+	encountered := []int{}
+	lock := sync.Mutex{}
+
+	parentStream := dispatch.NewCollectingDispatchStream[int](t.Context())
+	err = withDatastoreCursorInCursor[int, int](
+		t.Context(),
+		ci,
+		parentStream,
+		5,
+		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
+			return []itemAndPostCursor[int]{
+				{1, options.ToCursor(tuple.MustParse("document:foo#viewer@user:tom"))},
+				{2, options.ToCursor(tuple.MustParse("document:foo#viewer@user:sarah"))},
+				{3, options.ToCursor(tuple.MustParse("document:foo#viewer@user:fred"))},
+			}, nil
+		},
+		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
+			lock.Lock()
+			encountered = append(encountered, item)
+			lock.Unlock()
+
+			return stream.Publish(item * 10)
+		})
+
+	require.ErrorContains(t, err, "could not parse")
 }
 
 func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {

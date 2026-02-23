@@ -79,10 +79,8 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 	var numSucceeded, numFailed atomic.Int32
 	failures := make(chan error, 10)
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			_, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				return tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
 					ResourceType: testfixtures.DocumentNS.Name,
@@ -94,7 +92,7 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 			} else {
 				numSucceeded.Add(1)
 			}
-		}()
+		})
 	}
 
 	// Wait for all goroutines to finish.

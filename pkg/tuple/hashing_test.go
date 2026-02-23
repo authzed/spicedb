@@ -11,7 +11,6 @@ func TestCanonicalBytes(t *testing.T) {
 	foundBytes := make(map[string]string)
 
 	for _, tc := range testCases {
-		tc := tc
 		if tc.relFormat.Resource.ObjectType == "" {
 			continue
 		}

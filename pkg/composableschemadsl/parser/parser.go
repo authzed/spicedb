@@ -267,7 +267,7 @@ func (p *sourceParser) consumeUseFlag(afterDefinition bool) AstNode {
 	}
 
 	if _, ok := lexer.Flags[useFlag]; !ok {
-		opts := strings.Join(slices.Collect(maps.Keys(lexer.Flags)), ", ")
+		opts := strings.Join(slices.Sorted(maps.Keys(lexer.Flags)), ", ")
 		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, opts)
 		return useNode
 	}

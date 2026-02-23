@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
@@ -155,13 +156,7 @@ func (p *sourceParser) consumeToken() commentedLexeme {
 
 // isToken returns true if the current token matches one of the types given.
 func (p *sourceParser) isToken(types ...lexer.TokenType) bool {
-	for _, kind := range types {
-		if p.currentToken.Kind == kind {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(types, p.currentToken.Kind)
 }
 
 // isKeyword returns true if the current token is a keyword matching that given.

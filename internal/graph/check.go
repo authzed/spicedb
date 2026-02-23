@@ -1066,7 +1066,7 @@ func run[T any, R withError](
 	defer cancelFn()
 
 	results := make([]R, 0, len(children))
-	for i := 0; i < len(children); i++ {
+	for range children {
 		select {
 		case result := <-resultChan:
 			results = append(results, result)
@@ -1104,7 +1104,7 @@ func union[T any](
 	responseMetadata := emptyMetadata
 	membershipSet := NewMembershipSet()
 
-	for i := 0; i < len(children); i++ {
+	for range children {
 		select {
 		case result := <-resultChan:
 			log.Ctx(ctx).Trace().Object("anyResult", result.Resp).Send()
@@ -1156,7 +1156,7 @@ func all[T any](
 	defer cancelFn()
 
 	var membershipSet *MembershipSet
-	for i := 0; i < len(children); i++ {
+	for range children {
 		select {
 		case result := <-resultChan:
 			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
@@ -1278,7 +1278,6 @@ func dispatchAllAsync[T any, R withError](
 ) {
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrencyLimit, len(children))
 	for _, currentChild := range children {
-		currentChild := currentChild
 		tr.Add(func(ctx context.Context) error {
 			result := handler(ctx, crc, currentChild)
 			resultChan <- result

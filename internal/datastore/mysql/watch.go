@@ -100,7 +100,6 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
-				changeToWrite := changeToWrite
 				if !sendChange(changeToWrite) {
 					return
 				}

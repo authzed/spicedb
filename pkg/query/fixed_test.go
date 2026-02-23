@@ -124,8 +124,9 @@ func TestFixedIterator_Types(t *testing.T) {
 
 		resourceType, err := fixed.ResourceType()
 		require.NoError(err)
-		require.Equal("document", resourceType.Type)
-		require.Empty(resourceType.Subrelation) // Relations vary, so subrelation is empty
+		require.Len(resourceType, 1)
+		require.Equal("document", resourceType[0].Type)
+		require.Equal(tuple.Ellipsis, resourceType[0].Subrelation)
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
@@ -152,8 +153,7 @@ func TestFixedIterator_Types(t *testing.T) {
 
 		resourceType, err := fixed.ResourceType()
 		require.NoError(err)
-		require.Empty(resourceType.Type)
-		require.Empty(resourceType.Subrelation)
+		require.Empty(resourceType)
 
 		subjectTypes, err := fixed.SubjectTypes()
 		require.NoError(err)

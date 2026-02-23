@@ -326,7 +326,6 @@ func TestValidateRelationshipOperations(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			req := require.New(t)

@@ -80,7 +80,7 @@ func TestForEachChunkOverflowPanic(t *testing.T) {
 	datasize := math.MaxUint16
 	chunksize := uint16(50)
 	data := make([]int, 0, datasize)
-	for i := 0; i < datasize; i++ {
+	for i := range datasize {
 		data = append(data, i)
 	}
 
@@ -99,12 +99,11 @@ func TestForEachChunkOverflowIncorrect(t *testing.T) {
 
 	chunksize := uint16(50)
 	for _, datasize := range []int{math.MaxUint16 + int(chunksize), 10_000_000} {
-		datasize := datasize
 		t.Run(fmt.Sprintf("test-%d-%d", datasize, chunksize), func(t *testing.T) {
 			t.Parallel()
 
 			data := make([]int, 0, datasize)
-			for i := 0; i < datasize; i++ {
+			for i := range datasize {
 				data = append(data, i)
 			}
 

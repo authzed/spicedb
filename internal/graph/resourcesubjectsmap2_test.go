@@ -142,7 +142,6 @@ func TestResourcesSubjectsMap2MapFoundResources(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			rsm := newResourcesSubjectMap2(&core.RelationReference{
 				Namespace: "group",

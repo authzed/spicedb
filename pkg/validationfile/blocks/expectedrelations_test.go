@@ -112,7 +112,6 @@ func TestValidationString(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			vs := ValidationString(tc.input)
@@ -251,7 +250,6 @@ document:seconddoc#view:
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			per := ParsedExpectedRelations{}

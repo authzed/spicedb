@@ -208,7 +208,7 @@ func (c *CaveatIterator) ID() string {
 	return c.id
 }
 
-func (c *CaveatIterator) ResourceType() (ObjectType, error) {
+func (c *CaveatIterator) ResourceType() ([]ObjectType, error) {
 	// Delegate to the wrapped iterator
 	return c.subiterator.ResourceType()
 }

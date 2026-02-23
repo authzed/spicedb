@@ -209,8 +209,8 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.WithS
 		exceptions = make([]SubjectAndCaveat, 0, len(exceptionsStringsSlice))
 		for _, exceptionString := range exceptionsStringsSlice {
 			isCaveated := false
-			if strings.HasSuffix(exceptionString, "[...]") {
-				exceptionString = strings.TrimSuffix(exceptionString, "[...]")
+			if before, ok0 := strings.CutSuffix(exceptionString, "[...]"); ok0 {
+				exceptionString = before
 				isCaveated = true
 			}
 

@@ -204,14 +204,14 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 		}
 
 		var caveatSourceCode strings.Builder
-		caveatSourceCode.WriteString(fmt.Sprintf("caveat %s(", caveatDef.Name))
+		fmt.Fprintf(&caveatSourceCode, "caveat %s(", caveatDef.Name)
 		index := 0
 		for paramName, paramType := range caveatDef.ParameterTypes {
 			if index > 0 {
 				caveatSourceCode.WriteString(", ")
 			}
 
-			caveatSourceCode.WriteString(fmt.Sprintf("%s %s", paramName, caveats.ParameterTypeString(paramType)))
+			fmt.Fprintf(&caveatSourceCode, "%s %s", paramName, caveats.ParameterTypeString(paramType))
 			index++
 		}
 		caveatSourceCode.WriteString(") {\n\t// ...\n}")

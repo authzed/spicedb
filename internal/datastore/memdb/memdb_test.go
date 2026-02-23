@@ -42,7 +42,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 
 	// Make the namespace very large to increase the likelihood of overlapping
 	relationList := make([]*corev1.Relation, 0, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		relationList = append(relationList, ns.MustRelation(fmt.Sprintf("reader%d", i), nil))
 	}
 
@@ -94,12 +94,11 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 	// Kick off a number of writes to ensure at least one hits an error.
 	g := errgroup.Group{}
 
-	for i := 0; i < 50; i++ {
-		i := i
+	for i := range 50 {
 		g.Go(func() error {
 			_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				updates := []tuple.RelationshipUpdate{}
-				for j := 0; j < 500; j++ {
+				for j := range 500 {
 					updates = append(updates, tuple.Touch(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))))
 				}
 
@@ -160,7 +159,7 @@ func BenchmarkQueryRelationships(b *testing.B) {
 	ctx := b.Context()
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		updates := []tuple.RelationshipUpdate{}
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			updates = append(updates, tuple.Touch(tuple.MustParse(fmt.Sprintf("document:doc-%d#viewer@user:tom", i))))
 		}
 

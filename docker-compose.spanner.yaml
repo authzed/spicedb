@@ -36,15 +36,27 @@ services:
     command: "datastore migrate head"
     networks:
       - "default"
+  nginx:
+    image: "nginx:latest"
+    ports:
+      - "50051:50051" # grpc
+      - "8443:8443" # http
+    volumes:
+      - "./development/nginx.conf:/etc/nginx/nginx.conf"
+    depends_on:
+      spicedb-1:
+        condition: "service_healthy"
+      spicedb-2:
+        condition: "service_healthy"
   spicedb-1:
     container_name: "spicedb-1"
     build: "."
     command: "serve"
     restart: "no"
     ports:
-      - "9090:9090" # prometheus metrics
-      - "50051:50051" # grpc endpoint
-      - "8443:8443" # http endpoint
+      - "9090" # prometheus metrics
+      - "50051" # grpc endpoint
+      - "8443" # http endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
@@ -69,7 +81,7 @@ services:
       otel-collector:
         condition: "service_started"
     healthcheck:
-      test: ["CMD", "/bin/grpc_health_probe", "-addr=spicedb:50051"]
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
       interval: "5s"
       timeout: "30s"
       retries: 3
@@ -80,12 +92,13 @@ services:
     restart: "no"
     ports:
       - "9090" # prometheus metrics
+      - "8443" # http endpoint
       - "50051" # grpc endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
-      - "SPICEDB_HTTP_ENABLED=false"
+      - "SPICEDB_HTTP_ENABLED=true"
       - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
       - "SPICEDB_DATASTORE_ENGINE=spanner"
       - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
@@ -104,6 +117,11 @@ services:
         condition: "service_completed_successfully"
       otel-collector:
         condition: "service_started"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
+      interval: "5s"
+      timeout: "30s"
+      retries: 3
   prometheus:
     image: "prom/prometheus:v2.47.0"
     command:

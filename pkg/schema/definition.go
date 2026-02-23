@@ -76,7 +76,7 @@ const (
 )
 
 // NewDefinition returns a new type definition for the given definition proto.
-func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition, error) {
+func NewDefinition(nsDef *core.NamespaceDefinition) (*Definition, error) {
 	relationMap := make(map[string]*core.Relation, len(nsDef.GetRelation()))
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
@@ -92,7 +92,6 @@ func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition
 	}
 
 	return &Definition{
-		ts:          ts,
 		nsDef:       nsDef,
 		relationMap: relationMap,
 	}, nil
@@ -101,7 +100,6 @@ func NewDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition
 // Definition represents typing information found in a definition.
 // It also provides better ergonomic accessors to the defintion's type information.
 type Definition struct {
-	ts          *TypeSystem
 	nsDef       *core.NamespaceDefinition
 	relationMap map[string]*core.Relation
 }
@@ -109,11 +107,6 @@ type Definition struct {
 // Namespace is the NamespaceDefinition for which the type system was constructed.
 func (def *Definition) Namespace() *core.NamespaceDefinition {
 	return def.nsDef
-}
-
-// TypeSystem returns the typesystem for this definition
-func (def *Definition) TypeSystem() *TypeSystem {
-	return def.ts
 }
 
 // HasTypeInformation returns true if the relation with the given name exists and has type

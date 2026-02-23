@@ -112,7 +112,7 @@ func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, ex
 	if err != nil {
 		return err
 	}
-	foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(ctx, caveatNames.AsSlice())
+	foundDefs, err := schemaReader.LookupCaveatDefinitionsByNames(ctx, caveatNames.AsSlice())
 	if err != nil {
 		return err
 	}

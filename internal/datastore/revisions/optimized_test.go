@@ -104,7 +104,6 @@ func TestOptimizedRevisionCache(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -164,7 +163,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	defer cancel()
 
 	g := errgroup.Group{}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		g.Go(func() error {
 			revision, err := or.OptimizedRevision(ctx)
 			if err != nil {

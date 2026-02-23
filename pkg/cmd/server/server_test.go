@@ -627,17 +627,11 @@ func TestBuildDispatchServer(t *testing.T) {
 			mockDatastore := dsmocks.NewMockDatastore(ctrl)
 			mockDispatcher := dispatchmocks.NewMockDispatcher(ctrl)
 
-			closeables := closeableStack{}
-			t.Cleanup(func() {
-				_ = closeables.Close()
-			})
-
 			sampler := memoryprotection.NewNoopMemoryUsageProvider()
 
-			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, &closeables, nil)
+			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, nil)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
-			require.Len(t, closeables.closers, 1)
 			require.Len(t, tc.config.DispatchUnaryMiddleware, tc.expectedDispatchUnnaryMiddleware)
 			require.Len(t, tc.config.DispatchStreamingMiddleware, tc.expectedDispatchStreamingMiddleware)
 		})

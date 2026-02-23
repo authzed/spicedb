@@ -241,8 +241,6 @@ func CursoredParallelIterators[I any](
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrency, len(itersToRun))
 	collectors := make([]chan item[I], len(itersToRun))
 	for i, iter := range itersToRun {
-		i := i
-		iter := iter
 		collector := make(chan item[I], parallelIteratorResultsBufferSize)
 		collectors[i] = collector
 

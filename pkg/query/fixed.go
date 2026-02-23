@@ -2,11 +2,24 @@ package query
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// sortObjectTypes sorts a slice of ObjectType for deterministic ordering.
+// This prevents test flakiness from nondeterministic map iteration.
+func sortObjectTypes(types []ObjectType) {
+	sort.Slice(types, func(i, j int) bool {
+		if types[i].Type != types[j].Type {
+			return types[i].Type < types[j].Type
+		}
+		return types[i].Subrelation < types[j].Subrelation
+	})
+}
 
 // FixedIterator represents a fixed set of pre-computed paths.
 // This is often useful for testing, but can also be used in rare situations
@@ -32,8 +45,8 @@ func NewFixedIterator(paths ...Path) *FixedIterator {
 		// Note: For simplicity, we use the resource type from the first path.
 		// Ideally, all paths should have the same resource type, but this isn't strictly enforced.
 		resourceType = ObjectType{
-			Type: paths[0].Resource.ObjectType,
-			// Subrelation is left empty since relations can vary
+			Type:        paths[0].Resource.ObjectType,
+			Subrelation: tuple.Ellipsis, // Resource types use ellipsis
 		}
 
 		// Collect subject types from all paths
@@ -52,6 +65,9 @@ func NewFixedIterator(paths ...Path) *FixedIterator {
 	for _, st := range subjectTypeMap {
 		subjectTypes = append(subjectTypes, st)
 	}
+
+	// Sort to ensure deterministic order (prevent test flakiness from map iteration)
+	sortObjectTypes(subjectTypes)
 
 	return &FixedIterator{
 		id:           uuid.NewString(),
@@ -159,8 +175,11 @@ func (f *FixedIterator) ID() string {
 	return f.id
 }
 
-func (f *FixedIterator) ResourceType() (ObjectType, error) {
-	return f.resourceType, nil
+func (f *FixedIterator) ResourceType() ([]ObjectType, error) {
+	if f.resourceType.Type == "" {
+		return []ObjectType{}, nil
+	}
+	return []ObjectType{f.resourceType}, nil
 }
 
 func (f *FixedIterator) SubjectTypes() ([]ObjectType, error) {

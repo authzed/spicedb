@@ -83,16 +83,24 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 	if cc.CacheKindForTesting != "" {
 		switch cc.CacheKindForTesting {
 		case "theine":
-			return cache.NewTheineCache[K, V](&cache.Config{
+			return cache.NewTheineCacheWithMetrics[K, V](cc.Name, &cache.Config{
 				MaxCost:     intMaxCost,
 				NumCounters: cc.NumCounters,
 				DefaultTTL:  cc.defaultTTL,
 			})
 
 		case "otter":
-			return cache.NewOtterCache[K, V](&cache.Config{
-				MaxCost:    intMaxCost,
-				DefaultTTL: cc.defaultTTL,
+			if cc.Metrics {
+				return cache.NewOtterCacheWithMetrics[K, V](cc.Name, &cache.Config{
+					MaxCost:     intMaxCost,
+					NumCounters: cc.NumCounters,
+					DefaultTTL:  cc.defaultTTL,
+				})
+			}
+			return cache.NewOtterCache[K, V](cc.Name, &cache.Config{
+				MaxCost:     intMaxCost,
+				NumCounters: cc.NumCounters,
+				DefaultTTL:  cc.defaultTTL,
 			})
 
 		default:
@@ -129,9 +137,8 @@ func parsePercent(str string, freeMem uint64) (uint64, error) {
 	return freeMem / 100 * parsedPercent, nil
 }
 
-// MustRegisterCacheFlags registers flags used to configure SpiceDB's various
-// caches.
-func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string, config, defaults *CacheConfig) {
+// RegisterCacheFlags registers flags used to configure SpiceDB's various caches.
+func RegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string, config, defaults *CacheConfig) error {
 	config.Name = defaults.Name
 	flagPrefix = cmp.Or(flagPrefix, "cache")
 	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound (in bytes or as a percent of available memory) of the cache for "+flagDescription)
@@ -142,6 +149,7 @@ func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription st
 	// Hidden flags.
 	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
 	if err := flags.MarkHidden(flagPrefix + "-kind-for-testing"); err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }

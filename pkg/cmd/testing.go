@@ -1,7 +1,9 @@
 package cmd
 
 import (
-	"context"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -29,6 +31,7 @@ func RegisterTestingFlags(cmd *cobra.Command, config *testserver.Config) {
 	cmd.Flags().Uint32Var(&config.MaxDeleteRelationshipsLimit, "max-delete-relationships-limit", 1000, "maximum number of relationships that can be deleted in a single request")
 	cmd.Flags().Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
 	cmd.Flags().Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
+	cmd.Flags().DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 5*time.Second, "time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit")
 	util.RegisterCommonFlags(cmd)
 }
 
@@ -39,14 +42,13 @@ func NewTestingCommand(programName string, config *testserver.Config) *cobra.Com
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			signalctx := SignalContextWithGracePeriod(
-				context.Background(),
-				0,
-			)
-			srv, err := config.Complete()
+			srv, err := config.Complete(cmd.Context())
 			if err != nil {
 				return err
 			}
+			signalctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+
 			return srv.Run(signalctx)
 		}),
 	}

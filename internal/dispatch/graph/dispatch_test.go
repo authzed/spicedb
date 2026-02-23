@@ -29,7 +29,7 @@ func TestDispatchChunking(t *testing.T) {
 
 	resources := make([]tuple.Relationship, 0, math.MaxUint16+1)
 	enabled := make([]tuple.Relationship, 0, math.MaxUint16+1)
-	for i := 0; i < math.MaxUint16+1; i++ {
+	for i := range math.MaxUint16 + 1 {
 		resources = append(resources, tuple.MustParse(fmt.Sprintf("res:res1#owner@user:user%d", i)))
 		enabled = append(enabled, tuple.MustParse(fmt.Sprintf("user:user%d#its_a_me@user:user%d", i, i)))
 	}

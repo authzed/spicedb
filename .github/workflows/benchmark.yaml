@@ -1,10 +1,10 @@
 ---
 name: "Main"
 on: # yamllint disable-line rule:truthy
+  # NOTE! Do NOT add any other "on", because this workflow has permission to write to the repo!
   push:
     branches:
       - "main"
-  # NOTE! Do NOT add any other "on", because this workflow has permission to write to the repo!
 
 permissions:
   # permission to update benchmark contents in gh-pages branch
@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: "actions/setup-go@v6.1.0"
+      - uses: "actions/setup-go@v6.2.0"
         with:
           go-version-file: "./go.mod"
           cache-dependency-path: "./go.sum"
@@ -58,7 +58,7 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: "Save benchmark JSON"
-        uses: "actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb" # v5.0.1
+        uses: "actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306" # v5.0.3
         with:
           path: "./cache/benchmark-data.json"
           # Save with commit hash to avoid "cache already exists"

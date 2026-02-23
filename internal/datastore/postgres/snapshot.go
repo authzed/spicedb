@@ -190,13 +190,7 @@ func (s pgSnapshot) anyTXVisible(first uint64, others []uint64) bool {
 	if s.txVisible(first) {
 		return true
 	}
-	for _, txid := range others {
-		if s.txVisible(txid) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(others, s.txVisible)
 }
 
 // markComplete will create a new snapshot where the specified transaction will be marked as

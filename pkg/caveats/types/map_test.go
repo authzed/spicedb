@@ -54,7 +54,6 @@ func TestMapSubtree(t *testing.T) {
 		},
 	}
 	for _, tt := range tcs {
-		tt := tt
 		t.Run("", func(t *testing.T) {
 			require.Equal(t, tt.subtree, subtree(tt.map1, tt.map2))
 		})

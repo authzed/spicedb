@@ -118,7 +118,6 @@ func relationsReferencing(ctx context.Context, arrowSet *ArrowSet, res FullSchem
 	key := namespaceName + "#" + relationName
 	foundArrows, _ := arrowSet.arrowsByFullTuplesetRelation.Get(key)
 	for _, arrow := range foundArrows {
-		arrow := arrow
 		foundReferences = append(foundReferences, RelationReferenceInfo{
 			Relation: &core.RelationReference{
 				Namespace: namespaceName,
@@ -218,6 +217,9 @@ func setOperationReferencesRelation(ctx context.Context, so *core.SetOperation, 
 			// Nothing to do
 
 		case *core.SetOperation_Child_XNil:
+			// Nothing to do
+
+		case *core.SetOperation_Child_XSelf:
 			// Nothing to do
 
 		default:

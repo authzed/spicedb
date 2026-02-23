@@ -79,7 +79,6 @@ func assertParity(t *testing.T, filenames []string, emptyProto definitionInterfa
 
 func TestSerialization(t *testing.T) {
 	for _, test := range serializationTests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 

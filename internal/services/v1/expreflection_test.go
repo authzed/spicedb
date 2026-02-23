@@ -779,7 +779,6 @@ func TestExpSchemaFiltering(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			sf, err := newexpSchemaFilters(tc.filters)
 			require.NoError(t, err)
@@ -896,7 +895,6 @@ func TestExpNewexpSchemaFilters(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := newexpSchemaFilters(tc.filters)
 			if tc.err == "" {

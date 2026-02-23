@@ -27,7 +27,7 @@ func (s StatisticsOptimizer) Optimize(it Iterator) (Iterator, bool, error) {
 // reorderUnion reorders union subiterators by selectivity (higher first).
 // Higher selectivity branches are more likely to short-circuit, making unions more efficient.
 func (s StatisticsOptimizer) reorderUnion(it Iterator) (Iterator, bool, error) {
-	union, ok := it.(*Union)
+	union, ok := it.(*UnionIterator)
 	if !ok {
 		return it, false, nil
 	}
@@ -37,14 +37,14 @@ func (s StatisticsOptimizer) reorderUnion(it Iterator) (Iterator, bool, error) {
 		return it, changed, err
 	}
 
-	return NewUnion(newSubs...), true, nil
+	return NewUnionIterator(newSubs...), true, nil
 }
 
 // reorderIntersection reorders intersection subiterators by selectivity (lower first).
 // Lower selectivity (more selective) branches filter out more results early,
 // reducing work for subsequent branches.
 func (s StatisticsOptimizer) reorderIntersection(it Iterator) (Iterator, bool, error) {
-	intersection, ok := it.(*Intersection)
+	intersection, ok := it.(*IntersectionIterator)
 	if !ok {
 		return it, false, nil
 	}
@@ -54,7 +54,7 @@ func (s StatisticsOptimizer) reorderIntersection(it Iterator) (Iterator, bool, e
 		return it, changed, err
 	}
 
-	return NewIntersection(newSubs...), true, nil
+	return NewIntersectionIterator(newSubs...), true, nil
 }
 
 // rebalanceArrow rebalances arrow operators to minimize total cost.
@@ -65,20 +65,20 @@ func (s StatisticsOptimizer) reorderIntersection(it Iterator) (Iterator, bool, e
 // The key insight is that arrow operators are left-associative but we can
 // restructure them based on cost estimates.
 func (s StatisticsOptimizer) rebalanceArrow(it Iterator) (Iterator, bool, error) {
-	arrow, ok := it.(*Arrow)
+	arrow, ok := it.(*ArrowIterator)
 	if !ok {
 		return it, false, nil
 	}
 
 	// Check if left side is an arrow: (A->B)->C
-	if leftArrow, ok := arrow.left.(*Arrow); ok {
+	if leftArrow, ok := arrow.left.(*ArrowIterator); ok {
 		if alternative, changed, err := s.tryRebalance(arrow, leftArrow, true); err != nil || changed {
 			return alternative, changed, err
 		}
 	}
 
 	// Check if right side is an arrow: A->(B->C)
-	if rightArrow, ok := arrow.right.(*Arrow); ok {
+	if rightArrow, ok := arrow.right.(*ArrowIterator); ok {
 		if alternative, changed, err := s.tryRebalance(arrow, rightArrow, false); err != nil || changed {
 			return alternative, changed, err
 		}
@@ -89,7 +89,7 @@ func (s StatisticsOptimizer) rebalanceArrow(it Iterator) (Iterator, bool, error)
 
 // tryRebalance attempts to rebalance an arrow with a nested arrow on one side.
 // Returns the rebalanced iterator and true if the rebalancing was cheaper, nil and false otherwise.
-func (s StatisticsOptimizer) tryRebalance(original *Arrow, nestedArrow *Arrow, isLeftSide bool) (Iterator, bool, error) {
+func (s StatisticsOptimizer) tryRebalance(original *ArrowIterator, nestedArrow *ArrowIterator, isLeftSide bool) (Iterator, bool, error) {
 	// Calculate cost of original
 	originalCost, err := s.Source.Cost(original)
 	if err != nil {
@@ -97,18 +97,18 @@ func (s StatisticsOptimizer) tryRebalance(original *Arrow, nestedArrow *Arrow, i
 	}
 
 	// Build the alternative based on which side the nested arrow is on
-	var alternative *Arrow
+	var alternative *ArrowIterator
 
 	if isLeftSide {
 		// Original: (A->B)->C
 		// Alternative: A->(B->C)
-		innerArrow := NewArrow(nestedArrow.right, original.right)
-		alternative = NewArrow(nestedArrow.left, innerArrow)
+		innerArrow := NewArrowIterator(nestedArrow.right, original.right)
+		alternative = NewArrowIterator(nestedArrow.left, innerArrow)
 	} else {
 		// Original: A->(B->C)
 		// Alternative: (A->B)->C
-		innerArrow := NewArrow(original.left, nestedArrow.left)
-		alternative = NewArrow(innerArrow, nestedArrow.right)
+		innerArrow := NewArrowIterator(original.left, nestedArrow.left)
+		alternative = NewArrowIterator(innerArrow, nestedArrow.right)
 	}
 
 	// Calculate cost of alternative

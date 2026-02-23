@@ -53,7 +53,7 @@ func TestRESTGateway(t *testing.T) {
 	require.NoError(err)
 	req.Header.Add("Authorization", "Bearer notcorrect")
 
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req) //nolint:gosec  // SSRF isn't an issue in a test
 	require.NoError(err)
 
 	body, err = io.ReadAll(resp.Body)
@@ -70,7 +70,7 @@ func TestRESTGateway(t *testing.T) {
 	require.NoError(err)
 	req.Header.Add("Authorization", "Bearer somerandomkeyhere")
 
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req) //nolint:gosec  // SSRF isn't an issue in a test
 	require.NoError(err)
 
 	body, err = io.ReadAll(resp.Body)
@@ -85,7 +85,7 @@ func TestRESTGateway(t *testing.T) {
 	require.NoError(err)
 	watchReq.Header.Add("Authorization", "Bearer notcorrect")
 
-	watchResp, err := http.DefaultClient.Do(watchReq)
+	watchResp, err := http.DefaultClient.Do(watchReq) //nolint:gosec  // SSRF isn't an issue in a test
 	require.NoError(err)
 	require.Equal(403, watchResp.StatusCode)
 	t.Cleanup(func() {

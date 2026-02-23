@@ -10,6 +10,7 @@ import (
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -603,34 +604,34 @@ type watchingCachingReader struct {
 	p   *watchingCachingProxy
 }
 
-func (r *watchingCachingReader) LegacyReadNamespaceByName(
+func (w *watchingCachingReader) LegacyReadNamespaceByName(
 	ctx context.Context,
 	name string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return r.p.namespaceCache.readDefinitionByName(ctx, name, r.rev)
+	return w.p.namespaceCache.readDefinitionByName(ctx, name, w.rev)
 }
 
-func (r *watchingCachingReader) LegacyLookupNamespacesWithNames(
+func (w *watchingCachingReader) LegacyLookupNamespacesWithNames(
 	ctx context.Context,
 	nsNames []string,
 ) ([]datastore.RevisionedNamespace, error) {
-	return r.p.namespaceCache.readDefinitionsWithNames(ctx, nsNames, r.rev)
+	return w.p.namespaceCache.readDefinitionsWithNames(ctx, nsNames, w.rev)
 }
 
-func (r *watchingCachingReader) LegacyReadCaveatByName(
+func (w *watchingCachingReader) LegacyReadCaveatByName(
 	ctx context.Context,
 	name string,
 ) (*core.CaveatDefinition, datastore.Revision, error) {
-	return r.p.caveatCache.readDefinitionByName(ctx, name, r.rev)
+	return w.p.caveatCache.readDefinitionByName(ctx, name, w.rev)
 }
 
-func (r *watchingCachingReader) LegacyLookupCaveatsWithNames(
+func (w *watchingCachingReader) LegacyLookupCaveatsWithNames(
 	ctx context.Context,
 	caveatNames []string,
 ) ([]datastore.RevisionedCaveat, error) {
-	return r.p.caveatCache.readDefinitionsWithNames(ctx, caveatNames, r.rev)
+	return w.p.caveatCache.readDefinitionsWithNames(ctx, caveatNames, w.rev)
 }
 
-func (r *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.Reader.SchemaReader()
+func (w *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
+	return schemautil.NewLegacySchemaReaderAdapter(w), nil
 }

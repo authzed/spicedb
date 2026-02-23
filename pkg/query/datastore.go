@@ -34,33 +34,33 @@ func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) Pa
 	}
 }
 
-// RelationIterator is a common leaf iterator. It represents the set of all
+// DatastoreIterator is a common leaf iterator. It represents the set of all
 // relationships of the given schema.BaseRelation, ie, relations that have a
 // known resource and subject type and may contain caveats or expiration.
 //
-// The RelationIterator, being the leaf, generates this set by calling the datastore.
-type RelationIterator struct {
+// The DatastoreIterator, being the leaf, generates this set by calling the datastore.
+type DatastoreIterator struct {
 	id   string
 	base *schema.BaseRelation
 }
 
-var _ Iterator = &RelationIterator{}
+var _ Iterator = &DatastoreIterator{}
 
-func NewRelationIterator(base *schema.BaseRelation) *RelationIterator {
-	return &RelationIterator{
+func NewDatastoreIterator(base *schema.BaseRelation) *DatastoreIterator {
+	return &DatastoreIterator{
 		id:   uuid.NewString(),
 		base: base,
 	}
 }
 
-func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelationFilter {
+func (r *DatastoreIterator) buildSubjectRelationFilter() datastore.SubjectRelationFilter {
 	if r.base.Subrelation() == tuple.Ellipsis {
 		return datastore.SubjectRelationFilter{}.WithEllipsisRelation()
 	}
 	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation())
 }
 
-func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// For subrelations, we need to allow type mismatches because the subrelation might bridge different types
 	// For example, group:member -> group:member should find group:everyone#member@group:engineering#member
 	// and then that relationship should be used by the Arrow to check group:engineering#member for user subjects
@@ -83,7 +83,7 @@ func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject O
 	return r.checkNormalImpl(ctx, resources, subject)
 }
 
-func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	resourceIDs := make([]string, len(resources))
 	for i, res := range resources {
 		resourceIDs[i] = res.ObjectID
@@ -113,10 +113,20 @@ func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, sub
 		return nil, err
 	}
 
-	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+	// Convert to PathSeq
+	pathSeq := convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))
+
+	// Eagerly collect all results to terminate the database query immediately
+	paths, err := CollectAll(pathSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return iterator over collected slice
+	return PathSeqFromSlice(paths), nil
 }
 
-func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Query the datastore for wildcard relationships (subject ObjectID = "*")
 	resourceIDs := make([]string, len(resources))
 	for i, res := range resources {
@@ -144,18 +154,28 @@ func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, s
 	if err != nil {
 		return nil, err
 	}
-	// We rewrite the subject to the concrete subject before returning the paths
-	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
+
+	// Convert to PathSeq and rewrite subjects
+	pathSeq := RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject)
+
+	// Eagerly collect all results to terminate the database query immediately
+	paths, err := CollectAll(pathSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return iterator over collected slice
+	return PathSeqFromSlice(paths), nil
 }
 
-func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (r *DatastoreIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	if r.base.Wildcard() {
 		return r.iterSubjectsWildcardImpl(ctx, resource)
 	}
 	return r.iterSubjectsNormalImpl(ctx, resource)
 }
 
-func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceIds:      []string{resource.ObjectID},
@@ -168,21 +188,99 @@ func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object)
 		},
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-	)
-	if err != nil {
-		return nil, err
+	// If pagination is not configured, do the simple eager collection
+	if ctx.PaginationLimit == nil {
+		relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+			options.WithSkipCaveats(r.base.Caveat() == ""),
+			options.WithSkipExpiration(!r.base.Expiration()),
+			options.WithQueryShape(queryshape.AllSubjectsForResources),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert to PathSeq and filter out wildcard subjects
+		pathSeq := FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)))
+
+		// Eagerly collect all results to terminate the database query immediately
+		paths, err := CollectAll(pathSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		// Return iterator over collected slice
+		return PathSeqFromSlice(paths), nil
 	}
 
-	// Filter out wildcard subjects to match the behavior of LookupSubjects. Wildcards are not
-	// concrete enumerable subjects. They will be expanded to concrete subjects by the wildcard branch.
-	return FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))), nil
+	// Pagination is configured - return a PathSeq that fetches pages as needed
+	return func(yield func(Path, error) bool) {
+		var cursor *tuple.Relationship
+		iteratorID := r.ID() + ":iter_subjects"
+
+		// Check if we have a starting cursor from previous iteration
+		cursor = ctx.GetPaginationCursor(iteratorID)
+
+		for {
+			// Build query options for this page
+			queryOpts := []options.QueryOptionsOption{
+				options.WithSkipCaveats(r.base.Caveat() == ""),
+				options.WithSkipExpiration(!r.base.Expiration()),
+				options.WithQueryShape(queryshape.AllSubjectsForResources),
+				options.WithLimit(ctx.PaginationLimit),
+			}
+
+			if ctx.PaginationSort != options.Unsorted {
+				queryOpts = append(queryOpts, options.WithSort(ctx.PaginationSort))
+			}
+			if cursor != nil {
+				queryOpts = append(queryOpts, options.WithAfter(options.ToCursor(*cursor)))
+			}
+
+			// Fetch this page
+			relIter, err := ctx.Reader.QueryRelationships(ctx, filter, queryOpts...)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// Convert to PathSeq and filter out wildcard subjects
+			pathSeq := FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)))
+
+			// Materialize this page into memory
+			paths, err := CollectAll(pathSeq)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// If no results, we're done
+			if len(paths) == 0 {
+				return
+			}
+
+			// Update cursor for next page
+			lastPath := paths[len(paths)-1]
+			if rel, err := lastPath.ToRelationship(); err == nil {
+				cursor = &rel
+				ctx.SetPaginationCursor(iteratorID, cursor)
+			}
+
+			// Yield all paths from this page
+			for _, path := range paths {
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			// If we got fewer results than the limit, we're done
+			if uint64(len(paths)) < *ctx.PaginationLimit {
+				return
+			}
+		}
+	}, nil
 }
 
-func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
+func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
 	// When a relation contains a wildcard (e.g., user:*), it means "all subjects of that type"
 	// that have ANY relationship with this resource. We enumerate concrete subjects by:
 	// 1. First checking if a wildcard relationship actually exists for this resource
@@ -231,13 +329,18 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		return EmptyPathSeq(), nil
 	}
 
-	// Wildcard exists, so enumerate all concrete subjects for this resource.
-	// Note: This may return some of the same subjects as the non-wildcard branch
-	// (when both wildcard and concrete relationships exist), but the Union will
-	// deduplicate them.
+	// Wildcard exists, so enumerate all concrete subjects of the appropriate type.
+	// A wildcard (e.g., user:*) means "all subjects of that type", so we need to enumerate
+	// all defined subjects of that type in the datastore. This may return some of the same
+	// subjects as the non-wildcard branch (when both wildcard and concrete relationships exist),
+	// but the Union will deduplicate them.
+	//
+	// Note: We query for all subjects of the appropriate type, not just those with a relationship
+	// to this specific resource. This matches the semantics of wildcards, which grant access to
+	// ALL subjects of the type, regardless of whether they have other relationships.
 	allSubjectsFilter := datastore.RelationshipsFilter{
-		OptionalResourceType: r.base.DefinitionName(),
-		OptionalResourceIds:  []string{resource.ObjectID},
+		// Note: We intentionally omit OptionalResourceType and OptionalResourceIds to find
+		// all subjects of the appropriate type across all resources
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{
 				OptionalSubjectType: r.base.Type(),
@@ -246,28 +349,116 @@ func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Objec
 		},
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, allSubjectsFilter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-	)
-	if err != nil {
-		return nil, err
+	// If pagination is not configured, do the simple eager collection
+	if ctx.PaginationLimit == nil {
+		relIter, err := ctx.Reader.QueryRelationships(ctx, allSubjectsFilter,
+			options.WithSkipCaveats(r.base.Caveat() == ""),
+			options.WithSkipExpiration(!r.base.Expiration()),
+			options.WithQueryShape(queryshape.AllSubjectsForResources),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert to PathSeq and filter out wildcard subjects
+		pathSeq := FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)))
+
+		// Eagerly collect all results to terminate the database query immediately
+		paths, err := CollectAll(pathSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		// Return iterator over collected slice
+		return PathSeqFromSlice(paths), nil
 	}
 
-	// Filter out wildcard subjects from the results - we only want concrete subjects
-	return FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))), nil
+	// Pagination is configured - return a PathSeq that fetches pages as needed
+	return func(yield func(Path, error) bool) {
+		var cursor *tuple.Relationship
+		iteratorID := r.ID() + ":iter_subjects_wildcard"
+
+		// Check if we have a starting cursor from previous iteration
+		cursor = ctx.GetPaginationCursor(iteratorID)
+
+		for {
+			// Build query options for this page
+			queryOpts := []options.QueryOptionsOption{
+				options.WithSkipCaveats(r.base.Caveat() == ""),
+				options.WithSkipExpiration(!r.base.Expiration()),
+				options.WithQueryShape(queryshape.AllSubjectsForResources),
+				options.WithLimit(ctx.PaginationLimit),
+			}
+
+			if ctx.PaginationSort != options.Unsorted {
+				queryOpts = append(queryOpts, options.WithSort(ctx.PaginationSort))
+			}
+			if cursor != nil {
+				queryOpts = append(queryOpts, options.WithAfter(options.ToCursor(*cursor)))
+			}
+
+			// Fetch this page
+			relIter, err := ctx.Reader.QueryRelationships(ctx, allSubjectsFilter, queryOpts...)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// Convert to PathSeq and filter out wildcard subjects
+			pathSeq := FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)))
+
+			// Materialize this page into memory
+			paths, err := CollectAll(pathSeq)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// If no results, we're done
+			if len(paths) == 0 {
+				return
+			}
+
+			// Update cursor for next page
+			lastPath := paths[len(paths)-1]
+			if rel, err := lastPath.ToRelationship(); err == nil {
+				cursor = &rel
+				ctx.SetPaginationCursor(iteratorID, cursor)
+			}
+
+			// Yield all paths from this page
+			for _, path := range paths {
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			// If we got fewer results than the limit, we're done
+			if uint64(len(paths)) < *ctx.PaginationLimit {
+				return
+			}
+		}
+	}, nil
 }
 
-func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// If the types don't match, we don't even have to go to the datastore.
 	if subject.ObjectType != r.base.Type() {
 		return EmptyPathSeq(), nil
 	}
 
+	// Handle wildcards first - they don't have subrelations and match any query relation
 	if r.base.Wildcard() {
 		return r.iterResourcesWildcardImpl(ctx, subject)
 	}
+
+	// Check if subject relation matches what this iterator expects.
+	// Both the schema's expected subrelation and the query's subject relation must match exactly.
+	// Ellipsis is a specific relation value, not a wildcard.
+	if r.base.Subrelation() != subject.Relation {
+		return EmptyPathSeq(), nil
+	}
+
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceRelation: r.base.RelationName(),
@@ -280,19 +471,99 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 		},
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
-	)
-	if err != nil {
-		return nil, err
+	// If pagination is not configured, do the simple eager collection
+	if ctx.PaginationLimit == nil {
+		relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+			options.WithSkipCaveats(r.base.Caveat() == ""),
+			options.WithSkipExpiration(!r.base.Expiration()),
+			options.WithQueryShape(queryshape.MatchingResourcesForSubject),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert to PathSeq
+		pathSeq := convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))
+
+		// Eagerly collect all results to terminate the database query immediately
+		paths, err := CollectAll(pathSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		// Return iterator over collected slice
+		return PathSeqFromSlice(paths), nil
 	}
 
-	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+	// Pagination is configured - return a PathSeq that fetches pages as needed
+	return func(yield func(Path, error) bool) {
+		var cursor *tuple.Relationship
+		iteratorID := r.ID() + ":iter_resources"
+
+		// Check if we have a starting cursor from previous iteration
+		cursor = ctx.GetPaginationCursor(iteratorID)
+
+		for {
+			// Build query options for this page
+			queryOpts := []options.QueryOptionsOption{
+				options.WithSkipCaveats(r.base.Caveat() == ""),
+				options.WithSkipExpiration(!r.base.Expiration()),
+				options.WithQueryShape(queryshape.MatchingResourcesForSubject),
+				options.WithLimit(ctx.PaginationLimit),
+			}
+
+			if ctx.PaginationSort != options.Unsorted {
+				queryOpts = append(queryOpts, options.WithSort(ctx.PaginationSort))
+			}
+			if cursor != nil {
+				queryOpts = append(queryOpts, options.WithAfter(options.ToCursor(*cursor)))
+			}
+
+			// Fetch this page
+			relIter, err := ctx.Reader.QueryRelationships(ctx, filter, queryOpts...)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// Convert to PathSeq
+			pathSeq := convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))
+
+			// Materialize this page into memory
+			paths, err := CollectAll(pathSeq)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// If no results, we're done
+			if len(paths) == 0 {
+				return
+			}
+
+			// Update cursor for next page
+			lastPath := paths[len(paths)-1]
+			if rel, err := lastPath.ToRelationship(); err == nil {
+				cursor = &rel
+				ctx.SetPaginationCursor(iteratorID, cursor)
+			}
+
+			// Yield all paths from this page
+			for _, path := range paths {
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			// If we got fewer results than the limit, we're done
+			if uint64(len(paths)) < *ctx.PaginationLimit {
+				return
+			}
+		}
+	}, nil
 }
 
-func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     r.base.DefinitionName(),
 		OptionalResourceRelation: r.base.RelationName(),
@@ -305,58 +576,137 @@ func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject Objec
 		},
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-	)
-	if err != nil {
-		return nil, err
+	// If pagination is not configured, do the simple eager collection
+	if ctx.PaginationLimit == nil {
+		relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
+			options.WithSkipCaveats(r.base.Caveat() == ""),
+			options.WithSkipExpiration(!r.base.Expiration()),
+			options.WithQueryShape(queryshape.AllSubjectsForResources),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert to PathSeq and rewrite subjects
+		pathSeq := RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject)
+
+		// Eagerly collect all results to terminate the database query immediately
+		paths, err := CollectAll(pathSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		// Return iterator over collected slice
+		return PathSeqFromSlice(paths), nil
 	}
 
-	// We rewrite the subject to the concrete subject before returning the paths
-	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
+	// Pagination is configured - return a PathSeq that fetches pages as needed
+	return func(yield func(Path, error) bool) {
+		var cursor *tuple.Relationship
+		iteratorID := r.ID() + ":iter_resources_wildcard"
+
+		// Check if we have a starting cursor from previous iteration
+		cursor = ctx.GetPaginationCursor(iteratorID)
+
+		for {
+			// Build query options for this page
+			queryOpts := []options.QueryOptionsOption{
+				options.WithSkipCaveats(r.base.Caveat() == ""),
+				options.WithSkipExpiration(!r.base.Expiration()),
+				options.WithQueryShape(queryshape.AllSubjectsForResources),
+				options.WithLimit(ctx.PaginationLimit),
+			}
+
+			if ctx.PaginationSort != options.Unsorted {
+				queryOpts = append(queryOpts, options.WithSort(ctx.PaginationSort))
+			}
+			if cursor != nil {
+				queryOpts = append(queryOpts, options.WithAfter(options.ToCursor(*cursor)))
+			}
+
+			// Fetch this page
+			relIter, err := ctx.Reader.QueryRelationships(ctx, filter, queryOpts...)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// Convert to PathSeq and rewrite subjects
+			pathSeq := RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject)
+
+			// Materialize this page into memory
+			paths, err := CollectAll(pathSeq)
+			if err != nil {
+				yield(Path{}, err)
+				return
+			}
+
+			// If no results, we're done
+			if len(paths) == 0 {
+				return
+			}
+
+			// Update cursor for next page
+			lastPath := paths[len(paths)-1]
+			if rel, err := lastPath.ToRelationship(); err == nil {
+				cursor = &rel
+				ctx.SetPaginationCursor(iteratorID, cursor)
+			}
+
+			// Yield all paths from this page
+			for _, path := range paths {
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			// If we got fewer results than the limit, we're done
+			if uint64(len(paths)) < *ctx.PaginationLimit {
+				return
+			}
+		}
+	}, nil
 }
 
-func (r *RelationIterator) Clone() Iterator {
-	return &RelationIterator{
+func (r *DatastoreIterator) Clone() Iterator {
+	return &DatastoreIterator{
 		id:   uuid.NewString(),
 		base: r.base,
 	}
 }
 
-func (r *RelationIterator) Explain() Explain {
+func (r *DatastoreIterator) Explain() Explain {
 	relationName := r.base.Subrelation()
 	if r.base.Wildcard() {
 		relationName = "*"
 	}
 	return Explain{
-		Info: fmt.Sprintf("Relation(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
+		Info: fmt.Sprintf("Datastore(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
 			r.base.DefinitionName(), r.base.RelationName(), r.base.Type(), relationName,
 			r.base.Caveat() != "", r.base.Expiration()),
 	}
 }
 
-func (r *RelationIterator) Subiterators() []Iterator {
+func (r *DatastoreIterator) Subiterators() []Iterator {
 	return nil
 }
 
-func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return nil, spiceerrors.MustBugf("Trying to replace a leaf RelationIterator's subiterators")
+func (r *DatastoreIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return nil, spiceerrors.MustBugf("Trying to replace a leaf DatastoreIterator's subiterators")
 }
 
-func (r *RelationIterator) ID() string {
+func (r *DatastoreIterator) ID() string {
 	return r.id
 }
 
-func (r *RelationIterator) ResourceType() (ObjectType, error) {
-	return ObjectType{
+func (r *DatastoreIterator) ResourceType() ([]ObjectType, error) {
+	return []ObjectType{{
 		Type:        r.base.DefinitionName(),
-		Subrelation: r.base.RelationName(),
-	}, nil
+		Subrelation: tuple.Ellipsis,
+	}}, nil
 }
 
-func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {
+func (r *DatastoreIterator) SubjectTypes() ([]ObjectType, error) {
 	// For wildcards, return the base type with no subrelation
 	if r.base.Wildcard() {
 		return []ObjectType{{

@@ -161,7 +161,7 @@ func TestBuildTreeRecursion(t *testing.T) {
 
 	// Verify the explain output
 	explain := it.Explain()
-	require.Equal("RecursiveIterator", explain.Name)
+	require.Equal("Recursive", explain.Name)
 }
 
 func TestBuildTreeArrowOperation(t *testing.T) {
@@ -248,9 +248,9 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(it)
 	// Should be wrapped in an Alias
-	require.IsType(&Alias{}, it, "Expected Alias wrapper")
-	alias := it.(*Alias)
-	require.IsType(&Exclusion{}, alias.subIt)
+	require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+	alias := it.(*AliasIterator)
+	require.IsType(&ExclusionIterator{}, alias.subIt)
 
 	// Verify the explain shows alias structure with exclusion underneath
 	explain := it.Explain()
@@ -300,9 +300,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Test execution doesn't crash
 		relSeq, err := ctx.Check(it, []Object{NewObject("document", "test_doc")}, NewObject("user", "alice").WithEllipses())
@@ -339,9 +339,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Verify the structure includes union in main set
 		explain := it.Explain()
@@ -380,9 +380,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Verify the structure includes intersection in main set
 		explain := it.Explain()
@@ -422,9 +422,9 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
-		require.IsType(&Alias{}, it, "Expected Alias wrapper")
-		alias := it.(*Alias)
-		require.IsType(&Exclusion{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it, "Expected Alias wrapper")
+		alias := it.(*AliasIterator)
+		require.IsType(&ExclusionIterator{}, alias.subIt)
 
 		// Verify nested structure
 		explain := it.Explain()
@@ -531,7 +531,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	// Should create a simple relation iterator without extra union wrappers
 	explain := it.Explain()
 	require.NotEmpty(explain.String())
-	require.Contains(explain.String(), "Relation", "should create relation iterator")
+	require.Contains(explain.String(), "Datastore", "should create datastore iterator")
 
 	ctx := NewLocalContext(t.Context(),
 		WithReader(ds.SnapshotReader(revision)))
@@ -635,7 +635,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	t.Run("Base Relation Without Subrelations Disabled", func(t *testing.T) {
 		t.Parallel()
 		// Test base relation iterator with withSubRelations = false
-		// This hits the buildBaseRelationIterator path where subrelations are disabled
+		// This hits the buildBaseDatastoreIterator path where subrelations are disabled
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("parent", nil, namespace.AllowedRelation("document", "...")),
 			namespace.MustRelation("viewer",
@@ -775,15 +775,15 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(it)
 
-		// Verify it's an Alias wrapping a RelationIterator with wildcard support
-		require.IsType(&Alias{}, it)
-		alias := it.(*Alias)
-		require.IsType(&RelationIterator{}, alias.subIt)
+		// Verify it's an Alias wrapping a DatastoreIterator with wildcard support
+		require.IsType(&AliasIterator{}, it)
+		alias := it.(*AliasIterator)
+		require.IsType(&DatastoreIterator{}, alias.subIt)
 
 		// Check the explain output contains wildcard information
 		explain := it.Explain()
 		explainStr := explain.String()
-		require.Contains(explainStr, "Relation")
+		require.Contains(explainStr, "Datastore")
 		require.Contains(explainStr, "user:*")
 	})
 
@@ -807,9 +807,9 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		require.NotNil(it)
 
 		// Should create an alias with a union containing both regular and wildcard iterators
-		require.IsType(&Alias{}, it)
-		alias := it.(*Alias)
-		require.IsType(&Union{}, alias.subIt)
+		require.IsType(&AliasIterator{}, it)
+		alias := it.(*AliasIterator)
+		require.IsType(&UnionIterator{}, alias.subIt)
 
 		// Check explain contains both relation types (regular and wildcard)
 		explain := it.Explain()
@@ -867,7 +867,7 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 		// The tree should contain RecursiveIterator(s) due to mutual recursion
 		explain := it.Explain()
 		explainStr := explain.String()
-		require.Contains(explainStr, "RecursiveIterator", "should contain RecursiveIterator for mutual recursion")
+		require.Contains(explainStr, "Recursive", "should contain Recursive for mutual recursion")
 	})
 
 	t.Run("otherdocument viewer builds successfully with mutual recursion", func(t *testing.T) {
@@ -880,7 +880,7 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 		// The tree should contain RecursiveIterator(s)
 		explain := it.Explain()
 		explainStr := explain.String()
-		require.Contains(explainStr, "RecursiveIterator", "should contain RecursiveIterator for mutual recursion")
+		require.Contains(explainStr, "Recursive", "should contain Recursive for mutual recursion")
 	})
 
 	t.Run("sentinels are filtered by definition/relation", func(t *testing.T) {
@@ -912,9 +912,9 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 			require.NotEmpty(recursiveIterator.definitionName)
 			require.NotEmpty(recursiveIterator.relationName)
 
-			var recursiveSentinels []*RecursiveSentinel
+			var recursiveSentinels []*RecursiveSentinelIterator
 			_, _ = Walk(recursiveIterator.templateTree, func(it Iterator) (Iterator, error) {
-				if sentinel, ok := it.(*RecursiveSentinel); ok {
+				if sentinel, ok := it.(*RecursiveSentinelIterator); ok {
 					recursiveSentinels = append(recursiveSentinels, sentinel)
 				}
 				return it, nil

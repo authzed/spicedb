@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 )
@@ -79,62 +81,73 @@ func createTestRetryPool(testPool *TestPool) *RetryPool {
 }
 
 func TestContextCancelledDuringBlockingAcquire(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Block until context is cancelled
-		<-ctx.Done()
-		return nil, ctx.Err()
-	}
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Block until context is cancelled
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx, cancel := context.WithCancel(context.Background())
+		retryPool := createTestRetryPool(testPool)
+		ctx, cancel := context.WithCancel(t.Context())
 
-	// Cancel the context after a short delay
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
+		// Cancel the context after a short delay
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			cancel()
+		}()
 
-	err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		t.Fatal("function should not be called when acquire fails")
-		return nil
+		err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called when acquire fails")
+			return nil
+		})
+
+		synctest.Wait()
+
+		assert.Error(t, err) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.ErrorIs(t, err, context.Canceled)
 	})
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestAcquireTimeoutReturnsErrAcquire(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Simulate slow acquire that times out
-		select {
-		case <-time.After(100 * time.Millisecond):
-			return nil, errors.New("should not reach here")
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Simulate slow acquire that times out
+			select {
+			case <-time.After(100 * time.Millisecond):
+				return nil, errors.New("should not reach here")
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
-	}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
-	acquireTimeout := 50 * time.Millisecond
+		retryPool := createTestRetryPool(testPool)
+		ctx := t.Context()
+		acquireTimeout := 50 * time.Millisecond
 
-	err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		t.Fatal("function should not be called when acquire times out")
-		return nil
+		err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called when acquire times out")
+			return nil
+		})
+
+		synctest.Wait()
+
+		assert.Error(t, err) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.Contains(t, err.Error(), "error acquiring connection from pool")
+		assert.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 	})
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "error acquiring connection from pool")
-	require.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 }
 
 func TestAcquireSucceedsButTopLevelContextCancelled(t *testing.T) {
+	t.Parallel()
 	testPool := NewTestPool()
 
 	retryPool := createTestRetryPool(testPool)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately
 
 	err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
@@ -147,52 +160,63 @@ func TestAcquireSucceedsButTopLevelContextCancelled(t *testing.T) {
 }
 
 func TestAcquireErrorWithConnectionReturned(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Return both connection and error
-		return &pgxpool.Conn{}, errors.New("pool exhausted")
-	}
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Return both connection and error
+			return &pgxpool.Conn{}, errors.New("pool exhausted")
+		}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
+		retryPool := createTestRetryPool(testPool)
+		ctx := context.Background()
 
-	err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		t.Fatal("function should not be called when acquire fails")
-		return nil
+		err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called when acquire fails")
+			return nil
+		})
+
+		synctest.Wait()
+
+		assert.Error(t, err) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.Contains(t, err.Error(), "error acquiring connection from pool")
+		assert.Contains(t, err.Error(), "pool exhausted")
 	})
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "error acquiring connection from pool")
-	require.Contains(t, err.Error(), "pool exhausted")
 }
 
 func TestAcquireSucceedsWithinTimeout(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Small delay but within timeout
-		select {
-		case <-time.After(10 * time.Millisecond):
-			return &pgxpool.Conn{}, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Small delay but within timeout
+			select {
+			case <-time.After(10 * time.Millisecond):
+				return &pgxpool.Conn{}, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
-	}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
-	acquireTimeout := 50 * time.Millisecond
-	functionCalled := false
+		retryPool := createTestRetryPool(testPool)
+		ctx := t.Context()
+		acquireTimeout := 50 * time.Millisecond
+		functionCalled := false
 
-	err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		functionCalled = true
-		return nil
+		err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
+			functionCalled = true
+			return nil
+		})
+
+		synctest.Wait()
+
+		assert.NoError(t, err) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.True(t, functionCalled, "function should have been called")
 	})
-
-	require.NoError(t, err)
-	require.True(t, functionCalled, "function should have been called")
 }
 
 func TestNoAcquireTimeoutUsesOriginalContext(t *testing.T) {
+	t.Parallel()
 	var acquireContext context.Context
 
 	testPool := NewTestPool()
@@ -213,63 +237,72 @@ func TestNoAcquireTimeoutUsesOriginalContext(t *testing.T) {
 }
 
 func TestAcquireTimeoutCreatesSeparateContext(t *testing.T) {
-	var acquireContext context.Context
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		var acquireContext context.Context
 
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		acquireContext = ctx
-		return &pgxpool.Conn{}, nil
-	}
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			acquireContext = ctx
+			return &pgxpool.Conn{}, nil
+		}
 
-	retryPool := createTestRetryPool(testPool)
-	originalCtx := context.Background()
-	acquireTimeout := 50 * time.Millisecond
-	startTime := time.Now()
+		retryPool := createTestRetryPool(testPool)
+		originalCtx := context.Background()
+		acquireTimeout := 50 * time.Millisecond
+		startTime := time.Now()
 
-	err := retryPool.withRetries(originalCtx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		return nil
+		err := retryPool.withRetries(originalCtx, acquireTimeout, func(conn *pgxpool.Conn) error {
+			return nil
+		})
+
+		assert.NoError(t, err) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.NotEqual(t, originalCtx, acquireContext, "should use different context when timeout is set")
+
+		// Verify the timeout context has the expected deadline
+		deadline, hasDeadline := acquireContext.Deadline()
+		assert.True(t, hasDeadline, "acquire context should have a deadline")
+		expectedDeadline := startTime.Add(acquireTimeout)
+		assert.Equal(t, expectedDeadline, deadline, "deadline should be correct")
 	})
-
-	require.NoError(t, err)
-	require.NotEqual(t, originalCtx, acquireContext, "should use different context when timeout is set")
-
-	// Verify the timeout context has the expected deadline
-	deadline, hasDeadline := acquireContext.Deadline()
-	require.True(t, hasDeadline, "acquire context should have a deadline")
-	expectedDeadline := startTime.Add(acquireTimeout)
-	require.WithinDuration(t, expectedDeadline, deadline, 10*time.Millisecond, "deadline should be approximately correct")
 }
 
 func TestAcquireTimeoutContextCausePreserved(t *testing.T) {
-	testPool := NewTestPool()
-	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
-		// Wait for context timeout
-		<-ctx.Done()
-		return nil, ctx.Err()
-	}
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			// Wait for context timeout
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
 
-	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
-	acquireTimeout := 10 * time.Millisecond
+		retryPool := createTestRetryPool(testPool)
+		ctx := t.Context()
+		acquireTimeout := 10 * time.Millisecond
 
-	err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		t.Fatal("function should not be called")
-		return nil
+		err := retryPool.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called")
+			return nil
+		})
+
+		synctest.Wait()
+
+		assert.Error(t, err) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.Contains(t, err.Error(), "error acquiring connection from pool")
+		assert.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 	})
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "error acquiring connection from pool")
-	require.ErrorIs(t, errors.Unwrap(err), ErrAcquire)
 }
 
 func TestSuccessfulFunctionExecution(t *testing.T) {
+	t.Parallel()
 	testPool := NewTestPool()
 	testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
 		return &pgxpool.Conn{}, nil
 	}
 
 	retryPool := createTestRetryPool(testPool)
-	ctx := context.Background()
+	ctx := t.Context()
 	functionCalled := false
 
 	err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {

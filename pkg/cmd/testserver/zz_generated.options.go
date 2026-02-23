@@ -6,6 +6,7 @@ import (
 	types "github.com/authzed/spicedb/pkg/caveats/types"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	defaults "github.com/creasty/defaults"
+	"time"
 )
 
 type ConfigOption func(c *Config)
@@ -46,6 +47,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.CaveatTypeSet = c.CaveatTypeSet
+		to.ShutdownGracePeriod = c.ShutdownGracePeriod
 	}
 }
 
@@ -69,6 +71,7 @@ func (c *Config) DebugMap() map[string]any {
 	debugMap["MaxDeleteRelationshipsLimit"] = c.MaxDeleteRelationshipsLimit
 	debugMap["MaxLookupResourcesLimit"] = c.MaxLookupResourcesLimit
 	debugMap["MaxBulkExportRelationshipsLimit"] = c.MaxBulkExportRelationshipsLimit
+	debugMap["ShutdownGracePeriod"] = c.ShutdownGracePeriod
 	return debugMap
 }
 
@@ -211,5 +214,12 @@ func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32)
 func WithCaveatTypeSet(caveatTypeSet *types.TypeSet) ConfigOption {
 	return func(c *Config) {
 		c.CaveatTypeSet = caveatTypeSet
+	}
+}
+
+// WithShutdownGracePeriod returns an option that can set ShutdownGracePeriod on a Config
+func WithShutdownGracePeriod(shutdownGracePeriod time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.ShutdownGracePeriod = shutdownGracePeriod
 	}
 }

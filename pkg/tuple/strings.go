@@ -1,6 +1,7 @@
 package tuple
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -21,12 +22,20 @@ func JoinRelRef(namespace, relation string) string { return namespace + "#" + re
 // MustSplitRelRef splits a string produced by `JoinRelRef()` and panics if
 // it fails.
 func MustSplitRelRef(relRef string) (namespace, relation string) {
-	var ok bool
-	namespace, relation, ok = strings.Cut(relRef, "#")
-	if !ok {
-		panic("improperly formatted relation reference")
+	namespace, relation, err := SplitRelRef(relRef)
+	if err != nil {
+		panic(err)
 	}
 	return namespace, relation
+}
+
+func SplitRelRef(relRef string) (string, string, error) {
+	var ok bool
+	namespace, relation, ok := strings.Cut(relRef, "#")
+	if !ok {
+		return "", "", errors.New("improperly formatted relation reference")
+	}
+	return namespace, relation, nil
 }
 
 // StringRR converts a RR object to a string.

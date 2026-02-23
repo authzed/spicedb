@@ -356,7 +356,6 @@ func TestEvaluateCaveat(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			compiled, err := compileCaveat(tc.env, tc.exprString)
 			require.NoError(t, err)

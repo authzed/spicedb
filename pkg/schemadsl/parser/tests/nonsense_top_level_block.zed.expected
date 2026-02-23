@@ -1,0 +1,11 @@
+NodeTypeFile
+  end-rune = -1
+  input-source = top-level block with unrecognized keyword
+  start-rune = 0
+  child-node =>
+    NodeTypeError
+      end-rune = -1
+      error-message = Unexpected token at root level: TokenTypeIdentifier
+      error-source = nonsense
+      input-source = top-level block with unrecognized keyword
+      start-rune = 0

@@ -47,7 +47,6 @@ func TestValidateCaveatDefinition(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.caveat.Name, func(t *testing.T) {
 			err := ValidateCaveatDefinition(caveattypes.Default.TypeSet, tc.caveat)
 			if tc.expectedError != "" {

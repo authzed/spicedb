@@ -142,7 +142,6 @@ assertFalse: garbage
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			a := Assertions{}

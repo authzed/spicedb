@@ -58,7 +58,10 @@ func (s *SubjectByTypeSet) ForEachType(handler func(rr *core.RelationReference, 
 func (s *SubjectByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.RelationReference, error)) (*SubjectByTypeSet, error) {
 	mapped := NewSubjectByTypeSet()
 	for key, subjectset := range s.byType {
-		ns, rel := tuple.MustSplitRelRef(key)
+		ns, rel, err := tuple.SplitRelRef(key)
+		if err != nil {
+			return nil, err
+		}
 		updatedType, err := mapper(&core.RelationReference{
 			Namespace: ns,
 			Relation:  rel,

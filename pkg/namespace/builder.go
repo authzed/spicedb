@@ -307,7 +307,7 @@ func TupleToUserset(tuplesetRelation, usersetRelation string) *core.SetOperation
 // MustFunctionedTupleToUserset creates a child which first loads all tuples with the specific relation,
 // and then applies the function to all children on the usersets found by following a relation on those loaded
 // tuples.
-func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation string) *core.SetOperation_Child {
+func FunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation string) (*core.SetOperation_Child, error) {
 	function := core.FunctionedTupleToUserset_FUNCTION_ANY
 
 	switch functionName {
@@ -318,7 +318,7 @@ func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelatio
 		function = core.FunctionedTupleToUserset_FUNCTION_ALL
 
 	default:
-		panic(spiceerrors.MustBugf("unknown function name: %s", functionName))
+		return nil, spiceerrors.MustBugf("unknown function name: %s", functionName)
 	}
 
 	return &core.SetOperation_Child{
@@ -334,7 +334,17 @@ func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelatio
 				},
 			},
 		},
+	}, nil
+}
+
+// MustFunctionedTupleToUserset is a wrapper around FunctionedTupleToUserset that panics if an error
+// is encountered.
+func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation string) *core.SetOperation_Child {
+	operation, err := FunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation)
+	if err != nil {
+		panic(err)
 	}
+	return operation
 }
 
 // Rewrite wraps a rewrite as a set operation child of another rewrite.

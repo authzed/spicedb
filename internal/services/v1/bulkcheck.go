@@ -242,8 +242,6 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 	}
 
 	for _, group := range groupedItems {
-		group := group
-
 		slicez.ForEachChunk(group.resourceIDs, bc.dispatchChunkSize, func(resourceIDs []string) {
 			tr.Add(func(ctx context.Context) error {
 				startTime := time.Now()

@@ -42,7 +42,6 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 	testCases := []int{1, 2, 4, 32, 256}
 
 	for _, numRels := range testCases {
-		numRels := numRels
 		t.Run(strconv.Itoa(numRels), func(t *testing.T) {
 			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(t, err)
@@ -61,7 +60,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 			var testRels []tuple.Relationship
-			for i := 0; i < numRels; i++ {
+			for i := range numRels {
 				resourceName := fmt.Sprintf("resource%d", i)
 				userName := fmt.Sprintf("user%d", i)
 
@@ -312,8 +311,8 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 // DeleteRelationshipsTest tests whether or not the requirements for deleting
 // relationships hold for a particular datastore.
 func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
-	var testRels []tuple.Relationship
-	for i := 0; i < 10; i++ {
+	testRels := make([]tuple.Relationship, 0, 10)
+	for i := range 10 {
 		newRel := makeTestRel(fmt.Sprintf("resource%d", i), fmt.Sprintf("user%d", i%2))
 		testRels = append(testRels, newRel)
 	}
@@ -396,7 +395,6 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tt := range table {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 			ctx := t.Context()
@@ -669,7 +667,7 @@ func DeleteOneThousandIndividualInOneCallTest(t *testing.T, tester DatastoreTest
 
 	// Write the 1000 relationships.
 	relationships := make([]tuple.Relationship, 0, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		tpl := makeTestRel("foo", fmt.Sprintf("user%d", i))
 		relationships = append(relationships, tpl)
 	}
@@ -835,7 +833,7 @@ func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 
 	// Write the 100 relationships.
 	rels := make([]tuple.Relationship, 0, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		rels = append(rels, tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ONR("document", "somedoc", "viewer"),
@@ -853,7 +851,7 @@ func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 	expectedRels := make([]tuple.Relationship, 0, 105)
 
 	// Add a CREATE for 10 new relationships.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		newRel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ONR("document", "somedoc", "viewer"),
@@ -865,7 +863,7 @@ func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	// Add a TOUCH for 5 existing relationships.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		updates = append(updates, tuple.Touch(tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ONR("document", "somedoc", "viewer"),
@@ -875,7 +873,7 @@ func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	// Add a TOUCH for 5 new relationships.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		newRel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ONR("document", "somedoc", "viewer"),
@@ -888,7 +886,7 @@ func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 
 	// DELETE the first 10 relationships.
 	deletedRels := make([]tuple.Relationship, 0, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ONR("document", "somedoc", "viewer"),
@@ -925,7 +923,7 @@ func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
 
 	// Write the 1000 relationships.
 	rels := make([]tuple.Relationship, 0, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		rels = append(rels, makeTestRel("foo", fmt.Sprintf("user%d", i)))
 	}
 
@@ -1086,7 +1084,6 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			for _, withLimit := range []bool{false, true} {
 				t.Run(fmt.Sprintf("withLimit=%v", withLimit), func(t *testing.T) {
@@ -1194,7 +1191,7 @@ func RecreateRelationshipsAfterDeleteWithFilter(t *testing.T, tester DatastoreTe
 	ctx := t.Context()
 
 	relationships := make([]tuple.Relationship, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		relationships[i] = tuple.MustParse(fmt.Sprintf("document:%d#owner@user:first", i))
 	}
 
@@ -1759,7 +1756,6 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 

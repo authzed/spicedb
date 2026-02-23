@@ -256,8 +256,6 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			caveat:                 core.ContextualizedCaveat{},
 			caveatTypeSet:          es.caveatTypeSet,
 		}
-		resolver := schema.ResolverForDatastoreReader(rwt)
-		ts := schema.NewTypeSystem(resolver)
 
 		var streamWritten uint64
 		var err error
@@ -265,34 +263,40 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			numWritten += streamWritten
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
-			if len(adapter.awaitingNamespaces) > 0 || len(adapter.awaitingCaveats) > 0 {
-				schemaReader, err := rwt.SchemaReader()
-				if err != nil {
-					return err
-				}
-
-				allNames := make([]string, 0, len(adapter.awaitingNamespaces)+len(adapter.awaitingCaveats))
-				allNames = append(allNames, adapter.awaitingNamespaces...)
-				allNames = append(allNames, adapter.awaitingCaveats...)
-
-				foundDefs, err := schemaReader.LookupSchemaDefinitionsByNames(stream.Context(), allNames)
+			schemaReader, err := rwt.SchemaReader()
+			if err != nil {
+				return err
+			}
+			if len(adapter.awaitingNamespaces) > 0 {
+				foundDefs, err := schemaReader.LookupTypeDefinitionsByNames(stream.Context(), adapter.awaitingNamespaces)
 				if err != nil {
 					return err
 				}
 
 				for _, def := range foundDefs {
 					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-						newDef, err := schema.NewDefinition(ts, nsDef)
+						newDef, err := schema.NewDefinition(nsDef)
 						if err != nil {
 							return err
 						}
 						loadedNamespaces[nsDef.Name] = newDef
-					} else if caveatDef, ok := def.(*core.CaveatDefinition); ok {
-						loadedCaveats[caveatDef.Name] = caveatDef
 					}
 				}
 
 				adapter.awaitingNamespaces = nil
+			}
+			if len(adapter.awaitingCaveats) > 0 {
+				foundCaveatDefs, err := schemaReader.LookupCaveatDefinitionsByNames(stream.Context(), adapter.awaitingCaveats)
+				if err != nil {
+					return err
+				}
+
+				for _, def := range foundCaveatDefs {
+					if caveatDef, ok := def.(*core.CaveatDefinition); ok {
+						loadedCaveats[caveatDef.Name] = caveatDef
+					}
+				}
+
 				adapter.awaitingCaveats = nil
 			}
 		}
@@ -621,7 +625,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		allDefinitions = append(allDefinitions, ns.Definition)
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -694,7 +698,7 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,

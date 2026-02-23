@@ -188,10 +188,7 @@ func (dal *digestAndLock) getWaitTime(maximumHedgingDelay time.Duration) time.Du
 		return dal.startingPrimaryHedgingDelay
 	}
 
-	waitTime := time.Duration(milliseconds) * time.Millisecond
-	if waitTime > maximumHedgingDelay {
-		waitTime = maximumHedgingDelay
-	}
+	waitTime := min(time.Duration(milliseconds)*time.Millisecond, maximumHedgingDelay)
 	return waitTime
 }
 
@@ -501,8 +498,8 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	if cursorSupports, ok := any(req).(requestMessageWithCursor); ok {
 		cursor := cursorSupports.GetOptionalCursor()
 		if cursor != nil && len(cursor.Sections) > 0 {
-			if strings.HasPrefix(cursor.Sections[0], secondaryCursorPrefix) {
-				cursorLockedSecondaryName = strings.TrimPrefix(cursor.Sections[0], secondaryCursorPrefix)
+			if after, ok0 := strings.CutPrefix(cursor.Sections[0], secondaryCursorPrefix); ok0 {
+				cursorLockedSecondaryName = after
 				cursor.Sections = cursor.Sections[1:]
 			}
 		}

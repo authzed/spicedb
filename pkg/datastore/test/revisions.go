@@ -31,7 +31,6 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("quantization%s", tc.quantizationRange), func(t *testing.T) {
 			require := require.New(t)
 
@@ -306,11 +305,11 @@ func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 
 	errCh := make(chan error, 10*5)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			defer wg.Done()
 
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				head, err := ds.HeadRevision(ctx)
 				if err != nil {
 					errCh <- fmt.Errorf("HeadRevision error: %w", err)

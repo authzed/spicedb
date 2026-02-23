@@ -446,13 +446,7 @@ func filterFuncForFilters(
 		}
 
 		if len(optionalSubjectsSelectors) > 0 {
-			hasMatchingSelector := false
-			for _, selector := range optionalSubjectsSelectors {
-				if applySubjectSelector(selector) {
-					hasMatchingSelector = true
-					break
-				}
-			}
+			hasMatchingSelector := slices.ContainsFunc(optionalSubjectsSelectors, applySubjectSelector)
 
 			if !hasMatchingSelector {
 				return true
@@ -505,15 +499,12 @@ func newSubjectSortedIterator(now time.Time, it memdb.ResultIterator, limit *uin
 			return nil, err
 		}
 
-		if rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
-			continue
-		}
-
 		if skipCaveats && rt.OptionalCaveat != nil {
 			continue
 		}
 
-		if skipExpiration && rt.OptionalExpiration != nil {
+		// Only check expiration if skipExpiration is false
+		if !skipExpiration && rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
 			continue
 		}
 
@@ -578,11 +569,8 @@ func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64
 				continue
 			}
 
-			if skipExpiration && rt.OptionalExpiration != nil {
-				continue
-			}
-
-			if rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
+			// Only check expiration if skipExpiration is false
+			if !skipExpiration && rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
 				continue
 			}
 

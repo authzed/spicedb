@@ -39,8 +39,6 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s-%d", tc.resourceType, tc.ordering), func(t *testing.T) {
 			require := require.New(t)
 			ctx := t.Context()
@@ -97,10 +95,7 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 
 					require.NoError(err)
 
-					expectedCount := limit
-					if expectedCount > len(expected) {
-						expectedCount = len(expected)
-					}
+					expectedCount := min(limit, len(expected))
 
 					tRequire.VerifyIteratorCount(iter, expectedCount)
 				})
@@ -248,10 +243,7 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 
 						require.NoError(err)
 
-						upperBound := offset + batchSize
-						if upperBound > len(expected) {
-							upperBound = len(expected)
-						}
+						upperBound := min(offset+batchSize, len(expected))
 
 						cursor = tRequire.VerifyOrderedIteratorResults(iter, expected[offset:upperBound]...)
 					}
@@ -291,7 +283,7 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 
 			foundTuples := mapz.NewSet[string]()
 
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				iter, err := reader.ReverseQueryRelationships(
 					t.Context(),
 					datastore.SubjectsFilter{
@@ -358,7 +350,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 
 			foundTuples := mapz.NewSet[string]()
 
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				iter, err := reader.ReverseQueryRelationships(
 					t.Context(),
 					datastore.SubjectsFilter{

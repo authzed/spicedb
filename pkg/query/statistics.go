@@ -84,7 +84,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			IterResourcesCost: len(it.paths),
 			IterSubjectsCost:  len(it.paths),
 		}, nil
-	case *RelationIterator:
+	case *DatastoreIterator:
 		return Estimate{
 			Cardinality:       s.NumberOfTuplesInRelation,
 			CheckCost:         1,
@@ -92,7 +92,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			IterResourcesCost: s.Fanout,
 			IterSubjectsCost:  s.Fanout,
 		}, nil
-	case *Arrow:
+	case *ArrowIterator:
 		ls, err := s.Cost(it.left)
 		if err != nil {
 			return Estimate{}, err
@@ -131,7 +131,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			IterResourcesCost: iterResourcesCost,
 			IterSubjectsCost:  iterSubjectsCost,
 		}, nil
-	case *IntersectionArrow:
+	case *IntersectionArrowIterator:
 		ls, err := s.Cost(it.left)
 		if err != nil {
 			return Estimate{}, err
@@ -154,7 +154,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			IterResourcesCost: ls.IterResourcesCost + (ls.Cardinality * rs.IterResourcesCost) + checkCost,
 			IterSubjectsCost:  ls.IterSubjectsCost + (ls.Cardinality * rs.IterSubjectsCost),
 		}, nil
-	case *Union:
+	case *UnionIterator:
 		if len(it.subIts) == 0 {
 			return Estimate{}, errors.New("StaticStatistics: union with no subiterators")
 		}
@@ -173,7 +173,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			result.CheckSelectivity = max(est.CheckSelectivity, result.CheckSelectivity)
 		}
 		return result, nil
-	case *Intersection:
+	case *IntersectionIterator:
 		if len(it.subIts) == 0 {
 			return Estimate{}, errors.New("StaticStatistics: intersection with no subiterators")
 		}
@@ -193,7 +193,7 @@ func (s StaticStatistics) Cost(iterator Iterator) (Estimate, error) {
 			result.CheckSelectivity *= est.CheckSelectivity
 		}
 		return result, nil
-	case *Exclusion:
+	case *ExclusionIterator:
 		// Exclusion: A - B
 		// We need to check both sides, but the result is filtered
 		mainEst, err := s.Cost(it.mainSet)

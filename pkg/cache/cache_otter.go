@@ -5,6 +5,7 @@ package cache
 import (
 	"math"
 	"sync/atomic"
+	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/maypok86/otter/v2"
@@ -13,7 +14,12 @@ import (
 )
 
 func NewOtterCacheWithMetrics[K KeyString, V any](name string, config *Config) (Cache[K, V], error) {
-	return NewOtterCache[K, V](config)
+	cache, err := NewOtterCache[K, V](name, config)
+	if err != nil {
+		return nil, err
+	}
+	mustRegisterCache(name, cache)
+	return cache, nil
 }
 
 type valueAndCost[V any] struct {
@@ -21,7 +27,7 @@ type valueAndCost[V any] struct {
 	cost  uint32
 }
 
-func NewOtterCache[K KeyString, V any](config *Config) (Cache[K, V], error) {
+func NewOtterCache[K KeyString, V any](name string, config *Config) (Cache[K, V], error) {
 	uintCost, err := safecast.Convert[uint64](config.MaxCost)
 	if err != nil {
 		return nil, err
@@ -41,14 +47,22 @@ func NewOtterCache[K KeyString, V any](config *Config) (Cache[K, V], error) {
 
 	cache, err := otter.New(opts)
 	return &otterCache[K, V]{
+		name,
 		cache,
 		otterMetrics{atomic.Uint64{}, counter},
+		config.DefaultTTL,
 	}, err
 }
 
 type otterCache[K KeyString, V any] struct {
+	name    string
 	cache   *otter.Cache[string, valueAndCost[V]]
 	metrics otterMetrics
+	ttl     time.Duration
+}
+
+func (wtc *otterCache[K, V]) GetTTL() time.Duration {
+	return wtc.ttl
 }
 
 func (wtc *otterCache[K, V]) Get(key K) (V, bool) {
@@ -67,13 +81,23 @@ func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
 		// was too big, so we set to maxint in that case.
 		uintCost = math.MaxUint32
 	}
+
 	wtc.metrics.costAdded.Add(uint64(uintCost))
+	_, ok := wtc.Get(key)
+	if ok {
+		wtc.cache.Invalidate(key.KeyString())
+	}
 	wtc.cache.Set(key.KeyString(), valueAndCost[V]{value, uintCost})
-	return true // Otter doesn't drop insertions for performance
+	if wtc.ttl > 0 {
+		wtc.cache.SetExpiresAfter(key.KeyString(), wtc.ttl)
+	}
+	return true
 }
 
-func (wtc *otterCache[K, V]) Wait()  {}
-func (wtc *otterCache[K, V]) Close() {}
+func (wtc *otterCache[K, V]) Wait() {}
+func (wtc *otterCache[K, V]) Close() {
+	unregisterCache(wtc.name)
+}
 
 type otterMetrics struct {
 	costAdded atomic.Uint64

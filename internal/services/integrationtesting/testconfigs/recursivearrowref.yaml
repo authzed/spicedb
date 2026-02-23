@@ -25,5 +25,11 @@ relationships: |
   test/folder:bottom#organization@test/organization:1
   test/folder:one_up#organization@test/organization:1
 assertions:
-  assertTrue: []
-  assertFalse: []
+  assertTrue:
+    - "test/folder:top#read@test/user:1337"
+    - "test/folder:one_up#read@test/user:1337"
+    - "test/folder:bottom#read@test/user:1337"
+  assertFalse:
+    - "test/folder:top#read@test/folder:bottom"
+    - "test/folder:one_up#read@test/organization:1"
+    - "test/folder:bottom#read@test/group:1"
