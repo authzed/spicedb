@@ -129,6 +129,8 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 
 	snapshot = snapshot.markComplete(revision.Uint64)
 
+	fmt.Println("OPTREV: ", revision, snapshot, tsNanos, timestamp == nil)
+
 	return postgresRevision{
 		snapshot:                      snapshot,
 		optionalInexactNanosTimestamp: tsNanos,
