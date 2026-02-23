@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -372,7 +373,22 @@ func (pr postgresRevision) DebugString() string {
 }
 
 func (pr postgresRevision) String() string {
-	return base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
+	x := map[string]any{
+		"snapshot": map[string]any{
+			"xList": pr.snapshot.xipList,
+			"xmin":  pr.snapshot.xmin,
+			"xmax":  pr.snapshot.xmax,
+		},
+		"txid": map[string]any{
+			"txid":  pr.optionalTxID.Uint64,
+			"valid": pr.optionalTxID.Valid,
+		},
+		"ts": pr.optionalInexactNanosTimestamp,
+	}
+
+	s, _ := json.Marshal(x)
+
+	return string(s) //base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
 }
 
 func (pr postgresRevision) mustMarshalBinary() []byte {
