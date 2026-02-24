@@ -78,6 +78,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - feat(query planner): add recursive direction strategies, and fix IS BFS (https://github.com/authzed/spicedb/pull/2891)
 - feat(query planner): introduce query plan outlines and canonicalization (https://github.com/authzed/spicedb/pull/2901)
 - Schema v2: introduces support for PostOrder traversal in walk.go (https://github.com/authzed/spicedb/pull/2761) and improve PostOrder walker cycle detection (https://github.com/authzed/spicedb/pull/2902)
+- Experimental: Add unified schema storage with ReadStoredSchema/WriteStoredSchema for improved schema read performance (https://github.com/authzed/spicedb/pull/2924)
+
+  This feature stores the entire schema as a single serialized proto rather than reading individual namespace and caveat definitions separately, significantly improving schema read performance.
+
+  Migration to unified schema storage is controlled by the `--experimental-schema-mode` flag, which supports a 4-phase rolling migration:
+
+  1. `read-legacy-write-legacy` (default) - No change; reads and writes use legacy per-definition storage.
+  2. `read-legacy-write-both` - Reads from legacy storage, writes to both legacy and unified storage. This is the first migration step and backfills the unified schema table.
+  3. `read-new-write-both` - Reads from unified storage, writes to both. Validates the new read path while maintaining backward compatibility.
+  4. `read-new-write-new` - Reads and writes only unified storage. This is the final migration target.
+
+  **With the SpiceDB Operator:** Configure the operator to roll through stages 1 through 4 in sequence. The operator handles the rolling update of SpiceDB instances at each stage.
+
+  **Without the operator:** Progress through the stages manually by updating the `--experimental-schema-mode` flag and performing a rolling restart at each stage. You can also take the system down briefly and move directly from stage 1 to stage 4, which runs the full migration in one step.
 
 ### Changed
 - Begin deprecation of library "github.com/dlmiddlecote/sqlstats" (https://github.com/authzed/spicedb/pull/2904).

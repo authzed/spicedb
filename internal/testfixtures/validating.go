@@ -187,6 +187,10 @@ func (vsr validatingSnapshotReader) LegacyListAllCaveats(ctx context.Context) ([
 	return read, err
 }
 
+func (vsr validatingSnapshotReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return vsr.delegate.ReadStoredSchema(ctx)
+}
+
 type validatingReadWriteTransaction struct {
 	validatingSnapshotReader
 	delegate datastore.ReadWriteTransaction
@@ -255,6 +259,14 @@ func (vrwt validatingReadWriteTransaction) LegacyDeleteCaveats(ctx context.Conte
 
 func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return vrwt.delegate.BulkLoad(ctx, source)
+}
+
+func (vrwt validatingReadWriteTransaction) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return vrwt.delegate.ReadStoredSchema(ctx)
+}
+
+func (vrwt validatingReadWriteTransaction) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	return vrwt.delegate.WriteStoredSchema(ctx, schema)
 }
 
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.

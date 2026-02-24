@@ -56,7 +56,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableExperimentalWatchableSchemaCache = c.EnableExperimentalWatchableSchemaCache
 		to.SchemaWatchHeartbeat = c.SchemaWatchHeartbeat
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
+		to.StoredSchemaCacheConfig = c.StoredSchemaCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
+		to.ExperimentalSchemaMode = c.ExperimentalSchemaMode
 		to.DispatchServer = c.DispatchServer
 		to.DispatchMaxDepth = c.DispatchMaxDepth
 		to.GlobalDispatchConcurrencyLimit = c.GlobalDispatchConcurrencyLimit
@@ -206,7 +208,19 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["NamespaceCacheConfig"] = c.NamespaceCacheConfig
 	}
+	if dm, ok := any(&c.StoredSchemaCacheConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["StoredSchemaCacheConfig"] = dm.DebugMap()
+	} else {
+		debugMap["StoredSchemaCacheConfig"] = c.StoredSchemaCacheConfig
+	}
 	debugMap["SchemaPrefixesRequired"] = c.SchemaPrefixesRequired
+	if c.ExperimentalSchemaMode == "" {
+		debugMap["ExperimentalSchemaMode"] = "(empty)"
+	} else {
+		debugMap["ExperimentalSchemaMode"] = c.ExperimentalSchemaMode
+	}
 	if dm, ok := any(&c.DispatchServer).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -549,10 +563,24 @@ func WithNamespaceCacheConfig(namespaceCacheConfig CacheConfig) ConfigOption {
 	}
 }
 
+// WithStoredSchemaCacheConfig returns an option that can set StoredSchemaCacheConfig on a Config
+func WithStoredSchemaCacheConfig(storedSchemaCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.StoredSchemaCacheConfig = storedSchemaCacheConfig
+	}
+}
+
 // WithSchemaPrefixesRequired returns an option that can set SchemaPrefixesRequired on a Config
 func WithSchemaPrefixesRequired(schemaPrefixesRequired bool) ConfigOption {
 	return func(c *Config) {
 		c.SchemaPrefixesRequired = schemaPrefixesRequired
+	}
+}
+
+// WithExperimentalSchemaMode returns an option that can set ExperimentalSchemaMode on a Config
+func WithExperimentalSchemaMode(experimentalSchemaMode string) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalSchemaMode = experimentalSchemaMode
 	}
 }
 

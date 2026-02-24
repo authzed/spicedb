@@ -54,12 +54,12 @@ func (t testServer) Ping(ctx context.Context, req *testpb.PingRequest) (*testpb.
 		}
 	}
 
-	headRev, err := dl.HeadRevision(ctx)
+	headRev, schemaHash, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	reader := dl.SnapshotReader(headRev)
+	reader := dl.SnapshotReader(headRev, schemaHash)
 	if reader == nil {
 		return nil, errors.New("no snapshot reader available")
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	v1 "github.com/authzed/spicedb/internal/services/v1"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -35,6 +36,7 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 			AtRevision:    devContext.Revision,
 			MaximumDepth:  maxDispatchDepth,
 			DebugOption:   computed.TraceDebuggingEnabled,
+			SchemaHash:    datalayer.NoSchemaHashInDevelopment,
 		},
 		resource.ObjectID,
 		defaultWasmDispatchChunkSize,
@@ -43,7 +45,7 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}
 
-	reader := devContext.DataLayer.SnapshotReader(devContext.Revision)
+	reader := devContext.DataLayer.SnapshotReader(devContext.Revision, datalayer.NoSchemaHashInDevelopment)
 	sr, srErr := reader.ReadSchema(ctx)
 	if srErr != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, srErr

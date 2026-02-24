@@ -12,6 +12,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 )
 
+type keyStringer interface {
+	KeyString() string
+}
+
 func ristrettoConfig(config *Config) *ristretto.Config {
 	return &ristretto.Config{
 		NumCounters: config.NumCounters,
@@ -20,9 +24,8 @@ func ristrettoConfig(config *Config) *ristretto.Config {
 		KeyToHash: func(key any) (uint64, uint64) {
 			dispatchCacheKey, ok := key.(keys.DispatchCacheKey)
 			if !ok {
-				stringValue, ok := key.(StringKey)
-				if ok {
-					return z.KeyToHash(string(stringValue))
+				if ks, ok := key.(keyStringer); ok {
+					return z.KeyToHash(ks.KeyString())
 				}
 
 				return z.KeyToHash(key)

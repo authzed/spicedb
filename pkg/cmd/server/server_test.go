@@ -701,7 +701,7 @@ func TestBuildDispatchServer(t *testing.T) {
 
 			sampler := memoryprotection.NewNoopMemoryUsageProvider()
 
-			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, nil)
+			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, nil, nil)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 			require.Len(t, tc.config.DispatchUnaryMiddleware, tc.expectedDispatchUnnaryMiddleware)

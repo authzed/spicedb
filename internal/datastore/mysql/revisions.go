@@ -80,16 +80,42 @@ func (mds *mysqlDatastore) optimizedRevisionFunc(ctx context.Context) (datastore
 	return revisions.NewForTransactionID(rev), validForNanos, nil
 }
 
-func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.RevisionWithSchemaHash{}, err
 	}
 	if revision == 0 {
-		return datastore.NoRevision, nil
+		return datastore.RevisionWithSchemaHash{}, nil
 	}
 
-	return revisions.NewForTransactionID(revision), nil
+	schemaHash, err := mds.loadSchemaHash(ctx, revision)
+	if err != nil {
+		return datastore.RevisionWithSchemaHash{}, err
+	}
+
+	return datastore.RevisionWithSchemaHash{Revision: revisions.NewForTransactionID(revision), SchemaHash: schemaHash}, nil
+}
+
+func (mds *mysqlDatastore) loadSchemaHash(ctx context.Context, revisionID uint64) (string, error) {
+	ctx, span := tracer.Start(ctx, "loadSchemaHash")
+	defer span.End()
+
+	query := fmt.Sprintf( //nolint:gosec // table name is from trusted internal config
+		"SELECT hash FROM %s WHERE created_transaction <= ? AND deleted_transaction > ? ORDER BY created_transaction DESC LIMIT 1",
+		mds.driver.SchemaRevision(),
+	)
+
+	var hash []byte
+	err := mds.db.QueryRowContext(ctx, query, revisionID, revisionID).Scan(&hash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("unable to load schema hash: %w", err)
+	}
+
+	return string(hash), nil
 }
 
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

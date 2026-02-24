@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -140,6 +141,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
+		SchemaHash:    datalayer.SchemaHash(rdc.parentRequest.Metadata.GetSchemaHash()),
 	}, resourceIDsToCheck, rdc.dispatchChunkSize)
 	if err != nil {
 		return err
@@ -242,6 +244,7 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     rdc.parentRequest.Revision.String(),
 			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
+			SchemaHash:     rdc.parentRequest.Metadata.SchemaHash,
 		},
 		OptionalCursor:   updatedCi.currentCursor,
 		OptionalLimit:    rdc.ci.limits.currentLimit,

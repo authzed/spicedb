@@ -71,6 +71,10 @@ message V1Cursor {
   // datastore_unique_id is the unique ID for the datastore. Will be empty for legacy
   // cursors.
   string datastore_unique_id = 6;
+
+  // schema_hash is the hash of the schema at the time the cursor was created. Will be
+  // empty for legacy cursors.
+  bytes schema_hash = 7;
 }
 
 message DocComment {

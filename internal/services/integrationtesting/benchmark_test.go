@@ -340,7 +340,7 @@ func BenchmarkServices(b *testing.B) {
 
 						rev, err := ds.HeadRevision(b.Context())
 						require.NoError(b, err)
-						revision = rev
+						revision = rev.Revision
 					}
 
 					// Set up dispatch server (default path).

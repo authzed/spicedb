@@ -99,7 +99,14 @@ const (
 	) AS candidates
 	ORDER BY %[3]s ASC
 	LIMIT 1;`
-	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
+	queryCurrentSnapshotWithHash = `
+	WITH current_xid AS (
+		SELECT pg_current_xact_id() as xid, pg_current_snapshot() as snapshot
+	)
+	SELECT
+		current_xid.snapshot,
+		COALESCE((SELECT hash FROM schema_revision WHERE created_xid <= current_xid.xid AND deleted_xid > current_xid.xid ORDER BY created_xid DESC LIMIT 1), ''::bytea)
+	FROM current_xid;`
 
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
@@ -119,32 +126,33 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, nil
 }
 
-func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
-	result, err := pgd.getHeadRevision(ctx, pgd.readPool)
+	result, schemaHash, err := pgd.getHeadRevisionWithHash(ctx, pgd.readPool)
 	if err != nil {
-		return nil, err
+		return datastore.RevisionWithSchemaHash{}, err
 	}
 	if result == nil {
-		return datastore.NoRevision, nil
+		return datastore.RevisionWithSchemaHash{}, nil
 	}
 
-	return *result, nil
+	return datastore.RevisionWithSchemaHash{Revision: *result, SchemaHash: string(schemaHash)}, nil
 }
 
-func (pgd *pgDatastore) getHeadRevision(ctx context.Context, querier common.Querier) (*postgresRevision, error) {
+func (pgd *pgDatastore) getHeadRevisionWithHash(ctx context.Context, querier common.Querier) (*postgresRevision, []byte, error) {
 	var snapshot pgSnapshot
-	if err := querier.QueryRow(ctx, queryCurrentSnapshot).Scan(&snapshot); err != nil {
+	var schemaHash []byte
+	if err := querier.QueryRow(ctx, queryCurrentSnapshotWithHash).Scan(&snapshot, &schemaHash); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
+			return nil, nil, nil
 		}
 
-		return nil, fmt.Errorf(errRevision, err)
+		return nil, nil, fmt.Errorf(errRevision, err)
 	}
 
-	return &postgresRevision{snapshot: snapshot}, nil
+	return &postgresRevision{snapshot: snapshot}, schemaHash, nil
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {

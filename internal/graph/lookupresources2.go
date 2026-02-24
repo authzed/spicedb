@@ -127,7 +127,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(req.Revision)
+	reader := dl.SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return err
@@ -605,6 +605,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,
 							DebugOption:   computed.NoDebugging,
 							CheckHints:    checkHints,
+							SchemaHash:    datalayer.SchemaHash(parentRequest.Metadata.GetSchemaHash()),
 						}, resourceIDs, crr.dispatchChunkSize)
 						if err != nil {
 							return err
@@ -694,6 +695,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+						SchemaHash:     parentRequest.Metadata.SchemaHash,
 					},
 					OptionalCursor:   ci.currentCursor,
 					OptionalLimit:    parentRequest.OptionalLimit,

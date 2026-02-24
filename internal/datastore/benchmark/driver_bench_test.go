@@ -95,8 +95,9 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			// Sleep to give the datastore time to stabilize after all the writes
 			time.Sleep(1 * time.Second)
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRevResult, err := ds.HeadRevision(ctx)
 			require.NoError(b, err)
+			headRev := headRevResult.Revision
 
 			b.StartTimer()
 

@@ -508,6 +508,7 @@ spicedb serve [flags]
       --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request (default [])
       --experimental-lookup-resources-version lr3                                       if non-empty, the version of the experimental lookup resources API to use: lr3 or empty
       --experimental-query-plan check                                                   comma-separated list of operations to route through the experimental query plan engine; valid values are check, `lr` (LookupResources), and `ls` (LookupSubjects)
+      --experimental-schema-mode string                                                 schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new (default "read-legacy-write-legacy")
       --grpc-addr string                                                                address to listen on to serve gRPC (default ":50051")
       --grpc-enabled                                                                    enable gRPC gRPC server (default true)
       --grpc-log-requests-enabled                                                       enable logging of API request payloads
@@ -552,6 +553,10 @@ spicedb serve [flags]
       --pprof-block-profile-rate int                                                    sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                                    sets the mutex profile sampling rate (between 0 and 1)
       --schema-prefixes-required                                                        require prefixes on all object definitions in schemas
+      --stored-schema-cache-enabled                                                     enable caching of stored schema (default true)
+      --stored-schema-cache-max-cost string                                             upper bound (in bytes or as a percent of available memory) of the cache for stored schema (default "32MiB")
+      --stored-schema-cache-metrics                                                     enable metrics for the cache for stored schema (default true)
+      --stored-schema-cache-num-counters int                                            number of counters for tracking access frequency in the cache for stored schema. A higher number means more accurate eviction decisions but more memory usage (default 1000)
       --streaming-api-response-delay-timeout duration                                   maximum time that streaming APIs (LookupSubjects, LookupResources, ReadRelationships and ExportBulkRelationships) can be allowed to run but no response be sent to the client before the stream times out (default 30s)
       --telemetry-ca-override-path string                                               path to a custom CA to use with the telemetry endpoint
       --telemetry-endpoint string                                                       endpoint to which telemetry is reported, empty string to disable (default "https://telemetry.authzed.com")

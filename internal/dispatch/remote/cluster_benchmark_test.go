@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -69,8 +70,11 @@ func BenchmarkSecondaryDispatching(b *testing.B) {
 		_, err = dispatcher.DispatchCheck(b.Context(), &v1.DispatchCheckRequest{
 			ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 			ResourceIds:      []string{"foo"},
-			Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
-			Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+			Metadata: &v1.ResolverMeta{
+				DepthRemaining: 50,
+				SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+			},
+			Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 		})
 		require.NoError(b, err)
 	}

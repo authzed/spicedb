@@ -156,7 +156,7 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 		if err != nil {
 			return emptyDispatchCacheKey, err
 		}
-		r := dl.SnapshotReader(revision)
+		r := dl.SnapshotReader(revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
 
 		sr, err := r.ReadSchema(ctx)
 		if err != nil {

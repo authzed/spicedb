@@ -3,8 +3,6 @@ package datalayer
 import (
 	"context"
 
-	"google.golang.org/grpc"
-
 	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
@@ -23,16 +21,4 @@ func MustFromContext(ctx context.Context) datalayer.DataLayer {
 	}
 
 	return dl
-}
-
-// UnaryCountingInterceptor wraps the datalayer with a counting proxy for unary requests.
-// After each request completes, it exports the method call counts to Prometheus metrics.
-func UnaryCountingInterceptor() grpc.UnaryServerInterceptor {
-	return datalayer.UnaryCountingInterceptor(nil)
-}
-
-// StreamCountingInterceptor wraps the datalayer with a counting proxy for stream requests.
-// After each stream completes, it exports the method call counts to Prometheus metrics.
-func StreamCountingInterceptor() grpc.StreamServerInterceptor {
-	return datalayer.StreamCountingInterceptor(nil)
 }

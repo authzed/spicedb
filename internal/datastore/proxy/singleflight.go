@@ -16,7 +16,7 @@ func NewSingleflightDatastoreProxy(d datastore.Datastore) datastore.Datastore {
 }
 
 type singleflightProxy struct {
-	headRevGroup  singleflight.Group[string, datastore.Revision]
+	headRevGroup  singleflight.Group[string, datastore.RevisionWithSchemaHash]
 	checkRevGroup singleflight.Group[string, string]
 	statsGroup    singleflight.Group[string, datastore.Stats]
 	delegate      datastore.Datastore
@@ -40,7 +40,7 @@ func (p *singleflightProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserF
 	return p.delegate.ReadWriteTx(ctx, f, opts...)
 }
 
-func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	// NOTE: Optimized revisions are singleflighted by the underlying datastore via the
 	// CachedOptimizedRevisions struct.
 	return p.delegate.OptimizedRevision(ctx)
@@ -53,8 +53,8 @@ func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastor
 	return err
 }
 
-func (p *singleflightProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	rev, _, err := p.headRevGroup.Do(ctx, "", func(ctx context.Context) (datastore.Revision, error) {
+func (p *singleflightProxy) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	rev, _, err := p.headRevGroup.Do(ctx, "", func(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 		return p.delegate.HeadRevision(ctx)
 	})
 	return rev, err

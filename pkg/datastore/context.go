@@ -48,7 +48,7 @@ func (p *ctxProxy) IsStrictReadModeEnabled() bool {
 	return false
 }
 
-func (p *ctxProxy) OptimizedRevision(ctx context.Context) (Revision, error) {
+func (p *ctxProxy) OptimizedRevision(ctx context.Context) (RevisionWithSchemaHash, error) {
 	return p.delegate.OptimizedRevision(context.WithoutCancel(ctx))
 }
 
@@ -56,7 +56,7 @@ func (p *ctxProxy) CheckRevision(ctx context.Context, revision Revision) error {
 	return p.delegate.CheckRevision(context.WithoutCancel(ctx), revision)
 }
 
-func (p *ctxProxy) HeadRevision(ctx context.Context) (Revision, error) {
+func (p *ctxProxy) HeadRevision(ctx context.Context) (RevisionWithSchemaHash, error) {
 	return p.delegate.HeadRevision(context.WithoutCancel(ctx))
 }
 
@@ -135,6 +135,10 @@ func (r *ctxReader) QueryRelationships(ctx context.Context, filter Relationships
 
 func (r *ctxReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter SubjectsFilter, options ...options.ReverseQueryOptionsOption) (RelationshipIterator, error) {
 	return r.delegate.ReverseQueryRelationships(context.WithoutCancel(ctx), subjectsFilter, options...)
+}
+
+func (r *ctxReader) ReadStoredSchema(ctx context.Context) (*ReadOnlyStoredSchema, error) {
+	return r.delegate.ReadStoredSchema(context.WithoutCancel(ctx))
 }
 
 var (

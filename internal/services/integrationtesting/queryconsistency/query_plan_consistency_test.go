@@ -52,7 +52,7 @@ type queryPlanConsistencyHandle struct {
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return query.NewLocalContext(t.Context(),
-		query.WithRevisionedReader(datalayer.NewDataLayer(q.ds).SnapshotReader(q.revision)),
+		query.WithRevisionedReader(datalayer.NewDataLayer(q.ds).SnapshotReader(q.revision, datalayer.NoSchemaHashForTesting)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 		query.WithTraceLogger(query.NewTraceLogger())) // Enable tracing for debugging
 }
@@ -65,8 +65,9 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{filePath})
 	require.NoError(err)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	schemaView, err := schema.BuildSchemaFromDefinitions(populated.NamespaceDefinitions, populated.CaveatDefinitions)
 	require.NoError(err)

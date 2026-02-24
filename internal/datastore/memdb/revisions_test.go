@@ -11,16 +11,16 @@ func TestHeadRevision(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 0, 500*time.Millisecond)
 	require.NoError(t, err)
 
-	older, err := ds.HeadRevision(t.Context())
+	olderResult, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
-	err = ds.CheckRevision(t.Context(), older)
+	err = ds.CheckRevision(t.Context(), olderResult.Revision)
 	require.NoError(t, err)
 
 	time.Sleep(550 * time.Millisecond)
 
 	// GC window elapsed, last revision is returned even if outside GC window
-	newer, err := ds.HeadRevision(t.Context())
+	newerResult, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
-	err = ds.CheckRevision(t.Context(), newer)
+	err = ds.CheckRevision(t.Context(), newerResult.Revision)
 	require.NoError(t, err)
 }

@@ -51,10 +51,10 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
 
-			head, err := ds.HeadRevision(ctx)
+			headResult, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 
-			iter, err := ds.SnapshotReader(head).QueryRelationships(ctx, datastore.RelationshipsFilter{
+			iter, err := ds.SnapshotReader(headResult.Revision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testfixtures.DocumentNS.Name,
 			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)

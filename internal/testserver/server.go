@@ -27,6 +27,7 @@ type ServerConfig struct {
 	StreamingAPITimeout                time.Duration
 	CaveatTypeSet                      *caveattypes.TypeSet
 	EnableExperimentalLookupResources3 bool
+	DataLayerOpts                      []datalayer.DataLayerOption
 }
 
 var DefaultTestServerConfig = ServerConfig{
@@ -121,7 +122,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 					},
 					{
 						Name:       "datastore",
-						Middleware: datalayer.UnaryServerInterceptor(datalayer.NewDataLayer(ds)),
+						Middleware: datalayer.UnaryServerInterceptor(datalayer.NewDataLayer(ds, config.DataLayerOpts...)),
 					},
 					{
 						Name:       "consistency",
@@ -144,7 +145,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 					},
 					{
 						Name:       "datastore",
-						Middleware: datalayer.StreamServerInterceptor(datalayer.NewDataLayer(ds)),
+						Middleware: datalayer.StreamServerInterceptor(datalayer.NewDataLayer(ds, config.DataLayerOpts...)),
 					},
 					{
 						Name:       "consistency",

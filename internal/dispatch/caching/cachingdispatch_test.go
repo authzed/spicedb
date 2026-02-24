@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -105,6 +106,7 @@ func TestMaxDepthCaching(t *testing.T) {
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     step.atRevision.String(),
 							DepthRemaining: step.depthRemaining,
+							SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 						},
 					}).Return(&v1.DispatchCheckResponse{
 						ResultsByResourceId: map[string]*v1.ResourceCheckResult{
@@ -136,6 +138,7 @@ func TestMaxDepthCaching(t *testing.T) {
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     step.atRevision.String(),
 						DepthRemaining: step.depthRemaining,
+						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 				})
 				require.NoError(err)
@@ -196,6 +199,7 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     decimal.Zero.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				Debug: v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING,
 			}

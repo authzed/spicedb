@@ -71,18 +71,22 @@ func TestObservableProxy_DatastoreMethodsWithMetrics(t *testing.T) {
 		call      func(t *testing.T, ds datastore.Datastore)
 	}{
 		{
-			name:      "OptimizedRevision",
-			metricOp:  "OptimizedRevision",
-			setupMock: func(ds *proxy_test.MockDatastore) { ds.On("OptimizedRevision").Return(testRev, nil).Once() },
+			name:     "OptimizedRevision",
+			metricOp: "OptimizedRevision",
+			setupMock: func(ds *proxy_test.MockDatastore) {
+				ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHash{Revision: testRev}, nil).Once()
+			},
 			call: func(t *testing.T, ds datastore.Datastore) {
 				_, err := ds.OptimizedRevision(t.Context())
 				require.NoError(t, err)
 			},
 		},
 		{
-			name:      "HeadRevision",
-			metricOp:  "HeadRevision",
-			setupMock: func(ds *proxy_test.MockDatastore) { ds.On("HeadRevision").Return(testRev, nil).Once() },
+			name:     "HeadRevision",
+			metricOp: "HeadRevision",
+			setupMock: func(ds *proxy_test.MockDatastore) {
+				ds.On("HeadRevision").Return(datastore.RevisionWithSchemaHash{Revision: testRev}, nil).Once()
+			},
 			call: func(t *testing.T, ds datastore.Datastore) {
 				_, err := ds.HeadRevision(t.Context())
 				require.NoError(t, err)

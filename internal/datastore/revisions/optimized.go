@@ -38,7 +38,7 @@ func (cor *CachedOptimizedRevisions) SetOptimizedRevisionFunc(revisionFunc Optim
 	cor.optimizedFunc = revisionFunc
 }
 
-func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	span := trace.SpanFromContext(ctx)
 	localNow := cor.clockFn.Now()
 
@@ -58,7 +58,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 			cor.RUnlock()
 			log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", candidate.validThrough).Msg("returning cached revision")
 			span.AddEvent(otelconv.EventDatastoreRevisionsCacheReturned)
-			return candidate.revision, nil
+			return datastore.RevisionWithSchemaHash{Revision: candidate.revision, SchemaHash: ""}, nil
 		}
 	}
 	cor.RUnlock()
@@ -93,9 +93,9 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		return optimized, nil
 	})
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.RevisionWithSchemaHash{}, err
 	}
-	return newQuantizedRevision, err
+	return datastore.RevisionWithSchemaHash{Revision: newQuantizedRevision, SchemaHash: ""}, err
 }
 
 // CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.

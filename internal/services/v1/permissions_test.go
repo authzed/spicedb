@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,7 +38,9 @@ import (
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	pgraph "github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -319,6 +323,204 @@ func TestCheckPermissions(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckPermissionSchemaLoadedOnce(t *testing.T) {
+	counter := &readStoredSchemaCounter{}
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require.New(t),
+		0,
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxUpdatesPerWrite:    1000,
+			MaxPreconditionsCount: 1000,
+			StreamingAPITimeout:   30 * time.Second,
+			DataLayerOpts: []datalayer.DataLayerOption{
+				datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
+				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}),
+			},
+		},
+		func(ds datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			wrapped := counter.wrap(ds)
+			rev, err := wrapped.HeadRevision(context.Background())
+			require.NoError(t, err)
+			return wrapped, rev.Revision
+		},
+	)
+	t.Cleanup(cleanup)
+
+	schemaClient := v1.NewSchemaServiceClient(conn)
+	permClient := v1.NewPermissionsServiceClient(conn)
+
+	// Write schema and a relationship through the API so it goes through the DataLayer.
+	_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+		definition document {
+			relation viewer: user
+			permission view = viewer
+		}`,
+	})
+	require.NoError(t, err)
+
+	_, err = permClient.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
+			tuple.MustParse("document:doc1#viewer@user:tom#..."),
+		))},
+	})
+	require.NoError(t, err)
+
+	// Reset the counter after setup. The cache was warmed by WriteSchema.
+	counter.reset()
+
+	// Make a CheckPermission call — schema should come from the cache.
+	checkResp, err := permClient.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+		},
+		Resource:   obj("document", "doc1"),
+		Permission: "view",
+		Subject:    sub("user", "tom", ""),
+	})
+	require.NoError(t, err)
+	require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.Permissionship)
+
+	// With caching, the schema written via WriteSchema is already cached, so
+	// ReadStoredSchema on the underlying datastore should not be called.
+	require.Equal(t, 0, counter.count(), "ReadStoredSchema should not be called when schema is cached")
+
+	// Make several more CheckPermission calls with different resources so the
+	// dispatch cache doesn't short-circuit the schema load path.
+	for i := range 5 {
+		checkResp, err = permClient.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+			},
+			Resource:   obj("document", fmt.Sprintf("doc-%d", i)),
+			Permission: "view",
+			Subject:    sub("user", "tom", ""),
+		})
+		require.NoError(t, err)
+		require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, checkResp.Permissionship)
+	}
+
+	require.Equal(t, 0, counter.count(), "ReadStoredSchema should not be called across multiple CheckPermission calls")
+}
+
+// readStoredSchemaCounter wraps a datastore and counts ReadStoredSchema calls.
+type readStoredSchemaCounter struct {
+	ds        datastore.Datastore
+	callCount atomic.Int32
+}
+
+func (c *readStoredSchemaCounter) wrap(ds datastore.Datastore) datastore.Datastore {
+	c.ds = ds
+	return c
+}
+
+func (c *readStoredSchemaCounter) reset() {
+	c.callCount.Store(0)
+}
+
+func (c *readStoredSchemaCounter) count() int {
+	return int(c.callCount.Load())
+}
+
+func (c *readStoredSchemaCounter) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	return &countingReader{
+		Reader:  c.ds.SnapshotReader(rev),
+		counter: c,
+	}
+}
+
+func (c *readStoredSchemaCounter) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+	return c.ds.ReadWriteTx(ctx, fn, opts...)
+}
+
+func (c *readStoredSchemaCounter) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	return c.ds.OptimizedRevision(ctx)
+}
+
+func (c *readStoredSchemaCounter) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	return c.ds.HeadRevision(ctx)
+}
+
+func (c *readStoredSchemaCounter) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	return c.ds.CheckRevision(ctx, revision)
+}
+
+func (c *readStoredSchemaCounter) RevisionFromString(serialized string) (datastore.Revision, error) {
+	return c.ds.RevisionFromString(serialized)
+}
+
+func (c *readStoredSchemaCounter) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	return c.ds.Watch(ctx, afterRevision, opts)
+}
+
+func (c *readStoredSchemaCounter) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	return c.ds.ReadyState(ctx)
+}
+
+func (c *readStoredSchemaCounter) Features(ctx context.Context) (*datastore.Features, error) {
+	return c.ds.Features(ctx)
+}
+
+func (c *readStoredSchemaCounter) OfflineFeatures() (*datastore.Features, error) {
+	return c.ds.OfflineFeatures()
+}
+
+func (c *readStoredSchemaCounter) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return c.ds.Statistics(ctx)
+}
+
+func (c *readStoredSchemaCounter) UniqueID(ctx context.Context) (string, error) {
+	return c.ds.UniqueID(ctx)
+}
+
+func (c *readStoredSchemaCounter) MetricsID() (string, error) {
+	return c.ds.MetricsID()
+}
+
+func (c *readStoredSchemaCounter) Close() error {
+	return c.ds.Close()
+}
+
+func (c *readStoredSchemaCounter) Unwrap() datastore.Datastore {
+	return c.ds
+}
+
+// countingReader wraps a datastore.Reader and counts ReadStoredSchema calls.
+type countingReader struct {
+	datastore.Reader
+	counter *readStoredSchemaCounter
+}
+
+func (r *countingReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	r.counter.callCount.Add(1)
+	return r.Reader.ReadStoredSchema(ctx)
+}
+
+// simpleSchemaCache is a minimal SchemaCache for testing.
+type simpleSchemaCache struct {
+	mu    sync.Mutex
+	items map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema // GUARDED_BY(mu)
+}
+
+func (c *simpleSchemaCache) Get(key datalayer.SchemaCacheKey) (*datastore.ReadOnlyStoredSchema, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.items[key]
+	return v, ok
+}
+
+func (c *simpleSchemaCache) Set(key datalayer.SchemaCacheKey, entry *datastore.ReadOnlyStoredSchema, _ int64) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.items[key] = entry
+	return true
+}
+
+func (c *simpleSchemaCache) Wait() {}
 
 func TestCheckPermissionWithWildcardSubject(t *testing.T) {
 	require := require.New(t)

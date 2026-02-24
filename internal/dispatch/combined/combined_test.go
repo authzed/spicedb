@@ -53,6 +53,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	})
 	require.Error(t, err)

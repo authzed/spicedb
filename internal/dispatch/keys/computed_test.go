@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -44,6 +45,7 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "tom", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 			},
@@ -58,6 +60,7 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "tom", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 			},
@@ -72,6 +75,7 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "sarah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "123456",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 			},
@@ -86,6 +90,7 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "tom", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, "view")
 				return key
@@ -99,6 +104,7 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceAndRelation: ONR("document", "foo", "view"),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 			},
@@ -111,6 +117,7 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceAndRelation: ONR("document", "foo2", "view"),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 			},
@@ -123,6 +130,7 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceAndRelation: ONR("document", "foo2", "view"),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1235",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 			},
@@ -137,6 +145,7 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceIds:      []string{"mariah", "tom"},
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 			},
@@ -152,6 +161,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, computeBothHashes)
 				return key
@@ -168,6 +178,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalLimit: 0,
 				}, computeBothHashes)
@@ -185,6 +196,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalLimit: 42,
 				}, computeBothHashes)
@@ -202,6 +214,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: nil,
 				}, computeBothHashes)
@@ -219,6 +232,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{})
@@ -239,6 +253,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -262,6 +277,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -285,6 +301,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -307,6 +324,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -333,6 +351,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{},
 				}, computeBothHashes)
@@ -350,6 +369,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo"},
@@ -369,6 +389,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
@@ -388,6 +409,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "sarah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
@@ -407,6 +429,7 @@ func TestStableCacheKeys(t *testing.T) {
 					TerminalSubject:  ONR("user", "sarah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
@@ -655,6 +678,7 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 										t.Run(revision, func(t *testing.T) {
 											metadata := &v1.ResolverMeta{
 												AtRevision: revision,
+												SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 											}
 
 											for prefix, f := range generatorFuncs {
@@ -686,6 +710,7 @@ func TestComputeOnlyStableHash(t *testing.T) {
 		Subject:          ONR("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, computeOnlyStableHash)
 
@@ -700,6 +725,7 @@ func TestComputeContextHash(t *testing.T) {
 		TerminalSubject:  ONR("user", "mariah", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 		},
 		Context: func() *structpb.Struct {
 			v, _ := structpb.NewStruct(map[string]any{

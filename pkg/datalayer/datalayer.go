@@ -28,10 +28,10 @@ type LegacySchemaWriter interface {
 // It abstracts the underlying datastore, hiding Legacy* methods and
 // providing clean access to schema, relationships, and metadata.
 type DataLayer interface {
-	SnapshotReader(datastore.Revision) RevisionedReader
+	SnapshotReader(datastore.Revision, SchemaHash) RevisionedReader
 	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (datastore.Revision, error)
-	OptimizedRevision(ctx context.Context) (datastore.Revision, error)
-	HeadRevision(ctx context.Context) (datastore.Revision, error)
+	OptimizedRevision(ctx context.Context) (datastore.Revision, SchemaHash, error)
+	HeadRevision(ctx context.Context) (datastore.Revision, SchemaHash, error)
 	CheckRevision(ctx context.Context, revision datastore.Revision) error
 	RevisionFromString(serialized string) (datastore.Revision, error)
 	Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error)

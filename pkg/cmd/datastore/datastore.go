@@ -450,7 +450,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 
-		nsDefs, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+		nsDefs, err := ds.SnapshotReader(revision.Revision).LegacyListAllNamespaces(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}

@@ -467,11 +467,11 @@ func TestRunCaveatExpressions(t *testing.T) {
 					third
 				}
 				`, nil, req)
-			headRevision, err := ds.HeadRevision(t.Context())
+			headRevisionResult, err := ds.HeadRevision(t.Context())
 			req.NoError(err)
 
 			dl := datalayer.NewDataLayer(ds)
-			sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+			sr, err := dl.SnapshotReader(headRevisionResult.Revision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 			req.NoError(err)
 
 			for _, debugOption := range []RunCaveatExpressionDebugOption{
@@ -520,11 +520,12 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
 	result, err := RunSingleCaveatExpression(
@@ -552,11 +553,12 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
 	_, err = RunSingleCaveatExpression(
@@ -590,11 +592,12 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 				}
 				`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)
@@ -658,11 +661,12 @@ func TestRunCaveatWithMissingDefinition(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
 	// Try to run a caveat that doesn't exist
@@ -693,11 +697,12 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)
@@ -738,11 +743,12 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)
@@ -819,11 +825,12 @@ func TestUnknownCaveatOperation(t *testing.T) {
 		}
 		`, nil, req)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)

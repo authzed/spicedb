@@ -75,13 +75,18 @@ func (m *QueryPlanMetadata) ApplyAdvisor(co query.CanonicalOutline) (query.Canon
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
 func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
-	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	// Lazy initialization of QueryPlanMetadata if nil
+	if ps.queryPlanMetadata == nil {
+		ps.queryPlanMetadata = NewQueryPlanMetadata()
+	}
+
+	atRevision, schemaHash, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load all namespace and caveat definitions to build the schema
 	// TODO: Better schema caching
@@ -209,13 +214,13 @@ func convertPathToPermissionship(path *query.Path) (v1.CheckPermissionResponse_P
 func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load schema
 	sr, err := reader.ReadSchema(ctx)
@@ -333,13 +338,13 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load schema
 	sr, err := reader.ReadSchema(ctx)

@@ -45,6 +45,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -87,8 +88,12 @@ type Config struct {
 	SchemaWatchHeartbeat                   time.Duration `debugmap:"visible"`
 	NamespaceCacheConfig                   CacheConfig   `debugmap:"visible"`
 
+	// Stored schema hash cache
+	StoredSchemaCacheConfig CacheConfig `debugmap:"visible"`
+
 	// Schema options
-	SchemaPrefixesRequired bool `debugmap:"visible"`
+	SchemaPrefixesRequired bool   `debugmap:"visible"`
+	ExperimentalSchemaMode string `debugmap:"visible"`
 
 	// Dispatch options
 	DispatchServer                    util.GRPCServerConfig   `debugmap:"visible"`
@@ -210,6 +215,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if c.EnableExperimentalWatchableSchemaCache {
 		cachingMode = schemacaching.WatchIfSupported
 	}
+
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&c.StoredSchemaCacheConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
+	}
+	log.Ctx(ctx).Info().EmbedObject(storedSchemaCache).Msg("configured stored schema cache")
+	closeables.AddWithoutError(storedSchemaCache.Close)
 
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	ds = proxy.NewSingleflightDatastoreProxy(ds)
@@ -346,6 +358,17 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	memoryUsageProvider := c.BuildMemoryUsageProvider()
 
+	// Parse schema mode for datalayer construction
+	var dlOpts []datalayer.DataLayerOption
+	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
+	if c.ExperimentalSchemaMode != "" {
+		schemaMode, smErr := datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
+		if smErr != nil {
+			return nil, smErr
+		}
+		dlOpts = append(dlOpts, datalayer.WithSchemaMode(schemaMode))
+	}
+
 	opts := MiddlewareOption{
 		Logger:                    log.Logger,
 		AuthFunc:                  c.GRPCAuthFunc,
@@ -358,7 +381,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MismatchingZedTokenOption: mismatchZedTokenOption,
 		MemoryUsageProvider:       memoryUsageProvider,
 	}
-	opts = opts.WithDatastore(ds)
+	opts = opts.WithDatastore(ds, dlOpts...)
 
 	// Build OTel stats handler options (shared by both gRPC servers)
 	// Always disable health check tracing to reduce trace volume
@@ -366,7 +389,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
 	}
 
-	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, statsHandlerOpts)
+	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, statsHandlerOpts, dlOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -570,12 +593,12 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
-func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option) (util.RunnableGRPCServer, error) {
+func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		}
 	}
 

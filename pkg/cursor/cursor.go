@@ -8,6 +8,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
@@ -50,7 +51,7 @@ func Decode(encoded *v1.Cursor) (*impl.DecodedCursor, error) {
 // consumption, including the provided call context to ensure the API cursor reflects the calling
 // API method. The call hash should contain all the parameters of the calling API function,
 // as well as its revision and name.
-func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterHash string, revision datastore.Revision, flags map[string]string) (*v1.Cursor, error) {
+func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterHash string, revision datastore.Revision, schemaHash datalayer.SchemaHash, flags map[string]string) (*v1.Cursor, error) {
 	if dispatchCursor == nil {
 		return nil, spiceerrors.MustBugf("got nil dispatch cursor")
 	}
@@ -62,13 +63,14 @@ func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterH
 				DispatchVersion:       dispatchCursor.DispatchVersion,
 				Sections:              dispatchCursor.Sections,
 				CallAndParametersHash: callAndParameterHash,
+				SchemaHash:            []byte(schemaHash),
 				Flags:                 flags,
 			},
 		},
 	})
 }
 
-func EncodeFromDispatchCursorSections(dispatchCursorSections []string, callAndParameterHash string, revision datastore.Revision, flags map[string]string) (*v1.Cursor, error) {
+func EncodeFromDispatchCursorSections(dispatchCursorSections []string, callAndParameterHash string, revision datastore.Revision, schemaHash datalayer.SchemaHash, flags map[string]string) (*v1.Cursor, error) {
 	return Encode(&impl.DecodedCursor{
 		VersionOneof: &impl.DecodedCursor_V1{
 			V1: &impl.V1Cursor{
@@ -76,6 +78,7 @@ func EncodeFromDispatchCursorSections(dispatchCursorSections []string, callAndPa
 				DispatchVersion:       1,
 				Sections:              dispatchCursorSections,
 				CallAndParametersHash: callAndParameterHash,
+				SchemaHash:            []byte(schemaHash),
 				Flags:                 flags,
 			},
 		},
@@ -123,38 +126,42 @@ func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*d
 	}, v1decoded.Flags, nil
 }
 
-// DecodeToDispatchRevision decodes an encoded API cursor into an internal dispatch revision.
+// DecodeToDispatchRevisionAndSchemaHash decodes an encoded API cursor into an internal dispatch revision and schema hash.
 // NOTE: this method does *not* verify the caller's method signature.
-func DecodeToDispatchRevision(ctx context.Context, encoded *v1.Cursor, ds revisionDecoder) (datastore.Revision, zedtoken.TokenStatus, error) {
+func DecodeToDispatchRevisionAndSchemaHash(ctx context.Context, encoded *v1.Cursor, ds revisionDecoder) (datastore.Revision, datalayer.SchemaHash, zedtoken.TokenStatus, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
-		return nil, zedtoken.StatusUnknown, err
+		return nil, "", zedtoken.StatusUnknown, err
 	}
 
 	v1decoded := decoded.GetV1()
 	if v1decoded == nil {
-		return nil, zedtoken.StatusUnknown, ErrNilCursor
+		return nil, "", zedtoken.StatusUnknown, ErrNilCursor
 	}
 
 	datastoreUniqueID, err := ds.UniqueID(ctx)
 	if err != nil {
-		return nil, zedtoken.StatusUnknown, fmt.Errorf(errEncodeError, err)
+		return nil, "", zedtoken.StatusUnknown, fmt.Errorf(errEncodeError, err)
 	}
 
 	parsed, err := ds.RevisionFromString(v1decoded.Revision)
 	if err != nil {
-		return datastore.NoRevision, zedtoken.StatusUnknown, fmt.Errorf(errDecodeError, err)
+		return datastore.NoRevision, "", zedtoken.StatusUnknown, fmt.Errorf(errDecodeError, err)
 	}
 
 	if v1decoded.DatastoreUniqueId == "" {
-		return parsed, zedtoken.StatusLegacyEmptyDatastoreID, nil
+		return parsed, datalayer.NoSchemaHashForLegacyCursor, zedtoken.StatusLegacyEmptyDatastoreID, nil
 	}
 
 	if v1decoded.DatastoreUniqueId != datastoreUniqueID {
-		return parsed, zedtoken.StatusMismatchedDatastoreID, nil
+		return parsed, datalayer.NoSchemaHashForLegacyCursor, zedtoken.StatusMismatchedDatastoreID, nil
 	}
 
-	return parsed, zedtoken.StatusValid, nil
+	schemaHash := datalayer.NoSchemaHashForLegacyCursor
+	if len(v1decoded.GetSchemaHash()) > 0 {
+		schemaHash = datalayer.SchemaHash(v1decoded.GetSchemaHash())
+	}
+	return parsed, schemaHash, zedtoken.StatusValid, nil
 }
 
 type revisionDecoder interface {

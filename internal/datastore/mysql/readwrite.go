@@ -47,9 +47,10 @@ var (
 type mysqlReadWriteTXN struct {
 	*mysqlReader
 
-	tupleTableName string
-	tx             *sql.Tx
-	newTxnID       uint64
+	tupleTableName          string
+	schemaRevisionTableName string
+	tx                      *sql.Tx
+	newTxnID                uint64
 }
 
 // structpbWrapper is used to marshall maps into MySQLs JSON data type

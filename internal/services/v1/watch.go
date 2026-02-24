@@ -74,13 +74,13 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		afterRevision = decodedRevision
 	} else {
 		var err error
-		afterRevision, err = dl.OptimizedRevision(ctx)
+		afterRevision, _, err = dl.OptimizedRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
 	}
 
-	reader := dl.SnapshotReader(afterRevision)
+	reader := dl.SnapshotReader(afterRevision, datalayer.NoSchemaHashForWatch)
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to read schema: %s", err)

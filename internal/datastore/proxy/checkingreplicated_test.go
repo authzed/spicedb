@@ -101,12 +101,12 @@ func (f fakeDatastore) ReadWriteTx(_ context.Context, _ datastore.TxUserFunc, _ 
 	return nil, nil
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
-	return nil, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
+	return datastore.RevisionWithSchemaHash{}, nil
 }
 
-func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
-	return nil, nil
+func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
+	return datastore.RevisionWithSchemaHash{}, nil
 }
 
 func (f fakeDatastore) CheckRevision(_ context.Context, rev datastore.Revision) error {
@@ -239,6 +239,10 @@ func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string)
 
 func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return nil, nil
 }
 
 func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {
