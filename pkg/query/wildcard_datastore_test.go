@@ -31,7 +31,7 @@ func TestDatastoreIterator_CheckWildcard(t *testing.T) {
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
 	t.Run("ConcreteSubjectMatchesViaWildcard", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestDatastoreIterator_IterSubjectsWildcard(t *testing.T) {
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
 	// Trip topLevelOnce so the subsequent call is treated as non-top-level
@@ -112,7 +112,7 @@ func TestDatastoreIterator_IterSubjectsWildcard_Empty(t *testing.T) {
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 	tripTopLevel(t, ctx, NewObject("resource", "doc1"))
 
@@ -144,7 +144,7 @@ func TestDatastoreIterator_IterResourcesWildcard(t *testing.T) {
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
 	// Asking "which resources is alice a viewer of via the wildcard?" should

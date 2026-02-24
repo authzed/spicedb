@@ -45,7 +45,7 @@ func BenchmarkCheck(b *testing.B) {
 			revision, err := rawDS.HeadRevision(ctx)
 			require.NoError(b, err)
 
-			dsSchema, err := bm.ReadSchema(ctx, rawDS, revision)
+			dsSchema, err := bm.ReadSchema(ctx, rawDS, revision.Revision)
 			require.NoError(b, err)
 
 			canonicalOutline, err := query.BuildOutlineFromSchema(dsSchema, check.ResourceType, check.Permission)
@@ -54,7 +54,7 @@ func BenchmarkCheck(b *testing.B) {
 			resource := query.NewObject(check.ResourceType, check.ResourceID)
 			subject := query.NewObject(check.SubjectType, check.SubjectID).WithEllipses()
 
-			qReader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
+			qReader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision.Revision, datalayer.SchemaHash(revision.SchemaHash)))
 			delayReader := query.NewDelayReader(networkDelay, qReader)
 
 			var ctxOpts []query.ContextOption

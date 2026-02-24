@@ -65,8 +65,9 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			setupDatastore(ds, require)
 
-			lowestRevision, err := ds.HeadRevision(t.Context())
+			lowestRevisionResult, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
+			lowestRevision := lowestRevisionResult.Revision
 
 			opts := datastore.WatchOptions{
 				Content:                 datastore.WatchRelationships,
@@ -293,8 +294,9 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// TOUCH a relationship and ensure watch sees it.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
@@ -398,8 +400,9 @@ func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 	require.Empty(errchan)
@@ -443,8 +446,9 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 	require.Empty(errchan)
@@ -482,8 +486,9 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// TOUCH a relationship and ensure watch sees it.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
@@ -574,8 +579,9 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
 	require.Empty(errchan)
@@ -666,8 +672,9 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content: datastore.WatchRelationships | datastore.WatchSchema,
@@ -798,8 +805,9 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships | datastore.WatchSchema,
@@ -838,8 +846,9 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 
 	expectsWatchError := (features.WatchEmitsImmediately.Status != datastore.FeatureSupported)
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships,

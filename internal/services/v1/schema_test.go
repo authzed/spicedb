@@ -571,10 +571,10 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure the `user` definition was not modified.
-	rev, err := ds.HeadRevision(t.Context())
+	revResult, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := ds.SnapshotReader(rev)
+	reader := ds.SnapshotReader(revResult.Revision)
 
 	_, userRevision, err := reader.LegacyReadNamespaceByName(t.Context(), "user")
 	require.NoError(t, err)

@@ -9,8 +9,11 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 var (
@@ -48,7 +51,7 @@ func TestEncodeDecode(t *testing.T) {
 			require := require.New(t)
 			encoded, err := EncodeFromDispatchCursor(&dispatch.Cursor{
 				Sections: tc.sections,
-			}, tc.hash, tc.revision, map[string]string{"some": "flag"})
+			}, tc.hash, tc.revision, datalayer.NoSchemaHashForLegacyCursor, map[string]string{"some": "flag"})
 			require.NoError(err)
 			require.NotNil(encoded)
 
@@ -59,7 +62,7 @@ func TestEncodeDecode(t *testing.T) {
 
 			require.Equal(tc.sections, decoded.Sections)
 
-			decodedRev, _, err := DecodeToDispatchRevision(t.Context(), encoded, revisions.CommonDecoder{
+			decodedRev, _, _, err := DecodeToDispatchRevisionAndSchemaHash(t.Context(), encoded, revisions.CommonDecoder{
 				Kind: revisions.TransactionID,
 			})
 			require.NoError(err)
@@ -136,7 +139,7 @@ func TestDecode(t *testing.T) {
 			require.NotNil(decoded)
 			require.Equal(testCase.expectedSections, decoded.Sections)
 
-			decodedRev, _, err := DecodeToDispatchRevision(t.Context(), &v1.Cursor{
+			decodedRev, _, _, err := DecodeToDispatchRevisionAndSchemaHash(t.Context(), &v1.Cursor{
 				Token: testCase.token,
 			}, revisions.CommonDecoder{
 				Kind: revisions.TransactionID,
@@ -151,4 +154,64 @@ func TestDecode(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestDecodeToDispatchRevisionAndSchemaHashWithDatastoreID(t *testing.T) {
+	require := require.New(t)
+
+	// Encode a cursor that includes both a DatastoreUniqueId and a SchemaHash.
+	encoded, err := Encode(&impl.DecodedCursor{
+		VersionOneof: &impl.DecodedCursor_V1{
+			V1: &impl.V1Cursor{
+				Revision:              revision1.String(),
+				DispatchVersion:       1,
+				Sections:              []string{"a", "b"},
+				CallAndParametersHash: "testhash",
+				DatastoreUniqueId:     "testdsid",
+				SchemaHash:            []byte("myschema123"),
+			},
+		},
+	})
+	require.NoError(err)
+
+	decodedRev, schemaHash, status, err := DecodeToDispatchRevisionAndSchemaHash(
+		t.Context(),
+		encoded,
+		revisions.CommonDecoder{
+			Kind:              revisions.TransactionID,
+			DatastoreUniqueID: "testdsid",
+		},
+	)
+	require.NoError(err)
+	require.Equal(zedtoken.StatusValid, status)
+	require.True(revision1.Equal(decodedRev))
+	require.Equal(datalayer.SchemaHash("myschema123"), schemaHash)
+}
+
+func TestDecodeToDispatchRevisionAndSchemaHashMismatchedDatastoreID(t *testing.T) {
+	require := require.New(t)
+
+	encoded, err := Encode(&impl.DecodedCursor{
+		VersionOneof: &impl.DecodedCursor_V1{
+			V1: &impl.V1Cursor{
+				Revision:          revision1.String(),
+				DispatchVersion:   1,
+				DatastoreUniqueId: "otherid",
+				SchemaHash:        []byte("myschema123"),
+			},
+		},
+	})
+	require.NoError(err)
+
+	_, schemaHash, status, err := DecodeToDispatchRevisionAndSchemaHash(
+		t.Context(),
+		encoded,
+		revisions.CommonDecoder{
+			Kind:              revisions.TransactionID,
+			DatastoreUniqueID: "testdsid",
+		},
+	)
+	require.NoError(err)
+	require.Equal(zedtoken.StatusMismatchedDatastoreID, status)
+	require.Equal(datalayer.NoSchemaHashForLegacyCursor, schemaHash)
 }

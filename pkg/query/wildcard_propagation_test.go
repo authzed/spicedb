@@ -55,7 +55,7 @@ func setupTestDB(t *testing.T, schemaText string, rels ...string) (datastore.Dat
 func collectSubjectIDs(t *testing.T, ctx context.Context, ds datastore.Datastore, rev datastore.Revision, it Iterator, resource Object) []string {
 	t.Helper()
 	qctx := NewLocalContext(ctx,
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 		WithTraceLogger(NewTraceLogger()),
 	)
 	seq, err := qctx.IterSubjects(it, resource, NoObjectFilter())

@@ -152,13 +152,14 @@ func (p *watchingCachingProxy) Start(ctx context.Context) error {
 
 func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	log.Info().Msg("starting watching cache")
-	headRev, err := p.HeadRevision(context.Background())
+	headRevWithHash, err := p.HeadRevision(context.Background())
 	if err != nil {
 		p.namespaceCache.setFallbackMode()
 		p.caveatCache.setFallbackMode()
 		log.Warn().Err(err).Msg("received error in schema watch")
 		return err
 	}
+	headRev := headRevWithHash.Revision
 
 	// Start watching for expired entries to be GCed.
 	go (func() {

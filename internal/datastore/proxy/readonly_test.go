@@ -82,11 +82,11 @@ func TestOptimizedRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	delegate.On("OptimizedRevision").Return(expectedRevision, nil).Times(1)
+	delegate.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHash{Revision: expectedRevision}, nil).Times(1)
 
-	revision, err := ds.OptimizedRevision(ctx)
+	result, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)
-	require.Equal(expectedRevision, revision)
+	require.Equal(expectedRevision, result.Revision)
 	delegate.AssertExpectations(t)
 }
 
@@ -97,11 +97,11 @@ func TestHeadRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	delegate.On("HeadRevision").Return(expectedRevision, nil).Times(1)
+	delegate.On("HeadRevision").Return(datastore.RevisionWithSchemaHash{Revision: expectedRevision}, nil).Times(1)
 
-	revision, err := ds.HeadRevision(ctx)
+	result, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	require.Equal(expectedRevision, revision)
+	require.Equal(expectedRevision, result.Revision)
 	delegate.AssertExpectations(t)
 }
 

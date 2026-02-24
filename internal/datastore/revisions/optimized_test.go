@@ -127,8 +127,9 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				}
 
 				require.Eventually(func() bool {
-					revision, err := or.OptimizedRevision(ctx)
+					revisionResult, err := or.OptimizedRevision(ctx)
 					require.NoError(err)
+					revision := revisionResult.Revision
 					printableRevSet := slicez.Map(expectedRevSet, func(val datastore.Revision) string {
 						return val.String()
 					})
@@ -165,11 +166,11 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	g := errgroup.Group{}
 	for range 10 {
 		g.Go(func() error {
-			revision, err := or.OptimizedRevision(ctx)
+			revisionResult, err := or.OptimizedRevision(ctx)
 			if err != nil {
 				return err
 			}
-			require.True(one.Equal(revision), "must return the proper revision %s != %s", one, revision)
+			require.True(one.Equal(revisionResult.Revision), "must return the proper revision %s != %s", one, revisionResult.Revision)
 			return nil
 		})
 		time.Sleep(1 * time.Millisecond)
