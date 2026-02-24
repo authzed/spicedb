@@ -201,6 +201,15 @@ func (dm *MockReader) LegacyListAllCaveats(_ context.Context) ([]datastore.Revis
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
+func (dm *MockReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	args := dm.Called()
+	var schema *datastore.ReadOnlyStoredSchema
+	if args.Get(0) != nil {
+		schema = args.Get(0).(*datastore.ReadOnlyStoredSchema)
+	}
+	return schema, args.Error(1)
+}
+
 type MockReadWriteTransaction struct {
 	mock.Mock
 }
@@ -358,6 +367,20 @@ func (dm *MockReadWriteTransaction) UnregisterCounter(ctx context.Context, name 
 
 func (dm *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	args := dm.Called(name, value, computedAtRevision)
+	return args.Error(0)
+}
+
+func (dm *MockReadWriteTransaction) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	args := dm.Called()
+	var schema *datastore.ReadOnlyStoredSchema
+	if args.Get(0) != nil {
+		schema = args.Get(0).(*datastore.ReadOnlyStoredSchema)
+	}
+	return schema, args.Error(1)
+}
+
+func (dm *MockReadWriteTransaction) WriteStoredSchema(_ context.Context, schema *core.StoredSchema) error {
+	args := dm.Called(schema)
 	return args.Error(0)
 }
 

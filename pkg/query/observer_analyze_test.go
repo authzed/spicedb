@@ -149,7 +149,7 @@ func TestAnalysisIntegration(t *testing.T) {
 	// Create a context with analysis enabled
 	analyze := NewAnalyzeObserver()
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision, datalayer.NoSchemaHashForTesting)),
 		WithObserver(analyze))
 
 	// Execute a Check operation

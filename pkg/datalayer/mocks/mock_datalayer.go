@@ -176,12 +176,13 @@ func (mr *MockDataLayerMockRecorder) Features(ctx any) *gomock.Call {
 }
 
 // HeadRevision mocks base method.
-func (m *MockDataLayer) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockDataLayer) HeadRevision(ctx context.Context) (datastore.Revision, datalayer.SchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeadRevision", ctx)
 	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(datalayer.SchemaHash)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // HeadRevision indicates an expected call of HeadRevision.
@@ -221,12 +222,13 @@ func (mr *MockDataLayerMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, datalayer.SchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
 	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(datalayer.SchemaHash)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // OptimizedRevision indicates an expected call of OptimizedRevision.
@@ -286,17 +288,17 @@ func (mr *MockDataLayerMockRecorder) RevisionFromString(serialized any) *gomock.
 }
 
 // SnapshotReader mocks base method.
-func (m *MockDataLayer) SnapshotReader(arg0 datastore.Revision) datalayer.RevisionedReader {
+func (m *MockDataLayer) SnapshotReader(arg0 datastore.Revision, arg1 datalayer.SchemaHash) datalayer.RevisionedReader {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SnapshotReader", arg0)
+	ret := m.ctrl.Call(m, "SnapshotReader", arg0, arg1)
 	ret0, _ := ret[0].(datalayer.RevisionedReader)
 	return ret0
 }
 
 // SnapshotReader indicates an expected call of SnapshotReader.
-func (mr *MockDataLayerMockRecorder) SnapshotReader(arg0 any) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SnapshotReader(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotReader", reflect.TypeOf((*MockDataLayer)(nil).SnapshotReader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotReader", reflect.TypeOf((*MockDataLayer)(nil).SnapshotReader), arg0, arg1)
 }
 
 // Statistics mocks base method.

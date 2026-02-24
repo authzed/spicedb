@@ -57,6 +57,7 @@ type fakeExecutor struct {
 	readResult  map[int][]byte
 	readErr     error
 	transaction *fakeTransaction
+	onRead      func() // Optional callback invoked on each read
 }
 
 func (m *fakeExecutor) BeginTransaction(ctx context.Context) (ChunkedBytesTransaction, error) {
@@ -64,6 +65,9 @@ func (m *fakeExecutor) BeginTransaction(ctx context.Context) (ChunkedBytesTransa
 }
 
 func (m *fakeExecutor) ExecuteRead(ctx context.Context, builder sq.SelectBuilder) (map[int][]byte, error) {
+	if m.onRead != nil {
+		m.onRead()
+	}
 	if m.readErr != nil {
 		return nil, m.readErr
 	}
@@ -392,6 +396,7 @@ func TestReadChunkedBytes(t *testing.T) {
 		name          string
 		chunks        map[int][]byte
 		expectedData  []byte
+		expectedErr   error
 		expectedError string
 	}{
 		{
@@ -418,9 +423,9 @@ func TestReadChunkedBytes(t *testing.T) {
 			expectedData: []byte{},
 		},
 		{
-			name:          "no chunks",
-			chunks:        map[int][]byte{},
-			expectedError: "no chunks found",
+			name:        "no chunks",
+			chunks:      map[int][]byte{},
+			expectedErr: ErrNoChunksFound,
 		},
 		{
 			name: "missing chunk in sequence",
@@ -450,10 +455,13 @@ func TestReadChunkedBytes(t *testing.T) {
 
 			data, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
 
-			if tt.expectedError != "" {
+			switch {
+			case tt.expectedErr != nil:
+				require.ErrorIs(t, err, tt.expectedErr)
+			case tt.expectedError != "":
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectedError)
-			} else {
+			default:
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedData, data)
 			}
@@ -675,6 +683,49 @@ func TestWriteChunkedBytes_LargeData_DeleteAndInsert(t *testing.T) {
 	require.Len(t, txn.capturedSQL, 2)
 	insertArgs := txn.capturedArgs[1]
 	require.Len(t, insertArgs, 33) // 11 chunks * 3 values per chunk
+}
+
+func TestWithExecutor(t *testing.T) {
+	executor1 := &fakeExecutor{}
+	executor2 := &fakeExecutor{}
+
+	config := SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      1024,
+		PlaceholderFormat: sq.Question,
+		Executor:          executor1,
+		WriteMode:         WriteModeDeleteAndInsert,
+	}
+
+	// WithExecutor should return a copy with the new executor.
+	newConfig := config.WithExecutor(executor2)
+	require.Equal(t, executor2, newConfig.Executor)
+
+	// Original should be unchanged.
+	require.Equal(t, executor1, config.Executor)
+}
+
+func TestWithTableName(t *testing.T) {
+	config := SQLByteChunkerConfig[uint64]{
+		TableName:         "original_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      1024,
+		PlaceholderFormat: sq.Question,
+		Executor:          &fakeExecutor{},
+		WriteMode:         WriteModeDeleteAndInsert,
+	}
+
+	// WithTableName should return a copy with the new table name.
+	newConfig := config.WithTableName("new_table")
+	require.Equal(t, "new_table", newConfig.TableName)
+
+	// Original should be unchanged.
+	require.Equal(t, "original_table", config.TableName)
 }
 
 func TestWriteChunkedBytes_LargeData_InsertWithTombstones(t *testing.T) {

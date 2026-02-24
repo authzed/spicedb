@@ -135,6 +135,10 @@ func (r *indexcheckingReader) LegacyReadNamespaceByName(ctx context.Context, nsN
 	return r.delegate.LegacyReadNamespaceByName(ctx, nsName)
 }
 
+func (r *indexcheckingReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return r.delegate.ReadStoredSchema(ctx)
+}
+
 func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) error {
 	// If no indexes are expected, there is nothing to check.
 	if len(expectedIndexes.ExpectedIndexNames) == 0 {
@@ -224,6 +228,10 @@ func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1
 
 func (rwt *indexcheckingRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return rwt.delegate.BulkLoad(ctx, iter)
+}
+
+func (rwt *indexcheckingRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	return rwt.delegate.WriteStoredSchema(ctx, schema)
 }
 
 var (
