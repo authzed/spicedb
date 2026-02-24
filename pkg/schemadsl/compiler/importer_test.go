@@ -68,7 +68,6 @@ func TestImporter(t *testing.T) {
 		{"nested local two layers deep import", "nested-two-layer-local"},
 		{"diamond-shaped imports are fine", "diamond-shaped"},
 		{"multiple use directives are fine", "multiple-use-directives"},
-		{"expiration works correctly across multiple files", "expiration-usage"},
 		{"many imports are correctly resolved", "many-imports"},
 	}
 

@@ -761,9 +761,7 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 }
 
 func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
-	fmt.Println("adding with expiration")
 	if traitNode, err := typeRefNode.Lookup(dslshape.NodeSpecificReferencePredicateTrait); err == nil {
-		fmt.Println("inside the if statement")
 		traitName, err := traitNode.GetString(dslshape.NodeTraitPredicateTrait)
 		if err != nil {
 			return err
@@ -777,7 +775,6 @@ func addWithExpiration(tctx *translationContext, typeRefNode *dslNode, ref *core
 			return errors.New("expiration trait is not allowed")
 		}
 
-		fmt.Println("setting required expiration")
 		ref.RequiredExpiration = &core.ExpirationTrait{}
 	}
 	return nil
