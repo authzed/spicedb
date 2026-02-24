@@ -43,7 +43,7 @@ func TestBuildTree(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -71,7 +71,7 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	require.Contains(explain.String(), "Union", "edit permission should create a union iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -118,7 +118,7 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	require.NotEmpty(explain.String())
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	// Just test that the iterator can be executed without error
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -211,7 +211,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.Contains(explain.String(), "Intersection", "should create intersection iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
@@ -273,7 +273,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	t.Run("Exclusion with Relation Reference", func(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Create schema with exclusion using relation references
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
@@ -519,7 +519,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.Contains(explain.String(), "Datastore", "should create datastore iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -540,7 +540,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Base Relation with Ellipsis Subrelation", func(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Test that base relations with ellipsis (group:...) work correctly with arrows
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -578,7 +578,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Base Relation with Specific Subrelation", func(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Create schema with specific subrelation that should create union with arrow
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -666,7 +666,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Multiple Base Relations with Different Subrelation Handling", func(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Test relation with multiple base relations, some with subrelations, some without
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),

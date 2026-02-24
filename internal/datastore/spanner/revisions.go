@@ -12,31 +12,29 @@ import (
 )
 
 var (
-	ParseRevisionString = revisions.RevisionParser(revisions.Timestamp)
-	nowStmt             = spanner.NewStatement("SELECT CURRENT_TIMESTAMP()")
+	ParseRevisionString   = revisions.RevisionParser(revisions.Timestamp)
+	nowStmt               = spanner.NewStatement("SELECT CURRENT_TIMESTAMP()")
+	nowWithSchemaHashStmt = spanner.NewStatement("SELECT CURRENT_TIMESTAMP(), COALESCE((SELECT schema_hash FROM schema_revision WHERE name = 'current' ORDER BY timestamp DESC LIMIT 1), b'')")
 )
 
-func (sd *spannerDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, error) {
-	now, err := sd.now(ctx)
+func (sd *spannerDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	now, schemaHash, err := sd.nowWithHash(ctx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+		return datastore.RevisionWithSchemaHash{}, fmt.Errorf(errRevision, err)
 	}
 
-	return revisions.NewForTime(now), nil
+	return datastore.RevisionWithSchemaHash{Revision: revisions.NewForTime(now), SchemaHash: schemaHash}, nil
 }
 
-func (sd *spannerDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	return sd.headRevisionInternal(ctx)
-}
-
-func (sd *spannerDatastore) now(ctx context.Context) (time.Time, error) {
+func (sd *spannerDatastore) nowWithHash(ctx context.Context) (time.Time, string, error) {
 	var timestamp time.Time
-	if err := sd.client.Single().Query(ctx, nowStmt).Do(func(r *spanner.Row) error {
-		return r.Columns(&timestamp)
+	var schemaHash []byte
+	if err := sd.client.Single().Query(ctx, nowWithSchemaHashStmt).Do(func(r *spanner.Row) error {
+		return r.Columns(&timestamp, &schemaHash)
 	}); err != nil {
-		return timestamp, fmt.Errorf(errRevision, err)
+		return time.Time{}, "", fmt.Errorf(errRevision, err)
 	}
-	return timestamp, nil
+	return timestamp, string(schemaHash), nil
 }
 
 func (sd *spannerDatastore) staleHeadRevision(ctx context.Context) (datastore.Revision, error) {

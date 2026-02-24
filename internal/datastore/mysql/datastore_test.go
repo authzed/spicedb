@@ -760,9 +760,9 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	// Let's make sure both Now() and transactionCreated() have timezones aligned
 	req.Less(ts.Sub(startTimeUTC), 5*time.Minute)
 
-	revision, err := ds.OptimizedRevision(ctx)
+	revisionResult, err := ds.OptimizedRevision(ctx)
 	req.NoError(err)
-	req.Equal(revisions.NewForTransactionID(txID), revision)
+	req.Equal(revisions.NewForTransactionID(txID), revisionResult.Revision)
 }
 
 func TestMySQLMigrations(t *testing.T) {

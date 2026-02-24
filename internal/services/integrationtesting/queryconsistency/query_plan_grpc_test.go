@@ -65,8 +65,8 @@ func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string) {
 	testers := consistencytestutil.ServiceTesters(cad.Conn)
 	for _, tester := range testers {
 		t.Run(tester.Name(), func(t *testing.T) {
-			validateQueryPlanLookupResources(t, cad, tester, headRevision, accessibilitySet)
-			validateQueryPlanLookupSubjects(t, cad, tester, headRevision, accessibilitySet)
+			validateQueryPlanLookupResources(t, cad, tester, headRevision.Revision, accessibilitySet)
+			validateQueryPlanLookupSubjects(t, cad, tester, headRevision.Revision, accessibilitySet)
 		})
 	}
 }
