@@ -749,7 +749,7 @@ func TestCanonicalizeOutline(t *testing.T) {
 			t.Parallel()
 			result, err := CanonicalizeOutline(tt.outline)
 			require.NoError(t, err)
-			require.True(t, result.Equals(tt.expected), "expected %+v, got %+v", tt.expected, result)
+			require.True(t, result.Root.Equals(tt.expected), "expected %+v, got %+v", tt.expected, result.Root)
 		})
 	}
 }
@@ -826,13 +826,13 @@ func TestCanonicalizeIdempotency(t *testing.T) {
 			require.NoError(t, err)
 
 			// Second canonicalization (should be idempotent)
-			canonical2, err := CanonicalizeOutline(canonical1)
+			canonical2, err := CanonicalizeOutline(canonical1.Root)
 			require.NoError(t, err)
 
 			// They should be equal
-			require.True(t, canonical1.Equals(canonical2),
+			require.True(t, canonical1.Root.Equals(canonical2.Root),
 				"Canonicalization is not idempotent.\nFirst: %+v\nSecond: %+v",
-				canonical1, canonical2)
+				canonical1.Root, canonical2.Root)
 		})
 	}
 }
@@ -939,13 +939,13 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.shouldMatch {
-				require.True(t, canonical1.Equals(canonical2),
+				require.True(t, canonical1.Root.Equals(canonical2.Root),
 					"Expected outlines to canonicalize to same form.\nCanonical1: %+v\nCanonical2: %+v",
-					canonical1, canonical2)
+					canonical1.Root, canonical2.Root)
 			} else {
-				require.False(t, canonical1.Equals(canonical2),
+				require.False(t, canonical1.Root.Equals(canonical2.Root),
 					"Expected outlines to canonicalize to different forms.\nCanonical1: %+v\nCanonical2: %+v",
-					canonical1, canonical2)
+					canonical1.Root, canonical2.Root)
 			}
 		})
 	}
@@ -1011,7 +1011,7 @@ func TestCanonicalizeOutline_PopulatesCanonicalKey(t *testing.T) {
 			require.NoError(err)
 
 			// CanonicalKey should be populated
-			require.False(canonical.CanonicalKey.IsEmpty(),
+			require.False(canonical.CanonicalKeys[canonical.Root.ID].IsEmpty(),
 				"CanonicalKey should be populated after canonicalization")
 		})
 	}
@@ -1037,8 +1037,8 @@ func TestCanonicalKey_MatchesSerialization(t *testing.T) {
 	require.NoError(err)
 
 	// CanonicalKey should match the result of calling SerializeOutline
-	directSerialization := canonical.Serialize()
-	require.Equal(directSerialization.String(), canonical.CanonicalKey.String(),
+	directSerialization := canonical.Root.Serialize()
+	require.Equal(directSerialization.String(), canonical.CanonicalKeys[canonical.Root.ID].String(),
 		"CanonicalKey should match direct serialization result")
 }
 
@@ -1068,17 +1068,17 @@ func TestCanonicalKey_AllNodesPopulated(t *testing.T) {
 	require.NoError(err)
 
 	// Helper function to check all nodes recursively
-	var checkAllNodes func(o Outline)
-	checkAllNodes = func(o Outline) {
-		require.False(o.CanonicalKey.IsEmpty(),
+	var checkAllNodes func(o Outline, keys map[OutlineNodeID]CanonicalKey)
+	checkAllNodes = func(o Outline, keys map[OutlineNodeID]CanonicalKey) {
+		require.False(keys[o.ID].IsEmpty(),
 			"All nodes should have non-empty CanonicalKey")
 
 		for _, sub := range o.SubOutlines {
-			checkAllNodes(sub)
+			checkAllNodes(sub, keys)
 		}
 	}
 
-	checkAllNodes(canonical)
+	checkAllNodes(canonical.Root, canonical.CanonicalKeys)
 }
 
 func TestCanonicalKey_Uniqueness(t *testing.T) {
@@ -1118,7 +1118,7 @@ func TestCanonicalKey_Uniqueness(t *testing.T) {
 	require.NoError(err)
 
 	// Different outlines should have different CanonicalKeys
-	require.NotEqual(canonical1.CanonicalKey.String(), canonical2.CanonicalKey.String(),
+	require.NotEqual(canonical1.CanonicalKeys[canonical1.Root.ID].String(), canonical2.CanonicalKeys[canonical2.Root.ID].String(),
 		"Different outlines should produce different CanonicalKeys")
 }
 
@@ -1148,7 +1148,7 @@ func TestCanonicalKey_Equivalence(t *testing.T) {
 	require.NoError(err)
 
 	// Equivalent outlines should have the same CanonicalKey
-	require.Equal(canonical1.CanonicalKey.String(), canonical2.CanonicalKey.String(),
+	require.Equal(canonical1.CanonicalKeys[canonical1.Root.ID].String(), canonical2.CanonicalKeys[canonical2.Root.ID].String(),
 		"Equivalent outlines should produce identical CanonicalKeys after canonicalization")
 }
 
@@ -1177,12 +1177,12 @@ func TestCanonicalKey_Idempotency(t *testing.T) {
 	// First canonicalization
 	canonical1, err := CanonicalizeOutline(outline)
 	require.NoError(err)
-	key1 := canonical1.CanonicalKey.String()
+	key1 := canonical1.CanonicalKeys[canonical1.Root.ID].String()
 
 	// Second canonicalization (should be idempotent)
-	canonical2, err := CanonicalizeOutline(canonical1)
+	canonical2, err := CanonicalizeOutline(canonical1.Root)
 	require.NoError(err)
-	key2 := canonical2.CanonicalKey.String()
+	key2 := canonical2.CanonicalKeys[canonical2.Root.ID].String()
 
 	// CanonicalKeys should be identical
 	require.Equal(key1, key2,
@@ -1203,15 +1203,15 @@ func TestCanonicalKey_MethodsWork(t *testing.T) {
 	require.NoError(err)
 
 	// Test String() method
-	keyStr := canonical.CanonicalKey.String()
+	keyStr := canonical.CanonicalKeys[canonical.Root.ID].String()
 	require.NotEmpty(keyStr)
 
 	// Test IsEmpty() method
-	require.False(canonical.CanonicalKey.IsEmpty())
+	require.False(canonical.CanonicalKeys[canonical.Root.ID].IsEmpty())
 
 	// Test Hash() method
-	hash1 := canonical.CanonicalKey.Hash()
-	hash2 := canonical.CanonicalKey.Hash()
+	hash1 := canonical.CanonicalKeys[canonical.Root.ID].Hash()
+	hash2 := canonical.CanonicalKeys[canonical.Root.ID].Hash()
 	require.Equal(hash1, hash2, "Hash should be consistent")
 	require.NotZero(hash1, "Hash should not be zero for non-empty key")
 }
@@ -1238,8 +1238,8 @@ func TestCanonicalKey_WithCaveats(t *testing.T) {
 	require.NoError(err)
 
 	// CanonicalKey should be populated
-	require.False(canonical.CanonicalKey.IsEmpty())
+	require.False(canonical.CanonicalKeys[canonical.Root.ID].IsEmpty())
 
 	// Should contain caveat name in the key
-	require.Contains(canonical.CanonicalKey.String(), "cav:age_check")
+	require.Contains(canonical.CanonicalKeys[canonical.Root.ID].String(), "cav:age_check")
 }

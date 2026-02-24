@@ -2,25 +2,30 @@ package query
 
 import (
 	"slices"
+	"sync/atomic"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// CanonicalizeOutline transforms an Outline into canonical form.
-// Canonicalization standardizes the representation of logically equivalent queries
-// to enable efficient comparison and deduplication.
+// nodeIDCounter is a package-level counter for assigning OutlineNodeIDs.
+// Its zero value means "unset"; the first Add(1) call returns 1.
+var nodeIDCounter atomic.Uint64
+
+// CanonicalizeOutline transforms an Outline into canonical form, returning a
+// CanonicalOutline that pairs the transformed tree with a map of node IDs to
+// their CanonicalKeys.
 //
 // The canonicalization process has two phases:
 // 1. Filter Lifting: Extract all caveats, sort them, and nest them at the top
 // 2. Bottom-Up Canonicalization: Apply five transformation steps sequentially
 //
 // The function is idempotent: applying it multiple times produces the same result.
-func CanonicalizeOutline(outline Outline) (Outline, error) {
+func CanonicalizeOutline(outline Outline) (CanonicalOutline, error) {
 	// Phase 1: Extract and lift caveats
 	caveatlessTree, caveats, err := extractCaveats(outline)
 	if err != nil {
-		return Outline{}, err
+		return CanonicalOutline{}, err
 	}
 
 	// Sort caveats for deterministic ordering
@@ -32,10 +37,11 @@ func CanonicalizeOutline(outline Outline) (Outline, error) {
 	// Wrap with caveats
 	result := nestCaveats(canonicalTree, caveats)
 
-	// Populate CanonicalKey fields bottom-up
-	result = populateCanonicalKeys(result)
+	// Assign node IDs and build the CanonicalKeys map bottom-up
+	keys := make(map[OutlineNodeID]CanonicalKey)
+	root := assignNodeIDs(result, keys)
 
-	return result, nil
+	return CanonicalOutline{Root: root, CanonicalKeys: keys}, nil
 }
 
 // extractCaveats recursively extracts all CaveatIteratorType nodes from the tree.
@@ -250,19 +256,20 @@ func isNullOutline(outline Outline) bool {
 	return false
 }
 
-// populateCanonicalKeys recursively sets CanonicalKey on all nodes
-// after canonicalization completes. Must be called bottom-up.
-func populateCanonicalKeys(outline Outline) Outline {
-	// Recurse on children first
+// assignNodeIDs recursively assigns a unique OutlineNodeID to each node bottom-up,
+// recording each node's serialized CanonicalKey in keys.
+func assignNodeIDs(outline Outline, keys map[OutlineNodeID]CanonicalKey) Outline {
+	// Recurse on children first (bottom-up)
 	if len(outline.SubOutlines) > 0 {
 		newSubs := make([]Outline, len(outline.SubOutlines))
 		for i, sub := range outline.SubOutlines {
-			newSubs[i] = populateCanonicalKeys(sub)
+			newSubs[i] = assignNodeIDs(sub, keys)
 		}
 		outline.SubOutlines = newSubs
 	}
 
-	// Set CanonicalKey on this node
-	outline.CanonicalKey = outline.Serialize()
+	id := OutlineNodeID(nodeIDCounter.Add(1))
+	outline.ID = id
+	keys[id] = outline.Serialize()
 	return outline
 }

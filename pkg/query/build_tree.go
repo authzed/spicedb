@@ -25,15 +25,15 @@ type outlineBuilder struct {
 // BuildIteratorFromSchema takes a schema and walks the schema tree for a given definition namespace and a relationship or
 // permission therein. From this, it generates an iterator tree, rooted on that relationship.
 func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Iterator, error) {
-	outline, err := BuildOutlineFromSchema(fullSchema, definitionName, relationName)
+	canonical, err := BuildOutlineFromSchema(fullSchema, definitionName, relationName)
 	if err != nil {
 		return nil, err
 	}
-	return outline.Compile()
+	return canonical.Compile()
 }
 
-// BuildOutlineFromSchema builds a Outline tree from the schema
-func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Outline, error) {
+// BuildOutlineFromSchema builds a canonical Outline tree from the schema.
+func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (CanonicalOutline, error) {
 	builder := &outlineBuilder{
 		schema:             fullSchema,
 		building:           make(map[string]bool),
@@ -42,7 +42,7 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 	}
 	outline, err := builder.buildOutlineFromSchemaInternal(definitionName, relationName, true)
 	if err != nil {
-		return Outline{}, err
+		return CanonicalOutline{}, err
 	}
 
 	// Apply collected caveats at top level as individual caveat iterators
@@ -59,7 +59,7 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 	// not at the top level. So we shouldn't have any sentinels left here.
 	if len(builder.recursiveSentinels) > 0 {
 		// This would be an error - sentinels should have been wrapped already
-		return Outline{}, spiceerrors.MustBugf("unwrapped sentinels remaining: %d", len(builder.recursiveSentinels))
+		return CanonicalOutline{}, spiceerrors.MustBugf("unwrapped sentinels remaining: %d", len(builder.recursiveSentinels))
 	}
 
 	return CanonicalizeOutline(result)

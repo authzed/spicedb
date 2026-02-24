@@ -258,7 +258,7 @@ func FuzzOutlineCompileDecompile(f *testing.F) {
 		require.NoError(t, err)
 
 		// Check that they're equal to canonical form
-		require.True(t, canonical.Equals(roundtrip), "Roundtrip failed:\nCanonical: %+v\nRoundtrip: %+v", canonical, roundtrip)
+		require.True(t, canonical.Root.Equals(roundtrip), "Roundtrip failed:\nCanonical: %+v\nRoundtrip: %+v", canonical.Root, roundtrip)
 	})
 }
 
@@ -397,7 +397,7 @@ func TestOutlineGeneratorBasic(t *testing.T) {
 		require.NoError(err)
 
 		// And they should be equal to canonical form
-		require.True(canonical.Equals(roundtrip), "Outline %d failed roundtrip", i)
+		require.True(canonical.Root.Equals(roundtrip), "Outline %d failed roundtrip", i)
 	}
 }
 
@@ -472,23 +472,23 @@ func FuzzOutlineCanonicalize(f *testing.F) {
 		require.NoError(t, err)
 
 		// Canonicalize it again (idempotency test)
-		canonical2, err := CanonicalizeOutline(canonical1)
+		canonical2, err := CanonicalizeOutline(canonical1.Root)
 		require.NoError(t, err)
 
 		// Property 1: Idempotency - canonicalizing twice should produce the same result
-		require.True(t, canonical1.Equals(canonical2), "Canonicalization is not idempotent:\nFirst:  %s\nSecond: %s",
-			dumpOutline(canonical1, ""), dumpOutline(canonical2, ""))
+		require.True(t, canonical1.Root.Equals(canonical2.Root), "Canonicalization is not idempotent:\nFirst:  %s\nSecond: %s",
+			dumpOutline(canonical1.Root, ""), dumpOutline(canonical2.Root, ""))
 
 		// Property 2: Canonicalization should produce consistent comparison results
-		require.Equal(t, 0, OutlineCompare(canonical1, canonical1), "Canonical form does not compare equal to itself")
-		require.Equal(t, 0, OutlineCompare(canonical1, canonical2), "Two canonicalizations of same outline don't compare equal")
+		require.Equal(t, 0, OutlineCompare(canonical1.Root, canonical1.Root), "Canonical form does not compare equal to itself")
+		require.Equal(t, 0, OutlineCompare(canonical1.Root, canonical2.Root), "Two canonicalizations of same outline don't compare equal")
 
 		// Property 3: Canonicalize the original again to ensure determinism
 		canonical3, err := CanonicalizeOutline(original)
 		require.NoError(t, err)
 
-		require.True(t, canonical1.Equals(canonical3), "Canonicalization is not deterministic:\nFirst: %s\nThird: %s",
-			dumpOutline(canonical1, ""), dumpOutline(canonical3, ""))
+		require.True(t, canonical1.Root.Equals(canonical3.Root), "Canonicalization is not deterministic:\nFirst: %s\nThird: %s",
+			dumpOutline(canonical1.Root, ""), dumpOutline(canonical3.Root, ""))
 	})
 }
 
@@ -520,19 +520,19 @@ func FuzzOutlineCanonicalizeEquivalence(f *testing.F) {
 		require.NoError(t, err)
 
 		// Property: If two canonical forms are equal, they should compare as equal
-		if canonical1.Equals(canonical2) {
-			require.Equal(t, 0, OutlineCompare(canonical1, canonical2), "Equal canonical forms don't compare as equal")
+		if canonical1.Root.Equals(canonical2.Root) {
+			require.Equal(t, 0, OutlineCompare(canonical1.Root, canonical2.Root), "Equal canonical forms don't compare as equal")
 		}
 
 		// Property: Canonical forms should be stable under repeated canonicalization
-		canonical1Again, err := CanonicalizeOutline(canonical1)
+		canonical1Again, err := CanonicalizeOutline(canonical1.Root)
 		require.NoError(t, err)
-		require.True(t, canonical1.Equals(canonical1Again), "Canonical form is not stable:\nFirst: %s\nAgain: %s",
-			dumpOutline(canonical1, ""), dumpOutline(canonical1Again, ""))
+		require.True(t, canonical1.Root.Equals(canonical1Again.Root), "Canonical form is not stable:\nFirst: %s\nAgain: %s",
+			dumpOutline(canonical1.Root, ""), dumpOutline(canonical1Again.Root, ""))
 
-		canonical2Again, err := CanonicalizeOutline(canonical2)
+		canonical2Again, err := CanonicalizeOutline(canonical2.Root)
 		require.NoError(t, err)
-		require.True(t, canonical2.Equals(canonical2Again), "Canonical form is not stable:\nFirst: %s\nAgain: %s",
-			dumpOutline(canonical2, ""), dumpOutline(canonical2Again, ""))
+		require.True(t, canonical2.Root.Equals(canonical2Again.Root), "Canonical form is not stable:\nFirst: %s\nAgain: %s",
+			dumpOutline(canonical2.Root, ""), dumpOutline(canonical2Again.Root, ""))
 	})
 }
