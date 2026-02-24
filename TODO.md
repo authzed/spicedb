@@ -1,1 +1,0 @@
-- [ ] Disallow imports on WriteSchema call (that'll get more interesting with the composite flag - or we'll need to handle imports separately)

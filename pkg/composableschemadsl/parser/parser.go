@@ -2,7 +2,6 @@
 package parser
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 	"strings"

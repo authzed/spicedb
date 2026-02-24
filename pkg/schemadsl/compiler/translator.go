@@ -2,12 +2,12 @@ package compiler
 
 import (
 	"bufio"
+	"container/list"
 	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
-	"container/list"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/stringz"

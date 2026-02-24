@@ -1,0 +1,4 @@
+import "left.zed"
+import "right.zed"
+
+definition foo {}

@@ -61,6 +61,27 @@ func TestSchemaWriteInvalidNamespace(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 }
 
+// NOTE: imports must be handled by precompilation;
+// a write of a schema with an import statement is an error.
+func TestSchemaWriteImportsDisallowed(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+		Schema: `
+		use import
+
+		import "foo/bar/baz.zed"
+		
+		definition document {
+			relation viewer: user
+		}
+	`,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}
+
 func TestSchemaWriteAndReadBack(t *testing.T) {
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)

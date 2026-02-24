@@ -2,9 +2,8 @@
 package parser
 
 import (
-	"fmt"
-	"slices"
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
