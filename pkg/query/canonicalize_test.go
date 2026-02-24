@@ -1237,9 +1237,20 @@ func TestCanonicalKey_WithCaveats(t *testing.T) {
 	canonical, err := CanonicalizeOutline(outline)
 	require.NoError(err)
 
-	// CanonicalKey should be populated
-	require.False(canonical.CanonicalKeys[canonical.Root.ID].IsEmpty())
+	// Caveat (filter) nodes have ID == 0 and are not in the map
+	require.Equal(OutlineNodeID(0), canonical.Root.ID,
+		"caveat (filter) root should have ID == 0")
+	require.True(canonical.CanonicalKeys[canonical.Root.ID].IsEmpty(),
+		"filter nodes should not be in the CanonicalKeys map")
 
-	// Should contain caveat name in the key
-	require.Contains(canonical.CanonicalKeys[canonical.Root.ID].String(), "cav:age_check")
+	// The canonical key for a filter node equals its child's canonical key
+	child := canonical.Root.SubOutlines[0]
+	require.False(canonical.CanonicalKeys[child.ID].IsEmpty(),
+		"child of caveat should have a canonical key in the map")
+	require.Equal(canonical.Root.Serialize(), canonical.CanonicalKeys[child.ID],
+		"caveat's Serialize() should equal child's canonical key")
+
+	// The canonical key reflects the underlying data, not the caveat wrapper
+	require.NotContains(canonical.Root.Serialize().String(), "cav:",
+		"filter operation canonical key should not mention the caveat")
 }

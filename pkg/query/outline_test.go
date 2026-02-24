@@ -1377,8 +1377,9 @@ func TestSerializeOutline(t *testing.T) {
 			},
 		}
 
+		// Caveat is a filter operation — Serialize() delegates to its child
 		key := outline.Serialize()
-		require.Equal("C(cav:age_check)[0]", key.String())
+		require.Equal("0", key.String())
 	})
 
 	t.Run("AliasIteratorType", func(t *testing.T) {
