@@ -48,9 +48,9 @@ type countingDataLayer struct {
 	counts   *MethodCounts
 }
 
-func (c *countingDataLayer) SnapshotReader(rev datastore.Revision) RevisionedReader {
+func (c *countingDataLayer) SnapshotReader(rev datastore.Revision, schemaHash SchemaHash) RevisionedReader {
 	return &countingRevisionedReader{
-		delegate: c.delegate.SnapshotReader(rev),
+		delegate: c.delegate.SnapshotReader(rev, schemaHash),
 		counts:   c.counts,
 	}
 }
@@ -64,11 +64,11 @@ func (c *countingDataLayer) ReadWriteTx(ctx context.Context, fn TxUserFunc, opts
 	}, opts...)
 }
 
-func (c *countingDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (c *countingDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
 	return c.delegate.OptimizedRevision(ctx)
 }
 
-func (c *countingDataLayer) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (c *countingDataLayer) HeadRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
 	return c.delegate.HeadRevision(ctx)
 }
 

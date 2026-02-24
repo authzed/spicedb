@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/grpchelpers"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -208,8 +209,11 @@ func TestDispatchTimeout(t *testing.T) {
 			resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 				ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 				ResourceIds:      []string{"foo"},
-				Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
-				Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 			})
 			if tc.sleepTime > tc.timeout {
 				require.Error(t, err)
@@ -225,8 +229,11 @@ func TestDispatchTimeout(t *testing.T) {
 			err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 				ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 				ResourceIds:      []string{"foo"},
-				Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
-				SubjectRelation:  &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+				SubjectRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 			}, stream)
 			if tc.sleepTime > tc.timeout {
 				require.Error(t, err)
@@ -258,8 +265,11 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 					Relation:  "somerelation",
 				},
 				ResourceIds: []string{"foo"},
-				Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
-				Subject:     &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 			},
 			0 * time.Millisecond,
 			1,
@@ -273,8 +283,11 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 					Relation:  "somerelation",
 				},
 				ResourceIds: []string{"foo"},
-				Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
-				Subject:     &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 			},
 			1 * time.Second,
 			2,
@@ -288,8 +301,11 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 					Relation:  "somerelation",
 				},
 				ResourceIds: []string{"foo"},
-				Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
-				Subject:     &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 			},
 			1 * time.Second,
 			1,
@@ -303,8 +319,11 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 					Relation:  "somerelation",
 				},
 				ResourceIds: []string{"foo"},
-				Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
-				Subject:     &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 			},
 			1 * time.Second,
 			2,
@@ -318,8 +337,11 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 					Relation:  "somerelation",
 				},
 				ResourceIds: []string{"foo"},
-				Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
-				Subject:     &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 			},
 			1 * time.Second,
 			1,
@@ -377,7 +399,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					ObjectId:  "bar",
 					Relation:  "...",
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			1,
 			false,
@@ -400,7 +425,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					ObjectId:  "bar",
 					Relation:  "...",
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			2,
 			false,
@@ -427,7 +455,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					Sections:        []string{"somethingelse"},
 					DispatchVersion: 1,
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			2, // Falls back to the default secondary.
 			false,
@@ -454,7 +485,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					Sections:        []string{secondaryCursorPrefix + "tertiary"},
 					DispatchVersion: 1,
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			3,
 			false,
@@ -481,7 +515,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					Sections:        []string{secondaryCursorPrefix + "error"},
 					DispatchVersion: 1,
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			1,
 			true, // since the secondary was in the cursor, if it errors, the operation fails.
@@ -504,7 +541,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					ObjectId:  "bar",
 					Relation:  "...",
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			1,
 			false,
@@ -531,7 +571,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					Sections:        []string{secondaryCursorPrefix + "unknown"},
 					DispatchVersion: 1,
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			0,
 			true,
@@ -558,7 +601,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					Sections:        []string{secondaryCursorPrefix + "secondary"},
 					DispatchVersion: 1,
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			2,
 			false,
@@ -585,7 +631,10 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					Sections:        []string{secondaryCursorPrefix + "secondary"},
 					DispatchVersion: 1,
 				},
-				Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			2,
 			false,
@@ -665,7 +714,10 @@ func TestLRDispatchFallbackToPrimary(t *testing.T) {
 			ObjectId:  "bar",
 			Relation:  "...",
 		},
-		Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
 	}, stream)
 	require.NoError(t, err)
 
@@ -695,7 +747,10 @@ func TestLSSecondaryDispatch(t *testing.T) {
 					Relation:  "somerelation",
 				},
 				ResourceIds: []string{"foo"},
-				Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			1,
 			false,
@@ -713,7 +768,10 @@ func TestLSSecondaryDispatch(t *testing.T) {
 					Relation:  "somerelation",
 				},
 				ResourceIds: []string{"foo"},
-				Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
 			},
 			2,
 			false,
@@ -788,7 +846,10 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 			Relation:  "somerelation",
 		},
 		ResourceIds: []string{"foo"},
-		Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
 	}, stream)
 	require.NoError(t, err)
 
@@ -820,8 +881,11 @@ func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
 	resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
-		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
-		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+		Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint32(2), resp.Metadata.DispatchCount)
@@ -863,7 +927,10 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 			Relation:  "somerelation",
 		},
 		ResourceIds: []string{"foo"},
-		Metadata:    &v1.ResolverMeta{DepthRemaining: 50},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
 	}, stream)
 	require.NoError(t, err)
 
@@ -943,8 +1010,11 @@ func TestCheckUsesMaximumDelayByDefaultForPrimary(t *testing.T) {
 	resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
-		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
-		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+		Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
@@ -1080,8 +1150,11 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 	resp, err := dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
-		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
-		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+		Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
@@ -1096,8 +1169,11 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 	resp, err = dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
 		ResourceIds:      []string{"foo"},
-		Metadata:         &v1.ResolverMeta{DepthRemaining: 50},
-		Subject:          &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+		Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
 	})
 	endTime := time.Now()
 	require.NoError(t, err)
@@ -1218,7 +1294,10 @@ func TestPrimaryDispatcherErrorReturned(t *testing.T) {
 			ObjectId:  "bar",
 			Relation:  "...",
 		},
-		Metadata: &v1.ResolverMeta{DepthRemaining: 50},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
 	}, stream)
 
 	// Should get the primary dispatcher error when no dispatcher returns results

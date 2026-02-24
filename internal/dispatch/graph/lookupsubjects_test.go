@@ -147,6 +147,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 
@@ -180,6 +181,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),
 						DepthRemaining: 50,
+						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 				})
 
@@ -221,6 +223,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 	require.Error(err)
@@ -270,6 +273,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 
@@ -1024,6 +1028,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 			require.NoError(err)

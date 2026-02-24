@@ -262,6 +262,10 @@ func (r *countingReader) LookupCounters(ctx context.Context) ([]datastore.Relati
 	return r.delegate.LookupCounters(ctx)
 }
 
+func (r *countingReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return r.delegate.ReadStoredSchema(ctx)
+}
+
 // Type assertions
 var (
 	_ datastore.ReadOnlyDatastore = (*countingProxy)(nil)

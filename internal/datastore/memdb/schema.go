@@ -26,6 +26,9 @@ const (
 
 	tableChangelog = "changelog"
 	indexRevision  = "id"
+
+	tableSchema         = "schema"
+	tableSchemaRevision = "schemarevision"
 )
 
 type namespace struct {
@@ -43,6 +46,11 @@ type counter struct {
 	filterBytes []byte
 	count       int
 	updated     datastore.Revision
+}
+
+type schemaData struct {
+	name string
+	data []byte
 }
 
 type relationship struct {
@@ -220,6 +228,26 @@ var schema = &memdb.DBSchema{
 		},
 		tableCounters: {
 			Name: tableCounters,
+			Indexes: map[string]*memdb.IndexSchema{
+				indexID: {
+					Name:    indexID,
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "name"},
+				},
+			},
+		},
+		tableSchema: {
+			Name: tableSchema,
+			Indexes: map[string]*memdb.IndexSchema{
+				indexID: {
+					Name:    indexID,
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "name"},
+				},
+			},
+		},
+		tableSchemaRevision: {
+			Name: tableSchemaRevision,
 			Indexes: map[string]*memdb.IndexSchema{
 				indexID: {
 					Name:    indexID,

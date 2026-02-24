@@ -114,6 +114,7 @@ func TestSimpleLookupResources3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -137,6 +138,7 @@ func TestSimpleLookupResources3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -192,6 +194,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: 1,
 			}, stream)
@@ -215,6 +218,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalCursor: cursor,
 				OptionalLimit:  2,
@@ -275,6 +279,7 @@ func TestMaxDepthLookup3(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -732,6 +737,7 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 							Metadata: &v1.ResolverMeta{
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
+								SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 							},
 							OptionalLimit:  uintPageSize,
 							OptionalCursor: currentCursor,
@@ -809,6 +815,7 @@ func TestLookupResources3WithError(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 	require.Error(err)
@@ -1287,6 +1294,7 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 			if tc.expectedError != "" {

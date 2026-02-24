@@ -623,3 +623,28 @@ message SubjectFilter {
 
   RelationFilter optional_relation = 3;
 }
+
+// StoredSchema represents a stored schema in SpiceDB under the new, unified schema format.
+message StoredSchema {
+  uint32 version = 1;
+
+  message V1StoredSchema {
+    // schema_text is the text of the schema that was given to SpiceDB by the API caller.
+    string schema_text = 1;
+
+    // schema_hash is the hash of the schema, for change detection.
+    string schema_hash = 2;
+
+    // namespace_definitions is a map of namespace name to NamespaceDefinition.
+    // Entries must have full metadata filled out.
+    map<string, NamespaceDefinition> namespace_definitions = 3;
+
+    // caveat_definitions is a map of caveat name to CaveatDefinition.
+    // Entries must have full metadata filled out.
+    map<string, CaveatDefinition> caveat_definitions = 4;
+  }
+
+  oneof version_oneof {
+    V1StoredSchema v1 = 2;
+  }
+}

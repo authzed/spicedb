@@ -112,7 +112,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	resources := NewObjects("file", "file0")
 	subject := NewObject("user", "user42").WithEllipses()
 
-	reader := datalayer.NewDataLayer(rawDS).SnapshotReader(revision)
+	reader := datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)
 
 	// ---- plain (LTR) ----
 

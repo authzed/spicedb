@@ -68,7 +68,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(req.Revision)
+	reader := dl.SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return err
@@ -198,7 +198,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	ts *schema.TypeSystem,
 	cu *core.ComputedUserset,
 ) error {
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision, datalayer.SchemaHash(parentRequest.Metadata.GetSchemaHash()))
 	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return err
@@ -232,6 +232,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     parentRequest.Revision.String(),
 			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+			SchemaHash:     parentRequest.Metadata.SchemaHash,
 		},
 	}, stream)
 }
@@ -258,7 +259,7 @@ func lookupViaIntersectionTupleToUserset(
 	ts *schema.TypeSystem,
 	ttu *core.FunctionedTupleToUserset,
 ) error {
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision, datalayer.SchemaHash(parentRequest.Metadata.GetSchemaHash()))
 	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return err
@@ -342,6 +343,7 @@ func lookupViaIntersectionTupleToUserset(
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     parentRequest.Revision.String(),
 					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+					SchemaHash:     parentRequest.Metadata.SchemaHash,
 				},
 			}, collectingStream)
 			if err != nil {
@@ -437,7 +439,7 @@ func lookupViaTupleToUserset[T relation](
 	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
 	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
 
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision, datalayer.SchemaHash(parentRequest.Metadata.GetSchemaHash()))
 	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return err
@@ -705,6 +707,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+						SchemaHash:     parentRequest.Metadata.SchemaHash,
 					},
 				}, stream)
 			})

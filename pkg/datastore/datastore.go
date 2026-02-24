@@ -515,10 +515,35 @@ func (rd RevisionedDefinition[T]) GetLastWrittenRevision() Revision {
 // RevisionedNamespace is a revisioned version of a namespace definition.
 type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 
+// ReadOnlyStoredSchema wraps a *core.StoredSchema to indicate it is read-only
+// and must not be modified, as it may be shared across multiple callers via caching.
+type ReadOnlyStoredSchema struct {
+	schema *core.StoredSchema
+}
+
+// NewReadOnlyStoredSchema wraps a StoredSchema as read-only.
+// Returns nil if the provided schema is nil.
+func NewReadOnlyStoredSchema(schema *core.StoredSchema) *ReadOnlyStoredSchema {
+	if schema == nil {
+		return nil
+	}
+	return &ReadOnlyStoredSchema{schema: schema}
+}
+
+// Get returns the underlying StoredSchema. Callers must not modify the returned value.
+func (r *ReadOnlyStoredSchema) Get() *core.StoredSchema {
+	return r.schema
+}
+
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	LegacySchemaReader
 	CounterReader
+
+	// ReadStoredSchema reads the unified stored schema from the datastore.
+	// The returned ReadOnlyStoredSchema must not be modified, as it may be shared
+	// across callers via caching.
+	ReadStoredSchema(ctx context.Context) (*ReadOnlyStoredSchema, error)
 
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
@@ -551,6 +576,9 @@ type ReadWriteTransaction interface {
 	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
 		options ...options.DeleteOptionsOption,
 	) (uint64, bool, error)
+
+	// WriteStoredSchema writes the unified stored schema to the datastore.
+	WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error
 
 	// BulkLoad takes a relationship source iterator, and writes all of the
 	// relationships to the backing datastore in an optimized fashion. This

@@ -1372,6 +1372,7 @@ type ResolverMeta struct {
 	// Deprecated: Marked as deprecated in dispatch/v1/dispatch.proto.
 	RequestId      string `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	TraversalBloom []byte `protobuf:"bytes,4,opt,name=traversal_bloom,json=traversalBloom,proto3" json:"traversal_bloom,omitempty"`
+	SchemaHash     []byte `protobuf:"bytes,5,opt,name=schema_hash,json=schemaHash,proto3" json:"schema_hash,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1431,6 +1432,13 @@ func (x *ResolverMeta) GetRequestId() string {
 func (x *ResolverMeta) GetTraversalBloom() []byte {
 	if x != nil {
 		return x.TraversalBloom
+	}
+	return nil
+}
+
+func (x *ResolverMeta) GetSchemaHash() []byte {
+	if x != nil {
+		return x.SchemaHash
 	}
 	return nil
 }
@@ -1762,14 +1770,16 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\bmetadata\x18\x02 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x1ah\n" +
 	"\x1eFoundSubjectsByResourceIdEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x120\n" +
-	"\x05value\x18\x02 \x01(\v2\x1a.dispatch.v1.FoundSubjectsR\x05value:\x028\x01\"\xb7\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x1a.dispatch.v1.FoundSubjectsR\x05value:\x028\x01\"\xd8\x01\n" +
 	"\fResolverMeta\x12\x1f\n" +
 	"\vat_revision\x18\x01 \x01(\tR\n" +
 	"atRevision\x120\n" +
 	"\x0fdepth_remaining\x18\x02 \x01(\rB\a\xfaB\x04*\x02 \x00R\x0edepthRemaining\x12!\n" +
 	"\n" +
 	"request_id\x18\x03 \x01(\tB\x02\x18\x01R\trequestId\x121\n" +
-	"\x0ftraversal_bloom\x18\x04 \x01(\fB\b\xfaB\x05z\x03\x18\x80\bR\x0etraversalBloom\"\xda\x01\n" +
+	"\x0ftraversal_bloom\x18\x04 \x01(\fB\b\xfaB\x05z\x03\x18\x80\bR\x0etraversalBloom\x12\x1f\n" +
+	"\vschema_hash\x18\x05 \x01(\fR\n" +
+	"schemaHash\"\xda\x01\n" +
 	"\fResponseMeta\x12%\n" +
 	"\x0edispatch_count\x18\x01 \x01(\rR\rdispatchCount\x12%\n" +
 	"\x0edepth_required\x18\x02 \x01(\rR\rdepthRequired\x122\n" +

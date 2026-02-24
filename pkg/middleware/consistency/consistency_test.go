@@ -40,7 +40,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
@@ -66,7 +66,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
@@ -92,7 +92,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(head.Equal(rev))
@@ -119,7 +119,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
@@ -146,7 +146,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
@@ -185,7 +185,7 @@ func TestAddRevisionToContextNoConsistencyAPI(t *testing.T) {
 	updated := ContextWithHandle(t.Context())
 	updated = datalayer.ContextWithDataLayer(updated, dl)
 
-	_, _, err := RevisionFromContext(updated)
+	_, _, _, err := RevisionFromContext(updated)
 	require.Error(err)
 }
 
@@ -216,7 +216,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	require.NoError(err)
 
 	// ensure we get back `optimized` from the cursor
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
@@ -253,7 +253,7 @@ func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 
 func TestRevisionFromContextMissingConsistency(t *testing.T) {
 	updated := ContextWithHandle(t.Context())
-	_, _, err := RevisionFromContext(updated)
+	_, _, _, err := RevisionFromContext(updated)
 	require.Error(t, err)
 	grpcutil.RequireStatus(t, codes.Internal, err)
 	require.ErrorContains(t, err, "consistency middleware did not inject revision")
@@ -389,7 +389,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsMinLatency)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
@@ -424,7 +424,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsFullConsistency)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(head.Equal(rev))
@@ -453,7 +453,7 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
