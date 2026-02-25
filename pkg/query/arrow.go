@@ -461,8 +461,8 @@ func (a *ArrowIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error
 	}, nil
 }
 
-func (a *ArrowIterator) Hash() uint64 {
-	return a.canonicalKey.Hash()
+func (a *ArrowIterator) CanonicalKey() CanonicalKey {
+	return a.canonicalKey
 }
 
 func (a *ArrowIterator) ResourceType() ([]ObjectType, error) {

@@ -155,8 +155,8 @@ func (u *UnionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error
 	return &UnionIterator{canonicalKey: u.canonicalKey, subIts: newSubs}, nil
 }
 
-func (u *UnionIterator) Hash() uint64 {
-	return u.canonicalKey.Hash()
+func (u *UnionIterator) CanonicalKey() CanonicalKey {
+	return u.canonicalKey
 }
 
 func (u *UnionIterator) ResourceType() ([]ObjectType, error) {

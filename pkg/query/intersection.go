@@ -350,8 +350,8 @@ func (i *IntersectionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator
 	return &IntersectionIterator{canonicalKey: i.canonicalKey, subIts: newSubs}, nil
 }
 
-func (i *IntersectionIterator) Hash() uint64 {
-	return i.canonicalKey.Hash()
+func (i *IntersectionIterator) CanonicalKey() CanonicalKey {
+	return i.canonicalKey
 }
 
 func (i *IntersectionIterator) ResourceType() ([]ObjectType, error) {

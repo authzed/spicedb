@@ -212,7 +212,7 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%016x:iter_subjects", r.Hash())
+		iteratorID := fmt.Sprintf("%016x:iter_subjects", r.CanonicalKey().Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -373,7 +373,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%016x:iter_subjects_wildcard", r.Hash())
+		iteratorID := fmt.Sprintf("%016x:iter_subjects_wildcard", r.CanonicalKey().Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -495,7 +495,7 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%016x:iter_resources", r.Hash())
+		iteratorID := fmt.Sprintf("%016x:iter_resources", r.CanonicalKey().Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -600,7 +600,7 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := fmt.Sprintf("%016x:iter_resources_wildcard", r.Hash())
+		iteratorID := fmt.Sprintf("%016x:iter_resources_wildcard", r.CanonicalKey().Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -692,8 +692,8 @@ func (r *DatastoreIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf DatastoreIterator's subiterators")
 }
 
-func (r *DatastoreIterator) Hash() uint64 {
-	return r.canonicalKey.Hash()
+func (r *DatastoreIterator) CanonicalKey() CanonicalKey {
+	return r.canonicalKey
 }
 
 func (r *DatastoreIterator) ResourceType() ([]ObjectType, error) {

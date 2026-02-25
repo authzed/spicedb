@@ -253,8 +253,8 @@ func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, erro
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf FaultyIterator's subiterators")
 }
 
-func (f *FaultyIterator) Hash() uint64 {
-	return 0 // FaultyIterator is test-only and has no canonical key
+func (f *FaultyIterator) CanonicalKey() CanonicalKey {
+	return "" // FaultyIterator is test-only and has no canonical key
 }
 
 func (f *FaultyIterator) ResourceType() ([]ObjectType, error) {

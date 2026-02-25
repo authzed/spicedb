@@ -44,7 +44,7 @@ func NewRecursiveIterator(templateTree Iterator, definitionName, relationName st
 	}
 }
 
-// findMatchingSentinels walks the template tree and returns hashes of sentinels that match
+// findMatchingSentinels walks the template tree and returns canonical key hashes of sentinels that match
 // this RecursiveIterator's definition and relation (but stops at nested RecursiveIterators).
 func (r *RecursiveIterator) findMatchingSentinels() []uint64 {
 	var sentinelHashes []uint64
@@ -58,7 +58,7 @@ func (r *RecursiveIterator) findMatchingSentinels() []uint64 {
 		if sentinel, ok := it.(*RecursiveSentinelIterator); ok {
 			if sentinel.DefinitionName() == r.definitionName &&
 				sentinel.RelationName() == r.relationName {
-				sentinelHashes = append(sentinelHashes, sentinel.Hash())
+				sentinelHashes = append(sentinelHashes, sentinel.CanonicalKey().Hash())
 			}
 		}
 		return it, nil
@@ -197,8 +197,8 @@ func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 	}, nil
 }
 
-func (r *RecursiveIterator) Hash() uint64 {
-	return r.canonicalKey.Hash()
+func (r *RecursiveIterator) CanonicalKey() CanonicalKey {
+	return r.canonicalKey
 }
 
 func (r *RecursiveIterator) ResourceType() ([]ObjectType, error) {

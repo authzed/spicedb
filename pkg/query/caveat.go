@@ -205,8 +205,8 @@ func (c *CaveatIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, erro
 	return &CaveatIterator{canonicalKey: c.canonicalKey, subiterator: newSubs[0], caveat: c.caveat}, nil
 }
 
-func (c *CaveatIterator) Hash() uint64 {
-	return c.canonicalKey.Hash()
+func (c *CaveatIterator) CanonicalKey() CanonicalKey {
+	return c.canonicalKey
 }
 
 func (c *CaveatIterator) ResourceType() ([]ObjectType, error) {

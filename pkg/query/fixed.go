@@ -168,8 +168,8 @@ func (f *FixedIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf FixedIterator's subiterators")
 }
 
-func (f *FixedIterator) Hash() uint64 {
-	return f.canonicalKey.Hash()
+func (f *FixedIterator) CanonicalKey() CanonicalKey {
+	return f.canonicalKey
 }
 
 func (f *FixedIterator) ResourceType() ([]ObjectType, error) {

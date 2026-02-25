@@ -27,8 +27,8 @@ func TestFormatAnalysisSimpleTree(t *testing.T) {
 	)
 
 	// Create analyze map with stats
-	analyze := map[uint64]AnalyzeStats{
-		fixed.Hash(): {
+	analyze := map[CanonicalKey]AnalyzeStats{
+		fixed.CanonicalKey(): {
 			CheckCalls:   1,
 			CheckResults: 2,
 		},
@@ -62,16 +62,16 @@ func TestFormatAnalysisNestedTree(t *testing.T) {
 	union := NewUnionIterator(fixed1, fixed2)
 
 	// Create analyze map with stats for all iterators
-	analyze := map[uint64]AnalyzeStats{
-		union.Hash(): {
+	analyze := map[CanonicalKey]AnalyzeStats{
+		union.CanonicalKey(): {
 			CheckCalls:   1,
 			CheckResults: 2,
 		},
-		fixed1.Hash(): {
+		fixed1.CanonicalKey(): {
 			CheckCalls:   1,
 			CheckResults: 1,
 		},
-		fixed2.Hash(): {
+		fixed2.CanonicalKey(): {
 			CheckCalls:   1,
 			CheckResults: 1,
 		},
@@ -104,7 +104,7 @@ func TestFormatAnalysisNestedTree(t *testing.T) {
 
 func TestFormatAnalysisEdgeCases(t *testing.T) {
 	t.Run("nil tree", func(t *testing.T) {
-		output := FormatAnalysis(nil, map[uint64]AnalyzeStats{})
+		output := FormatAnalysis(nil, map[CanonicalKey]AnalyzeStats{})
 		require.Equal(t, "No iterator tree provided", output)
 	})
 
@@ -116,7 +116,7 @@ func TestFormatAnalysisEdgeCases(t *testing.T) {
 
 	t.Run("empty analyze map", func(t *testing.T) {
 		fixed := NewFixedIterator()
-		output := FormatAnalysis(fixed, map[uint64]AnalyzeStats{})
+		output := FormatAnalysis(fixed, map[CanonicalKey]AnalyzeStats{})
 		require.Equal(t, "No analysis data available", output)
 	})
 }
@@ -139,10 +139,10 @@ func TestAnalysisIntegration(t *testing.T) {
 	)
 
 	// Create a context with analysis enabled
-	analyze := NewAnalyzeCollector()
+	analyze := NewAnalyzeObserver()
 	ctx := NewLocalContext(context.Background(),
 		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
-		WithAnalyze(analyze))
+		WithObserver(analyze))
 
 	// Execute a Check operation
 	resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
@@ -157,7 +157,7 @@ func TestAnalysisIntegration(t *testing.T) {
 
 	// Verify stats were recorded
 	analyzeStats := analyze.GetStats()
-	stats, exists := analyzeStats[fixed.Hash()]
+	stats, exists := analyzeStats[fixed.CanonicalKey()]
 	require.True(t, exists, "Stats should exist for iterator")
 	require.Equal(t, 1, stats.CheckCalls, "Should have 1 Check call")
 	require.Equal(t, 1, stats.CheckResults, "Should have 1 Check result")
@@ -171,13 +171,13 @@ func TestAnalysisIntegration(t *testing.T) {
 
 func TestAggregateAnalyzeStats(t *testing.T) {
 	t.Run("empty map", func(t *testing.T) {
-		result := AggregateAnalyzeStats(map[uint64]AnalyzeStats{})
+		result := AggregateAnalyzeStats(map[CanonicalKey]AnalyzeStats{})
 		require.Equal(t, AnalyzeStats{}, result)
 	})
 
 	t.Run("single entry", func(t *testing.T) {
-		stats := map[uint64]AnalyzeStats{
-			1: {
+		stats := map[CanonicalKey]AnalyzeStats{
+			"k1": {
 				CheckCalls:           5,
 				IterSubjectsCalls:    3,
 				IterResourcesCalls:   2,
@@ -187,12 +187,12 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 			},
 		}
 		result := AggregateAnalyzeStats(stats)
-		require.Equal(t, stats[1], result)
+		require.Equal(t, stats["k1"], result)
 	})
 
 	t.Run("multiple entries", func(t *testing.T) {
-		stats := map[uint64]AnalyzeStats{
-			1: {
+		stats := map[CanonicalKey]AnalyzeStats{
+			"k1": {
 				CheckCalls:           5,
 				IterSubjectsCalls:    3,
 				IterResourcesCalls:   2,
@@ -200,7 +200,7 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 				IterSubjectsResults:  6,
 				IterResourcesResults: 4,
 			},
-			2: {
+			"k2": {
 				CheckCalls:           3,
 				IterSubjectsCalls:    2,
 				IterResourcesCalls:   1,
@@ -208,7 +208,7 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 				IterSubjectsResults:  4,
 				IterResourcesResults: 2,
 			},
-			3: {
+			"k3": {
 				CheckCalls:           2,
 				IterSubjectsCalls:    1,
 				IterResourcesCalls:   1,
@@ -230,8 +230,8 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 	})
 
 	t.Run("multiple entries with timing", func(t *testing.T) {
-		stats := map[uint64]AnalyzeStats{
-			1: {
+		stats := map[CanonicalKey]AnalyzeStats{
+			"k1": {
 				CheckCalls:           5,
 				IterSubjectsCalls:    3,
 				IterResourcesCalls:   2,
@@ -242,7 +242,7 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 				IterSubjectsTime:     50 * time.Millisecond,
 				IterResourcesTime:    25 * time.Millisecond,
 			},
-			2: {
+			"k2": {
 				CheckCalls:           3,
 				IterSubjectsCalls:    2,
 				IterResourcesCalls:   1,

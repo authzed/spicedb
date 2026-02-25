@@ -12,20 +12,19 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-// TestRecursiveIterator_Hash tests the Hash() method (currently 0% coverage)
-func TestRecursiveIterator_Hash(t *testing.T) {
+// TestRecursiveIterator_CanonicalKey tests the CanonicalKey() method (currently 0% coverage)
+func TestRecursiveIterator_CanonicalKey(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 	recursive := NewRecursiveIterator(sentinel, "folder", "view")
 
-	hash := recursive.Hash()
-	require.NotZero(hash, "Hash should be non-zero once canonical key is set")
+	key := recursive.CanonicalKey()
 
-	// Verify two iterators with the same structure share the same hash
+	// Verify two iterators with the same structure share the same canonical key
 	recursive2 := NewRecursiveIterator(sentinel, "folder", "view")
-	require.Equal(hash, recursive2.Hash(), "Same structure should have same hash")
+	require.Equal(key, recursive2.CanonicalKey(), "Same structure should have same canonical key")
 }
 
 // TestReplaceRecursiveSentinel_NonMatchingSentinel tests replacing sentinels that don't match
@@ -317,8 +316,8 @@ func (i *infiniteRecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Ite
 	return i, nil
 }
 
-func (i *infiniteRecursiveIterator) Hash() uint64 {
-	return 0
+func (i *infiniteRecursiveIterator) CanonicalKey() CanonicalKey {
+	return ""
 }
 
 func (i *infiniteRecursiveIterator) ResourceType() ([]ObjectType, error) {
@@ -371,8 +370,8 @@ func (d *depthCountingIterator) ReplaceSubiterators(newSubs []Iterator) (Iterato
 	return d, nil
 }
 
-func (d *depthCountingIterator) Hash() uint64 {
-	return 0
+func (d *depthCountingIterator) CanonicalKey() CanonicalKey {
+	return ""
 }
 
 func (d *depthCountingIterator) ResourceType() ([]ObjectType, error) {

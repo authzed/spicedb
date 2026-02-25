@@ -46,13 +46,13 @@ func (r *RecursiveSentinelIterator) WithSubRelations() bool {
 // the queried resources to the frontier collection instead of returning paths.
 func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Check if collection mode is enabled for this sentinel
-	if ctx.IsCollectingFrontier(r.Hash()) {
+	if ctx.IsCollectingFrontier(r.CanonicalKey().Hash()) {
 		// Collection mode: append resources to frontier, return empty
 		return func(yield func(Path, error) bool) {
 			for _, resource := range resources {
 				// Only collect if it matches our recursion type
 				if resource.ObjectType == r.definitionName {
-					ctx.CollectFrontierObject(r.Hash(), resource)
+					ctx.CollectFrontierObject(r.CanonicalKey().Hash(), resource)
 					ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
 				}
 			}
@@ -68,12 +68,12 @@ func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resources []Object, 
 // the queried resource to the frontier collection instead of returning paths.
 func (r *RecursiveSentinelIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Check if collection mode is enabled for this sentinel
-	if ctx.IsCollectingFrontier(r.Hash()) {
+	if ctx.IsCollectingFrontier(r.CanonicalKey().Hash()) {
 		// Collection mode: append resource to frontier, return empty
 		return func(yield func(Path, error) bool) {
 			// Only collect if it matches our recursion type
 			if resource.ObjectType == r.definitionName {
-				ctx.CollectFrontierObject(r.Hash(), resource)
+				ctx.CollectFrontierObject(r.CanonicalKey().Hash(), resource)
 				ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
 			}
 			// Return empty (collection doesn't yield paths)
@@ -115,8 +115,8 @@ func (r *RecursiveSentinelIterator) ReplaceSubiterators(newSubs []Iterator) (Ite
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf RecursiveSentinel's subiterators")
 }
 
-func (r *RecursiveSentinelIterator) Hash() uint64 {
-	return r.canonicalKey.Hash()
+func (r *RecursiveSentinelIterator) CanonicalKey() CanonicalKey {
+	return r.canonicalKey
 }
 
 func (r *RecursiveSentinelIterator) ResourceType() ([]ObjectType, error) {

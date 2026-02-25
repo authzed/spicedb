@@ -295,8 +295,8 @@ func (e *ExclusionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 	return &ExclusionIterator{canonicalKey: e.canonicalKey, mainSet: newSubs[0], excluded: newSubs[1]}, nil
 }
 
-func (e *ExclusionIterator) Hash() uint64 {
-	return e.canonicalKey.Hash()
+func (e *ExclusionIterator) CanonicalKey() CanonicalKey {
+	return e.canonicalKey
 }
 
 func (e *ExclusionIterator) ResourceType() ([]ObjectType, error) {

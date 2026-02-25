@@ -96,8 +96,8 @@ func (s *SelfIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 	return nil, spiceerrors.MustBugf("Trying to replace a Self's subiterators")
 }
 
-func (s *SelfIterator) Hash() uint64 {
-	return s.canonicalKey.Hash()
+func (s *SelfIterator) CanonicalKey() CanonicalKey {
+	return s.canonicalKey
 }
 
 func (s *SelfIterator) ResourceType() ([]ObjectType, error) {

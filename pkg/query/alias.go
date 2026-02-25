@@ -231,8 +231,8 @@ func (a *AliasIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error
 	return &AliasIterator{canonicalKey: a.canonicalKey, relation: a.relation, subIt: newSubs[0]}, nil
 }
 
-func (a *AliasIterator) Hash() uint64 {
-	return a.canonicalKey.Hash()
+func (a *AliasIterator) CanonicalKey() CanonicalKey {
+	return a.canonicalKey
 }
 
 func (a *AliasIterator) ResourceType() ([]ObjectType, error) {
