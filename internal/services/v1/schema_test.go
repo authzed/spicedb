@@ -1,6 +1,7 @@
 package v1_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -69,20 +70,34 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	_, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 
-	userSchema := "caveat someCaveat(somecondition int) {\n\tsomecondition == 42\n}\n\ndefinition example/document {\n\trelation viewer: example/user | example/user with someCaveat\n}\n\ndefinition example/user {}"
+	for i := range 1_000 {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			userSchema := fmt.Sprintf(`definition sometenant/user {}
+definition sometenant/resource_%d {
+	relation viewer: sometenant/user
+	relation editor: sometenant/user
+}`, i)
+			readBackSchema := fmt.Sprintf(`definition sometenant/resource_%d {
+	relation viewer: sometenant/user
+	relation editor: sometenant/user
+}
 
-	writeResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
-		Schema: userSchema,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, writeResp.WrittenAt)
-	require.NotEmpty(t, writeResp.WrittenAt.Token)
+definition sometenant/user {}`, i)
 
-	readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
-	require.NoError(t, err)
-	require.Equal(t, userSchema, readback.SchemaText)
-	require.NotNil(t, readback.ReadAt)
-	require.NotEmpty(t, readback.ReadAt.Token)
+			writeResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+				Schema: userSchema,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, writeResp.WrittenAt)
+			require.NotEmpty(t, writeResp.WrittenAt.Token)
+
+			readback, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
+			require.NoError(t, err)
+			require.Equal(t, readBackSchema, readback.SchemaText)
+			require.NotNil(t, readback.ReadAt)
+			require.NotEmpty(t, readback.ReadAt.Token)
+		})
+	}
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
