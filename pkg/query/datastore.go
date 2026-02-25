@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -40,7 +38,6 @@ func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) Pa
 //
 // The DatastoreIterator, being the leaf, generates this set by calling the datastore.
 type DatastoreIterator struct {
-	id           string
 	base         *schema.BaseRelation
 	canonicalKey CanonicalKey
 }
@@ -49,7 +46,6 @@ var _ Iterator = &DatastoreIterator{}
 
 func NewDatastoreIterator(base *schema.BaseRelation) *DatastoreIterator {
 	return &DatastoreIterator{
-		id:   uuid.NewString(),
 		base: base,
 	}
 }
@@ -216,7 +212,7 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := r.ID() + ":iter_subjects"
+		iteratorID := fmt.Sprintf("%016x:iter_subjects", r.Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -377,7 +373,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := r.ID() + ":iter_subjects_wildcard"
+		iteratorID := fmt.Sprintf("%016x:iter_subjects_wildcard", r.Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -499,7 +495,7 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := r.ID() + ":iter_resources"
+		iteratorID := fmt.Sprintf("%016x:iter_resources", r.Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -604,7 +600,7 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 	// Pagination is configured - return a PathSeq that fetches pages as needed
 	return func(yield func(Path, error) bool) {
 		var cursor *tuple.Relationship
-		iteratorID := r.ID() + ":iter_resources_wildcard"
+		iteratorID := fmt.Sprintf("%016x:iter_resources_wildcard", r.Hash())
 
 		// Check if we have a starting cursor from previous iteration
 		cursor = ctx.GetPaginationCursor(iteratorID)
@@ -671,8 +667,8 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 
 func (r *DatastoreIterator) Clone() Iterator {
 	return &DatastoreIterator{
-		id:   uuid.NewString(),
-		base: r.base,
+		canonicalKey: r.canonicalKey,
+		base:         r.base,
 	}
 }
 
@@ -696,8 +692,8 @@ func (r *DatastoreIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf DatastoreIterator's subiterators")
 }
 
-func (r *DatastoreIterator) ID() string {
-	return r.id
+func (r *DatastoreIterator) Hash() uint64 {
+	return r.canonicalKey.Hash()
 }
 
 func (r *DatastoreIterator) ResourceType() ([]ObjectType, error) {

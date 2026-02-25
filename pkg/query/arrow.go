@@ -3,8 +3,6 @@ package query
 import (
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -26,7 +24,6 @@ const (
 //
 // Ex: `folder->owner` and `left->right`
 type ArrowIterator struct {
-	id            string
 	left          Iterator
 	right         Iterator
 	direction     arrowDirection // execution direction
@@ -38,7 +35,6 @@ var _ Iterator = &ArrowIterator{}
 
 func NewArrowIterator(left, right Iterator) *ArrowIterator {
 	return &ArrowIterator{
-		id:            uuid.NewString(),
 		left:          left,
 		right:         right,
 		direction:     leftToRight,
@@ -48,7 +44,6 @@ func NewArrowIterator(left, right Iterator) *ArrowIterator {
 
 func NewSchemaArrow(left, right Iterator) *ArrowIterator {
 	return &ArrowIterator{
-		id:            uuid.NewString(),
 		left:          left,
 		right:         right,
 		direction:     leftToRight,
@@ -429,7 +424,7 @@ func (a *ArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 func (a *ArrowIterator) Clone() Iterator {
 	return &ArrowIterator{
-		id:            uuid.NewString(),
+		canonicalKey:  a.canonicalKey,
 		left:          a.left.Clone(),
 		right:         a.right.Clone(),
 		direction:     a.direction,     // preserve direction
@@ -458,7 +453,7 @@ func (a *ArrowIterator) Subiterators() []Iterator {
 
 func (a *ArrowIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &ArrowIterator{
-		id:            uuid.NewString(),
+		canonicalKey:  a.canonicalKey,
 		left:          newSubs[0],
 		right:         newSubs[1],
 		direction:     a.direction,
@@ -466,8 +461,8 @@ func (a *ArrowIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error
 	}, nil
 }
 
-func (a *ArrowIterator) ID() string {
-	return a.id
+func (a *ArrowIterator) Hash() uint64 {
+	return a.canonicalKey.Hash()
 }
 
 func (a *ArrowIterator) ResourceType() ([]ObjectType, error) {

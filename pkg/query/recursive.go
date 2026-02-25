@@ -3,8 +3,6 @@ package query
 import (
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -29,7 +27,6 @@ var _ Iterator = &RecursiveIterator{}
 // It wraps an iterator tree that contains RecursiveSentinel sentinels, and executes the tree
 // repeatedly with increasing depth until a fixed point is reached or max depth is exceeded.
 type RecursiveIterator struct {
-	id             string
 	templateTree   Iterator
 	definitionName string                 // The schema definition this iterator is recursing on
 	relationName   string                 // The relation name this iterator is recursing on
@@ -40,7 +37,6 @@ type RecursiveIterator struct {
 // NewRecursiveIterator creates a new recursive iterator controller
 func NewRecursiveIterator(templateTree Iterator, definitionName, relationName string) *RecursiveIterator {
 	return &RecursiveIterator{
-		id:             uuid.NewString(),
 		templateTree:   templateTree,
 		definitionName: definitionName,
 		relationName:   relationName,
@@ -48,10 +44,10 @@ func NewRecursiveIterator(templateTree Iterator, definitionName, relationName st
 	}
 }
 
-// findMatchingSentinels walks the template tree and returns IDs of sentinels that match
+// findMatchingSentinels walks the template tree and returns hashes of sentinels that match
 // this RecursiveIterator's definition and relation (but stops at nested RecursiveIterators).
-func (r *RecursiveIterator) findMatchingSentinels() []string {
-	var sentinelIDs []string
+func (r *RecursiveIterator) findMatchingSentinels() []uint64 {
+	var sentinelHashes []uint64
 	_, _ = Walk(r.templateTree, func(it Iterator) (Iterator, error) {
 		// Stop traversing if we encounter a nested RecursiveIterator
 		if _, isRecursive := it.(*RecursiveIterator); isRecursive {
@@ -62,12 +58,12 @@ func (r *RecursiveIterator) findMatchingSentinels() []string {
 		if sentinel, ok := it.(*RecursiveSentinelIterator); ok {
 			if sentinel.DefinitionName() == r.definitionName &&
 				sentinel.RelationName() == r.relationName {
-				sentinelIDs = append(sentinelIDs, sentinel.ID())
+				sentinelHashes = append(sentinelHashes, sentinel.Hash())
 			}
 		}
 		return it, nil
 	})
-	return sentinelIDs
+	return sentinelHashes
 }
 
 // CheckImpl implements traversal for Check operations with strategy selection
@@ -168,7 +164,7 @@ func (r *RecursiveIterator) replaceSentinelsInTree(tree Iterator, replacement It
 // Clone creates a deep copy of the RecursiveIterator
 func (r *RecursiveIterator) Clone() Iterator {
 	return &RecursiveIterator{
-		id:             uuid.NewString(),
+		canonicalKey:   r.canonicalKey,
 		templateTree:   r.templateTree.Clone(),
 		definitionName: r.definitionName,
 		relationName:   r.relationName,
@@ -193,7 +189,7 @@ func (r *RecursiveIterator) Subiterators() []Iterator {
 
 func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &RecursiveIterator{
-		id:             uuid.NewString(),
+		canonicalKey:   r.canonicalKey,
 		templateTree:   newSubs[0],
 		definitionName: r.definitionName,
 		relationName:   r.relationName,
@@ -201,8 +197,8 @@ func (r *RecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, e
 	}, nil
 }
 
-func (r *RecursiveIterator) ID() string {
-	return r.id
+func (r *RecursiveIterator) Hash() uint64 {
+	return r.canonicalKey.Hash()
 }
 
 func (r *RecursiveIterator) ResourceType() ([]ObjectType, error) {

@@ -59,9 +59,9 @@ type Iterator interface {
 	// Returns an error if the replacement fails or if the length of newSubs doesn't match expectations.
 	ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 
-	// ID returns a unique UUID for this instance of an iterator.
-	// Each call to Clone() generates a new UUID for the cloned iterator.
-	ID() string
+	// Hash returns a deterministic hash fingerprint for this iterator based on its canonical key.
+	// Cloned iterators share the same hash since they represent the same query plan node.
+	Hash() uint64
 
 	// ResourceType returns the ObjectType(s) of this iterator's resources.
 	// Returns a slice to support iterators that can return multiple types (e.g., unions).

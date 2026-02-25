@@ -1,8 +1,6 @@
 package query
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 )
@@ -10,7 +8,6 @@ import (
 // AliasIterator is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type AliasIterator struct {
-	id           string
 	relation     string
 	subIt        Iterator
 	canonicalKey CanonicalKey
@@ -22,7 +19,6 @@ var _ Iterator = &AliasIterator{}
 // to use the specified relation name.
 func NewAliasIterator(relation string, subIt Iterator) *AliasIterator {
 	return &AliasIterator{
-		id:       uuid.NewString(),
 		relation: relation,
 		subIt:    subIt,
 	}
@@ -213,9 +209,9 @@ func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 func (a *AliasIterator) Clone() Iterator {
 	return &AliasIterator{
-		id:       uuid.NewString(),
-		relation: a.relation,
-		subIt:    a.subIt.Clone(),
+		canonicalKey: a.canonicalKey,
+		relation:     a.relation,
+		subIt:        a.subIt.Clone(),
 	}
 }
 
@@ -232,11 +228,11 @@ func (a *AliasIterator) Subiterators() []Iterator {
 }
 
 func (a *AliasIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &AliasIterator{id: uuid.NewString(), relation: a.relation, subIt: newSubs[0]}, nil
+	return &AliasIterator{canonicalKey: a.canonicalKey, relation: a.relation, subIt: newSubs[0]}, nil
 }
 
-func (a *AliasIterator) ID() string {
-	return a.id
+func (a *AliasIterator) Hash() uint64 {
+	return a.canonicalKey.Hash()
 }
 
 func (a *AliasIterator) ResourceType() ([]ObjectType, error) {

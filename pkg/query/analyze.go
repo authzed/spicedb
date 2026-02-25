@@ -7,7 +7,7 @@ import (
 
 // FormatAnalysis returns a formatted string showing the iterator tree with execution statistics
 // for each iterator. Stats are looked up by iterator ID from the analyze map.
-func FormatAnalysis(tree Iterator, analyze map[string]AnalyzeStats) string {
+func FormatAnalysis(tree Iterator, analyze map[uint64]AnalyzeStats) string {
 	if tree == nil {
 		return "No iterator tree provided"
 	}
@@ -23,7 +23,7 @@ func FormatAnalysis(tree Iterator, analyze map[string]AnalyzeStats) string {
 // AggregateAnalyzeStats combines all the analyze stats from a map into a single
 // aggregated AnalyzeStats. This is useful for getting total counts across all
 // iterators in a query execution.
-func AggregateAnalyzeStats(analyze map[string]AnalyzeStats) AnalyzeStats {
+func AggregateAnalyzeStats(analyze map[uint64]AnalyzeStats) AnalyzeStats {
 	var total AnalyzeStats
 	for _, stats := range analyze {
 		total.CheckCalls += stats.CheckCalls
@@ -41,14 +41,14 @@ func AggregateAnalyzeStats(analyze map[string]AnalyzeStats) AnalyzeStats {
 
 // formatNode recursively formats a single iterator node and its children
 // depth parameter tracks how deep we are in the tree (0 = root)
-func formatNode(it Iterator, analyze map[string]AnalyzeStats, sb *strings.Builder, indent string, isLast bool) {
+func formatNode(it Iterator, analyze map[uint64]AnalyzeStats, sb *strings.Builder, indent string, isLast bool) {
 	if it == nil {
 		return
 	}
 
 	// Get iterator info from Explain()
 	explain := it.Explain()
-	iterID := it.ID()
+	iterID := it.Hash()
 	stats := analyze[iterID]
 
 	// Draw tree branch for non-root nodes
@@ -65,7 +65,7 @@ func formatNode(it Iterator, analyze map[string]AnalyzeStats, sb *strings.Builde
 	}
 
 	// Write iterator name and ID (truncated for readability)
-	fmt.Fprintf(sb, "%s (ID: %s)\n", explain.Info, iterID[:8])
+	fmt.Fprintf(sb, "%s (Hash: %016x)\n", explain.Info, iterID)
 
 	// Write stats with indentation
 	statsIndent := indent

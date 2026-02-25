@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -28,7 +26,6 @@ func sortObjectTypes(types []ObjectType) {
 // For example: document->folder->ownerGroup->user -- and we'd like to
 // find all documents (IterResources) that traverse a known folder->ownerGroup relationship
 type FixedIterator struct {
-	id           string
 	paths        []Path
 	resourceType ObjectType
 	subjectTypes []ObjectType
@@ -71,7 +68,6 @@ func NewFixedIterator(paths ...Path) *FixedIterator {
 	sortObjectTypes(subjectTypes)
 
 	return &FixedIterator{
-		id:           uuid.NewString(),
 		paths:        paths,
 		resourceType: resourceType,
 		subjectTypes: subjectTypes,
@@ -157,7 +153,7 @@ func (f *FixedIterator) Clone() Iterator {
 	copy(clonedSubjectTypes, f.subjectTypes)
 
 	return &FixedIterator{
-		id:           uuid.NewString(),
+		canonicalKey: f.canonicalKey,
 		paths:        clonedPaths,
 		resourceType: f.resourceType,
 		subjectTypes: clonedSubjectTypes,
@@ -172,8 +168,8 @@ func (f *FixedIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf FixedIterator's subiterators")
 }
 
-func (f *FixedIterator) ID() string {
-	return f.id
+func (f *FixedIterator) Hash() uint64 {
+	return f.canonicalKey.Hash()
 }
 
 func (f *FixedIterator) ResourceType() ([]ObjectType, error) {

@@ -1,8 +1,6 @@
 package query
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -14,7 +12,6 @@ import (
 //
 // Ex: `group.all(member)` - user must be member of ALL groups
 type IntersectionArrowIterator struct {
-	id           string
 	left         Iterator
 	right        Iterator
 	canonicalKey CanonicalKey
@@ -24,7 +21,6 @@ var _ Iterator = &IntersectionArrowIterator{}
 
 func NewIntersectionArrowIterator(left, right Iterator) *IntersectionArrowIterator {
 	return &IntersectionArrowIterator{
-		id:    uuid.NewString(),
 		left:  left,
 		right: right,
 	}
@@ -316,9 +312,9 @@ func (ia *IntersectionArrowIterator) IterResourcesImpl(ctx *Context, subject Obj
 
 func (ia *IntersectionArrowIterator) Clone() Iterator {
 	return &IntersectionArrowIterator{
-		id:    uuid.NewString(),
-		left:  ia.left.Clone(),
-		right: ia.right.Clone(),
+		canonicalKey: ia.canonicalKey,
+		left:         ia.left.Clone(),
+		right:        ia.right.Clone(),
 	}
 }
 
@@ -335,11 +331,11 @@ func (ia *IntersectionArrowIterator) Subiterators() []Iterator {
 }
 
 func (ia *IntersectionArrowIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &IntersectionArrowIterator{id: uuid.NewString(), left: newSubs[0], right: newSubs[1]}, nil
+	return &IntersectionArrowIterator{canonicalKey: ia.canonicalKey, left: newSubs[0], right: newSubs[1]}, nil
 }
 
-func (ia *IntersectionArrowIterator) ID() string {
-	return ia.id
+func (ia *IntersectionArrowIterator) Hash() uint64 {
+	return ia.canonicalKey.Hash()
 }
 
 func (ia *IntersectionArrowIterator) ResourceType() ([]ObjectType, error) {

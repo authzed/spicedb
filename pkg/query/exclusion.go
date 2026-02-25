@@ -1,15 +1,12 @@
 package query
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/internal/caveats"
 )
 
 // ExclusionIterator represents the set of relations that are in the mainSet but not in the excluded set.
 // This is equivalent to `permission foo = bar - baz`
 type ExclusionIterator struct {
-	id           string
 	mainSet      Iterator
 	excluded     Iterator
 	canonicalKey CanonicalKey
@@ -19,7 +16,6 @@ var _ Iterator = &ExclusionIterator{}
 
 func NewExclusionIterator(mainSet, excluded Iterator) *ExclusionIterator {
 	return &ExclusionIterator{
-		id:       uuid.NewString(),
 		mainSet:  mainSet,
 		excluded: excluded,
 	}
@@ -274,9 +270,9 @@ func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 
 func (e *ExclusionIterator) Clone() Iterator {
 	return &ExclusionIterator{
-		id:       uuid.NewString(),
-		mainSet:  e.mainSet.Clone(),
-		excluded: e.excluded.Clone(),
+		canonicalKey: e.canonicalKey,
+		mainSet:      e.mainSet.Clone(),
+		excluded:     e.excluded.Clone(),
 	}
 }
 
@@ -296,11 +292,11 @@ func (e *ExclusionIterator) Subiterators() []Iterator {
 }
 
 func (e *ExclusionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &ExclusionIterator{id: uuid.NewString(), mainSet: newSubs[0], excluded: newSubs[1]}, nil
+	return &ExclusionIterator{canonicalKey: e.canonicalKey, mainSet: newSubs[0], excluded: newSubs[1]}, nil
 }
 
-func (e *ExclusionIterator) ID() string {
-	return e.id
+func (e *ExclusionIterator) Hash() uint64 {
+	return e.canonicalKey.Hash()
 }
 
 func (e *ExclusionIterator) ResourceType() ([]ObjectType, error) {

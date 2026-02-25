@@ -1,15 +1,12 @@
 package query
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 
 // IntersectionIterator the set of paths that are in all of underlying subiterators.
 // This is equivalent to `permission foo = bar & baz`
 type IntersectionIterator struct {
-	id           string
 	subIts       []Iterator
 	canonicalKey CanonicalKey
 }
@@ -21,7 +18,6 @@ func NewIntersectionIterator(subiterators ...Iterator) Iterator {
 		return NewFixedIterator() // Return empty FixedIterator instead of empty Intersection
 	}
 	return &IntersectionIterator{
-		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
 }
@@ -325,8 +321,8 @@ func (i *IntersectionIterator) IterResourcesImpl(ctx *Context, subject ObjectAnd
 
 func (i *IntersectionIterator) Clone() Iterator {
 	cloned := &IntersectionIterator{
-		id:     uuid.NewString(),
-		subIts: make([]Iterator, len(i.subIts)),
+		canonicalKey: i.canonicalKey,
+		subIts:       make([]Iterator, len(i.subIts)),
 	}
 	for idx, subIt := range i.subIts {
 		cloned.subIts[idx] = subIt.Clone()
@@ -351,11 +347,11 @@ func (i *IntersectionIterator) Subiterators() []Iterator {
 }
 
 func (i *IntersectionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &IntersectionIterator{id: uuid.NewString(), subIts: newSubs}, nil
+	return &IntersectionIterator{canonicalKey: i.canonicalKey, subIts: newSubs}, nil
 }
 
-func (i *IntersectionIterator) ID() string {
-	return i.id
+func (i *IntersectionIterator) Hash() uint64 {
+	return i.canonicalKey.Hash()
 }
 
 func (i *IntersectionIterator) ResourceType() ([]ObjectType, error) {

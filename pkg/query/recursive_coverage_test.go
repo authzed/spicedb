@@ -12,20 +12,20 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-// TestRecursiveIterator_ID tests the ID() method (currently 0% coverage)
-func TestRecursiveIterator_ID(t *testing.T) {
+// TestRecursiveIterator_Hash tests the Hash() method (currently 0% coverage)
+func TestRecursiveIterator_Hash(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 	recursive := NewRecursiveIterator(sentinel, "folder", "view")
 
-	id := recursive.ID()
-	require.NotEmpty(id, "ID should be non-empty")
+	hash := recursive.Hash()
+	require.NotZero(hash, "Hash should be non-zero once canonical key is set")
 
-	// Verify IDs are unique
+	// Verify two iterators with the same structure share the same hash
 	recursive2 := NewRecursiveIterator(sentinel, "folder", "view")
-	require.NotEqual(id, recursive2.ID(), "Different instances should have different IDs")
+	require.Equal(hash, recursive2.Hash(), "Same structure should have same hash")
 }
 
 // TestReplaceRecursiveSentinel_NonMatchingSentinel tests replacing sentinels that don't match
@@ -317,8 +317,8 @@ func (i *infiniteRecursiveIterator) ReplaceSubiterators(newSubs []Iterator) (Ite
 	return i, nil
 }
 
-func (i *infiniteRecursiveIterator) ID() string {
-	return "infinite"
+func (i *infiniteRecursiveIterator) Hash() uint64 {
+	return 0
 }
 
 func (i *infiniteRecursiveIterator) ResourceType() ([]ObjectType, error) {
@@ -371,8 +371,8 @@ func (d *depthCountingIterator) ReplaceSubiterators(newSubs []Iterator) (Iterato
 	return d, nil
 }
 
-func (d *depthCountingIterator) ID() string {
-	return "depth"
+func (d *depthCountingIterator) Hash() uint64 {
+	return 0
 }
 
 func (d *depthCountingIterator) ResourceType() ([]ObjectType, error) {

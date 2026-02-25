@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -181,7 +179,6 @@ func NewLargeFixedIterator() *FixedIterator {
 
 // FaultyIterator is a test helper that simulates iterator errors
 type FaultyIterator struct {
-	id                  string
 	shouldFailOnCheck   bool
 	shouldFailOnCollect bool
 	resourceType        ObjectType
@@ -237,7 +234,6 @@ func (f *FaultyIterator) Clone() Iterator {
 	copy(clonedSubjectTypes, f.subjectTypes)
 
 	return &FaultyIterator{
-		id:                  uuid.NewString(),
 		shouldFailOnCheck:   f.shouldFailOnCheck,
 		shouldFailOnCollect: f.shouldFailOnCollect,
 		resourceType:        f.resourceType,
@@ -257,8 +253,8 @@ func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, erro
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf FaultyIterator's subiterators")
 }
 
-func (f *FaultyIterator) ID() string {
-	return f.id
+func (f *FaultyIterator) Hash() uint64 {
+	return 0 // FaultyIterator is test-only and has no canonical key
 }
 
 func (f *FaultyIterator) ResourceType() ([]ObjectType, error) {
@@ -275,7 +271,6 @@ func (f *FaultyIterator) SubjectTypes() ([]ObjectType, error) {
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions
 func NewFaultyIterator(shouldFailOnCheck, shouldFailOnCollect bool, resourceType ObjectType, subjectTypes []ObjectType) *FaultyIterator {
 	return &FaultyIterator{
-		id:                  uuid.NewString(),
 		shouldFailOnCheck:   shouldFailOnCheck,
 		shouldFailOnCollect: shouldFailOnCollect,
 		resourceType:        resourceType,

@@ -30,10 +30,11 @@ func optimizeArrowDirection(source StatisticsSource) TypedOptimizerFunc[*ArrowIt
 		if rightToLeftCost < leftToRightCost && a.direction != rightToLeft {
 			// Create new arrow with inverted direction
 			newArrow := &ArrowIterator{
-				id:        a.id, // Keep same ID
-				left:      a.left,
-				right:     a.right,
-				direction: rightToLeft,
+				canonicalKey:  a.canonicalKey,
+				left:          a.left,
+				right:         a.right,
+				direction:     rightToLeft,
+				isSchemaArrow: a.isSchemaArrow,
 			}
 			return newArrow, true, nil // Changed
 		}

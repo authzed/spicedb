@@ -3,8 +3,6 @@ package query
 import (
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -14,7 +12,6 @@ var _ Iterator = &RecursiveSentinelIterator{}
 // RecursiveSentinelIterator is a sentinel iterator that marks recursion points during iterator tree construction.
 // It acts as a placeholder that will be replaced during execution by RecursiveIterator.
 type RecursiveSentinelIterator struct {
-	id               string
 	definitionName   string
 	relationName     string
 	withSubRelations bool
@@ -24,7 +21,6 @@ type RecursiveSentinelIterator struct {
 // NewRecursiveSentinelIterator creates a new sentinel marking a recursion point
 func NewRecursiveSentinelIterator(definitionName, relationName string, withSubRelations bool) *RecursiveSentinelIterator {
 	return &RecursiveSentinelIterator{
-		id:               uuid.NewString(),
 		definitionName:   definitionName,
 		relationName:     relationName,
 		withSubRelations: withSubRelations,
@@ -50,13 +46,13 @@ func (r *RecursiveSentinelIterator) WithSubRelations() bool {
 // the queried resources to the frontier collection instead of returning paths.
 func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Check if collection mode is enabled for this sentinel
-	if ctx.IsCollectingFrontier(r.id) {
+	if ctx.IsCollectingFrontier(r.Hash()) {
 		// Collection mode: append resources to frontier, return empty
 		return func(yield func(Path, error) bool) {
 			for _, resource := range resources {
 				// Only collect if it matches our recursion type
 				if resource.ObjectType == r.definitionName {
-					ctx.CollectFrontierObject(r.id, resource)
+					ctx.CollectFrontierObject(r.Hash(), resource)
 					ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
 				}
 			}
@@ -72,12 +68,12 @@ func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resources []Object, 
 // the queried resource to the frontier collection instead of returning paths.
 func (r *RecursiveSentinelIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Check if collection mode is enabled for this sentinel
-	if ctx.IsCollectingFrontier(r.id) {
+	if ctx.IsCollectingFrontier(r.Hash()) {
 		// Collection mode: append resource to frontier, return empty
 		return func(yield func(Path, error) bool) {
 			// Only collect if it matches our recursion type
 			if resource.ObjectType == r.definitionName {
-				ctx.CollectFrontierObject(r.id, resource)
+				ctx.CollectFrontierObject(r.Hash(), resource)
 				ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
 			}
 			// Return empty (collection doesn't yield paths)
@@ -96,7 +92,7 @@ func (r *RecursiveSentinelIterator) IterResourcesImpl(ctx *Context, subject Obje
 // Clone returns a shallow copy of the sentinel
 func (r *RecursiveSentinelIterator) Clone() Iterator {
 	return &RecursiveSentinelIterator{
-		id:               uuid.NewString(),
+		canonicalKey:     r.canonicalKey,
 		definitionName:   r.definitionName,
 		relationName:     r.relationName,
 		withSubRelations: r.withSubRelations,
@@ -119,8 +115,8 @@ func (r *RecursiveSentinelIterator) ReplaceSubiterators(newSubs []Iterator) (Ite
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf RecursiveSentinel's subiterators")
 }
 
-func (r *RecursiveSentinelIterator) ID() string {
-	return r.id
+func (r *RecursiveSentinelIterator) Hash() uint64 {
+	return r.canonicalKey.Hash()
 }
 
 func (r *RecursiveSentinelIterator) ResourceType() ([]ObjectType, error) {

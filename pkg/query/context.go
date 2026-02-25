@@ -62,16 +62,7 @@ func iteratorIDPrefix(it Iterator) string {
 	if iteratorName == "" {
 		iteratorName = explain.Info
 	}
-
-	id := it.ID()
-	if id == "" {
-		return " " + iteratorName
-	}
-
-	if len(id) >= 6 {
-		return fmt.Sprintf(" %s[%s]", iteratorName, id[:6])
-	}
-	return fmt.Sprintf(" %s[%s]", iteratorName, id)
+	return fmt.Sprintf(" %s[%x]", iteratorName, it.Hash())
 }
 
 // EnterIterator logs entering an iterator and pushes it onto the stack
@@ -202,18 +193,18 @@ type AnalyzeStats struct {
 // AnalyzeCollector is a thread-safe wrapper around the analysis stats map
 type AnalyzeCollector struct {
 	mu    sync.Mutex
-	stats map[string]AnalyzeStats // GUARDED_BY(mu)
+	stats map[uint64]AnalyzeStats // GUARDED_BY(mu)
 }
 
 // NewAnalyzeCollector creates a new thread-safe analyze collector
 func NewAnalyzeCollector() *AnalyzeCollector {
 	return &AnalyzeCollector{
-		stats: make(map[string]AnalyzeStats),
+		stats: make(map[uint64]AnalyzeStats),
 	}
 }
 
 // IncrementCall increments the call counter for a given iterator and operation type
-func (ac *AnalyzeCollector) IncrementCall(iterID, opType string) {
+func (ac *AnalyzeCollector) IncrementCall(iterID uint64, opType string) {
 	if ac == nil {
 		return
 	}
@@ -233,7 +224,7 @@ func (ac *AnalyzeCollector) IncrementCall(iterID, opType string) {
 }
 
 // RecordResults updates the result count and timing for an iterator
-func (ac *AnalyzeCollector) RecordResults(iterID, opType string, count int, elapsed time.Duration) {
+func (ac *AnalyzeCollector) RecordResults(iterID uint64, opType string, count int, elapsed time.Duration) {
 	if ac == nil {
 		return
 	}
@@ -256,14 +247,14 @@ func (ac *AnalyzeCollector) RecordResults(iterID, opType string, count int, elap
 }
 
 // GetStats returns a copy of all stats for reading
-func (ac *AnalyzeCollector) GetStats() map[string]AnalyzeStats {
+func (ac *AnalyzeCollector) GetStats() map[uint64]AnalyzeStats {
 	if ac == nil {
 		return nil
 	}
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
 
-	result := make(map[string]AnalyzeStats, len(ac.stats))
+	result := make(map[uint64]AnalyzeStats, len(ac.stats))
 	maps.Copy(result, ac.stats)
 	return result
 }
@@ -288,10 +279,10 @@ type Context struct {
 	PaginationSort    options.SortOrder              // Sort order for pagination
 
 	// recursiveFrontierCollectors holds frontier collections for BFS IterSubjects.
-	// Key: RecursiveIterator.ID()
+	// Key: RecursiveIterator.Hash()
 	// Value: collected Objects for the next frontier
 	// A non-nil entry for an ID enables collection mode for that RecursiveIterator.
-	recursiveFrontierCollectors map[string][]Object
+	recursiveFrontierCollectors map[uint64][]Object
 }
 
 // NewLocalContext creates a new query execution context with a LocalExecutor.
@@ -438,7 +429,7 @@ func (ctx *Context) wrapPathSeqForAnalysis(it Iterator, pathSeq PathSeq, opType 
 		return pathSeq
 	}
 
-	iterID := it.ID()
+	iterID := it.Hash()
 
 	// Increment call counter based on operation type (thread-safe)
 	ctx.Analyze.IncrementCall(iterID, opType)
@@ -546,16 +537,16 @@ type Executor interface {
 
 // EnableFrontierCollection enables frontier collection for a RecursiveIterator.
 // Creates a non-nil entry in the map, which signals collection mode.
-func (ctx *Context) EnableFrontierCollection(iteratorID string) {
+func (ctx *Context) EnableFrontierCollection(iteratorID uint64) {
 	if ctx.recursiveFrontierCollectors == nil {
-		ctx.recursiveFrontierCollectors = make(map[string][]Object)
+		ctx.recursiveFrontierCollectors = make(map[uint64][]Object)
 	}
 	ctx.recursiveFrontierCollectors[iteratorID] = []Object{}
 }
 
 // CollectFrontierObject appends an object to the frontier collection.
 // Only appends if collection mode is enabled (non-nil entry exists).
-func (ctx *Context) CollectFrontierObject(iteratorID string, obj Object) {
+func (ctx *Context) CollectFrontierObject(iteratorID uint64, obj Object) {
 	if ctx.recursiveFrontierCollectors == nil {
 		return
 	}
@@ -565,7 +556,7 @@ func (ctx *Context) CollectFrontierObject(iteratorID string, obj Object) {
 }
 
 // ExtractFrontierCollection retrieves and removes the collected frontier.
-func (ctx *Context) ExtractFrontierCollection(iteratorID string) []Object {
+func (ctx *Context) ExtractFrontierCollection(iteratorID uint64) []Object {
 	if ctx.recursiveFrontierCollectors == nil {
 		return nil
 	}
@@ -575,7 +566,7 @@ func (ctx *Context) ExtractFrontierCollection(iteratorID string) []Object {
 }
 
 // IsCollectingFrontier checks if collection mode is enabled (non-nil entry exists).
-func (ctx *Context) IsCollectingFrontier(iteratorID string) bool {
+func (ctx *Context) IsCollectingFrontier(iteratorID uint64) bool {
 	if ctx.recursiveFrontierCollectors == nil {
 		return false
 	}

@@ -1,7 +1,6 @@
 package query
 
 import (
-	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
@@ -9,7 +8,6 @@ import (
 // UnionIterator the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
 type UnionIterator struct {
-	id           string
 	subIts       []Iterator
 	canonicalKey CanonicalKey
 }
@@ -21,7 +19,6 @@ func NewUnionIterator(subiterators ...Iterator) Iterator {
 		return NewFixedIterator() // Return empty FixedIterator instead of empty Union
 	}
 	return &UnionIterator{
-		id:     uuid.NewString(),
 		subIts: subiterators,
 	}
 }
@@ -130,8 +127,8 @@ func (u *UnionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 func (u *UnionIterator) Clone() Iterator {
 	cloned := &UnionIterator{
-		id:     uuid.NewString(),
-		subIts: make([]Iterator, len(u.subIts)),
+		canonicalKey: u.canonicalKey,
+		subIts:       make([]Iterator, len(u.subIts)),
 	}
 	for idx, subIt := range u.subIts {
 		cloned.subIts[idx] = subIt.Clone()
@@ -156,11 +153,11 @@ func (u *UnionIterator) Subiterators() []Iterator {
 }
 
 func (u *UnionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &UnionIterator{id: uuid.NewString(), subIts: newSubs}, nil
+	return &UnionIterator{canonicalKey: u.canonicalKey, subIts: newSubs}, nil
 }
 
-func (u *UnionIterator) ID() string {
-	return u.id
+func (u *UnionIterator) Hash() uint64 {
+	return u.canonicalKey.Hash()
 }
 
 func (u *UnionIterator) ResourceType() ([]ObjectType, error) {

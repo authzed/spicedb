@@ -27,8 +27,8 @@ func TestFormatAnalysisSimpleTree(t *testing.T) {
 	)
 
 	// Create analyze map with stats
-	analyze := map[string]AnalyzeStats{
-		fixed.ID(): {
+	analyze := map[uint64]AnalyzeStats{
+		fixed.Hash(): {
 			CheckCalls:   1,
 			CheckResults: 2,
 		},
@@ -62,16 +62,16 @@ func TestFormatAnalysisNestedTree(t *testing.T) {
 	union := NewUnionIterator(fixed1, fixed2)
 
 	// Create analyze map with stats for all iterators
-	analyze := map[string]AnalyzeStats{
-		union.ID(): {
+	analyze := map[uint64]AnalyzeStats{
+		union.Hash(): {
 			CheckCalls:   1,
 			CheckResults: 2,
 		},
-		fixed1.ID(): {
+		fixed1.Hash(): {
 			CheckCalls:   1,
 			CheckResults: 1,
 		},
-		fixed2.ID(): {
+		fixed2.Hash(): {
 			CheckCalls:   1,
 			CheckResults: 1,
 		},
@@ -104,7 +104,7 @@ func TestFormatAnalysisNestedTree(t *testing.T) {
 
 func TestFormatAnalysisEdgeCases(t *testing.T) {
 	t.Run("nil tree", func(t *testing.T) {
-		output := FormatAnalysis(nil, map[string]AnalyzeStats{})
+		output := FormatAnalysis(nil, map[uint64]AnalyzeStats{})
 		require.Equal(t, "No iterator tree provided", output)
 	})
 
@@ -116,7 +116,7 @@ func TestFormatAnalysisEdgeCases(t *testing.T) {
 
 	t.Run("empty analyze map", func(t *testing.T) {
 		fixed := NewFixedIterator()
-		output := FormatAnalysis(fixed, map[string]AnalyzeStats{})
+		output := FormatAnalysis(fixed, map[uint64]AnalyzeStats{})
 		require.Equal(t, "No analysis data available", output)
 	})
 }
@@ -157,7 +157,7 @@ func TestAnalysisIntegration(t *testing.T) {
 
 	// Verify stats were recorded
 	analyzeStats := analyze.GetStats()
-	stats, exists := analyzeStats[fixed.ID()]
+	stats, exists := analyzeStats[fixed.Hash()]
 	require.True(t, exists, "Stats should exist for iterator")
 	require.Equal(t, 1, stats.CheckCalls, "Should have 1 Check call")
 	require.Equal(t, 1, stats.CheckResults, "Should have 1 Check result")
@@ -171,13 +171,13 @@ func TestAnalysisIntegration(t *testing.T) {
 
 func TestAggregateAnalyzeStats(t *testing.T) {
 	t.Run("empty map", func(t *testing.T) {
-		result := AggregateAnalyzeStats(map[string]AnalyzeStats{})
+		result := AggregateAnalyzeStats(map[uint64]AnalyzeStats{})
 		require.Equal(t, AnalyzeStats{}, result)
 	})
 
 	t.Run("single entry", func(t *testing.T) {
-		stats := map[string]AnalyzeStats{
-			"id1": {
+		stats := map[uint64]AnalyzeStats{
+			1: {
 				CheckCalls:           5,
 				IterSubjectsCalls:    3,
 				IterResourcesCalls:   2,
@@ -187,12 +187,12 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 			},
 		}
 		result := AggregateAnalyzeStats(stats)
-		require.Equal(t, stats["id1"], result)
+		require.Equal(t, stats[1], result)
 	})
 
 	t.Run("multiple entries", func(t *testing.T) {
-		stats := map[string]AnalyzeStats{
-			"id1": {
+		stats := map[uint64]AnalyzeStats{
+			1: {
 				CheckCalls:           5,
 				IterSubjectsCalls:    3,
 				IterResourcesCalls:   2,
@@ -200,7 +200,7 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 				IterSubjectsResults:  6,
 				IterResourcesResults: 4,
 			},
-			"id2": {
+			2: {
 				CheckCalls:           3,
 				IterSubjectsCalls:    2,
 				IterResourcesCalls:   1,
@@ -208,7 +208,7 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 				IterSubjectsResults:  4,
 				IterResourcesResults: 2,
 			},
-			"id3": {
+			3: {
 				CheckCalls:           2,
 				IterSubjectsCalls:    1,
 				IterResourcesCalls:   1,
@@ -230,8 +230,8 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 	})
 
 	t.Run("multiple entries with timing", func(t *testing.T) {
-		stats := map[string]AnalyzeStats{
-			"id1": {
+		stats := map[uint64]AnalyzeStats{
+			1: {
 				CheckCalls:           5,
 				IterSubjectsCalls:    3,
 				IterResourcesCalls:   2,
@@ -242,7 +242,7 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 				IterSubjectsTime:     50 * time.Millisecond,
 				IterResourcesTime:    25 * time.Millisecond,
 			},
-			"id2": {
+			2: {
 				CheckCalls:           3,
 				IterSubjectsCalls:    2,
 				IterResourcesCalls:   1,

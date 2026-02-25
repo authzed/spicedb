@@ -1,8 +1,6 @@
 package query
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -11,7 +9,6 @@ import (
 // Resource in the subiterator that connects it to
 // streamed from the sub-iterator to a specified alias relation.
 type SelfIterator struct {
-	id           string
 	relation     string
 	canonicalKey CanonicalKey
 	// typeName is the name of the type associated with the self definition.
@@ -23,7 +20,6 @@ var _ Iterator = &SelfIterator{}
 
 func NewSelfIterator(relation string, typeName string) *SelfIterator {
 	return &SelfIterator{
-		id:       uuid.NewString(),
 		relation: relation,
 		typeName: typeName,
 	}
@@ -79,9 +75,9 @@ func (s *SelfIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation
 
 func (s *SelfIterator) Clone() Iterator {
 	return &SelfIterator{
-		id:       uuid.NewString(),
-		relation: s.relation,
-		typeName: s.typeName,
+		canonicalKey: s.canonicalKey,
+		relation:     s.relation,
+		typeName:     s.typeName,
 	}
 }
 
@@ -100,8 +96,8 @@ func (s *SelfIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 	return nil, spiceerrors.MustBugf("Trying to replace a Self's subiterators")
 }
 
-func (s *SelfIterator) ID() string {
-	return s.id
+func (s *SelfIterator) Hash() uint64 {
+	return s.canonicalKey.Hash()
 }
 
 func (s *SelfIterator) ResourceType() ([]ObjectType, error) {
