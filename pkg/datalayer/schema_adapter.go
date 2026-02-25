@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"testing"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -307,41 +306,6 @@ func writeSchemaViaLegacy(ctx context.Context, legacyWriter datastore.LegacySche
 	if removedCaveatNames.Len() > 0 {
 		if err := legacyWriter.LegacyDeleteCaveats(ctx, removedCaveatNames.AsSlice()); err != nil {
 			return fmt.Errorf("failed to delete removed caveats: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// addDefinitionsForTestingViaLegacy implements AddDefinitionsForTesting using Legacy* methods.
-func addDefinitionsForTestingViaLegacy(ctx context.Context, legacyWriter datastore.LegacySchemaWriter,
-	tb testing.TB, definitions ...datastore.SchemaDefinition,
-) error {
-	tb.Helper()
-
-	var namespaces []*core.NamespaceDefinition
-	var caveats []*core.CaveatDefinition
-
-	for _, def := range definitions {
-		switch typedDef := def.(type) {
-		case *core.NamespaceDefinition:
-			namespaces = append(namespaces, typedDef)
-		case *core.CaveatDefinition:
-			caveats = append(caveats, typedDef)
-		default:
-			return spiceerrors.MustBugf("unknown definition type: %T", def)
-		}
-	}
-
-	if len(namespaces) > 0 {
-		if err := legacyWriter.LegacyWriteNamespaces(ctx, namespaces...); err != nil {
-			return fmt.Errorf("failed to write namespaces: %w", err)
-		}
-	}
-
-	if len(caveats) > 0 {
-		if err := legacyWriter.LegacyWriteCaveats(ctx, caveats); err != nil {
-			return fmt.Errorf("failed to write caveats: %w", err)
 		}
 	}
 

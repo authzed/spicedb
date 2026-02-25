@@ -2,7 +2,6 @@ package datalayer
 
 import (
 	"context"
-	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -145,10 +144,6 @@ func (t *readWriteTransaction) BulkLoad(ctx context.Context, iter datastore.Bulk
 
 func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) error {
 	return writeSchemaViaLegacy(ctx, t.rwt, t.rwt, definitions, schemaString, caveatTypeSet)
-}
-
-func (t *readWriteTransaction) AddDefinitionsForTesting(ctx context.Context, tb testing.TB, definitions ...datastore.SchemaDefinition) error {
-	return addDefinitionsForTestingViaLegacy(ctx, t.rwt, tb, definitions...)
 }
 
 func (t *readWriteTransaction) LegacySchemaWriter() LegacySchemaWriter {

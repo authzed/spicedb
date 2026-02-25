@@ -2,7 +2,6 @@ package datalayer
 
 import (
 	"context"
-	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -125,9 +124,6 @@ type ReadWriteTransaction interface {
 
 	// WriteSchema writes the full set of schema definitions.
 	WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) error
-
-	// AddDefinitionsForTesting adds or overwrites schema definitions. Testing only.
-	AddDefinitionsForTesting(ctx context.Context, tb testing.TB, definitions ...datastore.SchemaDefinition) error
 
 	// LegacySchemaWriter returns a legacy schema writer for backwards-compatible
 	// additive-only schema operations.
