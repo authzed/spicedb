@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -184,18 +183,15 @@ func (ctx *Context) notifyEnterIterator(op ObserverOperation, key CanonicalKey) 
 	}
 }
 
-// wrapPathSeqWithObservers wraps a PathSeq to notify all registered observers of paths and timing.
+// wrapPathSeqWithObservers wraps a PathSeq to notify all registered observers of paths and completion.
 // Returns the original PathSeq unchanged when there are no observers.
 func (ctx *Context) wrapPathSeqWithObservers(op ObserverOperation, key CanonicalKey, pathSeq PathSeq) PathSeq {
 	if len(ctx.observers) == 0 {
 		return pathSeq
 	}
 	return func(yield func(Path, error) bool) {
-		start := time.Now()
 		defer func() {
-			dur := time.Since(start)
 			for _, obs := range ctx.observers {
-				obs.ObserveTiming(op, key, dur)
 				obs.ObserveReturnIterator(op, key)
 			}
 		}()

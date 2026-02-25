@@ -1,7 +1,5 @@
 package query
 
-import "time"
-
 type ObserverOperation int
 
 const (
@@ -11,8 +9,7 @@ const (
 )
 
 type Observer interface {
-	ObserveTiming(op ObserverOperation, key CanonicalKey, dur time.Duration)
-	ObservePath(op ObserverOperation, key CanonicalKey, path Path)
 	ObserveEnterIterator(op ObserverOperation, key CanonicalKey)
+	ObservePath(op ObserverOperation, key CanonicalKey, path Path)
 	ObserveReturnIterator(op ObserverOperation, key CanonicalKey)
 }
