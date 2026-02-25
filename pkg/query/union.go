@@ -1,7 +1,6 @@
 package query
 
 import (
-
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 

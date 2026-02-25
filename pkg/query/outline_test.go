@@ -1377,9 +1377,9 @@ func TestSerializeOutline(t *testing.T) {
 			},
 		}
 
-		// Caveat is a filter operation — Serialize() delegates to its child
+		// Caveat nodes are identified by name only; subiterators are not included
 		key := outline.Serialize()
-		require.Equal("0", key.String())
+		require.Equal("C(cav:age_check)", key.String())
 	})
 
 	t.Run("AliasIteratorType", func(t *testing.T) {

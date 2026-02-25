@@ -85,17 +85,10 @@ func (co CanonicalOutline) Compile() (Iterator, error) {
 
 // compileOutline recursively builds an Iterator tree from an Outline,
 // looking up each node's CanonicalKey from the provided map.
-// Filter operations (ID == 0) derive their canonical key on the fly via Serialize().
 func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey) (Iterator, error) {
-	var key CanonicalKey
-	if isFilterOperation(outline) {
-		key = outline.Serialize()
-	} else {
-		var ok bool
-		key, ok = keys[outline.ID]
-		if !ok {
-			return nil, spiceerrors.MustBugf("outline node ID %d not found in CanonicalKeys map - outline must come from a CanonicalOutline", outline.ID)
-		}
+	key, ok := keys[outline.ID]
+	if !ok {
+		return nil, spiceerrors.MustBugf("outline node ID %d not found in CanonicalKeys map - outline must come from a CanonicalOutline", outline.ID)
 	}
 
 	// First, recursively compile all subiterators (bottom-up)
@@ -359,14 +352,6 @@ func Decompile(it Iterator) (Outline, error) {
 	}
 }
 
-// isFilterOperation returns true for Outline nodes that are pure filter
-// operations and therefore do not have their own canonical representation.
-// Filter operations are transparent: their canonical key is their child's key.
-// Currently only CaveatIteratorType qualifies.
-func isFilterOperation(o Outline) bool {
-	return o.Type == CaveatIteratorType
-}
-
 type OutlineMutation func(Outline) Outline
 
 // MutateOutline performs a bottom-up traversal of the outline tree, applying
@@ -544,17 +529,9 @@ func caveatCompare(a, b *core.ContextualizedCaveat) int {
 // Format: <Type>(<Args>)[<Sub1>,<Sub2>,...]
 // Returns a CanonicalKey wrapping the serialized string.
 //
-// Filter operations (e.g. CaveatIteratorType) are transparent: their canonical
-// key is their child's key, since filters do not affect the set identity.
+// CaveatIterator nodes are identified solely by their caveat name, independent
+// of their position in the tree. Their subiterators are not included in the key.
 func (outline Outline) Serialize() CanonicalKey {
-	// Filter operations are transparent — delegate to child
-	if isFilterOperation(outline) {
-		if len(outline.SubOutlines) > 0 {
-			return outline.SubOutlines[0].Serialize()
-		}
-		return CanonicalKey("")
-	}
-
 	var result strings.Builder
 
 	// Add type (single character)
@@ -568,6 +545,12 @@ func (outline Outline) Serialize() CanonicalKey {
 			result.WriteString(argsStr)
 			result.WriteByte(')')
 		}
+	}
+
+	// Caveat nodes are identified solely by their name, independent of
+	// their position in the tree. Do not include subiterators in the key.
+	if outline.Type == CaveatIteratorType {
+		return CanonicalKey(result.String())
 	}
 
 	// Add subiterators if present

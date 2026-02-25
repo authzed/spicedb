@@ -258,8 +258,6 @@ func isNullOutline(outline Outline) bool {
 
 // assignNodeIDs recursively assigns a unique OutlineNodeID to each node bottom-up,
 // recording each node's serialized CanonicalKey in keys.
-// Filter operations (see isFilterOperation) are left with ID == 0 and are not
-// added to the map; they derive their canonical key on demand via Serialize().
 func assignNodeIDs(outline Outline, keys map[OutlineNodeID]CanonicalKey) Outline {
 	// Recurse on children first (bottom-up)
 	if len(outline.SubOutlines) > 0 {
@@ -268,11 +266,6 @@ func assignNodeIDs(outline Outline, keys map[OutlineNodeID]CanonicalKey) Outline
 			newSubs[i] = assignNodeIDs(sub, keys)
 		}
 		outline.SubOutlines = newSubs
-	}
-
-	// Filter operations don't get their own canonical ID
-	if isFilterOperation(outline) {
-		return outline // ID remains 0
 	}
 
 	id := OutlineNodeID(nodeIDCounter.Add(1))
