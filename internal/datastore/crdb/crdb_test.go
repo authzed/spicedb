@@ -74,7 +74,7 @@ func crdbTestVersion() string {
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -202,7 +202,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -229,7 +229,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 		return ds, nil
 	}), false)
 
-	unwrappedTester := test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	unwrappedTester := test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -505,7 +505,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
@@ -568,7 +568,7 @@ func (f *fakeSource) Next(ctx context.Context) (*tuple.Relationship, error) {
 func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
@@ -617,7 +617,7 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, rev := testfixtures.StandardDatastoreWithSchema(rawDS, require)

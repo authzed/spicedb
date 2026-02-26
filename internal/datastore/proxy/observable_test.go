@@ -10,12 +10,10 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/test"
 )
 
-type observableTest struct {
-	t *testing.T
-}
+type observableTest struct{}
 
-func (obs observableTest) New(revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	db, err := dsfortesting.NewMemDBDatastoreForTesting(obs.t, watchBufferLength, revisionQuantization, gcWindow)
+func (obs observableTest) New(tb testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	db, err := dsfortesting.NewMemDBDatastoreForTesting(tb, watchBufferLength, revisionQuantization, gcWindow)
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +21,7 @@ func (obs observableTest) New(revisionQuantization, _, gcWindow time.Duration, w
 }
 
 func TestObservableProxy(t *testing.T) {
-	test.All(t, observableTest{t}, true)
+	test.All(t, observableTest{}, true)
 }
 
 func (p *observableProxy) ExampleRetryableError() error {

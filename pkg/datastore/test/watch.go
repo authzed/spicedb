@@ -60,7 +60,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 		t.Run(fmt.Sprintf("%d-%v", tc.numTuples, tc.expectFallBehind), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 			require.NoError(err)
 
 			setupDatastore(ds, require)
@@ -235,7 +235,7 @@ func setOfChanges(changes []tuple.RelationshipUpdate) *mapz.Set[string] {
 func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	startWatchRevision := setupDatastore(ds, require)
@@ -281,7 +281,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -386,7 +386,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -431,7 +431,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -470,7 +470,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -562,7 +562,7 @@ func verifyNoUpdates(
 func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -654,7 +654,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 func WatchAllTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -786,7 +786,7 @@ func verifyMixedUpdates(
 func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -821,7 +821,7 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
 	setupDatastore(ds, require)

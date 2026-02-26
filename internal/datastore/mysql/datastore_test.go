@@ -41,13 +41,12 @@ func (mds *mysqlDatastore) ExampleRetryableError() error {
 
 type datastoreTester struct {
 	b      testdatastore.RunningEngineForTest
-	t      *testing.T
 	prefix string
 }
 
-func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+func (dst *datastoreTester) createDatastore(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 	ctx := context.Background()
-	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
+	ds := dst.b.NewDatastore(tb, func(engine, uri string) datastore.Datastore {
 		ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID,
 			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
@@ -56,11 +55,11 @@ func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gc
 			DebugAnalyzeBeforeStatistics(),
 			OverrideLockWaitTimeout(1),
 		)
-		require.NoError(dst.t, err)
+		require.NoError(tb, err)
 		return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	})
 	_, err := ds.ReadyState(context.Background())
-	require.NoError(dst.t, err)
+	require.NoError(tb, err)
 	return ds, nil
 }
 
@@ -123,7 +122,7 @@ func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 
 func TestMySQL8Datastore(t *testing.T) {
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
-	dst := datastoreTester{b: b, t: t}
+	dst := datastoreTester{b: b}
 	test.AllWithExceptions(t, test.DatastoreTesterFunc(dst.createDatastore), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory), true)
 	additionalMySQLTests(t, b)
 }

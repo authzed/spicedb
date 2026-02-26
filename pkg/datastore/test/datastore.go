@@ -23,13 +23,13 @@ const (
 // a particular datastore.
 type DatastoreTester interface {
 	// New creates a new datastore instance for a single test.
-	New(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+	New(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
-type DatastoreTesterFunc func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+type DatastoreTesterFunc func(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 
-func (f DatastoreTesterFunc) New(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return f(revisionQuantization, gcInterval, gcWindow, watchBufferLength)
+func (f DatastoreTesterFunc) New(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	return f(tb, revisionQuantization, gcInterval, gcWindow, watchBufferLength)
 }
 
 type TestableDatastore interface {

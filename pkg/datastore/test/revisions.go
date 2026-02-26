@@ -34,7 +34,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 		t.Run(fmt.Sprintf("quantization%s", tc.quantizationRange), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(tc.quantizationRange, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, tc.quantizationRange, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 
 			ctx := t.Context()
@@ -75,7 +75,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
@@ -101,7 +101,7 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	gcWindow := 300 * time.Millisecond
 	gcInterval := 500 * time.Millisecond
 
-	ds, err := tester.New(0, gcInterval, gcWindow, 1)
+	ds, err := tester.New(t, 0, gcInterval, gcWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -146,7 +146,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	gcWindow := 300 * time.Millisecond
 
 	// NOTE: we disable the background GC process here and instead manually run it below.
-	ds, err := tester.New(0, veryLargeGCInterval, gcWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, gcWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -228,7 +228,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, 1000*time.Second, 300*time.Minute, 1)
+	ds, err := tester.New(t, 0, 1000*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -268,7 +268,7 @@ func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
+	ds, err := tester.New(t, 0, 10*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -291,7 +291,7 @@ func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
+	ds, err := tester.New(t, 0, 10*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)

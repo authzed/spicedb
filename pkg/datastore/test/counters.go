@@ -18,7 +18,7 @@ import (
 )
 
 func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -69,7 +69,7 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 }
 
 func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -112,7 +112,7 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 }
 
 func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -215,7 +215,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 }
 
 func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
@@ -257,7 +257,7 @@ func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester)
 }
 
 func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))

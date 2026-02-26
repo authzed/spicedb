@@ -28,7 +28,7 @@ import (
 func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -42,7 +42,7 @@ func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 
 func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-	ds, err := tester.New(0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
 	req.NoError(err)
 
 	skipIfNotCaveatStorer(t, ds)
@@ -129,7 +129,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-	ds, err := tester.New(0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
 	req.NoError(err)
 
 	skipIfNotCaveatStorer(t, ds)
@@ -205,7 +205,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 
 func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-	ds, err := tester.New(0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
 	req.NoError(err)
 
 	skipIfNotCaveatStorer(t, ds)
@@ -254,7 +254,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 
 func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-	ds, err := tester.New(0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 1)
 	req.NoError(err)
 
 	skipIfNotCaveatStorer(t, ds)
@@ -287,7 +287,7 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 
 func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-	ds, err := tester.New(0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0*time.Second, veryLargeGCInterval, veryLargeGCWindow, 16)
 	req.NoError(err)
 
 	skipIfNotCaveatStorer(t, ds)

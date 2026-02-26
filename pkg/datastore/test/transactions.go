@@ -31,7 +31,7 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 
 			var ds TestableDatastore

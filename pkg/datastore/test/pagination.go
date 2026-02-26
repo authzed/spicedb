@@ -32,7 +32,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 		{testfixtures.UserNS.Name, options.BySubject},
 	}
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -74,7 +74,7 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 		testfixtures.FolderNS.Name,
 	}
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -171,7 +171,7 @@ var orderedTestCases = []struct {
 }
 
 func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -209,7 +209,7 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 }
 
 func ResumeTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -254,7 +254,7 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 }
 
 func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	// Create a datastore with the standard schema but no data.
@@ -321,7 +321,7 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 }
 
 func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	// Create a datastore with the standard schema but no data.

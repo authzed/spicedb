@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Begin deprecation of library "github.com/dlmiddlecote/sqlstats" (https://github.com/authzed/spicedb/pull/2904).
   NOTE: in a future release, MySQL metrics will change.
 - Add support for imports and partials to the schemadsl package that drives the LSP and development server (https://github.com/authzed/spicedb/pull/2919).
+- `DatastoreTester.New` now takes a `testing.TB` as its first argument, allowing per-test cleanup in datastore test suites (https://github.com/authzed/spicedb/pull/2925).
 
 ### Fixed
 - enforce graceful shutdown on serve and serve-testing (https://github.com/authzed/spicedb/pull/2888)
