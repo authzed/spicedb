@@ -27,10 +27,7 @@ func (mdbt memDBTest) New(revisionQuantization, _, gcWindow time.Duration, watch
 
 func TestMemdbDatastore(t *testing.T) {
 	t.Parallel()
-	// NOTE: The individual tests are not parallelized because enough write traffic will cause
-	// the memdb instance to reject requests with serialization errors, which results in
-	// flaky tests.
-	test.All(t, memDBTest{}, false)
+	test.All(t, memDBTest{}, true)
 }
 
 func TestConcurrentWritePanic(t *testing.T) {

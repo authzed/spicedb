@@ -24,7 +24,7 @@ import (
 const (
 	Engine                   = "memory"
 	defaultWatchBufferLength = 128
-	numAttempts              = 10
+	maxRetries               = 10
 )
 
 var (
@@ -159,7 +159,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	config := options.NewRWTOptionsWithOptions(opts...)
-	txNumAttempts := numAttempts
+	txNumAttempts := maxRetries // TODO every other datastore has a configurable MaxRetries. why not this one?
 	if config.DisableRetries {
 		txNumAttempts = 1
 	}

@@ -77,9 +77,15 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 	// Run multiple registrations of the counter in parallel and ensure only
 	// one succeeds.
 	var numSucceeded, numFailed atomic.Int32
-	failures := make(chan error, 10)
+
+	// we retry (memdb.MaxRetries - 1)
+	// ideally, we don't have to hardcode this number here and we can do
+	// numRetries = ds.MaxRetriesConfigured()
+	const numRetries = 9
+
+	failures := make(chan error, numRetries)
 	var wg sync.WaitGroup
-	for range 10 {
+	for range numRetries {
 		wg.Go(func() {
 			_, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				return tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
@@ -99,7 +105,7 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 	wg.Wait()
 	close(failures)
 	require.Equal(t, int32(1), numSucceeded.Load())
-	require.Equal(t, int32(9), numFailed.Load())
+	require.Equal(t, int32(numRetries-1), numFailed.Load())
 	for m := range failures {
 		require.Contains(t, m.Error(), "counter with name `document` already registered")
 	}
