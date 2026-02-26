@@ -19,7 +19,7 @@ type CircularImportError struct {
 func importFile(fsys fs.FS, filePath string) (*dslNode, error) {
 	schemaBytes, err := fs.ReadFile(fsys, filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read import in schema file: %w", err)
+		return nil, fmt.Errorf("failed to read import in schema file %q: %w", filePath, err)
 	}
 	log.Trace().Str("schema", string(schemaBytes)).Str("file", filePath).Msg("read schema from file")
 

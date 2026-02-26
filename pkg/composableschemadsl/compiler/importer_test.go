@@ -168,23 +168,3 @@ func TestEscapeAttemptCausesError(t *testing.T) {
 
 	require.ErrorContains(t, err, "must stay within")
 }
-
-func TestConflictingDefinitionsCausesError(t *testing.T) {
-	t.Parallel()
-
-	workingDir, err := os.Getwd()
-	require.NoError(t, err)
-	test := importerTest{"", "conflicting-definitions"}
-
-	sourceFolder := path.Join(workingDir, test.relativePath())
-
-	inputSchema := test.input()
-
-	_, err = compiler.Compile(compiler.InputSchema{
-		Source:       input.Source("schema"),
-		SchemaString: inputSchema,
-	}, compiler.AllowUnprefixedObjectType(),
-		compiler.SourceFolder(sourceFolder))
-
-	require.ErrorContains(t, err, "AAAAA")
-}

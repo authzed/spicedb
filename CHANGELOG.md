@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Begin deprecation of library "github.com/dlmiddlecote/sqlstats" (https://github.com/authzed/spicedb/pull/2904).
   NOTE: in a future release, MySQL metrics will change.
+- Add support for imports and partials to the schemadsl package that drives the LSP and development server (https://github.com/authzed/spicedb/pull/2919).
 
 ### Fixed
 - enforce graceful shutdown on serve and serve-testing (https://github.com/authzed/spicedb/pull/2888)

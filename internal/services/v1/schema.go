@@ -121,7 +121,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	dl := datalayer.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
-	opts := make([]compiler.Option, 0, 4)
+	opts := make([]compiler.Option, 0, 3)
 	if !ss.expiringRelsEnabled {
 		opts = append(opts, compiler.DisallowExpirationFlag())
 	}

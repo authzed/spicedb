@@ -102,7 +102,9 @@ const (
 	importFlag       = "import"
 )
 
-var allowedFlags = mapz.NewSet(expirationFlag, selfFlag, typeCheckingFlag, partialFlag, importFlag)
+func allowedFlags() *mapz.Set[string] {
+	return mapz.NewSet(expirationFlag, selfFlag, typeCheckingFlag, partialFlag, importFlag)
+}
 
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
@@ -123,7 +125,7 @@ type ObjectPrefixOption func(*config)
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{
-		allowedFlags: allowedFlags,
+		allowedFlags: allowedFlags(),
 	}
 
 	prefix(cfg) // required option
