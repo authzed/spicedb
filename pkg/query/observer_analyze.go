@@ -2,55 +2,46 @@ package query
 
 import (
 	"fmt"
-	"maps"
 	"strings"
 	"sync"
 	"time"
 )
 
-// AnalyzeStats collects the number of operations performed for each iterator as a query takes place.
+// AnalyzeStats collects the number of operations performed for each iterator as a query takes place,
+// including both counts and timing information.
 type AnalyzeStats struct {
-	CheckCalls           int
-	IterSubjectsCalls    int
-	IterResourcesCalls   int
-	CheckResults         int
-	IterSubjectsResults  int
-	IterResourcesResults int
-	CheckTime            time.Duration
-	IterSubjectsTime     time.Duration
-	IterResourcesTime    time.Duration
+	CountStats        // embedded: CheckCalls, IterSubjectsCalls, etc.
+	CheckTime         time.Duration
+	IterSubjectsTime  time.Duration
+	IterResourcesTime time.Duration
 }
 
 // AnalyzeObserver is a thread-safe Observer that collects execution statistics keyed by CanonicalKey.
+// It embeds a CountObserver for tracking calls and results, and adds timing information.
 type AnalyzeObserver struct {
-	mu         sync.Mutex
-	stats      map[CanonicalKey]AnalyzeStats                    // GUARDED_BY(mu)
-	startTimes map[ObserverOperation]map[CanonicalKey]time.Time // GUARDED_BY(mu)
+	*CountObserver // handles call and result counts
+	mu             sync.Mutex
+	startTimes     map[ObserverOperation]map[CanonicalKey]time.Time // GUARDED_BY(mu)
+	timings        map[CanonicalKey]AnalyzeStats                    // GUARDED_BY(mu) - stores timing fields only
 }
 
 // NewAnalyzeObserver creates a new thread-safe analyze observer.
 func NewAnalyzeObserver() *AnalyzeObserver {
 	return &AnalyzeObserver{
-		stats:      make(map[CanonicalKey]AnalyzeStats),
-		startTimes: make(map[ObserverOperation]map[CanonicalKey]time.Time),
+		CountObserver: NewCountObserver(),
+		startTimes:    make(map[ObserverOperation]map[CanonicalKey]time.Time),
+		timings:       make(map[CanonicalKey]AnalyzeStats),
 	}
 }
 
-// ObserveEnterIterator increments the call counter and records the start time.
+// ObserveEnterIterator increments the call counter (via CountObserver) and records the start time.
 func (a *AnalyzeObserver) ObserveEnterIterator(op ObserverOperation, key CanonicalKey) {
+	// Delegate to CountObserver for call counting
+	a.CountObserver.ObserveEnterIterator(op, key)
+
+	// Record start time for timing measurement
 	a.mu.Lock()
 	defer a.mu.Unlock()
-
-	stats := a.stats[key]
-	switch op {
-	case CheckOperation:
-		stats.CheckCalls++
-	case IterSubjectsOperation:
-		stats.IterSubjectsCalls++
-	case IterResourcesOperation:
-		stats.IterResourcesCalls++
-	}
-	a.stats[key] = stats
 
 	if a.startTimes[op] == nil {
 		a.startTimes[op] = make(map[CanonicalKey]time.Time)
@@ -58,24 +49,14 @@ func (a *AnalyzeObserver) ObserveEnterIterator(op ObserverOperation, key Canonic
 	a.startTimes[op][key] = time.Now()
 }
 
-// ObservePath increments the result counter for the given iterator key and operation.
-func (a *AnalyzeObserver) ObservePath(op ObserverOperation, key CanonicalKey, _ Path) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	stats := a.stats[key]
-	switch op {
-	case CheckOperation:
-		stats.CheckResults++
-	case IterSubjectsOperation:
-		stats.IterSubjectsResults++
-	case IterResourcesOperation:
-		stats.IterResourcesResults++
-	}
-	a.stats[key] = stats
+// ObservePath increments the result counter (via CountObserver).
+func (a *AnalyzeObserver) ObservePath(op ObserverOperation, key CanonicalKey, path Path) {
+	// Delegate entirely to CountObserver for result counting
+	a.CountObserver.ObservePath(op, key, path)
 }
 
 // ObserveReturnIterator records elapsed time since ObserveEnterIterator was called.
+// Note: CountObserver.ObserveReturnIterator is a no-op, so we don't call it here.
 func (a *AnalyzeObserver) ObserveReturnIterator(op ObserverOperation, key CanonicalKey) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -83,7 +64,7 @@ func (a *AnalyzeObserver) ObserveReturnIterator(op ObserverOperation, key Canoni
 	if opTimes := a.startTimes[op]; opTimes != nil {
 		if start, ok := opTimes[key]; ok {
 			elapsed := time.Since(start)
-			stats := a.stats[key]
+			stats := a.timings[key]
 			switch op {
 			case CheckOperation:
 				stats.CheckTime += elapsed
@@ -92,19 +73,31 @@ func (a *AnalyzeObserver) ObserveReturnIterator(op ObserverOperation, key Canoni
 			case IterResourcesOperation:
 				stats.IterResourcesTime += elapsed
 			}
-			a.stats[key] = stats
+			a.timings[key] = stats
 			delete(opTimes, key)
 		}
 	}
 }
 
-// GetStats returns a copy of all collected stats.
+// GetStats returns a copy of all collected stats, merging counts from CountObserver with timings.
 func (a *AnalyzeObserver) GetStats() map[CanonicalKey]AnalyzeStats {
+	// Get counts from embedded CountObserver
+	countStats := a.CountObserver.GetStats()
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	result := make(map[CanonicalKey]AnalyzeStats, len(a.stats))
-	maps.Copy(result, a.stats)
+	// Merge counts with timings
+	result := make(map[CanonicalKey]AnalyzeStats, len(countStats))
+	for key, counts := range countStats {
+		stats := AnalyzeStats{CountStats: counts}
+		if timing, ok := a.timings[key]; ok {
+			stats.CheckTime = timing.CheckTime
+			stats.IterSubjectsTime = timing.IterSubjectsTime
+			stats.IterResourcesTime = timing.IterResourcesTime
+		}
+		result[key] = stats
+	}
 	return result
 }
 
@@ -127,18 +120,24 @@ func FormatAnalysis(tree Iterator, analyze map[CanonicalKey]AnalyzeStats) string
 // aggregated AnalyzeStats. This is useful for getting total counts across all
 // iterators in a query execution.
 func AggregateAnalyzeStats(analyze map[CanonicalKey]AnalyzeStats) AnalyzeStats {
-	var total AnalyzeStats
+	// Extract CountStats for aggregation
+	counts := make(map[CanonicalKey]CountStats, len(analyze))
+	for k, v := range analyze {
+		counts[k] = v.CountStats
+	}
+
+	// Aggregate counts using CountStats aggregator
+	total := AnalyzeStats{
+		CountStats: AggregateCountStats(counts),
+	}
+
+	// Aggregate timings
 	for _, stats := range analyze {
-		total.CheckCalls += stats.CheckCalls
-		total.IterSubjectsCalls += stats.IterSubjectsCalls
-		total.IterResourcesCalls += stats.IterResourcesCalls
-		total.CheckResults += stats.CheckResults
-		total.IterSubjectsResults += stats.IterSubjectsResults
-		total.IterResourcesResults += stats.IterResourcesResults
 		total.CheckTime += stats.CheckTime
 		total.IterSubjectsTime += stats.IterSubjectsTime
 		total.IterResourcesTime += stats.IterResourcesTime
 	}
+
 	return total
 }
 

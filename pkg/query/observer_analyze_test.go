@@ -29,8 +29,10 @@ func TestFormatAnalysisSimpleTree(t *testing.T) {
 	// Create analyze map with stats
 	analyze := map[CanonicalKey]AnalyzeStats{
 		fixed.CanonicalKey(): {
-			CheckCalls:   1,
-			CheckResults: 2,
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 2,
+			},
 		},
 	}
 
@@ -64,16 +66,22 @@ func TestFormatAnalysisNestedTree(t *testing.T) {
 	// Create analyze map with stats for all iterators
 	analyze := map[CanonicalKey]AnalyzeStats{
 		union.CanonicalKey(): {
-			CheckCalls:   1,
-			CheckResults: 2,
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 2,
+			},
 		},
 		fixed1.CanonicalKey(): {
-			CheckCalls:   1,
-			CheckResults: 1,
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 1,
+			},
 		},
 		fixed2.CanonicalKey(): {
-			CheckCalls:   1,
-			CheckResults: 1,
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 1,
+			},
 		},
 	}
 
@@ -178,12 +186,14 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 	t.Run("single entry", func(t *testing.T) {
 		stats := map[CanonicalKey]AnalyzeStats{
 			"k1": {
-				CheckCalls:           5,
-				IterSubjectsCalls:    3,
-				IterResourcesCalls:   2,
-				CheckResults:         10,
-				IterSubjectsResults:  6,
-				IterResourcesResults: 4,
+				CountStats: CountStats{
+					CheckCalls:           5,
+					IterSubjectsCalls:    3,
+					IterResourcesCalls:   2,
+					CheckResults:         10,
+					IterSubjectsResults:  6,
+					IterResourcesResults: 4,
+				},
 			},
 		}
 		result := AggregateAnalyzeStats(stats)
@@ -193,38 +203,46 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 	t.Run("multiple entries", func(t *testing.T) {
 		stats := map[CanonicalKey]AnalyzeStats{
 			"k1": {
-				CheckCalls:           5,
-				IterSubjectsCalls:    3,
-				IterResourcesCalls:   2,
-				CheckResults:         10,
-				IterSubjectsResults:  6,
-				IterResourcesResults: 4,
+				CountStats: CountStats{
+					CheckCalls:           5,
+					IterSubjectsCalls:    3,
+					IterResourcesCalls:   2,
+					CheckResults:         10,
+					IterSubjectsResults:  6,
+					IterResourcesResults: 4,
+				},
 			},
 			"k2": {
-				CheckCalls:           3,
-				IterSubjectsCalls:    2,
-				IterResourcesCalls:   1,
-				CheckResults:         6,
-				IterSubjectsResults:  4,
-				IterResourcesResults: 2,
+				CountStats: CountStats{
+					CheckCalls:           3,
+					IterSubjectsCalls:    2,
+					IterResourcesCalls:   1,
+					CheckResults:         6,
+					IterSubjectsResults:  4,
+					IterResourcesResults: 2,
+				},
 			},
 			"k3": {
-				CheckCalls:           2,
-				IterSubjectsCalls:    1,
-				IterResourcesCalls:   1,
-				CheckResults:         4,
-				IterSubjectsResults:  2,
-				IterResourcesResults: 2,
+				CountStats: CountStats{
+					CheckCalls:           2,
+					IterSubjectsCalls:    1,
+					IterResourcesCalls:   1,
+					CheckResults:         4,
+					IterSubjectsResults:  2,
+					IterResourcesResults: 2,
+				},
 			},
 		}
 		result := AggregateAnalyzeStats(stats)
 		expected := AnalyzeStats{
-			CheckCalls:           10,
-			IterSubjectsCalls:    6,
-			IterResourcesCalls:   4,
-			CheckResults:         20,
-			IterSubjectsResults:  12,
-			IterResourcesResults: 8,
+			CountStats: CountStats{
+				CheckCalls:           10,
+				IterSubjectsCalls:    6,
+				IterResourcesCalls:   4,
+				CheckResults:         20,
+				IterSubjectsResults:  12,
+				IterResourcesResults: 8,
+			},
 		}
 		require.Equal(t, expected, result)
 	})
@@ -232,39 +250,45 @@ func TestAggregateAnalyzeStats(t *testing.T) {
 	t.Run("multiple entries with timing", func(t *testing.T) {
 		stats := map[CanonicalKey]AnalyzeStats{
 			"k1": {
-				CheckCalls:           5,
-				IterSubjectsCalls:    3,
-				IterResourcesCalls:   2,
-				CheckResults:         10,
-				IterSubjectsResults:  6,
-				IterResourcesResults: 4,
-				CheckTime:            100 * time.Millisecond,
-				IterSubjectsTime:     50 * time.Millisecond,
-				IterResourcesTime:    25 * time.Millisecond,
+				CountStats: CountStats{
+					CheckCalls:           5,
+					IterSubjectsCalls:    3,
+					IterResourcesCalls:   2,
+					CheckResults:         10,
+					IterSubjectsResults:  6,
+					IterResourcesResults: 4,
+				},
+				CheckTime:         100 * time.Millisecond,
+				IterSubjectsTime:  50 * time.Millisecond,
+				IterResourcesTime: 25 * time.Millisecond,
 			},
 			"k2": {
-				CheckCalls:           3,
-				IterSubjectsCalls:    2,
-				IterResourcesCalls:   1,
-				CheckResults:         6,
-				IterSubjectsResults:  4,
-				IterResourcesResults: 2,
-				CheckTime:            75 * time.Millisecond,
-				IterSubjectsTime:     30 * time.Millisecond,
-				IterResourcesTime:    15 * time.Millisecond,
+				CountStats: CountStats{
+					CheckCalls:           3,
+					IterSubjectsCalls:    2,
+					IterResourcesCalls:   1,
+					CheckResults:         6,
+					IterSubjectsResults:  4,
+					IterResourcesResults: 2,
+				},
+				CheckTime:         75 * time.Millisecond,
+				IterSubjectsTime:  30 * time.Millisecond,
+				IterResourcesTime: 15 * time.Millisecond,
 			},
 		}
 		result := AggregateAnalyzeStats(stats)
 		expected := AnalyzeStats{
-			CheckCalls:           8,
-			IterSubjectsCalls:    5,
-			IterResourcesCalls:   3,
-			CheckResults:         16,
-			IterSubjectsResults:  10,
-			IterResourcesResults: 6,
-			CheckTime:            175 * time.Millisecond,
-			IterSubjectsTime:     80 * time.Millisecond,
-			IterResourcesTime:    40 * time.Millisecond,
+			CountStats: CountStats{
+				CheckCalls:           8,
+				IterSubjectsCalls:    5,
+				IterResourcesCalls:   3,
+				CheckResults:         16,
+				IterSubjectsResults:  10,
+				IterResourcesResults: 6,
+			},
+			CheckTime:         175 * time.Millisecond,
+			IterSubjectsTime:  80 * time.Millisecond,
+			IterResourcesTime: 40 * time.Millisecond,
 		}
 		require.Equal(t, expected, result)
 	})
