@@ -3,13 +3,14 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 
@@ -20,104 +21,34 @@ import (
 )
 
 const (
-	PostgresTestUser           = "postgres"
-	PostgresTestPassword       = "secret"
-	PostgresTestPort           = "5432"
+	// NOTE: this is used in this file but also duplicated in postgres.conf.
 	PostgresTestMaxConnections = "3000"
-	PgbouncerTestPort          = "6432"
+	PgbouncerTestPort = "6432"
 )
 
-type container struct {
-	hostHostname      string
-	hostPort          string
-	containerHostname string
-	containerPort     string
-}
-
 type postgresTester struct {
-	container
-	creds                string
 	targetMigration      string
-	pgbouncerProxy       *container
-	pgContainer          testcontainers.Container
-	useContainerHostname bool
+	pgbouncerProxy       *testcontainers.DockerContainer
+	pgContainer          *postgres.PostgresContainer
 }
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
-func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigration string, pgVersion string, enablePgbouncer bool) RunningEngineForTest {
-	return RunPostgresForTestingWithCommitTimestamps(t, bridgeNetworkName, targetMigration, true, pgVersion, enablePgbouncer)
+func RunPostgresForTesting(t testing.TB, targetMigration string, pgVersion string, enablePgbouncer bool) RunningEngineForTest {
+	return RunPostgresForTestingWithCommitTimestamps(t, targetMigration, true, pgVersion, enablePgbouncer)
 }
 
-func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName string, targetMigration string, withCommitTimestamps bool, pgVersion string, enablePgbouncer bool) RunningEngineForTest {
-	ctx := context.Background()
-
-	bridgeSupplied := bridgeNetworkName != ""
-	var bridgeNetwork *testcontainers.DockerNetwork
-	if enablePgbouncer && !bridgeSupplied {
-		// We will need a network bridge if we're running pgbouncer
-		bridgeNetworkName, bridgeNetwork = createNetworkBridge(t)
-	}
-
-	postgresContainerHostname := "postgres-" + uuid.New().String()
-
-	cmd := []string{"-N", PostgresTestMaxConnections}
-	if withCommitTimestamps {
-		cmd = append(cmd, "-c", "track_commit_timestamp=1")
-	}
-
-	req := testcontainers.ContainerRequest{
-		Name:         postgresContainerHostname,
-		Image:        "mirror.gcr.io/library/postgres:" + pgVersion,
-		ExposedPorts: []string{PostgresTestPort + "/tcp"},
-		Env: map[string]string{
-			"POSTGRES_USER":     PostgresTestUser,
-			"POSTGRES_PASSWORD": PostgresTestPassword,
-			// use md5 auth to align postgres and pgbouncer auth methods
-			"POSTGRES_HOST_AUTH_METHOD": "md5",
-			"POSTGRES_INITDB_ARGS":      "--auth=md5",
-		},
-		Cmd: cmd,
-		WaitingFor: wait.ForLog("database system is ready to accept connections").
-			WithOccurrence(2).
-			WithStartupTimeout(dockerBootTimeout),
-	}
-
-	if bridgeNetworkName != "" {
-		req.Networks = []string{bridgeNetworkName}
-	}
-
-	postgres, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err)
-
-	mappedPort, err := postgres.MappedPort(ctx, PostgresTestPort)
-	require.NoError(t, err)
+func RunPostgresForTestingWithCommitTimestamps(t testing.TB, targetMigration string, withCommitTimestamps bool, pgVersion string, enablePgbouncer bool) RunningEngineForTest {
+	t.Helper()
 
 	builder := &postgresTester{
-		container: container{
-			hostHostname:      "localhost",
-			hostPort:          mappedPort.Port(),
-			containerHostname: postgresContainerHostname,
-			containerPort:     PostgresTestPort,
-		},
-		creds:                PostgresTestUser + ":" + PostgresTestPassword,
 		targetMigration:      targetMigration,
-		useContainerHostname: bridgeSupplied,
-		pgContainer:          postgres,
 	}
-
-	t.Cleanup(func() {
-		require.NoError(t, postgres.Terminate(ctx))
-		if bridgeNetwork != nil {
-			_ = bridgeNetwork.Remove(ctx)
-		}
-	})
 
 	if enablePgbouncer {
 		// if we are running with pgbouncer enabled then set it up
-		builder.runPgbouncerForTesting(t, bridgeNetworkName)
+		builder.runPgbouncerForTesting(t, pgVersion, withCommitTimestamps)
+	} else {
+		builder.runPostgresForTesting(t, pgVersion, withCommitTimestamps)
 	}
 
 	return builder
@@ -129,7 +60,7 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 
 	newDBName := "db" + uniquePortion
 
-	ctx := context.Background()
+	ctx := t.Context()
 	conn := b.initializeHostConnection(t)
 	defer conn.Close(ctx)
 
@@ -142,14 +73,10 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 	require.NoError(t, err)
 	require.Equal(t, newDBName, dbName)
 
-	hostname, port := b.getHostnameAndPort()
-	return fmt.Sprintf(
-		"postgres://%s@%s:%s/%s?sslmode=disable",
-		b.creds,
-		hostname,
-		port,
-		newDBName,
-	)
+	connUri, err := b.pgContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	return connUri
 }
 
 const (
@@ -158,6 +85,7 @@ const (
 )
 
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
+	t.Helper()
 	for i := 1; i <= retryCount; i++ {
 		connectStr := b.NewDatabase(t)
 
@@ -184,110 +112,121 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 	return nil
 }
 
-func createNetworkBridge(t testing.TB) (string, *testcontainers.DockerNetwork) {
-	ctx := context.Background()
-	bridgeNetworkName := "bridge-" + uuid.New().String()
+// runPgbouncerForTesting stands up the network, the postgres container, and the pgbouncer container
+// for a test run.
+func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, withCommitTimestamps bool) {
+	t.Helper()
+	ctx := t.Context()
+	
+	// set up the network
+	testNetwork, err := network.New(ctx)
+	require.NoError(t, err)
+	testcontainers.CleanupNetwork(t, testNetwork)
 
-	net, err := network.New(ctx, network.WithDriver("bridge"), network.WithLabels(map[string]string{
-		"name": bridgeNetworkName,
-	}))
+	// set up the pg container
+	configFile := "./config/postgres.conf"
+	if withCommitTimestamps {
+		configFile = "./config/postgres-with-timestamps.conf"
+	}
+
+	image := fmt.Sprintf("mirror.gcr.io/library/postgres:%s", pgVersion)
+		pgContainer, err := postgres.Run(ctx, image,
+		testcontainers.WithEnv(map[string]string{
+			// use md5 auth to align postgres and pgbouncer auth methods
+			"POSTGRES_HOST_AUTH_METHOD": "md5",
+			"POSTGRES_INITDB_ARGS":      "--auth=md5",
+		}),
+		// contains the config for commit timestamps and max conns
+		postgres.WithConfigFile(configFile),
+		network.WithNetwork([]string{"postgres"}, testNetwork),
+		postgres.BasicWaitStrategies(),
+	)
+	testcontainers.CleanupContainer(t, pgContainer)
+	b.pgContainer = pgContainer
+
+	pgConnUri, err := pgContainer.ConnectionString(ctx)
 	require.NoError(t, err)
 
-	return net.Name, net
-}
-
-func (b *postgresTester) runPgbouncerForTesting(t testing.TB, bridgeNetworkName string) {
-	ctx := context.Background()
-	uniqueID := uuid.New().String()
-	pgbouncerContainerHostname := "pgbouncer-" + uniqueID
-
-	req := testcontainers.ContainerRequest{
-		Name:         pgbouncerContainerHostname,
-		Image:        "mirror.gcr.io/edoburu/pgbouncer:latest",
-		ExposedPorts: []string{PgbouncerTestPort + "/tcp"},
-		Env: map[string]string{
-			"DB_USER":          PostgresTestUser,
-			"DB_PASSWORD":      PostgresTestPassword,
-			"DB_HOST":          b.containerHostname,
-			"DB_PORT":          b.containerPort,
+	// set up the bouncer container
+	bouncerContainer, err := testcontainers.Run(ctx, "mirror.gcr.io/edoburu/pgbouncer:latest",
+	testcontainers.WithEnv(map[string]string{
+		"DATABASE_URL": pgConnUri,
 			"LISTEN_PORT":      PgbouncerTestPort,
 			"DB_NAME":          "*",   // Needed to make pgbouncer okay with the randomly named databases generated by the test suite
 			"AUTH_TYPE":        "md5", // use the same auth type as postgres
 			"MAX_CLIENT_CONN":  PostgresTestMaxConnections,
-		},
-		WaitingFor: wait.ForListeningPort(PgbouncerTestPort + "/tcp").
-			WithStartupTimeout(dockerBootTimeout),
-	}
-
-	if bridgeNetworkName != "" {
-		req.Networks = []string{bridgeNetworkName}
-	}
-
-	pgbouncer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
+		}),
+		testcontainers.WithExposedPorts(PgbouncerTestPort),
+		testcontainers.WithWaitStrategy(wait.ForListeningPort(PgbouncerTestPort + "/tcp").
+			WithStartupTimeout(dockerBootTimeout)),
+			network.WithNetwork([]string{"pgbouncer"}, testNetwork),
+)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, pgbouncer.Terminate(ctx))
-	})
+	testcontainers.CleanupContainer(t, bouncerContainer)
 
-	mappedPort, err := pgbouncer.MappedPort(ctx, PgbouncerTestPort)
 	require.NoError(t, err)
+	b.pgbouncerProxy = bouncerContainer
+}
 
-	b.pgbouncerProxy = &container{
-		hostHostname:      "localhost",
-		hostPort:          mappedPort.Port(),
-		containerHostname: pgbouncerContainerHostname,
-		containerPort:     PgbouncerTestPort,
+func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, withCommitTimestamps bool) {
+	t.Helper()
+	ctx := t.Context()
+	configFile := "./config/postgres.conf"
+	if withCommitTimestamps {
+		configFile = "./config/postgres-with-timestamps.conf"
 	}
+
+	image := fmt.Sprintf("mirror.gcr.io/library/postgres:%s", pgVersion)
+		container, err := postgres.Run(ctx, image,
+		// contains the config for commit timestamps and max conns
+		postgres.WithConfigFile(configFile),
+		postgres.BasicWaitStrategies(),
+	)
+	testcontainers.CleanupContainer(t, container)
+	b.pgContainer = container
+	require.NoError(t, err)
 }
 
 func (b *postgresTester) initializeHostConnection(t testing.TB) (conn *pgx.Conn) {
-	hostname, port := b.getHostHostnameAndPort()
-	uri := fmt.Sprintf("postgresql://%s@%s:%s/?sslmode=disable", b.creds, hostname, port)
+	t.Helper()
+	ctx := t.Context()
 
-	// Retry connection
-	maxRetries := 10
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
-		conn, err = pgx.Connect(ctx, uri)
-		cancelConnect()
-		if err == nil {
-			break
-		}
+	uri, err := b.pgContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
 
-		if i == maxRetries-1 {
-			require.NoError(t, err)
-		}
-		time.Sleep(500 * time.Millisecond)
+	if b.pgbouncerProxy != nil {
+		// we have a pgbouncer instance; we want to use its port on the host so we
+		// find-and-replace the postgres port with the pgbouncer port
+		bouncerEndpoint, err := b.pgbouncerProxy.PortEndpoint(ctx, PgbouncerTestPort, "")
+		require.NoError(t, err)
+		
+		// do something similar for the pg port
+		// get the endpoint (hostname:port) for the pg container
+		pgEndpoint, err := b.pgContainer.PortEndpoint(ctx, "5432/tcp", "")
+		require.NoError(t, err)
+
+		strings.Replace(uri, pgEndpoint, bouncerEndpoint, 1)
 	}
+
+	conn, err = pgx.Connect(ctx, uri)
+	require.NoError(t, err)
 
 	return conn
 }
 
-func (b *postgresTester) getHostnameAndPort() (string, string) {
-	// If a bridgeNetworkName is supplied then we will return the container
-	// hostname and port that is resolvable from within the container network.
-	// If bridgeNetworkName is not supplied then the hostname and port will be
-	// resolvable from the host.
-	if b.useContainerHostname {
-		return b.getContainerHostnameAndPort()
-	}
-	return b.getHostHostnameAndPort()
+type pgBouncerWaitStrategy struct {
+	pollInterval time.Duration
+	startupTimeout time.Duration
 }
+var _ wait.Strategy = (*pgBouncerWaitStrategy)(nil)
 
-func (b *postgresTester) getHostHostnameAndPort() (string, string) {
-	if b.pgbouncerProxy != nil {
-		return b.pgbouncerProxy.hostHostname, b.pgbouncerProxy.hostPort
-	}
-	return b.hostHostname, b.hostPort
-}
 
-func (b *postgresTester) getContainerHostnameAndPort() (string, string) {
-	if b.pgbouncerProxy != nil {
-		return b.pgbouncerProxy.containerHostname, b.pgbouncerProxy.containerPort
+func (p *pgBouncerWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("container not ready within the timeout: %w", ctx.Err())
+		case <-time.After(500 * time.Millisecond):
+		}
 	}
-	return b.containerHostname, b.containerPort
 }

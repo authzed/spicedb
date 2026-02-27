@@ -48,33 +48,25 @@ type RunningEngineForTestWithEnvVars interface {
 // respectively. Note also that the backing database or service will be shutdown automatically via
 // the Cleanup of the testing object.
 func RunDatastoreEngine(t testing.TB, engine string) RunningEngineForTest {
-	return RunDatastoreEngineWithBridge(t, engine, "")
-}
-
-// RunDatastoreEngineWithBridge runs a datastore engine on a specific bridge. If a bridge is
-// specified, then the hostnames returned by the engines are those to be called from another
-// container on the bridge.
-func RunDatastoreEngineWithBridge(t testing.TB, engine string, bridgeNetworkName string) RunningEngineForTest {
 	switch engine {
 	case "memory":
-		require.Empty(t, bridgeNetworkName, "memory datastore does not support bridge networking")
 		return RunMemoryForTesting(t)
 	case "cockroachdb":
 		ver := os.Getenv("CRDB_TEST_VERSION")
 		if ver == "" {
 			ver = crdbversion.LatestTestedCockroachDBVersion
 		}
-		return RunCRDBForTesting(t, bridgeNetworkName, ver)
+		return RunCRDBForTesting(t, ver)
 	case "postgres":
 		ver := os.Getenv("POSTGRES_TEST_VERSION")
 		if ver == "" {
 			ver = pgversion.LatestTestedPostgresVersion
 		}
-		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head, ver, false)
+		return RunPostgresForTesting(t, migrate.Head, ver, false)
 	case "mysql":
-		return RunMySQLForTesting(t, bridgeNetworkName)
+		return RunMySQLForTesting(t)
 	case "spanner":
-		return RunSpannerForTesting(t, bridgeNetworkName, migrate.Head)
+		return RunSpannerForTesting(t, migrate.Head)
 	default:
 		t.Fatalf("found missing engine for RunDatastoreEngine: %s", engine)
 		return nil

@@ -43,20 +43,20 @@ type MySQLTesterOptions struct {
 
 // RunMySQLForTesting returns a RunningEngineForTest for the mysql driver
 // backed by a MySQL instance with RunningEngineForTest options - no prefix is added, and datastore migration is run.
-func RunMySQLForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
-	return RunMySQLForTestingWithOptions(t, MySQLTesterOptions{Prefix: "", MigrateForNewDatastore: true}, bridgeNetworkName)
+func RunMySQLForTesting(t testing.TB) RunningEngineForTest {
+	return RunMySQLForTestingWithOptions(t, MySQLTesterOptions{Prefix: "", MigrateForNewDatastore: true})
 }
 
 // RunMySQLForTestingWithOptions returns a RunningEngineForTest for the mysql driver
 // backed by a MySQL instance, while allowing options to be forwarded
-func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bridgeNetworkName string) RunningEngineForTest {
-	ctx := context.Background()
+func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) RunningEngineForTest {
+	ctx := t.Context()
 	containerImageTag := version.MinimumSupportedMySQLVersion
 
-	name := "mysql-" + uuid.New().String()
+	// TODO: add wait behavior
+	// TODO: simplify
 
 	req := testcontainers.ContainerRequest{
-		Name:         name,
 		Image:        "mirror.gcr.io/library/mysql:" + containerImageTag,
 		ExposedPorts: []string{fmt.Sprintf("%d/tcp", mysqlPort)},
 		Env: map[string]string{
@@ -66,10 +66,6 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		Cmd: []string{"--max-connections=500"},
 		WaitingFor: wait.ForLog("port: 3306  MySQL Community Server").
 			WithStartupTimeout(dockerBootTimeout),
-	}
-
-	if bridgeNetworkName != "" {
-		req.Networks = []string{bridgeNetworkName}
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -86,33 +82,11 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 	mappedPort, err := container.MappedPort(ctx, "3306")
 	require.NoError(t, err)
 
-	if bridgeNetworkName != "" {
-		builder.hostname = name
-		builder.port = strconv.Itoa(mysqlPort)
-	} else {
-		builder.port = mappedPort.Port()
-	}
+	builder.port = mappedPort.Port()
 
  	dsn := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", builder.creds, port)
 	builder.db, err = sql.Open("mysql", dsn)
 	require.NoError(t, err)
-
-	// TODO: use require.Eventually here
- 	require.NoError(t, pool.Retry(func() error {
- 		var err error
- 		ctx, cancelPing := context.WithTimeout(context.Background(), dockerBootTimeout)
- 		defer cancelPing()
- 		err = builder.db.PingContext(ctx)
- 		if err != nil {
- 			return err
-		}
-		time.Sleep(500 * time.Millisecond)
-	}))
-
-	t.Cleanup(func() {
-		require.NoError(t, builder.db.Close())
-		require.NoError(t, container.Terminate(ctx))
-	})
 
 	return builder
 }
