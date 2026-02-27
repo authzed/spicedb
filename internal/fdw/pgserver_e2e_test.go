@@ -1,4 +1,4 @@
-//go:build ci && !skipintegrationtests
+// //go:build ci && !skipintegrationtests
 
 package fdw_test
 
@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/log"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -35,12 +35,7 @@ import (
 
 const (
 	pgVersion                  = "17.2"
-	dockerBootTimeout          = 10 * time.Second
 	postgresTestUser           = "postgres"
-	postgresTestPassword       = "secret"
-	postgresTestPort           = "5432"
-	postgresTestMaxConnections = "3000"
-	pgbouncerTestPort          = "6432"
 	fdwPassword                = "proxypassword"
 )
 
@@ -613,67 +608,69 @@ func runEndToEndTest(t *testing.T, tc e2eTestCase) {
 	createCommands := strings.ReplaceAll(createCommandsTemplate, "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
 
 	// Invoke initial Postgres commands.
-	_, err = pgconn.Exec(context.Background(), createCommands)
+	_, err = pgconn.Exec(t.Context(), createCommands)
 	require.NoError(t, err)
 	t.Log("Initial Postgres commands executed")
 
 	// Run queries.
 	var lastZedToken string
 	for _, q := range tc.queries {
-		t.Run(q.name, func(t *testing.T) {
-			// If this is an at_least_as_fresh test, inject the zedtoken into the query
-			queryToRun := q.query
-			argsToUse := q.args
-			if lastZedToken != "" && tc.name == "consistency at_least_as_fresh" && len(q.args) > 0 {
-				// Add consistency parameter to the WHERE clause
-				queryToRun = q.query + ` AND consistency = $` + fmt.Sprintf("%d", len(q.args)+1)
-				argsToUse = append(argsToUse, lastZedToken)
-			} else if lastZedToken != "" && tc.name == "consistency at_exact_snapshot" && len(q.args) > 0 {
-				// Add consistency parameter with @ prefix for at_exact_snapshot
-				queryToRun = q.query + ` AND consistency = $` + fmt.Sprintf("%d", len(q.args)+1)
-				argsToUse = append(argsToUse, "@"+lastZedToken)
-			}
+		t.Logf("executing test step: %s", q.name)
+		// If this is an at_least_as_fresh test, inject the zedtoken into the query
+		queryToRun := q.query
+		argsToUse := q.args
+		if lastZedToken != "" && tc.name == "consistency at_least_as_fresh" && len(q.args) > 0 {
+			// Add consistency parameter to the WHERE clause
+			queryToRun = q.query + ` AND consistency = $` + fmt.Sprintf("%d", len(q.args)+1)
+			argsToUse = append(argsToUse, lastZedToken)
+		} else if lastZedToken != "" && tc.name == "consistency at_exact_snapshot" && len(q.args) > 0 {
+			// Add consistency parameter with @ prefix for at_exact_snapshot
+			queryToRun = q.query + ` AND consistency = $` + fmt.Sprintf("%d", len(q.args)+1)
+			argsToUse = append(argsToUse, "@"+lastZedToken)
+		}
 
-			rows, err := pgconn.Query(context.Background(), queryToRun, argsToUse...)
-			require.NoError(t, err)
-			defer rows.Close()
+		err := pgconn.Ping(t.Context())
+		require.NoError(t, err, "could not ping server")
 
-			if q.expectedError != "" {
-				require.False(t, rows.Next())
-				require.Error(t, rows.Err())
-				require.ErrorContains(t, rows.Err(), q.expectedError)
-			} else {
-				// Read all rows.
-				foundRows := make([][]any, 0)
-				for rows.Next() {
-					require.NoError(t, rows.Err())
+		rows, err := pgconn.Query(t.Context(), queryToRun, argsToUse...)
+		require.NoError(t, err)
 
-					values, err := rows.Values()
-					require.NoError(t, err)
-					foundRows = append(foundRows, values)
-
-					// If this is a RETURNING consistency query, capture the zedtoken
-					if len(values) == 1 && rows.FieldDescriptions()[0].Name == "consistency" {
-						if token, ok := values[0].(string); ok && token != "" {
-							lastZedToken = token
-							t.Logf("Captured ZedToken: %s", lastZedToken)
-						}
-					}
-				}
-
+		if q.expectedError != "" {
+			require.False(t, rows.Next())
+			require.Error(t, rows.Err())
+			require.ErrorContains(t, rows.Err(), q.expectedError)
+		} else {
+			// Read all rows.
+			foundRows := make([][]any, 0)
+			for rows.Next() {
 				require.NoError(t, rows.Err())
 
-				// For queries with expected rows, verify them
-				if len(q.expectedRows) > 0 {
-					require.Equal(t, q.expectedRows, foundRows)
-				} else if q.query != queryToRun {
-					// For consistency tests that inject parameters, we just verify we got results
-					require.NotEmpty(t, foundRows)
+				values, err := rows.Values()
+				require.NoError(t, err)
+				foundRows = append(foundRows, values)
+
+				// If this is a RETURNING consistency query, capture the zedtoken
+				if len(values) == 1 && rows.FieldDescriptions()[0].Name == "consistency" {
+					if token, ok := values[0].(string); ok && token != "" {
+						lastZedToken = token
+						t.Logf("Captured ZedToken: %s", lastZedToken)
+					}
 				}
-				rows.Close()
-				require.Equal(t, q.expectedResponseTag, rows.CommandTag().String())
 			}
-		})
+
+			require.NoError(t, rows.Err())
+
+			// For queries with expected rows, verify them
+			if len(q.expectedRows) > 0 {
+				require.Equal(t, q.expectedRows, foundRows)
+			} else if q.query != queryToRun {
+				// For consistency tests that inject parameters, we just verify we got results
+				require.NotEmpty(t, foundRows)
+			}
+			require.Equal(t, q.expectedResponseTag, rows.CommandTag().String())
+		}
+		// Close the query for this query in the loop
+		rows.Close()
 	}
 }
 
@@ -779,45 +776,23 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 }
 
 func runPostgres(t *testing.T) (conn *pgx.Conn) {
-	pool, err := dockertest.NewPool("")
+	t.Helper()
+	// TODO: use alpine?
+	logger := log.TestLogger(t)
+	image := fmt.Sprintf("mirror.gcr.io/library/postgres:%s", pgVersion)
+	container, err := postgres.Run(t.Context(), image,
+	testcontainers.WithLogger(logger),
+	postgres.WithUsername(postgresTestUser),
+	postgres.WithPassword(fdwPassword),
+	postgres.BasicWaitStrategies(),
+)
 	require.NoError(t, err)
 
-	postgresContainerHostname := fmt.Sprintf("postgres-%s", uuid.New().String())
-	postgres, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       postgresContainerHostname,
-		Repository: "mirror.gcr.io/library/postgres",
-		Tag:        pgVersion,
-		Env: []string{
-			"POSTGRES_USER=" + postgresTestUser,
-			"POSTGRES_PASSWORD=" + postgresTestPassword,
-		},
-		ExposedPorts: []string{postgresTestPort + "/tcp"},
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
+	connUri, err := container.ConnectionString(t.Context(), "sslmode=disable")
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(postgres))
-	})
-
-	hostname := "localhost"
-	port := postgres.GetPort(postgresTestPort + "/tcp")
-
-	creds := postgresTestUser + ":" + postgresTestPassword
-	uri := fmt.Sprintf("postgresql://%s@%s:%s/?sslmode=disable", creds, hostname, port)
-	err = pool.Retry(func() error {
-		var err error
-		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
-		defer cancelConnect()
-		conn, err = pgx.Connect(ctx, uri)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	conn, err = pgx.Connect(t.Context(), connUri)
 	require.NoError(t, err)
+
 	return conn
 }
