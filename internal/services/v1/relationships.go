@@ -172,6 +172,7 @@ func NewPermissionsServer(
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
+		queryPlanMetadata: NewQueryPlanMetadata(),
 	}
 }
 
@@ -182,7 +183,8 @@ type permissionServer struct {
 	dispatch dispatch.Dispatcher
 	config   PermissionsServerConfig
 
-	bulkChecker *bulkChecker
+	bulkChecker       *bulkChecker
+	queryPlanMetadata *QueryPlanMetadata
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
