@@ -1582,3 +1582,44 @@ func TestCanonicalKey_Hash(t *testing.T) {
 	// Different keys produce different hashes
 	require.NotEqual(hash1, hash2)
 }
+
+func TestOutline_Compile_WithArrowDirectionHint(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	// Create an arrow outline: left -> right
+	rel1 := schema.NewTestBaseRelation("document", "parent", "folder", tuple.Ellipsis)
+	rel2 := schema.NewTestBaseRelation("folder", "viewer", "user", tuple.Ellipsis)
+
+	outline := Outline{
+		Type: ArrowIteratorType,
+		SubOutlines: []Outline{
+			{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel1}},
+			{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel2}},
+		},
+	}
+
+	// Canonicalize to get node IDs
+	canonical, err := CanonicalizeOutline(outline)
+	require.NoError(err)
+
+	// Find the arrow node's ID (it's the root)
+	arrowNodeID := canonical.Root.ID
+	require.NotZero(arrowNodeID)
+
+	// Add a hint to set the arrow direction to rightToLeft
+	canonical.Hints = map[OutlineNodeID][]Hint{
+		arrowNodeID: {ArrowDirectionHint(rightToLeft)},
+	}
+
+	// Compile with hints
+	it, err := canonical.Compile()
+	require.NoError(err)
+
+	// Verify the iterator is an ArrowIterator
+	arrow, ok := it.(*ArrowIterator)
+	require.True(ok, "Expected ArrowIterator, got %T", it)
+
+	// Verify the hint was applied: direction should be rightToLeft
+	require.Equal(rightToLeft, arrow.direction, "Arrow direction hint was not applied")
+}
