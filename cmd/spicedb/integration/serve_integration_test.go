@@ -1,4 +1,4 @@
-//go:build docker && image
+// //go:build docker && image
 
 package integration_test
 
@@ -26,11 +26,13 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 func TestServe(t *testing.T) {
 	requireParent := require.New(t)
 
+	// TODO: 
 	tester, err := newTester(t,
 		testcontainers.ContainerRequest{
 			Image:        "authzed/spicedb:ci",
@@ -112,7 +114,7 @@ func gracefulShutdown(ctx context.Context, container testcontainers.Container) b
 }
 
 func TestGracefulShutdownInMemory(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Run a serve and immediately close, ensuring it shuts down gracefully.
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -154,17 +156,15 @@ func TestGracefulShutdown(t *testing.T) {
 
 	for driverName, awaitGC := range engines {
 		t.Run(driverName, func(t *testing.T) {
-			ctx := context.Background()
-			bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
+			ctx := t.Context()
 
-			// Create a bridge network for testing.
-			net, err := network.New(ctx, network.WithDriver("bridge"), network.WithLabels(map[string]string{"name": bridgeNetworkName}))
+			// Create a network for testing.
+			net, err := network.New(ctx)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = net.Remove(ctx)
-			})
+			testcontainers.CleanupNetwork(t, net)
 
-			engine := testdatastore.RunDatastoreEngineWithBridge(t, driverName, bridgeNetworkName)
+			// TODO: figure out how to supply the network in this case.
+			engine := testdatastore.RunDatastoreEngine(t, driverName)
 
 			envVars := map[string]string{}
 			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
@@ -177,20 +177,18 @@ func TestGracefulShutdown(t *testing.T) {
 			}
 
 			// Run the migrate command and wait for it to complete.
+			// TODO: probably handled by spicedb testcontainer
 			db := engine.NewDatabase(t)
 			migrateContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 				ContainerRequest: testcontainers.ContainerRequest{
 					Image:    "authzed/spicedb:ci",
 					Cmd:      []string{"migrate", "head", "--datastore-engine", driverName, "--datastore-conn-uri", db},
-					Networks: []string{bridgeNetworkName},
 					Env:      envVars,
 				},
 				Started: true,
 			})
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = migrateContainer.Terminate(ctx)
-			})
+			testcontainers.CleanupContainer(t, migrateContainer)
 
 			// Ensure the command completed successfully.
 			exitCode, err := migrateContainer.State(ctx)
@@ -202,15 +200,12 @@ func TestGracefulShutdown(t *testing.T) {
 				ContainerRequest: testcontainers.ContainerRequest{
 					Image:    "authzed/spicedb:ci",
 					Cmd:      []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", ""},
-					Networks: []string{bridgeNetworkName},
 					Env:      envVars,
 				},
 				Started: true,
 			})
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = serveContainer.Terminate(ctx)
-			})
+			testcontainers.CleanupContainer(t, serveContainer)
 
 			if awaitGC {
 				ww := &watchingWriter{make(chan bool, 1), "running garbage collection worker"}

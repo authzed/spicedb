@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	pgVersion                  = "17.2"
-	postgresTestUser           = "postgres"
-	fdwPassword                = "proxypassword"
+	pgVersion        = "17.2"
+	postgresTestUser = "postgres"
+	fdwPassword      = "proxypassword"
 )
 
 type qar struct {
@@ -781,11 +781,11 @@ func runPostgres(t *testing.T) (conn *pgx.Conn) {
 	logger := log.TestLogger(t)
 	image := fmt.Sprintf("mirror.gcr.io/library/postgres:%s", pgVersion)
 	container, err := postgres.Run(t.Context(), image,
-	testcontainers.WithLogger(logger),
-	postgres.WithUsername(postgresTestUser),
-	postgres.WithPassword(fdwPassword),
-	postgres.BasicWaitStrategies(),
-)
+		testcontainers.WithLogger(logger),
+		postgres.WithUsername(postgresTestUser),
+		postgres.WithPassword(fdwPassword),
+		postgres.BasicWaitStrategies(),
+	)
 	require.NoError(t, err)
 
 	connUri, err := container.ConnectionString(t.Context(), "sslmode=disable")

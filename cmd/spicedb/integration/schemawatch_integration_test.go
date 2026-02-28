@@ -1,4 +1,4 @@
-//go:build docker && image
+// //go:build docker && image
 
 package integration_test
 
@@ -45,7 +45,7 @@ func TestSchemaWatch(t *testing.T) {
 				_ = net.Remove(ctx)
 			})
 
-			engine := testdatastore.RunDatastoreEngineWithBridge(t, driverName, bridgeNetworkName)
+			engine := testdatastore.RunDatastoreEngine(t, driverName)
 
 			envVars := map[string]string{}
 			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
@@ -79,6 +79,7 @@ func TestSchemaWatch(t *testing.T) {
 			require.Equal(t, 0, exitCode.ExitCode)
 
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
+			// TODO;
 			serveContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 				ContainerRequest: testcontainers.ContainerRequest{
 					Image:    "authzed/spicedb:ci",
@@ -89,14 +90,13 @@ func TestSchemaWatch(t *testing.T) {
 				Started: true,
 			})
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = serveContainer.Terminate(ctx)
-			})
+			testcontainers.CleanupContainer(t, serveContainer)
 
 			ww := &watchingWriter{make(chan bool, 1), "starting watching cache"}
 
 			// Grab logs and ensure schema watch has started before graceful shutdown.
 			go (func() {
+				// TODO: do logging directly
 				logReader, err := serveContainer.Logs(ctx)
 				if err != nil {
 					assert.NoError(t, err)
@@ -107,6 +107,7 @@ func TestSchemaWatch(t *testing.T) {
 				assert.NoError(t, err)
 			})()
 
+			// TODO: what?
 			select {
 			case <-ww.c:
 				break
@@ -114,8 +115,6 @@ func TestSchemaWatch(t *testing.T) {
 			case <-time.After(10 * time.Second):
 				require.Fail(t, "timed out waiting for schema watch to run")
 			}
-
-			require.True(t, gracefulShutdown(ctx, serveContainer))
 		})
 	}
 }

@@ -4,14 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/testcontainers/testcontainers-go/modules/mysql"
 
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/mysql/version"
@@ -21,24 +20,23 @@ import (
 )
 
 const (
-	mysqlPort    = 3306
-	defaultCreds = "root:secret"
 	testDBPrefix = "spicedb_test_"
+	// This is the db name used for the dsn that's used to generate initial connections.
+	initialDB = "testdb"
 )
 
 type mysqlTester struct {
-	db       *sql.DB
-	hostname string
-	creds    string
-	port     string
-	options  MySQLTesterOptions
+	// db is a connection used to create databases
+	db *sql.DB
+	// container is a reference to the mysql container instance
+	container *mysql.MySQLContainer
+	options   MySQLTesterOptions
 }
 
 // MySQLTesterOptions allows tweaking the behaviour of the builder for the MySQL datastore
 type MySQLTesterOptions struct {
 	Prefix                 string
 	MigrateForNewDatastore bool
-	UseV8                  bool
 }
 
 // RunMySQLForTesting returns a RunningEngineForTest for the mysql driver
@@ -51,40 +49,22 @@ func RunMySQLForTesting(t testing.TB) RunningEngineForTest {
 // backed by a MySQL instance, while allowing options to be forwarded
 func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) RunningEngineForTest {
 	ctx := t.Context()
-	containerImageTag := version.MinimumSupportedMySQLVersion
 
-	// TODO: add wait behavior
-	// TODO: simplify
-
-	req := testcontainers.ContainerRequest{
-		Image:        "mirror.gcr.io/library/mysql:" + containerImageTag,
-		ExposedPorts: []string{fmt.Sprintf("%d/tcp", mysqlPort)},
-		Env: map[string]string{
-			"MYSQL_ROOT_PASSWORD": "secret",
-		},
-		// increase max connections (default 151) to accommodate tests using the same docker container
-		Cmd: []string{"--max-connections=500"},
-		WaitingFor: wait.ForLog("port: 3306  MySQL Community Server").
-			WithStartupTimeout(dockerBootTimeout),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
+	image := "mirror.gcr.io/library/mysql:" + version.MinimumSupportedMySQLVersion
+	container, err := mysql.Run(ctx,
+		image,
+		mysql.WithConfigFile("./config/mysql.cnf"),
+		mysql.WithDatabase(initialDB),
+	)
 	require.NoError(t, err)
 
 	builder := &mysqlTester{
-		creds:   defaultCreds,
-		options: options,
+		options:   options,
+		container: container,
 	}
 
-	mappedPort, err := container.MappedPort(ctx, "3306")
+	dsn, err := container.ConnectionString(ctx, "parseTime=true")
 	require.NoError(t, err)
-
-	builder.port = mappedPort.Port()
-
- 	dsn := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", builder.creds, port)
 	builder.db, err = sql.Open("mysql", dsn)
 	require.NoError(t, err)
 
@@ -100,7 +80,12 @@ func (mb *mysqlTester) NewDatabase(t testing.TB) string {
 	_, err = mb.db.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName))
 	require.NoError(t, err, "failed to create database %s: %s", dbName, err)
 
-	return fmt.Sprintf("%s@(%s:%s)/%s?parseTime=true", mb.creds, mb.hostname, mb.port, dbName)
+	dsn, err := mb.container.ConnectionString(t.Context(), "parseTime=true")
+	require.NoError(t, err)
+
+	strings.Replace(dsn, initialDB, dbName, 1)
+
+	return dsn
 }
 
 func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) error {
@@ -118,23 +103,13 @@ func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) error {
 }
 
 func (mb *mysqlTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	for i := 1; i <= retryCount; i++ {
-		dsn := mb.NewDatabase(t)
+	var dsn string
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		dsn = mb.NewDatabase(t)
 		if mb.options.MigrateForNewDatastore {
-			if err := mb.runMigrate(t, dsn); err != nil {
-				if i == retryCount {
-					require.NoError(t, err, "failed to run migration")
-				} else {
-					t.Logf("failed to run migration: %v, retrying... %d", err, i)
-				}
-				time.Sleep(time.Duration(i) * timeBetweenRetries)
-				continue
-			}
+			err := mb.runMigrate(t, dsn)
+			assert.NoError(collect, err)
 		}
-
-		return initFunc("mysql", dsn)
-	}
-
-	require.Fail(t, "failed to create datastore for testing")
-	return nil
+	}, 5*time.Second, 500*time.Millisecond)
+	return initFunc("mysql", dsn)
 }

@@ -33,7 +33,7 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 				{
 					HostFilePath:      path.Join(basepath, "testdata/bootstrap.yaml"),
 					ContainerFilePath: "/mnt/spicedb_bootstrap.yaml",
-					FileMode:          0644,
+					FileMode:          0o644,
 				},
 			},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},

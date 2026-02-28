@@ -1,4 +1,4 @@
-//go:build docker && image
+// //go:build docker && image
 
 package integration_test
 
@@ -41,7 +41,7 @@ func TestMigrate(t *testing.T) {
 		t.Run(engineKey, func(t *testing.T) {
 			engineKey := engineKey
 
-			r := testdatastore.RunDatastoreEngineWithBridge(t, engineKey, bridgeNetworkName)
+			r := testdatastore.RunDatastoreEngine(t, engineKey)
 			db := r.NewDatabase(t)
 
 			envVars := map[string]string{}
@@ -55,6 +55,7 @@ func TestMigrate(t *testing.T) {
 			}
 
 			// Run the migrate command and wait for it to complete.
+			// TODO:
 			container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 				ContainerRequest: testcontainers.ContainerRequest{
 					Image:    "authzed/spicedb:ci",
@@ -65,9 +66,7 @@ func TestMigrate(t *testing.T) {
 				Started: true,
 			})
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = container.Terminate(ctx)
-			})
+			testcontainers.CleanupContainer(t, container)
 
 			// Ensure the command completed successfully.
 			state, err := container.State(ctx)
@@ -76,6 +75,7 @@ func TestMigrate(t *testing.T) {
 			if state.ExitCode != 0 {
 				stream := new(bytes.Buffer)
 
+				// TODO: use logs
 				logReader, lerr := container.Logs(ctx)
 				require.NoError(t, lerr)
 				defer logReader.Close()

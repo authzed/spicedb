@@ -121,14 +121,13 @@ func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 }
 
 func TestMySQL8Datastore(t *testing.T) {
-	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
 	dst := datastoreTester{b: b}
 	test.AllWithExceptions(t, test.DatastoreTesterFunc(dst.createDatastore), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory), true)
 	additionalMySQLTests(t, b)
 }
 
 func TestMySQLRevisionTimestamps(t *testing.T) {
-	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
+	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true})
 	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
 }
 
@@ -845,7 +844,7 @@ func TestMySQLWithAWSIAMCredentialsProvider(t *testing.T) {
 
 func datastoreDB(t *testing.T, migrate bool) *sql.DB {
 	var databaseURI string
-	testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: migrate}, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
+	testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: migrate}).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		databaseURI = uri
 		return nil
 	})

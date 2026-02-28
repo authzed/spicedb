@@ -76,8 +76,8 @@ func crdbTestVersion() string {
 
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Parallel()
-	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
-	test.All(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
+ 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -140,7 +140,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
-	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	engine := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
 	quantizationDurations := []time.Duration{
 		0 * time.Second,
@@ -203,7 +203,7 @@ var defaultKeyForTesting = proxy.KeyConfig{
 
 func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Parallel()
-	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
 	test.All(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
@@ -303,7 +303,6 @@ func TestWatchFeatureDetection(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -455,6 +454,7 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 	}))
 	require.NoError(t, rootCertFile.Close())
 
+	// TODO: fix
 	container, err := cockroachdb.Run(t.Context(),
 		"cockroachdb/cockroach:v"+crdbTestVersion(),
 		cockroachdb.WithInsecure(),
@@ -479,8 +479,9 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 
 	// Retry connection
 	maxRetries := 10
+	// TODO: require.EventuallyWithT
 	for i := 0; i < maxRetries; i++ {
-		_, err = pgxpool.New(context.Background(), fmt.Sprintf("postgres://root@localhost:%[1]s/defaultdb?sslmode=verify-full&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir))
+		_, err = pgxpool.New(t.Context(), fmt.Sprintf("postgres://root@localhost:%[1]s/defaultdb?sslmode=verify-full&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir))
 		if err == nil {
 			break
 		}

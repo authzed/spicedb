@@ -1,4 +1,4 @@
-//go:build docker && image
+// //go:build docker && image
 
 package integration_test
 
@@ -190,6 +190,7 @@ const retryCount = 8
 func newTester(t *testing.T, containerReq testcontainers.ContainerRequest, token string, withExistingSchema bool) (*spicedbHandle, error) {
 	ctx := context.Background()
 
+	// TODO:
 	for i := 0; i < retryCount; i++ {
 		container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: containerReq,

@@ -31,11 +31,11 @@ func RunSpannerForTesting(t testing.TB, targetMigration string) RunningEngineFor
 	ctx := t.Context()
 
 	container, err := testcontainers.Run(ctx, "gcr.io/cloud-spanner-emulator/emulator:1.5.41",
-	testcontainers.WithWaitStrategy(wait.ForListeningPort("9010/tcp").WithStartupTimeout(dockerBootTimeout),
-	&spannerWaitStrategy{},
-),
-	testcontainers.WithExposedPorts("9010/tcp"),
-)
+		testcontainers.WithWaitStrategy(wait.ForListeningPort("9010/tcp").WithStartupTimeout(dockerBootTimeout),
+			&spannerWaitStrategy{},
+		),
+		testcontainers.WithExposedPorts("9010/tcp"),
+	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)
 
@@ -50,7 +50,7 @@ func RunSpannerForTesting(t testing.TB, targetMigration string) RunningEngineFor
 	return builder
 }
 
-type spannerWaitStrategy struct {}
+type spannerWaitStrategy struct{}
 
 var _ wait.Strategy = (*spannerWaitStrategy)(nil)
 
@@ -61,7 +61,7 @@ func (s *spannerWaitStrategy) WaitUntilReady(ctx context.Context, target wait.St
 			return fmt.Errorf("container not ready within the timeout: %w", ctx.Err())
 		case <-time.After(500 * time.Millisecond):
 			instancesClient, err := instances.NewInstanceAdminClient(ctx)
-			if err !=  nil {
+			if err != nil {
 				// If we couldn't create the client we continue
 				continue
 			}

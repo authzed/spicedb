@@ -23,9 +23,9 @@ var _ RunningEngineForTest = (*crdbTester)(nil)
 func RunCRDBForTesting(t testing.TB, crdbVersion string) *crdbTester {
 	ctx := t.Context()
 
-	container, err := cockroachdb.Run(ctx, "mirror.gcr.io/cockroachdb/cockroach:v"+crdbVersion, 
+	container, err := cockroachdb.Run(ctx, "mirror.gcr.io/cockroachdb/cockroach:v"+crdbVersion,
 		cockroachdb.WithInsecure(),
-)
+	)
 	require.NoError(t, err)
 
 	// enable changefeeds
