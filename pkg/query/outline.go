@@ -55,6 +55,13 @@ func (k CanonicalKey) Hash() uint64 {
 	return xxhash.Sum64String(string(k))
 }
 
+// CanonicalKeySource can resolve a CanonicalKey for a given outline node ID.
+// PlanAdvisors receive this instead of the full CanonicalOutline to stay
+// decoupled from the outline structure.
+type CanonicalKeySource interface {
+	GetCanonicalKey(id OutlineNodeID) CanonicalKey
+}
+
 // OutlineNodeID is a numeric identifier assigned to each node in a CanonicalOutline.
 // It is populated by CanonicalizeOutline; plain (non-canonical, non-filter) Outlines have a
 // zero-valued ID and cannot be compiled.
@@ -76,6 +83,11 @@ type CanonicalOutline struct {
 	Root          Outline
 	CanonicalKeys map[OutlineNodeID]CanonicalKey
 	Hints         map[OutlineNodeID][]Hint
+}
+
+// GetCanonicalKey implements CanonicalKeySource.
+func (co CanonicalOutline) GetCanonicalKey(id OutlineNodeID) CanonicalKey {
+	return co.CanonicalKeys[id]
 }
 
 // Compile converts a CanonicalOutline into the actual Iterator representation.

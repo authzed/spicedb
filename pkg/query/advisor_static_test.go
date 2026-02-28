@@ -45,7 +45,7 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 			SubOutlines: []Outline{leftOutline, rightOutline},
 		}
 
-		hints, err := advisor.GetHints(arrowOutline, "")
+		hints, err := advisor.GetHints(arrowOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Len(t, hints, 1)
 
@@ -92,7 +92,7 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 			SubOutlines: []Outline{leftOutline, rightOutline},
 		}
 
-		hints, err := advisor.GetHints(arrowOutline, "")
+		hints, err := advisor.GetHints(arrowOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Len(t, hints, 1)
 
@@ -122,7 +122,7 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 			},
 		}
 
-		hints, err := advisor.GetHints(unionOutline, "")
+		hints, err := advisor.GetHints(unionOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Empty(t, hints)
 	})
@@ -271,7 +271,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			SubOutlines: []Outline{lowSelectivity, highSelectivity},
 		}
 
-		mutations, err := advisor.GetMutations(unionOutline, "")
+		mutations, err := advisor.GetMutations(unionOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Len(t, mutations, 1)
 
@@ -309,7 +309,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			SubOutlines: []Outline{highSelectivity, lowSelectivity},
 		}
 
-		mutations, err := advisor.GetMutations(intersectionOutline, "")
+		mutations, err := advisor.GetMutations(intersectionOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Len(t, mutations, 1)
 
@@ -334,7 +334,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			SubOutlines: []Outline{child1, child2},
 		}
 
-		mutations, err := advisor.GetMutations(unionOutline, "")
+		mutations, err := advisor.GetMutations(unionOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Nil(t, mutations)
 	})
@@ -349,7 +349,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			},
 		}
 
-		mutations, err := advisor.GetMutations(unionOutline, "")
+		mutations, err := advisor.GetMutations(unionOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Nil(t, mutations)
 	})
@@ -365,7 +365,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			},
 		}
 
-		mutations, err := advisor.GetMutations(arrowOutline, "")
+		mutations, err := advisor.GetMutations(arrowOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Nil(t, mutations)
 	})
@@ -403,7 +403,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			SubOutlines: []Outline{low, medium, high},
 		}
 
-		mutations, err := advisor.GetMutations(unionOutline, "")
+		mutations, err := advisor.GetMutations(unionOutline, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Len(t, mutations, 1)
 
@@ -450,7 +450,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 		ab := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{a, b}}
 		abThenC := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{ab, c}}
 
-		mutations, err := advisor.GetMutations(abThenC, "")
+		mutations, err := advisor.GetMutations(abThenC, CanonicalOutline{})
 		require.NoError(t, err)
 
 		// Should return a rotation mutation if cost analysis determines it's beneficial
@@ -494,7 +494,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 		// Build A->(B->C)
 		aThenBC := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{a, bc}}
 
-		mutations, err := advisor.GetMutations(aThenBC, "")
+		mutations, err := advisor.GetMutations(aThenBC, CanonicalOutline{})
 		require.NoError(t, err)
 
 		// Depending on cost, may or may not rotate
@@ -514,7 +514,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 
 		arrow := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{a, b}}
 
-		mutations, err := advisor.GetMutations(arrow, "")
+		mutations, err := advisor.GetMutations(arrow, CanonicalOutline{})
 		require.NoError(t, err)
 		require.Nil(t, mutations) // No nested arrows, no mutations
 	})

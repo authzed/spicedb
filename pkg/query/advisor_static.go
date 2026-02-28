@@ -65,8 +65,7 @@ func DefaultStaticAdvisor() StaticAdvisor {
 
 // GetHints returns optimization hints for the given outline node.
 // For arrow iterators, it suggests the optimal execution direction based on cost estimates.
-// The key parameter can be used for future caching/memoization of cost estimates.
-func (s StaticAdvisor) GetHints(outline Outline, key CanonicalKey) ([]Hint, error) {
+func (s StaticAdvisor) GetHints(outline Outline, keySource CanonicalKeySource) ([]Hint, error) {
 	// Only arrow iterators get hints for now
 	if outline.Type != ArrowIteratorType {
 		return nil, nil
@@ -106,8 +105,7 @@ func (s StaticAdvisor) GetHints(outline Outline, key CanonicalKey) ([]Hint, erro
 // GetMutations returns outline mutations for the given outline node.
 // This includes reordering union/intersection branches by selectivity and
 // rebalancing nested arrow structures.
-// The key parameter can be used for future caching/memoization of mutations.
-func (s StaticAdvisor) GetMutations(outline Outline, key CanonicalKey) ([]OutlineMutation, error) {
+func (s StaticAdvisor) GetMutations(outline Outline, keySource CanonicalKeySource) ([]OutlineMutation, error) {
 	switch outline.Type {
 	case UnionIteratorType:
 		// Reorder by descending selectivity (higher first = more likely to short-circuit)
