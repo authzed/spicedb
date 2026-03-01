@@ -195,7 +195,6 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	ctx context.Context,
 	parentRequest ValidatedLookupSubjectsRequest,
 	parentStream dispatch.LookupSubjectsStream,
-	ts *schema.TypeSystem,
 	cu *core.ComputedUserset,
 ) error {
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
@@ -368,7 +367,7 @@ func lookupViaIntersectionTupleToUserset(
 			results := datasets.NewSubjectSet()
 			collectedMetadata := emptyMetadata
 			for _, result := range collectingStream.Results() {
-				collectedMetadata = combineResponseMetadata(ctx, collectedMetadata, result.Metadata)
+				collectedMetadata = combineResponseMetadata(collectedMetadata, result.Metadata)
 				for _, foundSubjects := range result.FoundSubjectsByResourceId {
 					if err := results.UnionWith(foundSubjects.FoundSubjects); err != nil {
 						return fmt.Errorf("failed to UnionWith under lookupSubjectsIntersection: %w", err)
@@ -379,7 +378,7 @@ func lookupViaIntersectionTupleToUserset(
 			dispatchInfoForResource.lock.Lock()
 			defer dispatchInfoForResource.lock.Unlock()
 
-			dispatchInfoForResource.metadata = combineResponseMetadata(ctx, dispatchInfoForResource.metadata, collectedMetadata)
+			dispatchInfoForResource.metadata = combineResponseMetadata(dispatchInfoForResource.metadata, collectedMetadata)
 
 			// If the first update for the resource, set the subjects set to the results.
 			if dispatchInfoForResource.isFirstUpdate {
@@ -417,7 +416,7 @@ func lookupViaIntersectionTupleToUserset(
 		currentSubjects = currentSubjects.WithParentCaveatExpression(ttuCaveat)
 		currentSubjectsByResourceID[incomingResourceID] = currentSubjects.AsFoundSubjects()
 
-		metadata = combineResponseMetadata(ctx, metadata, tracker.metadata)
+		metadata = combineResponseMetadata(metadata, tracker.metadata)
 	}
 
 	return parentStream.Publish(&v1.DispatchLookupSubjectsResponse{
@@ -538,7 +537,7 @@ func (cl *ConcurrentLookupSubjects) lookupSetOperation(
 
 		case *core.SetOperation_Child_ComputedUserset:
 			g.Go(func() error {
-				return cl.lookupViaComputed(subCtx, req, stream, ts, child.ComputedUserset)
+				return cl.lookupViaComputed(subCtx, req, stream, child.ComputedUserset)
 			})
 
 		case *core.SetOperation_Child_UsersetRewrite:
@@ -763,7 +762,7 @@ func (lsu *lookupSubjectsUnion) CompletedChildOperations(ctx context.Context) er
 		}
 
 		for _, result := range collector.Results() {
-			metadata = combineResponseMetadata(ctx, metadata, result.Metadata)
+			metadata = combineResponseMetadata(metadata, result.Metadata)
 			if err := foundSubjects.UnionWith(result.FoundSubjectsByResourceId); err != nil {
 				return fmt.Errorf("failed to UnionWith under lookupSubjectsUnion: %w", err)
 			}
@@ -811,7 +810,7 @@ func (lsi *lookupSubjectsIntersection) CompletedChildOperations(ctx context.Cont
 
 		results := datasets.NewSubjectSetByResourceID()
 		for _, result := range collector.Results() {
-			metadata = combineResponseMetadata(ctx, metadata, result.Metadata)
+			metadata = combineResponseMetadata(metadata, result.Metadata)
 			if err := results.UnionWith(result.FoundSubjectsByResourceId); err != nil {
 				return fmt.Errorf("failed to UnionWith under lookupSubjectsIntersection: %w", err)
 			}
@@ -864,7 +863,7 @@ func (lse *lookupSubjectsExclusion) CompletedChildOperations(ctx context.Context
 		collector := lse.collectors[index]
 		results := datasets.NewSubjectSetByResourceID()
 		for _, result := range collector.Results() {
-			metadata = combineResponseMetadata(ctx, metadata, result.Metadata)
+			metadata = combineResponseMetadata(metadata, result.Metadata)
 			if err := results.UnionWith(result.FoundSubjectsByResourceId); err != nil {
 				return fmt.Errorf("failed to UnionWith under lookupSubjectsExclusion: %w", err)
 			}

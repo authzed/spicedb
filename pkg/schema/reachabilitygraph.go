@@ -285,7 +285,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 		// Add subject type entrypoints.
 		subjectTypeEntrypoints, ok := rrg.EntrypointsBySubjectType[optionalSubjectType.Namespace]
 		if ok {
-			addEntrypoints(subjectTypeEntrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
+			addEntrypoints(subjectTypeEntrypoints, resourceType, collected, allEncounteredRelations)
 		}
 
 		if entrypointLookupOption == entrypointLookupFindOne && len(*collected) > 0 {
@@ -295,7 +295,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 		// Add subject relation entrypoints.
 		subjectRelationEntrypoints, ok := rrg.EntrypointsBySubjectRelation[tuple.JoinRelRef(optionalSubjectType.Namespace, optionalSubjectType.Relation)]
 		if ok {
-			addEntrypoints(subjectRelationEntrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
+			addEntrypoints(subjectRelationEntrypoints, resourceType, collected, allEncounteredRelations)
 		}
 
 		if entrypointLookupOption == entrypointLookupFindOne && len(*collected) > 0 {
@@ -304,11 +304,11 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	} else {
 		// Add all entrypoints.
 		for _, entrypoints := range rrg.EntrypointsBySubjectType {
-			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
+			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations)
 		}
 
 		for _, entrypoints := range rrg.EntrypointsBySubjectRelation {
-			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations, encounteredRelationsForComputation)
+			addEntrypoints(entrypoints, resourceType, collected, allEncounteredRelations)
 		}
 	}
 
@@ -334,7 +334,7 @@ func (rg *DefinitionReachability) collectEntrypoints(
 	return nil
 }
 
-func addEntrypoints(entrypoints *core.ReachabilityEntrypoints, parentRelation *core.RelationReference, collected *[]ReachabilityEntrypoint, allEncounteredRelations *mapz.Set[string], encounteredRelationsForComputation *mapz.Set[string]) {
+func addEntrypoints(entrypoints *core.ReachabilityEntrypoints, parentRelation *core.RelationReference, collected *[]ReachabilityEntrypoint, allEncounteredRelations *mapz.Set[string]) {
 	for _, entrypoint := range entrypoints.Entrypoints {
 		if entrypoint.TuplesetRelation != "" {
 			key := tuple.JoinRelRef(entrypoint.TargetRelation.Namespace, entrypoint.TuplesetRelation)
