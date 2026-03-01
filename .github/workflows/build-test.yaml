@@ -352,7 +352,7 @@ jobs:
           cache-dependency-path: "e2e/go.sum"
       - name: "Run e2e"
         run: "go run mage.go test:e2e ${{ matrix.crdbversion }}"
-      - uses: "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f" # v6.0.0
+      - uses: "actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f" # v7.0.0
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
         continue-on-error: true
@@ -410,7 +410,7 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
-      - uses: "chainguard-dev/actions/nodiff@18e5e3427cf9d6bcfbefe60dca48e40292f000c5" # main
+      - uses: "chainguard-dev/actions/nodiff@eab208ef2d05b13404296a5e194a6b237e8bb213" # main
         with:
           path: ""
           fixup-command: "go run mage.go gen:proto"
