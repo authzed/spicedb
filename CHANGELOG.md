@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [1.49.2] - 2026-03-02
 ### Added
 - feat(query planner): add recursive direction strategies, and fix IS BFS (https://github.com/authzed/spicedb/pull/2891)
 - feat(query planner): introduce query plan outlines and canonicalization (https://github.com/authzed/spicedb/pull/2901)
@@ -13,8 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Begin deprecation of library "github.com/dlmiddlecote/sqlstats" (https://github.com/authzed/spicedb/pull/2904).
   NOTE: in a future release, MySQL metrics will change.
 - Add support for imports and partials to the schemadsl package that drives the LSP and development server (https://github.com/authzed/spicedb/pull/2919).
-- `DatastoreTester.New` now takes a `testing.TB` as its first argument, allowing per-test cleanup in datastore test suites (https://github.com/authzed/spicedb/pull/2925).
-- Added support for CRDB 26.1 by fixing how version information is read from the cluster
+- Added support for CRDB 26.1 by fixing how version information is read from the cluster (https://github.com/authzed/spicedb/pull/2907).
 
 ### Fixed
 - enforce graceful shutdown on serve and serve-testing (https://github.com/authzed/spicedb/pull/2888)
@@ -3529,7 +3530,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 [#2353]: https://github.com/authzed/spicedb/issues/2353
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.49.1...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.49.2...HEAD
+[1.49.2]: https://github.com/authzed/spicedb/compare/v1.49.1...v1.49.2
 [1.49.1]: https://github.com/authzed/spicedb/compare/v1.49.0...v1.49.1
 [1.49.0]: https://github.com/authzed/spicedb/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/authzed/spicedb/compare/v1.47.1...v1.48.0
