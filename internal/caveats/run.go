@@ -381,6 +381,12 @@ type ExpressionResult interface {
 
 	// MissingVarNames returns the names of the parameters missing from the context.
 	MissingVarNames() ([]string, error)
+
+	// LeafCaveatResults returns all leaf caveat evaluation results from this
+	// expression tree. For a leaf CaveatResult, this returns a single-element
+	// slice containing itself. For a synthetic (AND/OR/NOT) result, this
+	// recursively collects results from all children.
+	LeafCaveatResults() []*caveats.CaveatResult
 }
 
 type syntheticResult struct {
@@ -422,6 +428,17 @@ func (sr syntheticResult) MissingVarNames() ([]string, error) {
 	}
 
 	return nil, errors.New("not a partial value")
+}
+
+// LeafCaveatResults collects all leaf CaveatResult values from the children
+// of this synthetic result. This is used to build per-caveat diagnostics
+// when a permission check is denied due to caveat evaluation.
+func (sr syntheticResult) LeafCaveatResults() []*caveats.CaveatResult {
+	var results []*caveats.CaveatResult
+	for _, child := range sr.exprResultsForDebug {
+		results = append(results, child.LeafCaveatResults()...)
+	}
+	return results
 }
 
 func isFalseResult(result ExpressionResult) bool {

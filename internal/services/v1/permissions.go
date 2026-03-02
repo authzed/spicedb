@@ -3,6 +3,7 @@ package v1
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -165,6 +166,15 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	permissionship, partialCaveat := checkResultToAPITypes(cr)
 
+	// If the check was denied due to caveat evaluation and debug/tracing was
+	// requested, surface per-caveat diagnostic information via gRPC response
+	// trailer metadata. This is gated behind debug mode to avoid leaking caveat
+	// expression internals in production responses.
+	// See https://github.com/authzed/spicedb/issues/2802
+	if permissionship == v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION && len(cr.CaveatEvalInfo) > 0 {
+		setCaveatEvalDiagnosticsTrailer(ctx, cr.CaveatEvalInfo)
+	}
+
 	return &v1.CheckPermissionResponse{
 		CheckedAt:         checkedAt,
 		Permissionship:    permissionship,
@@ -186,6 +196,70 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 		}
 	}
 	return permissionship, partialCaveat
+}
+
+// CaveatEvalDiagnosticsTrailerKey is the gRPC response trailer key for caveat evaluation
+// diagnostics. When a CheckPermission call returns NO_PERMISSION due to one or more caveats
+// evaluating to false, this trailer contains a JSON-encoded array of caveat evaluation results
+// identifying which specific caveat(s) caused the denial.
+//
+// This addresses https://github.com/authzed/spicedb/issues/2802
+const CaveatEvalDiagnosticsTrailerKey = "io.spicedb.respmeta.caveat-eval-info"
+
+// setCaveatEvalDiagnosticsTrailer sets gRPC response trailer metadata with caveat evaluation
+// diagnostic information. This allows applications to identify which specific caveat(s)
+// caused a permission denial without requiring debug mode.
+func setCaveatEvalDiagnosticsTrailer(ctx context.Context, evalInfo []*dispatch.CaveatEvalResult) {
+	if len(evalInfo) == 0 {
+		return
+	}
+
+	// Build a JSON representation of the caveat eval results.
+	// We use a simple JSON format rather than proto serialization for ease of consumption
+	// by client libraries in any language.
+	type caveatEvalEntry struct {
+		CaveatName           string         `json:"caveat_name"`
+		Result               string         `json:"result"`
+		ExpressionString     string         `json:"expression,omitempty"`
+		Context              map[string]any `json:"context,omitempty"`
+		MissingContextParams []string       `json:"missing_context_params,omitempty"`
+	}
+
+	entries := make([]caveatEvalEntry, 0, len(evalInfo))
+	for _, info := range evalInfo {
+		resultStr := "UNSPECIFIED"
+		switch info.Result {
+		case dispatch.CaveatEvalResult_RESULT_FALSE:
+			resultStr = "FALSE"
+		case dispatch.CaveatEvalResult_RESULT_TRUE:
+			resultStr = "TRUE"
+		case dispatch.CaveatEvalResult_RESULT_MISSING_SOME_CONTEXT:
+			resultStr = "MISSING_SOME_CONTEXT"
+		case dispatch.CaveatEvalResult_RESULT_UNEVALUATED:
+			resultStr = "UNEVALUATED"
+		}
+
+		entry := caveatEvalEntry{
+			CaveatName:           info.CaveatName,
+			Result:               resultStr,
+			ExpressionString:     info.ExpressionString,
+			MissingContextParams: info.MissingContextParams,
+		}
+
+		if info.Context != nil {
+			entry.Context = info.Context.AsMap()
+		}
+
+		entries = append(entries, entry)
+	}
+
+	jsonBytes, err := json.Marshal(entries)
+	if err != nil {
+		return // Silently skip if marshaling fails — don't fail the request
+	}
+
+	md := metadata.Pairs(CaveatEvalDiagnosticsTrailerKey, string(jsonBytes))
+	_ = grpc.SetTrailer(ctx, md)
 }
 
 func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {

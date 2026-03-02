@@ -713,6 +713,40 @@ func (m *ResourceCheckResult) validate(all bool) error {
 		}
 	}
 
+	for idx, item := range m.GetCaveatEvalInfo() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ResourceCheckResultValidationError{
+						field:  fmt.Sprintf("CaveatEvalInfo[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ResourceCheckResultValidationError{
+						field:  fmt.Sprintf("CaveatEvalInfo[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ResourceCheckResultValidationError{
+					field:  fmt.Sprintf("CaveatEvalInfo[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
 	if len(errors) > 0 {
 		return ResourceCheckResultMultiError(errors)
 	}
@@ -792,6 +826,141 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ResourceCheckResultValidationError{}
+
+// Validate checks the field values on CaveatEvalResult with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *CaveatEvalResult) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CaveatEvalResult with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CaveatEvalResultMultiError, or nil if none found.
+func (m *CaveatEvalResult) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CaveatEvalResult) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for CaveatName
+
+	// no validation rules for Result
+
+	if all {
+		switch v := interface{}(m.GetContext()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CaveatEvalResultValidationError{
+					field:  "Context",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CaveatEvalResultValidationError{
+					field:  "Context",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetContext()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CaveatEvalResultValidationError{
+				field:  "Context",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for ExpressionString
+
+	if len(errors) > 0 {
+		return CaveatEvalResultMultiError(errors)
+	}
+
+	return nil
+}
+
+// CaveatEvalResultMultiError is an error wrapping multiple validation errors
+// returned by CaveatEvalResult.ValidateAll() if the designated constraints
+// aren't met.
+type CaveatEvalResultMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CaveatEvalResultMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CaveatEvalResultMultiError) AllErrors() []error { return m }
+
+// CaveatEvalResultValidationError is the validation error returned by
+// CaveatEvalResult.Validate if the designated constraints aren't met.
+type CaveatEvalResultValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CaveatEvalResultValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CaveatEvalResultValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CaveatEvalResultValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CaveatEvalResultValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CaveatEvalResultValidationError) ErrorName() string { return "CaveatEvalResultValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CaveatEvalResultValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCaveatEvalResult.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CaveatEvalResultValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CaveatEvalResultValidationError{}
 
 // Validate checks the field values on DispatchExpandRequest with the rules
 // defined in the proto definition for this message. If any rules are

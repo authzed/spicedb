@@ -73,6 +73,42 @@ message ResourceCheckResult {
   Membership membership = 1;
   core.v1.CaveatExpression expression = 2;
   repeated string missing_expr_fields = 3;
+
+  // caveat_eval_info contains information about caveats that were evaluated
+  // during the permission check. When a caveated permission check results in
+  // NOT_MEMBER because a caveat evaluated to false, this field identifies which
+  // caveat(s) failed and provides their evaluation context.
+  // This addresses https://github.com/authzed/spicedb/issues/2802
+  repeated CaveatEvalResult caveat_eval_info = 4;
+}
+
+// CaveatEvalResult contains the evaluation result of a single caveat during
+// a permission check. This enables applications to identify which specific
+// caveat caused a permission denial.
+message CaveatEvalResult {
+  enum Result {
+    RESULT_UNSPECIFIED = 0;
+    RESULT_UNEVALUATED = 1;
+    RESULT_FALSE = 2;
+    RESULT_TRUE = 3;
+    RESULT_MISSING_SOME_CONTEXT = 4;
+  }
+
+  // caveat_name is the name of the caveat that was evaluated.
+  string caveat_name = 1;
+
+  // result is the evaluation result of the caveat.
+  Result result = 2;
+
+  // context contains the context values that were used during evaluation.
+  google.protobuf.Struct context = 3;
+
+  // expression_string is the human-readable CEL expression of the caveat.
+  string expression_string = 4;
+
+  // missing_context_params lists parameter names that were missing during
+  // evaluation, resulting in a partial/conditional result.
+  repeated string missing_context_params = 5;
 }
 
 message DispatchExpandRequest {
