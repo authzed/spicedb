@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Changed
+- Updated CI so that Postgres tests run against v18 which is GA and not against v13 which is EOL (https://github.com/authzed/spicedb/pull/2926)
 
 ## [1.49.2] - 2026-03-02
 ### Added
