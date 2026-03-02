@@ -11,8 +11,8 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/stringz"
-	"github.com/rs/zerolog/log"
 
+	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
@@ -85,7 +85,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 			}
 
 		case dslshape.NodeTypeCaveatDefinition:
-			log.Trace().Msg("adding caveat definition")
+			logging.Trace().Msg("adding caveat definition")
 			// TODO: Maybe refactor these in terms of a generic function?
 			def, err := translateCaveatDefinition(tctx, topLevelNode)
 			if err != nil {
@@ -106,7 +106,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 			orderedDefinitions = append(orderedDefinitions, def)
 
 		case dslshape.NodeTypeDefinition:
-			log.Trace().Msg("adding object definition")
+			logging.Trace().Msg("adding object definition")
 			def, err := translateObjectDefinition(tctx, topLevelNode)
 			if err != nil {
 				return nil, err
@@ -817,7 +817,7 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 				// by not reading the schema file in and compiling a schema with an empty string.
 				// This prevents duplicate definitions from ending up in the output, as well
 				// as preventing circular imports.
-				log.Debug().Str("filepath", filePath).Msg("file has already been visited in another part of the walk")
+				logging.Debug().Str("filepath", filePath).Msg("file has already been visited in another part of the walk")
 				continue
 			}
 
