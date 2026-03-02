@@ -208,7 +208,11 @@ nightly:
 release:
   draft: false
   prerelease: "auto"
-  mode: "append"
+  # NOTE: this replaces the contents of the existing release with the same contents + the
+  # table of release artifacts. This means that if you edit the release while goreleaser
+  # is running, you'll lose the edits; the awkwardness here reflects that goreleaser
+  # expects that it's creating the release, rather than us creating the release manually.
+  mode: "replace"
   footer: |
     ## Docker Images
     This release is available at `authzed/spicedb:v{{ .Version }}`, `quay.io/authzed/spicedb:v{{ .Version }}`, `ghcr.io/authzed/spicedb:v{{ .Version }}`
