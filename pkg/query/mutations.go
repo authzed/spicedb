@@ -17,6 +17,7 @@ func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
 			Type:        outline.Type,
 			Args:        outline.Args,
 			SubOutlines: newSubs,
+			ID:          outline.ID,
 		}
 	}
 
@@ -44,6 +45,7 @@ func ReorderMutation(order []int) OutlineMutation {
 			Type:        outline.Type,
 			Args:        outline.Args,
 			SubOutlines: reordered,
+			ID:          outline.ID,
 		}
 	}
 }
@@ -95,6 +97,7 @@ func RotateArrowMutation(rotateLeft bool) OutlineMutation {
 				Type:        ArrowIteratorType,
 				Args:        outline.Args, // Preserve Args from parent
 				SubOutlines: []Outline{a, innerArrow},
+				ID:          outline.ID,
 			}
 		}
 
@@ -121,6 +124,7 @@ func RotateArrowMutation(rotateLeft bool) OutlineMutation {
 			Type:        ArrowIteratorType,
 			Args:        outline.Args, // Preserve Args from parent
 			SubOutlines: []Outline{innerArrow, c},
+			ID:          outline.ID,
 		}
 	}
 }
