@@ -75,6 +75,46 @@ type Outline struct {
 	ID          OutlineNodeID // Populated only inside a CanonicalOutline
 }
 
+// WalkOutlineBottomUp performs a bottom-up traversal of an Outline tree,
+// rebuilding each node with its processed children before passing it to fn.
+// fn receives the node (with already-processed children) and returns a
+// replacement node and an optional error. The traversal stops and the error
+// is propagated on the first failure.
+func WalkOutlineBottomUp(outline Outline, fn func(Outline) (Outline, error)) (Outline, error) {
+	if len(outline.SubOutlines) > 0 {
+		newSubs := make([]Outline, len(outline.SubOutlines))
+		for i, sub := range outline.SubOutlines {
+			processed, err := WalkOutlineBottomUp(sub, fn)
+			if err != nil {
+				return Outline{}, err
+			}
+			newSubs[i] = processed
+		}
+		outline = Outline{
+			Type:        outline.Type,
+			Args:        outline.Args,
+			SubOutlines: newSubs,
+			ID:          outline.ID,
+		}
+	}
+	return fn(outline)
+}
+
+// WalkOutlinePreOrder performs a pre-order traversal of an Outline tree,
+// calling fn on each node before visiting its children. fn returns an error
+// to abort the traversal early.
+func WalkOutlinePreOrder(outline Outline, fn func(Outline) error) error {
+	if err := fn(outline); err != nil {
+		return err
+	}
+	for _, sub := range outline.SubOutlines {
+		if err := WalkOutlinePreOrder(sub, fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CanonicalOutline is an Outline tree that has been fully canonicalized.
 // It pairs the root Outline (with every node's ID assigned) with a map from
 // those IDs to their CanonicalKeys. Only CanonicalOutlines can be Compiled,

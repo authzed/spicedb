@@ -58,64 +58,43 @@ func ApplyAdvisor(co CanonicalOutline, advisor PlanAdvisor) (CanonicalOutline, e
 	}, nil
 }
 
-// applyAdvisorMutations recursively walks the outline tree bottom-up.
+// applyAdvisorMutations walks the outline tree bottom-up via WalkOutlineBottomUp.
 // For each node it calls GetMutations on the advisor and applies the returned
 // mutations in sequence. After each mutation it verifies that the resulting
 // node's ID matches the original node's ID; a mismatch is a programmer bug.
 func applyAdvisorMutations(outline Outline, co CanonicalOutline, advisor PlanAdvisor) (Outline, error) {
-	// Recurse into children first (bottom-up).
-	if len(outline.SubOutlines) > 0 {
-		newSubs := make([]Outline, len(outline.SubOutlines))
-		for i, sub := range outline.SubOutlines {
-			mutated, err := applyAdvisorMutations(sub, co, advisor)
-			if err != nil {
-				return Outline{}, err
+	return WalkOutlineBottomUp(outline, func(node Outline) (Outline, error) {
+		mutations, err := advisor.GetMutations(node, co)
+		if err != nil {
+			return Outline{}, err
+		}
+		result := node
+		for _, fn := range mutations {
+			next := fn(result)
+			if next.ID != result.ID {
+				return Outline{}, spiceerrors.MustBugf(
+					"advisor mutation changed outline node ID from %d to %d; mutations must preserve the root node ID",
+					result.ID, next.ID,
+				)
 			}
-			newSubs[i] = mutated
+			result = next
 		}
-		outline = Outline{
-			Type:        outline.Type,
-			Args:        outline.Args,
-			SubOutlines: newSubs,
-			ID:          outline.ID,
-		}
-	}
-
-	mutations, err := advisor.GetMutations(outline, co)
-	if err != nil {
-		return Outline{}, err
-	}
-
-	result := outline
-	for _, fn := range mutations {
-		next := fn(result)
-		if next.ID != result.ID {
-			return Outline{}, spiceerrors.MustBugf(
-				"advisor mutation changed outline node ID from %d to %d; mutations must preserve the root node ID",
-				result.ID, next.ID,
-			)
-		}
-		result = next
-	}
-	return result, nil
+		return result, nil
+	})
 }
 
-// collectAdvisorHints recursively walks the outline tree and calls GetHints on
-// the advisor for each node, storing any returned hints in the hints map keyed
-// by the node's ID.
+// collectAdvisorHints walks the outline tree pre-order via WalkOutlinePreOrder,
+// calling GetHints on the advisor for each node and storing any returned hints
+// in the hints map keyed by the node's ID.
 func collectAdvisorHints(outline Outline, co CanonicalOutline, advisor PlanAdvisor, hints map[OutlineNodeID][]Hint) error {
-	nodeHints, err := advisor.GetHints(outline, co)
-	if err != nil {
-		return err
-	}
-	if len(nodeHints) > 0 {
-		hints[outline.ID] = nodeHints
-	}
-
-	for _, sub := range outline.SubOutlines {
-		if err := collectAdvisorHints(sub, co, advisor, hints); err != nil {
+	return WalkOutlinePreOrder(outline, func(node Outline) error {
+		nodeHints, err := advisor.GetHints(node, co)
+		if err != nil {
 			return err
 		}
-	}
-	return nil
+		if len(nodeHints) > 0 {
+			hints[node.ID] = nodeHints
+		}
+		return nil
+	})
 }

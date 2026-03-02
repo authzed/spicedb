@@ -7,25 +7,14 @@ type OutlineMutation func(Outline) Outline
 // MutateOutline performs a bottom-up traversal of the outline tree, applying
 // all the given transformation functions to each node after processing its children.
 func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
-	// Recurse on children first (bottom-up)
-	if len(outline.SubOutlines) > 0 {
-		newSubs := make([]Outline, len(outline.SubOutlines))
-		for i, sub := range outline.SubOutlines {
-			newSubs[i] = MutateOutline(sub, fns)
+	// WalkOutlineBottomUp cannot fail when the callback never returns an error,
+	// so the error return is safe to ignore here.
+	result, _ := WalkOutlineBottomUp(outline, func(node Outline) (Outline, error) {
+		for _, fn := range fns {
+			node = fn(node)
 		}
-		outline = Outline{
-			Type:        outline.Type,
-			Args:        outline.Args,
-			SubOutlines: newSubs,
-			ID:          outline.ID,
-		}
-	}
-
-	// Then apply all mutation functions in sequence to current node
-	result := outline
-	for _, fn := range fns {
-		result = fn(result)
-	}
+		return node, nil
+	})
 	return result
 }
 
