@@ -6,8 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rs/zerolog/log"
-
+	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 )
 
@@ -21,7 +20,7 @@ func importFile(fsys fs.FS, filePath string) (*dslNode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read import in schema file: %w", err)
 	}
-	log.Trace().Str("schema", string(schemaBytes)).Str("file", filePath).Msg("read schema from file")
+	logging.Trace().Str("schema", string(schemaBytes)).Str("file", filePath).Msg("read schema from file")
 
 	parsedSchema, _, err := parseSchema(InputSchema{
 		Source:       input.Source(filePath),
