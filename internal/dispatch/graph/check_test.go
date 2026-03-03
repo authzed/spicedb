@@ -2072,7 +2072,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["anotherdoc"].Membership)
 }
 
-func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint16) (context.Context, dispatch.Dispatcher, datastore.Revision) {
+func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, datastore.Revision) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
@@ -2095,10 +2095,6 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	return ctx, cachingDispatcher, revision
-}
-
-func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, datastore.Revision) {
-	return newLocalDispatcherWithConcurrencyLimit(t, 10)
 }
 
 func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tuple.Relationship) (context.Context, dispatch.Dispatcher, datastore.Revision) {

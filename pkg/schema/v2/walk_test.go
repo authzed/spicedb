@@ -1214,7 +1214,7 @@ func (otv *orderTrackingVisitor) VisitExclusionOperation(eo *ExclusionOperation,
 // TestWalkSchema_PreOrderVsPostOrder verifies that PreOrder and PostOrder produce different traversal orders
 func TestWalkSchema_PreOrderVsPostOrder(t *testing.T) {
 	// Build a simple schema with nested structure
-	schema := buildTestSchema(t)
+	schema := buildTestSchema()
 
 	// Test PreOrder traversal (default)
 	preOrderVisitor := &orderTrackingVisitor{}
@@ -1240,7 +1240,7 @@ func TestWalkSchema_PreOrderVsPostOrder(t *testing.T) {
 
 // TestWalkDefinition_PreOrderVsPostOrder tests order difference at definition level
 func TestWalkDefinition_PreOrderVsPostOrder(t *testing.T) {
-	schema := buildTestSchema(t)
+	schema := buildTestSchema()
 	def := schema.definitions["document"]
 	require.NotNil(t, def)
 
@@ -1325,7 +1325,7 @@ func (vtv *valueThreadingVisitor) VisitPermission(p *Permission, value int) (int
 
 // TestWalkSchema_PostOrderValueThreading verifies value threading works correctly in PostOrder
 func TestWalkSchema_PostOrderValueThreading(t *testing.T) {
-	schema := buildTestSchema(t)
+	schema := buildTestSchema()
 
 	// Test with PreOrder (baseline)
 	preOrderVisitor := &valueThreadingVisitor{}
@@ -1369,7 +1369,7 @@ func (ctv *continueTestVisitor) VisitRelation(r *Relation, value struct{}) (stru
 
 // TestWalkDefinition_ContinueFlagInPreOrder verifies continue=false skips children in PreOrder
 func TestWalkDefinition_ContinueFlagInPreOrder(t *testing.T) {
-	schema := buildTestSchema(t)
+	schema := buildTestSchema()
 	def := schema.definitions["document"]
 
 	visitor := &continueTestVisitor{stopAtFirstDef: true}
@@ -1383,7 +1383,7 @@ func TestWalkDefinition_ContinueFlagInPreOrder(t *testing.T) {
 
 // TestWalkDefinition_ContinueFlagInPostOrder verifies children are visited regardless in PostOrder
 func TestWalkDefinition_ContinueFlagInPostOrder(t *testing.T) {
-	schema := buildTestSchema(t)
+	schema := buildTestSchema()
 	def := schema.definitions["document"]
 
 	visitor := &continueTestVisitor{stopAtFirstDef: true}
@@ -1411,7 +1411,7 @@ func (ev *errorInChildVisitor) VisitDefinition(d *Definition, value struct{}) (s
 
 // TestWalkDefinition_ErrorPropagationInPostOrder verifies errors propagate correctly in PostOrder
 func TestWalkDefinition_ErrorPropagationInPostOrder(t *testing.T) {
-	schema := buildTestSchema(t)
+	schema := buildTestSchema()
 	def := schema.definitions["document"]
 
 	visitor := &errorInChildVisitor{}
@@ -1422,7 +1422,7 @@ func TestWalkDefinition_ErrorPropagationInPostOrder(t *testing.T) {
 
 // TestWalkSchema_BackwardCompatibility verifies default behavior is PreOrder
 func TestWalkSchema_BackwardCompatibility(t *testing.T) {
-	schema := buildTestSchema(t)
+	schema := buildTestSchema()
 
 	// Default Walk (no options) should behave like PreOrder
 	defaultVisitor := &orderTrackingVisitor{}
@@ -1451,7 +1451,7 @@ func TestWalkSchema_BackwardCompatibility(t *testing.T) {
 }
 
 // buildTestSchema creates a test schema with nested structure for testing
-func buildTestSchema(t *testing.T) *Schema {
+func buildTestSchema() *Schema {
 	// Create base relations
 	viewerBR := &BaseRelation{subjectType: "user"}
 	editorBR := &BaseRelation{subjectType: "user"}
