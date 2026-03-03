@@ -112,7 +112,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	resources := NewObjects("file", "file0")
 	subject := NewObject("user", "user42").WithEllipses()
 
-	reader := datalayer.NewDataLayer(rawDS).SnapshotReader(revision)
+	readerOpt := WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
 
 	// ---- plain (LTR) ----
 
@@ -120,7 +120,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	plainIt, err := canonicalOutline.Compile()
 	require.NoError(t, err)
 
-	plainSeq, err := NewLocalContext(ctx, WithReader(reader), WithTraceLogger(plainTrace)).
+	plainSeq, err := NewLocalContext(ctx, readerOpt, WithTraceLogger(plainTrace)).
 		Check(plainIt, resources, subject)
 	require.NoError(t, err)
 	plainPaths, err := CollectAll(plainSeq)
@@ -132,7 +132,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	obs := NewCountObserver()
 	warmIt, err := canonicalOutline.Compile()
 	require.NoError(t, err)
-	warmSeq, err := NewLocalContext(ctx, WithReader(reader), WithObserver(obs)).
+	warmSeq, err := NewLocalContext(ctx, readerOpt, WithObserver(obs)).
 		Check(warmIt, resources, subject)
 	require.NoError(t, err)
 	_, err = CollectAll(warmSeq)
@@ -144,7 +144,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	require.NoError(t, err)
 
 	advisedTrace := NewTraceLogger()
-	advisedSeq, err := NewLocalContext(ctx, WithReader(reader), WithTraceLogger(advisedTrace)).
+	advisedSeq, err := NewLocalContext(ctx, readerOpt, WithTraceLogger(advisedTrace)).
 		Check(advisedIt, resources, subject)
 	require.NoError(t, err)
 	advisedPaths, err := CollectAll(advisedSeq)

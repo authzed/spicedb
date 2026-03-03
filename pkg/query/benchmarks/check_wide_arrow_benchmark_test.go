@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -18,6 +19,10 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// networkDelay is the simulated per-call round-trip latency used by the delay
+// sub-benchmarks. Adjust this to model different network environments.
+const networkDelay = 100 * time.Microsecond
+
 // BenchmarkCheckWideArrow benchmarks permission checking through a wide arrow relationship.
 // This creates a scenario with:
 // - 10 files
@@ -28,6 +33,13 @@ import (
 //
 // The permission viewer = view + group->member creates a wide arrow traversal where
 // checking if a user has viewer permission on a file requires checking many group memberships.
+//
+// Four sub-benchmarks are run:
+//   - plain:         compile the outline directly and run Check each iteration
+//   - advised:       seed a CountAdvisor from a single warm-up run, apply it to the
+//     canonical outline, compile once, then run Check each iteration
+//   - plain_delay:   same as plain, but with a delay reader simulating network latency
+//   - advised_delay: same as advised, but with a delay reader simulating network latency
 func BenchmarkCheckWideArrow(b *testing.B) {
 	const (
 		numFiles      = 10
@@ -111,14 +123,9 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 	dsSchema, err := schema.BuildSchemaFromDefinitions(compiled.ObjectDefinitions, nil)
 	require.NoError(b, err)
 
-	// Create the iterator tree for the viewer permission using BuildIteratorFromSchema
-	viewerIterator, err := query.BuildIteratorFromSchema(dsSchema, "file", "viewer")
+	// Build the canonical outline once; all sub-benchmarks derive from it.
+	canonicalOutline, err := query.BuildOutlineFromSchema(dsSchema, "file", "viewer")
 	require.NoError(b, err)
-
-	// Create query context
-	queryCtx := query.NewLocalContext(ctx,
-		query.WithReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)),
-	)
 
 	// The resource we're checking: file:file0
 	resources := query.NewObjects("file", "file0")
@@ -127,22 +134,112 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 	// This user should have access through multiple groups
 	subject := query.NewObject("user", "user15").WithEllipses()
 
-	// Reset the timer - everything before this is setup
-	b.ResetTimer()
+	// Base reader (no simulated latency).
+	reader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
 
-	// Run the benchmark
-	for b.Loop() {
-		// Check if user:user15 can view file:file0
-		// This will traverse through many group memberships
-		seq, err := queryCtx.Check(viewerIterator, resources, subject)
+	// Delay reader wrapping the base reader with simulated network latency.
+	delayReader := query.NewDelayReader(networkDelay, reader)
+
+	// buildAdvisedIterator seeds a CountAdvisor from a single warm-up run using the
+	// provided reader and returns the compiled advised iterator.
+	buildAdvisedIterator := func(b *testing.B, r query.QueryDatastoreReader) query.Iterator {
+		b.Helper()
+		obs := query.NewCountObserver()
+		warmIt, err := canonicalOutline.Compile()
+		require.NoError(b, err)
+		warmCtx := query.NewLocalContext(ctx,
+			query.WithReader(r),
+			query.WithObserver(obs),
+		)
+		seq, err := warmCtx.Check(warmIt, resources, subject)
+		require.NoError(b, err)
+		_, err = query.CollectAll(seq)
 		require.NoError(b, err)
 
-		// Collect all results
-		paths, err := query.CollectAll(seq)
+		advisor := query.NewCountAdvisor(obs.GetStats())
+		advisedCO, err := query.ApplyAdvisor(canonicalOutline, advisor)
 		require.NoError(b, err)
-
-		// Verify we found at least one path
-		// user15 should have access through multiple groups
-		require.NotEmpty(b, paths)
+		advisedIt, err := advisedCO.Compile()
+		require.NoError(b, err)
+		return advisedIt
 	}
+
+	// ---- plain sub-benchmark ----
+	// Compile the outline directly and run Check each iteration. No advisement.
+
+	b.Run("plain", func(b *testing.B) {
+		it, err := canonicalOutline.Compile()
+		require.NoError(b, err)
+
+		b.Log("plain explain:\n", it.Explain())
+
+		queryCtx := query.NewLocalContext(ctx, query.WithReader(reader))
+
+		b.ResetTimer()
+		for b.Loop() {
+			seq, err := queryCtx.Check(it, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.NotEmpty(b, paths)
+		}
+	})
+
+	// ---- advised sub-benchmark ----
+	// Seed a CountAdvisor from a warm-up run, compile the advised iterator once,
+	// then run Check each iteration.
+
+	b.Run("advised", func(b *testing.B) {
+		advisedIt := buildAdvisedIterator(b, reader)
+
+		b.Log("advised explain:\n", advisedIt.Explain())
+
+		queryCtx := query.NewLocalContext(ctx, query.WithReader(reader))
+
+		b.ResetTimer()
+		for b.Loop() {
+			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.NotEmpty(b, paths)
+		}
+	})
+
+	// ---- plain_delay sub-benchmark ----
+	// Same as plain but with networkDelay latency injected per datastore call.
+
+	b.Run("plain_delay", func(b *testing.B) {
+		it, err := canonicalOutline.Compile()
+		require.NoError(b, err)
+
+		queryCtx := query.NewLocalContext(ctx, query.WithReader(delayReader))
+
+		b.ResetTimer()
+		for b.Loop() {
+			seq, err := queryCtx.Check(it, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.NotEmpty(b, paths)
+		}
+	})
+
+	// ---- advised_delay sub-benchmark ----
+	// Same as advised but with networkDelay latency injected per datastore call.
+	// The warm-up run also uses the delay reader so advisor stats reflect realistic
+	// call patterns.
+
+	b.Run("advised_delay", func(b *testing.B) {
+		advisedIt := buildAdvisedIterator(b, delayReader)
+		queryCtx := query.NewLocalContext(ctx, query.WithReader(delayReader))
+
+		for b.Loop() {
+			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.NotEmpty(b, paths)
+		}
+	})
 }
