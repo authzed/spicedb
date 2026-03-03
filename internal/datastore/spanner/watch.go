@@ -12,7 +12,6 @@ import (
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/cloudspannerecosystem/spanner-change-streams-tail/changestreams"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/puzpuzpuz/xsync/v4"
 	"google.golang.org/api/option"
 
@@ -27,18 +26,6 @@ import (
 const (
 	CombinedChangeStreamName = "combined_change_stream"
 )
-
-var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "datastore",
-	Name:      "spanner_watch_retries",
-	Help:      "watch retry distribution",
-	Buckets:   []float64{0, 1, 2, 5, 10, 20, 50},
-})
-
-func init() {
-	prometheus.MustRegister(retryHistogram)
-}
 
 // Copied from the spanner library: https://github.com/googleapis/google-cloud-go/blob/f03779538f949fb4ad93d5247d3c6b3e5b21091a/spanner/client.go#L67
 // License: Apache License, Version 2.0, Copyright 2017 Google LLC

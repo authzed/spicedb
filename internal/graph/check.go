@@ -39,16 +39,9 @@ var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOp
 	Buckets: []float64{1, 2, 3, 5, 10, 25, 100, 250},
 })
 
-var directDispatchQueryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "spicedb_check_direct_dispatch_query_count",
-	Help:    "number of queries made per direct dispatch",
-	Buckets: []float64{1, 2},
-})
-
 const noOriginalRelation = ""
 
 func init() {
-	prometheus.MustRegister(directDispatchQueryHistogram)
 	prometheus.MustRegister(dispatchChunkCountHistogram)
 }
 
@@ -385,10 +378,6 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 	// If the direct subject or a wildcard form can be found, issue a query for just that
 	// subject.
-	var queryCount float64
-	defer func() {
-		directDispatchQueryHistogram.Observe(queryCount)
-	}()
 
 	hasDirectSubject := totalDirectSubjects > 0
 	hasWildcardSubject := totalWildcardSubjects > 0
@@ -429,8 +418,6 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		if err != nil {
 			return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 		}
-		queryCount += 1.0
-
 		// Find the matching subject(s).
 		for rel, err := range it {
 			if err != nil {
@@ -482,8 +469,6 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
-	queryCount += 1.0
-
 	// Build the set of subjects over which to dispatch, along with metadata for
 	// mapping over caveats (if any).
 	checksToDispatch := newCheckDispatchSet()

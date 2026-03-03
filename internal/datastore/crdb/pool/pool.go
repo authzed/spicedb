@@ -30,7 +30,7 @@ type pgxPool interface {
 
 var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "crdb_client_resets",
-	Help:    "cockroachdb client-side tx reset distribution",
+	Help:    "Distribution of the number of client-side transaction restarts per transaction attempt. Restarts occur when CockroachDB returns a serialization failure (40001) and the driver retries the transaction from scratch. Sustained high values indicate transaction contention.",
 	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
 })
 

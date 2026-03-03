@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -36,18 +35,6 @@ const (
 	queryChangefeedPreV25 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
 	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
 )
-
-var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "datastore",
-	Name:      "crdb_watch_retries",
-	Help:      "watch retry distribution",
-	Buckets:   []float64{0, 1, 2, 5, 10, 20, 50},
-})
-
-func init() {
-	prometheus.MustRegister(retryHistogram)
-}
 
 type changeDetails struct {
 	Resolved string
