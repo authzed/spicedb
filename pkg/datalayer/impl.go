@@ -5,7 +5,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -142,7 +141,7 @@ func (t *readWriteTransaction) BulkLoad(ctx context.Context, iter datastore.Bulk
 	return t.rwt.BulkLoad(ctx, iter)
 }
 
-func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) error {
+func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition) error {
 	return writeSchemaViaLegacy(ctx, t.rwt, t.rwt, definitions)
 }
 
