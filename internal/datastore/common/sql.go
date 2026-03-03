@@ -10,7 +10,6 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -48,8 +47,6 @@ var (
 	// SubObjectIDKey is a tracing attribute representing the the subject object
 	// ID.
 	SubObjectIDKey = attribute.Key("authzed.com/spicedb/sql/subObjectId")
-
-	tracer = otel.Tracer("spicedb/internal/datastore/common")
 )
 
 // PaginationFilterType is an enumerator for pagination filter types.

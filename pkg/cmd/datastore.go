@@ -7,13 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/cmd/datastore"
+	dscmd "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/util"
-	dspkg "github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func RegisterDatastoreRootFlags(_ *cobra.Command) {
@@ -30,17 +29,17 @@ func NewDatastoreCommand(programName string) (*cobra.Command, error) {
 	RegisterMigrateFlags(migrateCmd)
 	datastoreCmd.AddCommand(migrateCmd)
 
-	cfg := datastore.NewConfigWithOptionsAndDefaults()
+	cfg := dscmd.NewConfigWithOptionsAndDefaults()
 
 	gcCmd := NewGCDatastoreCommand(programName, cfg)
-	if err := datastore.RegisterDatastoreFlagsWithPrefix(gcCmd.Flags(), "", cfg); err != nil {
+	if err := dscmd.RegisterDatastoreFlagsWithPrefix(gcCmd.Flags(), "", cfg); err != nil {
 		return nil, err
 	}
 	util.RegisterCommonFlags(gcCmd)
 	datastoreCmd.AddCommand(gcCmd)
 
 	repairCmd := NewRepairDatastoreCommand(programName, cfg)
-	if err := datastore.RegisterDatastoreFlagsWithPrefix(repairCmd.Flags(), "", cfg); err != nil {
+	if err := dscmd.RegisterDatastoreFlagsWithPrefix(repairCmd.Flags(), "", cfg); err != nil {
 		return nil, err
 	}
 	util.RegisterCommonFlags(repairCmd)
@@ -53,7 +52,7 @@ func NewDatastoreCommand(programName string) (*cobra.Command, error) {
 	return datastoreCmd, nil
 }
 
-func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Command {
+func NewGCDatastoreCommand(programName string, cfg *dscmd.Config) *cobra.Command {
 	return &cobra.Command{
 		Use:     "gc",
 		Short:   "executes garbage collection",
@@ -65,14 +64,14 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 	}
 }
 
-func executeGC(ctx context.Context, cfg *datastore.Config) error {
+func executeGC(ctx context.Context, cfg *dscmd.Config) error {
 	ctx, cancel := context.WithTimeout(ctx, cfg.GCMaxOperationTime)
 	defer cancel()
 
 	// Disable background GC.
 	cfg.GCInterval = -1 * time.Hour
 
-	ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
+	ds, err := dscmd.NewDatastore(ctx, cfg.ToOption())
 	if err != nil {
 		return fmt.Errorf("failed to create datastore: %w", err)
 	}
@@ -83,7 +82,7 @@ func executeGC(ctx context.Context, cfg *datastore.Config) error {
 		}
 	}()
 
-	gcds := dspkg.UnwrapAs[common.GarbageCollectableDatastore](ds)
+	gcds := datastore.UnwrapAs[datastore.GarbageCollectableDatastore](ds)
 	if gcds == nil {
 		return fmt.Errorf("datastore of type '%s' does not support garbage collection", cfg.Engine)
 	}
@@ -93,7 +92,7 @@ func executeGC(ctx context.Context, cfg *datastore.Config) error {
 		Float64("gc_max_operation_time_seconds", cfg.GCMaxOperationTime.Seconds()).
 		Msg("Running garbage collection...")
 
-	err = common.RunGarbageCollection(ctx, gcds, cfg.GCWindow)
+	err = datastore.RunGarbageCollection(ctx, gcds, cfg.GCWindow)
 	if err != nil {
 		return err
 	}
@@ -102,7 +101,7 @@ func executeGC(ctx context.Context, cfg *datastore.Config) error {
 	return nil
 }
 
-func NewRepairDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Command {
+func NewRepairDatastoreCommand(programName string, cfg *dscmd.Config) *cobra.Command {
 	return &cobra.Command{
 		Use:     "repair",
 		Short:   "executes datastore repair",
@@ -114,13 +113,13 @@ func NewRepairDatastoreCommand(programName string, cfg *datastore.Config) *cobra
 	}
 }
 
-func executeRepair(cfg *datastore.Config, args []string) error {
+func executeRepair(cfg *dscmd.Config, args []string) error {
 	ctx := context.Background()
 
 	// Disable background GC.
 	cfg.GCInterval = -1 * time.Hour
 
-	ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
+	ds, err := dscmd.NewDatastore(ctx, cfg.ToOption())
 	if err != nil {
 		return fmt.Errorf("failed to create datastore: %w", err)
 	}
@@ -131,7 +130,7 @@ func executeRepair(cfg *datastore.Config, args []string) error {
 		}
 	}()
 
-	repairable := dspkg.UnwrapAs[dspkg.RepairableDatastore](ds)
+	repairable := datastore.UnwrapAs[datastore.RepairableDatastore](ds)
 	if repairable == nil {
 		return fmt.Errorf("datastore of type '%s' does not support the repair operation", cfg.Engine)
 	}

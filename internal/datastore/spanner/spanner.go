@@ -482,7 +482,7 @@ func convertToWriteConstraintError(err error) error {
 		description := spanner.ErrDesc(err)
 		found := alreadyExistsRegex.FindStringSubmatch(description)
 		if found != nil {
-			return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+			return datastore.NewCreateRelationshipExistsError(&tuple.Relationship{
 				RelationshipReference: tuple.RelationshipReference{
 					Resource: tuple.ObjectAndRelation{
 						ObjectType: found[1],
@@ -498,7 +498,7 @@ func convertToWriteConstraintError(err error) error {
 			})
 		}
 
-		return common.NewCreateRelationshipExistsError(nil)
+		return datastore.NewCreateRelationshipExistsError(nil)
 	}
 	return nil
 }

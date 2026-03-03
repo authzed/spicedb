@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
@@ -110,7 +109,7 @@ func NewMySQLDatastore(ctx context.Context, uri string, options ...Option) (data
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 func NewReadOnlyMySQLDatastore(
@@ -124,7 +123,7 @@ func NewReadOnlyMySQLDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, options ...Option) (*mysqlDatastore, error) {
@@ -296,7 +295,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		if store.gcInterval > 0*time.Minute && config.gcEnabled {
 			store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
 			store.gcGroup.Go(func() error {
-				return common.StartGarbageCollector(
+				return datastore.StartGarbageCollector(
 					store.gcCtx,
 					store,
 					store.gcInterval,
@@ -713,7 +712,7 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, con
 	collectors = append(collectors, collector)
 
 	if isPrimary {
-		gcMetrics, err := common.RegisterGCMetrics()
+		gcMetrics, err := datastore.RegisterGCMetrics()
 		if err != nil {
 			return nil, collectors, err
 		}

@@ -151,7 +151,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 
 	// RelationTupleUpdate_CREATE of the same tuple and different caveat context will fail
 	_, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationCreate, rel)
-	req.ErrorAs(err, &common.CreateRelationshipExistsError{})
+	req.ErrorAs(err, &datastore.CreateRelationshipExistsError{})
 
 	// RelationTupleUpdate_TOUCH does update the caveat context for a caveated relationship that already exists
 	currentMap := rel.OptionalCaveat.Context.AsMap()

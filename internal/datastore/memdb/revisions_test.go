@@ -24,7 +24,3 @@ func TestHeadRevision(t *testing.T) {
 	err = ds.CheckRevision(t.Context(), newer)
 	require.NoError(t, err)
 }
-
-func (mdb *memdbDatastore) ExampleRetryableError() error {
-	return ErrSerialization
-}

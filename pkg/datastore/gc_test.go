@@ -1,4 +1,4 @@
-package common
+package datastore
 
 import (
 	"context"
@@ -15,9 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/authzed/spicedb/internal/datastore/revisions"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
+
+// testRevision is a minimal Revision implementation for GC tests.
+type testRevision struct{ id uint64 }
+
+func (r testRevision) String() string              { return fmt.Sprintf("%d", r.id) }
+func (r testRevision) Equal(o Revision) bool       { return r.id == o.(testRevision).id }
+func (r testRevision) GreaterThan(o Revision) bool { return r.id > o.(testRevision).id }
+func (r testRevision) LessThan(o Revision) bool    { return r.id < o.(testRevision).id }
+func (r testRevision) ByteSortable() bool          { return true }
 
 // Fake garbage collector that returns a new incremented revision each time
 // TxIDBefore is called.
@@ -49,49 +57,37 @@ func (f *fakeGCStore) BuildGarbageCollector(ctx context.Context) (GarbageCollect
 	return f.fakeGC, nil
 }
 
-func (f *fakeGCStore) ReadyState(context.Context) (datastore.ReadyState, error) {
-	return datastore.ReadyState{
-		IsReady: true,
-	}, nil
+func (f *fakeGCStore) ReadyState(context.Context) (ReadyState, error) {
+	return ReadyState{IsReady: true}, nil
 }
 
 func (f *fakeGCStore) HasGCRun() bool {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-
 	return f.markedCompleteCount > 0
 }
 
 func (f *fakeGCStore) MarkGCCompleted() {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-
 	f.markedCompleteCount++
 }
 
 func (f *fakeGCStore) ResetGCCompleted() {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-
 	f.resetGCCompletedCount++
 }
 
 func newFakeGCStore(deleter gcDeleter) *fakeGCStore {
 	return &fakeGCStore{
-		sync.RWMutex{},
-		0,
-		0,
-		&fakeGC{
-			lastRevision: 0,
-			deleter:      deleter,
-		},
+		fakeGC: &fakeGC{deleter: deleter},
 	}
 }
 
 func (gc *fakeGC) LockForGCRun(ctx context.Context) (bool, error) {
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
-
 	gc.wasLocked = true
 	return true, nil
 }
@@ -99,7 +95,6 @@ func (gc *fakeGC) LockForGCRun(ctx context.Context) (bool, error) {
 func (gc *fakeGC) UnlockAfterGCRun() error {
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
-
 	gc.wasUnlocked = true
 	return nil
 }
@@ -108,42 +103,25 @@ func (*fakeGC) Now(_ context.Context) (time.Time, error) {
 	return time.Now(), nil
 }
 
-func (gc *fakeGC) TxIDBefore(_ context.Context, _ time.Time) (datastore.Revision, error) {
+func (gc *fakeGC) TxIDBefore(_ context.Context, _ time.Time) (Revision, error) {
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
-
 	gc.lastRevision++
-
-	rev := revisions.NewForTransactionID(gc.lastRevision)
-
-	return rev, nil
+	return testRevision{id: gc.lastRevision}, nil
 }
 
-func (gc *fakeGC) DeleteBeforeTx(_ context.Context, rev datastore.Revision) (DeletionCounts, error) {
+func (gc *fakeGC) DeleteBeforeTx(_ context.Context, rev Revision) (DeletionCounts, error) {
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
-
 	gc.metrics.deleteBeforeTxCount++
-
-	revInt := rev.(revisions.TransactionIDRevision).TransactionID()
-
-	return gc.deleter.DeleteBeforeTx(revInt)
+	return gc.deleter.DeleteBeforeTx(rev.(testRevision).id)
 }
 
 func (gc *fakeGC) DeleteExpiredRels(_ context.Context) (int64, error) {
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
-
 	gc.metrics.deleteExpiredRelsCount++
-
 	return gc.deleter.DeleteExpiredRels()
-}
-
-func (gc *fakeGC) GetMetrics() gcMetrics {
-	gc.lock.Lock()
-	defer gc.lock.Unlock()
-
-	return gc.metrics
 }
 
 func (gc *fakeGC) Close() {}
@@ -176,7 +154,6 @@ func (d revisionErrorDeleter) DeleteBeforeTx(revision uint64) (DeletionCounts, e
 	if slices.Contains(d.errorOnRevisions, revision) {
 		return DeletionCounts{}, fmt.Errorf("delete error")
 	}
-
 	return DeletionCounts{}, nil
 }
 
@@ -190,7 +167,7 @@ func alwaysErr() error {
 
 func TestGCFailureBackoff(t *testing.T) {
 	t.Cleanup(func() {
-		goleak.VerifyNone(t)
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
 	})
 	localCounter := prometheus.NewCounter(gcFailureCounterConfig)
 	reg := prometheus.NewRegistry()
@@ -204,7 +181,7 @@ func TestGCFailureBackoff(t *testing.T) {
 			cancel()
 		})
 		go func() {
-			errCh <- runOnIntervalWithBackoff(ctx, alwaysErr, 100*time.Second, 1*time.Minute, localCounter)
+			errCh <- runGCOnIntervalWithBackoff(ctx, alwaysErr, 100*time.Second, 1*time.Minute, localCounter)
 		}()
 		time.Sleep(duration)
 		synctest.Wait()
@@ -243,11 +220,7 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
-			interval := 10 * time.Millisecond
-			window := 10 * time.Second
-			timeout := 1 * time.Minute
-
-			errCh <- StartGarbageCollector(ctx, gc, interval, window, timeout)
+			errCh <- StartGarbageCollector(ctx, gc, 10*time.Millisecond, 10*time.Second, 1*time.Minute)
 		}()
 		// The garbage collector should fail 5 times starting with 10ms interval,
 		// which should take ~160ms to complete. after that, it should resume
@@ -279,11 +252,7 @@ func TestGCUnlockOnTimeout(t *testing.T) {
 			cancel()
 		})
 		go func() {
-			interval := 10 * time.Millisecond
-			window := 10 * time.Second
-			timeout := 1 * time.Minute
-
-			errCh <- StartGarbageCollector(ctx, gc, interval, window, timeout)
+			errCh <- StartGarbageCollector(ctx, gc, 10*time.Millisecond, 10*time.Second, 1*time.Minute)
 		}()
 		time.Sleep(30 * time.Millisecond)
 		hasRunChan <- gc.HasGCRun()

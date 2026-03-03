@@ -585,7 +585,7 @@ func convertToWriteConstraintError(err error) error {
 		if found != nil {
 			parts := strings.Split(found[1], "-")
 			if len(parts) == 7 {
-				return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+				return datastore.NewCreateRelationshipExistsError(&tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
 							ObjectType: parts[0],
@@ -606,7 +606,7 @@ func convertToWriteConstraintError(err error) error {
 		if found != nil {
 			parts := strings.Split(found[1], "-")
 			if len(parts) == 7 {
-				return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+				return datastore.NewCreateRelationshipExistsError(&tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
 							ObjectType: parts[0],
@@ -623,7 +623,7 @@ func convertToWriteConstraintError(err error) error {
 			}
 		}
 
-		return common.NewCreateRelationshipExistsError(nil)
+		return datastore.NewCreateRelationshipExistsError(nil)
 	}
 	return nil
 }
