@@ -268,7 +268,7 @@ func ApplySchemaChangesOverExisting(
 		definitions = append(definitions, unchangedDefinitions...)
 
 		// WriteSchema will handle writing new/changed definitions and deleting removed ones
-		if err := rwt.WriteSchema(ctx, definitions, validated.schemaText, caveatTypeSet); err != nil {
+		if err := rwt.WriteSchema(ctx, definitions); err != nil {
 			return nil, err
 		}
 	}
