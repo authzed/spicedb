@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 ---
 name: "Security"
 on: # yamllint disable-line rule:truthy
@@ -15,6 +16,9 @@ permissions:
 env:
   DOCKERHUB_PUBLIC_ACCESS_TOKEN: "dckr_pat_8AEETZWxu8f7FvJUk9NrpyX_ZEQ"
   DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
+concurrency:
+  group: "spicedb-security-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
 jobs:
   codeql:
     name: "CodeQL Analyze"

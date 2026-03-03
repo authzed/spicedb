@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 ---
 name: "Pull Request Labeler"
 on: # yamllint disable-line rule:truthy
@@ -7,6 +8,9 @@ on: # yamllint disable-line rule:truthy
       - "checks_requested"
 permissions:
   contents: "read"
+concurrency:
+  group: "spicedb-pr-labeler-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
 jobs:
   triage:
     runs-on: "depot-ubuntu-24.04-small"
