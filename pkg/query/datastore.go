@@ -449,9 +449,15 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 		return r.iterResourcesWildcardImpl(ctx, subject)
 	}
 
+	// An empty Relation is always a bug in the caller: it must be either tuple.Ellipsis
+	// for direct membership or a specific subrelation string.
+	if subject.Relation == "" {
+		return nil, spiceerrors.MustBugf("IterResources called with empty subject.Relation for %s:%s; caller must use tuple.Ellipsis or a specific subrelation", subject.ObjectType, subject.ObjectID)
+	}
+
 	// Check if subject relation matches what this iterator expects.
-	// Both the schema's expected subrelation and the query's subject relation must match exactly.
-	// Ellipsis is a specific relation value, not a wildcard.
+	// When the schema uses ellipsis ("..."), callers should pass tuple.Ellipsis — the
+	// MustBugf above ensures "" never reaches here — but we match on the schema value directly.
 	if r.base.Subrelation() != subject.Relation {
 		return EmptyPathSeq(), nil
 	}
@@ -712,12 +718,12 @@ func (r *DatastoreIterator) SubjectTypes() ([]ObjectType, error) {
 		}}, nil
 	}
 
-	// For ellipsis, return the base type with empty subrelation
-	// Ellipsis means "any relation on this type"
+	// For ellipsis, preserve the ellipsis subrelation so callers that construct
+	// ObjectAndRelation values from SubjectTypes get the correct relation to query with.
 	if r.base.Subrelation() == tuple.Ellipsis {
 		return []ObjectType{{
 			Type:        r.base.Type(),
-			Subrelation: "",
+			Subrelation: tuple.Ellipsis,
 		}}, nil
 	}
 
