@@ -205,7 +205,6 @@ var _ SchemaReader = (*legacySchemaReaderAdapter)(nil)
 // writeSchemaViaLegacy implements the WriteSchema logic using Legacy* methods.
 func writeSchemaViaLegacy(ctx context.Context, legacyWriter datastore.LegacySchemaWriter,
 	legacyReader datastore.LegacySchemaReader, definitions []datastore.SchemaDefinition,
-	schemaString string, caveatTypeSet *types.TypeSet,
 ) error {
 	// Validate that no definition names overlap
 	nameSet := mapz.NewSet[string]()

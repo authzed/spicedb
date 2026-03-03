@@ -260,14 +260,14 @@ func TestPrimarySleeper_SleepConcurrently(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
-		for i := range 3 {
+		for range 3 {
 			wg.Add(1)
-			go func(idx int) {
+			go func() {
 				defer wg.Done()
 				start := time.Now()
 				sleeper.sleep(ctx)
 				results <- time.Since(start)
-			}(i)
+			}()
 		}
 
 		wg.Wait()
