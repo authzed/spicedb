@@ -1,10 +1,5 @@
 package query
 
-import (
-	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
-)
-
 // AliasIterator is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator to a specified alias relation.
 type AliasIterator struct {
@@ -144,31 +139,7 @@ func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object, fil
 // resourceExistsAsSubject queries the datastore to check if the given resource appears
 // as a subject in any relationship, including expired relationships.
 func (a *AliasIterator) resourceExistsAsSubject(ctx *Context, resource Object) (bool, error) {
-	filter := datastore.RelationshipsFilter{
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
-			OptionalSubjectType: resource.ObjectType,
-			OptionalSubjectIds:  []string{resource.ObjectID},
-			RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(a.relation),
-		}},
-		OptionalExpirationOption: datastore.ExpirationFilterOptionNone,
-	}
-
-	iter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithLimit(options.LimitOne),
-		options.WithSkipExpiration(true)) // Include expired relationships
-	if err != nil {
-		return false, err
-	}
-
-	// Check if any relationship exists
-	for _, err := range iter {
-		if err != nil {
-			return false, err
-		}
-		return true, nil
-	}
-
-	return false, nil
+	return ctx.Reader.SubjectExistsAsRelationship(ctx, resource, a.relation)
 }
 
 func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {

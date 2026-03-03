@@ -5,7 +5,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -17,7 +16,7 @@ import (
 type Context struct {
 	context.Context
 	Executor          Executor
-	Reader            datalayer.RevisionedReader // Datastore reader for this query at a specific revision
+	Reader            QueryDatastoreReader // Datastore reader for this query at a specific revision
 	CaveatContext     map[string]any
 	CaveatRunner      *caveats.CaveatRunner
 	TraceLogger       *TraceLogger // For debugging iterator execution (used by TraceStep calls inside iterators)
@@ -26,7 +25,6 @@ type Context struct {
 	// Pagination options for IterSubjects and IterResources
 	PaginationCursors map[string]*tuple.Relationship // Cursors for pagination, keyed by iterator ID
 	PaginationLimit   *uint64                        // Limit for pagination (max number of results to return)
-	PaginationSort    options.SortOrder              // Sort order for pagination
 
 	// observers holds the list of Observer implementations to notify during query execution.
 	observers []Observer
@@ -55,8 +53,14 @@ func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context
 type ContextOption func(*Context)
 
 // WithReader sets the datastore reader for the context.
-func WithReader(reader datalayer.RevisionedReader) ContextOption {
+func WithReader(reader QueryDatastoreReader) ContextOption {
 	return func(ctx *Context) { ctx.Reader = reader }
+}
+
+// WithRevisionedReader wraps a datalayer.RevisionedReader as a QueryDatastoreReader
+// and sets it as the datastore reader for the context.
+func WithRevisionedReader(reader datalayer.RevisionedReader) ContextOption {
+	return func(ctx *Context) { ctx.Reader = NewQueryDatastoreReader(reader) }
 }
 
 // WithObserver adds an Observer to the context.
@@ -87,11 +91,6 @@ func WithMaxRecursionDepth(depth int) ContextOption {
 // WithPaginationLimit sets the pagination limit for the context.
 func WithPaginationLimit(limit uint64) ContextOption {
 	return func(ctx *Context) { ctx.PaginationLimit = &limit }
-}
-
-// WithPaginationSort sets the pagination sort order for the context.
-func WithPaginationSort(sort options.SortOrder) ContextOption {
-	return func(ctx *Context) { ctx.PaginationSort = sort }
 }
 
 // GetPaginationCursor retrieves the cursor for a specific iterator ID.

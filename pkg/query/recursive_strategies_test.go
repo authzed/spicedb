@@ -60,7 +60,7 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 			// Contexts contain mutable state (e.g., recursiveFrontierCollectors)
 			// that must not be shared across concurrent goroutines.
 			queryCtx := NewLocalContext(context.Background(),
-				WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
+				WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
 
 			// Create recursive iterator with the specific strategy
 			recursive := NewRecursiveIterator(union, "folder", "view")
@@ -110,7 +110,7 @@ func TestRecursiveCheckStrategiesEmpty(t *testing.T) {
 	recursive := NewRecursiveIterator(emptyFixed, "folder", "view")
 
 	queryCtx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
 
 	strategies := []recursiveCheckStrategy{
 		recursiveCheckIterSubjects,
@@ -164,7 +164,7 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 	require.NoError(t, err)
 
 	queryCtx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
 
 	strategies := []recursiveCheckStrategy{
 		recursiveCheckIterSubjects,

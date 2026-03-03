@@ -20,14 +20,22 @@ import (
 
 // BenchmarkCheckDeepArrow benchmarks permission checking through a deep recursive chain.
 // This recreates the testharness scenario with:
-// - A 30+ level deep parent chain: document:target -> document:1 -> ... -> document:29
+// - A 30+ level deep parent chain: document:target -> document:1 -> ... -> document:30
 // - document:29#view@user:slow
 // - Checking if user:slow has viewer permission on document:target
 //
 // The permission viewer = view + parent->viewer creates a recursive traversal through
 // all 30+ levels to find the view relationship at the end of the chain.
+//
+// Four sub-benchmarks are run:
+//   - plain:         compile the outline directly and run Check each iteration
+//   - advised:       seed a CountAdvisor from a single warm-up run, apply it to the
+//     canonical outline, compile once, then run Check each iteration
+//   - plain_delay:   same as plain, but with a delay reader simulating network latency
+//   - advised_delay: same as advised, but with a delay reader simulating network latency
 func BenchmarkCheckDeepArrow(b *testing.B) {
-	// Create an in-memory datastore
+	// ---- shared setup ----
+
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(b, err)
 
@@ -43,76 +51,159 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 		}
 	`
 
-	// Compile the schema
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("benchmark"),
 		SchemaString: schemaText,
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(b, err)
 
-	// Write the schema
 	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
 	})
 	require.NoError(b, err)
 
-	// Build relationships for the deep arrow scenario
-	// Create a chain: document:target -> document:1 -> document:2 -> ... -> document:30 -> document:31
+	// Build relationships for the deep arrow scenario.
+	// Chain: document:target -> document:1 -> document:2 -> ... -> document:30
 	// Plus: document:29#view@user:slow
 	relationships := make([]tuple.Relationship, 0, 33)
-
-	// document:target#parent@document:1
 	relationships = append(relationships, tuple.MustParse("document:target#parent@document:1"))
-
-	// Chain: document:1 through document:30
 	for i := 1; i <= 30; i++ {
 		rel := fmt.Sprintf("document:%d#parent@document:%d", i, i+1)
 		relationships = append(relationships, tuple.MustParse(rel))
 	}
-
-	// The view relationship at the end of the chain
 	relationships = append(relationships, tuple.MustParse("document:29#view@user:slow"))
 
-	// Write all relationships to the datastore
 	revision, err := common.WriteRelationships(ctx, rawDS, tuple.UpdateOperationCreate, relationships...)
 	require.NoError(b, err)
 
-	// Build schema for querying
 	dsSchema, err := schema.BuildSchemaFromDefinitions(compiled.ObjectDefinitions, nil)
 	require.NoError(b, err)
 
-	// Create the iterator tree for the viewer permission using BuildIteratorFromSchema
-	viewerIterator, err := query.BuildIteratorFromSchema(dsSchema, "document", "viewer")
+	// Build the canonical outline once; all sub-benchmarks derive from it.
+	canonicalOutline, err := query.BuildOutlineFromSchema(dsSchema, "document", "viewer")
 	require.NoError(b, err)
 
-	// Create query context
-	queryCtx := query.NewLocalContext(ctx,
-		query.WithReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)),
-		query.WithMaxRecursionDepth(50),
-	)
-
-	// The resource we're checking: document:target
+	// The resource and subject are the same for all sub-benchmarks.
 	resources := query.NewObjects("document", "target")
-
-	// The subject we're checking: user:slow
 	subject := query.NewObject("user", "slow").WithEllipses()
 
-	// Reset the timer - everything before this is setup
-	b.ResetTimer()
+	// Base reader (no simulated latency).
+	reader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
 
-	// Run the benchmark
-	for b.Loop() {
-		// Check if user:slow can view document:target
-		// This will traverse the entire 30+ level chain
-		seq, err := queryCtx.Check(viewerIterator, resources, subject)
+	// Delay reader wrapping the base reader with simulated network latency.
+	delayReader := query.NewDelayReader(networkDelay, reader)
+
+	// buildAdvisedIterator seeds a CountAdvisor from a single warm-up run using the
+	// provided reader and returns the compiled advised iterator.
+	buildAdvisedIterator := func(b *testing.B, r query.QueryDatastoreReader) query.Iterator {
+		b.Helper()
+		obs := query.NewCountObserver()
+		warmIt, err := canonicalOutline.Compile()
+		require.NoError(b, err)
+		warmCtx := query.NewLocalContext(ctx,
+			query.WithReader(r),
+			query.WithObserver(obs),
+			query.WithMaxRecursionDepth(50),
+		)
+		seq, err := warmCtx.Check(warmIt, resources, subject)
+		require.NoError(b, err)
+		_, err = query.CollectAll(seq)
 		require.NoError(b, err)
 
-		// Collect all results (should find user:slow at the end of the chain)
-		paths, err := query.CollectAll(seq)
+		advisor := query.NewCountAdvisor(obs.GetStats())
+		advisedCO, err := query.ApplyAdvisor(canonicalOutline, advisor)
 		require.NoError(b, err)
-
-		// Verify we found the expected result
-		require.Len(b, paths, 1)
-		require.Equal(b, "slow", paths[0].Subject.ObjectID)
+		advisedIt, err := advisedCO.Compile()
+		require.NoError(b, err)
+		return advisedIt
 	}
+
+	// ---- plain sub-benchmark ----
+
+	b.Run("plain", func(b *testing.B) {
+		it, err := canonicalOutline.Compile()
+		require.NoError(b, err)
+
+		b.Log("plain explain:\n", it.Explain())
+
+		queryCtx := query.NewLocalContext(ctx,
+			query.WithReader(reader),
+			query.WithMaxRecursionDepth(50),
+		)
+
+		b.ResetTimer()
+		for b.Loop() {
+			seq, err := queryCtx.Check(it, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.Len(b, paths, 1)
+			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+		}
+	})
+
+	// ---- advised sub-benchmark ----
+
+	b.Run("advised", func(b *testing.B) {
+		advisedIt := buildAdvisedIterator(b, reader)
+
+		b.Log("advised explain:\n", advisedIt.Explain())
+
+		queryCtx := query.NewLocalContext(ctx,
+			query.WithReader(reader),
+			query.WithMaxRecursionDepth(50),
+		)
+
+		b.ResetTimer()
+		for b.Loop() {
+			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.Len(b, paths, 1)
+			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+		}
+	})
+
+	// ---- plain_delay sub-benchmark ----
+
+	b.Run("plain_delay", func(b *testing.B) {
+		it, err := canonicalOutline.Compile()
+		require.NoError(b, err)
+
+		queryCtx := query.NewLocalContext(ctx,
+			query.WithReader(delayReader),
+			query.WithMaxRecursionDepth(50),
+		)
+
+		b.ResetTimer()
+		for b.Loop() {
+			seq, err := queryCtx.Check(it, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.Len(b, paths, 1)
+			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+		}
+	})
+
+	// ---- advised_delay sub-benchmark ----
+
+	b.Run("advised_delay", func(b *testing.B) {
+		advisedIt := buildAdvisedIterator(b, delayReader)
+		queryCtx := query.NewLocalContext(ctx,
+			query.WithReader(delayReader),
+			query.WithMaxRecursionDepth(50),
+		)
+
+		b.ResetTimer()
+		for b.Loop() {
+			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			require.NoError(b, err)
+			paths, err := query.CollectAll(seq)
+			require.NoError(b, err)
+			require.Len(b, paths, 1)
+			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+		}
+	})
 }

@@ -154,7 +154,7 @@ func TestCountObserverIntegration(t *testing.T) {
 	// Create a context with count observer enabled
 	countObs := NewCountObserver()
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithObserver(countObs))
 
 	// Execute a Check operation
