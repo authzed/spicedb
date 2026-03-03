@@ -142,12 +142,14 @@ func (a *ArrowIterator) checkRightToLeft(ctx *Context, resources []Object, subje
 			}
 			rightPathCount++
 
-			// rightPath.Resource is an intermediate object from the right side
-			// Now check if any of our input resources connect to this intermediate via left
+			// rightPath.Resource is an intermediate object from the right side.
+			// Now check if any of our input resources connect to this intermediate via left.
+			// Use tuple.Ellipsis as the relation since the left side stores subjects with "..."
+			// (the canonical relation for direct membership with no subrelation).
 			intermediateAsSubject := ObjectAndRelation{
 				ObjectType: rightPath.Resource.ObjectType,
 				ObjectID:   rightPath.Resource.ObjectID,
-				Relation:   "",
+				Relation:   tuple.Ellipsis,
 			}
 
 			leftSeq, err := ctx.Check(a.left, resources, intermediateAsSubject)

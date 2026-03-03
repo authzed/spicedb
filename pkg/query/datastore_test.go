@@ -414,6 +414,6 @@ func TestDatastoreIterator_Types(t *testing.T) {
 		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("user", subjectTypes[0].Type)
-		require.Empty(subjectTypes[0].Subrelation) // Ellipsis returns empty subrelation
+		require.Equal(tuple.Ellipsis, subjectTypes[0].Subrelation) // Ellipsis is preserved as-is
 	})
 }
