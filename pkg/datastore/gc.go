@@ -1,4 +1,4 @@
-package common
+package datastore
 
 import (
 	"context"
@@ -8,10 +8,12 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
 
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
+
+var gcTracer = otel.Tracer("spicedb/pkg/datastore")
 
 var (
 	gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -89,7 +91,7 @@ type GarbageCollectableDatastore interface {
 
 	// ReadyState returns the current state of the datastore. Note that this does not
 	// operate over the dedicated connection.
-	ReadyState(context.Context) (datastore.ReadyState, error)
+	ReadyState(context.Context) (ReadyState, error)
 
 	// HasGCRun returns true if a garbage collection run has been completed.
 	HasGCRun() bool
@@ -117,10 +119,10 @@ type GarbageCollector interface {
 	Now(context.Context) (time.Time, error)
 
 	// TxIDBefore returns the highest transaction ID before the provided time.
-	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
+	TxIDBefore(context.Context, time.Time) (Revision, error)
 
 	// DeleteBeforeTx deletes all data before the provided transaction ID.
-	DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (DeletionCounts, error)
+	DeleteBeforeTx(ctx context.Context, txID Revision) (DeletionCounts, error)
 
 	// DeleteExpiredRels deletes all relationships that have expired.
 	DeleteExpiredRels(ctx context.Context) (int64, error)
@@ -144,12 +146,13 @@ func (g DeletionCounts) MarshalZerologObject(e *zerolog.Event) {
 		Int64("namespaces", g.Namespaces)
 }
 
+// MaxGCInterval is the maximum interval between GC runs.
 var MaxGCInterval = 60 * time.Minute
 
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, collectable GarbageCollectableDatastore, interval, window, timeout time.Duration) error {
-	return runOnIntervalWithBackoff(ctx, func() error {
+	return runGCOnIntervalWithBackoff(ctx, func() error {
 		// NOTE: we're okay using the parent context here because the
 		// callers of this function create a dedicated garbage collection
 		// context anyway, which is only cancelled when the ds is closed.
@@ -159,7 +162,7 @@ func StartGarbageCollector(ctx context.Context, collectable GarbageCollectableDa
 	}, interval, timeout, gcFailureCounter)
 }
 
-func runOnIntervalWithBackoff(ctx context.Context, taskFn func() error, interval, timeout time.Duration, failureCounter prometheus.Counter) error {
+func runGCOnIntervalWithBackoff(ctx context.Context, taskFn func() error, interval, timeout time.Duration, failureCounter prometheus.Counter) error {
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
 	backoffInterval.MaxInterval = max(MaxGCInterval, interval)
@@ -206,7 +209,7 @@ func runOnIntervalWithBackoff(ctx context.Context, taskFn func() error, interval
 
 // RunGarbageCollection runs garbage collection for the datastore.
 func RunGarbageCollection(ctx context.Context, collectable GarbageCollectableDatastore, window time.Duration) error {
-	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
+	ctx, span := gcTracer.Start(ctx, "RunGarbageCollection")
 	defer span.End()
 
 	// Before attempting anything, check if the datastore is ready.

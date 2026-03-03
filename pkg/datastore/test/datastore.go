@@ -32,11 +32,27 @@ func (f DatastoreTesterFunc) New(tb testing.TB, revisionQuantization, gcInterval
 	return f(tb, revisionQuantization, gcInterval, gcWindow, watchBufferLength)
 }
 
-type TestableDatastore interface {
-	datastore.Datastore
-
-	ExampleRetryableError() error
+// TesterFactory creates DatastoreTesters with a known retryable error for use in RetryTest.
+type TesterFactory struct {
+	retryErr error
 }
+
+// NewTesterFactory creates a TesterFactory with the given retryable error.
+func NewTesterFactory(retryErr error) *TesterFactory {
+	return &TesterFactory{retryErr: retryErr}
+}
+
+// NewTester wraps a DatastoreTester and adds a retryable error for use in RetryTest.
+func (f *TesterFactory) NewTester(tester DatastoreTester) DatastoreTester {
+	return &retryableTester{DatastoreTester: tester, retryErr: f.retryErr}
+}
+
+type retryableTester struct {
+	DatastoreTester
+	retryErr error
+}
+
+func (r *retryableTester) RetryableError() error { return r.retryErr }
 
 type Categories map[string]struct{}
 

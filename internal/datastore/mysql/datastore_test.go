@@ -32,12 +32,7 @@ const (
 	chunkRelationshipCount = 2000
 )
 
-// Implement TestableDatastore interface
-func (mds *mysqlDatastore) ExampleRetryableError() error {
-	return &mysql.MySQLError{
-		Number: errMysqlDeadlock,
-	}
-}
+var mysqlFactory = test.NewTesterFactory(&mysql.MySQLError{Number: errMysqlDeadlock})
 
 type datastoreTester struct {
 	b      testdatastore.RunningEngineForTest
@@ -123,7 +118,7 @@ func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 func TestMySQL8Datastore(t *testing.T) {
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
 	dst := datastoreTester{b: b}
-	test.AllWithExceptions(t, test.DatastoreTesterFunc(dst.createDatastore), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory), true)
+	test.AllWithExceptions(t, mysqlFactory.NewTester(test.DatastoreTesterFunc(dst.createDatastore)), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory), true)
 	additionalMySQLTests(t, b)
 }
 
@@ -454,7 +449,7 @@ func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 	req.True(r.IsReady)
 
-	gc := ds.(common.GarbageCollectableDatastore)
+	gc := ds.(datastore.GarbageCollectableDatastore)
 
 	mgg, err := gc.BuildGarbageCollector(ctx)
 	req.NoError(err)
@@ -495,7 +490,7 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 	})
 	req.NoError(err)
 
-	gc := ds.(common.GarbageCollectableDatastore)
+	gc := ds.(datastore.GarbageCollectableDatastore)
 
 	mgg, err := gc.BuildGarbageCollector(ctx)
 	req.NoError(err)

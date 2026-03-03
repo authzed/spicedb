@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	dscommon "github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -67,7 +67,7 @@ func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) e
 	if errors.As(err, &pgerr) && pgerr.Code == pgUniqueConstraintViolation && slices.Contains(livingTupleConstraints, pgerr.ConstraintName) {
 		found := createConflictDetailsRegex.FindStringSubmatch(pgerr.Detail)
 		if found != nil {
-			return dscommon.NewCreateRelationshipExistsError(&tuple.Relationship{
+			return datastore.NewCreateRelationshipExistsError(&tuple.Relationship{
 				RelationshipReference: tuple.RelationshipReference{
 					Resource: tuple.ObjectAndRelation{
 						ObjectType: strings.TrimSpace(found[2]),
@@ -85,7 +85,7 @@ func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) e
 
 		found = createConflictDetailsRegexWithoutCaveat.FindStringSubmatch(pgerr.Detail)
 		if found != nil {
-			return dscommon.NewCreateRelationshipExistsError(&tuple.Relationship{
+			return datastore.NewCreateRelationshipExistsError(&tuple.Relationship{
 				RelationshipReference: tuple.RelationshipReference{
 					Resource: tuple.ObjectAndRelation{
 						ObjectType: strings.TrimSpace(found[2]),
@@ -101,7 +101,7 @@ func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) e
 			})
 		}
 
-		return dscommon.NewCreateRelationshipExistsError(nil)
+		return datastore.NewCreateRelationshipExistsError(nil)
 	}
 
 	return nil

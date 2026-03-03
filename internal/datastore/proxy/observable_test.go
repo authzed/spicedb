@@ -20,10 +20,8 @@ func (obs observableTest) New(tb testing.TB, revisionQuantization, _, gcWindow t
 	return NewObservableDatastoreProxy(db), nil
 }
 
-func TestObservableProxy(t *testing.T) {
-	test.All(t, observableTest{}, true)
-}
+var observableFactory = test.NewTesterFactory(memdb.ErrSerialization)
 
-func (p *observableProxy) ExampleRetryableError() error {
-	return memdb.ErrSerialization
+func TestObservableProxy(t *testing.T) {
+	test.All(t, observableFactory.NewTester(observableTest{}), true)
 }

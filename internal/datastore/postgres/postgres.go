@@ -25,7 +25,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
@@ -110,7 +109,7 @@ func NewPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 // NewReadOnlyPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL
@@ -127,7 +126,7 @@ func NewReadOnlyPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 func newPostgresDatastore(
@@ -296,6 +295,8 @@ func newPostgresDatastore(
 		isolationLevel = pgx.RepeatableRead
 	}
 
+	startGarbageCollector := datastore.StartGarbageCollector
+
 	datastore := &pgDatastore{
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
@@ -350,7 +351,7 @@ func newPostgresDatastore(
 
 		if datastore.gcInterval > 0*time.Minute && config.gcEnabled {
 			datastore.workerGroup.Go(func() error {
-				return common.StartGarbageCollector(
+				return startGarbageCollector(
 					datastore.workerCtx,
 					datastore,
 					datastore.gcInterval,
@@ -832,7 +833,7 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, rea
 		}
 		collectors = append(collectors, writeCollector)
 
-		gcCollectors, err := common.RegisterGCMetrics()
+		gcCollectors, err := datastore.RegisterGCMetrics()
 		if err != nil {
 			return collectors, err
 		}

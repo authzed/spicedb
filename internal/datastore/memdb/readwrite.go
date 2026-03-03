@@ -11,7 +11,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -90,7 +89,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...tuple.Relationshi
 				if err != nil {
 					return err
 				}
-				return common.NewCreateRelationshipExistsError(&rt)
+				return datastore.NewCreateRelationshipExistsError(&rt)
 			}
 			if err := tx.Insert(tableRelationship, rel); err != nil {
 				return fmt.Errorf("error inserting relationship: %w", err)

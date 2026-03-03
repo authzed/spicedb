@@ -122,7 +122,7 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	gcable, ok := ds.(common.GarbageCollectableDatastore)
+	gcable, ok := ds.(datastore.GarbageCollectableDatastore)
 	if !ok {
 		return
 	}
@@ -176,12 +176,12 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// Sleep to ensure we're past the GC window.
 	time.Sleep(gcWindow)
 
-	gcable, ok := ds.(common.GarbageCollectableDatastore)
+	gcable, ok := ds.(datastore.GarbageCollectableDatastore)
 	// NOTE: CRDB and Spanner both do garbage collection with row-level TTLs
 	if ok {
 		// Run garbage collection.
 		gcable.ResetGCCompleted()
-		err := common.RunGarbageCollection(ctx, gcable, gcWindow)
+		err := datastore.RunGarbageCollection(ctx, gcable, gcWindow)
 		require.NoError(err)
 		require.True(gcable.HasGCRun(), "GC was never run as expected")
 	}

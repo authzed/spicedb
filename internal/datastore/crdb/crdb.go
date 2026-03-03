@@ -22,7 +22,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"resenje.org/singleflight"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
@@ -254,7 +253,7 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 type crdbDatastore struct {

@@ -13,6 +13,15 @@ import (
 )
 
 func RetryTest(t *testing.T, tester DatastoreTester) {
+	type retryableProvider interface {
+		RetryableError() error
+	}
+	rp, ok := tester.(retryableProvider)
+	if !ok {
+		t.Fatal("tester does not provide a retryable error; wrap it with NewTesterFactory(...).NewTester(...)")
+	}
+	retryErr := rp.RetryableError()
+
 	disableRetriesOptions := []options.RWTOptionsOption{options.WithDisableRetries(true)}
 
 	testCases := []struct {
@@ -31,17 +40,8 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
-
-			var ds TestableDatastore
-			if tds, ok := rawDS.(TestableDatastore); ok {
-				ds = tds
-			} else {
-				if uw, ok := rawDS.(datastore.UnwrappableDatastore); ok {
-					ds = uw.Unwrap().(TestableDatastore)
-				}
-			}
 
 			ctx, cancel := context.WithTimeout(t.Context(), 1500*time.Millisecond)
 			defer cancel()
@@ -51,7 +51,7 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 				attempts++
 
 				if tc.returnRetryableError {
-					return ds.ExampleRetryableError()
+					return retryErr
 				}
 				return errors.New("not retryable")
 			}, tc.txOptions...)
