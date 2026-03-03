@@ -27,7 +27,7 @@ var (
 		Subsystem: "datastore",
 		Name:      "loaded_relationships_count",
 		Buckets:   []float64{0, 1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
-		Help:      "total number of relationships loaded for a query",
+		Help:      "Histogram of the number of relationships loaded per individual datastore query. High p99 values (>1000) may indicate broad permission checks or missing filters.",
 	})
 
 	queryLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{

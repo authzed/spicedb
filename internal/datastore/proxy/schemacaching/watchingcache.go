@@ -23,21 +23,21 @@ var namespacesFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_namespaces_fallback_mode",
-	Help:      "value of 1 if the cache is in fallback mode and 0 otherwise",
+	Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
 })
 
 var caveatsFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_caveats_fallback_mode",
-	Help:      "value of 1 if the cache is in fallback mode and 0 otherwise",
+	Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
 })
 
 var schemaCacheRevisionGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_tracked_revision",
-	Help:      "the currently tracked max revision for the schema cache",
+	Help:      "The current maximum revision tracked by the CockroachDB changefeed-backed schema cache. A value that is not advancing over time indicates the changefeed has stalled.",
 })
 
 var definitionsReadCachedCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
