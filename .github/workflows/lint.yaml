@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 ---
 name: "Lint"
 on: # yamllint disable-line rule:truthy
@@ -12,6 +13,9 @@ on: # yamllint disable-line rule:truthy
       - "checks_requested"
 permissions:
   contents: "read"
+concurrency:
+  group: "spicedb-lint-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
 jobs:
   go-license-check:
     name: "License Check"

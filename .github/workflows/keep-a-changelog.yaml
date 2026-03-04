@@ -15,6 +15,9 @@ on: # yamllint disable-line rule:truthy
 
 permissions:
   contents: "read"
+concurrency:
+  group: "spicedb-changelog-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
 
 jobs:
   changelog:
