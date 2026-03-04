@@ -30,12 +30,11 @@ type ValidatedSchemaChanges struct {
 	// additiveOnly indicates whether all operations should be applied
 	// or only those operations which are additive (i.e. not changes or deletions)
 	additiveOnly bool
-	schemaText   string
 }
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
-func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool, schemaText string) (*ValidatedSchemaChanges, error) {
+func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool) (*ValidatedSchemaChanges, error) {
 	// 1) Validate the caveats defined.
 	newCaveatDefNames := mapz.NewSet[string]()
 	for _, caveatDef := range compiled.CaveatDefinitions {
@@ -68,7 +67,6 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 		newCaveatDefNames:    newCaveatDefNames,
 		newObjectDefNames:    newObjectDefNames,
 		additiveOnly:         additiveOnly,
-		schemaText:           schemaText,
 	}, nil
 }
 

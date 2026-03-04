@@ -610,7 +610,7 @@ definition resource {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false, tc.endingSchema)
+			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false)
 			if tc.expectedError != "" && err != nil && tc.expectedError == err.Error() {
 				return
 			}
@@ -750,7 +750,7 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false, tc.patchSchema)
+			validated, err := ValidateSchemaChanges(t.Context(), compiled, caveattypes.Default.TypeSet, false)
 			if tc.expectedError != "" {
 				require.ErrorContains(err, tc.expectedError)
 				return
