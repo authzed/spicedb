@@ -23,7 +23,7 @@ func ValidateSchemaChangesWithCaveatTypeSet(
 	isAdditiveOnly bool,
 	schemaText string,
 ) (*shared.ValidatedSchemaChanges, error) {
-	return shared.ValidateSchemaChanges(ctx, compiled, caveatTypeSet, isAdditiveOnly, schemaText)
+	return shared.ValidateSchemaChanges(ctx, compiled, caveatTypeSet, isAdditiveOnly)
 }
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
