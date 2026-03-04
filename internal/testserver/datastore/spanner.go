@@ -11,10 +11,9 @@ import (
 	adminpb "cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	instances "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
-	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -28,64 +27,60 @@ type spannerTest struct {
 }
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
-func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
-	pool, err := dockertest.NewPool("")
+func RunSpannerForTesting(t testing.TB, targetMigration string) RunningEngineForTest {
+	ctx := t.Context()
+
+	container, err := testcontainers.Run(ctx, "gcr.io/cloud-spanner-emulator/emulator:1.5.41",
+		testcontainers.WithWaitStrategy(wait.ForListeningPort("9010/tcp").WithStartupTimeout(dockerBootTimeout),
+			&spannerWaitStrategy{},
+		),
+		testcontainers.WithExposedPorts("9010/tcp"),
+	)
+	require.NoError(t, err)
+	testcontainers.CleanupContainer(t, container)
+
+	endpoint, err := container.PortEndpoint(ctx, "9010/tcp", "")
 	require.NoError(t, err)
 
-	name := "spanner-" + uuid.New().String()
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Name:         name,
-		Repository:   "gcr.io/cloud-spanner-emulator/emulator",
-		Tag:          "1.5.41",
-		ExposedPorts: []string{"9010/tcp"},
-		NetworkID:    bridgeNetworkName,
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(resource))
-	})
-
-	port := resource.GetPort("9010/tcp")
-	spannerEmulatorAddr := "localhost:" + port
-	t.Setenv("SPANNER_EMULATOR_HOST", spannerEmulatorAddr)
-
-	require.NoError(t, pool.Retry(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), dockerBootTimeout)
-		defer cancel()
-
-		instancesClient, err := instances.NewInstanceAdminClient(ctx)
-		if err != nil {
-			return err
-		}
-		defer func() { require.NoError(t, instancesClient.Close()) }()
-
-		ctx, cancel = context.WithTimeout(context.Background(), dockerBootTimeout)
-		defer cancel()
-		_, err = instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
-			Parent:     "projects/fake-project-id",
-			InstanceId: "init",
-			Instance: &instancepb.Instance{
-				Config:      "emulator-config",
-				DisplayName: "Test Instance",
-				NodeCount:   1,
-			},
-		})
-		return err
-	}))
+	t.Setenv("SPANNER_EMULATOR_HOST", endpoint)
 
 	builder := &spannerTest{
 		targetMigration: targetMigration,
 	}
-	if bridgeNetworkName != "" {
-		builder.hostname = name
-	}
-
 	return builder
+}
+
+type spannerWaitStrategy struct{}
+
+var _ wait.Strategy = (*spannerWaitStrategy)(nil)
+
+func (s *spannerWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("container not ready within the timeout: %w", ctx.Err())
+		case <-time.After(500 * time.Millisecond):
+			instancesClient, err := instances.NewInstanceAdminClient(ctx)
+			if err != nil {
+				// If we couldn't create the client we continue
+				continue
+			}
+			_, err = instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
+				Parent:     "projects/fake-project-id",
+				InstanceId: "init",
+				Instance: &instancepb.Instance{
+					Config:      "emulator-config",
+					DisplayName: "Test Instance",
+					NodeCount:   1,
+				},
+			})
+			instancesClient.Close()
+			if err == nil {
+				// If we successfully created an instance, we're done and we break
+				break
+			}
+		}
+	}
 }
 
 func (b *spannerTest) ExternalEnvVars() []string {
@@ -100,7 +95,7 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 
 	newInstanceName := "fake-instance-" + uniquePortion
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	instancesClient, err := instances.NewInstanceAdminClient(ctx)
