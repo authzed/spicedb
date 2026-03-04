@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
@@ -69,6 +70,8 @@ var APIShapeLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	NativeHistogramBucketFactor: 1.1,
 }, append([]string{"api_kind"}, allLabels...))
 
+var tracer = otel.Tracer("spicedb/internal/middleware")
+
 // ShapeBuilder is a function that returns a slice of strings representing the shape of the API call.
 // This is used to report the shape of the API call to Prometheus.
 type ShapeBuilder func() APIShapeLabels
@@ -79,6 +82,8 @@ func ObserveShapeLatency(ctx context.Context, methodName string, shape APIShapeL
 }
 
 func observeShapeLatency(ctx context.Context, metric *prometheus.HistogramVec, methodName string, shape APIShapeLabels, duration time.Duration) {
+	ctx, span := tracer.Start(ctx, "perfInsights.observeShapeLatency")
+	defer span.End()
 	labels := buildLabels(methodName, shape)
 	if len(labels) == 0 {
 		log.Warn().Str("method", methodName).

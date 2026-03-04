@@ -9,12 +9,15 @@ import (
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
+
+var tracer = otel.Tracer("spicedb/internal/middleware/memory_protection")
 
 // RequestsProcessed tracks requests that were processed by this middleware.
 var RequestsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -44,7 +47,7 @@ func New(usageProvider MemoryUsageProvider, name string) *MemoryProtectionMiddle
 // UnaryServerInterceptor returns a unary server interceptor that rejects incoming requests is memory usage is too high
 func (am *MemoryProtectionMiddleware) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if err := am.checkAdmission(info.FullMethod); err != nil {
+		if err := am.checkAdmission(ctx, info.FullMethod); err != nil {
 			return nil, err
 		}
 
@@ -55,7 +58,7 @@ func (am *MemoryProtectionMiddleware) UnaryServerInterceptor() grpc.UnaryServerI
 // StreamServerInterceptor returns a stream server interceptor that rejects incoming requests is memory usage is too high
 func (am *MemoryProtectionMiddleware) StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if err := am.checkAdmission(info.FullMethod); err != nil {
+		if err := am.checkAdmission(stream.Context(), info.FullMethod); err != nil {
 			return err
 		}
 
@@ -65,7 +68,10 @@ func (am *MemoryProtectionMiddleware) StreamServerInterceptor() grpc.StreamServe
 }
 
 // checkAdmission returns an error if the request should be denied because memory usage is too high.
-func (am *MemoryProtectionMiddleware) checkAdmission(method string) error {
+func (am *MemoryProtectionMiddleware) checkAdmission(ctx context.Context, method string) error {
+	_, span := tracer.Start(ctx, "checkMemoryUsage")
+	defer span.End()
+
 	accept := true
 	defer func() {
 		am.recordMetric(method, accept)
