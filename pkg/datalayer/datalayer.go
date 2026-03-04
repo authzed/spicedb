@@ -51,7 +51,7 @@ type DataLayer interface {
 // SchemaReader groups schema read methods, accessed via RevisionedReader.ReadSchema().
 type SchemaReader interface {
 	// SchemaText returns the full schema text.
-	SchemaText() (string, error)
+	SchemaText(ctx context.Context) (string, error)
 
 	// LookupTypeDefByName looks up a type definition by name.
 	LookupTypeDefByName(ctx context.Context, name string) (datastore.RevisionedTypeDefinition, bool, error)

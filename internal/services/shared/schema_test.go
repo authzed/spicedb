@@ -778,7 +778,7 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 
 				sr, err := rwt.ReadSchema()
 				require.NoError(err)
-				schemaText, err := sr.SchemaText()
+				schemaText, err := sr.SchemaText(t.Context())
 				require.NoError(err)
 				require.Equal(tc.expectedSchema, schemaText)
 				return nil
