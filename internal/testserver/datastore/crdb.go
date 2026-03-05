@@ -41,7 +41,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 	name := "crds-" + uuid.New().String()
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
-		Repository: "mirror.gcr.io/cockroachdb/cockroach",
+		Repository: "cockroachdb/cockroach",
 		Tag:        "v" + crdbVersion,
 		Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
 		NetworkID:  bridgeNetworkName,
