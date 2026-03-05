@@ -196,7 +196,7 @@ func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, cave
 			allDefs = append(allDefs, od)
 		}
 		if len(allDefs) > 0 {
-			if err := rwt.WriteSchema(ctx, allDefs); err != nil {
+			if err := rwt.WriteSchema(ctx, allDefs, "", caveatTypeSet); err != nil {
 				return err
 			}
 		}
