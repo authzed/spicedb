@@ -101,6 +101,7 @@ func (Lint) Analyzers() error {
 		"-protomarshalcheck",
 		"-telemetryconvcheck",
 		"-iferrafterrowclosecheck",
+		"-singleflightcheck",
 		// Skip generated protobuf files for this check
 		// Also skip test where we're explicitly using proto.Marshal to assert
 		// that the proto.Marshal behavior matches foo.MarshalVT()
