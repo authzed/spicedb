@@ -40,7 +40,6 @@ func TestConsistencyPerDatastore(t *testing.T) {
 		t.Run(engineID, func(t *testing.T) {
 			// FIXME errors arise if spanner is run in parallel
 			if engineID != "spanner" {
-				t.Parallel()
 			}
 			for _, filePath := range consistencyTestFiles {
 				rde := testdatastore.RunDatastoreEngine(t, engineID)
