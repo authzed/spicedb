@@ -26,12 +26,10 @@ func (mdbt memDBTest) New(_ testing.TB, revisionQuantization, _, gcWindow time.D
 }
 
 func TestMemdbDatastore(t *testing.T) {
-	t.Parallel()
 	test.All(t, memDBTest{}, true)
 }
 
 func TestConcurrentWritePanic(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
@@ -83,7 +81,6 @@ func TestConcurrentWritePanic(t *testing.T) {
 }
 
 func TestConcurrentWriteRelsError(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
@@ -114,7 +111,6 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 }
 
 func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)

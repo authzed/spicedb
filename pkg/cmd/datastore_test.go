@@ -10,7 +10,6 @@ import (
 )
 
 func TestExecuteGC(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name          string
@@ -33,7 +32,6 @@ func TestExecuteGC(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			cfg := tt.cfgBuilder(t)
 			err := executeGC(t.Context(), cfg)
@@ -43,7 +41,6 @@ func TestExecuteGC(t *testing.T) {
 }
 
 func TestExecuteRepair(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name          string
@@ -78,7 +75,6 @@ func TestExecuteRepair(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			cfg := tt.cfgBuilder(t)
 			err := executeRepair(cfg, []string{})

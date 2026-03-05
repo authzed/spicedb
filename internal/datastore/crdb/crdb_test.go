@@ -74,7 +74,6 @@ func crdbTestVersion() string {
 }
 
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
-	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 	test.All(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
@@ -135,7 +134,6 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 }
 
 func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
-	t.Parallel()
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
@@ -147,7 +145,6 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	}
 	for _, quantization := range quantizationDurations {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
-			t.Parallel()
 			ctx := context.Background()
 
 			ds := engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -201,7 +198,6 @@ var defaultKeyForTesting = proxy.KeyConfig{
 }
 
 func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
-	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
 	test.All(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
@@ -261,7 +257,6 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 }
 
 func TestWatchFeatureDetection(t *testing.T) {
-	t.Parallel()
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 	cases := []struct {
@@ -306,7 +301,6 @@ func TestWatchFeatureDetection(t *testing.T) {
 	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			adminConn, connStrings := newCRDBWithUser(t, pool)

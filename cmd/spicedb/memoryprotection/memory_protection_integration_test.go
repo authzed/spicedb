@@ -29,7 +29,6 @@ func init() {
 }
 
 func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
-	t.Parallel()
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)

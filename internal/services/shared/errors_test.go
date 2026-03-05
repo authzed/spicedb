@@ -24,7 +24,6 @@ import (
 )
 
 func TestRewriteError(t *testing.T) {
-	t.Parallel()
 
 	ctxCancelWithCause, cancel := context.WithCancelCause(t.Context())
 	cancel(fmt.Errorf("look at me i canceled this"))
@@ -232,7 +231,6 @@ func TestRewriteError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			ctx := t.Context()
 			if tt.inputCtx != nil {

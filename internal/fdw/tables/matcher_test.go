@@ -8,7 +8,6 @@ import (
 )
 
 func TestPatternMatcher(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name           string
@@ -64,7 +63,6 @@ func TestPatternMatcher(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
@@ -88,7 +86,6 @@ func TestPatternMatcher(t *testing.T) {
 }
 
 func TestEqualityPattern(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name               string
@@ -132,7 +129,6 @@ func TestEqualityPattern(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
@@ -159,7 +155,6 @@ func TestEqualityPattern(t *testing.T) {
 }
 
 func TestSubQueryPlaceholderPattern(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name        string
@@ -185,7 +180,6 @@ func TestSubQueryPlaceholderPattern(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
@@ -212,7 +206,6 @@ func TestSubQueryPlaceholderPattern(t *testing.T) {
 }
 
 func TestColumnRefPattern(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name            string
@@ -238,7 +231,6 @@ func TestColumnRefPattern(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)

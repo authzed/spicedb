@@ -12,7 +12,6 @@ import (
 )
 
 func TestNewPackage(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name      string
@@ -38,7 +37,6 @@ func TestNewPackage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			pkg := NewPackage(tc.table, tc.operation)
 			require.NotNil(t, pkg)
@@ -52,7 +50,6 @@ func TestNewPackage(t *testing.T) {
 }
 
 func TestAddWidthSample(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name    string
@@ -74,7 +71,6 @@ func TestAddWidthSample(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			pkg := NewPackage("test_table", "Test Scan")
 			for _, sample := range tc.samples {
@@ -90,7 +86,6 @@ func TestAddWidthSample(t *testing.T) {
 }
 
 func TestAddSample(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name    string
@@ -134,7 +129,6 @@ func TestAddSample(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			pkg := NewPackage("test_table", "Test Scan")
 			for _, sample := range tc.samples {
@@ -150,7 +144,6 @@ func TestAddSample(t *testing.T) {
 }
 
 func TestExplainWithNoSamples(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name      string
@@ -171,7 +164,6 @@ func TestExplainWithNoSamples(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			pkg := NewPackage(tc.table, tc.operation)
 			result := pkg.Explain()
@@ -184,7 +176,6 @@ func TestExplainWithNoSamples(t *testing.T) {
 }
 
 func TestExplainWithSamples(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name      string
@@ -269,7 +260,6 @@ func TestExplainWithSamples(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			pkg := NewPackage(tc.table, tc.operation)
 
@@ -311,7 +301,6 @@ func TestExplainWithSamples(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	t.Parallel()
 
 	pkg := NewPackage("test_table", "Test Scan")
 
@@ -351,7 +340,6 @@ func TestConcurrentAccess(t *testing.T) {
 }
 
 func TestExplainFormat(t *testing.T) {
-	t.Parallel()
 
 	pkg := NewPackage("relationships", "Foreign Scan")
 	pkg.AddSample(123.45, 5000)

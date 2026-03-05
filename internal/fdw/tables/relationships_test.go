@@ -10,7 +10,6 @@ import (
 )
 
 func TestFilterFromFields(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name           string
@@ -196,7 +195,6 @@ func TestFilterFromFields(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			filter, err := filterFromFields(tc.fields, tc.parameters)
 
@@ -234,7 +232,6 @@ func TestFilterFromFields(t *testing.T) {
 }
 
 func TestBuildRelationshipsSelectHandler(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name          string
@@ -272,7 +269,6 @@ func TestBuildRelationshipsSelectHandler(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			handler, err := buildRelationshipsSelectHandler(tc.fields)
 

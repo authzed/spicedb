@@ -10,13 +10,11 @@ import (
 )
 
 func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
 	t.Run("no reordering needed", func(t *testing.T) {
-		t.Parallel()
 		// Already in optimal order (higher selectivity first)
 		// DatastoreIterator has 0.9, FixedIterator has 0.9
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -33,7 +31,6 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 	})
 
 	t.Run("reorder by selectivity - no change when equal", func(t *testing.T) {
-		t.Parallel()
 		// Create a union with 3 items
 		// All FixedIterators have same selectivity (0.9)
 		sub1 := NewFixedIterator(MustPathFromString("document:doc1#viewer@user:alice"))
@@ -57,7 +54,6 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 	})
 
 	t.Run("reorder by selectivity - reorders by different selectivities", func(t *testing.T) {
-		t.Parallel()
 		// Create a union where subiterators have different selectivities
 		// Unions prefer higher selectivity first (more likely to match)
 		// Intersections combine selectivity: product for intersection
@@ -110,7 +106,6 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 	})
 
 	t.Run("single subiterator", func(t *testing.T) {
-		t.Parallel()
 		sub := NewFixedIterator(
 			MustPathFromString("document:doc1#viewer@user:alice"),
 		)
@@ -124,13 +119,11 @@ func TestStatisticsOptimizer_ReorderUnion(t *testing.T) {
 }
 
 func TestStatisticsOptimizer_ReorderIntersection(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
 	t.Run("no reordering needed", func(t *testing.T) {
-		t.Parallel()
 		// Already in optimal order (lower selectivity first)
 		sub1 := NewFixedIterator(
 			MustPathFromString("document:doc1#viewer@user:alice"),
@@ -147,7 +140,6 @@ func TestStatisticsOptimizer_ReorderIntersection(t *testing.T) {
 	})
 
 	t.Run("single subiterator", func(t *testing.T) {
-		t.Parallel()
 		sub := NewFixedIterator(
 			MustPathFromString("document:doc1#viewer@user:alice"),
 		)
@@ -161,13 +153,11 @@ func TestStatisticsOptimizer_ReorderIntersection(t *testing.T) {
 }
 
 func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
 	t.Run("no nested arrows", func(t *testing.T) {
-		t.Parallel()
 		left := NewFixedIterator(
 			MustPathFromString("document:doc1#parent@folder:folder1"),
 		)
@@ -183,7 +173,6 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 	})
 
 	t.Run("left nested arrow - no rebalancing when costs equal", func(t *testing.T) {
-		t.Parallel()
 		// Create (A->B)->C with equal cardinalities
 		// All single-path iterators result in equal costs for both arrangements
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
@@ -200,7 +189,6 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 	})
 
 	t.Run("left nested arrow - rebalancing with deeper nesting", func(t *testing.T) {
-		t.Parallel()
 		// Create ((A->B)->C)->D
 		// This should rebalance to a cheaper structure
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
@@ -229,7 +217,6 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 	})
 
 	t.Run("right nested arrow - no rebalancing when costs equal", func(t *testing.T) {
-		t.Parallel()
 		// Create A->(B->C) with equal cardinalities
 		// All single-path iterators result in equal costs for both arrangements
 		a := NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1"))
@@ -246,7 +233,6 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 	})
 
 	t.Run("complex nested arrows", func(t *testing.T) {
-		t.Parallel()
 		// Create a more complex structure with varying cardinalities
 		a := NewFixedIterator(
 			MustPathFromString("document:doc1#parent@folder:folder1"),
@@ -278,13 +264,11 @@ func TestStatisticsOptimizer_RebalanceArrow(t *testing.T) {
 }
 
 func TestStatisticsOptimizer_IntersectionArrowNotRebalanced(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
 	t.Run("intersection arrow should not be rebalanced", func(t *testing.T) {
-		t.Parallel()
 		// IntersectionArrow should not be rebalanced even if nested
 		left := NewFixedIterator(
 			MustPathFromString("document:doc1#team@team:eng"),
@@ -302,13 +286,11 @@ func TestStatisticsOptimizer_IntersectionArrowNotRebalanced(t *testing.T) {
 }
 
 func TestStatisticsOptimizer_ComplexTree(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
 	t.Run("optimize complex nested structure", func(t *testing.T) {
-		t.Parallel()
 		// Create a complex tree with unions, intersections, and arrows
 		sub1 := NewFixedIterator(MustPathFromString("document:doc1#viewer@user:alice"))
 		sub2 := NewFixedIterator(MustPathFromString("document:doc2#viewer@user:bob"))
@@ -343,7 +325,6 @@ func TestStatisticsOptimizer_ComplexTree(t *testing.T) {
 	})
 
 	t.Run("nested unions and intersections", func(t *testing.T) {
-		t.Parallel()
 		// Create deeply nested structure
 		innerUnion := NewUnionIterator(
 			NewFixedIterator(MustPathFromString("document:doc1#viewer@user:alice")),
@@ -367,13 +348,11 @@ func TestStatisticsOptimizer_ComplexTree(t *testing.T) {
 }
 
 func TestStatisticsOptimizer_EdgeCases(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
 	t.Run("empty iterator", func(t *testing.T) {
-		t.Parallel()
 		empty := NewFixedIterator()
 		result, changed, err := optimizer.Optimize(empty)
 		require.NoError(t, err)
@@ -382,7 +361,6 @@ func TestStatisticsOptimizer_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("single fixed iterator", func(t *testing.T) {
-		t.Parallel()
 		single := NewFixedIterator(
 			MustPathFromString("document:doc1#viewer@user:alice"),
 		)
@@ -393,7 +371,6 @@ func TestStatisticsOptimizer_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("relation iterator", func(t *testing.T) {
-		t.Parallel()
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
 		rel := NewDatastoreIterator(baseRel)
 		result, changed, err := optimizer.Optimize(rel)
@@ -404,13 +381,11 @@ func TestStatisticsOptimizer_EdgeCases(t *testing.T) {
 }
 
 func TestStatisticsOptimizer_Idempotence(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 	optimizer := StatisticsOptimizer{Source: stats}
 
 	t.Run("repeated optimization should be idempotent", func(t *testing.T) {
-		t.Parallel()
 		// Create a structure
 		sub1 := NewFixedIterator(MustPathFromString("document:doc1#viewer@user:alice"))
 		sub2 := NewFixedIterator(MustPathFromString("document:doc2#viewer@user:bob"))

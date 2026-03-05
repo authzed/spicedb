@@ -55,7 +55,6 @@ func (it *importerTest) writeExpected(schema string) {
 }
 
 func TestImporter(t *testing.T) {
-	t.Parallel()
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -73,7 +72,6 @@ func TestImporter(t *testing.T) {
 
 	for _, test := range importerTests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 
 			sourceFolder := path.Join(workingDir, test.relativePath())
 
@@ -99,7 +97,6 @@ func TestImporter(t *testing.T) {
 			}
 		})
 		t.Run("fs/"+test.name, func(t *testing.T) {
-			t.Parallel()
 
 			fsys, err := fs.Sub(testFS, filepath.Join("importer-test", test.folder))
 			require.NoError(t, err)
@@ -129,7 +126,6 @@ func TestImporter(t *testing.T) {
 }
 
 func TestImportCycleCausesError(t *testing.T) {
-	t.Parallel()
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -149,7 +145,6 @@ func TestImportCycleCausesError(t *testing.T) {
 }
 
 func TestEscapeAttemptCausesError(t *testing.T) {
-	t.Parallel()
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -169,7 +164,6 @@ func TestEscapeAttemptCausesError(t *testing.T) {
 }
 
 func TestConflictingDefinitionsCausesError(t *testing.T) {
-	t.Parallel()
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)

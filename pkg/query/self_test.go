@@ -7,7 +7,6 @@ import (
 )
 
 func TestSelfIterator(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 
@@ -17,7 +16,6 @@ func TestSelfIterator(t *testing.T) {
 		Executor: LocalExecutor{},
 	}
 	t.Run("Check", func(t *testing.T) {
-		t.Parallel()
 
 		selfIt := NewSelfIterator("view", "user")
 
@@ -39,7 +37,6 @@ func TestSelfIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EmptyResults", func(t *testing.T) {
-		t.Parallel()
 
 		selfIt := NewSelfIterator("view", "user")
 
@@ -53,7 +50,6 @@ func TestSelfIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources", func(t *testing.T) {
-		t.Parallel()
 
 		selfIt := NewSelfIterator("view", "user")
 		pathSeq, err := ctx.IterResources(selfIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
@@ -73,7 +69,6 @@ func TestSelfIterator(t *testing.T) {
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
 
 		selfIt := NewSelfIterator("view", "user")
 		pathSeq, err := ctx.IterSubjects(selfIt, NewObject("user", "alice"), NoObjectFilter())
@@ -94,7 +89,6 @@ func TestSelfIterator(t *testing.T) {
 }
 
 func TestSelfIteratorClone(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 
@@ -115,7 +109,6 @@ func TestSelfIteratorClone(t *testing.T) {
 }
 
 func TestSelfIteratorExplain(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 
@@ -127,10 +120,8 @@ func TestSelfIteratorExplain(t *testing.T) {
 }
 
 func TestSelf_Types(t *testing.T) {
-	t.Parallel()
 
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		selfIt := NewSelfIterator("view", "user")
@@ -142,7 +133,6 @@ func TestSelf_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		selfIt := NewSelfIterator("view", "user")
@@ -154,7 +144,6 @@ func TestSelf_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_SameAsResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		selfIt := NewSelfIterator("edit", "document")

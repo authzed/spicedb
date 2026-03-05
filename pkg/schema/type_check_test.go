@@ -10,7 +10,6 @@ import (
 )
 
 func TestTypecheckingJustTypes(t *testing.T) {
-	t.Parallel()
 	type testcase struct {
 		name       string
 		schemaText string
@@ -204,7 +203,6 @@ func TestTypecheckingJustTypes(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
@@ -235,7 +233,6 @@ func TestTypecheckingJustTypes(t *testing.T) {
 
 // TODO(jschorr): Add to the consistency tests as well, to validate the full set of types within the consistency tests.
 func TestTypecheckingWithSubrelations(t *testing.T) {
-	t.Parallel()
 	type testcase struct {
 		name       string
 		schemaText string
@@ -387,7 +384,6 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
@@ -417,7 +413,6 @@ func TestTypecheckingWithSubrelations(t *testing.T) {
 }
 
 func TestTypeAnnotationsValidation(t *testing.T) {
-	t.Parallel()
 	type testcase struct {
 		name          string
 		schemaText    string
@@ -495,7 +490,6 @@ func TestTypeAnnotationsValidation(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
@@ -536,7 +530,6 @@ func TestTypeAnnotationsValidation(t *testing.T) {
 func TestIncompleteSchema(t *testing.T) {
 	// This test is a little redundant, as doing this type checking requires one to have the full schema, but it _may_ be pulled dynamically and fail.
 	// So until we operate in complete schema caching, there are fail points that can bubble up.
-	t.Parallel()
 	type testcase struct {
 		name       string
 		schemaText string
@@ -562,7 +555,6 @@ func TestIncompleteSchema(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",

@@ -14,7 +14,6 @@ import (
 )
 
 func TestCheck(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -49,7 +48,6 @@ func TestCheck(t *testing.T) {
 }
 
 func TestBaseIterSubjects(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -77,7 +75,6 @@ func TestBaseIterSubjects(t *testing.T) {
 }
 
 func TestCheckArrow(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)

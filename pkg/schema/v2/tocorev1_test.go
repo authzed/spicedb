@@ -10,7 +10,6 @@ import (
 )
 
 func TestAsCompiledSchema(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name                    string
@@ -139,7 +138,6 @@ func TestAsCompiledSchema(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			// Compile the schema using the existing compiler
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -184,7 +182,6 @@ func TestAsCompiledSchema(t *testing.T) {
 }
 
 func TestAsCompiledSchemaRoundTrip(t *testing.T) {
-	t.Parallel()
 
 	schemaText := `
 		use self
@@ -268,7 +265,6 @@ func TestAsCompiledSchemaRoundTrip(t *testing.T) {
 }
 
 func TestAsCompiledSchemaNilSchema(t *testing.T) {
-	t.Parallel()
 
 	var nilSchema *Schema
 	compiled, err := nilSchema.AsCompiledSchema()
@@ -278,7 +274,6 @@ func TestAsCompiledSchemaNilSchema(t *testing.T) {
 }
 
 func TestAsCompiledSchemaEmptySchema(t *testing.T) {
-	t.Parallel()
 
 	schemaText := ``
 
@@ -305,7 +300,6 @@ func TestAsCompiledSchemaEmptySchema(t *testing.T) {
 }
 
 func TestAsCompiledSchemaOrderedDefinitions(t *testing.T) {
-	t.Parallel()
 
 	schemaText := `
 		caveat caveat1(x string) { x == "a" }

@@ -10,7 +10,6 @@ import (
 )
 
 func TestCacheWithMetrics(t *testing.T) {
-	t.Parallel()
 
 	config := &Config{
 		NumCounters: 10000,
@@ -19,14 +18,12 @@ func TestCacheWithMetrics(t *testing.T) {
 	}
 
 	t.Run("otter", func(t *testing.T) {
-		t.Parallel()
 		testCacheImplementation(t, func() (Cache[StringKey, string], error) {
 			return NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
 		})
 	})
 
 	t.Run("ristretto", func(t *testing.T) {
-		t.Parallel()
 		testCacheImplementation(t, func() (Cache[StringKey, string], error) {
 			// Use the metrics version for proper metrics tracking
 			return NewRistrettoCacheWithMetrics[StringKey, string]("test-ristretto", config)
@@ -34,7 +31,6 @@ func TestCacheWithMetrics(t *testing.T) {
 	})
 
 	t.Run("theine", func(t *testing.T) {
-		t.Parallel()
 		testCacheImplementation(t, func() (Cache[StringKey, string], error) {
 			return NewTheineCacheWithMetrics[StringKey, string]("test-theine", config)
 		})

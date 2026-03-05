@@ -263,7 +263,6 @@ func TestBulkExportRelationships(t *testing.T) {
 }
 
 func TestBulkExportRelationshipsWithFilter(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name          string
@@ -312,7 +311,6 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 
 			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)

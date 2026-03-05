@@ -120,7 +120,6 @@ func (dr deleteCaveatedRelationship) Execute(tester opsTester) error {
 }
 
 func TestSchemaAndRelationshipsOperations(t *testing.T) {
-	t.Parallel()
 
 	tcs := []schemaTestCase{
 		// Test: write a basic, valid schema.
@@ -752,7 +751,6 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			for _, testerName := range []string{"v1"} {
 				t.Run(testerName, func(t *testing.T) {
 					conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)

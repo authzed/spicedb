@@ -16,7 +16,6 @@ import (
 const veryLargeLimit = 1000000000
 
 func TestDispatchChunking(t *testing.T) {
-	t.Parallel()
 	schema := `
 		definition user {
 			relation its_a_me: user
@@ -37,7 +36,6 @@ func TestDispatchChunking(t *testing.T) {
 	ctx, dispatcher, revision := newLocalDispatcherWithSchemaAndRels(t, schema, append(enabled, resources...))
 
 	t.Run("check", func(t *testing.T) {
-		t.Parallel()
 		for _, tpl := range resources[:1] {
 			checkResult, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 				ResourceRelation: RR(tpl.Resource.ObjectType, "view").ToCoreRR(),
@@ -58,7 +56,6 @@ func TestDispatchChunking(t *testing.T) {
 	})
 
 	t.Run("lookup-resources2", func(t *testing.T) {
-		t.Parallel()
 
 		for _, tpl := range resources[:1] {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
@@ -82,7 +79,6 @@ func TestDispatchChunking(t *testing.T) {
 	})
 
 	t.Run("lookup-subjects", func(t *testing.T) {
-		t.Parallel()
 
 		for _, tpl := range resources[:1] {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)

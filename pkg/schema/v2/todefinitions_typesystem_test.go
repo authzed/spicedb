@@ -15,7 +15,6 @@ import (
 type definitionTester func(t *testing.T, def *pkgschema.Definition)
 
 func TestToDefinitionsRoundTripWithTypeSystem(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name        string
@@ -365,7 +364,6 @@ func TestToDefinitionsRoundTripWithTypeSystem(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			// Step 1: Compile original schema
 			compiled1, err := compiler.Compile(compiler.InputSchema{
@@ -406,7 +404,6 @@ func TestToDefinitionsRoundTripWithTypeSystem(t *testing.T) {
 }
 
 func TestToDefinitionsFlattenedRoundTripWithTypeSystem(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name        string
@@ -603,7 +600,6 @@ func TestToDefinitionsFlattenedRoundTripWithTypeSystem(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			// Step 1: Compile original schema
 			compiled1, err := compiler.Compile(compiler.InputSchema{
@@ -652,7 +648,6 @@ func TestToDefinitionsFlattenedRoundTripWithTypeSystem(t *testing.T) {
 }
 
 func TestToDefinitionsRoundTripWithTypeSystemNegativeCases(t *testing.T) {
-	t.Parallel()
 
 	schemaText := `
 		definition user {}
@@ -697,7 +692,6 @@ func TestToDefinitionsRoundTripWithTypeSystemNegativeCases(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("disallowed namespace", func(t *testing.T) {
-		t.Parallel()
 		// team is not allowed on viewer relation
 		allowed, err := def.IsAllowedDirectNamespace("viewer", "team")
 		require.NoError(t, err)
@@ -705,7 +699,6 @@ func TestToDefinitionsRoundTripWithTypeSystemNegativeCases(t *testing.T) {
 	})
 
 	t.Run("disallowed relation on allowed namespace", func(t *testing.T) {
-		t.Parallel()
 		// organization is allowed on org relation, but not with the "admin" relation
 		allowed, err := def.IsAllowedDirectRelation("org", "organization", "admin")
 		require.NoError(t, err)
@@ -713,7 +706,6 @@ func TestToDefinitionsRoundTripWithTypeSystemNegativeCases(t *testing.T) {
 	})
 
 	t.Run("non-existent relation", func(t *testing.T) {
-		t.Parallel()
 		// nonexistent relation should return false
 		exists := def.HasRelation("nonexistent")
 		require.False(t, exists)
@@ -726,7 +718,6 @@ func TestToDefinitionsRoundTripWithTypeSystemNegativeCases(t *testing.T) {
 	})
 
 	t.Run("permission has no type information", func(t *testing.T) {
-		t.Parallel()
 		// view is a permission, so it should not have type information
 		hasTypeInfo := def.HasTypeInformation("view")
 		require.False(t, hasTypeInfo)

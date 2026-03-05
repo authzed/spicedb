@@ -14,7 +14,6 @@ import (
 )
 
 func TestExclusionIterator(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -31,7 +30,6 @@ func TestExclusionIterator(t *testing.T) {
 	path3 := MustPathFromString("document:doc3#viewer@user:charlie")
 
 	t.Run("Basic Exclusion", func(t *testing.T) {
-		t.Parallel()
 		// Main set: path1, path2, path3
 		// Excluded set: path2
 		// Expected result: path1, path3
@@ -50,7 +48,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("Empty Main Set", func(t *testing.T) {
-		t.Parallel()
 		// Main set: empty
 		// Excluded set: path1
 		// Expected result: empty
@@ -68,7 +65,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("Empty Excluded Set", func(t *testing.T) {
-		t.Parallel()
 		// Main set: path1, path2
 		// Excluded set: empty
 		// Expected result: path1, path2 (nothing to exclude)
@@ -87,7 +83,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("No Overlap", func(t *testing.T) {
-		t.Parallel()
 		// Create relations with truly different endpoints
 		mainPath1 := MustPathFromString("document:doc1#viewer@user:alice")
 		mainPath2 := MustPathFromString("document:doc2#viewer@user:bob")
@@ -112,7 +107,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("Complete Exclusion", func(t *testing.T) {
-		t.Parallel()
 		// Main set: path1, path2
 		// Excluded set: path1, path2, path3
 		// Expected result: empty (all main set relations are excluded)
@@ -130,7 +124,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("Partial Exclusion", func(t *testing.T) {
-		t.Parallel()
 		// Create relations with different relations but same endpoints to test exclusion logic
 		pathA := MustPathFromString("document:doc1#viewer@user:alice")
 		pathB := MustPathFromString("document:doc2#viewer@user:alice")
@@ -172,7 +165,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		mainSet := NewFixedIterator(path1)
@@ -212,7 +204,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("Clone", func(t *testing.T) {
-		t.Parallel()
 		mainSet := NewFixedIterator(path1, path2)
 		excludedSet := NewFixedIterator(path2)
 
@@ -233,7 +224,6 @@ func TestExclusionIterator(t *testing.T) {
 	})
 
 	t.Run("Explain", func(t *testing.T) {
-		t.Parallel()
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFixedIterator(path2)
 
@@ -250,7 +240,6 @@ func TestExclusionIterator(t *testing.T) {
 }
 
 func TestExclusionWithEmptyIterator(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -264,7 +253,6 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
 	t.Run("Empty as Main Set", func(t *testing.T) {
-		t.Parallel()
 		mainSet := NewEmptyFixedIterator()
 		excludedSet := NewFixedIterator(path1)
 
@@ -279,7 +267,6 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 	})
 
 	t.Run("Empty as Excluded Set", func(t *testing.T) {
-		t.Parallel()
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewEmptyFixedIterator()
 
@@ -296,7 +283,6 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 }
 
 func TestExclusionErrorHandling(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -310,7 +296,6 @@ func TestExclusionErrorHandling(t *testing.T) {
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
 	t.Run("Main Set Error Propagation", func(t *testing.T) {
-		t.Parallel()
 		// Create a faulty iterator for the main set
 		mainSet := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
 		excludedSet := NewFixedIterator(path1)
@@ -324,7 +309,6 @@ func TestExclusionErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Excluded Set Error Propagation", func(t *testing.T) {
-		t.Parallel()
 		// Create a normal main set and faulty excluded set
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{})
@@ -338,7 +322,6 @@ func TestExclusionErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Main Set Collection Error", func(t *testing.T) {
-		t.Parallel()
 		// Create an iterator that fails during iteration
 		mainSet := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
 		excludedSet := NewFixedIterator(path1)
@@ -362,7 +345,6 @@ func TestExclusionErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Excluded Set Collection Error", func(t *testing.T) {
-		t.Parallel()
 		// Create an iterator that fails during collection
 		mainSet := NewFixedIterator(path1)
 		excludedSet := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{})
@@ -377,7 +359,6 @@ func TestExclusionErrorHandling(t *testing.T) {
 }
 
 func TestExclusionWithComplexIteratorTypes(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -395,7 +376,6 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 	path4 := MustPathFromString("document:doc4#viewer@user:alice")
 
 	t.Run("Exclusion with Union as Main Set", func(t *testing.T) {
-		t.Parallel()
 		// Create union iterator as main set
 		union := NewUnionIterator(
 			NewFixedIterator(path1, path2),
@@ -428,7 +408,6 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 	})
 
 	t.Run("Exclusion with Union as Excluded Set", func(t *testing.T) {
-		t.Parallel()
 		mainSet := NewFixedIterator(path1, path2, path3, path4)
 
 		// Create union iterator as excluded set
@@ -461,7 +440,6 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 	})
 
 	t.Run("Nested Exclusion", func(t *testing.T) {
-		t.Parallel()
 		// Create a nested exclusion: (path1 + path2 + path3) - path2 - path3
 		innerMainSet := NewFixedIterator(path1, path2, path3)
 		innerExcludedSet := NewFixedIterator(path2)
@@ -483,7 +461,6 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 // Additional comprehensive tests for uncovered functions in exclusion.go
 
 func TestCombineExclusionCaveats(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Helper function to create paths with caveats
@@ -501,7 +478,6 @@ func TestCombineExclusionCaveats(t *testing.T) {
 
 	// Test cases for different caveat combinations
 	t.Run("main_with_caveat_excluded_without_caveat", func(t *testing.T) {
-		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 
@@ -513,7 +489,6 @@ func TestCombineExclusionCaveats(t *testing.T) {
 	})
 
 	t.Run("main_without_caveat_excluded_without_caveat", func(t *testing.T) {
-		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 
@@ -525,7 +500,6 @@ func TestCombineExclusionCaveats(t *testing.T) {
 	})
 
 	t.Run("main_without_caveat_excluded_with_caveat", func(t *testing.T) {
-		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
 
@@ -542,7 +516,6 @@ func TestCombineExclusionCaveats(t *testing.T) {
 	})
 
 	t.Run("both_have_caveats", func(t *testing.T) {
-		t.Parallel()
 		mainPath := createPathWithCaveat("document:doc1#view@user:alice", "main_caveat")
 		excludedPath := createPathWithCaveat("document:doc1#view@user:alice", "excluded_caveat")
 
@@ -564,7 +537,6 @@ func TestCombineExclusionCaveats(t *testing.T) {
 }
 
 func TestExclusion_CombinedCaveatLogic(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create test datastore and context
@@ -590,7 +562,6 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 	}
 
 	t.Run("exclusion_with_caveats", func(t *testing.T) {
-		t.Parallel()
 		// Main set has paths with various caveats
 		mainPath1 := createPathWithCaveat("document:doc1#view@user:alice", "caveat1")
 		mainPath2 := createPathWithCaveat("document:doc2#view@user:alice", "") // No caveat
@@ -644,14 +615,12 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 }
 
 func TestExclusion_EdgeCases(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create minimal context for basic testing
 	ctx := NewLocalContext(t.Context())
 
 	t.Run("empty_main_set", func(t *testing.T) {
-		t.Parallel()
 		mainSet := NewFixedIterator() // Empty
 		excludedSet := NewFixedIterator(MustPathFromString("document:doc1#view@user:alice"))
 
@@ -666,7 +635,6 @@ func TestExclusion_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("empty_excluded_set", func(t *testing.T) {
-		t.Parallel()
 		mainPath := MustPathFromString("document:doc1#view@user:alice")
 		mainSet := NewFixedIterator(mainPath)
 		excludedSet := NewFixedIterator() // Empty
@@ -683,7 +651,6 @@ func TestExclusion_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("no_matching_exclusions", func(t *testing.T) {
-		t.Parallel()
 		mainPath := MustPathFromString("document:doc1#view@user:alice")
 		mainSet := NewFixedIterator(mainPath)
 
@@ -705,7 +672,6 @@ func TestExclusion_EdgeCases(t *testing.T) {
 }
 
 func TestExclusionIterSubjects(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 
@@ -715,7 +681,6 @@ func TestExclusionIterSubjects(t *testing.T) {
 	}
 
 	t.Run("SimpleExclusion", func(t *testing.T) {
-		t.Parallel()
 
 		// Main has alice and bob, exclude bob
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -737,7 +702,6 @@ func TestExclusionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("ExcludeAll", func(t *testing.T) {
-		t.Parallel()
 
 		// Main has alice, exclude alice
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -757,7 +721,6 @@ func TestExclusionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("ExcludeNone", func(t *testing.T) {
-		t.Parallel()
 
 		// Main has alice, exclude nothing
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -778,7 +741,6 @@ func TestExclusionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("EmptyMainSet", func(t *testing.T) {
-		t.Parallel()
 
 		// Empty main set
 		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
@@ -798,7 +760,6 @@ func TestExclusionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("MultipleSubjectsPartialExclusion", func(t *testing.T) {
-		t.Parallel()
 
 		// Main has alice, bob, carol; exclude bob
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -828,7 +789,6 @@ func TestExclusionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("CaveatHandling", func(t *testing.T) {
-		t.Parallel()
 
 		// Main has alice with no caveat, exclude has alice with caveat
 		pathMainAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -860,10 +820,8 @@ func TestExclusionIterSubjects(t *testing.T) {
 }
 
 func TestExclusion_Types(t *testing.T) {
-	t.Parallel()
 
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create main set and excluded set
@@ -881,7 +839,6 @@ func TestExclusion_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create main set and excluded set with different subject types
