@@ -10,7 +10,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/singleflight"
+	"resenje.org/singleflight"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
@@ -63,12 +63,12 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	}
 	cor.RUnlock()
 
-	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (any, error) {
+	newQuantizedRevision, _, err := cor.updateGroup.Do(ctx, "", func(ctx context.Context) (datastore.Revision, error) {
 		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
 
 		optimized, validFor, err := cor.optimizedFunc(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("unable to compute optimized revision: %w", err)
+			return datastore.NoRevision, fmt.Errorf("unable to compute optimized revision: %w", err)
 		}
 
 		rvt := localNow.Add(validFor)
@@ -95,7 +95,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	if err != nil {
 		return datastore.NoRevision, err
 	}
-	return newQuantizedRevision.(datastore.Revision), err
+	return newQuantizedRevision, err
 }
 
 // CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.
@@ -110,7 +110,7 @@ type CachedOptimizedRevisions struct {
 	candidates []validRevision // GUARDED_BY(RWMutex)
 
 	// the updategroup consolidates concurrent requests to the database into 1
-	updateGroup singleflight.Group
+	updateGroup singleflight.Group[string, datastore.Revision]
 }
 
 type validRevision struct {

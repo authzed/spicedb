@@ -6,7 +6,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"golang.org/x/sync/singleflight"
+	"resenje.org/singleflight"
 
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -20,7 +20,7 @@ import (
 type definitionCachingProxy struct {
 	datastore.Datastore
 	c         cache.Cache[cache.StringKey, *cacheEntry]
-	readGroup singleflight.Group
+	readGroup singleflight.Group[string, *cacheEntry]
 }
 
 func (p *definitionCachingProxy) Close() error {
@@ -176,8 +176,7 @@ func readAndCache[T schemaDefinition](
 	loaded, found := r.p.c.Get(cache.StringKey(cacheRevisionKey))
 	if !found {
 		// We couldn't use the cached entry, load one
-		var err error
-		loadedRaw, err, _ := r.p.readGroup.Do(cacheRevisionKey, func() (any, error) {
+		loadedEntry, _, err := r.p.readGroup.Do(ctx, cacheRevisionKey, func(ctx context.Context) (*cacheEntry, error) {
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted read
 			loaded, updatedRev, err := reader(context.WithoutCancel(ctx), name)
@@ -199,7 +198,7 @@ func readAndCache[T schemaDefinition](
 			return *new(T), datastore.NoRevision, err
 		}
 
-		loaded = loadedRaw.(*cacheEntry)
+		loaded = loadedEntry
 	}
 
 	return loaded.definition.(T), loaded.updated, loaded.notFound
