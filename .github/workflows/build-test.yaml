@@ -100,7 +100,8 @@ jobs:
 
   integration:
     name: "Integration Tests"
-    runs-on: "depot-ubuntu-24.04-4"
+    # TODO: make these use arm once we find a set of compatible packages
+    runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
