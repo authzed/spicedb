@@ -21,6 +21,11 @@ plugins:
     opt: "paths=source_relative"
     # NOTE: we use the local vs remote here because we use a more recent version of vtproto than is available
     # in the buf registry.
-  - local: ["go", "run", "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto"]
-    out: 'pkg/proto'
+  - local:
+      [
+        "go",
+        "run",
+        "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto",
+      ]
+    out: "pkg/proto"
     opt: "paths=source_relative,features=marshal+unmarshal+size+clone+pool+equal"
