@@ -44,7 +44,7 @@ func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject 
 	}
 
 	reader := devContext.DataLayer.SnapshotReader(devContext.Revision)
-	sr, srErr := reader.ReadSchema()
+	sr, srErr := reader.ReadSchema(ctx)
 	if srErr != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, srErr
 	}

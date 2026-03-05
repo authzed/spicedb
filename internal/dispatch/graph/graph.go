@@ -207,7 +207,7 @@ func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, rev
 	reader := datalayer.MustFromContext(ctx).SnapshotReader(revision)
 
 	// Load namespace and relation from the datastore
-	schemaReader, err := reader.ReadSchema()
+	schemaReader, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}

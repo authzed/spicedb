@@ -471,7 +471,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			req.NoError(err)
 
 			dl := datalayer.NewDataLayer(ds)
-			sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+			sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 			req.NoError(err)
 
 			for _, debugOption := range []RunCaveatExpressionDebugOption{
@@ -524,7 +524,7 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 	req.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 	req.NoError(err)
 
 	result, err := RunSingleCaveatExpression(
@@ -556,7 +556,7 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 	req.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 	req.NoError(err)
 
 	_, err = RunSingleCaveatExpression(
@@ -594,7 +594,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 	req.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)
@@ -662,7 +662,7 @@ func TestRunCaveatWithMissingDefinition(t *testing.T) {
 	req.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 	req.NoError(err)
 
 	// Try to run a caveat that doesn't exist
@@ -697,7 +697,7 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 	req.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)
@@ -742,7 +742,7 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 	req.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)
@@ -823,7 +823,7 @@ func TestUnknownCaveatOperation(t *testing.T) {
 	req.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, err := dl.SnapshotReader(headRevision).ReadSchema()
+	sr, err := dl.SnapshotReader(headRevision).ReadSchema(t.Context())
 	req.NoError(err)
 
 	runner := NewCaveatRunner(types.Default.TypeSet)

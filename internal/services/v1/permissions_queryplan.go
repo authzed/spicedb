@@ -26,7 +26,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 
 	// Load all namespace and caveat definitions to build the schema
 	// TODO: Better schema caching
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

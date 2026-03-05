@@ -121,8 +121,8 @@ type countingRevisionedReader struct {
 	counts   *MethodCounts
 }
 
-func (r *countingRevisionedReader) ReadSchema() (SchemaReader, error) {
-	return r.delegate.ReadSchema()
+func (r *countingRevisionedReader) ReadSchema(ctx context.Context) (SchemaReader, error) {
+	return r.delegate.ReadSchema(ctx)
 }
 
 func (r *countingRevisionedReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {

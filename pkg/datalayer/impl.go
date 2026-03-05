@@ -85,7 +85,7 @@ type revisionedReader struct {
 	reader datastore.Reader
 }
 
-func (r *revisionedReader) ReadSchema() (SchemaReader, error) {
+func (r *revisionedReader) ReadSchema(ctx context.Context) (SchemaReader, error) {
 	return &legacySchemaReaderAdapter{legacyReader: r.reader}, nil
 }
 
@@ -110,7 +110,7 @@ type readWriteTransaction struct {
 	rwt datastore.ReadWriteTransaction
 }
 
-func (t *readWriteTransaction) ReadSchema() (SchemaReader, error) {
+func (t *readWriteTransaction) ReadSchema(_ context.Context) (SchemaReader, error) {
 	return &legacySchemaReaderAdapter{legacyReader: t.rwt}, nil
 }
 

@@ -86,7 +86,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -253,7 +253,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -496,7 +496,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -647,7 +647,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -808,7 +808,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		return ps.rewriteError(ctx, err)
 	}
 
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -1096,7 +1096,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			numWritten += streamWritten
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
-			schemaReader, err := rwt.ReadSchema()
+			schemaReader, err := rwt.ReadSchema(ctx)
 			if err != nil {
 				return err
 			}
@@ -1184,7 +1184,7 @@ func ExportBulk(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, r
 
 	reader := dl.SnapshotReader(atRevision)
 
-	readerSchema, err := reader.ReadSchema()
+	readerSchema, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}

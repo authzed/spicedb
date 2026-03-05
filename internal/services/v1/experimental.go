@@ -259,7 +259,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			caveat:                 core.ContextualizedCaveat{},
 			caveatTypeSet:          es.caveatTypeSet,
 		}
-		sr, err := rwt.ReadSchema()
+		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
 			return err
 		}
@@ -352,7 +352,7 @@ func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, r
 
 	reader := dl.SnapshotReader(atRevision)
 
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -603,7 +603,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 	}
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -690,7 +690,7 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 	}
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -764,7 +764,7 @@ func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx contex
 	}
 
 	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-		sr, err := rwt.ReadSchema()
+		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
 			return err
 		}

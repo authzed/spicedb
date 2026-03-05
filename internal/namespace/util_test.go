@@ -171,7 +171,7 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 			require.NoError(t, err)
 
 			dl := datalayer.NewDataLayer(ds)
-			sr, err := dl.SnapshotReader(rev).ReadSchema()
+			sr, err := dl.SnapshotReader(rev).ReadSchema(t.Context())
 			require.NoError(t, err)
 
 			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, sr)

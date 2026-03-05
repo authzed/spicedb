@@ -91,7 +91,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	reader := dl.SnapshotReader(headRevision)
 
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -270,7 +270,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 	}
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -357,7 +357,7 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 	}
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
-	sr2, err := dl.ReadSchema()
+	sr2, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

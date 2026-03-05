@@ -81,7 +81,7 @@ type SchemaReader interface {
 // RevisionedReader reads data at a specific revision.
 type RevisionedReader interface {
 	// ReadSchema returns a SchemaReader for organized schema operations.
-	ReadSchema() (SchemaReader, error)
+	ReadSchema(ctx context.Context) (SchemaReader, error)
 
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
