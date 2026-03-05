@@ -10,16 +10,12 @@ import (
 )
 
 func TestUnionIterator(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test context
 	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_Union", func(t *testing.T) {
-		t.Parallel()
-
 		// Add different iterators with distinct data sets
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
@@ -52,8 +48,6 @@ func TestUnionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EmptyUnion", func(t *testing.T) {
-		t.Parallel()
-
 		union := NewUnionIterator()
 
 		// Empty union should return empty results
@@ -66,8 +60,6 @@ func TestUnionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
-		t.Parallel()
-
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
@@ -86,8 +78,6 @@ func TestUnionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
-		t.Parallel()
-
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
@@ -100,8 +90,6 @@ func TestUnionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EarlyTermination", func(t *testing.T) {
-		t.Parallel()
-
 		// Add iterators that might find the same resource
 		documentAccess := NewDocumentAccessFixedIterator()
 		singleUser := NewSingleUserFixedIterator("alice")
@@ -121,8 +109,6 @@ func TestUnionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
-		t.Parallel()
-
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
@@ -136,8 +122,6 @@ func TestUnionIterator(t *testing.T) {
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
-
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
@@ -165,8 +149,6 @@ func TestUnionIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources", func(t *testing.T) {
-		t.Parallel()
-
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
@@ -194,8 +176,6 @@ func TestUnionIterator(t *testing.T) {
 }
 
 func TestUnionIteratorClone(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Use non-overlapping helper iterators to avoid union optimization issues
@@ -226,13 +206,9 @@ func TestUnionIteratorClone(t *testing.T) {
 }
 
 func TestUnionIteratorExplain(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("EmptyUnion", func(t *testing.T) {
-		t.Parallel()
-
 		// NewUnionIterator() with no args returns empty FixedIterator (canonical form)
 		union := NewUnionIterator()
 		_, isFixed := union.(*FixedIterator)
@@ -244,8 +220,6 @@ func TestUnionIteratorExplain(t *testing.T) {
 	})
 
 	t.Run("UnionWithSubIterators", func(t *testing.T) {
-		t.Parallel()
-
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
@@ -262,8 +236,6 @@ func TestUnionIteratorExplain(t *testing.T) {
 }
 
 func TestUnionIteratorDuplicateElimination(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test context
@@ -294,8 +266,6 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 }
 
 func TestUnionIteratorMultipleResources(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test context
@@ -318,15 +288,11 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 }
 
 func TestUnionDeduplicationBugFix(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	ctx := NewLocalContext(t.Context())
 
 	t.Run("DeduplicatesByResourceKey", func(t *testing.T) {
-		t.Parallel()
-
 		// Create relations that would create duplicates under the old string-based deduplication
 		// but should be properly deduplicated by resource key (type + id)
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -351,8 +317,6 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 	})
 
 	t.Run("PreferNoCaveatRelations", func(t *testing.T) {
-		t.Parallel()
-
 		// Create path without caveat
 		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -368,8 +332,6 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 		// Test both orders to ensure preference is consistent
 		t.Run("NoCaveatFirst", func(t *testing.T) {
-			t.Parallel()
-
 			iter1 := NewFixedIterator(pathNoCaveat)
 			iter2 := NewFixedIterator(pathWithCaveat)
 
@@ -386,8 +348,6 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		})
 
 		t.Run("CaveatFirst", func(t *testing.T) {
-			t.Parallel()
-
 			iter1 := NewFixedIterator(pathWithCaveat)
 			iter2 := NewFixedIterator(pathNoCaveat)
 
@@ -405,8 +365,6 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 	})
 
 	t.Run("DeduplicationWithDifferentResources", func(t *testing.T) {
-		t.Parallel()
-
 		// Relations to different resources should not be deduplicated
 		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathDoc2 := MustPathFromString("document:doc2#viewer@user:alice")
@@ -431,8 +389,6 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 	})
 
 	t.Run("DeduplicationSameResourceDifferentRelations", func(t *testing.T) {
-		t.Parallel()
-
 		// Relations with different relation names on the same resource should be deduplicated
 		// because the fix deduplicates by resource (type + id), not by full relation
 		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
@@ -457,16 +413,12 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 }
 
 func TestUnionIteratorCaveatCombination(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test context
 	ctx := NewLocalContext(t.Context())
 
 	t.Run("CombineTwoCaveats_OR_Logic", func(t *testing.T) {
-		t.Parallel()
-
 		// Both paths have different caveats - should combine with OR logic
 		pathWithCaveat1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathWithCaveat1.Caveat = &core.CaveatExpression{
@@ -506,8 +458,6 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("NoCaveat_Wins_Over_Caveat", func(t *testing.T) {
-		t.Parallel()
-
 		// One path has no caveat, one has caveat - no caveat should win
 		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -536,8 +486,6 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("Different_Resources_Not_Combined", func(t *testing.T) {
-		t.Parallel()
-
 		// Paths to different resources should not be combined
 		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathDoc1.Caveat = &core.CaveatExpression{
@@ -583,8 +531,6 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("Three_Relations_Same_Resource_Mixed_Caveats", func(t *testing.T) {
-		t.Parallel()
-
 		// Mix of paths: no caveat, caveat1, caveat2 - no caveat should win
 		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -624,8 +570,6 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 }
 
 func TestUnionIterSubjectsDeduplication(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	ctx := &Context{
@@ -634,8 +578,6 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 	}
 
 	t.Run("DeduplicateSubjects", func(t *testing.T) {
-		t.Parallel()
-
 		// Create paths with same subject appearing in multiple iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -657,8 +599,6 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 	})
 
 	t.Run("EmptyUnion", func(t *testing.T) {
-		t.Parallel()
-
 		union := NewUnionIterator()
 
 		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"), NoObjectFilter())
@@ -671,8 +611,6 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 	})
 
 	t.Run("MultipleSubjects", func(t *testing.T) {
-		t.Parallel()
-
 		// Create paths with different subjects
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
 		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
@@ -703,8 +641,6 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 }
 
 func TestUnionIterResourcesDeduplication(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	ctx := &Context{
@@ -713,8 +649,6 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 	}
 
 	t.Run("DeduplicateResources", func(t *testing.T) {
-		t.Parallel()
-
 		// Create paths with same resource appearing in multiple iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@user:alice")
@@ -736,8 +670,6 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 	})
 
 	t.Run("EmptyUnion", func(t *testing.T) {
-		t.Parallel()
-
 		union := NewUnionIterator()
 
 		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
@@ -750,8 +682,6 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 	})
 
 	t.Run("MultipleResources", func(t *testing.T) {
-		t.Parallel()
-
 		// Create paths with different resources
 		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathDoc2 := MustPathFromString("document:doc2#viewer@user:alice")
@@ -782,10 +712,7 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 }
 
 func TestUnion_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create union with fixed iterators
@@ -803,7 +730,6 @@ func TestUnion_Types(t *testing.T) {
 	})
 
 	t.Run("ResourceType_EmptyUnion", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		union := NewUnionIterator()
@@ -814,7 +740,6 @@ func TestUnion_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create union with different subject types across iterators
@@ -841,7 +766,6 @@ func TestUnion_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_Deduplication", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create union where multiple iterators have same subject types
@@ -859,7 +783,6 @@ func TestUnion_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_EmptyUnion", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		union := NewUnionIterator()
@@ -870,7 +793,6 @@ func TestUnion_Types(t *testing.T) {
 	})
 
 	t.Run("ResourceType_Mismatch", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create union with mismatched resource types

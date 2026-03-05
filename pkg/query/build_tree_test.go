@@ -15,8 +15,6 @@ import (
 )
 
 func TestBuildTree(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -42,8 +40,6 @@ func TestBuildTree(t *testing.T) {
 }
 
 func TestBuildTreeMultipleRelations(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -73,8 +69,6 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 }
 
 func TestBuildTreeInvalidDefinition(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
@@ -92,8 +86,6 @@ func TestBuildTreeInvalidDefinition(t *testing.T) {
 }
 
 func TestBuildTreeSubRelations(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -124,8 +116,6 @@ func TestBuildTreeSubRelations(t *testing.T) {
 }
 
 func TestBuildTreeRecursion(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create a proper recursive group hierarchy schema:
@@ -166,8 +156,6 @@ func TestBuildTreeRecursion(t *testing.T) {
 }
 
 func TestBuildTreeArrowOperation(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Test that we can detect when arrow operations would be created
@@ -190,8 +178,6 @@ func TestBuildTreeArrowOperation(t *testing.T) {
 }
 
 func TestBuildTreeIntersectionOperation(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -223,8 +209,6 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 }
 
 func TestBuildTreeExclusionOperation(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create a simple schema to test exclusion handling
@@ -266,8 +250,6 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 }
 
 func TestBuildTreeExclusionEdgeCases(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -280,7 +262,6 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	userDef := testfixtures.UserNS.CloneVT()
 
 	t.Run("Exclusion with Relation Reference", func(t *testing.T) {
-		t.Parallel()
 		// Create schema with exclusion using relation references
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
@@ -313,7 +294,6 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Exclusion with Union Operations", func(t *testing.T) {
-		t.Parallel()
 		// Create schema with exclusion containing union operations
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
@@ -355,7 +335,6 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Exclusion with Intersection Operations", func(t *testing.T) {
-		t.Parallel()
 		// Create schema with exclusion containing intersection operations
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
@@ -396,7 +375,6 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Nested Exclusion Operations", func(t *testing.T) {
-		t.Parallel()
 		// Create schema with nested exclusions
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("all_users", nil, namespace.AllowedRelation("user", "...")),
@@ -440,7 +418,6 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Exclusion with Error in Left Operation", func(t *testing.T) {
-		t.Parallel()
 		// Create schema with exclusion where left operation references non-existent relation
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
@@ -463,7 +440,6 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Exclusion with Error in Right Operation", func(t *testing.T) {
-		t.Parallel()
 		// Create schema with exclusion where right operation references non-existent relation
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
@@ -487,8 +463,6 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 }
 
 func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create a schema with an arrow that references a non-existent left relation
@@ -513,8 +487,6 @@ func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
 }
 
 func TestBuildTreeSingleRelationOptimization(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -546,8 +518,6 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 }
 
 func TestBuildTreeSubrelationHandling(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -560,7 +530,6 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	userDef := testfixtures.UserNS.CloneVT()
 
 	t.Run("Base Relation with Ellipsis Subrelation", func(t *testing.T) {
-		t.Parallel()
 		// Test that base relations with ellipsis (group:...) work correctly with arrows
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -597,7 +566,6 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	})
 
 	t.Run("Base Relation with Specific Subrelation", func(t *testing.T) {
-		t.Parallel()
 		// Create schema with specific subrelation that should create union with arrow
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -632,7 +600,6 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	})
 
 	t.Run("Base Relation Without Subrelations Disabled", func(t *testing.T) {
-		t.Parallel()
 		// Test base relation iterator with withSubRelations = false
 		// This hits the buildBaseDatastoreIterator path where subrelations are disabled
 		docDef := namespace.Namespace("document",
@@ -659,7 +626,6 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	})
 
 	t.Run("Base Relation with Missing Subrelation Definition", func(t *testing.T) {
-		t.Parallel()
 		// Create schema where base relation references a subrelation that doesn't exist in target
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -686,7 +652,6 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	})
 
 	t.Run("Multiple Base Relations with Different Subrelation Handling", func(t *testing.T) {
-		t.Parallel()
 		// Test relation with multiple base relations, some with subrelations, some without
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -726,8 +691,6 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 }
 
 func TestBuildTreeWildcardIterator(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create a simple schema with a wildcard relation using core types directly
@@ -769,7 +732,6 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 	require.Equal("user", baseRel.Type())
 
 	t.Run("Schema with wildcard creates WildcardIterator", func(t *testing.T) {
-		t.Parallel()
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
@@ -787,7 +749,6 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 	})
 
 	t.Run("Mixed wildcard and regular relations", func(t *testing.T) {
-		t.Parallel()
 		// Create a schema with both wildcard and regular relations
 		mixedDocDef := namespace.Namespace(
 			"document",
@@ -820,8 +781,6 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 }
 
 func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create a schema with mutual recursion between document and otherdocument
@@ -857,7 +816,6 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 	require.NoError(err)
 
 	t.Run("document viewer builds successfully with mutual recursion", func(t *testing.T) {
-		t.Parallel()
 		// Build iterator for document#viewer - should detect recursion and wrap properly
 		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
 		require.NoError(err)
@@ -870,7 +828,6 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 	})
 
 	t.Run("otherdocument viewer builds successfully with mutual recursion", func(t *testing.T) {
-		t.Parallel()
 		// Build iterator for otherdocument#viewer - should also handle mutual recursion
 		it, err := BuildIteratorFromSchema(dsSchema, "otherdocument", "viewer")
 		require.NoError(err)
@@ -883,7 +840,6 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 	})
 
 	t.Run("sentinels are filtered by definition/relation", func(t *testing.T) {
-		t.Parallel()
 		// This test verifies that when building document#viewer, which encounters
 		// otherdocument#viewer, which then encounters document#viewer again (recursion),
 		// the sentinels are properly filtered so each RecursiveIterator only handles

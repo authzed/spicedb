@@ -120,7 +120,6 @@ func (dr deleteCaveatedRelationship) Execute(tester opsTester) error {
 }
 
 func TestSchemaAndRelationshipsOperations(t *testing.T) {
-
 	tcs := []schemaTestCase{
 		// Test: write a basic, valid schema.
 		{

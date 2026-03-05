@@ -102,6 +102,14 @@ mage test:integration
 
 Run `mage` or `mage -l` for a full list of test suites.
 
+#### Using t.Parallel
+
+`t.Parallel` is often recommended as a way of speeding up test execution. Our experience in
+this repo is that because of the number of test packages and the fact that `go test`
+already parallelizes over test packages, `t.Parallel` mostly increases peak memory usage
+without meaningfully speeding up test execution. If you're going to use `t.Parallel`,
+ensure that it actually speeds up the test in question.
+
 ### Linting
 
 SpiceDB uses several linters to maintain code and docs quality.

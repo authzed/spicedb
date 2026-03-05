@@ -20,11 +20,7 @@ func newNonEmptyFixedIterator() *FixedIterator {
 }
 
 func TestWrapOptimizer(t *testing.T) {
-	t.Parallel()
-
 	t.Run("matches correct type", func(t *testing.T) {
-		t.Parallel()
-
 		// Create a typed optimizer that only works on Union
 		typedOptimizer := func(u *UnionIterator) (Iterator, bool, error) {
 			if len(u.subIts) == 1 {
@@ -47,8 +43,6 @@ func TestWrapOptimizer(t *testing.T) {
 	})
 
 	t.Run("does not match wrong type", func(t *testing.T) {
-		t.Parallel()
-
 		// Create a typed optimizer that only works on Union
 		typedOptimizer := func(u *UnionIterator) (Iterator, bool, error) {
 			return u, true, nil // Would return true if called

@@ -8,11 +8,7 @@ import (
 )
 
 func TestCombinePlanAdvisors_GetHints(t *testing.T) {
-	t.Parallel()
-
 	t.Run("returns first non-nil hints", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			hints: []Hint{func(Iterator) error { return nil }},
 		}
@@ -28,8 +24,6 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 	})
 
 	t.Run("falls back to second advisor if first returns empty", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			hints: []Hint{},
 		}
@@ -45,8 +39,6 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 	})
 
 	t.Run("returns nil if all advisors return empty", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			hints: []Hint{},
 		}
@@ -62,8 +54,6 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 	})
 
 	t.Run("returns error from first advisor that errors", func(t *testing.T) {
-		t.Parallel()
-
 		testErr := errors.New("test error")
 		advisor1 := &mockAdvisor{
 			err: testErr,
@@ -80,8 +70,6 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 	})
 
 	t.Run("runs through all advisors until non-empty", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			hints: []Hint{},
 		}
@@ -101,11 +89,7 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 }
 
 func TestCombinePlanAdvisors_GetMutations(t *testing.T) {
-	t.Parallel()
-
 	t.Run("returns first non-nil mutations", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			mutations: []OutlineMutation{func(o Outline) Outline { return o }},
 		}
@@ -121,8 +105,6 @@ func TestCombinePlanAdvisors_GetMutations(t *testing.T) {
 	})
 
 	t.Run("falls back to second advisor if first returns empty", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			mutations: []OutlineMutation{},
 		}
@@ -138,8 +120,6 @@ func TestCombinePlanAdvisors_GetMutations(t *testing.T) {
 	})
 
 	t.Run("returns nil if all advisors return empty", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			mutations: []OutlineMutation{},
 		}
@@ -155,8 +135,6 @@ func TestCombinePlanAdvisors_GetMutations(t *testing.T) {
 	})
 
 	t.Run("returns error from first advisor that errors", func(t *testing.T) {
-		t.Parallel()
-
 		testErr := errors.New("test error")
 		advisor1 := &mockAdvisor{
 			err: testErr,
@@ -173,8 +151,6 @@ func TestCombinePlanAdvisors_GetMutations(t *testing.T) {
 	})
 
 	t.Run("runs through all advisors until non-empty", func(t *testing.T) {
-		t.Parallel()
-
 		advisor1 := &mockAdvisor{
 			mutations: []OutlineMutation{},
 		}

@@ -31,11 +31,7 @@ func createTestDatastoreIteratorNoCaveat() *DatastoreIterator {
 }
 
 func TestPushdownCaveatEvaluation(t *testing.T) {
-	t.Parallel()
-
 	t.Run("pushes caveat through union when both sides have caveat", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(with caveat), Relation(with caveat)]
@@ -64,8 +60,6 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 	})
 
 	t.Run("pushes caveat through union only on side with caveat", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(with caveat), Relation(no caveat)]
@@ -102,8 +96,6 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 	})
 
 	t.Run("does not push caveat through intersection arrow", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create an IntersectionArrow with a relation that has the caveat
@@ -128,8 +120,6 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 	})
 
 	t.Run("does not push when no subiterators have caveat", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Union[Relation(no caveat), Relation(no caveat)]
@@ -154,8 +144,6 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 	})
 
 	t.Run("does not push through leaf iterator", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Relation) - leaf has no subiterators
@@ -176,8 +164,6 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 	})
 
 	t.Run("pushes through nested union", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Union[Union[Rel1, Rel2], Rel3])
@@ -219,8 +205,6 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 	})
 
 	t.Run("works with intersection of relations", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Intersection[Rel1(with caveat), Rel2(no caveat)])
@@ -249,34 +233,24 @@ func TestPushdownCaveatEvaluation(t *testing.T) {
 }
 
 func TestContainsCaveat(t *testing.T) {
-	t.Parallel()
-
 	caveat := createTestCaveatForPushdown("test_caveat")
 
 	t.Run("detects caveat in relation iterator", func(t *testing.T) {
-		t.Parallel()
-
 		rel := createTestDatastoreIterator("test_caveat")
 		require.True(t, containsCaveat(rel, caveat))
 	})
 
 	t.Run("does not detect when caveat name differs", func(t *testing.T) {
-		t.Parallel()
-
 		rel := createTestDatastoreIterator("other_caveat")
 		require.False(t, containsCaveat(rel, caveat))
 	})
 
 	t.Run("does not detect when no caveat", func(t *testing.T) {
-		t.Parallel()
-
 		rel := createTestDatastoreIteratorNoCaveat()
 		require.False(t, containsCaveat(rel, caveat))
 	})
 
 	t.Run("detects caveat in nested structure", func(t *testing.T) {
-		t.Parallel()
-
 		rel1 := createTestDatastoreIteratorNoCaveat()
 		rel2 := createTestDatastoreIterator("test_caveat")
 		union := NewUnionIterator(rel1, rel2)
@@ -285,8 +259,6 @@ func TestContainsCaveat(t *testing.T) {
 	})
 
 	t.Run("does not detect caveat in structure without it", func(t *testing.T) {
-		t.Parallel()
-
 		rel1 := createTestDatastoreIteratorNoCaveat()
 		rel2 := createTestDatastoreIteratorNoCaveat()
 		union := NewUnionIterator(rel1, rel2)
@@ -295,15 +267,11 @@ func TestContainsCaveat(t *testing.T) {
 	})
 
 	t.Run("handles nil caveat in relationContainsCaveat", func(t *testing.T) {
-		t.Parallel()
-
 		rel := createTestDatastoreIterator("test_caveat")
 		require.False(t, relationContainsCaveat(rel, nil))
 	})
 
 	t.Run("handles relation with nil base in relationContainsCaveat", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 		// Create a DatastoreIterator with nil base
 		rel := &DatastoreIterator{base: nil}
@@ -312,11 +280,7 @@ func TestContainsCaveat(t *testing.T) {
 }
 
 func TestPushdownCaveatEvaluationEdgeCases(t *testing.T) {
-	t.Parallel()
-
 	t.Run("does not push through nested CaveatIterator", func(t *testing.T) {
-		t.Parallel()
-
 		caveat := createTestCaveatForPushdown("test_caveat")
 
 		// Create Caveat(Caveat(Relation))

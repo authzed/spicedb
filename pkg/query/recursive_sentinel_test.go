@@ -9,10 +9,7 @@ import (
 )
 
 func TestRecursiveSentinel_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
@@ -25,7 +22,6 @@ func TestRecursiveSentinel_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_WithoutSubRelations", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
@@ -38,7 +34,6 @@ func TestRecursiveSentinel_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_WithSubRelations", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		sentinel := NewRecursiveSentinelIterator("folder", "parent", true)

@@ -11,10 +11,7 @@ import (
 )
 
 func TestOutline_Compile(t *testing.T) {
-	t.Parallel()
-
 	t.Run("NullIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{Type: NullIteratorType}
@@ -31,7 +28,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("DatastoreIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -54,7 +50,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("DatastoreIteratorType_MissingRelation", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -71,7 +66,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("UnionIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel1 := schema.NewTestBaseRelation("doc", "viewer", "user", tuple.Ellipsis)
@@ -97,7 +91,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("IntersectionIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel1 := schema.NewTestBaseRelation("doc", "viewer", "user", tuple.Ellipsis)
@@ -123,7 +116,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("FixedIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -148,7 +140,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("FixedIteratorType_NoPaths", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -168,7 +159,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("ArrowIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -191,7 +181,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("ArrowIteratorType_WrongSubiteratorCount", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -210,7 +199,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("ExclusionIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -233,7 +221,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("ExclusionIteratorType_WrongSubiteratorCount", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -252,7 +239,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("CaveatIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
@@ -281,7 +267,6 @@ func TestOutline_Compile(t *testing.T) {
 	// handles these cases before compilation (extracts caveats, normalizes structure)
 
 	t.Run("AliasIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -306,7 +291,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("AliasIteratorType_MissingRelationName", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -326,7 +310,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("RecursiveIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -353,7 +336,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("RecursiveIteratorType_MissingDefinitionName", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -375,7 +357,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("RecursiveSentinelIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -399,7 +380,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("RecursiveSentinelIteratorType_MissingArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -416,7 +396,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("IntersectionArrowIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -439,7 +418,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("SelfIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -463,7 +441,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("SelfIteratorType_MissingArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -482,7 +459,6 @@ func TestOutline_Compile(t *testing.T) {
 	})
 
 	t.Run("UnknownIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -499,10 +475,7 @@ func TestOutline_Compile(t *testing.T) {
 }
 
 func TestOutline_Decompile(t *testing.T) {
-	t.Parallel()
-
 	t.Run("NilIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline, err := Decompile(nil)
@@ -511,7 +484,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("DatastoreIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -525,7 +497,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("UnionIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		union := NewUnionIterator(
@@ -540,7 +511,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("IntersectionIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		intersection := NewIntersectionIterator(
@@ -555,7 +525,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("FixedIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -570,7 +539,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("ArrowIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		arrow := NewArrowIterator(NewFixedIterator(), NewFixedIterator())
@@ -582,7 +550,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("ExclusionIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		exclusion := NewExclusionIterator(NewFixedIterator(), NewFixedIterator())
@@ -594,7 +561,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("CaveatIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
@@ -609,7 +575,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("AliasIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		alias := NewAliasIterator("viewer", NewFixedIterator())
@@ -622,7 +587,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("RecursiveIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rec := NewRecursiveIterator(NewFixedIterator(), "document", "parent")
@@ -636,7 +600,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("RecursiveSentinelIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		sentinel := NewRecursiveSentinelIterator("document", "parent", false)
@@ -650,7 +613,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("IntersectionArrowIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		intArrow := NewIntersectionArrowIterator(NewFixedIterator(), NewFixedIterator())
@@ -662,7 +624,6 @@ func TestOutline_Decompile(t *testing.T) {
 	})
 
 	t.Run("SelfIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		self := NewSelfIterator("viewer", "document")
@@ -677,10 +638,7 @@ func TestOutline_Decompile(t *testing.T) {
 }
 
 func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
-	t.Parallel()
-
 	t.Run("DatastoreIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -708,7 +666,6 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 	})
 
 	t.Run("ComplexNestedStructure", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a complex nested structure
@@ -744,7 +701,6 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 	})
 
 	t.Run("ArrowWithDatastore", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel1 := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -781,7 +737,6 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 	})
 
 	t.Run("CaveatIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
@@ -811,10 +766,7 @@ func TestOutline_CompileDecompileRoundtrip(t *testing.T) {
 }
 
 func TestOutline_Equals(t *testing.T) {
-	t.Parallel()
-
 	t.Run("IdenticalOutlines", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{Type: NullIteratorType}
@@ -825,7 +777,6 @@ func TestOutline_Equals(t *testing.T) {
 	})
 
 	t.Run("DifferentTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{Type: NullIteratorType}
@@ -835,7 +786,6 @@ func TestOutline_Equals(t *testing.T) {
 	})
 
 	t.Run("DifferentArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel1 := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -854,7 +804,6 @@ func TestOutline_Equals(t *testing.T) {
 	})
 
 	t.Run("DifferentSubiteratorCount", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{
@@ -875,7 +824,6 @@ func TestOutline_Equals(t *testing.T) {
 	})
 
 	t.Run("DifferentSubiterators", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{
@@ -895,7 +843,6 @@ func TestOutline_Equals(t *testing.T) {
 	})
 
 	t.Run("NilArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{Type: NullIteratorType, Args: nil}
@@ -905,7 +852,6 @@ func TestOutline_Equals(t *testing.T) {
 	})
 
 	t.Run("OneNilArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{Type: FixedIteratorType, Args: nil}
@@ -919,10 +865,7 @@ func TestOutline_Equals(t *testing.T) {
 }
 
 func TestOutlineCompare(t *testing.T) {
-	t.Parallel()
-
 	t.Run("EqualOutlines", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{Type: NullIteratorType}
@@ -932,7 +875,6 @@ func TestOutlineCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{Type: DatastoreIteratorType}
@@ -944,7 +886,6 @@ func TestOutlineCompare(t *testing.T) {
 	})
 
 	t.Run("SameTypeDifferentArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{
@@ -962,7 +903,6 @@ func TestOutlineCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentSubiteratorCount", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{
@@ -984,7 +924,6 @@ func TestOutlineCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentSubiterators", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{
@@ -1006,7 +945,6 @@ func TestOutlineCompare(t *testing.T) {
 	})
 
 	t.Run("NilArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		o1 := Outline{Type: FixedIteratorType, Args: nil}
@@ -1019,10 +957,7 @@ func TestOutlineCompare(t *testing.T) {
 }
 
 func TestArgsCompare(t *testing.T) {
-	t.Parallel()
-
 	t.Run("BothNil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		result := argsCompare(nil, nil)
@@ -1030,7 +965,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("FirstNil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		result := argsCompare(nil, &IteratorArgs{})
@@ -1038,7 +972,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("SecondNil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		result := argsCompare(&IteratorArgs{}, nil)
@@ -1046,7 +979,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentDefinitionName", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		a1 := &IteratorArgs{DefinitionName: "document"}
@@ -1058,7 +990,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentRelationName", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		a1 := &IteratorArgs{
@@ -1076,7 +1007,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentRelation", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel1 := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -1091,7 +1021,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentCaveat", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
@@ -1105,7 +1034,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentFixedPathsLength", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -1118,7 +1046,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentFixedPaths", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -1132,7 +1059,6 @@ func TestArgsCompare(t *testing.T) {
 	})
 
 	t.Run("IdenticalArgs", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -1159,10 +1085,7 @@ func TestArgsCompare(t *testing.T) {
 }
 
 func TestCaveatCompare(t *testing.T) {
-	t.Parallel()
-
 	t.Run("BothNil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		result := caveatCompare(nil, nil)
@@ -1170,7 +1093,6 @@ func TestCaveatCompare(t *testing.T) {
 	})
 
 	t.Run("FirstNil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
@@ -1179,7 +1101,6 @@ func TestCaveatCompare(t *testing.T) {
 	})
 
 	t.Run("SecondNil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
@@ -1188,7 +1109,6 @@ func TestCaveatCompare(t *testing.T) {
 	})
 
 	t.Run("DifferentCaveatNames", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
@@ -1200,7 +1120,6 @@ func TestCaveatCompare(t *testing.T) {
 	})
 
 	t.Run("SameNameSameCaveat", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat1 := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
@@ -1211,7 +1130,6 @@ func TestCaveatCompare(t *testing.T) {
 	})
 
 	t.Run("SameNameIdenticalCaveat", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat1 := &core.ContextualizedCaveat{
@@ -1228,10 +1146,7 @@ func TestCaveatCompare(t *testing.T) {
 }
 
 func TestCanonicalKey_Type(t *testing.T) {
-	t.Parallel()
-
 	t.Run("String method", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		key := CanonicalKey("test_key")
@@ -1239,7 +1154,6 @@ func TestCanonicalKey_Type(t *testing.T) {
 	})
 
 	t.Run("IsEmpty returns true for empty key", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		key := CanonicalKey("")
@@ -1247,7 +1161,6 @@ func TestCanonicalKey_Type(t *testing.T) {
 	})
 
 	t.Run("IsEmpty returns false for non-empty key", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		key := CanonicalKey("test_key")
@@ -1255,7 +1168,6 @@ func TestCanonicalKey_Type(t *testing.T) {
 	})
 
 	t.Run("Hash produces consistent value", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		key := CanonicalKey("test_key")
@@ -1265,7 +1177,6 @@ func TestCanonicalKey_Type(t *testing.T) {
 	})
 
 	t.Run("Hash produces different values for different keys", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		key1 := CanonicalKey("key1")
@@ -1277,10 +1188,7 @@ func TestCanonicalKey_Type(t *testing.T) {
 }
 
 func TestSerializeOutline(t *testing.T) {
-	t.Parallel()
-
 	t.Run("NullIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{Type: NullIteratorType}
@@ -1289,7 +1197,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("DatastoreIteratorType with Relation", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -1308,7 +1215,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("UnionIteratorType with subiterators", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1324,7 +1230,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("IntersectionIteratorType with subiterators", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1340,7 +1245,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("Nested structure", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Union( Null, Intersection( Null, Null ) )
@@ -1363,7 +1267,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("CaveatIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		caveat := &core.ContextualizedCaveat{CaveatName: "age_check"}
@@ -1383,7 +1286,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("AliasIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1401,7 +1303,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("RecursiveIteratorType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1420,7 +1321,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("FixedIteratorType with paths", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -1438,7 +1338,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("Empty Args", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1452,7 +1351,6 @@ func TestSerializeOutline(t *testing.T) {
 	})
 
 	t.Run("Nil Args", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1466,7 +1364,6 @@ func TestSerializeOutline(t *testing.T) {
 }
 
 func TestSerializeOutline_Deterministic(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
@@ -1492,10 +1389,7 @@ func TestSerializeOutline_Deterministic(t *testing.T) {
 }
 
 func TestSerializeOutline_Args(t *testing.T) {
-	t.Parallel()
-
 	t.Run("DefinitionName only", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1510,7 +1404,6 @@ func TestSerializeOutline_Args(t *testing.T) {
 	})
 
 	t.Run("RelationName only", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1525,7 +1418,6 @@ func TestSerializeOutline_Args(t *testing.T) {
 	})
 
 	t.Run("Multiple Args fields", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		outline := Outline{
@@ -1543,7 +1435,6 @@ func TestSerializeOutline_Args(t *testing.T) {
 }
 
 func TestSerializeOutline_IgnoresID(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create two identical outlines with different IDs
@@ -1564,7 +1455,6 @@ func TestSerializeOutline_IgnoresID(t *testing.T) {
 }
 
 func TestCanonicalKey_Hash(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create different keys

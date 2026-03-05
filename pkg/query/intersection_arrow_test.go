@@ -13,13 +13,9 @@ import (
 )
 
 func TestIntersectionArrowIterator(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("AllSubjectsSatisfyCondition", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side: document has teams team1 and team2
 		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
 		leftPath2 := MustPathFromString("document:doc1#team@team:team2")
@@ -65,8 +61,6 @@ func TestIntersectionArrowIterator(t *testing.T) {
 	})
 
 	t.Run("NotAllSubjectsSatisfyCondition", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side: document has teams team1 and team2
 		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
 		leftPath2 := MustPathFromString("document:doc1#team@team:team2")
@@ -107,8 +101,6 @@ func TestIntersectionArrowIterator(t *testing.T) {
 	})
 
 	t.Run("SingleSubjectSatisfiesCondition", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side: document has only team1
 		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
 
@@ -154,8 +146,6 @@ func TestIntersectionArrowIterator(t *testing.T) {
 	})
 
 	t.Run("NoLeftSubjects", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side: document has no teams
 		leftIter := NewFixedIterator() // Empty
 
@@ -191,8 +181,6 @@ func TestIntersectionArrowIterator(t *testing.T) {
 	})
 
 	t.Run("ThreeTeamsAllSatisfied", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side: document has teams team1, team2, and team3
 		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
 		leftPath2 := MustPathFromString("document:doc1#team@team:team2")
@@ -241,8 +229,6 @@ func TestIntersectionArrowIterator(t *testing.T) {
 	})
 
 	t.Run("EmptyResources", func(t *testing.T) {
-		t.Parallel()
-
 		leftIter := NewFixedIterator()
 		rightIter := NewFixedIterator()
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
@@ -272,8 +258,6 @@ func TestIntersectionArrowIterator(t *testing.T) {
 }
 
 func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test context
@@ -289,8 +273,6 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#team@team:team1")
 		leftPath.Caveat = &core.CaveatExpression{
@@ -343,8 +325,6 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#team@team:team1")
 		leftPath.Caveat = &core.CaveatExpression{
@@ -388,8 +368,6 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("MultiplePaths_CombineCaveats_AND_Logic", func(t *testing.T) {
-		t.Parallel()
-
 		// Left side: document has multiple teams, each with different caveats
 		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
 		leftPath1.Caveat = &core.CaveatExpression{
@@ -482,8 +460,6 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 }
 
 func TestIntersectionArrowIteratorClone(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test paths
@@ -535,8 +511,6 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 }
 
 func TestIntersectionArrowIteratorExplain(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	leftPath := MustPathFromString("document:doc1#team@team:team1")
@@ -556,8 +530,6 @@ func TestIntersectionArrowIteratorExplain(t *testing.T) {
 }
 
 func TestIntersectionArrowIteratorIterSubjects(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	leftIter := NewFixedIterator()
@@ -577,8 +549,6 @@ func TestIntersectionArrowIteratorIterSubjects(t *testing.T) {
 }
 
 func TestIntersectionArrowIteratorIterResources(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	leftIter := NewFixedIterator()
@@ -598,15 +568,12 @@ func TestIntersectionArrowIteratorIterResources(t *testing.T) {
 }
 
 func TestIntersectionArrowIterSubjects(t *testing.T) {
-	t.Parallel()
-
 	ctx := &Context{
 		Context:  t.Context(),
 		Executor: LocalExecutor{},
 	}
 
 	t.Run("AllLeftSubjectsSatisfyRight", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Left: doc1 -> folder1, folder2
@@ -635,7 +602,6 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("NotAllLeftSubjectsSatisfyRight", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Left: doc1 -> folder1, folder2
@@ -660,7 +626,6 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("EmptyLeftIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// No left paths
@@ -680,7 +645,6 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("MultipleRightSubjects", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Left: doc1 -> folder1
@@ -712,7 +676,6 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("CaveatCombination", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Left with caveat, right with caveat
@@ -753,7 +716,6 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("ThreeLeftSubjectsAllSatisfy", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Left: doc1 -> folder1, folder2, folder3
@@ -785,10 +747,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 }
 
 func TestIntersectionArrow_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create left and right iterators
@@ -807,7 +766,6 @@ func TestIntersectionArrow_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create left and right iterators

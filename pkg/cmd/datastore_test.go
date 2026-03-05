@@ -10,8 +10,6 @@ import (
 )
 
 func TestExecuteGC(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		cfgBuilder    func(t *testing.T) *datastore.Config
@@ -34,8 +32,6 @@ func TestExecuteGC(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			cfg := tt.cfgBuilder(t)
 			err := executeGC(t.Context(), cfg)
 			require.ErrorContains(t, err, tt.expectedError)
@@ -44,8 +40,6 @@ func TestExecuteGC(t *testing.T) {
 }
 
 func TestExecuteRepair(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		cfgBuilder    func(t *testing.T) *datastore.Config
@@ -81,8 +75,6 @@ func TestExecuteRepair(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			cfg := tt.cfgBuilder(t)
 			err := executeRepair(cfg, []string{})
 			if tt.expectedError == "" {
