@@ -87,7 +87,7 @@ func newDevContextWithDataLayer(ctx context.Context, requestContext *devinterfac
 
 	var inputErrors []*devinterface.DeveloperError
 	currentRevision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-		inputErrors, err = loadCompiled(ctx, compiled, rwt)
+		inputErrors, err = loadCompiled(ctx, compiled, requestContext.Schema, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
 		}
@@ -272,6 +272,7 @@ func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datalayer.Rea
 func loadCompiled(
 	ctx context.Context,
 	compiled *compiler.CompiledSchema,
+	schemaText string,
 	rwt datalayer.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
 	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
@@ -385,7 +386,7 @@ func loadCompiled(
 	}
 
 	if len(validDefs) > 0 {
-		if err := rwt.WriteSchema(ctx, validDefs); err != nil {
+		if err := rwt.WriteSchema(ctx, validDefs, schemaText, caveattypes.Default.TypeSet); err != nil {
 			return errors, err
 		}
 	}

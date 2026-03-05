@@ -6,6 +6,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -123,7 +124,7 @@ type ReadWriteTransaction interface {
 	BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error)
 
 	// WriteSchema writes the full set of schema definitions.
-	WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition) error
+	WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) error
 
 	// LegacySchemaWriter returns a legacy schema writer for backwards-compatible
 	// additive-only schema operations.
