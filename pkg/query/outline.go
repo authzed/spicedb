@@ -55,6 +55,13 @@ func (k CanonicalKey) Hash() uint64 {
 	return xxhash.Sum64String(string(k))
 }
 
+// CanonicalKeySource can resolve a CanonicalKey for a given outline node ID.
+// PlanAdvisors receive this instead of the full CanonicalOutline to stay
+// decoupled from the outline structure.
+type CanonicalKeySource interface {
+	GetCanonicalKey(id OutlineNodeID) CanonicalKey
+}
+
 // OutlineNodeID is a numeric identifier assigned to each node in a CanonicalOutline.
 // It is populated by CanonicalizeOutline; plain (non-canonical, non-filter) Outlines have a
 // zero-valued ID and cannot be compiled.
@@ -68,6 +75,46 @@ type Outline struct {
 	ID          OutlineNodeID // Populated only inside a CanonicalOutline
 }
 
+// WalkOutlineBottomUp performs a bottom-up traversal of an Outline tree,
+// rebuilding each node with its processed children before passing it to fn.
+// fn receives the node (with already-processed children) and returns a
+// replacement node and an optional error. The traversal stops and the error
+// is propagated on the first failure.
+func WalkOutlineBottomUp(outline Outline, fn func(Outline) (Outline, error)) (Outline, error) {
+	if len(outline.SubOutlines) > 0 {
+		newSubs := make([]Outline, len(outline.SubOutlines))
+		for i, sub := range outline.SubOutlines {
+			processed, err := WalkOutlineBottomUp(sub, fn)
+			if err != nil {
+				return Outline{}, err
+			}
+			newSubs[i] = processed
+		}
+		outline = Outline{
+			Type:        outline.Type,
+			Args:        outline.Args,
+			SubOutlines: newSubs,
+			ID:          outline.ID,
+		}
+	}
+	return fn(outline)
+}
+
+// WalkOutlinePreOrder performs a pre-order traversal of an Outline tree,
+// calling fn on each node before visiting its children. fn returns an error
+// to abort the traversal early.
+func WalkOutlinePreOrder(outline Outline, fn func(Outline) error) error {
+	if err := fn(outline); err != nil {
+		return err
+	}
+	for _, sub := range outline.SubOutlines {
+		if err := WalkOutlinePreOrder(sub, fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CanonicalOutline is an Outline tree that has been fully canonicalized.
 // It pairs the root Outline (with every node's ID assigned) with a map from
 // those IDs to their CanonicalKeys. Only CanonicalOutlines can be Compiled,
@@ -75,17 +122,23 @@ type Outline struct {
 type CanonicalOutline struct {
 	Root          Outline
 	CanonicalKeys map[OutlineNodeID]CanonicalKey
+	Hints         map[OutlineNodeID][]Hint
+}
+
+// GetCanonicalKey implements CanonicalKeySource.
+func (co CanonicalOutline) GetCanonicalKey(id OutlineNodeID) CanonicalKey {
+	return co.CanonicalKeys[id]
 }
 
 // Compile converts a CanonicalOutline into the actual Iterator representation.
-// All iterators in the resulting tree have their canonical keys set.
+// All iterators in the resulting tree have their canonical keys set and hints applied.
 func (co CanonicalOutline) Compile() (Iterator, error) {
-	return compileOutline(co.Root, co.CanonicalKeys)
+	return compileOutline(co.Root, co.CanonicalKeys, co.Hints)
 }
 
 // compileOutline recursively builds an Iterator tree from an Outline,
-// looking up each node's CanonicalKey from the provided map.
-func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey) (Iterator, error) {
+// looking up each node's CanonicalKey from the provided map and applying hints.
+func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints map[OutlineNodeID][]Hint) (Iterator, error) {
 	key, ok := keys[outline.ID]
 	if !ok {
 		return nil, spiceerrors.MustBugf("outline node ID %d not found in CanonicalKeys map - outline must come from a CanonicalOutline", outline.ID)
@@ -94,7 +147,7 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey) (Itera
 	// First, recursively compile all subiterators (bottom-up)
 	compiledSubs := make([]Iterator, len(outline.SubOutlines))
 	for i, sub := range outline.SubOutlines {
-		compiled, err := compileOutline(sub, keys)
+		compiled, err := compileOutline(sub, keys, hints)
 		if err != nil {
 			return nil, err
 		}
@@ -102,55 +155,56 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey) (Itera
 	}
 
 	// Now construct the iterator based on type and set canonical key
+	var it Iterator
 	switch outline.Type {
 	case NullIteratorType:
-		it := NewFixedIterator()
-		it.canonicalKey = key
-		return it, nil
+		fixed := NewFixedIterator()
+		fixed.canonicalKey = key
+		it = fixed
 
 	case DatastoreIteratorType:
 		if outline.Args == nil || outline.Args.Relation == nil {
 			return nil, errors.New("DatastoreIterator requires Relation in Args")
 		}
-		it := NewDatastoreIterator(outline.Args.Relation)
-		it.canonicalKey = key
-		return it, nil
+		ds := NewDatastoreIterator(outline.Args.Relation)
+		ds.canonicalKey = key
+		it = ds
 
 	case UnionIteratorType:
-		it := NewUnionIterator(compiledSubs...)
-		it.(*UnionIterator).canonicalKey = key
-		return it, nil
+		union := NewUnionIterator(compiledSubs...)
+		union.(*UnionIterator).canonicalKey = key
+		it = union
 
 	case IntersectionIteratorType:
-		it := NewIntersectionIterator(compiledSubs...)
-		it.(*IntersectionIterator).canonicalKey = key
-		return it, nil
+		intersection := NewIntersectionIterator(compiledSubs...)
+		intersection.(*IntersectionIterator).canonicalKey = key
+		it = intersection
 
 	case FixedIteratorType:
-		var it *FixedIterator
+		var fixed *FixedIterator
 		if outline.Args != nil {
-			it = NewFixedIterator(outline.Args.FixedPaths...)
+			fixed = NewFixedIterator(outline.Args.FixedPaths...)
 		} else {
-			it = NewFixedIterator()
+			fixed = NewFixedIterator()
 		}
-		it.canonicalKey = key
-		return it, nil
+		fixed.canonicalKey = key
+		it = fixed
 
 	case ArrowIteratorType:
 		if len(compiledSubs) != 2 {
 			return nil, fmt.Errorf("ArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
-		it := NewArrowIterator(compiledSubs[0], compiledSubs[1])
-		it.canonicalKey = key
-		return it, nil
+		arrow := NewArrowIterator(compiledSubs[0], compiledSubs[1])
+		arrow.canonicalKey = key
+		it = arrow
 
 	case ExclusionIteratorType:
 		if len(compiledSubs) != 2 {
 			return nil, fmt.Errorf("ExclusionIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
-		it := NewExclusionIterator(compiledSubs[0], compiledSubs[1])
-		it.canonicalKey = key
-		return it, nil
+		exclusion := NewExclusionIterator(compiledSubs[0], compiledSubs[1])
+		exclusion.canonicalKey = key
+		it = exclusion
 
 	case CaveatIteratorType:
 		if len(compiledSubs) != 1 {
@@ -159,9 +213,9 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey) (Itera
 		if outline.Args == nil || outline.Args.Caveat == nil {
 			return nil, errors.New("CaveatIterator requires Caveat in Args")
 		}
-		it := NewCaveatIterator(compiledSubs[0], outline.Args.Caveat)
-		it.canonicalKey = key
-		return it, nil
+		caveat := NewCaveatIterator(compiledSubs[0], outline.Args.Caveat)
+		caveat.canonicalKey = key
+		it = caveat
 
 	case AliasIteratorType:
 		if len(compiledSubs) != 1 {
@@ -170,9 +224,9 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey) (Itera
 		if outline.Args == nil || outline.Args.RelationName == "" {
 			return nil, errors.New("AliasIterator requires RelationName in Args")
 		}
-		it := NewAliasIterator(outline.Args.RelationName, compiledSubs[0])
-		it.canonicalKey = key
-		return it, nil
+		alias := NewAliasIterator(outline.Args.RelationName, compiledSubs[0])
+		alias.canonicalKey = key
+		it = alias
 
 	case RecursiveIteratorType:
 		if len(compiledSubs) != 1 {
@@ -181,38 +235,49 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey) (Itera
 		if outline.Args == nil || outline.Args.DefinitionName == "" || outline.Args.RelationName == "" {
 			return nil, errors.New("RecursiveIterator requires DefinitionName and RelationName in Args")
 		}
-		it := NewRecursiveIterator(compiledSubs[0], outline.Args.DefinitionName, outline.Args.RelationName)
-		it.canonicalKey = key
-		return it, nil
+		recursive := NewRecursiveIterator(compiledSubs[0], outline.Args.DefinitionName, outline.Args.RelationName)
+		recursive.canonicalKey = key
+		it = recursive
 
 	case RecursiveSentinelIteratorType:
 		if outline.Args == nil || outline.Args.DefinitionName == "" || outline.Args.RelationName == "" {
 			return nil, errors.New("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
 		}
 		// withSubRelations defaults to false for now
-		it := NewRecursiveSentinelIterator(outline.Args.DefinitionName, outline.Args.RelationName, false)
-		it.canonicalKey = key
-		return it, nil
+		sentinel := NewRecursiveSentinelIterator(outline.Args.DefinitionName, outline.Args.RelationName, false)
+		sentinel.canonicalKey = key
+		it = sentinel
 
 	case IntersectionArrowIteratorType:
 		if len(compiledSubs) != 2 {
 			return nil, fmt.Errorf("IntersectionArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
 		}
-		it := NewIntersectionArrowIterator(compiledSubs[0], compiledSubs[1])
-		it.canonicalKey = key
-		return it, nil
+		intersectionArrow := NewIntersectionArrowIterator(compiledSubs[0], compiledSubs[1])
+		intersectionArrow.canonicalKey = key
+		it = intersectionArrow
 
 	case SelfIteratorType:
 		if outline.Args == nil || outline.Args.RelationName == "" || outline.Args.DefinitionName == "" {
 			return nil, errors.New("SelfIterator requires RelationName and DefinitionName in Args")
 		}
-		it := NewSelfIterator(outline.Args.RelationName, outline.Args.DefinitionName)
-		it.canonicalKey = key
-		return it, nil
+		self := NewSelfIterator(outline.Args.RelationName, outline.Args.DefinitionName)
+		self.canonicalKey = key
+		it = self
 
 	default:
 		return nil, fmt.Errorf("unknown iterator type: %c", outline.Type)
 	}
+
+	// Apply hints to the constructed iterator
+	if hints != nil {
+		for _, hint := range hints[outline.ID] {
+			if err := hint(it); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return it, nil
 }
 
 // IteratorArgs represents all the possible arguments to the Iterator constructors.
@@ -350,32 +415,6 @@ func Decompile(it Iterator) (Outline, error) {
 	default:
 		return Outline{}, fmt.Errorf("unknown iterator type: %T", it)
 	}
-}
-
-type OutlineMutation func(Outline) Outline
-
-// MutateOutline performs a bottom-up traversal of the outline tree, applying
-// all the given transformation functions to each node after processing its children.
-func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
-	// Recurse on children first (bottom-up)
-	if len(outline.SubOutlines) > 0 {
-		newSubs := make([]Outline, len(outline.SubOutlines))
-		for i, sub := range outline.SubOutlines {
-			newSubs[i] = MutateOutline(sub, fns)
-		}
-		outline = Outline{
-			Type:        outline.Type,
-			Args:        outline.Args,
-			SubOutlines: newSubs,
-		}
-	}
-
-	// Then apply all mutation functions in sequence to current node
-	result := outline
-	for _, fn := range fns {
-		result = fn(result)
-	}
-	return result
 }
 
 // Equals checks if two Outlines are structurally equal
