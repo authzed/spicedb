@@ -785,7 +785,7 @@ func runPostgres(t *testing.T) (conn *pgx.Conn) {
 	postgresContainerHostname := fmt.Sprintf("postgres-%s", uuid.New().String())
 	postgres, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       postgresContainerHostname,
-		Repository: "mirror.gcr.io/library/postgres",
+		Repository: "postgres",
 		Tag:        pgVersion,
 		Env: []string{
 			"POSTGRES_USER=" + postgresTestUser,
