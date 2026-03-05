@@ -96,7 +96,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	schemaText, err := sr.SchemaText()
+	schemaText, err := sr.SchemaText(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}

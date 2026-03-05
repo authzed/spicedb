@@ -9,6 +9,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
@@ -34,6 +35,8 @@ var (
 		Help:      "Histogram of cluster dispatches performed by the instance.",
 		Buckets:   []float64{1, 5, 10, 25, 50, 100, 250},
 	}, DispatchedCountLabels)
+
+	tracer = otel.Tracer("spicedb/internal/middleware")
 )
 
 type reporter struct{}
@@ -52,6 +55,9 @@ type serverReporter struct {
 
 // PostCall is invoked after all PostMsgSend operations.
 func (r *serverReporter) PostCall(_ error, _ time.Duration) {
+	_, span := tracer.Start(r.ctx, "usagemetrics.PostCall")
+	defer span.End()
+
 	responseMeta := FromContext(r.ctx)
 	if responseMeta == nil {
 		responseMeta = &dispatch.ResponseMeta{}

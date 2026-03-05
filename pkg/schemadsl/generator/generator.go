@@ -2,11 +2,14 @@ package generator
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"maps"
 	"slices"
 	"sort"
 	"strings"
+
+	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -18,6 +21,8 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
+var tracer = otel.Tracer("spicedb/pkg/schemadsl/generator")
+
 // Ellipsis is the relation name for terminal subjects.
 const Ellipsis = "..."
 
@@ -25,11 +30,14 @@ const Ellipsis = "..."
 const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
 func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
-	return GenerateSchemaWithCaveatTypeSet(definitions, caveattypes.Default.TypeSet)
+	return GenerateSchemaWithCaveatTypeSet(context.TODO(), definitions, caveattypes.Default.TypeSet)
 }
 
 // GenerateSchemaWithCaveatTypeSet generates a DSL view of the given schema.
-func GenerateSchemaWithCaveatTypeSet(definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+func GenerateSchemaWithCaveatTypeSet(ctx context.Context, definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+	_, span := tracer.Start(ctx, "GenerateSchemaWithCaveatTypeSet")
+	defer span.End()
+
 	generated := make([]string, 0, len(definitions))
 	flags := mapz.NewSet[string]()
 

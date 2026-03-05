@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Updated CI so that Postgres tests run against v18 which is GA and not against v13 which is EOL (https://github.com/authzed/spicedb/pull/2926)
 
+### Fixed
+- Regression introduced in 1.49.2: missing spans in ReadSchema calls (https://github.com/authzed/spicedb/pull/2947)
+
 ## [1.49.2] - 2026-03-02
 ### Added
 - feat(query planner): add recursive direction strategies, and fix IS BFS (https://github.com/authzed/spicedb/pull/2891)

@@ -48,7 +48,7 @@ func TestNew(t *testing.T) {
 			am := New(tt.inputProvider, "name")
 			require.NotNil(t, am)
 
-			err := am.checkAdmission("some_method")
+			err := am.checkAdmission(t.Context(), "some_method")
 			if tt.expectReqLetThrough {
 				require.NoError(t, err) // if the middleware is off, every request is let through
 			} else {
