@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
@@ -146,20 +145,16 @@ func NewPermissionsServer(
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 	}
 
-	validator := genutil.MustNewProtoValidator()
-
 	return &permissionServer{
 		dispatch: dispatch,
 		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(validator),
-				handwrittenvalidation.UnaryServerInterceptor,
+				handwrittenvalidation.UnaryServerInterceptor(),
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),

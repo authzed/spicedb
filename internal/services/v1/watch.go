@@ -5,18 +5,17 @@ import (
 	"slices"
 	"time"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -32,11 +31,9 @@ type watchServer struct {
 
 // NewWatchServer creates an instance of the watch server.
 func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
-	validator := genutil.MustNewProtoValidator()
-
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
-			Stream: grpcvalidate.StreamServerInterceptor(validator),
+			Stream: handwrittenvalidation.StreamServerInterceptor,
 		},
 		heartbeatDuration: heartbeatDuration,
 	}
