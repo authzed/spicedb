@@ -10,7 +10,6 @@ import (
 )
 
 func TestPositionToAstNode(t *testing.T) {
-	t.Parallel()
 
 	tcs := []struct {
 		name          string
@@ -218,7 +217,6 @@ func TestPositionToAstNode(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			compiled, err := Compile(InputSchema{
 				Source:       input.Source("test"),
@@ -256,7 +254,6 @@ func TestPositionToAstNode(t *testing.T) {
 }
 
 func TestNodeChainString(t *testing.T) {
-	t.Parallel()
 
 	tcs := []struct {
 		name           string
@@ -389,7 +386,6 @@ func TestNodeChainString(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			compiled, err := Compile(InputSchema{
 				Source:       input.Source("test"),

@@ -10,7 +10,6 @@ import (
 )
 
 func TestSchemaConversionFromCompiler(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name                string
@@ -238,7 +237,6 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			// Compile the schema using the existing compiler
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -343,7 +341,6 @@ func TestSchemaConversionFromCompiler(t *testing.T) {
 }
 
 func TestSchemaConversionEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name        string
@@ -388,7 +385,6 @@ func TestSchemaConversionEdgeCases(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			// Compile the schema
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -433,7 +429,6 @@ func TestSchemaConversionEdgeCases(t *testing.T) {
 }
 
 func TestSchemaConversionOperationTypes(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name         string
@@ -504,7 +499,6 @@ func TestSchemaConversionOperationTypes(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			// Compile and build schema
 			compiled, err := compiler.Compile(compiler.InputSchema{

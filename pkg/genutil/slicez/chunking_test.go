@@ -10,12 +10,10 @@ import (
 )
 
 func TestForEachChunk(t *testing.T) {
-	t.Parallel()
 
 	for _, dataSize := range []int{0, 1, 5, 10, 50, 100, 250} {
 		for _, chunkSize := range []uint16{1, 2, 3, 5, 10, 50} {
 			t.Run(fmt.Sprintf("test-%d-%d", dataSize, chunkSize), func(t *testing.T) {
-				t.Parallel()
 
 				data := make([]int, dataSize)
 				for i := range dataSize {
@@ -35,7 +33,6 @@ func TestForEachChunk(t *testing.T) {
 }
 
 func TestForEachChunkUntil(t *testing.T) {
-	t.Parallel()
 
 	data := []int{1, 2, 3, 4, 5}
 	errAny := errors.New("any error")
@@ -75,7 +72,6 @@ func TestForEachChunkZeroChunkSize(t *testing.T) {
 }
 
 func TestForEachChunkOverflowPanic(t *testing.T) {
-	t.Parallel()
 
 	datasize := math.MaxUint16
 	chunksize := uint16(50)
@@ -95,12 +91,10 @@ func TestForEachChunkOverflowPanic(t *testing.T) {
 }
 
 func TestForEachChunkOverflowIncorrect(t *testing.T) {
-	t.Parallel()
 
 	chunksize := uint16(50)
 	for _, datasize := range []int{math.MaxUint16 + int(chunksize), 10_000_000} {
 		t.Run(fmt.Sprintf("test-%d-%d", datasize, chunksize), func(t *testing.T) {
-			t.Parallel()
 
 			data := make([]int, 0, datasize)
 			for i := range datasize {

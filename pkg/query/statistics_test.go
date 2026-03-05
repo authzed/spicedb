@@ -11,12 +11,10 @@ import (
 )
 
 func TestStaticStatistics_Cost(t *testing.T) {
-	t.Parallel()
 
 	stats := DefaultStaticStatistics()
 
 	t.Run("FixedIterator", func(t *testing.T) {
-		t.Parallel()
 
 		t.Run("empty", func(t *testing.T) {
 			it := NewFixedIterator()
@@ -45,7 +43,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("DatastoreIterator", func(t *testing.T) {
-		t.Parallel()
 
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
 		it := NewDatastoreIterator(baseRel)
@@ -59,7 +56,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("Arrow", func(t *testing.T) {
-		t.Parallel()
 
 		t.Run("simple", func(t *testing.T) {
 			left := NewFixedIterator(
@@ -139,7 +135,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("IntersectionArrow", func(t *testing.T) {
-		t.Parallel()
 
 		left := NewFixedIterator(
 			MustPathFromString("document:doc1#team@team:eng"),
@@ -173,7 +168,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("Union", func(t *testing.T) {
-		t.Parallel()
 
 		t.Run("empty", func(t *testing.T) {
 			// NewUnionIterator() with no args returns empty FixedIterator (canonical form)
@@ -250,7 +244,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("Intersection", func(t *testing.T) {
-		t.Parallel()
 
 		t.Run("empty", func(t *testing.T) {
 			// NewIntersectionIterator() with no args returns empty FixedIterator (canonical form)
@@ -361,7 +354,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("Complex nested iterators", func(t *testing.T) {
-		t.Parallel()
 
 		t.Run("union of arrows", func(t *testing.T) {
 			// Create two arrows and union them
@@ -430,7 +422,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("Exclusion", func(t *testing.T) {
-		t.Parallel()
 
 		t.Run("simple exclusion", func(t *testing.T) {
 			mainSet := NewFixedIterator(
@@ -487,7 +478,6 @@ func TestStaticStatistics_Cost(t *testing.T) {
 	})
 
 	t.Run("Passthrough iterators", func(t *testing.T) {
-		t.Parallel()
 
 		// Create a mock iterator that has one subiterator (should pass through)
 		fixed := NewFixedIterator(
@@ -505,10 +495,8 @@ func TestStaticStatistics_Cost(t *testing.T) {
 }
 
 func TestStaticStatistics_CustomConfig(t *testing.T) {
-	t.Parallel()
 
 	t.Run("custom datastore size", func(t *testing.T) {
-		t.Parallel()
 		stats := StaticStatistics{
 			NumberOfTuplesInRelation: 1000,
 			Fanout:                   10,
@@ -524,7 +512,6 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 	})
 
 	t.Run("custom selectivity", func(t *testing.T) {
-		t.Parallel()
 		stats := StaticStatistics{
 			NumberOfTuplesInRelation: 10,
 			Fanout:                   5,
@@ -540,7 +527,6 @@ func TestStaticStatistics_CustomConfig(t *testing.T) {
 	})
 
 	t.Run("custom intersection arrow reduction", func(t *testing.T) {
-		t.Parallel()
 		stats := StaticStatistics{
 			NumberOfTuplesInRelation: 10,
 			Fanout:                   5,

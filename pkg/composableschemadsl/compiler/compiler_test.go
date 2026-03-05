@@ -21,7 +21,6 @@ var (
 )
 
 func TestCompile(t *testing.T) {
-	t.Parallel()
 
 	type compileTest struct {
 		name          string
@@ -1415,7 +1414,6 @@ func TestCompile(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 			compiled, err := Compile(InputSchema{
 				input.Source(test.name), test.input,
@@ -1494,7 +1492,6 @@ func filterSourcePositions(m protoreflect.Message) {
 }
 
 func TestSkipValidation(t *testing.T) {
-	t.Parallel()
 
 	_, err := Compile(InputSchema{"test", `definition a/def {}`}, AllowUnprefixedObjectType())
 	require.Error(t, err)
@@ -1504,7 +1501,6 @@ func TestSkipValidation(t *testing.T) {
 }
 
 func TestSuperLargeCaveatCompile(t *testing.T) {
-	t.Parallel()
 
 	b, err := os.ReadFile("../parser/tests/superlarge.zed")
 	if err != nil {

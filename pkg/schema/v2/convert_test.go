@@ -11,10 +11,8 @@ import (
 )
 
 func TestConvertDefinitionEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("definition with nil relation", func(t *testing.T) {
-		t.Parallel()
 		def := &corev1.NamespaceDefinition{
 			Name: "test",
 			Relation: []*corev1.Relation{
@@ -30,7 +28,6 @@ func TestConvertDefinitionEdgeCases(t *testing.T) {
 	})
 
 	t.Run("definition with relation having both userset and typeinfo", func(t *testing.T) {
-		t.Parallel()
 		// This should prioritize userset rewrite over type information
 		def := &corev1.NamespaceDefinition{
 			Name: "test",
@@ -70,17 +67,14 @@ func TestConvertDefinitionEdgeCases(t *testing.T) {
 }
 
 func TestConvertUsersetEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("nil userset", func(t *testing.T) {
-		t.Parallel()
 		_, err := convertUserset(nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "userset rewrite is nil")
 	})
 
 	t.Run("unknown rewrite operation", func(t *testing.T) {
-		t.Parallel()
 		userset := &corev1.UsersetRewrite{
 			// No rewrite operation set
 		}
@@ -92,17 +86,14 @@ func TestConvertUsersetEdgeCases(t *testing.T) {
 }
 
 func TestConvertTypeInformationEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("nil type information", func(t *testing.T) {
-		t.Parallel()
 		_, err := convertTypeInformation(nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "type information is nil")
 	})
 
 	t.Run("type information with caveat and expiration", func(t *testing.T) {
-		t.Parallel()
 		typeinfo := &corev1.TypeInformation{
 			AllowedDirectRelations: []*corev1.AllowedRelation{
 				{
@@ -126,7 +117,6 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("type information with empty relation name", func(t *testing.T) {
-		t.Parallel()
 		typeinfo := &corev1.TypeInformation{
 			AllowedDirectRelations: []*corev1.AllowedRelation{
 				{
@@ -146,7 +136,6 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("type information with ellipsis relation", func(t *testing.T) {
-		t.Parallel()
 		typeinfo := &corev1.TypeInformation{
 			AllowedDirectRelations: []*corev1.AllowedRelation{
 				{
@@ -166,7 +155,6 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("type information with specific subrelation", func(t *testing.T) {
-		t.Parallel()
 		typeinfo := &corev1.TypeInformation{
 			AllowedDirectRelations: []*corev1.AllowedRelation{
 				{
@@ -187,17 +175,14 @@ func TestConvertTypeInformationEdgeCases(t *testing.T) {
 }
 
 func TestConvertSetOperationEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("nil set operation", func(t *testing.T) {
-		t.Parallel()
 		_, err := convertSetOperation(nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "set operation is nil")
 	})
 
 	t.Run("empty set operation", func(t *testing.T) {
-		t.Parallel()
 		setOp := &corev1.SetOperation{
 			Child: []*corev1.SetOperation_Child{},
 		}
@@ -212,7 +197,6 @@ func TestConvertSetOperationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("single child optimization", func(t *testing.T) {
-		t.Parallel()
 		setOp := &corev1.SetOperation{
 			Child: []*corev1.SetOperation_Child{
 				{
@@ -232,17 +216,14 @@ func TestConvertSetOperationEdgeCases(t *testing.T) {
 }
 
 func TestConvertSetOperationAsIntersectionEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("nil set operation", func(t *testing.T) {
-		t.Parallel()
 		_, err := convertSetOperationAsIntersection(nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "set operation is nil")
 	})
 
 	t.Run("single child optimization", func(t *testing.T) {
-		t.Parallel()
 		setOp := &corev1.SetOperation{
 			Child: []*corev1.SetOperation_Child{
 				{
@@ -262,19 +243,15 @@ func TestConvertSetOperationAsIntersectionEdgeCases(t *testing.T) {
 }
 
 func TestConvertSetOperationAsExclusionEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("nil set operation", func(t *testing.T) {
-		t.Parallel()
 		_, err := convertSetOperationAsExclusion(nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "set operation is nil")
 	})
 
 	t.Run("wrong number of children", func(t *testing.T) {
-		t.Parallel()
 		t.Run("no children", func(t *testing.T) {
-			t.Parallel()
 			setOp := &corev1.SetOperation{
 				Child: []*corev1.SetOperation_Child{},
 			}
@@ -285,7 +262,6 @@ func TestConvertSetOperationAsExclusionEdgeCases(t *testing.T) {
 		})
 
 		t.Run("one child", func(t *testing.T) {
-			t.Parallel()
 			setOp := &corev1.SetOperation{
 				Child: []*corev1.SetOperation_Child{
 					{
@@ -300,7 +276,6 @@ func TestConvertSetOperationAsExclusionEdgeCases(t *testing.T) {
 		})
 
 		t.Run("three children", func(t *testing.T) {
-			t.Parallel()
 			setOp := &corev1.SetOperation{
 				Child: []*corev1.SetOperation_Child{
 					{
@@ -322,7 +297,6 @@ func TestConvertSetOperationAsExclusionEdgeCases(t *testing.T) {
 	})
 
 	t.Run("valid exclusion", func(t *testing.T) {
-		t.Parallel()
 		setOp := &corev1.SetOperation{
 			Child: []*corev1.SetOperation_Child{
 				{
@@ -359,17 +333,14 @@ func TestConvertSetOperationAsExclusionEdgeCases(t *testing.T) {
 }
 
 func TestConvertChildEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("nil child", func(t *testing.T) {
-		t.Parallel()
 		_, err := convertChild(nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "child is nil")
 	})
 
 	t.Run("XThis child", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_XThis{},
 		}
@@ -383,7 +354,6 @@ func TestConvertChildEdgeCases(t *testing.T) {
 	})
 
 	t.Run("ComputedUserset child", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_ComputedUserset{
 				ComputedUserset: &corev1.ComputedUserset{
@@ -401,7 +371,6 @@ func TestConvertChildEdgeCases(t *testing.T) {
 	})
 
 	t.Run("UsersetRewrite child", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_UsersetRewrite{
 				UsersetRewrite: &corev1.UsersetRewrite{
@@ -428,7 +397,6 @@ func TestConvertChildEdgeCases(t *testing.T) {
 	})
 
 	t.Run("TupleToUserset child", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_TupleToUserset{
 				TupleToUserset: &corev1.TupleToUserset{
@@ -452,7 +420,6 @@ func TestConvertChildEdgeCases(t *testing.T) {
 	})
 
 	t.Run("XNil child", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_XNil{},
 		}
@@ -466,7 +433,6 @@ func TestConvertChildEdgeCases(t *testing.T) {
 	})
 
 	t.Run("unknown child type", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			// No ChildType set
 		}
@@ -478,10 +444,8 @@ func TestConvertChildEdgeCases(t *testing.T) {
 }
 
 func TestConvertCaveatEdgeCases(t *testing.T) {
-	t.Parallel()
 
 	t.Run("caveat with empty parameter types", func(t *testing.T) {
-		t.Parallel()
 		def := &corev1.CaveatDefinition{
 			Name:                 "test_caveat",
 			SerializedExpression: []byte("test expression"),
@@ -496,7 +460,6 @@ func TestConvertCaveatEdgeCases(t *testing.T) {
 	})
 
 	t.Run("caveat with multiple parameter types", func(t *testing.T) {
-		t.Parallel()
 		def := &corev1.CaveatDefinition{
 			Name:                 "complex_caveat",
 			SerializedExpression: []byte("complex expression"),
@@ -525,10 +488,8 @@ func TestConvertCaveatEdgeCases(t *testing.T) {
 }
 
 func TestConvertChildWithNestedOperations(t *testing.T) {
-	t.Parallel()
 
 	t.Run("nested union in userset rewrite", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_UsersetRewrite{
 				UsersetRewrite: &corev1.UsersetRewrite{
@@ -573,7 +534,6 @@ func TestConvertChildWithNestedOperations(t *testing.T) {
 	})
 
 	t.Run("nested intersection in userset rewrite", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_UsersetRewrite{
 				UsersetRewrite: &corev1.UsersetRewrite{
@@ -610,7 +570,6 @@ func TestConvertChildWithNestedOperations(t *testing.T) {
 	})
 
 	t.Run("error in nested userset rewrite", func(t *testing.T) {
-		t.Parallel()
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_UsersetRewrite{
 				UsersetRewrite: nil, // This should cause an error
@@ -624,10 +583,8 @@ func TestConvertChildWithNestedOperations(t *testing.T) {
 }
 
 func TestConvertFunctionedTupleToUserset(t *testing.T) {
-	t.Parallel()
 
 	t.Run("convert FUNCTION_ANY", func(t *testing.T) {
-		t.Parallel()
 
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
@@ -654,7 +611,6 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 	})
 
 	t.Run("convert FUNCTION_ALL", func(t *testing.T) {
-		t.Parallel()
 
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
@@ -681,7 +637,6 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 	})
 
 	t.Run("convert unknown function type", func(t *testing.T) {
-		t.Parallel()
 
 		child := &corev1.SetOperation_Child{
 			ChildType: &corev1.SetOperation_Child_FunctionedTupleToUserset{
@@ -703,7 +658,6 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 	})
 
 	t.Run("full definition with functioned tupleset", func(t *testing.T) {
-		t.Parallel()
 
 		def := &corev1.NamespaceDefinition{
 			Name: "document",
@@ -790,7 +744,6 @@ func TestConvertFunctionedTupleToUserset(t *testing.T) {
 }
 
 func TestConvertFunctionType(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -820,7 +773,6 @@ func TestConvertFunctionType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			result, err := convertFunctionType(tt.input)
 			if tt.wantErr {
@@ -835,10 +787,8 @@ func TestConvertFunctionType(t *testing.T) {
 }
 
 func TestMetadataPreservation(t *testing.T) {
-	t.Parallel()
 
 	t.Run("namespace definition metadata with doc comments is preserved", func(t *testing.T) {
-		t.Parallel()
 
 		// Create doc comment metadata
 		docComment := &implv1.DocComment{
@@ -899,7 +849,6 @@ func TestMetadataPreservation(t *testing.T) {
 	})
 
 	t.Run("caveat definition metadata with doc comments is preserved", func(t *testing.T) {
-		t.Parallel()
 
 		// Create doc comment metadata
 		docComment := &implv1.DocComment{
@@ -950,7 +899,6 @@ func TestMetadataPreservation(t *testing.T) {
 	})
 
 	t.Run("relation metadata with doc comments and relation kind is preserved", func(t *testing.T) {
-		t.Parallel()
 
 		// Create doc comment metadata
 		docComment := &implv1.DocComment{
@@ -1035,7 +983,6 @@ func TestMetadataPreservation(t *testing.T) {
 	})
 
 	t.Run("permission metadata with type annotations is preserved", func(t *testing.T) {
-		t.Parallel()
 
 		// Create permission metadata with type annotations
 		permissionMetadata := &implv1.RelationMetadata{
@@ -1105,10 +1052,8 @@ func TestMetadataPreservation(t *testing.T) {
 // TestConvertOperationParentPointers verifies that parent pointers are correctly set
 // when operations are converted from proto definitions.
 func TestConvertOperationParentPointers(t *testing.T) {
-	t.Parallel()
 
 	t.Run("comprehensive parent pointer verification", func(t *testing.T) {
-		t.Parallel()
 
 		// Create a comprehensive proto definition that exercises all operation types and parent relationships
 		def := &corev1.NamespaceDefinition{
@@ -1440,7 +1385,6 @@ func TestConvertOperationParentPointers(t *testing.T) {
 	})
 
 	t.Run("deeply nested operations maintain parent chain", func(t *testing.T) {
-		t.Parallel()
 
 		// Create a deeply nested structure to verify the entire parent chain
 		// Use 2 children at the root union to avoid single-child optimization
@@ -1565,7 +1509,6 @@ func TestConvertOperationParentPointers(t *testing.T) {
 	})
 
 	t.Run("single child optimization preserves parent pointers", func(t *testing.T) {
-		t.Parallel()
 
 		// Test that single-child optimization (unwrapping) still maintains parent pointers
 		def := &corev1.NamespaceDefinition{

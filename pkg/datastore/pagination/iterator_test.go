@@ -19,7 +19,6 @@ import (
 )
 
 func TestPaginatedIterator(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		order              options.SortOrder
@@ -39,7 +38,6 @@ func TestPaginatedIterator(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%d/%d-%d", tc.pageSize, tc.totalRelationships, tc.order), func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 
 			rels := make([]tuple.Relationship, 0, tc.totalRelationships)

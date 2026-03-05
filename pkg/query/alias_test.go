@@ -7,13 +7,11 @@ import (
 )
 
 func TestAliasIterator(t *testing.T) {
-	t.Parallel()
 
 	// Create test context
 	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_BasicRelationRewriting", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a sub-iterator with document relations
@@ -44,7 +42,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("Check_SelfEdgeDetection", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create an empty sub-iterator since we only want to test self-edge detection
@@ -76,7 +73,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NoSelfEdge", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a sub-iterator
@@ -100,7 +96,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("Check_MultipleResources", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -127,7 +122,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("IterSubjects_RelationRewriting", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -148,7 +142,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources_RelationRewriting", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -167,7 +160,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources_SelfEdgeDetection", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create an empty sub-iterator since we only want to test self-edge detection
@@ -199,7 +191,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EmptySubIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
@@ -214,7 +205,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("Check_SelfEdgeWithEmptySubIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create empty sub-iterator
@@ -235,7 +225,6 @@ func TestAliasIterator(t *testing.T) {
 	})
 
 	t.Run("Check_SelfEdgeExactMatch", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
@@ -264,7 +253,6 @@ func TestAliasIterator(t *testing.T) {
 }
 
 func TestAliasIteratorClone(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 
@@ -286,10 +274,8 @@ func TestAliasIteratorClone(t *testing.T) {
 }
 
 func TestAliasIteratorExplain(t *testing.T) {
-	t.Parallel()
 
 	t.Run("ExplainWithSubIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -305,7 +291,6 @@ func TestAliasIteratorExplain(t *testing.T) {
 	})
 
 	t.Run("ExplainWithEmptySubIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
@@ -318,13 +303,11 @@ func TestAliasIteratorExplain(t *testing.T) {
 }
 
 func TestAliasIteratorErrorHandling(t *testing.T) {
-	t.Parallel()
 
 	// Create test context
 	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_SubIteratorError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator
@@ -336,7 +319,6 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Check_SubIteratorCollectionError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
@@ -352,7 +334,6 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	})
 
 	t.Run("IterSubjects_SubIteratorError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails on IterSubjectsImpl
@@ -365,7 +346,6 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	})
 
 	t.Run("IterSubjects_SubIteratorCollectionError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
@@ -382,7 +362,6 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	})
 
 	t.Run("IterResources_SubIteratorError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails on IterResourcesImpl
@@ -395,7 +374,6 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	})
 
 	t.Run("IterResources_SubIteratorCollectionError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
@@ -412,7 +390,6 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Check_SelfEdgeWithSubIteratorError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that errors on CheckImpl
@@ -428,7 +405,6 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Check_SelfEdgeWithSubIteratorCollectionError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty sub-iterator that fails during collection
@@ -448,13 +424,11 @@ func TestAliasIteratorErrorHandling(t *testing.T) {
 }
 
 func TestAliasIteratorAdvancedScenarios(t *testing.T) {
-	t.Parallel()
 
 	// Create test context
 	ctx := NewLocalContext(t.Context())
 
 	t.Run("Check_MultipleResourcesSelfEdgeWithSubResults", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create sub-iterator with real data
@@ -494,7 +468,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("Check_MultipleResourcesMultipleSelfEdges", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create empty sub-iterator to isolate self-edge logic
@@ -522,7 +495,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("IterSubjects_EmptySubIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
@@ -537,7 +509,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("IterResources_EmptySubIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewEmptyFixedIterator()
@@ -552,7 +523,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("Check_LargeResultSet", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Use iterator with many results
@@ -576,7 +546,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("Clone_Independence", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -612,7 +581,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("Check_EarlyReturnBasicRewriting", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -635,7 +603,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("Check_EarlyReturnSelfEdgeWithSubResults", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -660,7 +627,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("IterSubjects_EarlyReturn", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -683,7 +649,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("IterResources_EarlyReturn", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		subIt := NewDocumentAccessFixedIterator()
@@ -706,7 +671,6 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 	})
 
 	t.Run("Check_SelfEdgeWithSubIteratorPathRewriting", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Use sub-iterator that will return paths that need rewriting
@@ -747,10 +711,8 @@ func TestAliasIteratorAdvancedScenarios(t *testing.T) {
 }
 
 func TestAlias_Types(t *testing.T) {
-	t.Parallel()
 
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create an alias iterator
@@ -765,7 +727,6 @@ func TestAlias_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create an alias iterator

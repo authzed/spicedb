@@ -8,7 +8,6 @@ import (
 )
 
 func TestFilterResourcesByType(t *testing.T) {
-	t.Parallel()
 
 	// Helper to create a PathSeq from paths
 	createSeq := func(paths []Path) PathSeq {
@@ -22,7 +21,6 @@ func TestFilterResourcesByType(t *testing.T) {
 	}
 
 	t.Run("EmptyFilter_ReturnsAllPaths", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create test paths with different resource types
@@ -43,7 +41,6 @@ func TestFilterResourcesByType(t *testing.T) {
 	})
 
 	t.Run("FilterByType_OnlyReturnsMatchingResources", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		paths := []Path{
@@ -68,7 +65,6 @@ func TestFilterResourcesByType(t *testing.T) {
 	})
 
 	t.Run("FilterByTypeAndSubrelation_OnlyReturnsMatchingResources", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		paths := []Path{
@@ -94,7 +90,6 @@ func TestFilterResourcesByType(t *testing.T) {
 	})
 
 	t.Run("NoMatchingResources_ReturnsEmpty", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		paths := []Path{
@@ -114,7 +109,6 @@ func TestFilterResourcesByType(t *testing.T) {
 	})
 
 	t.Run("ErrorPropagation", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a sequence that yields an error
@@ -134,7 +128,6 @@ func TestFilterResourcesByType(t *testing.T) {
 }
 
 func TestFilterSubjectsByType(t *testing.T) {
-	t.Parallel()
 
 	// Helper to create a PathSeq from paths
 	createSeq := func(paths []Path) PathSeq {
@@ -148,7 +141,6 @@ func TestFilterSubjectsByType(t *testing.T) {
 	}
 
 	t.Run("EmptyFilter_ReturnsAllPaths", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		paths := []Path{
@@ -168,7 +160,6 @@ func TestFilterSubjectsByType(t *testing.T) {
 	})
 
 	t.Run("FilterByType_OnlyReturnsMatchingSubjects", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		paths := []Path{
@@ -193,7 +184,6 @@ func TestFilterSubjectsByType(t *testing.T) {
 	})
 
 	t.Run("FilterByTypeAndSubrelation_OnlyReturnsMatchingSubjects", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		paths := []Path{
@@ -219,7 +209,6 @@ func TestFilterSubjectsByType(t *testing.T) {
 	})
 
 	t.Run("NoMatchingSubjects_ReturnsEmpty", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		paths := []Path{
@@ -239,7 +228,6 @@ func TestFilterSubjectsByType(t *testing.T) {
 	})
 
 	t.Run("ErrorPropagation", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a sequence that yields an error
@@ -259,7 +247,6 @@ func TestFilterSubjectsByType(t *testing.T) {
 }
 
 func TestNoObjectFilter(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	filter := NoObjectFilter()

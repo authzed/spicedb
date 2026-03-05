@@ -11,7 +11,6 @@ import (
 )
 
 func TestIsNull(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -61,7 +60,6 @@ func TestIsNull(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result := isNullOutline(tt.outline)
 			require.Equal(t, tt.expected, result)
 		})
@@ -69,7 +67,6 @@ func TestIsNull(t *testing.T) {
 }
 
 func TestReplaceEmptyComposites(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -116,7 +113,6 @@ func TestReplaceEmptyComposites(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result := replaceEmptyComposites(tt.outline)
 			require.True(t, result.Equals(tt.expected), "expected %+v, got %+v", tt.expected, result)
 		})
@@ -124,7 +120,6 @@ func TestReplaceEmptyComposites(t *testing.T) {
 }
 
 func TestCollapseSingleChild(t *testing.T) {
-	t.Parallel()
 
 	childOutline := Outline{Type: DatastoreIteratorType}
 
@@ -175,7 +170,6 @@ func TestCollapseSingleChild(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result := collapseSingleChild(tt.outline)
 			require.True(t, result.Equals(tt.expected))
 		})
@@ -183,7 +177,6 @@ func TestCollapseSingleChild(t *testing.T) {
 }
 
 func TestPropagateNull(t *testing.T) {
-	t.Parallel()
 
 	nullOutline := Outline{Type: NullIteratorType}
 	dataOutline := Outline{Type: DatastoreIteratorType}
@@ -286,7 +279,6 @@ func TestPropagateNull(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result := propagateNull(tt.outline)
 			require.True(t, result.Equals(tt.expected))
 		})
@@ -294,7 +286,6 @@ func TestPropagateNull(t *testing.T) {
 }
 
 func TestFlattenComposites(t *testing.T) {
-	t.Parallel()
 
 	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "a"}}
 	b := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "b"}}
@@ -403,7 +394,6 @@ func TestFlattenComposites(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result := flattenComposites(tt.outline)
 			require.True(t, result.Equals(tt.expected))
 		})
@@ -411,7 +401,6 @@ func TestFlattenComposites(t *testing.T) {
 }
 
 func TestSortCompositeChildren(t *testing.T) {
-	t.Parallel()
 
 	// Create outlines with different relation names for predictable sorting
 	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{RelationName: "a"}}
@@ -465,7 +454,6 @@ func TestSortCompositeChildren(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result := sortCompositeChildren(tt.outline)
 			require.True(t, result.Equals(tt.expected))
 		})
@@ -473,7 +461,6 @@ func TestSortCompositeChildren(t *testing.T) {
 }
 
 func TestExtractCaveats(t *testing.T) {
-	t.Parallel()
 
 	caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
 	caveat2 := &core.ContextualizedCaveat{CaveatName: "caveat2"}
@@ -544,7 +531,6 @@ func TestExtractCaveats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			tree, caveats, err := extractCaveats(tt.outline)
 			require.NoError(t, err)
 			require.True(t, tree.Equals(tt.expectedTree))
@@ -557,7 +543,6 @@ func TestExtractCaveats(t *testing.T) {
 }
 
 func TestNestCaveats(t *testing.T) {
-	t.Parallel()
 
 	caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
 	caveat2 := &core.ContextualizedCaveat{CaveatName: "caveat2"}
@@ -605,7 +590,6 @@ func TestNestCaveats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result := nestCaveats(tt.outline, tt.caveats)
 			require.True(t, result.Equals(tt.expected))
 		})
@@ -613,7 +597,6 @@ func TestNestCaveats(t *testing.T) {
 }
 
 func TestCanonicalizeOutline(t *testing.T) {
-	t.Parallel()
 
 	caveat1 := &core.ContextualizedCaveat{CaveatName: "caveat1"}
 	caveat2 := &core.ContextualizedCaveat{CaveatName: "caveat2"}
@@ -746,7 +729,6 @@ func TestCanonicalizeOutline(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			result, err := CanonicalizeOutline(tt.outline)
 			require.NoError(t, err)
 			require.True(t, result.Root.Equals(tt.expected), "expected %+v, got %+v", tt.expected, result.Root)
@@ -755,7 +737,6 @@ func TestCanonicalizeOutline(t *testing.T) {
 }
 
 func TestCanonicalizeIdempotency(t *testing.T) {
-	t.Parallel()
 
 	caveat := &core.ContextualizedCaveat{CaveatName: "test"}
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
@@ -819,7 +800,6 @@ func TestCanonicalizeIdempotency(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			// First canonicalization
 			canonical1, err := CanonicalizeOutline(tt.outline)
@@ -838,7 +818,6 @@ func TestCanonicalizeIdempotency(t *testing.T) {
 }
 
 func TestCanonicalizeEquivalence(t *testing.T) {
-	t.Parallel()
 
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
 	a := Outline{Type: DatastoreIteratorType, Args: &IteratorArgs{Relation: rel}}
@@ -930,7 +909,6 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			canonical1, err := CanonicalizeOutline(tt.outline1)
 			require.NoError(t, err)
@@ -952,7 +930,6 @@ func TestCanonicalizeEquivalence(t *testing.T) {
 }
 
 func TestCanonicalizeOutline_PopulatesCanonicalKey(t *testing.T) {
-	t.Parallel()
 
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
 
@@ -1004,7 +981,6 @@ func TestCanonicalizeOutline_PopulatesCanonicalKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 
 			canonical, err := CanonicalizeOutline(tt.outline)
@@ -1018,7 +994,6 @@ func TestCanonicalizeOutline_PopulatesCanonicalKey(t *testing.T) {
 }
 
 func TestCanonicalKey_MatchesSerialization(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
@@ -1043,7 +1018,6 @@ func TestCanonicalKey_MatchesSerialization(t *testing.T) {
 }
 
 func TestCanonicalKey_AllNodesPopulated(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
@@ -1082,7 +1056,6 @@ func TestCanonicalKey_AllNodesPopulated(t *testing.T) {
 }
 
 func TestCanonicalKey_Uniqueness(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rel1 := schema.NewTestBaseRelation("doc", "rel1", "user", tuple.Ellipsis)
@@ -1123,7 +1096,6 @@ func TestCanonicalKey_Uniqueness(t *testing.T) {
 }
 
 func TestCanonicalKey_Equivalence(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
@@ -1153,7 +1125,6 @@ func TestCanonicalKey_Equivalence(t *testing.T) {
 }
 
 func TestCanonicalKey_Idempotency(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
@@ -1190,7 +1161,6 @@ func TestCanonicalKey_Idempotency(t *testing.T) {
 }
 
 func TestCanonicalKey_MethodsWork(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rel := schema.NewTestBaseRelation("doc", "rel", "user", tuple.Ellipsis)
@@ -1217,7 +1187,6 @@ func TestCanonicalKey_MethodsWork(t *testing.T) {
 }
 
 func TestCanonicalKey_WithCaveats(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	caveat := &core.ContextualizedCaveat{CaveatName: "age_check"}

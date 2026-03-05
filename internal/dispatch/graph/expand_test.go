@@ -138,7 +138,6 @@ var (
 )
 
 func TestExpand(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		start                 tuple.ObjectAndRelation
@@ -165,7 +164,6 @@ func TestExpand(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
-			t.Parallel()
 
 			require := require.New(t)
 
@@ -277,7 +275,6 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 }
 
 func TestMaxDepthExpand(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 
@@ -312,7 +309,6 @@ func TestMaxDepthExpand(t *testing.T) {
 }
 
 func TestExpandOverSchema(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name          string
@@ -903,7 +899,6 @@ func TestExpandOverSchema(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			require := require.New(t)
 

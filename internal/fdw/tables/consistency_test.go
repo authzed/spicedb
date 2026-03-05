@@ -8,7 +8,6 @@ import (
 )
 
 func TestConsistencyFromFields(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name                    string
@@ -106,7 +105,6 @@ func TestConsistencyFromFields(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			consistency, err := consistencyFromFields(tc.fields, tc.parameters)
 
@@ -147,7 +145,6 @@ func TestConsistencyFromFields(t *testing.T) {
 }
 
 func TestConsistencyConstants(t *testing.T) {
-	t.Parallel()
 
 	// Verify constants are defined correctly
 	require.Equal(t, "minimize_latency", consistencyMinimizeLatency)
@@ -156,7 +153,6 @@ func TestConsistencyConstants(t *testing.T) {
 }
 
 func TestConsistencyField(t *testing.T) {
-	t.Parallel()
 
 	// Verify consistencyField is properly configured
 	require.Equal(t, "consistency", consistencyField.Name)

@@ -971,7 +971,6 @@ func canonicalize(in []datastore.RevisionChanges) []datastore.RevisionChanges {
 }
 
 func TestThreadSafe(t *testing.T) {
-	t.Parallel()
 
 	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, math.MaxInt64)
 

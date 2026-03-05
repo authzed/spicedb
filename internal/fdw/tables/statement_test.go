@@ -7,7 +7,6 @@ import (
 )
 
 func TestSelectStatementAccessors(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name         string
@@ -34,7 +33,6 @@ func TestSelectStatementAccessors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			require.Equal(t, tc.expectedName, tc.stmt.TableName())
 			require.Equal(t, tc.stmt.isUnsupported, tc.stmt.IsUnsupported())
@@ -43,7 +41,6 @@ func TestSelectStatementAccessors(t *testing.T) {
 }
 
 func TestFieldMapHasFields(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name     string
@@ -86,7 +83,6 @@ func TestFieldMapHasFields(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			result := tc.fields.hasFields(tc.check...)
 			require.Equal(t, tc.expected, result)
@@ -95,7 +91,6 @@ func TestFieldMapHasFields(t *testing.T) {
 }
 
 func TestTableDefinitionMethods(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name     string
@@ -117,7 +112,6 @@ func TestTableDefinitionMethods(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			// Test columnNames
 			names := tc.tableDef.columnNames()

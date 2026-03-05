@@ -10,7 +10,6 @@ import (
 )
 
 func TestLookupTuplesetArrows(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name       string
@@ -119,7 +118,6 @@ func TestLookupTuplesetArrows(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
@@ -152,7 +150,6 @@ func TestLookupTuplesetArrows(t *testing.T) {
 }
 
 func TestAllReachableRelations(t *testing.T) {
-	t.Parallel()
 
 	type testcase struct {
 		name       string
@@ -251,7 +248,6 @@ func TestAllReachableRelations(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
@@ -273,7 +269,6 @@ func TestAllReachableRelations(t *testing.T) {
 }
 
 func TestLookupArrowsWithComputedUserset(t *testing.T) {
-	t.Parallel()
 
 	type expectedArrow struct {
 		parentNamespace string
@@ -512,7 +507,6 @@ func TestLookupArrowsWithComputedUserset(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",

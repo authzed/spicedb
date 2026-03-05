@@ -151,7 +151,6 @@ func TestSimpleLookupResources3(t *testing.T) {
 }
 
 func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
-	t.Parallel()
 
 	for _, tc := range []struct {
 		subject        string
@@ -175,7 +174,6 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 		},
 	} {
 		t.Run(tc.subject, func(t *testing.T) {
-			t.Parallel()
 
 			require := require.New(t)
 			ctx, dispatcher, revision := newLocalDispatcher(t)
@@ -251,7 +249,6 @@ func processResults3(stream *dispatch.CloningCollectingDispatchStream[*v1.Dispat
 }
 
 func TestMaxDepthLookup3(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -282,7 +279,6 @@ func TestMaxDepthLookup3(t *testing.T) {
 }
 
 func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name                  string
 		schema                string
@@ -689,10 +685,8 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			for _, pageSize := range []int{0, 104, 1023} {
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
-					t.Parallel()
 					require := require.New(t)
 
 					dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -781,7 +775,6 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 }
 
 func TestLookupResources3WithError(t *testing.T) {
-	t.Parallel()
 
 	require := require.New(t)
 
@@ -815,7 +808,6 @@ func TestLookupResources3WithError(t *testing.T) {
 }
 
 func TestLookupResources3EnsureCheckHints(t *testing.T) {
-	t.Parallel()
 
 	tcs := []struct {
 		name          string
@@ -1257,7 +1249,6 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			require := require.New(t)
 

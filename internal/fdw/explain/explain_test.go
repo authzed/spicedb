@@ -7,7 +7,6 @@ import (
 )
 
 func TestExplainString(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name     string
@@ -66,7 +65,6 @@ func TestExplainString(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			result := tc.explain.String()
 			require.Equal(t, tc.expected, result)
@@ -75,7 +73,6 @@ func TestExplainString(t *testing.T) {
 }
 
 func TestDefault(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name      string
@@ -101,7 +98,6 @@ func TestDefault(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			result := Default(tc.operation, tc.tableName)
 			require.Equal(t, tc.operation, result.Operation)
@@ -123,7 +119,6 @@ func TestDefault(t *testing.T) {
 }
 
 func TestUnsupported(t *testing.T) {
-	t.Parallel()
 
 	// Verify Unsupported is a string with very high costs
 	require.Contains(t, Unsupported, "Unsupported")
@@ -137,7 +132,6 @@ func TestUnsupported(t *testing.T) {
 }
 
 func TestExplainComparison(t *testing.T) {
-	t.Parallel()
 
 	// Test that Default produces lower cost than Unsupported constants
 	defaultExplain := Default("Foreign Scan", "test")
