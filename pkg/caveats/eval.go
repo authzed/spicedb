@@ -84,6 +84,12 @@ func (cr CaveatResult) MissingVarNames() ([]string, error) {
 	return cr.missingVarNames, nil
 }
 
+// LeafCaveatResults returns this CaveatResult as a single-element slice.
+// CaveatResult is a leaf node in the expression tree, so it returns itself.
+func (cr *CaveatResult) LeafCaveatResults() []*CaveatResult {
+	return []*CaveatResult{cr}
+}
+
 // EvaluateCaveat evaluates the compiled caveat with the specified values, and returns
 // the result or an error.
 func EvaluateCaveat(caveat *CompiledCaveat, contextValues map[string]any) (*CaveatResult, error) {

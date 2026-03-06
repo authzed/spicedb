@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -153,7 +154,7 @@ func computeCheck(ctx context.Context,
 		}
 
 		for _, resourceID := range resourceIDsToCheck {
-			computed, err := computeCaveatedCheckResult(ctx, caveatRunner, params, resourceID, checkResult)
+			computed, err := computeCaveatedCheckResult(ctx, caveatRunner, params, resourceID, checkResult, params.DebugOption)
 			if err != nil {
 				return false, err
 			}
@@ -165,7 +166,7 @@ func computeCheck(ctx context.Context,
 	return results, metadata, debugInfo, err
 }
 
-func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
+func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse, debugOption DebugOption) (*v1.ResourceCheckResult, error) {
 	result, ok := checkResult.ResultsByResourceId[resourceID]
 	if !ok {
 		return &v1.ResourceCheckResult{
@@ -204,7 +205,87 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 		}, nil
 	}
 
+	// The caveat evaluated to false, resulting in NOT_MEMBER.
+	// Only collect per-caveat diagnostics when debugging is enabled, to avoid
+	// leaking caveat expression internals and context values in production
+	// responses, and to avoid the cost of re-evaluation on the hot path.
+	if debugOption != NoDebugging {
+		caveatEvalInfo, err := collectCaveatEvalInfo(ctx, runner, result.Expression, params.CaveatContext, sr)
+		if err != nil {
+			// If we fail to collect diagnostics, still return the NOT_MEMBER result
+			// without diagnostics rather than failing the entire check.
+			return &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_NOT_MEMBER,
+			}, nil
+		}
+
+		return &v1.ResourceCheckResult{
+			Membership:     v1.ResourceCheckResult_NOT_MEMBER,
+			CaveatEvalInfo: caveatEvalInfo,
+		}, nil
+	}
+
 	return &v1.ResourceCheckResult{
 		Membership: v1.ResourceCheckResult_NOT_MEMBER,
 	}, nil
+}
+
+// collectCaveatEvalInfo re-evaluates a caveat expression with debug information
+// enabled to collect per-leaf caveat evaluation results. This is called only when
+// the initial evaluation returned false (NOT_MEMBER), so the re-evaluation cost
+// is acceptable since the request is already denied.
+//
+// This addresses https://github.com/authzed/spicedb/issues/2802 by providing
+// applications with information about which specific caveat(s) caused a denial.
+func collectCaveatEvalInfo(
+	ctx context.Context,
+	runner *cexpr.CaveatRunner,
+	expr *core.CaveatExpression,
+	caveatContext map[string]any,
+	reader cexpr.CaveatDefinitionLookup,
+) ([]*v1.CaveatEvalResult, error) {
+	// Re-run with debug information to collect leaf results.
+	debugResult, err := runner.RunCaveatExpression(ctx, expr, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
+	if err != nil {
+		return nil, err
+	}
+
+	leafResults := debugResult.LeafCaveatResults()
+	if len(leafResults) == 0 {
+		return nil, nil
+	}
+
+	evalResults := make([]*v1.CaveatEvalResult, 0, len(leafResults))
+	for _, leaf := range leafResults {
+		evalResult := &v1.CaveatEvalResult{
+			CaveatName: leaf.ParentCaveat().Name(),
+		}
+
+		// Determine the result.
+		if leaf.IsPartial() {
+			evalResult.Result = v1.CaveatEvalResult_RESULT_MISSING_SOME_CONTEXT
+			missingNames, _ := leaf.MissingVarNames()
+			evalResult.MissingContextParams = missingNames
+		} else if leaf.Value() {
+			evalResult.Result = v1.CaveatEvalResult_RESULT_TRUE
+		} else {
+			evalResult.Result = v1.CaveatEvalResult_RESULT_FALSE
+		}
+
+		// Collect the expression string.
+		exprString, err := leaf.ExpressionString()
+		if err == nil {
+			evalResult.ExpressionString = exprString
+		}
+
+		// Collect the context values used during evaluation.
+		contextStruct, err := leaf.ContextStruct()
+		if err == nil {
+			evalResult.Context = contextStruct
+		}
+
+		evalResults = append(evalResults, evalResult)
+	}
+
+	return evalResults, nil
 }

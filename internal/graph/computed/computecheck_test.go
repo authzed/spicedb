@@ -854,6 +854,206 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 	}
 }
 
+func TestComputeCheckCaveatEvalDiagnostics(t *testing.T) {
+	testCases := []struct {
+		name                string
+		schema              string
+		updates             []caveatedUpdate
+		check               string
+		context             map[string]any
+		expectedMembership  v1.ResourceCheckResult_Membership
+		expectedCaveatNames []string // expected caveat names in CaveatEvalInfo
+		expectedFalseCount  int      // number of caveats expected to be FALSE
+	}{
+		{
+			"single caveat evaluates to false",
+			`definition user {}
+
+			definition document {
+				relation viewer: user | user with testcaveat
+				permission view = viewer
+			}
+			
+			caveat testcaveat(somecondition int) {
+				somecondition == 42
+			}`,
+			[]caveatedUpdate{
+				{tuple.UpdateOperationCreate, "document:foo#viewer@user:tom", "testcaveat", nil},
+			},
+			"document:foo#view@user:tom",
+			map[string]any{"somecondition": "41"},
+			v1.ResourceCheckResult_NOT_MEMBER,
+			[]string{"testcaveat"},
+			1,
+		},
+		{
+			"caveat false due to written context taking precedence",
+			`definition user {}
+
+			definition document {
+				relation viewer: user | user with testcaveat
+				permission view = viewer
+			}
+			
+			caveat testcaveat(somecondition int) {
+				somecondition == 42
+			}`,
+			[]caveatedUpdate{
+				{tuple.UpdateOperationCreate, "document:foo#viewer@user:tom", "testcaveat", map[string]any{
+					"somecondition": 41, // written context says 41 (not 42)
+				}},
+			},
+			"document:foo#view@user:tom",
+			map[string]any{"somecondition": 42}, // request context says 42, but written takes precedence
+			v1.ResourceCheckResult_NOT_MEMBER,
+			[]string{"testcaveat"},
+			1,
+		},
+		{
+			"intersection with one false caveat",
+			`definition user {}
+
+			definition document {
+				relation viewer: user | user with viewcaveat
+				relation editor: user | user with editcaveat
+				permission view_and_edit = viewer & editor
+			}
+			
+			caveat viewcaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			caveat editcaveat(today string) {
+				today == 'tuesday'
+			}`,
+			[]caveatedUpdate{
+				{tuple.UpdateOperationCreate, "document:foo#viewer@user:tom", "viewcaveat", nil},
+				{tuple.UpdateOperationCreate, "document:foo#editor@user:tom", "editcaveat", nil},
+			},
+			"document:foo#view_and_edit@user:tom",
+			map[string]any{"somecondition": "42", "today": "wednesday"},
+			v1.ResourceCheckResult_NOT_MEMBER,
+			// Both leaf caveats are returned: viewcaveat (TRUE) and editcaveat (FALSE).
+			// This lets applications see the full evaluation picture.
+			[]string{"editcaveat", "viewcaveat"},
+			1, // only editcaveat is FALSE
+		},
+		{
+			"no caveat eval info for non-caveated NOT_MEMBER",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				permission view = viewer
+			}`,
+			[]caveatedUpdate{
+				{tuple.UpdateOperationCreate, "document:foo#viewer@user:alice", "", nil},
+			},
+			"document:foo#view@user:tom",
+			nil,
+			v1.ResourceCheckResult_NOT_MEMBER,
+			nil, // no caveat eval info expected
+			0,
+		},
+		{
+			"no caveat eval info for MEMBER result",
+			`definition user {}
+
+			definition document {
+				relation viewer: user | user with testcaveat
+				permission view = viewer
+			}
+			
+			caveat testcaveat(somecondition int) {
+				somecondition == 42
+			}`,
+			[]caveatedUpdate{
+				{tuple.UpdateOperationCreate, "document:foo#viewer@user:tom", "testcaveat", nil},
+			},
+			"document:foo#view@user:tom",
+			map[string]any{"somecondition": "42"},
+			v1.ResourceCheckResult_MEMBER,
+			nil, // no caveat eval info expected for allowed results
+			0,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+			require.NoError(t, err)
+
+			dispatch, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+			require.NoError(t, err)
+			ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+			require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+
+			revision, err := writeCaveatedTuples(ctx, t, ds, tt.schema, tt.updates)
+			require.NoError(t, err)
+
+			rel := tuple.MustParse(tt.check)
+
+			// With debugging enabled, diagnostics should be populated on denial.
+			result, _, err := computed.ComputeCheck(ctx, dispatch,
+				caveattypes.Default.TypeSet,
+				computed.CheckParameters{
+					ResourceType:  rel.Resource.RelationReference(),
+					Subject:       rel.Subject,
+					CaveatContext: tt.context,
+					AtRevision:    revision,
+					MaximumDepth:  50,
+					DebugOption:   computed.BasicDebuggingEnabled,
+				},
+				rel.Resource.ObjectID,
+				100,
+			)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedMembership, result.Membership, "unexpected membership for %s", tt.check)
+
+			// Verify that without debugging, diagnostics are NOT populated
+			// (to avoid leaking caveat internals in production).
+			resultNoDebug, _, err := computed.ComputeCheck(ctx, dispatch,
+				caveattypes.Default.TypeSet,
+				computed.CheckParameters{
+					ResourceType:  rel.Resource.RelationReference(),
+					Subject:       rel.Subject,
+					CaveatContext: tt.context,
+					AtRevision:    revision,
+					MaximumDepth:  50,
+					DebugOption:   computed.NoDebugging,
+				},
+				rel.Resource.ObjectID,
+				100,
+			)
+			require.NoError(t, err)
+			require.Empty(t, resultNoDebug.CaveatEvalInfo, "diagnostics must not be populated without debug mode")
+
+			if tt.expectedCaveatNames == nil {
+				require.Empty(t, result.CaveatEvalInfo, "expected no caveat eval info")
+			} else {
+				require.NotEmpty(t, result.CaveatEvalInfo, "expected caveat eval info to be populated")
+
+				// Collect caveat names from results
+				var caveatNames []string
+				falseCount := 0
+				for _, evalInfo := range result.CaveatEvalInfo {
+					caveatNames = append(caveatNames, evalInfo.CaveatName)
+					if evalInfo.Result == v1.CaveatEvalResult_RESULT_FALSE {
+						falseCount++
+					}
+					// Verify expression string is populated
+					require.NotEmpty(t, evalInfo.ExpressionString, "expected expression string for caveat %s", evalInfo.CaveatName)
+				}
+
+				sort.Strings(caveatNames)
+				sort.Strings(tt.expectedCaveatNames)
+				require.Equal(t, tt.expectedCaveatNames, caveatNames, "unexpected caveat names in eval info")
+				require.Equal(t, tt.expectedFalseCount, falseCount, "unexpected number of FALSE results")
+			}
+		})
+	}
+}
+
 func TestComputeCheckError(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
