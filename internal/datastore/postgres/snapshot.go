@@ -171,8 +171,8 @@ func (cr comparisonResult) String() string {
 // 0:4:2   -> (1,3 visible)
 // 0:4:2,3 -> (1 visible)
 func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
-	rhsHasMoreInfo := rhs.anyTXVisible(s.xmax, s.xipList)
-	lhsHasMoreInfo := s.anyTXVisible(rhs.xmax, rhs.xipList)
+	rhsHasMoreInfo := s.otherHasMoreInfo(rhs)
+	lhsHasMoreInfo := rhs.otherHasMoreInfo(s)
 
 	switch {
 	case rhsHasMoreInfo && lhsHasMoreInfo:
@@ -186,11 +186,32 @@ func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 	}
 }
 
-func (s pgSnapshot) anyTXVisible(first uint64, others []uint64) bool {
-	if s.txVisible(first) {
+// otherHasMoreInfo returns true if other knows the disposition of any
+// transaction that s does not. s doesn't know about its own xipList entries
+// (in-progress) or any txid >= s.xmax (unseen). If other can see any of
+// those as committed, then other has strictly more information.
+func (s pgSnapshot) otherHasMoreInfo(other pgSnapshot) bool {
+	// Check if other sees any of s's in-progress transactions as committed
+	if slices.ContainsFunc(s.xipList, other.txVisible) {
 		return true
 	}
-	return slices.ContainsFunc(others, s.txVisible)
+
+	// Check if other has visibility into any transaction s hasn't seen yet.
+	// Transactions in [s.xmax, other.xmax) that are NOT in other's xipList
+	// are committed from other's perspective but completely unknown to s.
+	// If the range contains more txids than other has in-progress in that
+	// range, at least one must be committed.
+	if other.xmax > s.xmax {
+		rangeSize := other.xmax - s.xmax
+		lo, _ := slices.BinarySearch(other.xipList, s.xmax)
+		hi, _ := slices.BinarySearch(other.xipList, other.xmax)
+		xipInRange := uint64(hi - lo)
+		if xipInRange < rangeSize {
+			return true
+		}
+	}
+
+	return false
 }
 
 // markComplete will create a new snapshot where the specified transaction will be marked as
