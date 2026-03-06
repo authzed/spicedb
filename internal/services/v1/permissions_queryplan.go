@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"sync"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -13,9 +14,57 @@ import (
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
+// QueryPlanMetadata aggregates CountStats for iterator canonical keys across multiple queries.
+// This allows tracking which parts of query plans are used most frequently.
+type QueryPlanMetadata struct {
+	mu    sync.Mutex
+	stats map[query.CanonicalKey]query.CountStats // GUARDED_BY(mu)
+}
+
+// NewQueryPlanMetadata creates a new QueryPlanMetadata tracker.
+func NewQueryPlanMetadata() *QueryPlanMetadata {
+	return &QueryPlanMetadata{
+		stats: make(map[query.CanonicalKey]query.CountStats),
+	}
+}
+
+// MergeCountStats merges CountStats from a query execution into the aggregated metadata.
+func (m *QueryPlanMetadata) MergeCountStats(counts map[query.CanonicalKey]query.CountStats) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for key, newStats := range counts {
+		existing := m.stats[key]
+		existing.CheckCalls += newStats.CheckCalls
+		existing.IterSubjectsCalls += newStats.IterSubjectsCalls
+		existing.IterResourcesCalls += newStats.IterResourcesCalls
+		existing.CheckResults += newStats.CheckResults
+		existing.IterSubjectsResults += newStats.IterSubjectsResults
+		existing.IterResourcesResults += newStats.IterResourcesResults
+		m.stats[key] = existing
+	}
+}
+
+// GetStats returns a copy of all aggregated stats.
+func (m *QueryPlanMetadata) GetStats() map[query.CanonicalKey]query.CountStats {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	result := make(map[query.CanonicalKey]query.CountStats, len(m.stats))
+	for k, v := range m.stats {
+		result[k] = v
+	}
+	return result
+}
+
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
 func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
+	// Lazy initialization of QueryPlanMetadata if nil
+	if ps.queryPlanMetadata == nil {
+		ps.queryPlanMetadata = NewQueryPlanMetadata()
+	}
+
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -69,14 +118,16 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Create query context with optional tracing
-	qctx := &query.Context{
-		Context:       ctx,
-		Executor:      query.LocalExecutor{},
-		Reader:        reader,
-		CaveatContext: caveatContext,
-		CaveatRunner:  caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
-	}
+	// Create count observer to track query execution statistics
+	countObserver := query.NewCountObserver()
+
+	// Create query context with count observer
+	qctx := query.NewLocalContext(ctx,
+		query.WithReader(reader),
+		query.WithCaveatContext(caveatContext),
+		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+		query.WithObserver(countObserver),
+	)
 
 	// Execute the check
 	resource := query.Object{
@@ -100,6 +151,10 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
+
+	// Merge count statistics into metadata after query completes
+	countStats := countObserver.GetStats()
+	ps.queryPlanMetadata.MergeCountStats(countStats)
 
 	resp := &v1.CheckPermissionResponse{
 		CheckedAt:         checkedAt,
