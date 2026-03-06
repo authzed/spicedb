@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,7 +33,12 @@ type watchServer struct {
 
 // NewWatchServer creates an instance of the watch server.
 func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
-	validator := genutil.MustNewProtoValidator()
+	validator := genutil.MustNewProtoValidator(
+		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache. As new
+		// methods are added to this service, you'll need to add new messages to this method.
+		protovalidate.WithMessages(
+			&v1.WatchRequest{},
+		))
 
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{

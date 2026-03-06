@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/ccoveille/go-safecast/v2"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc"
@@ -95,7 +96,11 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		chunkSize = 100
 	}
 
-	validator := genutil.MustNewProtoValidator()
+	validator := genutil.MustNewProtoValidator(
+		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
+		protovalidate.WithMessages(
+			inputMessagesForService(v1.RegisterExperimentalServiceServer, *new(v1.ExperimentalServiceServer))...
+		))
 
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
