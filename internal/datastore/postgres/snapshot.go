@@ -191,7 +191,8 @@ func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 // (in-progress) or any txid >= s.xmax (unseen). If other can see any of
 // those as committed, then other has strictly more information.
 func (s pgSnapshot) otherHasMoreInfo(other pgSnapshot) bool {
-	// Check if other sees any of s's in-progress transactions as committed
+	// If any of the in-progress transactions in this snapshot are visible (i.e. commited
+	// or rolled back) to the other snapshot, the other snapshot has more information.
 	if slices.ContainsFunc(s.xipList, other.txVisible) {
 		return true
 	}
@@ -200,12 +201,25 @@ func (s pgSnapshot) otherHasMoreInfo(other pgSnapshot) bool {
 	// Transactions in [s.xmax, other.xmax) that are NOT in other's xipList
 	// are committed from other's perspective but completely unknown to s.
 	// If the range contains more txids than other has in-progress in that
-	// range, at least one must be committed.
+	// range, at least one must be settled.
+
+	//  The following logic is functionally equivalent to iterating from
+	// `s.xmax` to `other.xmax` and asking whether each of those txids is present
+	// in `other.xipList`. if any are *not* present, that means that `other`
+	// knows that one of those txids has been settled, and therefore `other`
+	// has more information.
+
+	// Doing this naively (i.e. the iteration above) is O(n) on the size of `other.xipList`;
+	// the implementation below is equivalent but makes use of `slices.BinarySearch`
+	// to make it O(log(n)).
+
+	// This condition is only possible if the maximum transaction that the other snapshot
+	// is aware of is further along than the current snapshot.
 	if other.xmax > s.xmax {
 		rangeSize := other.xmax - s.xmax
 		lo, _ := slices.BinarySearch(other.xipList, s.xmax)
 		hi, _ := slices.BinarySearch(other.xipList, other.xmax)
-		xipInRange := uint64(hi - lo)
+		xipInRange := uint64(hi - lo) //nolint:gosec  // we already know that other.xmax is greater than s.xmax, and we know that xipList is sorted in ascending order.
 		if xipInRange < rangeSize {
 			return true
 		}
