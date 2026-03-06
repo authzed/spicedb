@@ -58,8 +58,9 @@ const (
 		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1)
 	) as xid)
 	SELECT selected.xid,
-	COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
-	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d
+		COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
+		%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d,
+		(SELECT %[3]s FROM %[2]s WHERE %[1]s = selected.xid)
 	FROM selected;`
 
 	// queryValidTransaction will return a single row with three values:
@@ -109,14 +110,29 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration
+	var timestamp *time.Time
+	var err error
+
 	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
-		Scan(&revision, &snapshot, &validForNanos); err != nil {
+		Scan(&revision, &snapshot, &validForNanos, &timestamp); err != nil {
 		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+	}
+
+	var tsNanos uint64
+	if timestamp != nil {
+		tsNanos, err = safecast.Convert[uint64](timestamp.UnixNano())
+		if err != nil {
+			return nil, 0, spiceerrors.MustBugf("could not cast timestamp to uint64")
+		}
 	}
 
 	snapshot = snapshot.markComplete(revision.Uint64)
 
-	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, nil
+	return postgresRevision{
+		snapshot:                      snapshot,
+		optionalInexactNanosTimestamp: tsNanos,
+		optionalTxID:                  revision,
+	}, validForNanos, nil
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
