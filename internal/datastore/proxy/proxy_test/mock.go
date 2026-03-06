@@ -341,8 +341,9 @@ func (dm *MockReadWriteTransaction) LegacyWriteCaveats(_ context.Context, caveat
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) LegacyDeleteCaveats(_ context.Context, _ []string) error {
-	panic("not used")
+func (dm *MockReadWriteTransaction) LegacyDeleteCaveats(_ context.Context, names []string) error {
+	args := dm.Called(names)
+	return args.Error(0)
 }
 
 func (dm *MockReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
