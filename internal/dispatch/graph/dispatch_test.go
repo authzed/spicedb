@@ -9,6 +9,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -47,6 +48,7 @@ func TestDispatchChunking(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			})
 
@@ -70,6 +72,7 @@ func TestDispatchChunking(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -94,6 +97,7 @@ func TestDispatchChunking(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 

@@ -188,6 +188,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
 	experimentalFlags.BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache, which uses the Watch API to keep the schema up to date")
+	experimentalFlags.StringVar(&config.ExperimentalSchemaMode, "experimental-schema-mode", "read-legacy-write-legacy", "schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new")
 	// TODO: these two could reasonably be put in either the Dispatch group or the Experimental group. Is there a preference?
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request")

@@ -87,7 +87,7 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 
 	// Create query context
 	queryCtx := query.NewLocalContext(ctx,
-		query.WithReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)),
+		query.WithReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)),
 		query.WithMaxRecursionDepth(50),
 	)
 

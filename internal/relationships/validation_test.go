@@ -336,7 +336,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 
 			uds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, nil, req)
 			dl := datalayer.NewDataLayer(uds)
-			sr, err := dl.SnapshotReader(rev).ReadSchema(t.Context())
+			sr, err := dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 			req.NoError(err)
 
 			op := tuple.Create

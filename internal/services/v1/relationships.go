@@ -197,12 +197,12 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	ctx := resp.Context()
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)

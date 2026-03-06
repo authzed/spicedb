@@ -737,6 +737,8 @@ func (m *V1Cursor) validate(all bool) error {
 
 	// no validation rules for DatastoreUniqueId
 
+	// no validation rules for SchemaHash
+
 	if len(errors) > 0 {
 		return V1CursorMultiError(errors)
 	}

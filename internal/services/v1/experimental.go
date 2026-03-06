@@ -323,23 +323,24 @@ func (es *experimentalServer) BulkExportRelationships(
 	ctx := resp.Context()
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return BulkExport(ctx, datalayer.MustFromContext(ctx), es.maxBatchSize, req, atRevision, resp.Send)
+	return BulkExport(ctx, datalayer.MustFromContext(ctx), es.maxBatchSize, req, atRevision, schemaHash, resp.Send)
 }
 
 // BulkExport implements the BulkExportRelationships API functionality. Given a datalayer.DataLayer, it will
 // export stream via the sender all relationships matched by the incoming request.
 // If no cursor is provided, it will fallback to the provided revision.
-func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
+func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, fallbackSchemaHash datalayer.SchemaHash, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
 	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
 		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
 	}
 
 	atRevision := fallbackRevision
+	schemaHash := fallbackSchemaHash
 	var curNamespace string
 	var cur dsoptions.Cursor
 	if req.OptionalCursor != nil {
@@ -348,9 +349,10 @@ func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, r
 		if err != nil {
 			return shared.RewriteErrorWithoutConfig(ctx, err)
 		}
+		schemaHash = datalayer.NoSchemaHashForLegacyCursor
 	}
 
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
@@ -570,7 +572,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v1.ExperimentalDiffSchemaRequest) (*v1.ExperimentalDiffSchemaResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, _, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -597,12 +599,12 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -684,12 +686,12 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -818,12 +820,12 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	headRev, err := dl.HeadRevision(ctx)
+	headRev, headSchemaHash, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	snapshotReader := dl.SnapshotReader(headRev)
+	snapshotReader := dl.SnapshotReader(headRev, headSchemaHash)
 	count, err := snapshotReader.CountRelationships(ctx, req.Name)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)

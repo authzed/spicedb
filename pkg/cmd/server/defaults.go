@@ -225,8 +225,8 @@ func (m MiddlewareOption) WithDatastoreMiddleware(middleware Middleware) Middlew
 	return m
 }
 
-func (m MiddlewareOption) WithDatastore(ds datastore.Datastore) MiddlewareOption {
-	dl := datalayer.NewDataLayer(ds)
+func (m MiddlewareOption) WithDatastore(ds datastore.Datastore, dlOpts ...datalayer.DataLayerOption) MiddlewareOption {
+	dl := datalayer.NewDataLayer(ds, dlOpts...)
 	unary := NewUnaryMiddleware().
 		WithName(DefaultInternalMiddlewareDatastore).
 		WithInternal(true).
@@ -450,10 +450,10 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 }
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
-func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, disableGRPCLatencyHistogram bool, memoryUsageProvider memoryprotection.MemoryUsageProvider) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, disableGRPCLatencyHistogram bool, memoryUsageProvider memoryprotection.MemoryUsageProvider, dlOpts ...datalayer.DataLayerOption) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
 	dispatchMemoryProtection := memoryprotection.New(memoryUsageProvider, "dispatch-middleware")
-	dl := datalayer.NewDataLayer(ds)
+	dl := datalayer.NewDataLayer(ds, dlOpts...)
 
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),

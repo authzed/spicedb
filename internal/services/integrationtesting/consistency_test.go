@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/development"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -456,6 +457,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 						AtRevision:     vctx.revision.String(),
 						DepthRemaining: 100,
 						TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
+						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 					ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 				})

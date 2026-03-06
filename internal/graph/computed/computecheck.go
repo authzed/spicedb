@@ -48,6 +48,7 @@ type CheckParameters struct {
 	MaximumDepth  uint32
 	DebugOption   DebugOption
 	CheckHints    []*v1.CheckHint
+	SchemaHash    datalayer.SchemaHash
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any
@@ -128,6 +129,7 @@ func computeCheck(ctx context.Context,
 				AtRevision:     params.AtRevision.String(),
 				DepthRemaining: params.MaximumDepth,
 				TraversalBloom: bf,
+				SchemaHash:     []byte(params.SchemaHash),
 			},
 			Debug:      debugging,
 			CheckHints: params.CheckHints,
@@ -178,7 +180,7 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(params.AtRevision)
+	reader := dl.SnapshotReader(params.AtRevision, params.SchemaHash)
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, err

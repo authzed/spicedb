@@ -53,11 +53,13 @@ func setFullConsistencyRevisionToContext(ctx context.Context, req any, dl datala
 			ConsistencyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
 		}
 
-		databaseRev, err := dl.HeadRevision(ctx)
+		databaseRev, hash, err := dl.HeadRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
-		handle.(*revisionHandle).revision = databaseRev
+		rh := handle.(*revisionHandle)
+		rh.revision = databaseRev
+		rh.schemaHash = hash
 	}
 
 	return nil

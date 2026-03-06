@@ -178,6 +178,7 @@ message ResolverMeta {
   uint32 depth_remaining = 2 [(validate.rules).uint32.gt = 0];
   string request_id = 3 [deprecated = true];
   bytes traversal_bloom = 4 [(validate.rules).bytes = {max_len: 1024}];
+  bytes schema_hash = 5;
 }
 
 message ResponseMeta {

@@ -134,7 +134,7 @@ func TestTraitsForArrowRelation(t *testing.T) {
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, require)
 			dl := datalayer.NewDataLayer(ds)
-			reader := dl.SnapshotReader(revision)
+			reader := dl.SnapshotReader(revision, datalayer.NoSchemaHashForTesting)
 
 			traits, err := graph.TraitsForArrowRelation(t.Context(), reader, tc.namespaceName, tc.relationName)
 			if tc.expectedError != "" {
