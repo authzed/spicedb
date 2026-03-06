@@ -48,7 +48,7 @@ type queryPlanConsistencyHandle struct {
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return query.NewLocalContext(t.Context(),
-		query.WithReader(datalayer.NewDataLayer(q.ds).SnapshotReader(q.revision)),
+		query.WithRevisionedReader(datalayer.NewDataLayer(q.ds).SnapshotReader(q.revision)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 		query.WithTraceLogger(query.NewTraceLogger())) // Enable tracing for debugging
 }

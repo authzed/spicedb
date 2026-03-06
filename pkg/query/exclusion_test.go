@@ -23,7 +23,7 @@ func TestExclusionIterator(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	// Create test paths
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -259,7 +259,7 @@ func TestExclusionWithEmptyIterator(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -305,7 +305,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -386,7 +386,7 @@ func TestExclusionWithComplexIteratorTypes(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	// Create test relations
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -574,7 +574,7 @@ func TestExclusion_CombinedCaveatLogic(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
 	// Helper to create paths with caveats
 	createPathWithCaveat := func(relation, caveatName string) Path {

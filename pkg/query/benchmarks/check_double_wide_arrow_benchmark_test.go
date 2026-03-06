@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,37 +18,46 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// networkDelay is the simulated per-call round-trip latency used by the delay
-// sub-benchmarks. Adjust this to model different network environments.
-const networkDelay = 100 * time.Microsecond
-
-// BenchmarkCheckWideArrow benchmarks permission checking through a wide arrow relationship.
-// This creates a scenario with:
-// - 10 files
-// - 100 groups (group0 through group99)
-// - 1000 users (user0 through user999)
-// - Each file belongs to 30 groups (deterministic assignment)
-// - Each group has ~20 users (deterministic assignment)
+// BenchmarkCheckDoubleWideArrow benchmarks permission checking through two consecutive
+// arrow hops with wide fan-out at each level.
 //
-// The permission viewer = view + group->member creates a wide arrow traversal where
-// checking if a user has viewer permission on a file requires checking many group memberships.
+// The hierarchy is: file -> org -> group -> user
+//
+//   - 5 files, each belonging to 3 orgs
+//   - 23 orgs (prime), each containing 7 groups
+//   - 97 groups (prime), each with 15 members
+//   - 997 users (prime)
+//
+// The schema:
+//
+//	definition group  { relation member: user }
+//	definition org    { relation group: group; permission member = group->member }
+//	definition file   { relation org: org; relation view: user;
+//	                    permission viewer = view + org->member }
+//
+// Checking viewer on a file requires two arrow traversals:
+//  1. file->org  (fanout: orgs per file)
+//  2. org->member which resolves to org->group->member (double fan-out)
 //
 // Four sub-benchmarks are run:
 //   - plain:         compile the outline directly and run Check each iteration
 //   - advised:       seed a CountAdvisor from a single warm-up run, apply it to the
 //     canonical outline, compile once, then run Check each iteration
-//   - plain_delay:   same as plain, but with a delay reader simulating network latency
-//   - advised_delay: same as advised, but with a delay reader simulating network latency
-func BenchmarkCheckWideArrow(b *testing.B) {
+//   - plain_delay:   same as plain, but with networkDelay latency per datastore call
+//   - advised_delay: same as advised, but with networkDelay latency per datastore call
+func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 	const (
-		numFiles      = 10
-		numGroups     = 97  // Prime number to avoid duplicate assignments with stepping
-		numUsers      = 997 // Prime number to avoid duplicate assignments with stepping
-		groupsPerFile = 30
+		numFiles      = 5
+		numOrgs       = 97  // prime
+		numGroups     = 299 // prime
+		numUsers      = 499 // prime
+		orgsPerFile   = 20
+		groupsPerOrg  = 10
 		usersPerGroup = 20
 	)
 
-	// Create an in-memory datastore
+	// ---- shared setup ----
+
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(b, err)
 
@@ -62,51 +70,54 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 			relation member: user
 		}
 
-		definition file {
+		definition org {
 			relation group: group
+			permission member = group->member
+		}
+
+		definition file {
+			relation org: org
 			relation view: user
-			permission viewer = view + group->member
+			permission viewer = view + org->member
 		}
 	`
 
-	// Compile the schema
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("benchmark"),
 		SchemaString: schemaText,
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(b, err)
 
-	// Write the schema
 	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
 	})
 	require.NoError(b, err)
 
-	// Build relationships deterministically
-	relationships := make([]tuple.Relationship, 0, numFiles*groupsPerFile+numGroups*usersPerGroup)
+	relationships := make([]tuple.Relationship, 0,
+		numFiles*orgsPerFile+numOrgs*groupsPerOrg+numGroups*usersPerGroup)
 
-	// Create file->group relationships
-	// Each file belongs to 30 groups with different step sizes (deterministic assignment with modular wrapping)
+	// file:fileN#org@org:orgM
 	for fileID := 0; fileID < numFiles; fileID++ {
-		// file0 steps by 1s (groups 0, 1, 2, ..., 29)
-		// file1 steps by 2s (groups 0, 2, 4, ..., 58)
-		// file2 steps by 3s (groups 0, 3, 6, ..., 87)
-		// etc., with modular wrapping
 		step := fileID + 1
-		for i := 0; i < groupsPerFile; i++ {
-			groupID := (i * step) % numGroups
-			rel := fmt.Sprintf("file:file%d#group@group:group%d", fileID, groupID)
+		for i := 0; i < orgsPerFile; i++ {
+			orgID := (i * step) % numOrgs
+			rel := fmt.Sprintf("file:file%d#org@org:org%d", fileID, orgID)
 			relationships = append(relationships, tuple.MustParse(rel))
 		}
 	}
 
-	// Create group->user relationships
-	// Each group has 20 users with different step sizes (deterministic assignment with modular wrapping)
+	// org:orgN#group@group:groupM
+	for orgID := 0; orgID < numOrgs; orgID++ {
+		step := orgID + 1
+		for i := 0; i < groupsPerOrg; i++ {
+			groupID := (i * step) % numGroups
+			rel := fmt.Sprintf("org:org%d#group@group:group%d", orgID, groupID)
+			relationships = append(relationships, tuple.MustParse(rel))
+		}
+	}
+
+	// group:groupN#member@user:userM
 	for groupID := 0; groupID < numGroups; groupID++ {
-		// group0 steps by 1s (users 0, 1, 2, ..., 19)
-		// group1 steps by 2s (users 0, 2, 4, ..., 38)
-		// group2 steps by 3s (users 0, 3, 6, ..., 57)
-		// etc., with modular wrapping
 		step := groupID + 1
 		for i := 0; i < usersPerGroup; i++ {
 			userID := (i * step) % numUsers
@@ -115,11 +126,9 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 		}
 	}
 
-	// Write all relationships to the datastore
 	revision, err := common.WriteRelationships(ctx, rawDS, tuple.UpdateOperationCreate, relationships...)
 	require.NoError(b, err)
 
-	// Build schema for querying
 	dsSchema, err := schema.BuildSchemaFromDefinitions(compiled.ObjectDefinitions, nil)
 	require.NoError(b, err)
 
@@ -127,12 +136,9 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 	canonicalOutline, err := query.BuildOutlineFromSchema(dsSchema, "file", "viewer")
 	require.NoError(b, err)
 
-	// The resource we're checking: file:file0
+	// The resource and subject are the same for all sub-benchmarks.
 	resources := query.NewObjects("file", "file0")
-
-	// The subject we're checking: user:user15
-	// This user should have access through multiple groups
-	subject := query.NewObject("user", "user15").WithEllipses()
+	subject := query.NewObject("user", "user181").WithEllipses()
 
 	// Base reader (no simulated latency).
 	reader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
@@ -165,7 +171,6 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 	}
 
 	// ---- plain sub-benchmark ----
-	// Compile the outline directly and run Check each iteration. No advisement.
 
 	b.Run("plain", func(b *testing.B) {
 		it, err := canonicalOutline.Compile()
@@ -186,8 +191,6 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 	})
 
 	// ---- advised sub-benchmark ----
-	// Seed a CountAdvisor from a warm-up run, compile the advised iterator once,
-	// then run Check each iteration.
 
 	b.Run("advised", func(b *testing.B) {
 		advisedIt := buildAdvisedIterator(b, reader)
@@ -207,7 +210,6 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 	})
 
 	// ---- plain_delay sub-benchmark ----
-	// Same as plain but with networkDelay latency injected per datastore call.
 
 	b.Run("plain_delay", func(b *testing.B) {
 		it, err := canonicalOutline.Compile()
@@ -226,14 +228,12 @@ func BenchmarkCheckWideArrow(b *testing.B) {
 	})
 
 	// ---- advised_delay sub-benchmark ----
-	// Same as advised but with networkDelay latency injected per datastore call.
-	// The warm-up run also uses the delay reader so advisor stats reflect realistic
-	// call patterns.
 
 	b.Run("advised_delay", func(b *testing.B) {
 		advisedIt := buildAdvisedIterator(b, delayReader)
 		queryCtx := query.NewLocalContext(ctx, query.WithReader(delayReader))
 
+		b.ResetTimer()
 		for b.Loop() {
 			seq, err := queryCtx.Check(advisedIt, resources, subject)
 			require.NoError(b, err)

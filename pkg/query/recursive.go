@@ -17,7 +17,7 @@ const (
 	recursiveCheckIterSubjects recursiveCheckStrategy = iota
 	// recursiveCheckIterResources calls IterResources with subject, filters by resources
 	recursiveCheckIterResources
-	// recursiveCheckDeepening uses iterative deepening (current implementation)
+	// recursiveCheckDeepening uses iterative deepening
 	recursiveCheckDeepening
 )
 
