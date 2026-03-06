@@ -91,5 +91,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	resenje.org/singleflight v0.4.3 // indirect
 	sigs.k8s.io/controller-runtime v0.22.4 // indirect
 )
