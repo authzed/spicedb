@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/ccoveille/go-safecast/v2"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc"
@@ -94,7 +95,20 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		chunkSize = 100
 	}
 
-	validator := genutil.MustNewProtoValidator()
+	validator := genutil.MustNewProtoValidator(
+		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache. As new
+		// methods are added to this service, you'll need to add new messages to this method.
+		protovalidate.WithMessages(
+			&v1.BulkCheckPermissionRequest{},
+			&v1.BulkExportRelationshipsRequest{},
+			&v1.BulkCheckPermissionRequest{},
+			&v1.ExperimentalReflectSchemaRequest{},
+			&v1.ExperimentalComputablePermissionsRequest{},
+			&v1.ExperimentalDependentRelationsRequest{},
+			&v1.ExperimentalDiffSchemaRequest{},
+			&v1.ExperimentalRegisterRelationshipCounterRequest{},
+			&v1.ExperimentalUnregisterRelationshipCounterRequest{},
+		))
 
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{

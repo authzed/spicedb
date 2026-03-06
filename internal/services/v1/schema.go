@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -45,7 +46,17 @@ type SchemaServerConfig struct {
 func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
-	validator := genutil.MustNewProtoValidator()
+	validator := genutil.MustNewProtoValidator(
+		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache. As new
+		// methods are added to this service, you'll need to add new messages to this method.
+		protovalidate.WithMessages(
+			&v1.ReadSchemaRequest{},
+			&v1.WriteSchemaRequest{},
+			&v1.ReflectSchemaRequest{},
+			&v1.ComputablePermissionsRequest{},
+			&v1.DependentRelationsRequest{},
+			&v1.DiffSchemaRequest{},
+		))
 
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
