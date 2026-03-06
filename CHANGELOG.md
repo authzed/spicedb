@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - Regression introduced in 1.49.2: missing spans in ReadSchema calls (https://github.com/authzed/spicedb/pull/2947)
+- Long standing bug in the way postgres revisions were being compared. Sometimes revisions that were actually overlapping were erroneously being ordered. (https://github.com/authzed/spicedb/pull/2958)
 
 ## [1.49.2] - 2026-03-02
 ### Added
