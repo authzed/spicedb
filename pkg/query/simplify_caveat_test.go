@@ -48,7 +48,7 @@ func TestSimplifyLeafCaveat(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -137,7 +137,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -243,7 +243,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -361,7 +361,7 @@ func TestSimplifyNestedOperations(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -448,7 +448,7 @@ func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -536,7 +536,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -634,7 +634,7 @@ func TestSimplifyNotWithSameCaveatDifferentContexts(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -718,7 +718,7 @@ func TestSimplifyComplexNestedExpressions(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -1187,7 +1187,7 @@ func TestSimplifyWithEmptyContext(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -1271,7 +1271,7 @@ func TestSimplifyNotConditional(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 
@@ -1359,7 +1359,7 @@ func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
 	require.NoError(err)
 
 	dl := datalayer.NewDataLayer(ds)
-	sr, srErr := dl.SnapshotReader(revision).ReadSchema()
+	sr, srErr := dl.SnapshotReader(revision).ReadSchema(ctx)
 	require.NoError(srErr)
 	runner := internalcaveats.NewCaveatRunner(caveattypes.Default.TypeSet)
 

@@ -179,7 +179,7 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(params.AtRevision)
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, err
 	}

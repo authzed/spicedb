@@ -240,7 +240,7 @@ func (dc *DevContext) Dispose() {
 func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datalayer.ReadWriteTransaction) ([]*devinterface.DeveloperError, error) {
 	devErrors := make([]*devinterface.DeveloperError, 0, len(rels))
 	updates := make([]tuple.RelationshipUpdate, 0, len(rels))
-	sr, srErr := rwt.ReadSchema()
+	sr, srErr := rwt.ReadSchema(ctx)
 	if srErr != nil {
 		return nil, srErr
 	}

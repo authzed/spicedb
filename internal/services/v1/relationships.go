@@ -203,7 +203,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -387,7 +387,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		// Extract schema reader for validation.
-		sr, err := rwt.ReadSchema()
+		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
 			return err
 		}
@@ -494,7 +494,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	var deletedRelationshipCount uint64
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		// Extract schema reader for validation.
-		sr, err := rwt.ReadSchema()
+		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
 			return err
 		}

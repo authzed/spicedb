@@ -109,7 +109,7 @@ type mockedReader struct {
 
 var _ datalayer.RevisionedReader = &mockedReader{}
 
-func (m *mockedReader) ReadSchema() (datalayer.SchemaReader, error) {
+func (m *mockedReader) ReadSchema(_ context.Context) (datalayer.SchemaReader, error) {
 	panic("not implemented")
 }
 

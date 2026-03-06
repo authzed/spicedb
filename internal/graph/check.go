@@ -659,7 +659,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	// the same namespace as the caller, and thus must be fully typed checked.
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
 		dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-		sr, err := dl.ReadSchema()
+		sr, err := dl.ReadSchema(ctx)
 		if err != nil {
 			return checkResultError(err, emptyMetadata)
 		}
@@ -698,7 +698,7 @@ type Traits struct {
 // types of the given relation support caveats or expiration.
 func TraitsForArrowRelation(ctx context.Context, reader datalayer.RevisionedReader, namespaceName string, relationName string) (Traits, error) {
 	// TODO(jschorr): Change to use the type system once we wire it through Check dispatch.
-	schemaReader, err := reader.ReadSchema()
+	schemaReader, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return Traits{}, err
 	}

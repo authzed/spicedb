@@ -165,7 +165,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 
 		dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
-		sr, err := dl.ReadSchema()
+		sr, err := dl.ReadSchema(ctx)
 		if err != nil {
 			return err
 		}
@@ -253,7 +253,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 
 				dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
 
-				sr, err := dl.ReadSchema()
+				sr, err := dl.ReadSchema(ctx)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}

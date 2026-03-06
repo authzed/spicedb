@@ -69,7 +69,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(req.Revision)
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	cu *core.ComputedUserset,
 ) error {
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func lookupViaIntersectionTupleToUserset(
 	ttu *core.FunctionedTupleToUserset,
 ) error {
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return err
 	}
@@ -438,7 +438,7 @@ func lookupViaTupleToUserset[T relation](
 	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
 
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return err
 	}

@@ -166,7 +166,7 @@ func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, cave
 
 	// Load the definitions and relationships into the datastore.
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-		resolver, err := schema.ResolverForSchemaReader(rwt)
+		resolver, err := schema.ResolverForSchemaReader(ctx, rwt)
 		if err != nil {
 			return err
 		}
@@ -214,7 +214,7 @@ func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, cave
 			chunkedRels = append(chunkedRels, update.Relationship)
 		}
 		revision, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-			sr, srErr := rwt.ReadSchema()
+			sr, srErr := rwt.ReadSchema(ctx)
 			if srErr != nil {
 				return srErr
 			}

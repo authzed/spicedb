@@ -94,7 +94,7 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datalayer.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	sr, err := rwt.ReadSchema()
+	sr, err := rwt.ReadSchema(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func ApplySchemaChangesOverExisting(
 
 		// Get the list of extant definitions so that we can add them to the
 		// list of definitions that should be written in the single shot
-		sr, err := rwt.ReadSchema()
+		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
 			return nil, err
 		}

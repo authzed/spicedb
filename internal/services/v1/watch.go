@@ -83,7 +83,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	}
 
 	reader := dl.SnapshotReader(afterRevision)
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to read schema: %s", err)
 	}

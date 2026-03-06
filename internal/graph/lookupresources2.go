@@ -128,7 +128,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(req.Revision)
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return err
 	}
@@ -363,7 +363,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap2], 0)
 			currentCursor := queryCursor
 			caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
-			caveatSR, err := config.reader.ReadSchema()
+			caveatSR, err := config.reader.ReadSchema(ctx)
 			if err != nil {
 				return nil, err
 			}

@@ -28,8 +28,8 @@ func ResolverFor(sr datalayer.SchemaReader) *DatastoreResolver {
 
 // ResolverForSchemaReader returns a TypeSystemResolver for a datalayer reader.
 // The reader's ReadSchema() method is called eagerly to resolve definitions.
-func ResolverForSchemaReader(reader datalayer.RevisionedReader) (*DatastoreResolver, error) {
-	sr, err := reader.ReadSchema()
+func ResolverForSchemaReader(ctx context.Context, reader datalayer.RevisionedReader) (*DatastoreResolver, error) {
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, err
 	}

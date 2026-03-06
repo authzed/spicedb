@@ -244,7 +244,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 
 	// Check if the target relation exists. If not, return nothing.
 	dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision)
-	sr, err := dl.ReadSchema()
+	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return expandError(err)
 	}

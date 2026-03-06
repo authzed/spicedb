@@ -23,7 +23,7 @@ func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Rev
 
 	reader := dl.SnapshotReader(atRevision)
 
-	sr, err := reader.ReadSchema()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, atRevision, err
 	}
