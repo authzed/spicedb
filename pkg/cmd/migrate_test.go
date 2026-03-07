@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -9,16 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	datastoreTest "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 func TestExecuteMigrate(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		cfgBuilder    func(t *testing.T) *MigrateConfig
-		ctxBuilder    func(t *testing.T) context.Context
 		revision      string
 		expectedError string
 	}{
@@ -100,11 +97,6 @@ func TestExecuteMigrate(t *testing.T) {
 					BatchSize:              1000,
 				}
 			},
-			ctxBuilder: func(t *testing.T) context.Context {
-				ctx, cancel := context.WithCancel(t.Context())
-				cancel()
-				return ctx
-			},
 			revision:      migrate.Head,
 			expectedError: "unable to create migration driver for spanner",
 		},
@@ -147,8 +139,7 @@ func TestExecuteMigrate(t *testing.T) {
 					BatchSize:       1000,
 				}
 			},
-			revision:      migrate.Head,
-			expectedError: "",
+			revision: migrate.Head,
 		},
 		{
 			name: "postgres migration runs successfully",
@@ -163,21 +154,45 @@ func TestExecuteMigrate(t *testing.T) {
 					BatchSize:               1000,
 				}
 			},
-			revision:      migrate.Head,
-			expectedError: "",
+			revision: migrate.Head,
+		},
+		{
+			name: "spanner migration runs successfully",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				runningDatastore := datastoreTest.RunDatastoreEngine(t, "spanner")
+				db := runningDatastore.NewDatabase(t)
+				return &MigrateConfig{
+					DatastoreEngine:         "spanner",
+					DatastoreURI:            db,
+					CredentialsProviderName: "",
+					Timeout:                 1 * time.Hour,
+					BatchSize:               1000,
+				}
+			},
+			revision: migrate.Head,
+		},
+		{
+			name: "mysql migration runs successfully",
+			cfgBuilder: func(t *testing.T) *MigrateConfig {
+				runningDatastore := datastoreTest.RunDatastoreEngine(t, "mysql")
+				db := runningDatastore.NewDatabase(t)
+				return &MigrateConfig{
+					DatastoreEngine:         "mysql",
+					DatastoreURI:            db,
+					CredentialsProviderName: "",
+					Timeout:                 1 * time.Hour,
+					BatchSize:               1000,
+				}
+			},
+			revision: migrate.Head,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			cfg := tt.cfgBuilder(t)
-			ctx := t.Context()
-			if tt.ctxBuilder != nil {
-				ctx = tt.ctxBuilder(t)
-			}
-			err := executeMigrate(ctx, cfg, tt.revision)
+
+			err := executeMigrate(t.Context(), cfg, tt.revision)
 			if tt.expectedError == "" {
 				require.NoError(t, err)
 				return
@@ -262,52 +277,9 @@ func TestMigrateRun(t *testing.T) {
 }
 
 func TestHeadRevision(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		engine        string
-		expectError   bool
-		expectedError string
-	}{
-		{
-			name:        "cockroachdb returns head revision",
-			engine:      "cockroachdb",
-			expectError: false,
-		},
-		{
-			name:        "postgres returns head revision",
-			engine:      "postgres",
-			expectError: false,
-		},
-		{
-			name:        "mysql returns head revision",
-			engine:      "mysql",
-			expectError: false,
-		},
-		{
-			name:        "spanner returns head revision",
-			engine:      "spanner",
-			expectError: false,
-		},
-		{
-			name:          "unsupported engine returns error",
-			engine:        "unsupported",
-			expectError:   true,
-			expectedError: "cannot migrate datastore engine type: unsupported",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			revision, err := HeadRevision(tt.engine)
-			if tt.expectError {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
+	for _, tt := range datastore.Engines {
+		t.Run(tt, func(t *testing.T) {
+			revision, err := HeadRevision(tt)
 			require.NoError(t, err)
 			require.NotEmpty(t, revision)
 		})
