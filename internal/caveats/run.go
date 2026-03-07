@@ -82,8 +82,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 		return nil, err
 	}
 
-	env := caveats.NewEnvironmentWithTypeSet(cr.caveatTypeSet)
-	return cr.runExpressionWithCaveats(ctx, env, expr, context, debugOption)
+	return cr.runExpressionWithCaveats(ctx, expr, context, debugOption)
 }
 
 // PopulateCaveatDefinitionsForExpr populates the CaveatRunner's cache with the definitions
@@ -167,7 +166,6 @@ func collectCaveatNames(expr *core.CaveatExpression, caveatNames *mapz.Set[strin
 
 func (cr *CaveatRunner) runExpressionWithCaveats(
 	ctx context.Context,
-	env *caveats.Environment,
 	expr *core.CaveatExpression,
 	context map[string]any,
 	debugOption RunCaveatExpressionDebugOption,
@@ -320,7 +318,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 	}
 
 	for _, child := range cop.Children {
-		childResult, err := cr.runExpressionWithCaveats(ctx, env, child, context, debugOption)
+		childResult, err := cr.runExpressionWithCaveats(ctx, child, context, debugOption)
 		if err != nil {
 			return nil, err
 		}

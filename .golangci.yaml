@@ -40,6 +40,7 @@ linters:
     - "tagalign"
     - "testifylint"
     - "tparallel"
+    - "unparam"
     - "unconvert"
     - "usetesting"
     - "wastedassign"
@@ -95,6 +96,9 @@ linters:
       - linters:
           - "perfsprint"
         path: '(.+)_test\.go'
+      - linters:
+          - "unparam"
+        text: "result .* is always|result .* is never used|always receives"
     paths:
       - "third_party$"
       - "builtin$"
