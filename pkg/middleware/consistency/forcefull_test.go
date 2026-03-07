@@ -3,10 +3,10 @@ package consistency
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -14,42 +14,20 @@ import (
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/pkg/datalayer"
+	mock_datalayer "github.com/authzed/spicedb/pkg/datalayer/mocks"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/mocks"
 )
 
-// testRevision is a simple revision type for testing.
-type testRevision uint64
+type (
+	requestWithoutConsistency struct{}
+	requestWithConsistency    struct{}
+)
 
-func (r testRevision) String() string     { return fmt.Sprintf("%d", r) }
-func (r testRevision) ByteSortable() bool { return false }
-func (r testRevision) Equal(other datastore.Revision) bool {
-	o, ok := other.(testRevision)
-	return ok && r == o
-}
+var _ hasConsistency = (*requestWithConsistency)(nil)
 
-func (r testRevision) GreaterThan(other datastore.Revision) bool {
-	return r > other.(testRevision)
-}
-
-func (r testRevision) LessThan(other datastore.Revision) bool {
-	return r < other.(testRevision)
-}
-
-var headRev testRevision = 145
-
-// fakeDataLayer implements datalayer.DataLayer with a configurable HeadRevision.
-type fakeDataLayer struct {
-	datalayer.DataLayer
-	headRevision datastore.Revision
-	headErr      error
-}
-
-func (f *fakeDataLayer) HeadRevision(_ context.Context) (datastore.Revision, error) {
-	return f.headRevision, f.headErr
-}
-
-func (f *fakeDataLayer) UniqueID(_ context.Context) (string, error) {
-	return "fake-ds", nil
+func (r requestWithConsistency) GetConsistency() *v1.Consistency {
+	return &v1.Consistency{}
 }
 
 // NOTE: testpb.InterceptorTestSuite cannot be used here because testpb requests don't
@@ -60,9 +38,13 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 
 	t.Run("returns nil when no handle in context", func(t *testing.T) {
 		t.Parallel()
-		ds := &fakeDataLayer{headRevision: headRev}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
 		ctx := context.Background()
-		err := setFullConsistencyRevisionToContext(ctx, &v1.ReadRelationshipsRequest{}, ds, "", TreatMismatchingTokensAsFullConsistency)
+
+		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "", TreatMismatchingTokensAsFullConsistency)
 		require.NoError(t, err)
 
 		rev, _, err := RevisionFromContext(ctx)
@@ -72,54 +54,73 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 
 	t.Run("sets head revision for request with consistency", func(t *testing.T) {
 		t.Parallel()
-		require := require.New(t)
 
-		ds := &fakeDataLayer{headRevision: headRev}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+		mockRev := mocks.NewMockRevision(ctrl)
+		mockRev.EXPECT().String().Return("a revision").Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
+
 		ctx := ContextWithHandle(t.Context())
-		ctx = datalayer.ContextWithDataLayer(ctx, ds)
+		ctx = datalayer.ContextWithDataLayer(ctx, dl)
 
-		err := setFullConsistencyRevisionToContext(ctx, &v1.ReadRelationshipsRequest{}, ds, "somelabel", TreatMismatchingTokensAsFullConsistency)
-		require.NoError(err)
+		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "somelabel", TreatMismatchingTokensAsFullConsistency)
+		require.NoError(t, err)
 
 		rev, _, err := RevisionFromContext(ctx)
-		require.NoError(err)
-		require.True(headRev.Equal(rev))
+		require.NoError(t, err)
+		require.Equal(t, mockRev, rev)
 	})
 
 	t.Run("sets head revision without service label", func(t *testing.T) {
 		t.Parallel()
-		require := require.New(t)
 
-		ds := &fakeDataLayer{headRevision: headRev}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+		mockRev := mocks.NewMockRevision(ctrl)
+		mockRev.EXPECT().String().Return("a revision").Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
+
 		ctx := ContextWithHandle(t.Context())
-		ctx = datalayer.ContextWithDataLayer(ctx, ds)
+		ctx = datalayer.ContextWithDataLayer(ctx, dl)
 
-		err := setFullConsistencyRevisionToContext(ctx, &v1.ReadRelationshipsRequest{}, ds, "", TreatMismatchingTokensAsFullConsistency)
-		require.NoError(err)
+		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "", TreatMismatchingTokensAsFullConsistency)
+		require.NoError(t, err)
 
 		rev, _, err := RevisionFromContext(ctx)
-		require.NoError(err)
-		require.True(headRev.Equal(rev))
+		require.NoError(t, err)
+		require.Equal(t, mockRev, rev)
 	})
 
 	t.Run("returns nil for request without consistency interface", func(t *testing.T) {
 		t.Parallel()
 
-		// Use a failing datastore to verify HeadRevision is never called.
-		ds := &fakeDataLayer{headErr: errors.New("should not be called")}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+
 		ctx := ContextWithHandle(t.Context())
-		err := setFullConsistencyRevisionToContext(ctx, "not-a-consistency-request", ds, "", TreatMismatchingTokensAsFullConsistency)
+
+		err := setFullConsistencyRevisionToContext(ctx, &requestWithoutConsistency{}, dl, "", TreatMismatchingTokensAsFullConsistency)
 		require.NoError(t, err)
 	})
 
 	t.Run("returns error when HeadRevision fails", func(t *testing.T) {
 		t.Parallel()
 
-		ds := &fakeDataLayer{headErr: errors.New("datastore unavailable")}
-		ctx := ContextWithHandle(t.Context())
-		ctx = datalayer.ContextWithDataLayer(ctx, ds)
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, errors.New("some error")).Times(1)
 
-		err := setFullConsistencyRevisionToContext(ctx, &v1.ReadRelationshipsRequest{}, ds, "somelabel", TreatMismatchingTokensAsFullConsistency)
+		ctx := ContextWithHandle(t.Context())
+		ctx = datalayer.ContextWithDataLayer(ctx, dl)
+
+		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "somelabel", TreatMismatchingTokensAsFullConsistency)
 		require.Error(t, err)
 		grpcutil.RequireStatus(t, codes.Internal, err)
 	})
@@ -130,11 +131,16 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 
 	t.Run("sets full consistency revision for non-bypass method", func(t *testing.T) {
 		t.Parallel()
-		require := require.New(t)
 
-		ds := &fakeDataLayer{headRevision: headRev}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+		mockRev := mocks.NewMockRevision(ctrl)
+		mockRev.EXPECT().String().Return("a revision").Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
 		interceptor := ForceFullConsistencyUnaryServerInterceptor("somelabel")
-		ctx := datalayer.ContextWithDataLayer(t.Context(), ds)
+		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
 
 		var capturedCtx context.Context
 		handler := func(ctx context.Context, req any) (any, error) {
@@ -144,28 +150,32 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 
 		resp, err := interceptor(
 			ctx,
-			&v1.ReadRelationshipsRequest{},
+			&requestWithConsistency{},
 			&grpc.UnaryServerInfo{FullMethod: "/authzed.api.v1.PermissionsService/ReadRelationships"},
 			handler,
 		)
-		require.NoError(err)
-		require.Equal("response", resp)
+		require.NoError(t, err)
+		require.Equal(t, "response", resp)
 
 		rev, _, err := RevisionFromContext(capturedCtx)
-		require.NoError(err)
-		require.True(headRev.Equal(rev))
+		require.NoError(t, err)
+		require.Equal(t, mockRev, rev)
 	})
 
 	t.Run("returns error when HeadRevision fails", func(t *testing.T) {
 		t.Parallel()
 
-		ds := &fakeDataLayer{headErr: errors.New("datastore unavailable")}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, errors.New("some error")).Times(1)
+
 		interceptor := ForceFullConsistencyUnaryServerInterceptor("somelabel")
-		ctx := datalayer.ContextWithDataLayer(t.Context(), ds)
+		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
 
 		_, err := interceptor(
 			ctx,
-			&v1.ReadRelationshipsRequest{},
+			&requestWithConsistency{},
 			&grpc.UnaryServerInfo{FullMethod: "/authzed.api.v1.PermissionsService/ReadRelationships"},
 			func(ctx context.Context, req any) (any, error) {
 				t.Fatal("handler should not be called on error")
@@ -178,12 +188,13 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 
 	t.Run("does not call HeadRevision for non-consistency request", func(t *testing.T) {
 		t.Parallel()
-		require := require.New(t)
 
-		// Use a datastore that would fail if HeadRevision were called.
-		ds := &fakeDataLayer{headErr: errors.New("should not be called")}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+
 		interceptor := ForceFullConsistencyUnaryServerInterceptor("somelabel")
-		ctx := datalayer.ContextWithDataLayer(t.Context(), ds)
+		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
 
 		handlerCalled := false
 		handler := func(ctx context.Context, req any) (any, error) {
@@ -193,13 +204,13 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 
 		resp, err := interceptor(
 			ctx,
-			"not-a-consistency-request",
+			&requestWithoutConsistency{},
 			&grpc.UnaryServerInfo{FullMethod: "/authzed.api.v1.PermissionsService/SomeMethod"},
 			handler,
 		)
-		require.NoError(err)
-		require.Equal("response", resp)
-		require.True(handlerCalled)
+		require.NoError(t, err)
+		require.Equal(t, "response", resp)
+		require.True(t, handlerCalled)
 	})
 }
 
@@ -225,11 +236,17 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 
 	t.Run("wraps stream with recvWrapper for non-bypass method", func(t *testing.T) {
 		t.Parallel()
-		require := require.New(t)
 
-		ds := &fakeDataLayer{headRevision: headRev}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+		mockRev := mocks.NewMockRevision(ctrl)
+		mockRev.EXPECT().String().Return("a revision").Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
+
 		interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
-		ctx := datalayer.ContextWithDataLayer(t.Context(), ds)
+		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
 		stream := &mockServerStream{ctx: ctx}
 
 		var capturedStream grpc.ServerStream
@@ -244,25 +261,29 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 			&grpc.StreamServerInfo{FullMethod: "/authzed.api.v1.PermissionsService/ReadRelationships"},
 			handler,
 		)
-		require.NoError(err)
+		require.NoError(t, err)
 
 		wrapper, ok := capturedStream.(*recvWrapper)
-		require.True(ok, "expected stream to be wrapped in recvWrapper")
+		require.True(t, ok, "expected stream to be wrapped in recvWrapper")
 
-		err = wrapper.RecvMsg(&v1.ReadRelationshipsRequest{})
-		require.NoError(err)
+		err = wrapper.RecvMsg(&requestWithConsistency{})
+		require.NoError(t, err)
 
 		rev, _, err := RevisionFromContext(wrapper.Context())
-		require.NoError(err)
-		require.True(headRev.Equal(rev))
+		require.NoError(t, err)
+		require.Equal(t, mockRev, rev)
 	})
 
 	t.Run("recvWrapper returns error when HeadRevision fails", func(t *testing.T) {
 		t.Parallel()
 
-		ds := &fakeDataLayer{headErr: errors.New("datastore unavailable")}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, errors.New("some error")).Times(1)
+
 		interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
-		ctx := datalayer.ContextWithDataLayer(t.Context(), ds)
+		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
 		stream := &mockServerStream{ctx: ctx}
 
 		var capturedStream grpc.ServerStream
@@ -280,7 +301,7 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 		require.NoError(t, err)
 
 		wrapper := capturedStream.(*recvWrapper)
-		err = wrapper.RecvMsg(&v1.ReadRelationshipsRequest{})
+		err = wrapper.RecvMsg(&requestWithConsistency{})
 		require.Error(t, err)
 		grpcutil.RequireStatus(t, codes.Internal, err)
 	})
@@ -288,9 +309,12 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 	t.Run("recvWrapper propagates upstream RecvMsg errors", func(t *testing.T) {
 		t.Parallel()
 
-		ds := &fakeDataLayer{headErr: errors.New("should not be called")}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		dl := mock_datalayer.NewMockDataLayer(ctrl)
+
 		interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
-		ctx := datalayer.ContextWithDataLayer(t.Context(), ds)
+		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
 		upstreamErr := errors.New("upstream recv error")
 		failingStream := &failingRecvStream{ctx: ctx, err: upstreamErr}
 
@@ -309,7 +333,7 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 		require.NoError(t, err)
 
 		wrapper := capturedStream.(*recvWrapper)
-		err = wrapper.RecvMsg(&v1.ReadRelationshipsRequest{})
+		err = wrapper.RecvMsg(&requestWithConsistency{})
 		require.ErrorIs(t, err, upstreamErr)
 	})
 }
@@ -329,26 +353,25 @@ func TestForceFullConsistencyUnaryBypassWhitelist(t *testing.T) {
 	for _, tc := range bypassMethods {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require := require.New(t)
 
 			interceptor := ForceFullConsistencyUnaryServerInterceptor("somelabel")
 
 			var capturedCtx context.Context
 			resp, err := interceptor(
 				context.Background(),
-				&v1.ReadRelationshipsRequest{},
+				&requestWithConsistency{},
 				&grpc.UnaryServerInfo{FullMethod: tc.method},
 				func(ctx context.Context, req any) (any, error) {
 					capturedCtx = ctx
 					return "bypassed", nil
 				},
 			)
-			require.NoError(err)
-			require.Equal("bypassed", resp)
+			require.NoError(t, err)
+			require.Equal(t, "bypassed", resp)
 
 			rev, _, err := RevisionFromContext(capturedCtx)
-			require.Error(err)
-			require.Nil(rev)
+			require.Error(t, err)
+			require.Nil(t, rev)
 		})
 	}
 }
@@ -368,7 +391,6 @@ func TestForceFullConsistencyStreamBypassWhitelist(t *testing.T) {
 	for _, tc := range bypassMethods {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require := require.New(t)
 
 			interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
 			originalStream := &mockServerStream{ctx: context.Background()}
@@ -383,8 +405,8 @@ func TestForceFullConsistencyStreamBypassWhitelist(t *testing.T) {
 					return nil
 				},
 			)
-			require.NoError(err)
-			require.Equal(originalStream, capturedStream, "expected handler to receive original stream, not a wrapper")
+			require.NoError(t, err)
+			require.Equal(t, originalStream, capturedStream, "expected handler to receive original stream, not a wrapper")
 		})
 	}
 }
@@ -392,11 +414,15 @@ func TestForceFullConsistencyStreamBypassWhitelist(t *testing.T) {
 func TestSetFullConsistencyRevisionToContextWithReadonlyError(t *testing.T) {
 	t.Parallel()
 
-	ds := &fakeDataLayer{headErr: datastore.NewReadonlyErr()}
-	ctx := ContextWithHandle(t.Context())
-	ctx = datalayer.ContextWithDataLayer(ctx, ds)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	dl := mock_datalayer.NewMockDataLayer(ctrl)
+	dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, datastore.NewReadonlyErr()).Times(1)
 
-	err := setFullConsistencyRevisionToContext(ctx, &v1.ReadRelationshipsRequest{}, ds, "somelabel", TreatMismatchingTokensAsFullConsistency)
+	ctx := ContextWithHandle(t.Context())
+	ctx = datalayer.ContextWithDataLayer(ctx, dl)
+
+	err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "somelabel", TreatMismatchingTokensAsFullConsistency)
 	require.Error(t, err)
 	grpcutil.RequireStatus(t, codes.Unavailable, err)
 }

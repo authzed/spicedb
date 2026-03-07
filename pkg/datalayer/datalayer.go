@@ -1,3 +1,4 @@
+//go:generate go run go.uber.org/mock/mockgen -source datalayer.go -destination ./mocks/mock_datalayer.go
 package datalayer
 
 import (
