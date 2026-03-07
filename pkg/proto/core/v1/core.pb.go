@@ -7,7 +7,7 @@
 package corev1
 
 import (
-	_ "github.com/envoyproxy/protoc-gen-validate/validate"
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	anypb "google.golang.org/protobuf/types/known/anypb"
@@ -3058,27 +3058,27 @@ var File_core_v1_core_proto protoreflect.FileDescriptor
 
 const file_core_v1_core_proto_rawDesc = "" +
 	"\n" +
-	"\x12core/v1/core.proto\x12\acore.v1\x1a\x19google/protobuf/any.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17validate/validate.proto\"\x88\x03\n" +
-	"\rRelationTuple\x12X\n" +
-	"\x15resource_and_relation\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x13resourceAndRelation\x12>\n" +
-	"\asubject\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\asubject\x12?\n" +
-	"\x06caveat\x18\x03 \x01(\v2\x1d.core.v1.ContextualizedCaveatB\b\xfaB\x05\x8a\x01\x02\x10\x00R\x06caveat\x12F\n" +
-	"\tintegrity\x18\x04 \x01(\v2\x1e.core.v1.RelationshipIntegrityB\b\xfaB\x05\x8a\x01\x02\x10\x00R\tintegrity\x12T\n" +
+	"\x12core/v1/core.proto\x12\acore.v1\x1a\x1bbuf/validate/validate.proto\x1a\x19google/protobuf/any.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x80\x03\n" +
+	"\rRelationTuple\x12V\n" +
+	"\x15resource_and_relation\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\x13resourceAndRelation\x12<\n" +
+	"\asubject\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\asubject\x12=\n" +
+	"\x06caveat\x18\x03 \x01(\v2\x1d.core.v1.ContextualizedCaveatB\x06\xbaH\x03\xc8\x01\x00R\x06caveat\x12D\n" +
+	"\tintegrity\x18\x04 \x01(\v2\x1e.core.v1.RelationshipIntegrityB\x06\xbaH\x03\xc8\x01\x00R\tintegrity\x12T\n" +
 	"\x18optional_expiration_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x16optionalExpirationTime\"{\n" +
 	"\x15RelationshipIntegrity\x12\x15\n" +
 	"\x06key_id\x18\x01 \x01(\tR\x05keyId\x12\x12\n" +
 	"\x04hash\x18\x02 \x01(\fR\x04hash\x127\n" +
-	"\thashed_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bhashedAt\"\xab\x01\n" +
+	"\thashed_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bhashedAt\"\xa9\x01\n" +
 	"\x14ContextualizedCaveat\x12V\n" +
-	"\vcaveat_name\x18\x01 \x01(\tB5\xfaB2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\n" +
-	"caveatName\x12;\n" +
-	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructB\b\xfaB\x05\x8a\x01\x02\x10\x00R\acontext\"\xd4\x03\n" +
+	"\vcaveat_name\x18\x01 \x01(\tB5\xbaH2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\n" +
+	"caveatName\x129\n" +
+	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructB\x06\xbaH\x03\xc8\x01\x00R\acontext\"\xd4\x03\n" +
 	"\x10CaveatDefinition\x12I\n" +
-	"\x04name\x18\x01 \x01(\tB5\xfaB2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\x04name\x12?\n" +
+	"\x04name\x18\x01 \x01(\tB5\xbaH2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\x04name\x12?\n" +
 	"\x15serialized_expression\x18\x02 \x01(\fB\n" +
-	"\xfaB\az\x05\x10\x00\x18\x80 R\x14serializedExpression\x12b\n" +
+	"\xbaH\az\x05\x10\x00\x18\x80 R\x14serializedExpression\x12b\n" +
 	"\x0fparameter_types\x18\x03 \x03(\v2-.core.v1.CaveatDefinition.ParameterTypesEntryB\n" +
-	"\xfaB\a\x9a\x01\x04\b\x01\x10\x14R\x0eparameterTypes\x12-\n" +
+	"\xbaH\a\x9a\x01\x04\b\x01\x10\x14R\x0eparameterTypes\x12-\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x1a_\n" +
 	"\x13ParameterTypesEntry\x12\x10\n" +
@@ -3087,20 +3087,20 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x13CaveatTypeReference\x12\x1b\n" +
 	"\ttype_name\x18\x01 \x01(\tR\btypeName\x12I\n" +
 	"\vchild_types\x18\x02 \x03(\v2\x1c.core.v1.CaveatTypeReferenceB\n" +
-	"\xfaB\a\x92\x01\x04\b\x00\x10\x01R\n" +
+	"\xbaH\a\x92\x01\x04\b\x00\x10\x01R\n" +
 	"childTypes\"\x91\x02\n" +
 	"\x11ObjectAndRelation\x12f\n" +
-	"\tnamespace\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12F\n" +
-	"\tobject_id\x18\x02 \x01(\tB)\xfaB&r$(\x80\b2\x1f^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$R\bobjectId\x12L\n" +
-	"\brelation\x18\x03 \x01(\tB0\xfaB-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"\xc9\x01\n" +
+	"\tnamespace\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12F\n" +
+	"\tobject_id\x18\x02 \x01(\tB)\xbaH&r$(\x80\b2\x1f^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$R\bobjectId\x12L\n" +
+	"\brelation\x18\x03 \x01(\tB0\xbaH-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"\xc9\x01\n" +
 	"\x11RelationReference\x12f\n" +
-	"\tnamespace\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12L\n" +
-	"\brelation\x18\x03 \x01(\tB0\xfaB-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"'\n" +
+	"\tnamespace\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12L\n" +
+	"\brelation\x18\x03 \x01(\tB0\xbaH-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"'\n" +
 	"\x06Zookie\x12\x1d\n" +
-	"\x05token\x18\x01 \x01(\tB\a\xfaB\x04r\x02 \x01R\x05token\"\xda\x01\n" +
+	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02 \x01R\x05token\"\xd8\x01\n" +
 	"\x13RelationTupleUpdate\x12N\n" +
-	"\toperation\x18\x01 \x01(\x0e2&.core.v1.RelationTupleUpdate.OperationB\b\xfaB\x05\x82\x01\x02\x10\x01R\toperation\x126\n" +
-	"\x05tuple\x18\x02 \x01(\v2\x16.core.v1.RelationTupleB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x05tuple\";\n" +
+	"\toperation\x18\x01 \x01(\x0e2&.core.v1.RelationTupleUpdate.OperationB\b\xbaH\x05\x82\x01\x02\x10\x01R\toperation\x124\n" +
+	"\x05tuple\x18\x02 \x01(\v2\x16.core.v1.RelationTupleB\x06\xbaH\x03\xc8\x01\x01R\x05tuple\";\n" +
 	"\tOperation\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
 	"\n" +
@@ -3127,16 +3127,16 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\asubject\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationR\asubject\x12F\n" +
 	"\x11caveat_expression\x18\x02 \x01(\v2\x19.core.v1.CaveatExpressionR\x10caveatExpression\"D\n" +
 	"\x0eDirectSubjects\x122\n" +
-	"\bsubjects\x18\x01 \x03(\v2\x16.core.v1.DirectSubjectR\bsubjects\"\xb8\x01\n" +
-	"\bMetadata\x12\xab\x01\n" +
-	"\x10metadata_message\x18\x01 \x03(\v2\x14.google.protobuf.AnyBj\xfaBg\x92\x01d\b\x01\"`\x8a\x01\x02\x10\x01\xa2\x01X\b\x01\x12&type.googleapis.com/impl.v1.DocComment\x12,type.googleapis.com/impl.v1.RelationMetadataR\x0fmetadataMessage\"\x93\x02\n" +
+	"\bsubjects\x18\x01 \x03(\v2\x16.core.v1.DirectSubjectR\bsubjects\"\xb7\x01\n" +
+	"\bMetadata\x12\xaa\x01\n" +
+	"\x10metadata_message\x18\x01 \x03(\v2\x14.google.protobuf.AnyBi\xbaHf\xc8\x01\x01\x92\x01`\b\x01\"\\\xc8\x01\x01\xa2\x01V\x12&type.googleapis.com/impl.v1.DocComment\x12,type.googleapis.com/impl.v1.RelationMetadataR\x0fmetadataMessage\"\x93\x02\n" +
 	"\x13NamespaceDefinition\x12\\\n" +
-	"\x04name\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12-\n" +
+	"\x04name\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12-\n" +
 	"\brelation\x18\x02 \x03(\v2\x11.core.v1.RelationR\brelation\x12-\n" +
 	"\bmetadata\x18\x03 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
 	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\"\x9c\x03\n" +
 	"\bRelation\x12;\n" +
-	"\x04name\x18\x01 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12@\n" +
+	"\x04name\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12@\n" +
 	"\x0fuserset_rewrite\x18\x02 \x01(\v2\x17.core.v1.UsersetRewriteR\x0eusersetRewrite\x12C\n" +
 	"\x10type_information\x18\x03 \x01(\v2\x18.core.v1.TypeInformationR\x0ftypeInformation\x12-\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
@@ -3173,8 +3173,8 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0fTypeInformation\x12R\n" +
 	"\x18allowed_direct_relations\x18\x01 \x03(\v2\x18.core.v1.AllowedRelationR\x16allowedDirectRelations\"\x95\x04\n" +
 	"\x0fAllowedRelation\x12f\n" +
-	"\tnamespace\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12N\n" +
-	"\brelation\x18\x03 \x01(\tB0\xfaB-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$H\x00R\brelation\x12R\n" +
+	"\tnamespace\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12N\n" +
+	"\brelation\x18\x03 \x01(\tB0\xbaH-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$H\x00R\brelation\x12R\n" +
 	"\x0fpublic_wildcard\x18\x04 \x01(\v2'.core.v1.AllowedRelation.PublicWildcardH\x00R\x0epublicWildcard\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12?\n" +
 	"\x0frequired_caveat\x18\x06 \x01(\v2\x16.core.v1.AllowedCaveatR\x0erequiredCaveat\x12I\n" +
@@ -3184,51 +3184,52 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0fExpirationTrait\"0\n" +
 	"\rAllowedCaveat\x12\x1f\n" +
 	"\vcaveat_name\x18\x01 \x01(\tR\n" +
-	"caveatName\"\xad\x02\n" +
-	"\x0eUsersetRewrite\x127\n" +
-	"\x05union\x18\x01 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x05union\x12E\n" +
-	"\fintersection\x18\x02 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\fintersection\x12?\n" +
-	"\texclusion\x18\x03 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\texclusion\x12@\n" +
-	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePositionB\x18\n" +
-	"\x11rewrite_operation\x12\x03\xf8B\x01\"\xf3\x05\n" +
-	"\fSetOperation\x12B\n" +
-	"\x05child\x18\x01 \x03(\v2\x1b.core.v1.SetOperation.ChildB\x0f\xfaB\f\x92\x01\t\b\x01\"\x05\x8a\x01\x02\x10\x01R\x05child\x1a\x9e\x05\n" +
+	"caveatName\"\x91\x02\n" +
+	"\x0eUsersetRewrite\x12-\n" +
+	"\x05union\x18\x01 \x01(\v2\x15.core.v1.SetOperationH\x00R\x05union\x12;\n" +
+	"\fintersection\x18\x02 \x01(\v2\x15.core.v1.SetOperationH\x00R\fintersection\x125\n" +
+	"\texclusion\x18\x03 \x01(\v2\x15.core.v1.SetOperationH\x00R\texclusion\x12@\n" +
+	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePositionB\x1a\n" +
+	"\x11rewrite_operation\x12\x05\xbaH\x02\b\x01\"\xcb\x05\n" +
+	"\fSetOperation\x12@\n" +
+	"\x05child\x18\x01 \x03(\v2\x1b.core.v1.SetOperation.ChildB\r\xbaH\n" +
+	"\x92\x01\a\b\x01\"\x03\xc8\x01\x01R\x05child\x1a\xf8\x04\n" +
 	"\x05Child\x127\n" +
-	"\x05_this\x18\x01 \x01(\v2 .core.v1.SetOperation.Child.ThisH\x00R\x04This\x12O\n" +
-	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0fcomputedUserset\x12M\n" +
-	"\x10tuple_to_userset\x18\x03 \x01(\v2\x17.core.v1.TupleToUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0etupleToUserset\x12L\n" +
-	"\x0fuserset_rewrite\x18\x04 \x01(\v2\x17.core.v1.UsersetRewriteB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0eusersetRewrite\x12l\n" +
-	"\x1bfunctioned_tuple_to_userset\x18\b \x01(\v2!.core.v1.FunctionedTupleToUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x18functionedTupleToUserset\x124\n" +
+	"\x05_this\x18\x01 \x01(\v2 .core.v1.SetOperation.Child.ThisH\x00R\x04This\x12E\n" +
+	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetH\x00R\x0fcomputedUserset\x12C\n" +
+	"\x10tuple_to_userset\x18\x03 \x01(\v2\x17.core.v1.TupleToUsersetH\x00R\x0etupleToUserset\x12B\n" +
+	"\x0fuserset_rewrite\x18\x04 \x01(\v2\x17.core.v1.UsersetRewriteH\x00R\x0eusersetRewrite\x12b\n" +
+	"\x1bfunctioned_tuple_to_userset\x18\b \x01(\v2!.core.v1.FunctionedTupleToUsersetH\x00R\x18functionedTupleToUserset\x124\n" +
 	"\x04_nil\x18\x06 \x01(\v2\x1f.core.v1.SetOperation.Child.NilH\x00R\x03Nil\x127\n" +
 	"\x05_self\x18\t \x01(\v2 .core.v1.SetOperation.Child.SelfH\x00R\x04Self\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12%\n" +
 	"\x0eoperation_path\x18\a \x03(\rR\roperationPath\x1a\x06\n" +
 	"\x04This\x1a\x05\n" +
 	"\x03Nil\x1a\x06\n" +
-	"\x04SelfB\x11\n" +
+	"\x04SelfB\x13\n" +
 	"\n" +
-	"child_type\x12\x03\xf8B\x01\"\xba\x02\n" +
-	"\x0eTupleToUserset\x12F\n" +
-	"\btupleset\x18\x01 \x01(\v2 .core.v1.TupleToUserset.TuplesetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\btupleset\x12M\n" +
-	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fcomputedUserset\x12@\n" +
+	"child_type\x12\x05\xbaH\x02\b\x01\"\xb6\x02\n" +
+	"\x0eTupleToUserset\x12D\n" +
+	"\btupleset\x18\x01 \x01(\v2 .core.v1.TupleToUserset.TuplesetB\x06\xbaH\x03\xc8\x01\x01R\btupleset\x12K\n" +
+	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\x06\xbaH\x03\xc8\x01\x01R\x0fcomputedUserset\x12@\n" +
 	"\x0fsource_position\x18\x03 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x1aO\n" +
 	"\bTupleset\x12C\n" +
-	"\brelation\x18\x01 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"\xec\x03\n" +
+	"\brelation\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"\xe8\x03\n" +
 	"\x18FunctionedTupleToUserset\x12R\n" +
 	"\bfunction\x18\x01 \x01(\x0e2*.core.v1.FunctionedTupleToUserset.FunctionB\n" +
-	"\xfaB\a\x82\x01\x04\x10\x01 \x00R\bfunction\x12P\n" +
-	"\btupleset\x18\x02 \x01(\v2*.core.v1.FunctionedTupleToUserset.TuplesetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\btupleset\x12M\n" +
-	"\x10computed_userset\x18\x03 \x01(\v2\x18.core.v1.ComputedUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fcomputedUserset\x12@\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bfunction\x12N\n" +
+	"\btupleset\x18\x02 \x01(\v2*.core.v1.FunctionedTupleToUserset.TuplesetB\x06\xbaH\x03\xc8\x01\x01R\btupleset\x12K\n" +
+	"\x10computed_userset\x18\x03 \x01(\v2\x18.core.v1.ComputedUsersetB\x06\xbaH\x03\xc8\x01\x01R\x0fcomputedUserset\x12@\n" +
 	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x1aO\n" +
 	"\bTupleset\x12C\n" +
-	"\brelation\x18\x01 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"H\n" +
+	"\brelation\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"H\n" +
 	"\bFunction\x12\x18\n" +
 	"\x14FUNCTION_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fFUNCTION_ANY\x10\x01\x12\x10\n" +
 	"\fFUNCTION_ALL\x10\x02\"\x91\x02\n" +
 	"\x0fComputedUserset\x12A\n" +
-	"\x06object\x18\x01 \x01(\x0e2\x1f.core.v1.ComputedUserset.ObjectB\b\xfaB\x05\x82\x01\x02\x10\x01R\x06object\x12C\n" +
-	"\brelation\x18\x02 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\x12@\n" +
+	"\x06object\x18\x01 \x01(\x0e2\x1f.core.v1.ComputedUserset.ObjectB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06object\x12C\n" +
+	"\brelation\x18\x02 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\x12@\n" +
 	"\x0fsource_position\x18\x03 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\"4\n" +
 	"\x06Object\x12\x10\n" +
 	"\fTUPLE_OBJECT\x10\x00\x12\x18\n" +
@@ -3249,17 +3250,17 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x03AND\x10\x02\x12\a\n" +
 	"\x03NOT\x10\x03\"\xee\x03\n" +
 	"\x12RelationshipFilter\x12p\n" +
-	"\rresource_type\x18\x01 \x01(\tBK\xfaBHrF(\x80\x012A^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$R\fresourceType\x12W\n" +
-	"\x14optional_resource_id\x18\x02 \x01(\tB%\xfaB\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x12optionalResourceId\x12d\n" +
-	"\x1boptional_resource_id_prefix\x18\x05 \x01(\tB%\xfaB\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x18optionalResourceIdPrefix\x12W\n" +
-	"\x11optional_relation\x18\x03 \x01(\tB*\xfaB'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\x10optionalRelation\x12N\n" +
+	"\rresource_type\x18\x01 \x01(\tBK\xbaHHrF(\x80\x012A^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$R\fresourceType\x12W\n" +
+	"\x14optional_resource_id\x18\x02 \x01(\tB%\xbaH\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x12optionalResourceId\x12d\n" +
+	"\x1boptional_resource_id_prefix\x18\x05 \x01(\tB%\xbaH\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x18optionalResourceIdPrefix\x12W\n" +
+	"\x11optional_relation\x18\x03 \x01(\tB*\xbaH'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\x10optionalRelation\x12N\n" +
 	"\x17optional_subject_filter\x18\x04 \x01(\v2\x16.core.v1.SubjectFilterR\x15optionalSubjectFilter\"\x86\x03\n" +
 	"\rSubjectFilter\x12k\n" +
-	"\fsubject_type\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\vsubjectType\x12Z\n" +
-	"\x13optional_subject_id\x18\x02 \x01(\tB*\xfaB'r%(\x80\b2 ^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)?$R\x11optionalSubjectId\x12R\n" +
+	"\fsubject_type\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\vsubjectType\x12Z\n" +
+	"\x13optional_subject_id\x18\x02 \x01(\tB*\xbaH'r%(\x80\b2 ^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)?$R\x11optionalSubjectId\x12R\n" +
 	"\x11optional_relation\x18\x03 \x01(\v2%.core.v1.SubjectFilter.RelationFilterR\x10optionalRelation\x1aX\n" +
 	"\x0eRelationFilter\x12F\n" +
-	"\brelation\x18\x01 \x01(\tB*\xfaB'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\brelationB\x8a\x01\n" +
+	"\brelation\x18\x01 \x01(\tB*\xbaH'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\brelationB\x8a\x01\n" +
 	"\vcom.core.v1B\tCoreProtoP\x01Z3github.com/authzed/spicedb/pkg/proto/core/v1;corev1\xa2\x02\x03CXX\xaa\x02\aCore.V1\xca\x02\aCore\\V1\xe2\x02\x13Core\\V1\\GPBMetadata\xea\x02\bCore::V1b\x06proto3"
 
 var (

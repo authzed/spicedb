@@ -2,10 +2,10 @@ syntax = "proto3";
 package developer.v1;
 
 import "authzed/api/v1/debug.proto";
+import "buf/validate/validate.proto";
 import "core/v1/core.proto";
 import "dispatch/v1/dispatch.proto";
 import "google/protobuf/struct.proto";
-import "validate/validate.proto";
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/developer/v1";
 
@@ -144,7 +144,7 @@ message CheckOperationParameters {
   core.v1.ObjectAndRelation subject = 2;
 
   /** caveat_context consists of any named values that are defined at write time for the caveat expression **/
-  google.protobuf.Struct caveat_context = 3 [(validate.rules).message.required = false];
+  google.protobuf.Struct caveat_context = 3 [(buf.validate.field).required = false];
 }
 
 // CheckOperationsResult is the result for a `check` operation.
@@ -176,7 +176,7 @@ message CheckOperationsResult {
 message PartialCaveatInfo {
   // missing_required_context is a list of one or more fields that were missing and prevented caveats
   // from being fully evaluated
-  repeated string missing_required_context = 1 [(validate.rules).repeated.min_items = 1];
+  repeated string missing_required_context = 1 [(buf.validate.field).repeated.min_items = 1];
 }
 
 // RunAssertionsParameters are the parameters for a `runAssertions` operation.

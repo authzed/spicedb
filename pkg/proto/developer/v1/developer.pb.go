@@ -7,10 +7,10 @@
 package developerv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	v12 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v11 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -1393,7 +1393,7 @@ var File_developer_v1_developer_proto protoreflect.FileDescriptor
 
 const file_developer_v1_developer_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdeveloper/v1/developer.proto\x12\fdeveloper.v1\x1a\x1aauthzed/api/v1/debug.proto\x1a\x12core/v1/core.proto\x1a\x1adispatch/v1/dispatch.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x17validate/validate.proto\"\x83\x01\n" +
+	"\x1cdeveloper/v1/developer.proto\x12\fdeveloper.v1\x1a\x1aauthzed/api/v1/debug.proto\x1a\x1bbuf/validate/validate.proto\x1a\x12core/v1/core.proto\x1a\x1adispatch/v1/dispatch.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x83\x01\n" +
 	"\x10DeveloperRequest\x126\n" +
 	"\acontext\x18\x01 \x01(\v2\x1c.developer.v1.RequestContextR\acontext\x127\n" +
 	"\n" +
@@ -1461,11 +1461,11 @@ const file_developer_v1_developer_proto_rawDesc = "" +
 	"\x14INVALID_SUBJECT_TYPE\x10\n" +
 	"\"R\n" +
 	"\x0fDeveloperErrors\x12?\n" +
-	"\finput_errors\x18\x01 \x03(\v2\x1c.developer.v1.DeveloperErrorR\vinputErrors\"\xd2\x01\n" +
+	"\finput_errors\x18\x01 \x03(\v2\x1c.developer.v1.DeveloperErrorR\vinputErrors\"\xd0\x01\n" +
 	"\x18CheckOperationParameters\x126\n" +
 	"\bresource\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationR\bresource\x124\n" +
-	"\asubject\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationR\asubject\x12H\n" +
-	"\x0ecaveat_context\x18\x03 \x01(\v2\x17.google.protobuf.StructB\b\xfaB\x05\x8a\x01\x02\x10\x00R\rcaveatContext\"\xef\x03\n" +
+	"\asubject\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationR\asubject\x12F\n" +
+	"\x0ecaveat_context\x18\x03 \x01(\v2\x17.google.protobuf.StructB\x06\xbaH\x03\xc8\x01\x00R\rcaveatContext\"\xef\x03\n" +
 	"\x15CheckOperationsResult\x12N\n" +
 	"\n" +
 	"membership\x18\x01 \x01(\x0e2..developer.v1.CheckOperationsResult.MembershipR\n" +
@@ -1484,7 +1484,7 @@ const file_developer_v1_developer_proto_rawDesc = "" +
 	"\x06MEMBER\x10\x02\x12\x13\n" +
 	"\x0fCAVEATED_MEMBER\x10\x03\"W\n" +
 	"\x11PartialCaveatInfo\x12B\n" +
-	"\x18missing_required_context\x18\x01 \x03(\tB\b\xfaB\x05\x92\x01\x02\b\x01R\x16missingRequiredContext\"B\n" +
+	"\x18missing_required_context\x18\x01 \x03(\tB\b\xbaH\x05\x92\x01\x02\b\x01R\x16missingRequiredContext\"B\n" +
 	"\x17RunAssertionsParameters\x12'\n" +
 	"\x0fassertions_yaml\x18\x01 \x01(\tR\x0eassertionsYaml\"\x9f\x01\n" +
 	"\x13RunAssertionsResult\x12=\n" +

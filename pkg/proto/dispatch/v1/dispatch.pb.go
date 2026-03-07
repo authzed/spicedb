@@ -7,8 +7,8 @@
 package dispatchv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	v1 "github.com/authzed/spicedb/pkg/proto/core/v1"
-	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -1651,12 +1651,12 @@ var File_dispatch_v1_dispatch_proto protoreflect.FileDescriptor
 
 const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\n" +
-	"\x1adispatch/v1/dispatch.proto\x12\vdispatch.v1\x1a\x12core/v1/core.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x17validate/validate.proto\"\x81\x05\n" +
-	"\x14DispatchCheckRequest\x12?\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\b\xfaB\x05\x8a\x01\x02\x10\x01R\bmetadata\x12Q\n" +
-	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x10resourceRelation\x12!\n" +
-	"\fresource_ids\x18\x03 \x03(\tR\vresourceIds\x12>\n" +
-	"\asubject\x18\x04 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\asubject\x12Y\n" +
+	"\x1adispatch/v1/dispatch.proto\x12\vdispatch.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12core/v1/core.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xfb\x04\n" +
+	"\x14DispatchCheckRequest\x12=\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12O\n" +
+	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x10resourceRelation\x12!\n" +
+	"\fresource_ids\x18\x03 \x03(\tR\vresourceIds\x12<\n" +
+	"\asubject\x18\x04 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\asubject\x12Y\n" +
 	"\x0fresults_setting\x18\x05 \x01(\x0e20.dispatch.v1.DispatchCheckRequest.ResultsSettingR\x0eresultsSetting\x12D\n" +
 	"\x05debug\x18\x06 \x01(\x0e2..dispatch.v1.DispatchCheckRequest.DebugSettingR\x05debug\x127\n" +
 	"\vcheck_hints\x18\a \x03(\v2\x16.dispatch.v1.CheckHintR\n" +
@@ -1694,10 +1694,10 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"NOT_MEMBER\x10\x01\x12\n" +
 	"\n" +
 	"\x06MEMBER\x10\x02\x12\x13\n" +
-	"\x0fCAVEATED_MEMBER\x10\x03\"\xb8\x02\n" +
-	"\x15DispatchExpandRequest\x12?\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\b\xfaB\x05\x8a\x01\x02\x10\x01R\bmetadata\x12X\n" +
-	"\x15resource_and_relation\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x13resourceAndRelation\x12W\n" +
+	"\x0fCAVEATED_MEMBER\x10\x03\"\xb4\x02\n" +
+	"\x15DispatchExpandRequest\x12=\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12V\n" +
+	"\x15resource_and_relation\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\x13resourceAndRelation\x12W\n" +
 	"\x0eexpansion_mode\x18\x03 \x01(\x0e20.dispatch.v1.DispatchExpandRequest.ExpansionModeR\rexpansionMode\"+\n" +
 	"\rExpansionMode\x12\v\n" +
 	"\aSHALLOW\x10\x00\x12\r\n" +
@@ -1707,14 +1707,14 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\ttree_node\x18\x02 \x01(\v2\x1e.core.v1.RelationTupleTreeNodeR\btreeNode\"U\n" +
 	"\x06Cursor\x12\x1a\n" +
 	"\bsections\x18\x02 \x03(\tR\bsections\x12)\n" +
-	"\x10dispatch_version\x18\x03 \x01(\rR\x0fdispatchVersionJ\x04\b\x01\x10\x02\"\x90\x04\n" +
-	"\x1fDispatchLookupResources2Request\x12?\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\b\xfaB\x05\x8a\x01\x02\x10\x01R\bmetadata\x12Q\n" +
-	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x10resourceRelation\x12O\n" +
-	"\x10subject_relation\x18\x03 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fsubjectRelation\x12\x1f\n" +
+	"\x10dispatch_version\x18\x03 \x01(\rR\x0fdispatchVersionJ\x04\b\x01\x10\x02\"\x88\x04\n" +
+	"\x1fDispatchLookupResources2Request\x12=\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12O\n" +
+	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x10resourceRelation\x12M\n" +
+	"\x10subject_relation\x18\x03 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x0fsubjectRelation\x12\x1f\n" +
 	"\vsubject_ids\x18\x04 \x03(\tR\n" +
-	"subjectIds\x12O\n" +
-	"\x10terminal_subject\x18\x05 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fterminalSubject\x121\n" +
+	"subjectIds\x12M\n" +
+	"\x10terminal_subject\x18\x05 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\x0fterminalSubject\x121\n" +
 	"\acontext\x18\x06 \x01(\v2\x17.google.protobuf.StructR\acontext\x12<\n" +
 	"\x0foptional_cursor\x18\a \x01(\v2\x13.dispatch.v1.CursorR\x0eoptionalCursor\x12%\n" +
 	"\x0eoptional_limit\x18\b \x01(\rR\roptionalLimit\"\x91\x01\n" +
@@ -1726,14 +1726,14 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	" DispatchLookupResources2Response\x129\n" +
 	"\bresource\x18\x01 \x01(\v2\x1d.dispatch.v1.PossibleResourceR\bresource\x125\n" +
 	"\bmetadata\x18\x02 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x12G\n" +
-	"\x15after_response_cursor\x18\x03 \x01(\v2\x13.dispatch.v1.CursorR\x13afterResponseCursor\"\xfb\x03\n" +
-	"\x1fDispatchLookupResources3Request\x12?\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\b\xfaB\x05\x8a\x01\x02\x10\x01R\bmetadata\x12Q\n" +
-	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x10resourceRelation\x12O\n" +
-	"\x10subject_relation\x18\x03 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fsubjectRelation\x12\x1f\n" +
+	"\x15after_response_cursor\x18\x03 \x01(\v2\x13.dispatch.v1.CursorR\x13afterResponseCursor\"\xf3\x03\n" +
+	"\x1fDispatchLookupResources3Request\x12=\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12O\n" +
+	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x10resourceRelation\x12M\n" +
+	"\x10subject_relation\x18\x03 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x0fsubjectRelation\x12\x1f\n" +
 	"\vsubject_ids\x18\x04 \x03(\tR\n" +
-	"subjectIds\x12O\n" +
-	"\x10terminal_subject\x18\x05 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fterminalSubject\x121\n" +
+	"subjectIds\x12M\n" +
+	"\x10terminal_subject\x18\x05 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\x0fterminalSubject\x121\n" +
 	"\acontext\x18\x06 \x01(\v2\x17.google.protobuf.StructR\acontext\x12'\n" +
 	"\x0foptional_cursor\x18\a \x03(\tR\x0eoptionalCursor\x12%\n" +
 	"\x0eoptional_limit\x18\b \x01(\rR\roptionalLimit\"N\n" +
@@ -1744,12 +1744,12 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"resourceId\x12&\n" +
 	"\x0ffor_subject_ids\x18\x02 \x03(\tR\rforSubjectIds\x124\n" +
 	"\x16missing_context_params\x18\x03 \x03(\tR\x14missingContextParams\x12C\n" +
-	"\x1eafter_response_cursor_sections\x18\x04 \x03(\tR\x1bafterResponseCursorSections\"\xa7\x02\n" +
-	"\x1dDispatchLookupSubjectsRequest\x12?\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\b\xfaB\x05\x8a\x01\x02\x10\x01R\bmetadata\x12Q\n" +
-	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x10resourceRelation\x12!\n" +
-	"\fresource_ids\x18\x03 \x03(\tR\vresourceIds\x12O\n" +
-	"\x10subject_relation\x18\x04 \x01(\v2\x1a.core.v1.RelationReferenceB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fsubjectRelation\"\xbd\x01\n" +
+	"\x1eafter_response_cursor_sections\x18\x04 \x03(\tR\x1bafterResponseCursorSections\"\xa1\x02\n" +
+	"\x1dDispatchLookupSubjectsRequest\x12=\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12O\n" +
+	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x10resourceRelation\x12!\n" +
+	"\fresource_ids\x18\x03 \x03(\tR\vresourceIds\x12M\n" +
+	"\x10subject_relation\x18\x04 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x0fsubjectRelation\"\xbd\x01\n" +
 	"\fFoundSubject\x12\x1d\n" +
 	"\n" +
 	"subject_id\x18\x01 \x01(\tR\tsubjectId\x12F\n" +
@@ -1766,10 +1766,10 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\fResolverMeta\x12\x1f\n" +
 	"\vat_revision\x18\x01 \x01(\tR\n" +
 	"atRevision\x120\n" +
-	"\x0fdepth_remaining\x18\x02 \x01(\rB\a\xfaB\x04*\x02 \x00R\x0edepthRemaining\x12!\n" +
+	"\x0fdepth_remaining\x18\x02 \x01(\rB\a\xbaH\x04*\x02 \x00R\x0edepthRemaining\x12!\n" +
 	"\n" +
 	"request_id\x18\x03 \x01(\tB\x02\x18\x01R\trequestId\x121\n" +
-	"\x0ftraversal_bloom\x18\x04 \x01(\fB\b\xfaB\x05z\x03\x18\x80\bR\x0etraversalBloom\"\xda\x01\n" +
+	"\x0ftraversal_bloom\x18\x04 \x01(\fB\b\xbaH\x05z\x03\x18\x80\bR\x0etraversalBloom\"\xda\x01\n" +
 	"\fResponseMeta\x12%\n" +
 	"\x0edispatch_count\x18\x01 \x01(\rR\rdispatchCount\x12%\n" +
 	"\x0edepth_required\x18\x02 \x01(\rR\rdepthRequired\x122\n" +

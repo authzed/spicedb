@@ -18,6 +18,7 @@ replace github.com/influxdata/tdigest => github.com/hdrodz/tdigest v0.0.0-202304
 replace github.com/docker/docker => github.com/docker/docker v28.0.0+incompatible
 
 require (
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.10-20251209175733-2a1774d88802.1
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.10-20251118093737-4105057cc7d4.1
 	buf.build/go/protovalidate v1.1.0
 	cloud.google.com/go/spanner v1.86.1
@@ -48,7 +49,6 @@ require (
 	github.com/dlmiddlecote/sqlstats v1.0.2
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emirpasic/gods v1.18.1
-	github.com/envoyproxy/protoc-gen-validate v1.3.0
 	github.com/ettle/strcase v0.2.0
 	github.com/exaring/otelpgx v0.9.3
 	github.com/fatih/color v1.18.0
@@ -149,7 +149,6 @@ tool (
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.10-20251209175733-2a1774d88802.1 // indirect
 	buf.build/gen/go/gogo/protobuf/protocolbuffers/go v1.36.10-20240617172848-e1dbca2775a7.1 // indirect
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.122.0 // indirect
@@ -243,6 +242,7 @@ require (
 	github.com/ecordell/optgen v0.2.3 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.35.0 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/firefart/nonamedreturns v1.0.6 // indirect

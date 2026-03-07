@@ -28,7 +28,7 @@ func (Gen) Go() error {
 func (Gen) Proto() error {
 	fmt.Println("generating buf")
 	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf",
-		"generate", "-o", "../pkg/proto", "../proto/internal", "--template", "../buf.gen.yaml")
+		"generate", "--template", "../buf.gen.yaml", "-o", "..", "..")
 }
 
 func (Gen) Completions() error {
