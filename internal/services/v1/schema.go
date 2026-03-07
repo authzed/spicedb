@@ -5,12 +5,11 @@ import (
 	"sort"
 	"strings"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
+	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -45,17 +44,15 @@ type SchemaServerConfig struct {
 func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
-	validator := genutil.MustNewProtoValidator()
-
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(validator),
+				handwrittenvalidation.UnaryServerInterceptor(),
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(validator),
+				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				perfinsights.StreamServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),

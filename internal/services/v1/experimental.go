@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -36,7 +35,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
-	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -94,18 +92,14 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		chunkSize = 100
 	}
 
-	validator := genutil.MustNewProtoValidator()
-
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(validator),
-				handwrittenvalidation.UnaryServerInterceptor,
+				handwrittenvalidation.UnaryServerInterceptor(),
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
