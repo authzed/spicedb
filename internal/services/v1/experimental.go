@@ -99,7 +99,7 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 	validator := genutil.MustNewProtoValidator(
 		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
 		protovalidate.WithMessages(
-			inputMessagesForService(v1.RegisterExperimentalServiceServer, *new(v1.ExperimentalServiceServer))...
+			inputMessagesForService(v1.RegisterExperimentalServiceServer, v1.ExperimentalServiceServer(nil))...,
 		))
 
 	return &experimentalServer{

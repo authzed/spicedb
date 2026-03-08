@@ -3,12 +3,13 @@ package v1
 import (
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 )
 
 func TestInputMessagesForService(t *testing.T) {
-	messages := inputMessagesForService(v1.RegisterPermissionsServiceServer, *new(v1.PermissionsServiceServer))
+	messages := inputMessagesForService(v1.RegisterPermissionsServiceServer, v1.PermissionsServiceServer(nil))
 	require.NotEmpty(t, messages)
 	// Ensure that a CheckPermissionsRequest is in the list
 	checkPermRequestFound := false
@@ -27,4 +28,17 @@ func TestInputMessagesForService(t *testing.T) {
 		}
 	}
 	require.True(t, lrRequestFound, "did not find a LookupResourcesRequest in the list")
+}
+
+func TestInputMessagesForServiceOnWatch(t *testing.T) {
+	messages := inputMessagesForService(v1.RegisterWatchServiceServer, v1.WatchServiceServer(nil))
+	require.NotEmpty(t, messages)
+	// Ensure that a CheckPermissionsRequest is in the list
+	watchRequestFound := false
+	for _, message := range messages {
+		if _, ok := message.(*v1.WatchRequest); ok {
+			watchRequestFound = true
+		}
+	}
+	require.True(t, watchRequestFound, "did not find a CheckPermissionRequest in the list")
 }

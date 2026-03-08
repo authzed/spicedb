@@ -34,10 +34,9 @@ type watchServer struct {
 // NewWatchServer creates an instance of the watch server.
 func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
 	validator := genutil.MustNewProtoValidator(
-		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache. As new
-		// methods are added to this service, you'll need to add new messages to this method.
+		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
 		protovalidate.WithMessages(
-			&v1.WatchRequest{},
+			inputMessagesForService(v1.RegisterWatchServiceServer, v1.WatchServiceServer(nil))...,
 		))
 
 	s := &watchServer{

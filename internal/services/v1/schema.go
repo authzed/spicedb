@@ -50,13 +50,9 @@ func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
 	validator := genutil.MustNewProtoValidator(
 		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache. As new
 		// methods are added to this service, you'll need to add new messages to this method.
+		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
 		protovalidate.WithMessages(
-			&v1.ReadSchemaRequest{},
-			&v1.WriteSchemaRequest{},
-			&v1.ReflectSchemaRequest{},
-			&v1.ComputablePermissionsRequest{},
-			&v1.DependentRelationsRequest{},
-			&v1.DiffSchemaRequest{},
+			inputMessagesForService(v1.RegisterSchemaServiceServer, v1.SchemaServiceServer(nil))...,
 		))
 
 	return &schemaServer{

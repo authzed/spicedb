@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	// "reflect"
 	"time"
 
 	"buf.build/go/protovalidate"
@@ -152,7 +151,7 @@ func NewPermissionsServer(
 	validator := genutil.MustNewProtoValidator(
 		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
 		protovalidate.WithMessages(
-			inputMessagesForService(v1.RegisterPermissionsServiceServer, *new(v1.PermissionsServiceServer))...
+			inputMessagesForService(v1.RegisterPermissionsServiceServer, v1.PermissionsServiceServer(nil))...,
 		))
 
 	return &permissionServer{
