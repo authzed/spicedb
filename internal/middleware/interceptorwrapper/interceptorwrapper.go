@@ -7,15 +7,19 @@ import (
 	"google.golang.org/grpc"
 )
 
+var tracer = otel.Tracer("spicedb/internal/middleware")
+
 // WrapUnaryServerInterceptorWithSpans returns a new interceptor that wraps the given interceptor
 // with a span, measuring the duration of the interceptor's pre-handler logic.
 func WrapUnaryServerInterceptorWithSpans(
 	inner grpc.UnaryServerInterceptor,
-	tracerName, spanName string,
+	spanName string,
 ) grpc.UnaryServerInterceptor {
-	t := otel.Tracer(tracerName)
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		ctx, span := t.Start(ctx, spanName)
+		_, span := tracer.Start(ctx, spanName)
+		// NOTE: this shim is what lets us measure how long the interceptor is doing work.
+		// It's the handler that we pass to the wrapped interceptor, so `span.End()` will be
+		// called when the handler itself is called.
 		shimHandler := func(ctx context.Context, req any) (any, error) {
 			span.End()
 			return handler(ctx, req)
@@ -27,32 +31,3 @@ func WrapUnaryServerInterceptorWithSpans(
 		return resp, err
 	}
 }
-
-// WrapStreamServerInterceptorWithSpans returns a new interceptor that wraps the given interceptor
-// with a span, measuring the duration of the interceptor's pre-handler logic.
-func WrapStreamServerInterceptorWithSpans(
-	inner grpc.StreamServerInterceptor,
-	tracerName, spanName string,
-) grpc.StreamServerInterceptor {
-	t := otel.Tracer(tracerName)
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		ctx, span := t.Start(ss.Context(), spanName)
-		wrappedStream := &contextStream{ServerStream: ss, ctx: ctx}
-		shimHandler := func(srv any, stream grpc.ServerStream) error {
-			span.End()
-			return handler(srv, stream)
-		}
-		err := inner(srv, wrappedStream, info, shimHandler)
-		if span.IsRecording() {
-			span.End()
-		}
-		return err
-	}
-}
-
-type contextStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (s *contextStream) Context() context.Context { return s.ctx }

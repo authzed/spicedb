@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
@@ -18,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
+	"github.com/authzed/spicedb/internal/middleware/interceptorwrapper"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -145,16 +147,20 @@ func NewPermissionsServer(
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 	}
 
+	validator := genutil.MustNewProtoValidator()
+
 	return &permissionServer{
 		dispatch: dispatch,
 		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				handwrittenvalidation.UnaryServerInterceptor(),
+				interceptorwrapper.WrapUnaryServerInterceptorWithSpans(grpcvalidate.UnaryServerInterceptor(validator), "protovalidate"),
+				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
+				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
