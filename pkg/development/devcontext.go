@@ -53,7 +53,7 @@ type DevContext struct {
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.
-func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *devinterface.DeveloperErrors, error) {
+func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext, opts ...CompileOption) (*DevContext, *devinterface.DeveloperErrors, error) {
 	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
 	if err != nil {
 		return nil, nil, err
@@ -61,7 +61,7 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 	dl := datalayer.NewDataLayer(ds)
 	ctx = datalayer.ContextWithDataLayer(ctx, dl)
 
-	dctx, devErrs, nerr := newDevContextWithDataLayer(ctx, requestContext, dl)
+	dctx, devErrs, nerr := newDevContextWithDataLayer(ctx, requestContext, dl, opts...)
 	if nerr != nil || devErrs != nil {
 		// If any form of error occurred, immediately close the data layer
 		derr := dl.Close()
@@ -75,9 +75,9 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 	return dctx, nil, nil
 }
 
-func newDevContextWithDataLayer(ctx context.Context, requestContext *devinterface.RequestContext, dl datalayer.DataLayer) (*DevContext, *devinterface.DeveloperErrors, error) {
+func newDevContextWithDataLayer(ctx context.Context, requestContext *devinterface.RequestContext, dl datalayer.DataLayer, opts ...CompileOption) (*DevContext, *devinterface.DeveloperErrors, error) {
 	// Compile the schema and load its caveats and namespaces into the datastore.
-	compiled, devError, err := CompileSchema(requestContext.Schema)
+	compiled, devError, err := CompileSchema(requestContext.Schema, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
