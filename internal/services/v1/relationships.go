@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
+	"github.com/authzed/spicedb/internal/middleware/interceptorwrapper"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -153,7 +154,7 @@ func NewPermissionsServer(
 		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(validator),
+				interceptorwrapper.WrapUnaryServerInterceptorWithSpans(grpcvalidate.UnaryServerInterceptor(validator), "protovalidate"),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),

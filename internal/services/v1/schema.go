@@ -11,6 +11,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
+	"github.com/authzed/spicedb/internal/middleware/interceptorwrapper"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -50,7 +51,7 @@ func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(validator),
+				interceptorwrapper.WrapUnaryServerInterceptorWithSpans(grpcvalidate.UnaryServerInterceptor(validator), "protovalidate"),
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),

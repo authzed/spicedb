@@ -52,7 +52,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		}
 	}
 
-	objectTypes := mapz.NewSet[string](req.GetOptionalObjectTypes()...)
+	objectTypes := mapz.NewSet(req.GetOptionalObjectTypes()...)
 
 	ctx := stream.Context()
 	dl := datalayer.MustFromContext(ctx)
