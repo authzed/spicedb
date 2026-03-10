@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -147,7 +148,11 @@ func NewPermissionsServer(
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 	}
 
-	validator := genutil.MustNewProtoValidator()
+	validator := genutil.MustNewProtoValidator(
+		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
+		protovalidate.WithMessages(
+			inputMessagesForService(v1.RegisterPermissionsServiceServer, v1.PermissionsServiceServer(nil))...,
+		))
 
 	return &permissionServer{
 		dispatch: dispatch,
