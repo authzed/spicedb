@@ -67,18 +67,6 @@ var lastEventTimestampGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Help:      "UNIX timestamp (fractional seconds) of the last event consumed from the schema watch. Use `time() - <metric>` for time-since-last-event.",
 })
 
-func init() {
-	prometheus.MustRegister(
-		namespacesFallbackModeGauge,
-		caveatsFallbackModeGauge,
-		schemaCacheRevisionGauge,
-		definitionsReadCachedCounter,
-		definitionsReadTotalCounter,
-		cycleRestartsCounter,
-		lastEventTimestampGauge,
-	)
-}
-
 // isTerminalWatchError reports whether err represents intentional shutdown
 // (caller cancellation or watch-unsupported); everything else is recoverable.
 func isTerminalWatchError(err error) bool {
@@ -143,6 +131,7 @@ type watchingCachingProxy struct {
 
 	namespaceCache *schemaWatchCache[*core.NamespaceDefinition]
 	caveatCache    *schemaWatchCache[*core.CaveatDefinition]
+	metrics        []prometheus.Collector
 }
 
 func (p *watchingCachingProxy) Unwrap() datastore.Datastore {
@@ -159,7 +148,13 @@ func (p *watchingCachingProxy) enterFallback() {
 
 // NewWatchingCacheProxy creates and returns a watching cache proxy.
 func NewWatchingCacheProxy(delegate datastore.Datastore, fallbackCache *definitionCachingProxy, gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
+	metrics := []prometheus.Collector{namespacesFallbackModeGauge, caveatsFallbackModeGauge, schemaCacheRevisionGauge, definitionsReadCachedCounter, definitionsReadTotalCounter}
+	for _, metric := range metrics {
+		_ = prometheus.Register(metric)
+	}
+
 	return &watchingCachingProxy{
+		metrics:       metrics,
 		Datastore:     delegate,
 		fallbackCache: fallbackCache,
 
@@ -422,6 +417,10 @@ func (p *watchingCachingProxy) runWatchOnce(ctx context.Context, headRev datasto
 // Close stops all resources.
 // The caller must have canceled the context passed to Start.
 func (p *watchingCachingProxy) Close() error {
+	for _, metric := range p.metrics {
+		prometheus.Unregister(metric)
+	}
+
 	p.enterFallback()
 
 	// Close both goroutines
