@@ -258,8 +258,9 @@ func WalkDefinition[T any](d *Definition, v Visitor[T], value T) (T, error) {
 }
 
 // WalkCaveat walks a caveat. Returns the final value and error if any visitor returns an error.
+// Since Caveat is a terminal node (no children), the strategy doesn't affect behavior.
 func WalkCaveat[T any](c *Caveat, v Visitor[T], value T) (T, error) {
-	return walkCaveatWithOptions(c, v, value, defaultWalkOptions())
+	return walkCaveatWithOptions(c, v, value)
 }
 
 // WalkRelation walks a relation and its base relations.
@@ -269,8 +270,9 @@ func WalkRelation[T any](r *Relation, v Visitor[T], value T) (T, error) {
 }
 
 // WalkBaseRelation walks a base relation. Returns the final value and error if any visitor returns an error.
+// Since BaseRelation is a terminal node (no children), the strategy doesn't affect behavior.
 func WalkBaseRelation[T any](br *BaseRelation, v Visitor[T], value T) (T, error) {
-	return walkBaseRelationWithOptions(br, v, value, defaultWalkOptions())
+	return walkBaseRelationWithOptions(br, v, value)
 }
 
 // WalkPermission walks a permission and its operation tree.
@@ -309,7 +311,7 @@ func walkSchemaWithOptions[T any](s *Schema, v Visitor[T], value T, options Walk
 		}
 
 		for _, caveat := range s.caveats {
-			newValue, err := walkCaveatWithOptions(caveat, v, currentValue, options)
+			newValue, err := walkCaveatWithOptions(caveat, v, currentValue)
 			if err != nil {
 				return currentValue, err
 			}
@@ -349,7 +351,7 @@ func walkSchemaWithOptions[T any](s *Schema, v Visitor[T], value T, options Walk
 		}
 
 		for _, caveat := range s.caveats {
-			newValue, err := walkCaveatWithOptions(caveat, v, currentValue, options)
+			newValue, err := walkCaveatWithOptions(caveat, v, currentValue)
 			if err != nil {
 				return currentValue, err
 			}
@@ -430,9 +432,9 @@ func walkDefinitionWithOptions[T any](d *Definition, v Visitor[T], value T, opti
 	return currentValue, nil
 }
 
-// walkCaveatWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
-// Since Caveat is a terminal node (no children), the strategy doesn't affect behavior.
-func walkCaveatWithOptions[T any](c *Caveat, v Visitor[T], value T, options WalkOptions) (T, error) {
+// walkCaveatWithOptions is the internal implementation.
+// Since Caveat is a terminal node (no children), no strategy is provided.
+func walkCaveatWithOptions[T any](c *Caveat, v Visitor[T], value T) (T, error) {
 	if c == nil {
 		return value, nil
 	}
@@ -466,7 +468,7 @@ func walkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options 
 
 		// PostOrder: Visit children first, then parent
 		for _, br := range r.baseRelations {
-			newValue, err := walkBaseRelationWithOptions(br, v, currentValue, options)
+			newValue, err := walkBaseRelationWithOptions(br, v, currentValue)
 			if err != nil {
 				return currentValue, err
 			}
@@ -498,7 +500,7 @@ func walkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options 
 
 	if shouldVisitChildren {
 		for _, br := range r.baseRelations {
-			newValue, err := walkBaseRelationWithOptions(br, v, currentValue, options)
+			newValue, err := walkBaseRelationWithOptions(br, v, currentValue)
 			if err != nil {
 				return currentValue, err
 			}
@@ -509,9 +511,9 @@ func walkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options 
 	return currentValue, nil
 }
 
-// walkBaseRelationWithOptions is the internal implementation that supports both PreOrder and PostOrder strategies.
-// Since BaseRelation is a terminal node (no children), the strategy doesn't affect behavior.
-func walkBaseRelationWithOptions[T any](br *BaseRelation, v Visitor[T], value T, options WalkOptions) (T, error) {
+// walkBaseRelationWithOptions is the internal implementation.
+// Since BaseRelation is a terminal node (no children), no strategy is provided.
+func walkBaseRelationWithOptions[T any](br *BaseRelation, v Visitor[T], value T) (T, error) {
 	if br == nil {
 		return value, nil
 	}
@@ -1095,9 +1097,10 @@ func WalkDefinitionWithOptions[T any](d *Definition, v Visitor[T], value T, opti
 }
 
 // WalkCaveatWithOptions walks a caveat with custom traversal options.
+// Since Caveat is a terminal node (no children), the strategy doesn't affect behavior.
 // Returns the final value and error if any visitor returns an error.
-func WalkCaveatWithOptions[T any](c *Caveat, v Visitor[T], value T, options WalkOptions) (T, error) {
-	return walkCaveatWithOptions(c, v, value, options)
+func WalkCaveatWithOptions[T any](c *Caveat, v Visitor[T], value T, _ WalkOptions) (T, error) {
+	return walkCaveatWithOptions(c, v, value)
 }
 
 // WalkRelationWithOptions walks a relation and its base relations with custom traversal options.
@@ -1107,9 +1110,10 @@ func WalkRelationWithOptions[T any](r *Relation, v Visitor[T], value T, options 
 }
 
 // WalkBaseRelationWithOptions walks a base relation with custom traversal options.
+// Since BaseRelation is a terminal node (no children), the strategy doesn't affect behavior.
 // Returns the final value and error if any visitor returns an error.
-func WalkBaseRelationWithOptions[T any](br *BaseRelation, v Visitor[T], value T, options WalkOptions) (T, error) {
-	return walkBaseRelationWithOptions(br, v, value, options)
+func WalkBaseRelationWithOptions[T any](br *BaseRelation, v Visitor[T], value T, _ WalkOptions) (T, error) {
+	return walkBaseRelationWithOptions(br, v, value)
 }
 
 // WalkPermissionWithOptions walks a permission and its operation tree with custom traversal options.

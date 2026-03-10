@@ -143,7 +143,7 @@ func (t *readWriteTransaction) BulkLoad(ctx context.Context, iter datastore.Bulk
 }
 
 func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) error {
-	return writeSchemaViaLegacy(ctx, t.rwt, t.rwt, definitions, schemaString, caveatTypeSet)
+	return writeSchemaViaLegacy(ctx, t.rwt, t.rwt, definitions)
 }
 
 func (t *readWriteTransaction) LegacySchemaWriter() LegacySchemaWriter {
