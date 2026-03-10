@@ -860,6 +860,9 @@ func (itctx *importResolutionContext) translateImports(root *dslNode, locallyVis
 			if err := validateFilepath(importPath); err != nil {
 				return err
 			}
+			if itctx.sourceFS == nil {
+				return fmt.Errorf("import statement found but no source filesystem was configured for compilation")
+			}
 			filePath := filepath.Join(itctx.sourcePrefix, importPath)
 
 			newSourcePrefix := filepath.Dir(filePath)

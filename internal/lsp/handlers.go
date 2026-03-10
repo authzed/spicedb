@@ -57,10 +57,11 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 			return &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: "file not found"}
 		}
 
+		overlayFS := newLSPOverlayFS(uriToSourceDir(uri), files)
 		devCtx, devErrs, err := development.NewDevContext(ctx, &developerv1.RequestContext{
 			Schema:        file.contents,
 			Relationships: nil,
-		})
+		}, development.WithSourceFS(overlayFS))
 		if err != nil {
 			return err
 		}
@@ -197,7 +198,8 @@ func (s *Server) getCompiledContents(path lsp.DocumentURI, files *persistent.Map
 		return compiled, nil
 	}
 
-	justCompiled, derr, err := development.CompileSchema(file.contents)
+	overlayFS := newLSPOverlayFS(uriToSourceDir(path), files)
+	justCompiled, derr, err := development.CompileSchema(file.contents, development.WithSourceFS(overlayFS))
 	if err != nil {
 		return nil, err
 	}
