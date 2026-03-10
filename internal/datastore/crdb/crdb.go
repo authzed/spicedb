@@ -103,7 +103,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	// interfere with pool setup.
 	initPoolConfig := readPoolConfig.Copy()
 	initPoolConfig.MinConns = 1
-	initPool, err := pool.NewRetryPool(initCtx, "init", initPoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	initPool, err := pool.NewRetryPool(initCtx, "init", initPoolConfig, healthChecker, config.maxRetries, config.connectRate, nil)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
@@ -197,17 +197,18 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		gcWindow:                     config.gcWindow,
 		watchEnabled:                 !config.watchDisabled,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
+		healthTracker:                healthChecker,
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
-	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate, nil)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate, nil)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
@@ -226,14 +227,14 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if config.enableConnectionBalancing {
 		log.Ctx(initCtx).Info().Msg("starting cockroach connection balancer")
 		ds.pruneGroup, ds.ctx = errgroup.WithContext(ds.ctx)
-		writePoolBalancer := pool.NewNodeConnectionBalancer(ds.writePool, healthChecker, 5*time.Second)
-		readPoolBalancer := pool.NewNodeConnectionBalancer(ds.readPool, healthChecker, 5*time.Second)
+		ds.writePoolBalancer = pool.NewNodeConnectionBalancer(ds.writePool, healthChecker, 5*time.Second)
+		ds.readPoolBalancer = pool.NewNodeConnectionBalancer(ds.readPool, healthChecker, 5*time.Second)
 		ds.pruneGroup.Go(func() error {
-			writePoolBalancer.Prune(ds.ctx)
+			ds.writePoolBalancer.Prune(ds.ctx)
 			return nil
 		})
 		ds.pruneGroup.Go(func() error {
-			readPoolBalancer.Prune(ds.ctx)
+			ds.readPoolBalancer.Prune(ds.ctx)
 			return nil
 		})
 		ds.pruneGroup.Go(func() error {
@@ -261,19 +262,20 @@ type crdbDatastore struct {
 	revisions.CommonDecoder
 	*common.MigrationValidator
 
-	dburl                        string
-	readPool, writePool          *pool.RetryPool
-	collectors                   []prometheus.Collector
-	watchBufferLength            uint16
-	watchChangeBufferMaximumSize uint64
-	watchBufferWriteTimeout      time.Duration
-	watchConnectTimeout          time.Duration
-	writeOverlapKeyer            overlapKeyer
-	overlapKeyInit               func(ctx context.Context) keySet
-	analyzeBeforeStatistics      bool
-	gcWindow                     time.Duration
-	schema                       common.SchemaInformation
-	acquireTimeout               time.Duration
+	dburl                               string
+	readPool, writePool                 *pool.RetryPool
+	readPoolBalancer, writePoolBalancer *pool.NodeConnectionBalancer
+	collectors                          []prometheus.Collector
+	watchBufferLength                   uint16
+	watchChangeBufferMaximumSize        uint64
+	watchBufferWriteTimeout             time.Duration
+	watchConnectTimeout                 time.Duration
+	writeOverlapKeyer                   overlapKeyer
+	overlapKeyInit                      func(ctx context.Context) keySet
+	analyzeBeforeStatistics             bool
+	gcWindow                            time.Duration
+	schema                              common.SchemaInformation
+	acquireTimeout                      time.Duration
 
 	beginChangefeedQuery string
 	transactionNowQuery  string
@@ -288,6 +290,8 @@ type crdbDatastore struct {
 	filterMaximumIDCount uint16
 	supportsIntegrity    bool
 	watchEnabled         bool
+
+	healthTracker *pool.NodeHealthTracker
 
 	uniqueID atomic.Pointer[string]
 }
@@ -481,6 +485,15 @@ func (cds *crdbDatastore) Close() error {
 	}
 	cds.readPool.Close()
 	cds.writePool.Close()
+	if cds.writePoolBalancer != nil {
+		cds.writePoolBalancer.Close()
+	}
+	if cds.readPoolBalancer != nil {
+		cds.readPoolBalancer.Close()
+	}
+	if cds.healthTracker != nil {
+		cds.healthTracker.Close()
+	}
 	for _, collector := range cds.collectors {
 		ok := prometheus.Unregister(collector)
 		if !ok {

@@ -56,10 +56,6 @@ var definitionsReadTotalCounter = prometheus.NewCounterVec(prometheus.CounterOpt
 
 const maximumRetryCount = 10
 
-func init() {
-	prometheus.MustRegister(namespacesFallbackModeGauge, caveatsFallbackModeGauge, schemaCacheRevisionGauge, definitionsReadCachedCounter, definitionsReadTotalCounter)
-}
-
 // watchingCachingProxy is a datastore proxy that caches schema (namespaces and caveat definitions)
 // and updates its cache via a WatchSchema call. If the supplied datastore to be wrapped does not support
 // this API, or the data is not available in this case or an error occurs, the updating cache fallsback
@@ -74,6 +70,7 @@ type watchingCachingProxy struct {
 
 	namespaceCache *schemaWatchCache[*core.NamespaceDefinition]
 	caveatCache    *schemaWatchCache[*core.CaveatDefinition]
+	metrics        []prometheus.Collector
 }
 
 // createWatchingCacheProxy creates and returns a watching cache proxy.
@@ -83,7 +80,12 @@ func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.
 		c:         c,
 	}
 
+	metrics := []prometheus.Collector{namespacesFallbackModeGauge, caveatsFallbackModeGauge, schemaCacheRevisionGauge, definitionsReadCachedCounter, definitionsReadTotalCounter}
+	for _, metric := range metrics {
+		_ = prometheus.Register(metric)
+	}
 	proxy := &watchingCachingProxy{
+		metrics:       metrics,
 		Datastore:     delegate,
 		fallbackCache: fallbackCache,
 
@@ -354,6 +356,9 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 // Close stops all resources.
 // The caller must have canceled the context passed to Start.
 func (p *watchingCachingProxy) Close() error {
+	for _, metric := range p.metrics {
+		prometheus.Unregister(metric)
+	}
 	p.caveatCache.setFallbackMode()
 	p.namespaceCache.setFallbackMode()
 

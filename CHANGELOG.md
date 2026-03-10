@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)
 - Removed support for Spanner flag value `--datastore-spanner-metrics=deprecated-prometheus`; please use values `otel` or `native` (https://github.com/authzed/spicedb/pull/2980)
 
+### Fixed
+- Do not register CRDB metrics in `init()` functions (https://github.com/authzed/spicedb/pull/2966)
+
 ## [1.51.0] - 2026-03-24
 ### Changed
 - Updated DevContext and LSP to support composable schemas (https://github.com/authzed/spicedb/pull/2965)

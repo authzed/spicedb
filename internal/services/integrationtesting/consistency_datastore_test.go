@@ -39,41 +39,43 @@ func TestConsistencyPerDatastore(t *testing.T) {
 	for _, engineID := range datastore.Engines {
 		t.Run(engineID, func(t *testing.T) {
 			for _, filePath := range consistencyTestFiles {
-				rde := testdatastore.RunDatastoreEngine(t, engineID)
-				baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
-					dsconfig.WithWatchBufferLength(0),
-					dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-					dsconfig.WithRevisionQuantization(10),
-					dsconfig.WithMaxRetries(50),
-					dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
-				ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
+				t.Run(path.Base(filePath), func(t *testing.T) {
+					rde := testdatastore.RunDatastoreEngine(t, engineID)
+					baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
+						dsconfig.WithWatchBufferLength(0),
+						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
+						dsconfig.WithRevisionQuantization(10),
+						dsconfig.WithMaxRetries(50),
+						dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
+					ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
-				cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
-				dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
-				require.NoError(t, err)
-				t.Cleanup(func() { dispatcher.Close() })
-				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
+					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
+					dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+					require.NoError(t, err)
+					t.Cleanup(func() { dispatcher.Close() })
+					accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
-				headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
-				require.NoError(t, err)
+					headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+					require.NoError(t, err)
 
-				// Run the assertions within each file.
-				testers := consistencytestutil.ServiceTesters(cad.Conn)
-				for _, tester := range testers {
-					tester := tester
+					// Run the assertions within each file.
+					testers := consistencytestutil.ServiceTesters(cad.Conn)
+					for _, tester := range testers {
+						tester := tester
 
-					vctx := validationContext{
-						clusterAndData:   cad,
-						accessibilitySet: accessibilitySet,
-						serviceTester:    tester,
-						revision:         headRevision,
-						dispatcher:       dispatcher,
+						vctx := validationContext{
+							clusterAndData:   cad,
+							accessibilitySet: accessibilitySet,
+							serviceTester:    tester,
+							revision:         headRevision,
+							dispatcher:       dispatcher,
+						}
+
+						t.Run(tester.Name(), func(t *testing.T) {
+							runAssertions(t, vctx)
+						})
 					}
-
-					t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
-						runAssertions(t, vctx)
-					})
-				}
+				})
 			}
 		})
 	}

@@ -28,16 +28,6 @@ type pgxPool interface {
 	Stat() *pgxpool.Stat
 }
 
-var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "crdb_client_resets",
-	Help:    "Distribution of the number of client-side transaction restarts per transaction attempt. Restarts occur when CockroachDB returns a serialization failure (40001) and the driver retries the transaction from scratch. Sustained high values indicate transaction contention.",
-	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
-})
-
-func init() {
-	prometheus.MustRegister(resetHistogram)
-}
-
 type ctxDisableRetries struct{}
 
 var (
@@ -46,9 +36,10 @@ var (
 )
 
 type RetryPool struct {
-	pool          pgxPool
-	id            string
-	healthTracker *NodeHealthTracker
+	pool           pgxPool
+	id             string
+	healthTracker  *NodeHealthTracker
+	resetHistogram prometheus.Histogram
 
 	sync.RWMutex
 	maxRetries  uint8
@@ -56,8 +47,10 @@ type RetryPool struct {
 	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
 }
 
-func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
-	config = config.Copy()
+// NewRetryPool creates a new RetryPool that wraps a pgx connection pool with retry logic.
+// If pool is nil, a new pgxpool.Pool is created from config; otherwise the provided pool is
+// used directly, which is useful for injecting a mock in tests.
+func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration, pool pgxPool) (*RetryPool, error) {
 	p := &RetryPool{
 		id:            name,
 		maxRetries:    maxRetries,
@@ -66,82 +59,100 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		gc:            make(map[*pgx.Conn]struct{}, 0),
 	}
 
-	limiter := rate.NewLimiter(rate.Every(connectRate), 1)
-	afterConnect := config.AfterConnect
-	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		if afterConnect != nil {
-			if err := afterConnect(ctx, conn); err != nil {
+	if pool == nil {
+		config = config.Copy()
+
+		limiter := rate.NewLimiter(rate.Every(connectRate), 1)
+		afterConnect := config.AfterConnect
+		config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			if afterConnect != nil {
+				if err := afterConnect(ctx, conn); err != nil {
+					return err
+				}
+			}
+
+			p.Lock()
+			defer p.Unlock()
+
+			delete(p.nodeForConn, conn)
+			delete(p.gc, conn)
+
+			healthTracker.SetNodeHealth(nodeID(conn), true)
+
+			if err := limiter.Wait(ctx); err != nil {
 				return err
 			}
+
+			p.nodeForConn[conn] = nodeID(conn)
+
+			return nil
 		}
 
-		p.Lock()
-		defer p.Unlock()
-
-		delete(p.nodeForConn, conn)
-		delete(p.gc, conn)
-
-		healthTracker.SetNodeHealth(nodeID(conn), true)
-
-		if err := limiter.Wait(ctx); err != nil {
-			return err
+		// if we attempt to acquire or release a connection that has been marked for
+		// GC, return false to tell the underlying pool to destroy the connection
+		gcConnection := func(conn *pgx.Conn) bool {
+			p.RLock()
+			_, ok := p.gc[conn]
+			p.RUnlock()
+			if ok {
+				p.Lock()
+				delete(p.gc, conn)
+				delete(p.nodeForConn, conn)
+				p.Unlock()
+			}
+			return !ok
 		}
 
-		p.nodeForConn[conn] = nodeID(conn)
+		beforeAcquire := config.BeforeAcquire                                   //nolint:staticcheck
+		config.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool { //nolint:staticcheck
+			if beforeAcquire != nil {
+				if !beforeAcquire(ctx, conn) {
+					return false
+				}
+			}
 
-		return nil
-	}
+			return gcConnection(conn)
+		}
 
-	// if we attempt to acquire or release a connection that has been marked for
-	// GC, return false to tell the underlying pool to destroy the connection
-	gcConnection := func(conn *pgx.Conn) bool {
-		p.RLock()
-		_, ok := p.gc[conn]
-		p.RUnlock()
-		if ok {
+		afterRelease := config.AfterRelease
+		config.AfterRelease = func(conn *pgx.Conn) bool {
+			if afterRelease != nil {
+				if !afterRelease(conn) {
+					return false
+				}
+			}
+			return gcConnection(conn)
+		}
+
+		beforeClose := config.BeforeClose
+		config.BeforeClose = func(conn *pgx.Conn) {
+			if beforeClose != nil {
+				beforeClose(conn)
+			}
 			p.Lock()
-			delete(p.gc, conn)
+			defer p.Unlock()
 			delete(p.nodeForConn, conn)
-			p.Unlock()
-		}
-		return !ok
-	}
-
-	beforeAcquire := config.BeforeAcquire                                   //nolint:staticcheck
-	config.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool { //nolint:staticcheck
-		if beforeAcquire != nil {
-			if !beforeAcquire(ctx, conn) {
-				return false
-			}
+			delete(p.gc, conn)
 		}
 
-		return gcConnection(conn)
-	}
-
-	afterRelease := config.AfterRelease
-	config.AfterRelease = func(conn *pgx.Conn) bool {
-		if afterRelease != nil {
-			if !afterRelease(conn) {
-				return false
-			}
+		var err error
+		pool, err = pgxpool.NewWithConfig(ctx, config)
+		if err != nil {
+			return nil, err
 		}
-		return gcConnection(conn)
 	}
 
-	beforeClose := config.BeforeClose
-	config.BeforeClose = func(conn *pgx.Conn) {
-		if beforeClose != nil {
-			beforeClose(conn)
-		}
-		p.Lock()
-		defer p.Unlock()
-		delete(p.nodeForConn, conn)
-		delete(p.gc, conn)
-	}
+	p.resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "crdb_client_resets",
+		ConstLabels: prometheus.Labels{
+			"pool_name": name, // this is needed to avoid "duplicate metrics collector registration attempted"
+		},
+		Help:    "Distribution of the number of client-side transaction restarts per transaction attempt. Restarts occur when CockroachDB returns a serialization failure (40001) and the driver retries the transaction from scratch. Sustained high values indicate transaction contention.",
+		Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
+	})
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, err
+	if err := prometheus.Register(p.resetHistogram); err != nil {
+		return nil, fmt.Errorf("error registering CRDB reset histogram: %w", err)
 	}
 
 	p.pool = pool
@@ -253,6 +264,7 @@ func (p *RetryPool) Config() *pgxpool.Config {
 // Close closes the underlying pgxpool.Pool
 func (p *RetryPool) Close() {
 	p.pool.Close()
+	prometheus.Unregister(p.resetHistogram)
 }
 
 // Stat returns the underlying pgxpool.Pool stats
@@ -315,7 +327,7 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 
 	var retries uint8
 	defer func() {
-		resetHistogram.Observe(float64(retries))
+		p.resetHistogram.Observe(float64(retries))
 	}()
 
 	maxRetries := p.maxRetries
