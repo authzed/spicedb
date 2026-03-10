@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -18,15 +19,6 @@ import (
 
 const errorBurst = 2
 
-var healthyCRDBNodeCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-	Name: "crdb_healthy_nodes",
-	Help: "the number of healthy crdb nodes detected by spicedb",
-})
-
-func init() {
-	prometheus.MustRegister(healthyCRDBNodeCountGauge)
-}
-
 // NodeHealthTracker detects changes in the node pool by polling the cluster periodically and recording
 // the node ids that are seen. This is used to detect new nodes that come online that have either previously
 // been marked unhealthy due to connection errors or due to scale up.
@@ -34,10 +26,11 @@ func init() {
 // Consumers can manually mark a node healthy or unhealthy as well.
 type NodeHealthTracker struct {
 	sync.RWMutex
-	connConfig    *pgx.ConnConfig
-	healthyNodes  map[uint32]struct{}      // GUARDED_BY(RWMutex)
-	nodesEverSeen map[uint32]*rate.Limiter // GUARDED_BY(RWMutex)
-	newLimiter    func() *rate.Limiter
+	connConfig                *pgx.ConnConfig
+	healthyNodes              map[uint32]struct{}      // GUARDED_BY(RWMutex)
+	nodesEverSeen             map[uint32]*rate.Limiter // GUARDED_BY(RWMutex)
+	newLimiter                func() *rate.Limiter
+	healthyCRDBNodeCountGauge prometheus.Gauge
 }
 
 // NewNodeHealthChecker builds a health checker that polls the cluster at the given url.
@@ -47,14 +40,29 @@ func NewNodeHealthChecker(url string) (*NodeHealthTracker, error) {
 		return nil, err
 	}
 
+	healthyCRDBNodeCountGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "crdb_healthy_nodes",
+		Help: "the number of healthy crdb nodes detected by spicedb",
+	})
+
+	err = prometheus.Register(healthyCRDBNodeCountGauge)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register crdb healthy nodes metric: %w", err)
+	}
+
 	return &NodeHealthTracker{
-		connConfig:    connConfig,
-		healthyNodes:  make(map[uint32]struct{}, 0),
-		nodesEverSeen: make(map[uint32]*rate.Limiter, 0),
+		healthyCRDBNodeCountGauge: healthyCRDBNodeCountGauge,
+		connConfig:                connConfig,
+		healthyNodes:              make(map[uint32]struct{}, 0),
+		nodesEverSeen:             make(map[uint32]*rate.Limiter, 0),
 		newLimiter: func() *rate.Limiter {
 			return rate.NewLimiter(rate.Every(1*time.Minute), errorBurst)
 		},
 	}, nil
+}
+
+func (t *NodeHealthTracker) Close() {
+	_ = prometheus.Unregister(t.healthyCRDBNodeCountGauge)
 }
 
 // Poll starts polling the cluster and recording the node IDs that it sees.
@@ -104,7 +112,7 @@ func (t *NodeHealthTracker) SetNodeHealth(nodeID uint32, healthy bool) {
 	t.Lock()
 	defer t.Unlock()
 	defer func() {
-		healthyCRDBNodeCountGauge.Set(float64(len(t.healthyNodes)))
+		t.healthyCRDBNodeCountGauge.Set(float64(len(t.healthyNodes)))
 	}()
 
 	if _, ok := t.nodesEverSeen[nodeID]; !ok {

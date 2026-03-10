@@ -15,18 +15,19 @@ type crdbOptions struct {
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
 	connectRate                 time.Duration
 
-	watchBufferLength              uint16
-	watchChangeBufferMaximumSize   uint64
-	watchBufferWriteTimeout        time.Duration
-	watchConnectTimeout            time.Duration
-	revisionQuantization           time.Duration
-	followerReadDelay              time.Duration
-	maxRevisionStalenessPercent    float64
-	gcWindow                       time.Duration
-	maxRetries                     uint8
-	overlapStrategy                string
-	overlapKey                     string
-	enableConnectionBalancing      bool
+	watchBufferLength            uint16
+	watchChangeBufferMaximumSize uint64
+	watchBufferWriteTimeout      time.Duration
+	watchConnectTimeout          time.Duration
+	revisionQuantization         time.Duration
+	followerReadDelay            time.Duration
+	maxRevisionStalenessPercent  float64
+	gcWindow                     time.Duration
+	maxRetries                   uint8
+	overlapStrategy              string
+	overlapKey                   string
+	enableConnectionBalancing    bool
+
 	analyzeBeforeStatistics        bool
 	filterMaximumIDCount           uint16
 	enablePrometheusStats          bool
