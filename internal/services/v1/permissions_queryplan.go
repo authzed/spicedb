@@ -73,7 +73,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	qctx := &query.Context{
 		Context:       ctx,
 		Executor:      query.LocalExecutor{},
-		Reader:        reader,
+		Reader:        query.NewQueryDatastoreReader(reader),
 		CaveatContext: caveatContext,
 		CaveatRunner:  caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
 	}

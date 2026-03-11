@@ -44,7 +44,7 @@ func BenchmarkRecursiveShallowGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -97,7 +97,7 @@ func BenchmarkRecursiveWideGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -145,7 +145,7 @@ func BenchmarkRecursiveDeepGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -175,7 +175,7 @@ func BenchmarkRecursiveEmptyGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -234,7 +234,7 @@ func BenchmarkRecursiveSparseGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -282,7 +282,7 @@ func BenchmarkRecursiveCyclicGraph(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -330,7 +330,7 @@ func BenchmarkRecursiveIterResources(b *testing.B) {
 	}
 
 	ctx := NewLocalContext(context.Background(),
-		WithReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
