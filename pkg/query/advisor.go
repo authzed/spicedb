@@ -62,8 +62,11 @@ func ApplyAdvisor(co CanonicalOutline, advisor PlanAdvisor) (CanonicalOutline, e
 // For each node it calls GetMutations on the advisor and applies the returned
 // mutations in sequence. After each mutation it verifies that the resulting
 // node's ID matches the original node's ID; a mismatch is a programmer bug.
+// After all mutations are applied, any newly synthesized nodes (ID==0) receive
+// fresh IDs via FillMissingNodeIDs, and their CanonicalKeys are recorded in
+// the provided keys map.
 func applyAdvisorMutations(outline Outline, co CanonicalOutline, advisor PlanAdvisor) (Outline, error) {
-	return WalkOutlineBottomUp(outline, func(node Outline) (Outline, error) {
+	mutated, err := WalkOutlineBottomUp(outline, func(node Outline) (Outline, error) {
 		mutations, err := advisor.GetMutations(node, co)
 		if err != nil {
 			return Outline{}, err
@@ -81,6 +84,10 @@ func applyAdvisorMutations(outline Outline, co CanonicalOutline, advisor PlanAdv
 		}
 		return result, nil
 	})
+	if err != nil {
+		return Outline{}, err
+	}
+	return FillMissingNodeIDs(mutated, co.CanonicalKeys), nil
 }
 
 // collectAdvisorHints walks the outline tree pre-order via WalkOutlinePreOrder,
