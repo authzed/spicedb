@@ -50,10 +50,13 @@ func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject 
 }
 
 func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), resourceIDs(resources))
+	ids := resourceIDs(resources)
+	ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), ids)
 
+	resourceType := ObjectType{Type: r.base.DefinitionName()}
 	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
-		resources,
+		resourceType,
+		ids,
 		r.base.RelationName(),
 		subject,
 		r.base.Caveat() != "", r.base.Expiration(),
@@ -78,8 +81,10 @@ func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resources []Object, 
 		Relation:   subject.Relation,
 	}
 
+	resourceType := ObjectType{Type: r.base.DefinitionName()}
 	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
-		resources,
+		resourceType,
+		resourceIDs(resources),
 		r.base.RelationName(),
 		wildcardSubject,
 		r.base.Caveat() != "", r.base.Expiration(),
@@ -201,8 +206,10 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 		Relation:   r.base.Subrelation(),
 	}
 
+	resourceType := ObjectType{Type: r.base.DefinitionName()}
 	wildcardPathSeq, err := ctx.Reader.CheckRelationships(ctx,
-		[]Object{resource},
+		resourceType,
+		[]string{resource.ObjectID},
 		r.base.RelationName(),
 		wildcardSubject,
 		r.base.Caveat() != "", r.base.Expiration(),

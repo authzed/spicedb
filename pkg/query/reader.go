@@ -30,9 +30,11 @@ type QueryPage struct {
 type QueryDatastoreReader interface {
 	// CheckRelationships finds paths for specific resource objects matched against
 	// a subject. subject.ObjectID may be WildcardObjectID for wildcard checks.
+	// All resource IDs must be of the same resourceType.
 	CheckRelationships(
 		ctx context.Context,
-		resources []Object,
+		resourceType ObjectType,
+		resourceIDs []string,
 		resourceRelation string,
 		subject ObjectAndRelation,
 		withCaveats, withExpiration bool,
@@ -116,24 +118,14 @@ func buildSubjectRelationFilter(subrelation string) datastore.SubjectRelationFil
 
 func (r *datalayerQueryDatastoreReader) CheckRelationships(
 	ctx context.Context,
-	resources []Object,
+	resourceType ObjectType,
+	resourceIDs []string,
 	resourceRelation string,
 	subject ObjectAndRelation,
 	withCaveats, withExpiration bool,
 ) (PathSeq, error) {
-	resourceIDs := make([]string, len(resources))
-	for i, res := range resources {
-		resourceIDs[i] = res.ObjectID
-	}
-
-	// All resources in a DatastoreIterator share the same type.
-	resourceType := ""
-	if len(resources) > 0 {
-		resourceType = resources[0].ObjectType
-	}
-
 	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     resourceType,
+		OptionalResourceType:     resourceType.Type,
 		OptionalResourceIds:      resourceIDs,
 		OptionalResourceRelation: resourceRelation,
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
