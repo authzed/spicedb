@@ -41,7 +41,6 @@ func (t Test) Unit(ctx context.Context) error {
 }
 
 func (Test) unit(ctx context.Context, coverage bool) error {
-	args := []string{"-tags", "ci,skipintegrationtests,memoryprotection", "-race", "-timeout", "10m", "-count=1"}
 	args := []string{"-tags", "ci,skipintegrationtests,memoryprotection", "-race", "-timeout", "15m", "-count=1"}
 	if coverage {
 		fmt.Println("running unit tests with coverage")
