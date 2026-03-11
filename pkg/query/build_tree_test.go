@@ -14,6 +14,19 @@ import (
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
+// buildIterator is a test helper that builds a CanonicalOutline from the schema
+// and compiles it into an Iterator. It mirrors the old BuildIteratorFromSchema
+// convenience function which has been removed in favour of the explicit
+// BuildOutlineFromSchema → Compile() pipeline.
+func buildIterator(t *testing.T, fullSchema *schema.Schema, defName, relName string) (Iterator, error) {
+	t.Helper()
+	co, err := BuildOutlineFromSchema(fullSchema, defName, relName)
+	if err != nil {
+		return nil, err
+	}
+	return co.Compile()
+}
+
 func TestBuildTree(t *testing.T) {
 	t.Parallel()
 
@@ -28,7 +41,7 @@ func TestBuildTree(t *testing.T) {
 	dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 	require.NoError(err)
 
-	it, err := BuildIteratorFromSchema(dsSchema, "document", "edit")
+	it, err := buildIterator(t, dsSchema, "document", "edit")
 	require.NoError(err)
 
 	ctx := NewLocalContext(t.Context(),
@@ -55,7 +68,7 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for edit permission which creates a union
-	it, err := BuildIteratorFromSchema(dsSchema, "document", "edit")
+	it, err := buildIterator(t, dsSchema, "document", "edit")
 	require.NoError(err)
 
 	explain := it.Explain()
@@ -81,12 +94,12 @@ func TestBuildTreeInvalidDefinition(t *testing.T) {
 	require.NoError(err)
 
 	// Test with invalid definition name
-	_, err = BuildIteratorFromSchema(dsSchema, "nonexistent", "edit")
+	_, err = buildIterator(t, dsSchema, "nonexistent", "edit")
 	require.Error(err)
 	require.Contains(err.Error(), "couldn't find a schema definition named `nonexistent`")
 
 	// Test with invalid relation/permission name
-	_, err = BuildIteratorFromSchema(dsSchema, "document", "nonexistent")
+	_, err = buildIterator(t, dsSchema, "document", "nonexistent")
 	require.Error(err)
 	require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent`")
 }
@@ -105,7 +118,7 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for a relation with subrelations
-	it, err := BuildIteratorFromSchema(dsSchema, "document", "parent")
+	it, err := buildIterator(t, dsSchema, "document", "parent")
 	require.NoError(err)
 
 	// Should have created a relation iterator
@@ -152,7 +165,7 @@ func TestBuildTreeRecursion(t *testing.T) {
 
 	// This should detect recursion and create a RecursiveIterator
 	// The arrow operation parent->member creates recursion: group->parent->member->parent->member...
-	it, err := BuildIteratorFromSchema(dsSchema, "group", "member")
+	it, err := buildIterator(t, dsSchema, "group", "member")
 	require.NoError(err)
 	require.NotNil(it)
 
@@ -203,7 +216,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for view_and_edit permission which uses intersection operations
-	it, err := BuildIteratorFromSchema(dsSchema, "document", "view_and_edit")
+	it, err := buildIterator(t, dsSchema, "document", "view_and_edit")
 	require.NoError(err)
 
 	// Should create an intersection iterator
@@ -245,7 +258,7 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for exclusion permission - should succeed
-	it, err := BuildIteratorFromSchema(dsSchema, "document", "excluded_perm")
+	it, err := buildIterator(t, dsSchema, "document", "excluded_perm")
 	require.NoError(err)
 	require.NotNil(it)
 	// Should be wrapped in an Alias
@@ -297,7 +310,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "can_view")
+		it, err := buildIterator(t, dsSchema, "document", "can_view")
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
@@ -336,7 +349,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "restricted_viewers")
+		it, err := buildIterator(t, dsSchema, "document", "restricted_viewers")
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
@@ -377,7 +390,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "restricted_view")
+		it, err := buildIterator(t, dsSchema, "document", "restricted_view")
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
@@ -419,7 +432,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "allowed_users")
+		it, err := buildIterator(t, dsSchema, "document", "allowed_users")
 		require.NoError(err)
 		require.NotNil(it)
 		// Should be wrapped in an Alias
@@ -457,7 +470,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 
 		// Building iterator should fail due to missing relation
-		_, err = BuildIteratorFromSchema(dsSchema, "document", "bad_exclusion")
+		_, err = buildIterator(t, dsSchema, "document", "bad_exclusion")
 		require.Error(err)
 		require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent_relation`")
 	})
@@ -480,7 +493,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		require.NoError(err)
 
 		// Building iterator should fail due to missing relation
-		_, err = BuildIteratorFromSchema(dsSchema, "document", "bad_exclusion")
+		_, err = buildIterator(t, dsSchema, "document", "bad_exclusion")
 		require.Error(err)
 		require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent_relation`")
 	})
@@ -507,7 +520,7 @@ func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for arrow with missing left relation
-	_, err = BuildIteratorFromSchema(dsSchema, "document", "bad_arrow")
+	_, err = buildIterator(t, dsSchema, "document", "bad_arrow")
 	require.Error(err)
 	require.Contains(err.Error(), "couldn't find left-hand relation for arrow")
 }
@@ -526,7 +539,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.NoError(err)
 
 	// Test building iterator for a simple relation - should not create unnecessary unions
-	it, err := BuildIteratorFromSchema(dsSchema, "document", "owner")
+	it, err := buildIterator(t, dsSchema, "document", "owner")
 	require.NoError(err)
 
 	// Should create a simple relation iterator without extra union wrappers
@@ -580,7 +593,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.NoError(err)
 
 		// Should create an alias wrapping union with arrow
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		it, err := buildIterator(t, dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -617,7 +630,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		it, err := buildIterator(t, dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -649,7 +662,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.NoError(err)
 
 		// Should create RecursiveIterator for arrow recursion
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		it, err := buildIterator(t, dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -680,7 +693,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		require.NoError(err)
 
 		// Should fail when trying to build iterator due to missing subrelation
-		_, err = BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		_, err = buildIterator(t, dsSchema, "document", "viewer")
 		require.Error(err)
 		require.Contains(err.Error(), "couldn't find a relation or permission named `nonexistent`")
 	})
@@ -708,7 +721,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		dsSchema, err := schema.BuildSchemaFromDefinitions(objectDefs, nil)
 		require.NoError(err)
 
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		it, err := buildIterator(t, dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -770,7 +783,7 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 
 	t.Run("Schema with wildcard creates WildcardIterator", func(t *testing.T) {
 		t.Parallel()
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		it, err := buildIterator(t, dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -801,7 +814,7 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		mixedSchema, err := schema.BuildSchemaFromDefinitions(mixedObjectDefs, nil)
 		require.NoError(err)
 
-		it, err := BuildIteratorFromSchema(mixedSchema, "document", "viewer")
+		it, err := buildIterator(t, mixedSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -859,7 +872,7 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 	t.Run("document viewer builds successfully with mutual recursion", func(t *testing.T) {
 		t.Parallel()
 		// Build iterator for document#viewer - should detect recursion and wrap properly
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		it, err := buildIterator(t, dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -872,7 +885,7 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 	t.Run("otherdocument viewer builds successfully with mutual recursion", func(t *testing.T) {
 		t.Parallel()
 		// Build iterator for otherdocument#viewer - should also handle mutual recursion
-		it, err := BuildIteratorFromSchema(dsSchema, "otherdocument", "viewer")
+		it, err := buildIterator(t, dsSchema, "otherdocument", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
@@ -890,7 +903,7 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 		// its own sentinels.
 
 		// Build the tree
-		it, err := BuildIteratorFromSchema(dsSchema, "document", "viewer")
+		it, err := buildIterator(t, dsSchema, "document", "viewer")
 		require.NoError(err)
 		require.NotNil(it)
 
