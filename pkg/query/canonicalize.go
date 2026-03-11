@@ -273,3 +273,29 @@ func assignNodeIDs(outline Outline, keys map[OutlineNodeID]CanonicalKey) Outline
 	keys[id] = outline.Serialize()
 	return outline
 }
+
+// FillMissingNodeIDs walks the outline tree bottom-up and assigns fresh
+// OutlineNodeIDs to any node where ID == 0, recording their CanonicalKeys
+// in the provided map. Nodes that already have an ID are left unchanged,
+// and their existing map entries are preserved.
+//
+// This is used after mutations that may introduce new structural nodes
+// (e.g. caveat wrappers, rotated arrows) into an already-canonicalized tree.
+func FillMissingNodeIDs(outline Outline, keys map[OutlineNodeID]CanonicalKey) Outline {
+	// Recurse on children first (bottom-up)
+	if len(outline.SubOutlines) > 0 {
+		newSubs := make([]Outline, len(outline.SubOutlines))
+		for i, sub := range outline.SubOutlines {
+			newSubs[i] = FillMissingNodeIDs(sub, keys)
+		}
+		outline.SubOutlines = newSubs
+	}
+
+	if outline.ID == 0 {
+		id := OutlineNodeID(nodeIDCounter.Add(1))
+		outline.ID = id
+		keys[id] = outline.Serialize()
+	}
+
+	return outline
+}
