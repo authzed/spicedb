@@ -68,6 +68,13 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	// Prune branches that can never reach the requested subject type.
+	it, _, err = query.ApplyReachabilityPruning(it, req.Subject.Object.ObjectType)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+	// TODO apply to LR and LS too?
+
 	// Parse caveat context if provided
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
