@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -129,14 +130,17 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 									require := require.New(t)
 
 									rel := assertion.Relationship
-									it, err := query.BuildIteratorFromSchema(handle.schema, rel.Resource.ObjectType, rel.Resource.Relation)
+									co, err := query.BuildOutlineFromSchema(handle.schema, rel.Resource.ObjectType, rel.Resource.Relation)
 									require.NoError(err)
 
 									// Apply static optimizations if requested
 									if optimizationMode.optimize {
-										it, _, err = query.ApplyOptimizations(it, query.StaticOptimizations)
+										co, err = queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations)
 										require.NoError(err)
 									}
+
+									it, err := co.Compile()
+									require.NoError(err)
 
 									qctx := handle.buildContext(t)
 
@@ -200,7 +204,9 @@ func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandl
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					accessibleResources := accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
 					queryCtx := handle.buildContext(t)
-					it, err := query.BuildIteratorFromSchema(handle.schema, resourceRelation.ObjectType, resourceRelation.Relation)
+					co, err := query.BuildOutlineFromSchema(handle.schema, resourceRelation.ObjectType, resourceRelation.Relation)
+					require.NoError(t, err)
+					it, err := co.Compile()
 					require.NoError(t, err)
 
 					// Perform a lookup call and ensure it returns the at least the same set of object IDs.
@@ -254,7 +260,9 @@ func runQueryPlanLookupSubjects(t *testing.T, handle *queryPlanConsistencyHandle
 				t.Run(tuple.StringONR(resource), func(t *testing.T) {
 					accessibleSubjects := accessibilitySet.LookupAccessibleSubjects(resource)
 					queryCtx := handle.buildContext(t)
-					it, err := query.BuildIteratorFromSchema(handle.schema, resourceRelation.ObjectType, resourceRelation.Relation)
+					co, err := query.BuildOutlineFromSchema(handle.schema, resourceRelation.ObjectType, resourceRelation.Relation)
+					require.NoError(t, err)
+					it, err := co.Compile()
 					require.NoError(t, err)
 
 					// Perform a lookup call and ensure it returns the at least the same set of subject IDs.

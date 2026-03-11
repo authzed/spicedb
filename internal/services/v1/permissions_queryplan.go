@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
@@ -50,15 +51,19 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Build iterator tree from schema
-	// TODO: Better iterator caching
-	it, err := query.BuildIteratorFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
+	// Build and optimize the outline, then compile to an iterator tree.
+	// TODO: Better outline caching
+	co, err := query.BuildOutlineFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Apply basic optimizations to the iterator tree
-	it, _, err = query.ApplyOptimizations(it, query.StaticOptimizations)
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	it, err := optimized.Compile()
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
