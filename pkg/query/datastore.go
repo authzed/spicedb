@@ -74,11 +74,19 @@ func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resources []Object, su
 }
 
 func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+	// Invariant: wildcard subjects in the datastore are always stored with the ellipsis
+	// relation. The "*" is only ever an ObjectID; "type:*#relation" is syntactically
+	// invalid and cannot be written. Any caller passing a non-ellipsis relation here
+	// would cause us to query with the wrong relation filter and return a false negative.
+	if subject.Relation != tuple.Ellipsis {
+		return nil, spiceerrors.MustBugf("checkWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation", subject.Relation, subject.ObjectType, subject.ObjectID)
+	}
+
 	// Query the datastore for wildcard relationships (subject ObjectID = "*")
 	wildcardSubject := ObjectAndRelation{
 		ObjectType: subject.ObjectType,
 		ObjectID:   WildcardObjectID,
-		Relation:   subject.Relation,
+		Relation:   tuple.Ellipsis,
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
@@ -392,10 +400,18 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 }
 
 func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	// Invariant: wildcard subjects in the datastore are always stored with the ellipsis
+	// relation. The "*" is only ever an ObjectID; "type:*#relation" is syntactically
+	// invalid and cannot be written. Any caller passing a non-ellipsis relation here
+	// would cause us to query with the wrong relation filter and return a false negative.
+	if subject.Relation != tuple.Ellipsis {
+		return nil, spiceerrors.MustBugf("iterResourcesWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation", subject.Relation, subject.ObjectType, subject.ObjectID)
+	}
+
 	wildcardSubject := ObjectAndRelation{
 		ObjectType: subject.ObjectType,
 		ObjectID:   WildcardObjectID,
-		Relation:   subject.Relation,
+		Relation:   tuple.Ellipsis,
 	}
 
 	if ctx.PaginationLimit == nil {
