@@ -61,7 +61,8 @@ var revisionKey ctxKeyType = struct{}{}
 var errInvalidZedToken = status.Error(codes.InvalidArgument, "invalid revision requested")
 
 type revisionHandle struct {
-	revision datastore.Revision
+	revision   datastore.Revision
+	schemaHash datalayer.SchemaHash
 }
 
 // ContextWithHandle adds a placeholder to a context that will later be
@@ -70,28 +71,28 @@ func ContextWithHandle(ctx context.Context) context.Context {
 	return context.WithValue(ctx, revisionKey, &revisionHandle{})
 }
 
-// RevisionFromContext reads the selected revision out of a context.Context, computes a zedtoken
-// from it, and returns an error if it has not been set on the context.
-func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken, error) {
+// RevisionFromContext reads the selected revision and schema hash out of a context.Context,
+// computes a zedtoken from it, and returns an error if it has not been set on the context.
+func RevisionFromContext(ctx context.Context) (datastore.Revision, datalayer.SchemaHash, *v1.ZedToken, error) {
 	if c := ctx.Value(revisionKey); c != nil {
 		handle := c.(*revisionHandle)
 		rev := handle.revision
 		if rev != nil {
 			dl := datalayer.FromContext(ctx)
 			if dl == nil {
-				return nil, nil, spiceerrors.MustBugf("consistency middleware did not inject datastore")
+				return nil, "", nil, spiceerrors.MustBugf("consistency middleware did not inject datastore")
 			}
 
 			zedToken, err := zedtoken.NewFromRevision(ctx, rev, dl)
 			if err != nil {
-				return nil, nil, err
+				return nil, "", nil, err
 			}
 
-			return rev, zedToken, nil
+			return rev, handle.schemaHash, zedToken, nil
 		}
 	}
 
-	return nil, nil, status.Error(codes.Internal, "consistency middleware did not inject revision")
+	return nil, "", nil, status.Error(codes.Internal, "consistency middleware did not inject revision")
 }
 
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
@@ -114,6 +115,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	}
 
 	var revision datastore.Revision
+	var schemaHash datalayer.SchemaHash
 	consistency := req.GetConsistency()
 
 	withOptionalCursor, hasOptionalCursor := req.(hasOptionalCursor)
@@ -125,7 +127,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 			ConsistencyCounter.WithLabelValues("snapshot", "cursor", serviceLabel).Inc()
 		}
 
-		requestedRev, _, err := cursor.DecodeToDispatchRevision(ctx, withOptionalCursor.GetOptionalCursor(), dl)
+		requestedRev, cursorSchemaHash, _, err := cursor.DecodeToDispatchRevisionAndSchemaHash(ctx, withOptionalCursor.GetOptionalCursor(), dl)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
@@ -136,6 +138,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		}
 
 		revision = requestedRev
+		schemaHash = cursorSchemaHash
 
 	case consistency == nil || consistency.GetMinimizeLatency():
 		// Minimize Latency: Use the datastore's current revision, whatever it may be.
@@ -148,11 +151,12 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 			ConsistencyCounter.WithLabelValues("minlatency", source, serviceLabel).Inc()
 		}
 
-		databaseRev, err := dl.OptimizedRevision(ctx)
+		databaseRev, hash, err := dl.OptimizedRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
 		revision = databaseRev
+		schemaHash = hash
 
 	case consistency.GetFullyConsistent():
 		// Fully Consistent: Use the datastore's synchronized revision.
@@ -160,16 +164,17 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 			ConsistencyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
 		}
 
-		databaseRev, err := dl.HeadRevision(ctx)
+		databaseRev, hash, err := dl.HeadRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
 		revision = databaseRev
+		schemaHash = hash
 
 	case consistency.GetAtLeastAsFresh() != nil:
 		// At least as fresh as: Pick one of the datastore's revision and that specified, which
 		// ever is later.
-		picked, pickedRequest, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), dl, option)
+		picked, hash, pickedRequest, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), dl, option)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
@@ -184,6 +189,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		}
 
 		revision = picked
+		schemaHash = hash
 
 	case consistency.GetAtExactSnapshot() != nil:
 		// Exact snapshot: Use the revision as encoded in the zed token.
@@ -206,12 +212,15 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		}
 
 		revision = requestedRev
+		schemaHash = datalayer.NoSchemaHashForLegacyCursor
 
 	default:
 		return status.Errorf(codes.Internal, "missing handling of consistency case in %v", consistency)
 	}
 
-	handle.(*revisionHandle).revision = revision
+	rh := handle.(*revisionHandle)
+	rh.revision = revision
+	rh.schemaHash = schemaHash
 	return nil
 }
 
@@ -274,51 +283,51 @@ func (s *recvWrapper) RecvMsg(m any) error {
 
 // pickBestRevision compares the provided ZedToken with the optimized revision of the datastore, and returns the most
 // recent one. The boolean return value will be true if the provided ZedToken is the most recent, false otherwise.
-func pickBestRevision(ctx context.Context, requested *v1.ZedToken, dl datalayer.DataLayer, option MismatchingTokenOption) (datastore.Revision, bool, error) {
+func pickBestRevision(ctx context.Context, requested *v1.ZedToken, dl datalayer.DataLayer, option MismatchingTokenOption) (datastore.Revision, datalayer.SchemaHash, bool, error) {
 	// Calculate a revision as we see fit
-	databaseRev, err := dl.OptimizedRevision(ctx)
+	databaseRev, hash, err := dl.OptimizedRevision(ctx)
 	if err != nil {
-		return datastore.NoRevision, false, err
+		return datastore.NoRevision, "", false, err
 	}
 
 	if requested != nil {
 		requestedRev, status, err := zedtoken.DecodeRevision(requested, dl)
 		if err != nil {
-			return datastore.NoRevision, false, errInvalidZedToken
+			return datastore.NoRevision, "", false, errInvalidZedToken
 		}
 
 		if status == zedtoken.StatusMismatchedDatastoreID {
 			switch option {
 			case TreatMismatchingTokensAsFullConsistency:
 				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a full consistency request")
-				headRev, err := dl.HeadRevision(ctx)
+				headRev, headHash, err := dl.HeadRevision(ctx)
 				if err != nil {
-					return datastore.NoRevision, false, err
+					return datastore.NoRevision, "", false, err
 				}
 
-				return headRev, false, nil
+				return headRev, headHash, false, nil
 
 			case TreatMismatchingTokensAsMinLatency:
 				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a min latency request")
-				return databaseRev, false, nil
+				return databaseRev, hash, false, nil
 
 			case TreatMismatchingTokensAsError:
 				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
-				return datastore.NoRevision, false, errors.New("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
+				return datastore.NoRevision, "", false, errors.New("ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
 
 			default:
-				return datastore.NoRevision, false, spiceerrors.MustBugf("unknown mismatching token option: %v", option)
+				return datastore.NoRevision, "", false, spiceerrors.MustBugf("unknown mismatching token option: %v", option)
 			}
 		}
 
 		if databaseRev.GreaterThan(requestedRev) {
-			return databaseRev, false, nil
+			return databaseRev, hash, false, nil
 		}
 
-		return requestedRev, true, nil
+		return requestedRev, datalayer.NoSchemaHashForLegacyCursor, true, nil
 	}
 
-	return databaseRev, false, nil
+	return databaseRev, hash, false, nil
 }
 
 func rewriteDatastoreError(err error) error {

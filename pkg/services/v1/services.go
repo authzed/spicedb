@@ -15,5 +15,5 @@ import (
 // If no cursor is provided, it will fallback to the provided revision.
 func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
 	dl := datalayer.NewReadOnlyDataLayer(ds)
-	return servicesv1.BulkExport(ctx, dl, batchSize, req, fallbackRevision, sender)
+	return servicesv1.BulkExport(ctx, dl, batchSize, req, fallbackRevision, datalayer.NoSchemaHashForLegacyCursor, sender)
 }

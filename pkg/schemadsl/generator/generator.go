@@ -3,6 +3,8 @@ package generator
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
@@ -31,6 +33,25 @@ const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
 func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
 	return GenerateSchemaWithCaveatTypeSet(context.TODO(), definitions, caveattypes.Default.TypeSet)
+}
+
+// ComputeSchemaHash computes a SHA256 hash of the given schema definitions.
+// Definitions are sorted by name before generating the schema text for consistent ordering.
+func ComputeSchemaHash(definitions []compiler.SchemaDefinition) (string, error) {
+	sorted := make([]compiler.SchemaDefinition, len(definitions))
+	copy(sorted, definitions)
+
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].GetName() < sorted[j].GetName()
+	})
+
+	schemaText, _, err := GenerateSchema(sorted)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate schema for hashing: %w", err)
+	}
+
+	hash := sha256.Sum256([]byte(schemaText))
+	return hex.EncodeToString(hash[:]), nil
 }
 
 // GenerateSchemaWithCaveatTypeSet generates a DSL view of the given schema.

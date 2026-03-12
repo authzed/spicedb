@@ -239,6 +239,21 @@ func (mr *MockReaderMockRecorder) QueryRelationships(ctx, filter any, arg2 ...an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRelationships", reflect.TypeOf((*MockReader)(nil).QueryRelationships), varargs...)
 }
 
+// ReadStoredSchema mocks base method.
+func (m *MockReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadStoredSchema", ctx)
+	ret0, _ := ret[0].(*datastore.ReadOnlyStoredSchema)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadStoredSchema indicates an expected call of ReadStoredSchema.
+func (mr *MockReaderMockRecorder) ReadStoredSchema(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadStoredSchema", reflect.TypeOf((*MockReader)(nil).ReadStoredSchema), ctx)
+}
+
 // ReverseQueryRelationships mocks base method.
 func (m *MockReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, arg2 ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	m.ctrl.T.Helper()
@@ -522,6 +537,21 @@ func (mr *MockReadWriteTransactionMockRecorder) QueryRelationships(ctx, filter a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).QueryRelationships), varargs...)
 }
 
+// ReadStoredSchema mocks base method.
+func (m *MockReadWriteTransaction) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadStoredSchema", ctx)
+	ret0, _ := ret[0].(*datastore.ReadOnlyStoredSchema)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadStoredSchema indicates an expected call of ReadStoredSchema.
+func (mr *MockReadWriteTransactionMockRecorder) ReadStoredSchema(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadStoredSchema", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReadStoredSchema), ctx)
+}
+
 // RegisterCounter mocks base method.
 func (m *MockReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *corev1.RelationshipFilter) error {
 	m.ctrl.T.Helper()
@@ -596,6 +626,20 @@ func (m *MockReadWriteTransaction) WriteRelationships(ctx context.Context, mutat
 func (mr *MockReadWriteTransactionMockRecorder) WriteRelationships(ctx, mutations any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).WriteRelationships), ctx, mutations)
+}
+
+// WriteStoredSchema mocks base method.
+func (m *MockReadWriteTransaction) WriteStoredSchema(ctx context.Context, schema *corev1.StoredSchema) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteStoredSchema", ctx, schema)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteStoredSchema indicates an expected call of WriteStoredSchema.
+func (mr *MockReadWriteTransactionMockRecorder) WriteStoredSchema(ctx, schema any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteStoredSchema", reflect.TypeOf((*MockReadWriteTransaction)(nil).WriteStoredSchema), ctx, schema)
 }
 
 // MockBulkWriteRelationshipSource is a mock of BulkWriteRelationshipSource interface.

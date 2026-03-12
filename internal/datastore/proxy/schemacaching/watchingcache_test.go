@@ -1019,3 +1019,7 @@ func (*fakeSnapshotReader) QueryRelationships(context.Context, datastore.Relatio
 func (*fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+
+func (*fakeSnapshotReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return nil, nil
+}

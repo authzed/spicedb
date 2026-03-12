@@ -32,7 +32,7 @@ func TestBuildTree(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -62,7 +62,7 @@ func TestBuildTreeMultipleRelations(t *testing.T) {
 	require.Contains(explain.String(), "Union", "edit permission should create a union iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -113,7 +113,7 @@ func TestBuildTreeSubRelations(t *testing.T) {
 	require.NotEmpty(explain.String())
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	// Just test that the iterator can be executed without error
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -212,7 +212,7 @@ func TestBuildTreeIntersectionOperation(t *testing.T) {
 	require.Contains(explain.String(), "Intersection", "should create intersection iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
@@ -275,7 +275,7 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	userDef := testfixtures.UserNS.CloneVT()
 
@@ -535,7 +535,7 @@ func TestBuildTreeSingleRelationOptimization(t *testing.T) {
 	require.Contains(explain.String(), "Datastore", "should create datastore iterator")
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	// Test execution
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
@@ -555,7 +555,7 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	userDef := testfixtures.UserNS.CloneVT()
 

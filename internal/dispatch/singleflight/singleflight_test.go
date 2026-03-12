@@ -16,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -37,6 +38,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 
@@ -92,6 +94,7 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 
@@ -148,6 +151,7 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 
@@ -189,6 +193,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 
@@ -241,6 +246,7 @@ func TestSingleFlightDispatcherExpand(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 
@@ -286,6 +292,7 @@ func TestSingleFlightDispatcherCheckBypassesIfMissingBloomFiler(t *testing.T) {
 		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 
@@ -309,6 +316,7 @@ func TestSingleFlightDispatcherExpandBypassesIfMissingBloomFiler(t *testing.T) {
 		ResourceAndRelation: tuple.ONRStringToCore("document", "foo", "view"),
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 

@@ -241,6 +241,10 @@ func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.Relat
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (fakeSnapshotReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return nil, nil
+}
+
 func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {
 	return func(yield func(tuple.Relationship, error) bool) {
 		if fsr.state == "primary" {

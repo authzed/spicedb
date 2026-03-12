@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -141,6 +142,7 @@ func BuildAccessibilitySet(t *testing.T, ctx context.Context, populated *validat
 							AtRevision:     headRevision.String(),
 							DepthRemaining: 50,
 							TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(50),
+							SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 						},
 					})
 					require.NoError(t, err)
@@ -173,6 +175,7 @@ func BuildAccessibilitySet(t *testing.T, ctx context.Context, populated *validat
 									CaveatContext: nil,
 									AtRevision:    headRevision,
 									MaximumDepth:  50,
+									SchemaHash:    datalayer.NoSchemaHashForTesting,
 								},
 								possibleResourceID,
 								100,
@@ -413,6 +416,7 @@ func isAccessibleViaWildcardOnly(
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
 			TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 	})
