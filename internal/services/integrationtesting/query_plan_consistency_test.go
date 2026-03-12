@@ -5,7 +5,6 @@ package integrationtesting_test
 import (
 	"fmt"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -76,16 +75,10 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	runQueryPlanAssertions(t, handle)
 
 	t.Run("lookup_resources", func(t *testing.T) {
-		if os.Getenv("TEST_QUERY_PLAN_RESOURCES") == "" {
-			t.Skip("Skipping IterResources tests: set TEST_QUERY_PLAN_RESOURCES=true to enable")
-		}
 		runQueryPlanLookupResources(t, handle)
 	})
 
 	t.Run("lookup_subjects", func(t *testing.T) {
-		if os.Getenv("TEST_QUERY_PLAN_SUBJECTS") == "" {
-			t.Skip("Skipping IterSubjects tests: set TEST_QUERY_PLAN_SUBJECTS=true to enable")
-		}
 		runQueryPlanLookupSubjects(t, handle)
 	})
 }
@@ -317,11 +310,6 @@ func testQueryPlanForEachResourceType(
 
 // TestAccessibilitySetMethods tests the various methods of the AccessibilitySet
 // to ensure they work correctly and provide code coverage.
-//
-// NOTE: This test exists to provide coverage for AccessibilitySet methods
-// that are otherwise only exercised when TEST_QUERY_PLAN_RESOURCES or TEST_QUERY_PLAN_SUBJECTS
-// environment flags are set. This test should be removed when those flags are removed and
-// the corresponding tests run unconditionally.
 func TestAccessibilitySetMethods(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
