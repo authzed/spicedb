@@ -28,16 +28,6 @@ type pgxPool interface {
 	Stat() *pgxpool.Stat
 }
 
-var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "crdb_client_resets",
-	Help:    "Distribution of the number of client-side transaction restarts per transaction attempt. Restarts occur when CockroachDB returns a serialization failure (40001) and the driver retries the transaction from scratch. Sustained high values indicate transaction contention.",
-	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
-})
-
-func init() {
-	prometheus.MustRegister(resetHistogram)
-}
-
 type ctxDisableRetries struct{}
 
 var (
@@ -46,9 +36,10 @@ var (
 )
 
 type RetryPool struct {
-	pool          pgxPool
-	id            string
-	healthTracker *NodeHealthTracker
+	pool           pgxPool
+	id             string
+	healthTracker  *NodeHealthTracker
+	resetHistogram prometheus.Histogram
 
 	sync.RWMutex
 	maxRetries  uint8
@@ -142,6 +133,20 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, err
+	}
+
+	p.resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "crdb_client_resets",
+		ConstLabels: prometheus.Labels{
+			"pool_name": name, // this is needed to avoid "duplicate metrics collector registration attempted"
+		},
+		Help:    "Distribution of the number of client-side transaction restarts per transaction attempt. Restarts occur when CockroachDB returns a serialization failure (40001) and the driver retries the transaction from scratch. Sustained high values indicate transaction contention.",
+		Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
+	})
+
+	err = prometheus.Register(p.resetHistogram)
+	if err != nil {
+		return nil, fmt.Errorf("error registering CRDB reset histogram: %w", err)
 	}
 
 	p.pool = pool
@@ -253,6 +258,7 @@ func (p *RetryPool) Config() *pgxpool.Config {
 // Close closes the underlying pgxpool.Pool
 func (p *RetryPool) Close() {
 	p.pool.Close()
+	prometheus.Unregister(p.resetHistogram)
 }
 
 // Stat returns the underlying pgxpool.Pool stats
@@ -315,7 +321,7 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 
 	var retries uint8
 	defer func() {
-		resetHistogram.Observe(float64(retries))
+		p.resetHistogram.Observe(float64(retries))
 	}()
 
 	maxRetries := p.maxRetries

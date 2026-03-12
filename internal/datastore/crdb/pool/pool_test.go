@@ -7,11 +7,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/time/rate"
 )
 
 // TestPool implements pgxPool interface for testing
@@ -53,7 +51,12 @@ func NewTestPool() *TestPool {
 			return nil
 		},
 		configFunc: func() *pgxpool.Config {
-			return &pgxpool.Config{}
+			url := "postgres://jack:secret@localhost:5432/mydb?sslmode=verify-ca&pool_max_conns=10&pool_max_conn_lifetime=1h30m"
+			c, err := pgxpool.ParseConfig(url)
+			if err != nil {
+				panic(err)
+			}
+			return c
 		},
 		closeFunc: func() {},
 		statFunc: func() *pgxpool.Stat {
@@ -63,21 +66,19 @@ func NewTestPool() *TestPool {
 }
 
 // createTestRetryPool creates a RetryPool for testing with dependency injection
-func createTestRetryPool(testPool *TestPool) *RetryPool {
-	return &RetryPool{
-		pool: testPool,
-		id:   "test-pool",
-		healthTracker: &NodeHealthTracker{
-			healthyNodes:  make(map[uint32]struct{}),
-			nodesEverSeen: make(map[uint32]*rate.Limiter),
-			newLimiter: func() *rate.Limiter {
-				return rate.NewLimiter(rate.Every(1*time.Minute), 2)
-			},
-		},
-		maxRetries:  3,
-		nodeForConn: make(map[*pgx.Conn]uint32),
-		gc:          make(map[*pgx.Conn]struct{}),
-	}
+func createTestRetryPool(t *testing.T, testPool *TestPool) *RetryPool {
+	ht, err := NewNodeHealthChecker("postgres://user:password@localhost:5432/dbname")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ht.Close()
+	})
+
+	retrypool, err := NewRetryPool(t.Context(), "name", testPool.Config(), ht, 3, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		retrypool.Close()
+	})
+	return retrypool
 }
 
 func TestContextCancelledDuringBlockingAcquire(t *testing.T) {
@@ -90,7 +91,7 @@ func TestContextCancelledDuringBlockingAcquire(t *testing.T) {
 			return nil, ctx.Err()
 		}
 
-		retryPool := createTestRetryPool(testPool)
+		retryPool := createTestRetryPool(t, testPool)
 		ctx, cancel := context.WithCancel(t.Context())
 
 		// Cancel the context after a short delay
@@ -125,7 +126,7 @@ func TestAcquireTimeoutReturnsErrAcquire(t *testing.T) {
 			}
 		}
 
-		retryPool := createTestRetryPool(testPool)
+		retryPool := createTestRetryPool(t, testPool)
 		ctx := t.Context()
 		acquireTimeout := 50 * time.Millisecond
 
@@ -146,7 +147,7 @@ func TestAcquireSucceedsButTopLevelContextCancelled(t *testing.T) {
 	t.Parallel()
 	testPool := NewTestPool()
 
-	retryPool := createTestRetryPool(testPool)
+	retryPool := createTestRetryPool(t, testPool)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately
 
@@ -168,7 +169,7 @@ func TestAcquireErrorWithConnectionReturned(t *testing.T) {
 			return &pgxpool.Conn{}, errors.New("pool exhausted")
 		}
 
-		retryPool := createTestRetryPool(testPool)
+		retryPool := createTestRetryPool(t, testPool)
 		ctx := context.Background()
 
 		err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
@@ -198,7 +199,7 @@ func TestAcquireSucceedsWithinTimeout(t *testing.T) {
 			}
 		}
 
-		retryPool := createTestRetryPool(testPool)
+		retryPool := createTestRetryPool(t, testPool)
 		ctx := t.Context()
 		acquireTimeout := 50 * time.Millisecond
 		functionCalled := false
@@ -225,7 +226,7 @@ func TestNoAcquireTimeoutUsesOriginalContext(t *testing.T) {
 		return &pgxpool.Conn{}, nil
 	}
 
-	retryPool := createTestRetryPool(testPool)
+	retryPool := createTestRetryPool(t, testPool)
 	originalCtx := context.Background()
 
 	err := retryPool.withRetries(originalCtx, 0, func(conn *pgxpool.Conn) error {
@@ -247,7 +248,7 @@ func TestAcquireTimeoutCreatesSeparateContext(t *testing.T) {
 			return &pgxpool.Conn{}, nil
 		}
 
-		retryPool := createTestRetryPool(testPool)
+		retryPool := createTestRetryPool(t, testPool)
 		originalCtx := context.Background()
 		acquireTimeout := 50 * time.Millisecond
 		startTime := time.Now()
@@ -277,7 +278,7 @@ func TestAcquireTimeoutContextCausePreserved(t *testing.T) {
 			return nil, ctx.Err()
 		}
 
-		retryPool := createTestRetryPool(testPool)
+		retryPool := createTestRetryPool(t, testPool)
 		ctx := t.Context()
 		acquireTimeout := 10 * time.Millisecond
 
@@ -301,7 +302,7 @@ func TestSuccessfulFunctionExecution(t *testing.T) {
 		return &pgxpool.Conn{}, nil
 	}
 
-	retryPool := createTestRetryPool(testPool)
+	retryPool := createTestRetryPool(t, testPool)
 	ctx := t.Context()
 	functionCalled := false
 

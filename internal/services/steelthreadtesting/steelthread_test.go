@@ -56,6 +56,9 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithExperimentalColumnOptimization(true),
 						dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
+					t.Cleanup(func() {
+						_ = ds.Close()
+					})
 
 					ds = indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 					runSteelThreadTest(t, tc, ds)
