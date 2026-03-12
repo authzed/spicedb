@@ -10,8 +10,6 @@ import (
 )
 
 func TestGetTypeDefinition(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		definition user {}
 
@@ -36,7 +34,6 @@ func TestGetTypeDefinition(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("existing type definition", func(t *testing.T) {
-		t.Parallel()
 		def, ok := schema.GetTypeDefinition("user")
 		require.True(t, ok)
 		require.NotNil(t, def)
@@ -44,7 +41,6 @@ func TestGetTypeDefinition(t *testing.T) {
 	})
 
 	t.Run("another existing type definition", func(t *testing.T) {
-		t.Parallel()
 		def, ok := schema.GetTypeDefinition("organization")
 		require.True(t, ok)
 		require.NotNil(t, def)
@@ -52,14 +48,12 @@ func TestGetTypeDefinition(t *testing.T) {
 	})
 
 	t.Run("non-existent type definition", func(t *testing.T) {
-		t.Parallel()
 		def, ok := schema.GetTypeDefinition("nonexistent")
 		require.False(t, ok)
 		require.Nil(t, def)
 	})
 
 	t.Run("empty string type definition", func(t *testing.T) {
-		t.Parallel()
 		def, ok := schema.GetTypeDefinition("")
 		require.False(t, ok)
 		require.Nil(t, def)
@@ -67,8 +61,6 @@ func TestGetTypeDefinition(t *testing.T) {
 }
 
 func TestGetRelation(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		definition user {}
 
@@ -98,7 +90,6 @@ func TestGetRelation(t *testing.T) {
 	require.NotNil(t, orgDef)
 
 	t.Run("existing relation", func(t *testing.T) {
-		t.Parallel()
 		rel, ok := orgDef.GetRelation("member")
 		require.True(t, ok)
 		require.NotNil(t, rel)
@@ -106,7 +97,6 @@ func TestGetRelation(t *testing.T) {
 	})
 
 	t.Run("another existing relation", func(t *testing.T) {
-		t.Parallel()
 		rel, ok := orgDef.GetRelation("admin")
 		require.True(t, ok)
 		require.NotNil(t, rel)
@@ -114,21 +104,18 @@ func TestGetRelation(t *testing.T) {
 	})
 
 	t.Run("non-existent relation", func(t *testing.T) {
-		t.Parallel()
 		rel, ok := orgDef.GetRelation("nonexistent")
 		require.False(t, ok)
 		require.Nil(t, rel)
 	})
 
 	t.Run("empty string relation", func(t *testing.T) {
-		t.Parallel()
 		rel, ok := orgDef.GetRelation("")
 		require.False(t, ok)
 		require.Nil(t, rel)
 	})
 
 	t.Run("definition with no relations", func(t *testing.T) {
-		t.Parallel()
 		userDef, ok := schema.GetTypeDefinition("user")
 		require.True(t, ok)
 		require.NotNil(t, userDef)
@@ -140,8 +127,6 @@ func TestGetRelation(t *testing.T) {
 }
 
 func TestGetPermission(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		definition user {}
 
@@ -172,7 +157,6 @@ func TestGetPermission(t *testing.T) {
 	require.NotNil(t, resourceDef)
 
 	t.Run("existing permission", func(t *testing.T) {
-		t.Parallel()
 		perm, ok := resourceDef.GetPermission("view")
 		require.True(t, ok)
 		require.NotNil(t, perm)
@@ -180,7 +164,6 @@ func TestGetPermission(t *testing.T) {
 	})
 
 	t.Run("another existing permission", func(t *testing.T) {
-		t.Parallel()
 		perm, ok := resourceDef.GetPermission("edit")
 		require.True(t, ok)
 		require.NotNil(t, perm)
@@ -188,21 +171,18 @@ func TestGetPermission(t *testing.T) {
 	})
 
 	t.Run("non-existent permission", func(t *testing.T) {
-		t.Parallel()
 		perm, ok := resourceDef.GetPermission("nonexistent")
 		require.False(t, ok)
 		require.Nil(t, perm)
 	})
 
 	t.Run("empty string permission", func(t *testing.T) {
-		t.Parallel()
 		perm, ok := resourceDef.GetPermission("")
 		require.False(t, ok)
 		require.Nil(t, perm)
 	})
 
 	t.Run("definition with no permissions", func(t *testing.T) {
-		t.Parallel()
 		userDef, ok := schema.GetTypeDefinition("user")
 		require.True(t, ok)
 		require.NotNil(t, userDef)
@@ -331,8 +311,6 @@ func TestFindParent_SkipIntermediateTypes(t *testing.T) {
 }
 
 func TestBaseRelationCompare(t *testing.T) {
-	t.Parallel()
-
 	getBase := func(t *testing.T, s *Schema, defName, relName string, idx int) *BaseRelation {
 		t.Helper()
 		def, ok := s.GetTypeDefinition(defName)
@@ -343,13 +321,11 @@ func TestBaseRelationCompare(t *testing.T) {
 	}
 
 	t.Run("both nil", func(t *testing.T) {
-		t.Parallel()
 		var a, b *BaseRelation
 		require.Equal(t, 0, a.Compare(b))
 	})
 
 	t.Run("left nil", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("user").Done().
 			AddDefinition("doc").AddRelation("viewer").AllowedDirectRelation("user").Done().Done().
@@ -360,7 +336,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("right nil", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("user").Done().
 			AddDefinition("doc").AddRelation("viewer").AllowedDirectRelation("user").Done().Done().
@@ -370,7 +345,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("equal", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("user").Done().
 			AddDefinition("doc").AddRelation("viewer").
@@ -384,7 +358,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("different definition name", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("user").Done().
 			AddDefinition("aaa").AddRelation("viewer").AllowedDirectRelation("user").Done().Done().
@@ -397,7 +370,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("different relation name", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("user").Done().
 			AddDefinition("doc").
@@ -412,7 +384,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("different subject type", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("org").Done().
 			AddDefinition("user").Done().
@@ -428,7 +399,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("different subrelation", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("org").Done().
 			AddDefinition("doc").AddRelation("viewer").
@@ -443,7 +413,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("different caveat", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("user").Done().
 			AddDefinition("doc").AddRelation("viewer").
@@ -458,7 +427,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("different wildcard", func(t *testing.T) {
-		t.Parallel()
 		// Use AllowedRelation with empty subrelation and AllowedWildcard (also empty subrelation)
 		// so comparison reaches the wildcard field.
 		s := NewSchemaBuilder().
@@ -475,7 +443,6 @@ func TestBaseRelationCompare(t *testing.T) {
 	})
 
 	t.Run("different expiration", func(t *testing.T) {
-		t.Parallel()
 		s := NewSchemaBuilder().
 			AddDefinition("user").Done().
 			AddDefinition("doc").AddRelation("viewer").

@@ -89,8 +89,6 @@ func (tn *testNode) MustDecorateWithInt(property string, value int) AstNode {
 }
 
 func TestParser(t *testing.T) {
-	t.Parallel()
-
 	parserTests := []parserTest{
 		{"empty file test", "empty"},
 		{"basic definition test", "basic"},
@@ -150,7 +148,6 @@ func TestParser(t *testing.T) {
 
 	for _, test := range parserTests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 			root := Parse(createAstNode, input.Source(test.name), test.input())
 			parseTree := getParseTree((root).(*testNode), 0)
 			assert := assert.New(t)

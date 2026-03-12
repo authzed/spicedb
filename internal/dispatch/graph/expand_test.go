@@ -138,8 +138,6 @@ var (
 )
 
 func TestExpand(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		start                 tuple.ObjectAndRelation
 		expansionMode         v1.DispatchExpandRequest_ExpansionMode
@@ -165,8 +163,6 @@ func TestExpand(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcher(t)
@@ -277,8 +273,6 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 }
 
 func TestMaxDepthExpand(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -312,8 +306,6 @@ func TestMaxDepthExpand(t *testing.T) {
 }
 
 func TestExpandOverSchema(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name          string
 		schema        string
@@ -903,8 +895,6 @@ func TestExpandOverSchema(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcherWithSchemaAndRels(t, tc.schema, tc.relationships)

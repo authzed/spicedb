@@ -28,8 +28,6 @@ func applyDirectionHint(t *testing.T, hints []Hint) arrowDirection {
 }
 
 func TestCountAdvisor_GetHints_NonArrow(t *testing.T) {
-	t.Parallel()
-
 	advisor := NewCountAdvisor(nil)
 	outline := Outline{Type: UnionIteratorType}
 
@@ -39,8 +37,6 @@ func TestCountAdvisor_GetHints_NonArrow(t *testing.T) {
 }
 
 func TestCountAdvisor_GetHints_NoData(t *testing.T) {
-	t.Parallel()
-
 	// With no stats at all, both sides default to defaultArrowFanout.
 	// rightFanout == leftFanout, so the condition rightFanout < leftFanout is false
 	// and we expect leftToRight (keep default).
@@ -58,8 +54,6 @@ func TestCountAdvisor_GetHints_NoData(t *testing.T) {
 }
 
 func TestCountAdvisor_GetHints_LeftHighFanout(t *testing.T) {
-	t.Parallel()
-
 	// Left fanout = 10/1 = 10, right fanout = 2/1 = 2.
 	// rightFanout (2) < leftFanout (10) → reverse.
 	advisor := NewCountAdvisor(map[CanonicalKey]CountStats{
@@ -79,8 +73,6 @@ func TestCountAdvisor_GetHints_LeftHighFanout(t *testing.T) {
 }
 
 func TestCountAdvisor_GetHints_RightHighFanout(t *testing.T) {
-	t.Parallel()
-
 	// Left fanout = 2/1 = 2, right fanout = 10/1 = 10.
 	// rightFanout (10) > leftFanout (2) → keep leftToRight.
 	advisor := NewCountAdvisor(map[CanonicalKey]CountStats{
@@ -100,8 +92,6 @@ func TestCountAdvisor_GetHints_RightHighFanout(t *testing.T) {
 }
 
 func TestCountAdvisor_GetHints_EqualFanout(t *testing.T) {
-	t.Parallel()
-
 	// Both fanouts equal (5/1 = 5 each) → not strictly less → leftToRight.
 	advisor := NewCountAdvisor(map[CanonicalKey]CountStats{
 		"left":  {IterSubjectsCalls: 1, IterSubjectsResults: 5},
@@ -120,8 +110,6 @@ func TestCountAdvisor_GetHints_EqualFanout(t *testing.T) {
 }
 
 func TestCountAdvisor_GetHints_OnlyLeftData(t *testing.T) {
-	t.Parallel()
-
 	// Left fanout = 10/1 = 10; right has no data → defaults to defaultArrowFanout (3).
 	// rightFanout (3) < leftFanout (10) → reverse.
 	advisor := NewCountAdvisor(map[CanonicalKey]CountStats{
@@ -140,8 +128,6 @@ func TestCountAdvisor_GetHints_OnlyLeftData(t *testing.T) {
 }
 
 func TestCountAdvisor_GetHints_OnlyRightData(t *testing.T) {
-	t.Parallel()
-
 	// Right fanout = 10/1 = 10; left has no data → defaults to defaultArrowFanout (3).
 	// rightFanout (10) > leftFanout (3) → leftToRight.
 	advisor := NewCountAdvisor(map[CanonicalKey]CountStats{
@@ -160,8 +146,6 @@ func TestCountAdvisor_GetHints_OnlyRightData(t *testing.T) {
 }
 
 func TestCountAdvisor_GetMutations_AlwaysNil(t *testing.T) {
-	t.Parallel()
-
 	advisor := NewCountAdvisor(nil)
 
 	for _, typ := range []IteratorType{

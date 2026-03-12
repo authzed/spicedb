@@ -9,8 +9,6 @@ import (
 )
 
 func TestParseDeleteStatement(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name                string
 		query               string
@@ -93,8 +91,6 @@ func TestParseDeleteStatement(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
@@ -121,8 +117,6 @@ func TestParseDeleteStatement(t *testing.T) {
 }
 
 func TestDeleteStatementReturningColumns(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name                  string
 		query                 string
@@ -147,8 +141,6 @@ func TestDeleteStatementReturningColumns(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 

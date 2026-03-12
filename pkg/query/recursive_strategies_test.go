@@ -15,8 +15,6 @@ import (
 // TestRecursiveCheckStrategies verifies that all three CheckImpl strategies
 // produce equivalent results for the same input.
 func TestRecursiveCheckStrategies(t *testing.T) {
-	t.Parallel()
-
 	// Create test paths for a simple recursive structure
 	// These paths represent: folder1 -> folder2 -> user:alice
 	paths := []Path{
@@ -54,8 +52,6 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 
 	for _, tc := range strategies {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Create a separate Context for each parallel subtest to avoid races.
 			// Contexts contain mutable state (e.g., recursiveFrontierCollectors)
 			// that must not be shared across concurrent goroutines.
@@ -100,8 +96,6 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 
 // TestRecursiveCheckStrategiesEmpty verifies that all strategies handle empty results correctly
 func TestRecursiveCheckStrategiesEmpty(t *testing.T) {
-	t.Parallel()
-
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
@@ -135,8 +129,6 @@ func TestRecursiveCheckStrategiesEmpty(t *testing.T) {
 
 // TestRecursiveCheckStrategiesMultipleResources verifies strategies handle multiple resources correctly
 func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
-	t.Parallel()
-
 	// Create test paths for multiple resources
 	paths := []Path{
 		{

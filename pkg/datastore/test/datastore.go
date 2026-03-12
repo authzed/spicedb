@@ -107,7 +107,6 @@ func WithCategories(cats ...string) Categories {
 
 func parallel(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
 	return func(t *testing.T) {
-		t.Parallel()
 		tt(t, tester)
 	}
 }

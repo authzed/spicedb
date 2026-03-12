@@ -23,8 +23,6 @@ import (
 var spannerFactory = test.NewTesterFactory(status.New(codes.Aborted, "retryable").Err())
 
 func TestSpannerDatastore(t *testing.T) {
-	// t.Parallel() //nolint:tparallel, the test sets environment variables (the emulator)
-
 	ctx := context.Background()
 	b := testdatastore.RunSpannerForTesting(t, "", "head")
 

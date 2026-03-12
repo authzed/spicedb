@@ -260,7 +260,6 @@ func TestRevisionFromContextMissingConsistency(t *testing.T) {
 }
 
 func TestRewriteDatastoreError(t *testing.T) {
-	t.Parallel()
 	type tc struct {
 		name        string
 		err         error
@@ -296,7 +295,6 @@ func TestRewriteDatastoreError(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			err := rewriteDatastoreError(tc.err)
 			require.Error(t, err)
 			grpcutil.RequireStatus(t, tc.code, err)

@@ -45,20 +45,16 @@ const testTimedelta = 1 * time.Second
 // both real-world schemas, as well as the full set of hand-constructed corner
 // cases so that the system can be fully exercised.
 func TestConsistency(t *testing.T) {
-	t.Parallel()
-
 	// List all the defined consistency test files.
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
 	require.NoError(t, err)
 
 	for _, filePath := range consistencyTestFiles {
 		t.Run(path.Base(filePath), func(t *testing.T) {
-			t.Parallel()
 			for _, dispatcherKind := range []string{"local", "caching"} {
 				t.Run(dispatcherKind, func(t *testing.T) {
 					for _, chunkSize := range []uint16{5, 10} {
 						t.Run(fmt.Sprintf("chunk-size-%d", chunkSize), func(t *testing.T) {
-							t.Parallel()
 							runConsistencyTestSuiteForFile(t, filePath, dispatcherKind == "caching", chunkSize)
 						})
 					}

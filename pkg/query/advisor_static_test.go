@@ -10,13 +10,9 @@ import (
 )
 
 func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
-	t.Parallel()
-
 	advisor := DefaultStaticAdvisor()
 
 	t.Run("prefers right-to-left when right is cheaper", func(t *testing.T) {
-		t.Parallel()
-
 		// Create an arrow outline where right has low cardinality (1 path)
 		// and left has higher cardinality (3 paths)
 		// This should prefer right-to-left execution
@@ -62,8 +58,6 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 	})
 
 	t.Run("prefers left-to-right when left is cheaper", func(t *testing.T) {
-		t.Parallel()
-
 		// Create an arrow outline where left has low cardinality (1 path)
 		// and right has higher cardinality (3 paths)
 		// This should prefer left-to-right execution
@@ -108,8 +102,6 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 	})
 
 	t.Run("non-arrow outline returns no hints", func(t *testing.T) {
-		t.Parallel()
-
 		unionOutline := Outline{
 			Type: UnionIteratorType,
 			SubOutlines: []Outline{
@@ -129,13 +121,9 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 }
 
 func TestStaticAdvisor_CostOutline(t *testing.T) {
-	t.Parallel()
-
 	advisor := DefaultStaticAdvisor()
 
 	t.Run("fixed iterator", func(t *testing.T) {
-		t.Parallel()
-
 		outline := Outline{
 			Type: FixedIteratorType,
 			Args: &IteratorArgs{
@@ -155,8 +143,6 @@ func TestStaticAdvisor_CostOutline(t *testing.T) {
 	})
 
 	t.Run("datastore iterator", func(t *testing.T) {
-		t.Parallel()
-
 		baseRel := schema.NewTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
 		outline := Outline{
 			Type: DatastoreIteratorType,
@@ -174,8 +160,6 @@ func TestStaticAdvisor_CostOutline(t *testing.T) {
 	})
 
 	t.Run("union iterator", func(t *testing.T) {
-		t.Parallel()
-
 		outline := Outline{
 			Type: UnionIteratorType,
 			SubOutlines: []Outline{
@@ -206,8 +190,6 @@ func TestStaticAdvisor_CostOutline(t *testing.T) {
 	})
 
 	t.Run("arrow iterator", func(t *testing.T) {
-		t.Parallel()
-
 		outline := Outline{
 			Type: ArrowIteratorType,
 			SubOutlines: []Outline{
@@ -242,13 +224,9 @@ func TestStaticAdvisor_CostOutline(t *testing.T) {
 }
 
 func TestStaticAdvisor_GetMutations(t *testing.T) {
-	t.Parallel()
-
 	advisor := DefaultStaticAdvisor()
 
 	t.Run("union reorders by descending selectivity", func(t *testing.T) {
-		t.Parallel()
-
 		// Create union with different selectivities
 		// Intersection has lower selectivity (0.9 * 0.9 = 0.81)
 		lowSelectivity := Outline{
@@ -285,8 +263,6 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("intersection reorders by ascending selectivity", func(t *testing.T) {
-		t.Parallel()
-
 		// Create intersection with different selectivities
 		// Single fixed has higher selectivity (0.9)
 		highSelectivity := Outline{
@@ -323,8 +299,6 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("returns nil when order is already optimal", func(t *testing.T) {
-		t.Parallel()
-
 		// Union already in optimal order (high selectivity first)
 		child1 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc1#viewer@user:alice")}}}
 		child2 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc2#viewer@user:bob")}}}
@@ -340,8 +314,6 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("returns nil for single child", func(t *testing.T) {
-		t.Parallel()
-
 		unionOutline := Outline{
 			Type: UnionIteratorType,
 			SubOutlines: []Outline{
@@ -355,8 +327,6 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("returns nil for non-union/intersection", func(t *testing.T) {
-		t.Parallel()
-
 		arrowOutline := Outline{
 			Type: ArrowIteratorType,
 			SubOutlines: []Outline{
@@ -371,8 +341,6 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("handles three children", func(t *testing.T) {
-		t.Parallel()
-
 		// Create three children with different selectivities
 		// Use nested intersections to get different selectivities
 		low := Outline{
@@ -420,15 +388,13 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("arrow rebalancing - left nested arrow cheaper to rotate", func(t *testing.T) {
-		t.Parallel()
-
 		// Create (A->B)->C where A has high cardinality and B,C have low cardinality
 		// Original cost: A.IterSubjects + (A.Card * B.CheckCost), then result.IterSubjects + (result.Card * C.CheckCost)
 		// Alternative A->(B->C) might be cheaper
 
 		// A has 10 paths (high cardinality)
 		aPaths := make([]Path, 10)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			aPaths[i] = MustPathFromString("document:doc" + string(rune('0'+i)) + "#viewer@user:alice")
 		}
 		a := Outline{
@@ -471,8 +437,6 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("arrow rebalancing - right nested arrow", func(t *testing.T) {
-		t.Parallel()
-
 		// Create A->(B->C) and check if it should be rotated
 		a := Outline{
 			Type: FixedIteratorType,
@@ -507,8 +471,6 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("arrow rebalancing - no nested arrows", func(t *testing.T) {
-		t.Parallel()
-
 		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc1#viewer@user:alice")}}}
 		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("folder:f1#viewer@user:bob")}}}
 

@@ -366,7 +366,6 @@ func dumpOutline(o Outline, indent string) string {
 
 // TestOutlineGeneratorBasic tests that the generator produces valid outlines
 func TestOutlineGeneratorBasic(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Test with various seeds
@@ -403,7 +402,6 @@ func TestOutlineGeneratorBasic(t *testing.T) {
 
 // TestOutlineGeneratorDeterministic ensures the generator is deterministic
 func TestOutlineGeneratorDeterministic(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8, 5}
@@ -421,7 +419,6 @@ func TestOutlineGeneratorDeterministic(t *testing.T) {
 
 // TestOutlineGeneratorCoverage checks that the generator covers different types
 func TestOutlineGeneratorCoverage(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	typesSeen := make(map[IteratorType]bool)
