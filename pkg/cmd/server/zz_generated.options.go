@@ -225,10 +225,10 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["ExperimentalLookupResourcesVersion"] = c.ExperimentalLookupResourcesVersion
 	}
-	if c.ExperimentalQueryPlan == "" {
-		debugMap["ExperimentalQueryPlan"] = "(empty)"
+	if c.ExperimentalQueryPlan == nil {
+		debugMap["ExperimentalQueryPlan"] = "nil"
 	} else {
-		debugMap["ExperimentalQueryPlan"] = c.ExperimentalQueryPlan
+		debugMap["ExperimentalQueryPlan"] = fmt.Sprintf("(slice of size %d)", len(c.ExperimentalQueryPlan))
 	}
 	debugMap["EnableRelationshipExpiration"] = c.EnableRelationshipExpiration
 	debugMap["EnableRevisionHeartbeat"] = c.EnableRevisionHeartbeat
@@ -708,8 +708,15 @@ func WithExperimentalLookupResourcesVersion(experimentalLookupResourcesVersion s
 	}
 }
 
-// WithExperimentalQueryPlan returns an option that can set ExperimentalQueryPlan on a Config
+// WithExperimentalQueryPlan returns an option that can append ExperimentalQueryPlans to Config.ExperimentalQueryPlan
 func WithExperimentalQueryPlan(experimentalQueryPlan string) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalQueryPlan = append(c.ExperimentalQueryPlan, experimentalQueryPlan)
+	}
+}
+
+// SetExperimentalQueryPlan returns an option that can set ExperimentalQueryPlan on a Config
+func SetExperimentalQueryPlan(experimentalQueryPlan []string) ConfigOption {
 	return func(c *Config) {
 		c.ExperimentalQueryPlan = experimentalQueryPlan
 	}

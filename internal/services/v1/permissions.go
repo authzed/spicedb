@@ -70,7 +70,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	telemetry.LogicalChecks.Inc()
 
-	if ps.config.ExperimentalQueryPlan {
+	if ps.config.ExperimentalQueryPlan.Check {
 		return ps.checkPermissionWithQueryPlan(ctx, req)
 	}
 
@@ -475,6 +475,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		}
 	}
 
+	if ps.config.ExperimentalQueryPlan.LookupResources {
+		return ps.lookupResourcesWithQueryPlan(req, resp)
+	}
+
 	if ps.config.EnableExperimentalLookupResources3 {
 		return ps.lookupResources3(req, resp)
 	}
@@ -791,6 +795,10 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	})
 
 	ctx := resp.Context()
+
+	if ps.config.ExperimentalQueryPlan.LookupSubjects {
+		return ps.lookupSubjectsWithQueryPlan(req, resp)
+	}
 
 	if req.OptionalConcreteLimit != 0 {
 		return ps.rewriteError(ctx, status.Errorf(codes.Unimplemented, "concrete limit is not yet supported"))
