@@ -14,6 +14,7 @@ type ServerCapabilities struct {
 	DocumentFormattingProvider bool                                   `json:"documentFormattingProvider,omitempty"`
 	DiagnosticProvider         *DiagnosticOptions                     `json:"diagnosticProvider,omitempty"`
 	HoverProvider              bool                                   `json:"hoverProvider,omitempty"`
+	DefinitionProvider         bool                                   `json:"definitionProvider,omitempty"`
 }
 
 type DiagnosticOptions struct {

@@ -117,6 +117,9 @@ message DeveloperError {
   Source source = 4;
   ErrorKind kind = 5;
 
+  // path contains the name of the file that contains the error (for example, root.zed).
+  // zed and VSCode use it to print the context of the error.
+  // TODO make it not repeated.
   repeated string path = 6;
 
   // context holds the context for the error. For schema issues, this will be the

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/jzelinskie/persistent"
@@ -12,6 +13,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/development"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	developerv1 "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -34,11 +36,6 @@ func (s *Server) textDocDiagnostic(ctx context.Context, r *jsonrpc2.Request) (Fu
 		return FullDocumentDiagnosticReport{}, err
 	}
 
-	log.Info().
-		Str("uri", string(params.TextDocument.URI)).
-		Int("diagnostics", len(diagnostics)).
-		Msg("diagnostics complete")
-
 	return FullDocumentDiagnosticReport{
 		Kind:  "full",
 		Items: diagnostics,
@@ -57,43 +54,34 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 			return &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: "file not found"}
 		}
 
+		// We assume that the current uri that we are diagnosing is the root of a composable schema.
 		overlayFS := newLSPOverlayFS(uriToSourceDir(uri), files)
 		devCtx, devErrs, err := development.NewDevContext(ctx, &developerv1.RequestContext{
 			Schema:        file.contents,
 			Relationships: nil,
-		}, development.WithSourceFS(overlayFS))
+		}, development.WithSourceFS(overlayFS), development.WithRootFileName(string(uri)))
 		if err != nil {
 			return err
 		}
-
 		// Get errors.
-		for _, devErr := range devErrs.GetInputErrors() {
-			diagnostics = append(diagnostics, lsp.Diagnostic{
-				Severity: lsp.Error,
-				Range: lsp.Range{
-					Start: lsp.Position{Line: int(devErr.Line) - 1, Character: int(devErr.Column) - 1},
-					End:   lsp.Position{Line: int(devErr.Line) - 1, Character: int(devErr.Column) - 1},
-				},
-				Message: devErr.Message,
-			})
+		// We filter out errors that are *not* specifically for URI.
+		errors := devErrs.GetInputErrors()
+		errorsForURI := slicez.Filter(errors, func(developerError *developerv1.DeveloperError) bool {
+			return slices.Contains(developerError.Path, string(uri))
+		})
+		for _, devErr := range errorsForURI {
+			diagnostics = append(diagnostics, newLspDiagnostic(devErr, lsp.Error))
 		}
 
 		// If there are no errors, we can also check for warnings.
-		if len(diagnostics) == 0 {
+		if len(errors) == 0 {
 			warnings, err := development.GetWarnings(ctx, devCtx)
 			if err != nil {
 				return err
 			}
 
 			for _, devWarning := range warnings {
-				diagnostics = append(diagnostics, lsp.Diagnostic{
-					Severity: lsp.Warning,
-					Range: lsp.Range{
-						Start: lsp.Position{Line: int(devWarning.Line) - 1, Character: int(devWarning.Column) - 1},
-						End:   lsp.Position{Line: int(devWarning.Line) - 1, Character: int(devWarning.Column) - 1},
-					},
-					Message: devWarning.Message,
-				})
+				diagnostics = append(diagnostics, newLspDiagnostic(devWarning, lsp.Warning))
 			}
 		}
 
@@ -102,8 +90,41 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 		return nil, err
 	}
 
-	log.Info().Int("diagnostics", len(diagnostics)).Str("uri", string(uri)).Msg("computed diagnostics")
 	return diagnostics, nil
+}
+
+type DeveloperErrorWithPosition interface {
+	// 1-indexed Line
+	GetLine() uint32
+	// 1-indexed Column
+	GetColumn() uint32
+	GetMessage() string
+}
+
+func newLspDiagnostic(devErr DeveloperErrorWithPosition, severity lsp.DiagnosticSeverity) lsp.Diagnostic {
+	// lines and columns are 1-indexed
+	return lsp.Diagnostic{
+		Severity: severity,
+		Range: lsp.Range{
+			Start: lsp.Position{Line: int(devErr.GetLine()) - 1, Character: int(devErr.GetColumn()) - 1},
+			End:   lsp.Position{Line: int(devErr.GetLine()) - 1, Character: int(devErr.GetColumn()) - 1},
+		},
+		Message: devErr.GetMessage(),
+	}
+}
+
+func newLspRange(resolved *development.SchemaReference) *lsp.Range {
+	// lines and columns are 0-indexed
+	return &lsp.Range{
+		Start: lsp.Position{
+			Line:      resolved.TargetPosition.LineNumber,
+			Character: resolved.TargetPosition.ColumnPosition + resolved.TargetNamePositionOffset,
+		},
+		End: lsp.Position{
+			Line:      resolved.TargetPosition.LineNumber,
+			Character: resolved.TargetPosition.ColumnPosition + resolved.TargetNamePositionOffset + len(resolved.Text),
+		},
+	}
 }
 
 func (s *Server) textDocDidSave(ctx context.Context, r *jsonrpc2.Request, conn *jsonrpc2.Conn) (any, error) {
@@ -172,14 +193,15 @@ func (s *Server) publishDiagnosticsIfNecessary(ctx context.Context, conn *jsonrp
 		return nil
 	}
 
-	log.Debug().
-		Str("uri", string(uri)).
-		Msg("publishing diagnostics")
-
 	diagnostics, err := s.computeDiagnostics(ctx, uri)
 	if err != nil {
 		return fmt.Errorf("failed to compute diagnostics: %w", err)
 	}
+
+	log.Info().
+		Str("uri", string(uri)).
+		Int("diagnostics", len(diagnostics)).
+		Msg("publishing diagnostics")
 
 	return conn.Notify(ctx, "textDocument/publishDiagnostics", lsp.PublishDiagnosticsParams{
 		URI:         uri,
@@ -245,16 +267,7 @@ func (s *Server) textDocHover(_ context.Context, r *jsonrpc2.Request) (*Hover, e
 
 		var lspRange *lsp.Range
 		if resolved.TargetPosition != nil {
-			lspRange = &lsp.Range{
-				Start: lsp.Position{
-					Line:      resolved.TargetPosition.LineNumber,
-					Character: resolved.TargetPosition.ColumnPosition + resolved.TargetNamePositionOffset,
-				},
-				End: lsp.Position{
-					Line:      resolved.TargetPosition.LineNumber,
-					Character: resolved.TargetPosition.ColumnPosition + resolved.TargetNamePositionOffset + len(resolved.Text),
-				},
-			}
+			lspRange = newLspRange(resolved)
 		}
 
 		if resolved.TargetSourceCode != "" {
@@ -282,6 +295,58 @@ func (s *Server) textDocHover(_ context.Context, r *jsonrpc2.Request) (*Hover, e
 	}
 
 	return hoverContents, nil
+}
+
+func (s *Server) textDocDefinition(_ context.Context, r *jsonrpc2.Request) (*lsp.Location, error) {
+	params, err := unmarshalParams[lsp.TextDocumentPositionParams](r)
+	if err != nil {
+		return nil, err
+	}
+
+	var location *lsp.Location
+	err = s.withFiles(func(files *persistent.Map[lsp.DocumentURI, trackedFile]) error {
+		compiled, err := s.getCompiledContents(params.TextDocument.URI, files)
+		if err != nil {
+			return err
+		}
+
+		resolver, err := development.NewSchemaPositionMapper(compiled)
+		if err != nil {
+			return err
+		}
+
+		position := input.Position{
+			LineNumber:     params.Position.Line,
+			ColumnPosition: params.Position.Character,
+		}
+
+		resolved, err := resolver.ReferenceAtPosition(input.Source("schema"), position)
+		if err != nil {
+			return err
+		}
+
+		if resolved == nil || resolved.TargetPosition == nil {
+			return nil
+		}
+
+		// Determine the target file URI from TargetSource.
+		targetURI := params.TextDocument.URI
+		if resolved.TargetSource != nil && *resolved.TargetSource != "schema" {
+			targetURI = resolveURI(params.TextDocument.URI, string(*resolved.TargetSource))
+		}
+
+		location = &lsp.Location{
+			URI:   targetURI,
+			Range: *newLspRange(resolved),
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return location, nil
 }
 
 func (s *Server) textDocFormat(_ context.Context, r *jsonrpc2.Request) ([]lsp.TextEdit, error) {
@@ -338,9 +403,6 @@ func (s *Server) initialize(_ context.Context, r *jsonrpc2.Request) (any, error)
 	}
 
 	s.requestsDiagnostics = ip.Capabilities.SupportsPullDiagnostics()
-	log.Debug().
-		Bool("requestsDiagnostics", s.requestsDiagnostics).
-		Msg("initialize")
 
 	if s.state != serverStateNotInitialized {
 		return nil, invalidRequest(errors.New("already initialized"))
@@ -355,6 +417,7 @@ func (s *Server) initialize(_ context.Context, r *jsonrpc2.Request) (any, error)
 			DocumentFormattingProvider: true,
 			DiagnosticProvider:         &DiagnosticOptions{Identifier: "spicedb", InterFileDependencies: false, WorkspaceDiagnostics: false},
 			HoverProvider:              true,
+			DefinitionProvider:         true,
 		},
 	}, nil
 }

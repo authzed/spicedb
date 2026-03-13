@@ -269,6 +269,9 @@ func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datalayer.Rea
 	return devErrors, err
 }
 
+// loadCompiled validates the compiled schema and then writes it.
+// If validation fails, it returns the full list of validation errors
+// with the correct position.
 func loadCompiled(
 	ctx context.Context,
 	compiled *compiler.CompiledSchema,
@@ -287,66 +290,18 @@ func loadCompiled(
 			continue
 		}
 
-		errWithSource, ok := spiceerrors.AsWithSourceError(cverr)
-		if ok {
-			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, err := safecast.Convert[uint32](errWithSource.LineNumber)
-			if err != nil {
-				log.Err(err).Msg("could not cast lineNumber to uint32")
-			}
-			columnPosition, err := safecast.Convert[uint32](errWithSource.ColumnPosition)
-			if err != nil {
-				log.Err(err).Msg("could not cast columnPosition to uint32")
-			}
-			errors = append(errors, &devinterface.DeveloperError{
-				Message: cverr.Error(),
-				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
-				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: errWithSource.SourceCodeString,
-				Line:    lineNumber,
-				Column:  columnPosition,
-			})
-		} else {
-			errors = append(errors, &devinterface.DeveloperError{
-				Message: cverr.Error(),
-				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
-				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: caveatDef.Name,
-			})
+		if e := getDevError(cverr, compiled, caveatDef); e != nil {
+			errors = append(errors, e)
 		}
 	}
 
 	for _, nsDef := range compiled.ObjectDefinitions {
 		def, terr := schema.NewDefinition(nsDef)
 		if terr != nil {
-			errWithSource, ok := spiceerrors.AsWithSourceError(terr)
-			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, err := safecast.Convert[uint32](errWithSource.LineNumber)
-			if err != nil {
-				log.Err(err).Msg("could not cast lineNumber to uint32")
-			}
-			columnPosition, err := safecast.Convert[uint32](errWithSource.ColumnPosition)
-			if err != nil {
-				log.Err(err).Msg("could not cast columnPosition to uint32")
-			}
-			if ok {
-				errors = append(errors, &devinterface.DeveloperError{
-					Message: terr.Error(),
-					Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
-					Source:  devinterface.DeveloperError_SCHEMA,
-					Context: errWithSource.SourceCodeString,
-					Line:    lineNumber,
-					Column:  columnPosition,
-				})
-				continue
+			if e := getDevError(terr, compiled, nsDef); e != nil {
+				errors = append(errors, e)
 			}
 
-			errors = append(errors, &devinterface.DeveloperError{
-				Message: terr.Error(),
-				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
-				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: nsDef.Name,
-			})
 			continue
 		}
 
@@ -356,32 +311,8 @@ func loadCompiled(
 			continue
 		}
 
-		errWithSource, ok := spiceerrors.AsWithSourceError(tverr)
-		if ok {
-			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, err := safecast.Convert[uint32](errWithSource.LineNumber)
-			if err != nil {
-				log.Err(err).Msg("could not cast lineNumber to uint32")
-			}
-			columnPosition, err := safecast.Convert[uint32](errWithSource.ColumnPosition)
-			if err != nil {
-				log.Err(err).Msg("could not cast columnPosition to uint32")
-			}
-			errors = append(errors, &devinterface.DeveloperError{
-				Message: tverr.Error(),
-				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
-				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: errWithSource.SourceCodeString,
-				Line:    lineNumber,
-				Column:  columnPosition,
-			})
-		} else {
-			errors = append(errors, &devinterface.DeveloperError{
-				Message: tverr.Error(),
-				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
-				Source:  devinterface.DeveloperError_SCHEMA,
-				Context: nsDef.Name,
-			})
+		if e := getDevError(tverr, compiled, nsDef); e != nil {
+			errors = append(errors, e)
 		}
 	}
 
@@ -392,6 +323,42 @@ func loadCompiled(
 	}
 
 	return errors, nil
+}
+
+func getDevError(cverr error, compiled *compiler.CompiledSchema, definitionOrCaveat compiler.SchemaDefinition) *devinterface.DeveloperError {
+	if cverr == nil || compiled == nil || definitionOrCaveat == nil {
+		return nil
+	}
+	path := compiled.GetPathToDefinitionOrPartialOrCaveat(definitionOrCaveat.GetName())
+	errWithSource, ok := spiceerrors.AsWithSourceError(cverr)
+	if ok {
+		// NOTE: zeroes are fine here to mean "unknown"
+		// NOTE: positions given by errWithSource are 1-indexed
+		lineNumber, err := safecast.Convert[uint32](errWithSource.LineNumber)
+		if err != nil {
+			log.Err(err).Msg("could not cast lineNumber to uint32")
+		}
+		columnPosition, err := safecast.Convert[uint32](errWithSource.ColumnPosition)
+		if err != nil {
+			log.Err(err).Msg("could not cast columnPosition to uint32")
+		}
+		return &devinterface.DeveloperError{
+			Message: cverr.Error(),
+			Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+			Source:  devinterface.DeveloperError_SCHEMA,
+			Context: errWithSource.SourceCodeString,
+			Line:    lineNumber,
+			Column:  columnPosition,
+			Path:    []string{path},
+		}
+	}
+	return &devinterface.DeveloperError{
+		Message: cverr.Error(),
+		Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+		Source:  devinterface.DeveloperError_SCHEMA,
+		Context: definitionOrCaveat.GetName(),
+		Path:    []string{path},
+	}
 }
 
 // DistinguishGraphError turns an error from a dispatch call into either a user-facing

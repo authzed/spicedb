@@ -669,7 +669,10 @@ type DeveloperError struct {
 	// source is the source location of the error.
 	Source DeveloperError_Source    `protobuf:"varint,4,opt,name=source,proto3,enum=developer.v1.DeveloperError_Source" json:"source,omitempty"`
 	Kind   DeveloperError_ErrorKind `protobuf:"varint,5,opt,name=kind,proto3,enum=developer.v1.DeveloperError_ErrorKind" json:"kind,omitempty"`
-	Path   []string                 `protobuf:"bytes,6,rep,name=path,proto3" json:"path,omitempty"`
+	// path contains the name of the file that contains the error (for example, root.zed).
+	// zed and VSCode use it to print the context of the error.
+	// TODO make it not repeated.
+	Path []string `protobuf:"bytes,6,rep,name=path,proto3" json:"path,omitempty"`
 	// context holds the context for the error. For schema issues, this will be the
 	// name of the object type. For relationship issues, the full relationship string.
 	Context string `protobuf:"bytes,7,opt,name=context,proto3" json:"context,omitempty"`
