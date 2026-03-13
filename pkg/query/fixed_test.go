@@ -22,16 +22,16 @@ func TestFixedIterator(t *testing.T) {
 		ctx := NewTestContext(t)
 		fixed, _, _, _ := newTestPaths()
 
-		seq, err := ctx.Check(fixed, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		// doc1 matches alice; doc2 does not
+		path, err := ctx.Check(fixed, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
+		require.NotNil(path)
+		require.Equal("doc1", path.Resource.ObjectID)
+		require.Equal("alice", path.Subject.ObjectID)
 
-		results, err := CollectAll(seq)
+		path2, err := ctx.Check(fixed, NewObject("document", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		// Should find rel1 (doc1 with alice as viewer)
-		require.Len(results, 1)
-		require.Equal("doc1", results[0].Resource.ObjectID)
-		require.Equal("alice", results[0].Subject.ObjectID)
+		require.Nil(path2, "doc2 should not match alice")
 	})
 
 	t.Run("Check_NoMatches", func(t *testing.T) {
@@ -40,12 +40,9 @@ func TestFixedIterator(t *testing.T) {
 		ctx := NewTestContext(t)
 		fixed, _, _, _ := newTestPaths()
 
-		seq, err := ctx.Check(fixed, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
+		path, err := ctx.Check(fixed, NewObject("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
-
-		results, err := CollectAll(seq)
-		require.NoError(err)
-		require.Empty(results)
+		require.Nil(path)
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
@@ -95,17 +92,13 @@ func TestFixedIterator(t *testing.T) {
 		require.NotSame(fixed, cloned)
 
 		// Both should produce the same results
-		originalSeq, err := ctx.Check(fixed, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-		originalResults, err := CollectAll(originalSeq)
+		originalPath, err := ctx.Check(fixed, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		clonedSeq, err := ctx.Check(cloned, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-		clonedResults, err := CollectAll(clonedSeq)
+		clonedPath, err := ctx.Check(cloned, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		require.Equal(originalResults, clonedResults)
+		require.Equal(originalPath, clonedPath)
 	})
 
 	t.Run("Explain", func(t *testing.T) {

@@ -13,34 +13,32 @@ func TestSelfIterator(t *testing.T) {
 		ctx := NewTestContext(t)
 		selfIt := NewSelfIterator("view", "user")
 
-		// Create a resource seq with both Alice and Bob
-		pathSeq, err := ctx.Check(selfIt, NewObjects("user", "alice", "bob"), NewObject("user", "alice").WithEllipses())
+		// Check alice (should match since subject == resource)
+		path, err := ctx.Check(selfIt, NewObject("user", "alice"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1)
-		rel := rels[0]
+		require.NotNil(path)
+		rel := path
 		require.Equal("view", rel.Relation, "all relations should be rewritten to 'read'")
 		require.Equal("user", rel.Resource.ObjectType)
 		require.Equal("alice", rel.Resource.ObjectID)
 		require.Equal("user", rel.Subject.ObjectType)
 		require.Equal("alice", rel.Subject.ObjectID)
 		require.Equal("...", rel.Subject.Relation)
+
+		// Bob does not match alice
+		pathBob, err := ctx.Check(selfIt, NewObject("user", "bob"), NewObject("user", "alice").WithEllipses())
+		require.NoError(err)
+		require.Nil(pathBob)
 	})
 
 	t.Run("Check_EmptyResults", func(t *testing.T) {
 		ctx := NewTestContext(t)
 		selfIt := NewSelfIterator("view", "user")
 
-		// Only bob in the list now
-		pathSeq, err := ctx.Check(selfIt, NewObjects("user", "bob"), NewObject("user", "alice").WithEllipses())
+		// Bob does not match alice
+		path, err := ctx.Check(selfIt, NewObject("user", "bob"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.Empty(rels)
+		require.Nil(path)
 	})
 
 	t.Run("IterResources", func(t *testing.T) {

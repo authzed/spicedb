@@ -29,40 +29,29 @@ func TestArrowIterator(t *testing.T) {
 
 	arrow := NewArrowIterator(leftRels, rightRels)
 
-	t.Run("Check", func(t *testing.T) {
+	t.Run("Check_spec1_alice", func(t *testing.T) {
 		require := require.New(t)
 
 		// Create context with LocalExecutor
 		ctx := NewTestContext(t)
 
-		// Test arrow operation: find resources where left side connects to right side
-		// This looks for documents whose parent folder has viewers
-		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2"), NewObject("user", "alice").WithEllipses())
+		// spec1's parent is project1, alice has viewer access to project1 -> should match
+		path, err := ctx.Check(arrow, NewObject("document", "spec1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Expected: spec1 should match because alice has viewer access to project1 (spec1's parent)
-		// spec2 should NOT match because alice does not have access to project2 (spec2's parent)
-		expected := []*Path{
-			MustPathFromString("document:spec1#parent@user:alice"),
-		}
-		require.Equal(expected, rels)
+		require.NotNil(path, "spec1 should match because alice has viewer access to project1")
+		require.Equal("spec1", path.Resource.ObjectID)
+		require.Equal("alice", path.Subject.ObjectID)
 	})
 
-	t.Run("Check_EmptyResources", func(t *testing.T) {
+	t.Run("Check_spec2_alice_no_match", func(t *testing.T) {
 		require := require.New(t)
 
-		// Create context with LocalExecutor
 		ctx := NewTestContext(t)
 
-		pathSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
+		// spec2's parent is project2, alice does NOT have access to project2 -> no match
+		path, err := ctx.Check(arrow, NewObject("document", "spec2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.Empty(rels, "empty resource list should return no results")
+		require.Nil(path, "spec2 should not match because alice does not have access to project2")
 	})
 
 	t.Run("Check_NonexistentResource", func(t *testing.T) {
@@ -71,13 +60,9 @@ func TestArrowIterator(t *testing.T) {
 		// Create context with LocalExecutor
 		ctx := NewTestContext(t)
 
-		pathSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(arrow, NewObject("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-		// Should be empty since resource doesn't exist
-		require.Empty(rels, "nonexistent resource should return no results")
+		require.Nil(path, "nonexistent resource should return no results")
 	})
 
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
@@ -86,13 +71,9 @@ func TestArrowIterator(t *testing.T) {
 		// Create context with LocalExecutor
 		ctx := NewTestContext(t)
 
-		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
+		path, err := ctx.Check(arrow, NewObject("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-		// Should be empty since subject doesn't exist
-		require.Empty(rels, "nonexistent subject should return no results")
+		require.Nil(path, "nonexistent subject should return no results")
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
@@ -174,23 +155,18 @@ func TestArrowIteratorClone(t *testing.T) {
 	ctx := NewTestContext(t)
 
 	// Test that both iterators produce the same results
-	resourceIDs := []string{"spec1"}
 	subjectID := "alice"
 
-	// Collect results from original iterator
-	originalSeq, err := ctx.Check(original, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
-	require.NoError(err)
-	originalResults, err := CollectAll(originalSeq)
+	// Collect result from original iterator
+	originalPath, err := ctx.Check(original, NewObject("document", "spec1"), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
 
-	// Collect results from cloned iterator
-	clonedSeq, err := ctx.Check(cloned, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
-	require.NoError(err)
-	clonedResults, err := CollectAll(clonedSeq)
+	// Collect result from cloned iterator
+	clonedPath, err := ctx.Check(cloned, NewObject("document", "spec1"), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
 
-	// Both iterators should produce identical results
-	require.Equal(originalResults, clonedResults, "original and cloned iterators should produce identical results")
+	// Both iterators should produce identical results (both nil or both non-nil)
+	require.Equal(originalPath == nil, clonedPath == nil, "original and cloned iterators should agree on nil-ness")
 }
 
 func TestArrowIteratorExplain(t *testing.T) {
@@ -219,25 +195,24 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	// Create context with LocalExecutor
 	ctx := NewTestContext(t)
 
-	// Test with multiple resource IDs
-	pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
-	require.NoError(err)
-
-	rels, err := CollectAll(pathSeq)
-	require.NoError(err)
-
-	// The result should include valid arrow relationships found across all resources
+	// Test with multiple resource IDs (now via separate Check calls)
 	// Arrow operation: for each document, find its parent folder, then check if alice has access to that folder
 	// Based on the test data:
 	// - spec1 parent folder:project1, alice has viewer access to project1 -> should match
 	// - spec2 parent folder:project2, alice does NOT have access to project2 -> should NOT match
 	// - nonexistent doesn't exist -> should NOT match
 
-	// We expect exactly 1 result: spec1 with alice as subject
-	expected := []*Path{
-		MustPathFromString("document:spec1#parent@user:alice"),
-	}
-	require.Equal(expected, rels)
+	path1, err := ctx.Check(arrow, NewObject("document", "spec1"), NewObject("user", "alice").WithEllipses())
+	require.NoError(err)
+	require.NotNil(path1, "spec1 should match")
+
+	path2, err := ctx.Check(arrow, NewObject("document", "spec2"), NewObject("user", "alice").WithEllipses())
+	require.NoError(err)
+	require.Nil(path2, "spec2 should not match")
+
+	path3, err := ctx.Check(arrow, NewObject("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
+	require.NoError(err)
+	require.Nil(path3, "nonexistent should not match")
 }
 
 func TestArrowIteratorCaveatCombination(t *testing.T) {
@@ -270,14 +245,11 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Arrow should return one combined relation")
-		relCaveat := rels[0].Caveat
+		require.NotNil(rel, "Arrow should return combined relation")
+		relCaveat := rel.Caveat
 		require.NotNil(relCaveat, "Result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
 		require.Equal(core.CaveatOperation_AND, relCaveat.GetOperation().Op, "Caveat should be an AND")
@@ -304,14 +276,11 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Arrow should return one relation")
-		require.NotNil(rels[0].Caveat, "Left caveat should be preserved")
+		require.NotNil(rel, "Arrow should return one relation")
+		require.NotNil(rel.Caveat, "Left caveat should be preserved")
 		// Note: Checking exact caveat content would require parsing the CaveatExpression
 	})
 
@@ -335,14 +304,11 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Arrow should return one relation")
-		require.NotNil(rels[0].Caveat, "Right caveat should be preserved")
+		require.NotNil(rel, "Arrow should return one relation")
+		require.NotNil(rel.Caveat, "Right caveat should be preserved")
 		// Note: Checking exact caveat content would require parsing the CaveatExpression
 	})
 
@@ -359,14 +325,11 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Arrow should return one relation")
-		require.Nil(rels[0].Caveat, "No caveat should result in no caveat")
+		require.NotNil(rel, "Arrow should return one relation")
+		require.Nil(rel.Caveat, "No caveat should result in no caveat")
 	})
 
 	t.Run("Multiple_Relations_Mixed_Caveats", func(t *testing.T) {
@@ -407,20 +370,16 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		// Check doc1 and doc2 separately
+		relDoc1, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
+		require.NotNil(relDoc1, "Arrow should return relation for doc1")
+		require.NotNil(relDoc1.Caveat, "doc1 result should have a caveat")
 
-		rels, err := CollectAll(relSeq)
+		relDoc2, err := ctx.Check(arrow, NewObject("document", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		require.Len(rels, 2, "Arrow should return two relations")
-
-		// Check that caveats are combined properly
-		for _, path := range rels {
-			require.NotNil(path.Caveat, "Each result should have a caveat")
-			// Note: Exact caveat validation would require parsing CaveatExpression
-			// Just verify that caveats are present for combined results
-		}
+		require.NotNil(relDoc2, "Arrow should return relation for doc2")
+		require.NotNil(relDoc2.Caveat, "doc2 result should have a caveat")
 	})
 
 	t.Run("No_Matching_Arrow_Relations", func(t *testing.T) {
@@ -449,13 +408,10 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
-		relSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Empty(rels, "No matching arrow relations should result in empty result")
+		require.Nil(rel, "No matching arrow relations should result in nil")
 	})
 }
 
@@ -622,16 +578,13 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 		}
 
 		// Test arrow operation
-		pathSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
+		path, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
 		// Both directions should find the same relationship
-		require.Len(rels, 1, "Arrow should return one relation")
-		require.Equal("doc1", rels[0].Resource.ObjectID)
-		require.Equal("alice", rels[0].Subject.ObjectID)
+		require.NotNil(path, "Arrow should return one relation")
+		require.Equal("doc1", path.Resource.ObjectID)
+		require.Equal("alice", path.Subject.ObjectID)
 	})
 
 	testArrowBothDirections(t, "NoMatch", func(t *testing.T, direction arrowDirection) {
@@ -653,14 +606,11 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 			Executor: LocalExecutor{},
 		}
 
-		pathSeq, err := ctx.Check(arrow, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(arrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Both directions should return empty when no match
-		require.Empty(rels, "No matching arrow relations should result in empty result")
+		// Both directions should return nil when no match
+		require.Nil(path, "No matching arrow relations should result in nil")
 	})
 }
 

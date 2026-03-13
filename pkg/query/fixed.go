@@ -74,30 +74,25 @@ func NewFixedIterator(paths ...Path) *FixedIterator {
 	}
 }
 
-func (f *FixedIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
-		count := 0
-		if ctx.shouldTrace() {
-			ctx.TraceStep(f, "checking %d paths against %d resources", len(f.paths), len(resources))
-		}
+func (f *FixedIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(f, "checking %d paths against resource %s:%s", len(f.paths), resource.ObjectType, resource.ObjectID)
+	}
 
-		for i := range f.paths {
-			for _, resource := range resources {
-				if f.paths[i].Resource.Equals(resource) &&
-					GetObject(f.paths[i].Subject).Equals(GetObject(subject)) {
-					count++
-					if !yield(&f.paths[i], nil) {
-						return
-					}
-					break
-				}
+	for i := range f.paths {
+		if f.paths[i].Resource.Equals(resource) &&
+			GetObject(f.paths[i].Subject).Equals(GetObject(subject)) {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(f, "found matching path")
 			}
+			return &f.paths[i], nil
 		}
+	}
 
-		if ctx.shouldTrace() {
-			ctx.TraceStep(f, "found %d matching paths", count)
-		}
-	}, nil
+	if ctx.shouldTrace() {
+		ctx.TraceStep(f, "no matching path found")
+	}
+	return nil, nil
 }
 
 func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {

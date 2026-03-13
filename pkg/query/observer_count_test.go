@@ -148,15 +148,11 @@ func TestCountObserverIntegration(t *testing.T) {
 		WithObserver(countObs))
 
 	// Execute a Check operation
-	resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
+	resource := Object{ObjectType: "document", ObjectID: "doc1"}
 	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
-	pathSeq, err := ctx.Check(fixed, resources, subject)
+	path, err := ctx.Check(fixed, resource, subject)
 	require.NoError(t, err)
-
-	// Consume the results
-	paths, err := CollectAll(pathSeq)
-	require.NoError(t, err)
-	require.Len(t, paths, 1)
+	require.NotNil(t, path)
 
 	// Verify stats were recorded
 	countStats := countObs.GetStats()

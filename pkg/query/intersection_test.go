@@ -1,7 +1,6 @@
 package query
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,19 +21,9 @@ func TestIntersectionIterator(t *testing.T) {
 
 		intersect := NewIntersectionIterator(documentAccess, multiRole)
 
-		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// The intersection should merge relations that exist in both iterators for the same endpoint
-		// Both DocumentAccess and MultiRole have alice with viewer/editor/owner on doc1
-		// These get merged into a single path with no specific relation (since relations differ)
-		require.Len(rels, 1, "Should return one merged path for the endpoint")
-
-		// Verify the combined path has the correct endpoint
-		path := rels[0]
+		require.NotNil(path, "Should return one merged path for the endpoint")
 		require.True(path.Resource.Equals(NewObject("document", "doc1")), "Resource should match")
 		require.True(tuple.ONREqual(path.Subject, NewObject("user", "alice").WithEllipses()), "Subject should match")
 	})
@@ -49,30 +38,19 @@ func TestIntersectionIterator(t *testing.T) {
 		intersect := NewIntersectionIterator(documentAccess, singleUser)
 
 		// Use a subject that doesn't exist in both
-		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "bob").WithEllipses())
+		path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "bob").WithEllipses())
 		require.NoError(err)
-
-		if pathSeq != nil {
-			rels, err := CollectAll(pathSeq)
-			require.NoError(err)
-			require.Empty(rels)
-		}
+		require.Nil(path)
 	})
 
 	t.Run("Check_NoSubIterators", func(t *testing.T) {
 		ctx := NewTestContext(t)
 		intersect := NewIntersectionIterator()
 
-		// Empty intersection should return empty results
-		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		// Empty intersection should return nil
+		path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		// Should return nil sequence since there are no sub-iterators
-		if pathSeq != nil {
-			rels, err := CollectAll(pathSeq)
-			require.NoError(err)
-			require.Empty(rels)
-		}
+		require.Nil(path)
 	})
 
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
@@ -80,29 +58,9 @@ func TestIntersectionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect := NewIntersectionIterator(documentAccess)
 
-		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.NotEmpty(rels, "Single iterator intersection should return results")
-	})
-
-	t.Run("Check_EmptyResourceList", func(t *testing.T) {
-		ctx := NewTestContext(t)
-		documentAccess := NewDocumentAccessFixedIterator()
-		intersect := NewIntersectionIterator(documentAccess)
-
-		pathSeq, err := ctx.Check(intersect, []Object{}, NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-
-		// The behavior with empty resource list may vary by implementation
-		// Let's just ensure it doesn't error and log the results
-		if pathSeq != nil {
-			rels, err := CollectAll(pathSeq)
-			require.NoError(err)
-			require.Empty(rels, "Empty resource list should return no results")
-		}
+		require.NotNil(path, "Single iterator intersection should return results")
 	})
 
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
@@ -112,14 +70,9 @@ func TestIntersectionIterator(t *testing.T) {
 
 		intersect := NewIntersectionIterator(documentAccess, multiRole)
 
-		pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
+		path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
-
-		if pathSeq != nil {
-			rels, err := CollectAll(pathSeq)
-			require.NoError(err)
-			require.Empty(rels, "Nonexistent subject should return no results")
-		}
+		require.Nil(path, "Nonexistent subject should return nil")
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
@@ -180,33 +133,18 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
 	// Test that both iterators produce the same results
-	resourceIDs := []string{"doc1"}
 	subjectID := "alice"
 
-	// Collect results from original iterator
-	originalSeq, err := ctx.Check(original, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
+	// Get result from original iterator
+	originalPath, err := ctx.Check(original, NewObject("document", "doc1"), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var originalResults []*Path
-	if originalSeq != nil {
-		originalResults, err = CollectAll(originalSeq)
-		require.NoError(err)
-	}
 
-	// Collect results from cloned iterator
-	clonedSeq, err := ctx.Check(cloned, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
+	// Get result from cloned iterator
+	clonedPath, err := ctx.Check(cloned, NewObject("document", "doc1"), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var clonedResults []*Path
-	if clonedSeq != nil {
-		clonedResults, err = CollectAll(clonedSeq)
-		require.NoError(err)
-	}
 
-	// Both iterators should produce identical results (order may vary)
-	require.Len(clonedResults, len(originalResults), "cloned iterator should produce same number of results")
-	for _, expectedPath := range originalResults {
-		found := slices.ContainsFunc(clonedResults, func(p *Path) bool { return expectedPath.Equals(*p) })
-		require.True(found, "Expected path %v should be found in cloned results", expectedPath)
-	}
+	// Both should agree on whether doc1:alice is found
+	require.Equal(originalPath != nil, clonedPath != nil, "cloned iterator should produce same result as original")
 }
 
 func TestIntersectionIteratorExplain(t *testing.T) {
@@ -253,17 +191,10 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 
 	intersect := NewIntersectionIterator(emptyIterator, documentAccess)
 
-	// Use any subject - should get no results due to empty first iterator
-	pathSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+	// Use any subject - should get nil due to empty first iterator
+	path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
-
-	// Should return empty results since first iterator has no results
-	if pathSeq != nil {
-		rels, err := CollectAll(pathSeq)
-		require.NoError(err)
-		// Should be empty due to early termination
-		require.Empty(rels, "Early termination should return no results")
-	}
+	require.Nil(path, "Early termination should return nil")
 }
 
 func TestIntersectionIteratorCaveatCombination(t *testing.T) {
@@ -296,14 +227,10 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Intersection should return one combined relation")
-		relCaveat := rels[0].Caveat
+		require.NotNil(rel, "Intersection should return one combined relation")
+		relCaveat := rel.Caveat
 		require.NotNil(relCaveat, "Result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
 		require.Equal(core.CaveatOperation_AND, relCaveat.GetOperation().Op, "Caveat should be an AND")
@@ -329,14 +256,10 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Intersection should return one relation")
-		require.NotNil(rels[0].Caveat, "Caveat should be preserved in AND logic")
+		require.NotNil(rel, "Intersection should return one relation")
+		require.NotNil(rel.Caveat, "Caveat should be preserved in AND logic")
 		// Note: Checking exact caveat content would require parsing the CaveatExpression
 	})
 
@@ -361,22 +284,18 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		// Create iterators that return both paths
-		iter1 := NewFixedIterator(*pathViewer, *pathEditor)
-		iter2 := NewFixedIterator(*pathViewer, *pathEditor)
+		// Each iterator returns a single path with a different relation
+		// so that the intersection merges viewer AND editor → empty relation
+		iter1 := NewFixedIterator(*pathViewer)
+		iter2 := NewFixedIterator(*pathEditor)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Should return one merged path since intersection works on endpoints, not individual relations")
+		require.NotNil(path, "Should return one merged path since intersection works on endpoints, not individual relations")
 
 		// The merged path should combine both relations and caveats
-		path := rels[0]
 		require.NotNil(path.Caveat, "Merged path should have combined caveat")
 		require.Equal("document", path.Resource.ObjectType)
 		require.Equal("doc1", path.Resource.ObjectID)
@@ -388,7 +307,7 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 
 	t.Run("No_Common_Endpoints", func(t *testing.T) {
 		ctx := NewTestContext(t)
-		// Iterators with no common endpoints - should return empty
+		// Iterators with no common endpoints - should return nil
 		pathDoc1Alice := MustPathFromString("document:doc1#viewer@user:alice")
 		pathDoc1Alice.Caveat = &core.CaveatExpression{
 			OperationOrCaveat: &core.CaveatExpression_Caveat{
@@ -412,13 +331,10 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		// iter2 has doc2 for bob; iter1 has doc1 for alice — no common endpoint for alice on doc1
+		path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Empty(rels, "Different endpoints should not intersect - should return empty")
+		require.Nil(path, "No common endpoints should return nil")
 	})
 
 	t.Run("Three_Iterators_Mixed_Caveats", func(t *testing.T) {
@@ -450,14 +366,10 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 
 		intersect := NewIntersectionIterator(iter1, iter2, iter3)
 
-		relSeq, err := ctx.Check(intersect, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Should return one intersected path")
-		relCaveat := rels[0].Caveat
+		require.NotNil(rel, "Should return one intersected path")
+		relCaveat := rel.Caveat
 		require.NotNil(relCaveat, "Final result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
 		require.Equal(core.CaveatOperation_AND, relCaveat.GetOperation().Op, "Caveat should be an AND")

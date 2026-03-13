@@ -26,133 +26,103 @@ func NewIntersectionArrowIterator(left, right Iterator) *IntersectionArrowIterat
 	}
 }
 
-func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
-		for _, resource := range resources {
+func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
+	}
+
+	subit, err := ctx.IterSubjects(ia.left, resource, NoObjectFilter())
+	if err != nil {
+		return nil, err
+	}
+
+	// For intersection arrow:
+	// 1. Enumerate all left subjects that actually exist for this resource
+	// 2. For each, check if it satisfies the right side
+	// 3. Only return a path if ALL existing left subjects satisfy the right condition
+	// 4. Combine all (leftCaveat AND rightCaveat) pairs with AND logic
+
+	validResults := make([]*Path, 0)
+	for path, err := range subit {
+		if err != nil {
+			return nil, err
+		}
+
+		// Check if this left subject connects within the right side iterator
+		checkPath, err := ctx.Check(ia.right, GetObject(path.Subject), subject)
+		if err != nil {
+			return nil, err
+		}
+
+		if checkPath == nil {
 			if ctx.shouldTrace() {
-				ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
+				ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
+					path.Subject.ObjectType, path.Subject.ObjectID)
 			}
+			// One left subject failed — intersection fails entirely
+			return nil, nil
+		}
 
-			subit, err := ctx.IterSubjects(ia.left, resource, NoObjectFilter())
-			if err != nil {
-				yield(nil, err)
-				return
-			}
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
+				path.Subject.ObjectType, path.Subject.ObjectID)
+		}
 
-			// For intersection arrow, we need to track:
-			// 1. All left subjects that actually exist
-			// 2. Which ones satisfy the right condition
-			// 3. Only yield results if ALL existing left subjects satisfy the right condition
-			// 4. Combine all (leftCaveat AND rightCaveat) pairs with AND logic
+		// Combine this path's left caveat with the right caveat
+		combinedCaveat := caveats.And(path.Caveat, checkPath.Caveat)
 
-			var validResults []*Path
-			unsatisfied := false
+		combinedPath := &Path{
+			Resource:   path.Resource,
+			Relation:   path.Relation,
+			Subject:    checkPath.Subject,
+			Caveat:     combinedCaveat,
+			Expiration: combineExpiration(path.Expiration, checkPath.Expiration),
+			Integrity:  combineIntegrity(path.Integrity, checkPath.Integrity),
+			Metadata:   checkPath.Metadata,
+		}
+		validResults = append(validResults, combinedPath)
+	}
 
-			for path, err := range subit {
-				if err != nil {
-					yield(nil, err)
-					return
-				}
+	if len(validResults) == 0 {
+		// No left subjects existed at all — nothing to intersect
+		return nil, nil
+	}
 
-				// Check if this left subject connects within the right side iterator
-				checkResources := []Object{GetObject(path.Subject)}
-				checkit, err := ctx.Check(ia.right, checkResources, subject)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "intersection SUCCESS - combining %d results", len(validResults))
+	}
 
-				// There is only one possible result from this check.
-				paths, err := CollectAll(checkit)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-				if len(paths) == 0 {
-					if ctx.shouldTrace() {
-						ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
-							path.Subject.ObjectType, path.Subject.ObjectID)
-					}
-					unsatisfied = true
-					break
-				}
-				checkPath := paths[0]
-				if ctx.shouldTrace() {
-					ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
-						path.Subject.ObjectType, path.Subject.ObjectID)
-				}
-
-				// Combine this path's left caveat with the right caveat
-				combinedCaveat := caveats.And(path.Caveat, checkPath.Caveat)
-
-				combinedPath := &Path{
-					Resource:   path.Resource,
-					Relation:   path.Relation,
-					Subject:    checkPath.Subject,
-					Caveat:     combinedCaveat,
-					Expiration: combineExpiration(path.Expiration, checkPath.Expiration),
-					Integrity:  combineIntegrity(path.Integrity, checkPath.Integrity),
-					Metadata:   checkPath.Metadata,
-				}
-				validResults = append(validResults, combinedPath)
-				// Only need one match per left subject for intersection logic
-			}
-
-			if unsatisfied {
-				if ctx.shouldTrace() {
-					ctx.TraceStep(ia, "intersection FAILED - not all subjects satisfied")
-				}
-				continue
-			}
-
-			if ctx.shouldTrace() {
-				ctx.TraceStep(ia, "intersection SUCCESS - combining %d results", len(validResults))
-			}
-
-			// For intersection semantics, we need to create a single path that represents
-			// the AND of all individual conditions: each (leftCaveat AND rightCaveat) must be AND'd together
-			var intersectionCaveat *core.CaveatExpression
-
-			for i, result := range validResults {
-				// For intersection (ALL), we AND each result's combined caveat
-				if i == 0 {
-					intersectionCaveat = result.Caveat
-				} else if result.Caveat != nil {
-					if intersectionCaveat != nil {
-						intersectionCaveat = caveats.And(intersectionCaveat, result.Caveat)
-					} else {
-						intersectionCaveat = result.Caveat
-					}
-				}
-			}
-
-			// Return a single path representing the intersection, if one exists.
-			if len(validResults) > 0 {
-				firstResult := validResults[0]
-
-				// Combine expiration and integrity from all results
-				combinedExpiration := firstResult.Expiration
-				combinedIntegrity := firstResult.Integrity
-				for i := 1; i < len(validResults); i++ {
-					combinedExpiration = combineExpiration(combinedExpiration, validResults[i].Expiration)
-					combinedIntegrity = combineIntegrity(combinedIntegrity, validResults[i].Integrity)
-				}
-
-				finalResult := &Path{
-					Resource:   resource,
-					Relation:   "",
-					Subject:    subject,
-					Caveat:     intersectionCaveat,
-					Expiration: combinedExpiration,
-					Integrity:  combinedIntegrity,
-					Metadata:   firstResult.Metadata,
-				}
-
-				if !yield(finalResult, nil) {
-					return
-				}
+	// AND together all per-subject combined caveats
+	var intersectionCaveat *core.CaveatExpression
+	for i, result := range validResults {
+		if i == 0 {
+			intersectionCaveat = result.Caveat
+		} else if result.Caveat != nil {
+			if intersectionCaveat != nil {
+				intersectionCaveat = caveats.And(intersectionCaveat, result.Caveat)
+			} else {
+				intersectionCaveat = result.Caveat
 			}
 		}
+	}
+
+	// Combine expiration and integrity from all results
+	firstResult := validResults[0]
+	combinedExpiration := firstResult.Expiration
+	combinedIntegrity := firstResult.Integrity
+	for i := 1; i < len(validResults); i++ {
+		combinedExpiration = combineExpiration(combinedExpiration, validResults[i].Expiration)
+		combinedIntegrity = combineIntegrity(combinedIntegrity, validResults[i].Integrity)
+	}
+
+	return &Path{
+		Resource:   resource,
+		Relation:   "",
+		Subject:    subject,
+		Caveat:     intersectionCaveat,
+		Expiration: combinedExpiration,
+		Integrity:  combinedIntegrity,
+		Metadata:   firstResult.Metadata,
 	}, nil
 }
 
@@ -307,31 +277,22 @@ func (ia *IntersectionArrowIterator) IterResourcesImpl(ctx *Context, subject Obj
 			ctx.TraceStep(ia, "right subject %s:%s returned %d left resources", rightPath.Resource.ObjectType, rightPath.Resource.ObjectID, len(leftPaths))
 		}
 
-		// Make a list of the leftPaths that we haven't seen
-		// before that we need to check
-		leftResources := make([]Object, 0, len(leftPaths))
-		for _, path := range leftPaths {
-			resource := path.Resource
-			key := resource.Key()
-			if notSeen := seenResources.Add(key); notSeen {
-				leftResources = append(leftResources, path.Resource)
+		// Check each unseen left resource individually against the original subject to ensure
+		// that all of their subjects satisfy the intersection arrow constraint.
+		for _, leftPath := range leftPaths {
+			leftResource := leftPath.Resource
+			key := leftResource.Key()
+			if notSeen := seenResources.Add(key); !notSeen {
+				continue
 			}
-		}
 
-		// Now that we have all of the potential left resources, we need to check
-		// them individually against the original subject to ensure that all of their
-		// subjects satisfy the intersection arrow constraint.
-		checkSeq, err := ia.CheckImpl(ctx, leftResources, subject)
-		if err != nil {
-			return nil, err
-		}
-
-		// The remaining values are a part of the resource set
-		for path, err := range checkSeq {
+			checkPath, err := ia.CheckImpl(ctx, leftResource, subject)
 			if err != nil {
 				return nil, err
 			}
-			validResults = append(validResults, path)
+			if checkPath != nil {
+				validResults = append(validResults, checkPath)
+			}
 		}
 	}
 

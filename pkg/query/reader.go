@@ -28,13 +28,12 @@ type QueryPage struct {
 // It exposes only the four logical operations actually performed by this package,
 // returning PathSeq values directly so callers never touch raw relationship iterators.
 type QueryDatastoreReader interface {
-	// CheckRelationships finds paths for specific resource objects matched against
-	// a subject. subject.ObjectID may be WildcardObjectID for wildcard checks.
-	// All resource IDs must be of the same resourceType.
+	// CheckRelationships finds paths for a specific resource matched against a subject.
+	// subject.ObjectID may be WildcardObjectID for wildcard checks.
 	CheckRelationships(
 		ctx context.Context,
 		resourceType ObjectType,
-		resourceIDs []string,
+		resourceID string,
 		resourceRelation string,
 		subject ObjectAndRelation,
 		withCaveats, withExpiration bool,
@@ -119,14 +118,14 @@ func buildSubjectRelationFilter(subrelation string) datastore.SubjectRelationFil
 func (r *datalayerQueryDatastoreReader) CheckRelationships(
 	ctx context.Context,
 	resourceType ObjectType,
-	resourceIDs []string,
+	resourceID string,
 	resourceRelation string,
 	subject ObjectAndRelation,
 	withCaveats, withExpiration bool,
 ) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     resourceType.Type,
-		OptionalResourceIds:      resourceIDs,
+		OptionalResourceIds:      []string{resourceID},
 		OptionalResourceRelation: resourceRelation,
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 			{

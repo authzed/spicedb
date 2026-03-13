@@ -76,25 +76,50 @@ func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, sh
 	return DeduplicatePathSeq(combined)
 }
 
-func (a *AliasIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	// Get relations from sub-iterator
-	subSeq, err := ctx.Check(a.subIt, resources, subject)
+func (a *AliasIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	// Get path from sub-iterator
+	subPath, err := ctx.Check(a.subIt, resource, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check for self-edge: if any resource with the alias relation matches the subject
-	for _, resource := range resources {
-		resourceWithAlias := resource.WithRelation(a.relation)
-		if resourceWithAlias.ObjectID == subject.ObjectID &&
-			resourceWithAlias.ObjectType == subject.ObjectType &&
-			resourceWithAlias.Relation == subject.Relation {
-			return a.maybePrependSelfEdge(GetObject(resourceWithAlias), subSeq, true), nil
-		}
+	// Rewrite the sub-path relation if present
+	if subPath != nil {
+		subPath.Relation = a.relation
 	}
 
-	// No self-edge detected, just rewrite paths from sub-iterator
-	return DeduplicatePathSeq(a.maybePrependSelfEdge(Object{}, subSeq, false)), nil
+	// Check for self-edge: if resource with the alias relation matches the subject
+	resourceWithAlias := resource.WithRelation(a.relation)
+	isSelfEdge := resourceWithAlias.ObjectID == subject.ObjectID &&
+		resourceWithAlias.ObjectType == subject.ObjectType &&
+		resourceWithAlias.Relation == subject.Relation
+
+	if !isSelfEdge {
+		return subPath, nil
+	}
+
+	// Build the synthetic self-edge path
+	selfPath := &Path{
+		Resource: GetObject(resourceWithAlias),
+		Relation: a.relation,
+		Subject: ObjectAndRelation{
+			ObjectType: resource.ObjectType,
+			ObjectID:   resource.ObjectID,
+			Relation:   a.relation,
+		},
+		Metadata: make(map[string]any),
+	}
+
+	if subPath == nil {
+		return selfPath, nil
+	}
+
+	// Both self-edge and sub-path match: OR-merge them
+	merged, err := selfPath.MergeOr(subPath)
+	if err != nil {
+		return nil, err
+	}
+	return merged, nil
 }
 
 func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {

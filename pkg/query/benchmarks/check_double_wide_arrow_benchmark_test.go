@@ -137,7 +137,7 @@ func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 	require.NoError(b, err)
 
 	// The resource and subject are the same for all sub-benchmarks.
-	resources := query.NewObjects("file", "file0")
+	resource := query.NewObject("file", "file0")
 	subject := query.NewObject("user", "user181").WithEllipses()
 
 	// Base reader (no simulated latency).
@@ -157,9 +157,7 @@ func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 			query.WithReader(r),
 			query.WithObserver(obs),
 		)
-		seq, err := warmCtx.Check(warmIt, resources, subject)
-		require.NoError(b, err)
-		_, err = query.CollectAll(seq)
+		_, err = warmCtx.Check(warmIt, resource, subject)
 		require.NoError(b, err)
 
 		advisor := query.NewCountAdvisor(obs.GetStats())
@@ -182,11 +180,9 @@ func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(it, resources, subject)
+			path, err := queryCtx.Check(it, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.NotEmpty(b, paths)
+			require.NotNil(b, path)
 		}
 	})
 
@@ -201,11 +197,9 @@ func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			path, err := queryCtx.Check(advisedIt, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.NotEmpty(b, paths)
+			require.NotNil(b, path)
 		}
 	})
 
@@ -219,11 +213,9 @@ func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(it, resources, subject)
+			path, err := queryCtx.Check(it, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.NotEmpty(b, paths)
+			require.NotNil(b, path)
 		}
 	})
 
@@ -235,11 +227,9 @@ func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			path, err := queryCtx.Check(advisedIt, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.NotEmpty(b, paths)
+			require.NotNil(b, path)
 		}
 	})
 }

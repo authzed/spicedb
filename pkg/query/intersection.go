@@ -22,107 +22,45 @@ func NewIntersectionIterator(subiterators ...Iterator) Iterator {
 	}
 }
 
-func (i *IntersectionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	validResources := resources
+func (i *IntersectionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(i, "processing %d sub-iterators for resource %s:%s", len(i.subIts), resource.ObjectType, resource.ObjectID)
+	}
 
-	// Track paths by resource key for combining with AND logic
-	pathsByKey := make(map[string]*Path)
-
+	var result *Path
 	for iterIdx, it := range i.subIts {
 		if ctx.shouldTrace() {
-			ctx.TraceStep(i, "processing sub-iterator %d with %d resources", iterIdx, len(validResources))
+			ctx.TraceStep(i, "processing sub-iterator %d", iterIdx)
 		}
 
-		pathSeq, err := ctx.Check(it, validResources, subject)
+		path, err := ctx.Check(it, resource, subject)
 		if err != nil {
 			return nil, err
 		}
-		paths, err := CollectAll(pathSeq)
-		if err != nil {
-			return nil, err
+
+		if path == nil {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(i, "sub-iterator %d returned nil, short-circuiting", iterIdx)
+			}
+			return nil, nil
+		}
+
+		if result == nil {
+			result = path
+		} else {
+			merged, err := result.MergeAnd(path)
+			if err != nil {
+				return nil, err
+			}
+			result = merged
 		}
 
 		if ctx.shouldTrace() {
-			ctx.TraceStep(i, "sub-iterator %d returned %d paths", iterIdx, len(paths))
-		}
-
-		if len(paths) == 0 {
-			if ctx.shouldTrace() {
-				ctx.TraceStep(i, "sub-iterator %d returned empty, short-circuiting", iterIdx)
-			}
-			return EmptyPathSeq(), nil
-		}
-
-		if iterIdx == 0 {
-			// First iterator - initialize pathsByKey using endpoint-based keys
-			for _, path := range paths {
-				key := path.Resource.Key()
-				if existing, exists := pathsByKey[key]; !exists {
-					pathCopy := *path
-					pathsByKey[key] = &pathCopy
-				} else {
-					// If multiple paths for same endpoint in first iterator, merge with OR (mutates existing)
-					if _, err := existing.MergeOr(path); err != nil {
-						return nil, err
-					}
-				}
-			}
-		} else {
-			// Subsequent iterators - intersect based on endpoints and combine caveats
-			newPathsByKey := make(map[string]*Path)
-
-			// First collect all paths from this iterator by endpoint
-			currentIterPaths := make(map[string]*Path)
-			for _, path := range paths {
-				key := path.Resource.Key()
-				if existing, exists := currentIterPaths[key]; !exists {
-					pathCopy := *path
-					currentIterPaths[key] = &pathCopy
-				} else {
-					// Multiple paths for same endpoint in current iterator, merge with OR (mutates existing)
-					if _, err := existing.MergeOr(path); err != nil {
-						return nil, err
-					}
-				}
-			}
-
-			// Now intersect: only keep endpoints that exist in both previous and current
-			for key, currentPath := range currentIterPaths {
-				if existing, exists := pathsByKey[key]; exists {
-					// Combine using intersection logic (AND) (mutates existing)
-					if _, err := existing.MergeAnd(currentPath); err != nil {
-						return nil, err
-					}
-					newPathsByKey[key] = existing
-				}
-				// If endpoint not in previous results, it's filtered out (intersection)
-			}
-			pathsByKey = newPathsByKey
-
-			if len(pathsByKey) == 0 {
-				return EmptyPathSeq(), nil
-			}
-		}
-
-		// Update valid resources for next iteration (extract unique resources from paths)
-		resourceSet := make(map[string]Object)
-		for _, path := range pathsByKey {
-			resourceKey := path.Resource.Key()
-			resourceSet[resourceKey] = path.Resource
-		}
-		validResources = make([]Object, 0, len(resourceSet))
-		for _, obj := range resourceSet {
-			validResources = append(validResources, obj)
+			ctx.TraceStep(i, "sub-iterator %d matched", iterIdx)
 		}
 	}
 
-	return func(yield func(*Path, error) bool) {
-		for _, path := range pathsByKey {
-			if !yield(path, nil) {
-				return
-			}
-		}
-	}, nil
+	return result, nil
 }
 
 func (i *IntersectionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {

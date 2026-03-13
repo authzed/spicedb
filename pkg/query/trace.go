@@ -76,12 +76,8 @@ func subjectRelationTraceString(subject ObjectAndRelation) string {
 	return subjectRelation
 }
 
-func checkTraceString(resources []Object, subject ObjectAndRelation) string {
-	resourceStrs := make([]string, len(resources))
-	for i, r := range resources {
-		resourceStrs[i] = fmt.Sprintf("%s:%s", r.ObjectType, r.ObjectID)
-	}
-	return fmt.Sprintf("check(%s, %s:%s%s)", strings.Join(resourceStrs, ", "), subject.ObjectType, subject.ObjectID, subjectRelationTraceString(subject))
+func checkTraceString(resource Object, subject ObjectAndRelation) string {
+	return fmt.Sprintf("check(%s:%s, %s:%s%s)", resource.ObjectType, resource.ObjectID, subject.ObjectType, subject.ObjectID, subjectRelationTraceString(subject))
 }
 
 func iterResourcesTraceString(subject ObjectAndRelation, filter ObjectType) string {
