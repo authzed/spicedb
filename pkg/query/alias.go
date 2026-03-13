@@ -143,6 +143,9 @@ func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 // a subject anywhere in the datastore (expired or not), and the filter allows it, we
 // include a self-edge in the results.
 func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubjectType ObjectType) bool {
+	if ctx.TopLevelOperation != IterSubjects {
+		return false
+	}
 	// First check: does the filter allow this resource type as a subject?
 	typeMatches := filterSubjectType.Type == "" || filterSubjectType.Type == resource.ObjectType
 	relationMatches := filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == a.relation

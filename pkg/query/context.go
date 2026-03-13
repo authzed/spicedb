@@ -23,6 +23,11 @@ type Context struct {
 	TraceLogger       *TraceLogger // For debugging iterator execution (used by TraceStep calls inside iterators)
 	MaxRecursionDepth int          // Maximum depth for recursive iterators (0 = use default of 10)
 
+	// TopLevelOperation records the first operation (Check/IterSubjects/IterResources) invoked on
+	// this context. It is set exactly once — on the first call — and never changes after that.
+	// Iterators may inspect it to skip work that is irrelevant for the current operation type.
+	TopLevelOperation Operation
+
 	// Pagination options for IterSubjects and IterResources
 	PaginationCursors map[string]*tuple.Relationship // Cursors for pagination, keyed by iterator ID
 	PaginationLimit   *uint64                        // Limit for pagination (max number of results to return)
@@ -166,7 +171,7 @@ func (ctx *Context) traceCheckResult(it Iterator, path *Path) {
 }
 
 // notifyEnterIterator calls ObserveEnterIterator on all registered observers.
-func (ctx *Context) notifyEnterIterator(op ObserverOperation, key CanonicalKey) {
+func (ctx *Context) notifyEnterIterator(op Operation, key CanonicalKey) {
 	for _, obs := range ctx.observers {
 		obs.ObserveEnterIterator(op, key)
 	}
@@ -177,14 +182,14 @@ func (ctx *Context) notifyEnterIterator(op ObserverOperation, key CanonicalKey) 
 // ObserveReturnIterator is always called afterward.
 func (ctx *Context) notifyCheckResult(key CanonicalKey, path *Path) {
 	for _, obs := range ctx.observers {
-		obs.ObservePath(CheckOperation, key, path)
-		obs.ObserveReturnIterator(CheckOperation, key)
+		obs.ObservePath(Check, key, path)
+		obs.ObserveReturnIterator(Check, key)
 	}
 }
 
 // wrapPathSeqWithObservers wraps a PathSeq to notify all registered observers of paths and completion.
 // Returns the original PathSeq unchanged when there are no observers.
-func (ctx *Context) wrapPathSeqWithObservers(op ObserverOperation, key CanonicalKey, pathSeq PathSeq) PathSeq {
+func (ctx *Context) wrapPathSeqWithObservers(op Operation, key CanonicalKey, pathSeq PathSeq) PathSeq {
 	if len(ctx.observers) == 0 {
 		return pathSeq
 	}
@@ -214,12 +219,16 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
+	if ctx.TopLevelOperation == OperationUnset {
+		ctx.TopLevelOperation = Check
+	}
+
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
 		tracedIterator = ctx.traceEnterIfEnabled(it, checkTraceString(resource, subject))
 	}
 	key := it.CanonicalKey()
-	ctx.notifyEnterIterator(CheckOperation, key)
+	ctx.notifyEnterIterator(Check, key)
 
 	path, err := ctx.Executor.Check(ctx, it, resource, subject)
 	if err != nil {
@@ -274,6 +283,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	ctx.topLevelOnce.Do(func() {
 		ctx.topLevelIterator = it
 		isTopLevel = true
+		ctx.TopLevelOperation = IterSubjects
 	})
 
 	var tracedIterator Iterator
@@ -281,7 +291,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 		tracedIterator = ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource, filterSubjectType))
 	}
 	key := it.CanonicalKey()
-	ctx.notifyEnterIterator(IterSubjectsOperation, key)
+	ctx.notifyEnterIterator(IterSubjects, key)
 
 	pathSeq, err := ctx.Executor.IterSubjects(ctx, it, resource, filterSubjectType)
 	if err != nil {
@@ -293,7 +303,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	}
 
 	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
-	return ctx.wrapPathSeqWithObservers(IterSubjectsOperation, key, pathSeq), nil
+	return ctx.wrapPathSeqWithObservers(IterSubjects, key, pathSeq), nil
 }
 
 // IterResources returns a sequence of all the relations in this set that match the given subject.
@@ -310,6 +320,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 	ctx.topLevelOnce.Do(func() {
 		ctx.topLevelIterator = it
 		isTopLevel = true
+		ctx.TopLevelOperation = IterResources
 	})
 
 	var tracedIterator Iterator
@@ -317,7 +328,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 		tracedIterator = ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject, filterResourceType))
 	}
 	key := it.CanonicalKey()
-	ctx.notifyEnterIterator(IterResourcesOperation, key)
+	ctx.notifyEnterIterator(IterResources, key)
 
 	pathSeq, err := ctx.Executor.IterResources(ctx, it, subject, filterResourceType)
 	if err != nil {
@@ -329,7 +340,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 	}
 
 	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
-	return ctx.wrapPathSeqWithObservers(IterResourcesOperation, key, pathSeq), nil
+	return ctx.wrapPathSeqWithObservers(IterResources, key, pathSeq), nil
 }
 
 // Executor chooses how to proceed given an iterator -- perhaps in parallel, perhaps by RPC, etc --

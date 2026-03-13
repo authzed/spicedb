@@ -21,21 +21,21 @@ type AnalyzeStats struct {
 type AnalyzeObserver struct {
 	*CountObserver // handles call and result counts
 	mu             sync.Mutex
-	startTimes     map[ObserverOperation]map[CanonicalKey]time.Time // GUARDED_BY(mu)
-	timings        map[CanonicalKey]AnalyzeStats                    // GUARDED_BY(mu) - stores timing fields only
+	startTimes     map[Operation]map[CanonicalKey]time.Time // GUARDED_BY(mu)
+	timings        map[CanonicalKey]AnalyzeStats            // GUARDED_BY(mu) - stores timing fields only
 }
 
 // NewAnalyzeObserver creates a new thread-safe analyze observer.
 func NewAnalyzeObserver() *AnalyzeObserver {
 	return &AnalyzeObserver{
 		CountObserver: NewCountObserver(),
-		startTimes:    make(map[ObserverOperation]map[CanonicalKey]time.Time),
+		startTimes:    make(map[Operation]map[CanonicalKey]time.Time),
 		timings:       make(map[CanonicalKey]AnalyzeStats),
 	}
 }
 
 // ObserveEnterIterator increments the call counter (via CountObserver) and records the start time.
-func (a *AnalyzeObserver) ObserveEnterIterator(op ObserverOperation, key CanonicalKey) {
+func (a *AnalyzeObserver) ObserveEnterIterator(op Operation, key CanonicalKey) {
 	// Delegate to CountObserver for call counting
 	a.CountObserver.ObserveEnterIterator(op, key)
 
@@ -50,14 +50,14 @@ func (a *AnalyzeObserver) ObserveEnterIterator(op ObserverOperation, key Canonic
 }
 
 // ObservePath increments the result counter (via CountObserver).
-func (a *AnalyzeObserver) ObservePath(op ObserverOperation, key CanonicalKey, path *Path) {
+func (a *AnalyzeObserver) ObservePath(op Operation, key CanonicalKey, path *Path) {
 	// Delegate entirely to CountObserver for result counting
 	a.CountObserver.ObservePath(op, key, path)
 }
 
 // ObserveReturnIterator records elapsed time since ObserveEnterIterator was called.
 // Note: CountObserver.ObserveReturnIterator is a no-op, so we don't call it here.
-func (a *AnalyzeObserver) ObserveReturnIterator(op ObserverOperation, key CanonicalKey) {
+func (a *AnalyzeObserver) ObserveReturnIterator(op Operation, key CanonicalKey) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -66,11 +66,11 @@ func (a *AnalyzeObserver) ObserveReturnIterator(op ObserverOperation, key Canoni
 			elapsed := time.Since(start)
 			stats := a.timings[key]
 			switch op {
-			case CheckOperation:
+			case Check:
 				stats.CheckTime += elapsed
-			case IterSubjectsOperation:
+			case IterSubjects:
 				stats.IterSubjectsTime += elapsed
-			case IterResourcesOperation:
+			case IterResources:
 				stats.IterResourcesTime += elapsed
 			}
 			a.timings[key] = stats

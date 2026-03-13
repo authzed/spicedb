@@ -291,14 +291,14 @@ func TestAnalyzeObserver(t *testing.T) {
 		obs := NewAnalyzeObserver()
 		key := CanonicalKey("test-key")
 
-		obs.ObserveEnterIterator(CheckOperation, key)
-		obs.ObserveEnterIterator(IterSubjectsOperation, key)
-		obs.ObserveEnterIterator(IterResourcesOperation, key)
+		obs.ObserveEnterIterator(Check, key)
+		obs.ObserveEnterIterator(IterSubjects, key)
+		obs.ObserveEnterIterator(IterResources, key)
 
 		// Need to call ObserveReturnIterator to finalize timing
-		obs.ObserveReturnIterator(CheckOperation, key)
-		obs.ObserveReturnIterator(IterSubjectsOperation, key)
-		obs.ObserveReturnIterator(IterResourcesOperation, key)
+		obs.ObserveReturnIterator(Check, key)
+		obs.ObserveReturnIterator(IterSubjects, key)
+		obs.ObserveReturnIterator(IterResources, key)
 
 		stats := obs.GetStats()[key]
 		require.Equal(t, 1, stats.CheckCalls)
@@ -311,10 +311,10 @@ func TestAnalyzeObserver(t *testing.T) {
 		key := CanonicalKey("test-key")
 		path := Path{}
 
-		obs.ObservePath(CheckOperation, key, &path)
-		obs.ObservePath(CheckOperation, key, &path)
-		obs.ObservePath(IterSubjectsOperation, key, &path)
-		obs.ObservePath(IterResourcesOperation, key, &path)
+		obs.ObservePath(Check, key, &path)
+		obs.ObservePath(Check, key, &path)
+		obs.ObservePath(IterSubjects, key, &path)
+		obs.ObservePath(IterResources, key, &path)
 
 		stats := obs.GetStats()[key]
 		require.Equal(t, 2, stats.CheckResults)
@@ -326,9 +326,9 @@ func TestAnalyzeObserver(t *testing.T) {
 		obs := NewAnalyzeObserver()
 		key := CanonicalKey("test-key")
 
-		obs.ObserveEnterIterator(CheckOperation, key)
+		obs.ObserveEnterIterator(Check, key)
 		time.Sleep(time.Millisecond)
-		obs.ObserveReturnIterator(CheckOperation, key)
+		obs.ObserveReturnIterator(Check, key)
 
 		stats := obs.GetStats()[key]
 		require.Greater(t, stats.CheckTime, time.Duration(0))
@@ -337,8 +337,8 @@ func TestAnalyzeObserver(t *testing.T) {
 	t.Run("GetStats returns copy", func(t *testing.T) {
 		obs := NewAnalyzeObserver()
 		key := CanonicalKey("test-key")
-		obs.ObserveEnterIterator(CheckOperation, key)
-		obs.ObserveReturnIterator(CheckOperation, key)
+		obs.ObserveEnterIterator(Check, key)
+		obs.ObserveReturnIterator(Check, key)
 
 		stats1 := obs.GetStats()
 		stats2 := obs.GetStats()

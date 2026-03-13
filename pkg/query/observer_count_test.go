@@ -16,9 +16,9 @@ func TestCountObserverEnterIterator(t *testing.T) {
 	obs := NewCountObserver()
 	key := CanonicalKey("test-key")
 
-	obs.ObserveEnterIterator(CheckOperation, key)
-	obs.ObserveEnterIterator(IterSubjectsOperation, key)
-	obs.ObserveEnterIterator(IterResourcesOperation, key)
+	obs.ObserveEnterIterator(Check, key)
+	obs.ObserveEnterIterator(IterSubjects, key)
+	obs.ObserveEnterIterator(IterResources, key)
 
 	stats := obs.GetStats()[key]
 	require.Equal(t, 1, stats.CheckCalls)
@@ -31,10 +31,10 @@ func TestCountObserverPath(t *testing.T) {
 	key := CanonicalKey("test-key")
 	path := Path{}
 
-	obs.ObservePath(CheckOperation, key, &path)
-	obs.ObservePath(CheckOperation, key, &path)
-	obs.ObservePath(IterSubjectsOperation, key, &path)
-	obs.ObservePath(IterResourcesOperation, key, &path)
+	obs.ObservePath(Check, key, &path)
+	obs.ObservePath(Check, key, &path)
+	obs.ObservePath(IterSubjects, key, &path)
+	obs.ObservePath(IterResources, key, &path)
 
 	stats := obs.GetStats()[key]
 	require.Equal(t, 2, stats.CheckResults)
@@ -46,8 +46,8 @@ func TestCountObserverReturnIterator(t *testing.T) {
 	obs := NewCountObserver()
 	key := CanonicalKey("test-key")
 
-	obs.ObserveEnterIterator(CheckOperation, key)
-	obs.ObserveReturnIterator(CheckOperation, key)
+	obs.ObserveEnterIterator(Check, key)
+	obs.ObserveReturnIterator(Check, key)
 
 	// Should still have the call count
 	stats := obs.GetStats()[key]
@@ -57,7 +57,7 @@ func TestCountObserverReturnIterator(t *testing.T) {
 func TestCountObserverGetStatsReturnsACopy(t *testing.T) {
 	obs := NewCountObserver()
 	key := CanonicalKey("test-key")
-	obs.ObserveEnterIterator(CheckOperation, key)
+	obs.ObserveEnterIterator(Check, key)
 
 	stats1 := obs.GetStats()
 	stats2 := obs.GetStats()
@@ -172,11 +172,11 @@ func TestCountObserverMultipleCalls(t *testing.T) {
 
 	// Simulate multiple calls to the same iterator
 	for i := 0; i < 3; i++ {
-		obs.ObserveEnterIterator(CheckOperation, key)
+		obs.ObserveEnterIterator(Check, key)
 		for j := 0; j < 2; j++ {
-			obs.ObservePath(CheckOperation, key, &Path{})
+			obs.ObservePath(Check, key, &Path{})
 		}
-		obs.ObserveReturnIterator(CheckOperation, key)
+		obs.ObserveReturnIterator(Check, key)
 	}
 
 	stats := obs.GetStats()[key]
@@ -194,9 +194,9 @@ func TestCountObserverConcurrency(t *testing.T) {
 	// Goroutine 1 - updates key1
 	go func() {
 		for i := 0; i < 100; i++ {
-			obs.ObserveEnterIterator(CheckOperation, key1)
-			obs.ObservePath(CheckOperation, key1, &Path{})
-			obs.ObserveReturnIterator(CheckOperation, key1)
+			obs.ObserveEnterIterator(Check, key1)
+			obs.ObservePath(Check, key1, &Path{})
+			obs.ObserveReturnIterator(Check, key1)
 		}
 		done <- true
 	}()
@@ -204,9 +204,9 @@ func TestCountObserverConcurrency(t *testing.T) {
 	// Goroutine 2 - updates key2
 	go func() {
 		for i := 0; i < 100; i++ {
-			obs.ObserveEnterIterator(IterSubjectsOperation, key2)
-			obs.ObservePath(IterSubjectsOperation, key2, &Path{})
-			obs.ObserveReturnIterator(IterSubjectsOperation, key2)
+			obs.ObserveEnterIterator(IterSubjects, key2)
+			obs.ObservePath(IterSubjects, key2, &Path{})
+			obs.ObserveReturnIterator(IterSubjects, key2)
 		}
 		done <- true
 	}()
