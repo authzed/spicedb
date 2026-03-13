@@ -45,8 +45,8 @@ func TestArrowIterator(t *testing.T) {
 
 		// Expected: spec1 should match because alice has viewer access to project1 (spec1's parent)
 		// spec2 should NOT match because alice does not have access to project2 (spec2's parent)
-		expected := []Path{
-			*MustPathFromString("document:spec1#parent@user:alice"),
+		expected := []*Path{
+			MustPathFromString("document:spec1#parent@user:alice"),
 		}
 		require.Equal(expected, rels)
 	})
@@ -234,8 +234,8 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	// - nonexistent doesn't exist -> should NOT match
 
 	// We expect exactly 1 result: spec1 with alice as subject
-	expected := []Path{
-		*MustPathFromString("document:spec1#parent@user:alice"),
+	expected := []*Path{
+		MustPathFromString("document:spec1#parent@user:alice"),
 	}
 	require.Equal(expected, rels)
 }

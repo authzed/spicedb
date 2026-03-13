@@ -480,7 +480,7 @@ func PathSeqFromSlice(paths []*Path) PathSeq {
 // This collects all paths first, deduplicates with merging, then yields results.
 func DeduplicatePathSeq(seq PathSeq) PathSeq {
 	return func(yield func(*Path, error) bool) {
-		seen := make(map[string]bool)
+		seen := make(map[string]*Path)
 		for path, err := range seq {
 			if err != nil {
 				yield(nil, err)
@@ -488,8 +488,18 @@ func DeduplicatePathSeq(seq PathSeq) PathSeq {
 			}
 
 			key := path.EndpointsKey()
-			if !seen[key] {
-				seen[key] = true
+			if existing, exists := seen[key]; !exists {
+				pathCopy := *path
+				seen[key] = &pathCopy
+			} else {
+				// Merge with existing path using OR semantics
+				merged, err := existing.MergeOr(path)
+				if err != nil {
+					yield(nil, err)
+					return
+				}
+			} else {
+				seen[key] = path
 				if !yield(path, nil) {
 					return
 				}

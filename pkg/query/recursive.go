@@ -2,10 +2,22 @@ package query
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// frontierEntry is a lightweight frontier node for BFS IterSubjects.
+// It carries only the fields needed to combine with the next hop's path —
+// unlike a full *Path it does not hold Resource, Relation, or Metadata.
+type frontierEntry struct {
+	Subject    ObjectAndRelation
+	Caveat     *core.CaveatExpression
+	Expiration *time.Time
+	Integrity  []*core.RelationshipIntegrity
+}
 
 const defaultMaxRecursionDepth = 50
 
@@ -217,7 +229,7 @@ func (r *RecursiveIterator) SubjectTypes() ([]ObjectType, error) {
 func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	if ctx.shouldTrace() {
 		ctx.TraceStep(r, "BFS IterSubjects: resource=%s:%s, filter=%s",
-		resource.ObjectType, resource.ObjectID, filterSubjectType.Type)
+			resource.ObjectType, resource.ObjectID, filterSubjectType.Type)
 	}
 
 	maxDepth := ctx.MaxRecursionDepth
@@ -232,94 +244,86 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 	}
 
 	return func(yield func(*Path, error) bool) {
-		// Track yielded paths by endpoints (for deduplication with OR semantics)
+		// Track yielded paths by endpoints for global deduplication with OR/caveat semantics.
 		yieldedPaths := make(map[string]*Path)
 
-		// Track queried objects to prevent cycles (avoid re-querying same objects)
+		// Track queried objects to prevent cycles (avoid re-querying same objects).
 		queriedObjects := make(map[string]bool)
 
-		// Frontier: paths representing the "wave front" of exploration
-		// At each ply, we query IterSubjects FROM the subjects of these paths
-		var frontierPaths []*Path
-
-		// Ply 0: Start with a seed path representing the initial resource
-		seedPath := &Path{
-			Resource: resource,
-			Relation: tuple.Ellipsis, // Ellipsis represents "identity"
-			Subject: ObjectAndRelation{
-				ObjectType: resource.ObjectType,
-				ObjectID:   resource.ObjectID,
-				Relation:   tuple.Ellipsis,
+		// frontier holds lightweight entries — just the fields needed to combine with the next
+		// hop's path. Using frontierEntry rather than *Path avoids keeping Resource, Relation,
+		// and Metadata alive across plies.
+		frontier := []frontierEntry{
+			{
+				Subject: ObjectAndRelation{
+					ObjectType: resource.ObjectType,
+					ObjectID:   resource.ObjectID,
+					Relation:   tuple.Ellipsis,
+				},
 			},
 		}
-		frontierPaths = []*Path{seedPath}
 		queriedObjects[resource.Key()] = true
+
+		// plyPaths is allocated once and cleared each ply to avoid per-ply allocations.
+		plyPaths := make(map[string]*Path)
+
+		// nextFrontier is reused across plies.
+		var nextFrontier []frontierEntry
 
 		for ply := 0; ply < maxDepth; ply++ {
 			if ctx.shouldTrace() {
-				ctx.TraceStep(r, "Ply %d: %d frontier paths", ply, len(frontierPaths))
+				ctx.TraceStep(r, "Ply %d: %d frontier entries", ply, len(frontier))
 			}
 
-			// Enable collection mode for all matching sentinels
+			// Enable collection mode for all matching sentinels.
 			for _, sentinelID := range sentinelIDs {
 				ctx.EnableFrontierCollection(sentinelID)
 			}
 
-			// Track paths collected at this ply (keyed by endpoints for deduplication)
-			plyPaths := make(map[string]*Path)
+			// Clear the ply map and reuse its backing storage.
+			clear(plyPaths)
 
-			// Query IterSubjects FROM each frontier object
-			for _, frontierPath := range frontierPaths {
-				// Extract the frontier object from the path's subject
-				frontierResource := GetObject(frontierPath.Subject)
+			// Query IterSubjects FROM each frontier object, accumulating results in plyPaths.
+			// Paths with the same endpoint from different frontier nodes are merged with OR.
+			for _, fe := range frontier {
+				frontierResource := GetObject(fe.Subject)
 
 				if ctx.shouldTrace() {
-					if ctx.shouldTrace() {
-						ctx.TraceStep(r, "Ply %d: querying from %s:%s",
+					ctx.TraceStep(r, "Ply %d: querying from %s:%s",
 						ply, frontierResource.ObjectType, frontierResource.ObjectID)
-					}
 				}
 
-				// Query IterSubjects with this frontier resource
-				// Use NoObjectFilter to get both target subjects AND recursive subjects
 				subSeq, err := ctx.IterSubjects(r.templateTree, frontierResource, NoObjectFilter())
 				if err != nil {
 					yield(nil, fmt.Errorf("execution failed at ply %d: %w", ply, err))
 					return
 				}
 
-				// Collect paths from this frontier node
 				for subPath, err := range subSeq {
 					if err != nil {
 						yield(nil, fmt.Errorf("execution failed at ply %d: %w", ply, err))
 						return
 					}
 
-					// Combine frontier path with new sub-path to get full path from original resource
-					// frontierPath: original_resource → frontier_resource
-					// subPath:      frontier_resource → subject
-					// combined:     original_resource → subject
+					// Combine frontier entry with sub-path to get full path from original resource:
+					//   fe:      original_resource → frontier_resource  (implicit)
+					//   subPath: frontier_resource → subject
+					//   result:  original_resource → subject
 					combinedPath := &Path{
-						Resource: resource, // Keep original resource
-						Relation: r.relationName,
-						Subject:  subPath.Subject,
-						// Combine caveats with AND semantics (both must be satisfied)
-						Caveat: caveats.And(frontierPath.Caveat, subPath.Caveat),
-						// Combine other metadata
-						Expiration: combineExpiration(frontierPath.Expiration, subPath.Expiration),
-						Integrity:  combineIntegrity(frontierPath.Integrity, subPath.Integrity),
+						Resource:   resource,
+						Relation:   r.relationName,
+						Subject:    subPath.Subject,
+						Caveat:     caveats.And(fe.Caveat, subPath.Caveat),
+						Expiration: combineExpiration(fe.Expiration, subPath.Expiration),
+						Integrity:  combineIntegrity(fe.Integrity, subPath.Integrity),
 					}
 
-					// Deduplicate by endpoints within this ply
 					key := combinedPath.EndpointsKey()
 					if existing, seen := plyPaths[key]; seen {
-						// Merge with OR semantics (same endpoint, different paths)
-						merged, err := existing.MergeOr(combinedPath)
-						if err != nil {
+						if _, err := existing.MergeOr(combinedPath); err != nil {
 							yield(nil, err)
 							return
 						}
-						plyPaths[key] = merged
 					} else {
 						plyPaths[key] = combinedPath
 					}
@@ -330,42 +334,31 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 				ctx.TraceStep(r, "Ply %d: found %d unique paths", ply, len(plyPaths))
 			}
 
-			// Extract frontier objects collected by all sentinels during this ply
+			// Extract frontier objects collected by all sentinels during this ply.
 			var collectedObjects []Object
 			for _, sentinelID := range sentinelIDs {
-				objects := ctx.ExtractFrontierCollection(sentinelID)
-				collectedObjects = append(collectedObjects, objects...)
+				collectedObjects = append(collectedObjects, ctx.ExtractFrontierCollection(sentinelID)...)
 			}
 			if ctx.shouldTrace() {
 				ctx.TraceStep(r, "Ply %d: collected %d recursive objects", ply, len(collectedObjects))
 			}
 
-			// Process collected paths: yield matching ones, prepare frontier for next ply
-			var newFrontierPaths []*Path
-			var yieldedCount int
+			// Reset and reuse nextFrontier.
+			nextFrontier = nextFrontier[:0]
+			yieldedCount := 0
 
 			for key, path := range plyPaths {
-				// Check if this is a recursive subject (needs further exploration)
 				isRecursive := path.Subject.ObjectType == r.definitionName
-
-				// Check if this matches the target filter
 				matchesFilter := filterSubjectType.Type == "" ||
 					path.Subject.ObjectType == filterSubjectType.Type
 
-				// Deduplicate globally
 				if existing, seen := yieldedPaths[key]; seen {
-					// Already yielded - merge and update
-					merged, err := existing.MergeOr(path)
-					if err != nil {
+					if _, err := existing.MergeOr(path); err != nil {
 						yield(nil, err)
 						return
 					}
-					yieldedPaths[key] = merged
 				} else {
-					// New path globally
 					yieldedPaths[key] = path
-
-					// Yield if it matches the filter
 					if matchesFilter {
 						yieldedCount++
 						if !yield(path, nil) {
@@ -374,13 +367,16 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 					}
 				}
 
-				// Add to next frontier if recursive (will be explored next ply)
 				if isRecursive {
-					// Check if we've already queried this object (cycle detection)
 					objKey := GetObject(path.Subject).Key()
 					if !queriedObjects[objKey] {
 						queriedObjects[objKey] = true
-						newFrontierPaths = append(newFrontierPaths, path)
+						nextFrontier = append(nextFrontier, frontierEntry{
+							Subject:    path.Subject,
+							Caveat:     path.Caveat,
+							Expiration: path.Expiration,
+							Integrity:  path.Integrity,
+						})
 						if ctx.shouldTrace() {
 							ctx.TraceStep(r, "Ply %d: adding %s to next frontier", ply, objKey)
 						}
@@ -392,24 +388,18 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 				}
 			}
 
-			// Add collected objects to the frontier (these need recursive expansion in next ply)
+			// Add sentinel-collected objects to the frontier.
 			for _, obj := range collectedObjects {
-				// Check if we've already queried this object (cycle detection)
 				objKey := obj.Key()
 				if !queriedObjects[objKey] {
 					queriedObjects[objKey] = true
-
-					// Create a frontier path for this collected object
-					frontierPath := &Path{
-						Resource: resource,
-						Relation: r.relationName,
+					nextFrontier = append(nextFrontier, frontierEntry{
 						Subject: ObjectAndRelation{
 							ObjectType: obj.ObjectType,
 							ObjectID:   obj.ObjectID,
 							Relation:   tuple.Ellipsis,
 						},
-					}
-					newFrontierPaths = append(newFrontierPaths, frontierPath)
+					})
 					if ctx.shouldTrace() {
 						ctx.TraceStep(r, "Ply %d: adding collected object %s to frontier", ply, objKey)
 					}
@@ -422,19 +412,19 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 
 			if ctx.shouldTrace() {
 				ctx.TraceStep(r, "Ply %d: yielded %d matching paths, %d for next frontier",
-				ply, yieldedCount, len(newFrontierPaths))
+					ply, yieldedCount, len(nextFrontier))
 			}
 
-			// If no recursive paths to expand, we're done
-			if len(newFrontierPaths) == 0 {
+			if len(nextFrontier) == 0 {
 				if ctx.shouldTrace() {
 					ctx.TraceStep(r, "BFS completed (no frontier at ply %d)", ply)
 				}
 				return
 			}
 
-			// Update frontier for next ply
-			frontierPaths = newFrontierPaths
+			// Swap frontier slices — nextFrontier becomes the active frontier.
+			// The old frontier slice is reused as the next nextFrontier buffer.
+			frontier, nextFrontier = nextFrontier, frontier[:0]
 		}
 
 		if ctx.shouldTrace() {
@@ -465,7 +455,7 @@ func (r *RecursiveIterator) replaceRecursiveSentinel(tree Iterator, replacement 
 func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	if ctx.shouldTrace() {
 		ctx.TraceStep(r, "BFS IterResources with constant subject %s:%s#%s",
-		subject.ObjectType, subject.ObjectID, subject.Relation)
+			subject.ObjectType, subject.ObjectID, subject.Relation)
 	}
 
 	maxDepth := ctx.MaxRecursionDepth
@@ -474,49 +464,47 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 	}
 
 	return func(yield func(*Path, error) bool) {
-		// Track all paths yielded (for deduplication)
+		// Track all paths yielded (for deduplication with OR/caveat semantics).
 		yieldedPaths := make(map[string]*Path)
 
-		// Current frontier: all paths from previous ply
-		var frontierPaths []*Path
+		// newPaths collects genuinely new paths each ply; reused across plies.
+		var newPaths []*Path
 
-		// Start with the original tree (sentinel returns empty at ply 0)
+		// Start with the original tree (sentinel returns empty at ply 0).
 		currentTree := r.templateTree
 
 		for ply := 0; ply < maxDepth; ply++ {
 			if ctx.shouldTrace() {
-				ctx.TraceStep(r, "Ply %d: querying with %d frontier paths", ply, len(frontierPaths))
+				ctx.TraceStep(r, "Ply %d: querying tree", ply)
 			}
 
-			// Query IterResources with the ORIGINAL subject
+			// Query IterResources with the ORIGINAL subject.
 			plySeq, err := ctx.IterResources(currentTree, subject, filterResourceType)
 			if err != nil {
 				yield(nil, err)
 				return
 			}
 
-			// Collect paths from this ply
-			var newPaths []*Path
+			// Reset new-paths accumulator, reusing backing array.
+			newPaths = newPaths[:0]
+
 			for path, err := range plySeq {
 				if err != nil {
 					yield(nil, err)
 					return
 				}
 
-				// Deduplicate by endpoint
+				// Deduplicate by endpoint.
 				key := path.EndpointsKey()
 				if existing, seen := yieldedPaths[key]; seen {
-					// Merge with OR semantics
-					merged, err := existing.MergeOr(path)
-					if err != nil {
+					// Already yielded — merge caveats with OR semantics but do NOT
+					// re-add to the frontier (it was already queried in a prior ply).
+					if _, err := existing.MergeOr(path); err != nil {
 						yield(nil, err)
 						return
 					}
-					yieldedPaths[key] = merged
-					// Don't yield again, but update frontier
-					newPaths = append(newPaths, merged)
 				} else {
-					// New path - yield and add to frontier
+					// Genuinely new path — record, yield, and add to frontier.
 					yieldedPaths[key] = path
 					newPaths = append(newPaths, path)
 					if !yield(path, nil) {
@@ -529,7 +517,7 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 				ctx.TraceStep(r, "Ply %d: found %d new paths", ply, len(newPaths))
 			}
 
-			// If no new paths, we're done
+			// If no genuinely new paths, we've reached a fixed point.
 			if len(newPaths) == 0 {
 				if ctx.shouldTrace() {
 					ctx.TraceStep(r, "BFS completed (no new paths at ply %d)", ply)
@@ -537,15 +525,14 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 				return
 			}
 
-			// Prepare for next ply: clone tree and replace sentinel with Fixed(frontier)
-			frontierPaths = newPaths // Use ALL new paths as frontier
-			derefed := make([]Path, len(frontierPaths))
-			for i, p := range frontierPaths {
+			// Build Fixed iterator from new paths only (not already-queried paths).
+			derefed := make([]Path, len(newPaths))
+			for i, p := range newPaths {
 				derefed[i] = *p
 			}
 			fixedFrontier := NewFixedIterator(derefed...)
 
-			// Clone tree with sentinel replaced by Fixed frontier
+			// Replace sentinel with Fixed frontier for next ply.
 			modifiedTree, err := r.replaceRecursiveSentinel(r.templateTree, fixedFrontier)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to replace sentinel: %w", err))
@@ -654,7 +641,7 @@ func (r *RecursiveIterator) recursiveCheckIterSubjects(ctx *Context, resources [
 		for _, resource := range resources {
 			if ctx.shouldTrace() {
 				ctx.TraceStep(r, "Check via IterSubjects: processing resource %s:%s",
-				resource.ObjectType, resource.ObjectID)
+					resource.ObjectType, resource.ObjectID)
 			}
 
 			// Call IterSubjects on the RecursiveIterator itself - this will use BFS
@@ -706,7 +693,7 @@ func (r *RecursiveIterator) recursiveCheckIterResources(ctx *Context, resources 
 
 		if ctx.shouldTrace() {
 			ctx.TraceStep(r, "Check via IterResources: processing subject %s:%s#%s",
-			subject.ObjectType, subject.ObjectID, subject.Relation)
+				subject.ObjectType, subject.ObjectID, subject.Relation)
 		}
 
 		// Call IterResources on the RecursiveIterator itself - this will use BFS
@@ -730,7 +717,7 @@ func (r *RecursiveIterator) recursiveCheckIterResources(ctx *Context, resources 
 				if path.Resource.Equals(resource) {
 					if ctx.shouldTrace() {
 						ctx.TraceStep(r, "Check via IterResources: found matching path from %s to %s",
-						path.Resource.Key(), path.Subject.String())
+							path.Resource.Key(), path.Subject.String())
 					}
 					pathCount++
 					if !yield(path, nil) {
