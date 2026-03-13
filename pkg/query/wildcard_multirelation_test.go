@@ -97,7 +97,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		// - fred has a concrete relationship on banned for this resource
 		// The wildcard means "all users", so we enumerate all defined users
 		require.Len(paths, 2, "Should return all defined subjects of the appropriate type")
-		subjectIDs := slicez.Map(paths, func(p Path) string { return p.Subject.ObjectID })
+		subjectIDs := slicez.Map(paths, func(p *Path) string { return p.Subject.ObjectID })
 		require.ElementsMatch([]string{"tom", "fred"}, subjectIDs, "Should include both tom and fred")
 	})
 
@@ -128,7 +128,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		// - fred from wildcard branch (has relationship on banned)
 		// The Union should deduplicate tom
 		require.Len(paths, 2, "Should return both subjects with deduplication")
-		subjectIDs := slicez.Map(paths, func(p Path) string { return p.Subject.ObjectID })
+		subjectIDs := slicez.Map(paths, func(p *Path) string { return p.Subject.ObjectID })
 		require.ElementsMatch([]string{"tom", "fred"}, subjectIDs, "Should include both tom and fred")
 	})
 }

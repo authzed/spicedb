@@ -14,11 +14,11 @@ import (
 )
 
 // PathSeq is the intermediate iter closure that any of the planning calls return.
-type PathSeq iter.Seq2[Path, error]
+type PathSeq iter.Seq2[*Path, error]
 
 // EmptyPathSeq returns an empty iterator, that is error-free but empty.
 func EmptyPathSeq() PathSeq {
-	return func(yield func(Path, error) bool) {}
+	return func(yield func(*Path, error) bool) {}
 }
 
 // Path is an abstract notion of an individual relation. While tuple.Relation is what is stored under the hood,
@@ -54,8 +54,8 @@ func (p Path) EndpointsKey() string {
 }
 
 // MergeOr combines the paths, ORing the caveats and expiration and metadata together.
-// Returns a new Path with the merged values.
-func (p Path) MergeOr(other Path) (Path, error) {
+// Mutates p in place and returns p. The other path is not modified.
+func (p *Path) MergeOr(other *Path) (*Path, error) {
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil && otherCaveat != nil {
 			return caveats.Or(pCaveat, otherCaveat)
@@ -67,8 +67,8 @@ func (p Path) MergeOr(other Path) (Path, error) {
 }
 
 // MergeAnd combines the paths, ANDing the caveats and expiration and metadata together.
-// Returns a new Path with the merged values.
-func (p Path) MergeAnd(other Path) (Path, error) {
+// Mutates p in place and returns p. The other path is not modified.
+func (p *Path) MergeAnd(other *Path) (*Path, error) {
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil {
 			if otherCaveat != nil {
@@ -82,8 +82,8 @@ func (p Path) MergeAnd(other Path) (Path, error) {
 }
 
 // MergeAndNot combines the paths, subtracting the caveats and expiration and metadata together.
-// Returns a new Path with the merged values.
-func (p Path) MergeAndNot(other Path) (Path, error) {
+// Mutates p in place and returns p. The other path is not modified.
+func (p *Path) MergeAndNot(other *Path) (*Path, error) {
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if otherCaveat != nil {
 			// If pCaveat is nil, this turns it into a negation (Invert() in caveats package)
@@ -95,52 +95,43 @@ func (p Path) MergeAndNot(other Path) (Path, error) {
 	})
 }
 
-func (p Path) mergeFrom(other Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) (Path, error) {
+func (p *Path) mergeFrom(other *Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) (*Path, error) {
 	// Check if they have the same Resource and Subject types and IDs
 	if !p.Resource.Equals(other.Resource) {
-		return Path{}, fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
+		return nil, fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
 	}
 
 	pSubject := GetObject(p.Subject)
 	otherSubject := GetObject(other.Subject)
 	if !pSubject.Equals(otherSubject) {
-		return Path{}, fmt.Errorf("cannot merge paths with different subjects: %v vs %v", pSubject, otherSubject)
-	}
-
-	// Create a new Path with merged values
-	result := Path{
-		Resource: p.Resource,
-		Subject:  p.Subject,
+		return nil, fmt.Errorf("cannot merge paths with different subjects: %v vs %v", pSubject, otherSubject)
 	}
 
 	// Clear Relation unless both have the same Relation string
-	if p.Relation == other.Relation {
-		result.Relation = p.Relation
+	if p.Relation != other.Relation {
+		p.Relation = ""
 	}
 
 	// Combine caveats using the provided merger function
-	result.Caveat = caveatMerger(p.Caveat, other.Caveat)
+	p.Caveat = caveatMerger(p.Caveat, other.Caveat)
 
 	// Combine expiration (take the earlier time)
-	result.Expiration = combineExpiration(p.Expiration, other.Expiration)
+	p.Expiration = combineExpiration(p.Expiration, other.Expiration)
 
 	// Combine integrity (append all values)
-	result.Integrity = combineIntegrity(p.Integrity, other.Integrity)
+	p.Integrity = combineIntegrity(p.Integrity, other.Integrity)
 
 	// Merge the metadata by combining both maps
 	// WARNING: This is a simple overwrite strategy and may not be appropriate for all use cases.
 	// Better is probably to have a more structured Metadata type, with a Merge() function.
-	if p.Metadata != nil || other.Metadata != nil {
-		result.Metadata = make(map[string]any)
-		if p.Metadata != nil {
-			maps.Copy(result.Metadata, p.Metadata)
+	if other.Metadata != nil {
+		if p.Metadata == nil {
+			p.Metadata = make(map[string]any)
 		}
-		if other.Metadata != nil {
-			maps.Copy(result.Metadata, other.Metadata)
-		}
+		maps.Copy(p.Metadata, other.Metadata)
 	}
 
-	return result, nil
+	return p, nil
 }
 
 // combineExpiration returns the earlier (shorter) expiration time between two times.
@@ -181,7 +172,7 @@ func (p Path) IsExpired() bool {
 }
 
 // FromRelationship creates a new Path from a tuple.Relationship.
-func FromRelationship(rel tuple.Relationship) Path {
+func FromRelationship(rel tuple.Relationship) *Path {
 	resource := Object{
 		ObjectID:   rel.Resource.ObjectID,
 		ObjectType: rel.Resource.ObjectType,
@@ -197,7 +188,7 @@ func FromRelationship(rel tuple.Relationship) Path {
 		integrity = []*core.RelationshipIntegrity{rel.OptionalIntegrity}
 	}
 
-	return Path{
+	return &Path{
 		Resource:   resource,
 		Relation:   rel.Resource.Relation,
 		Subject:    rel.Subject,
@@ -252,7 +243,7 @@ func (p Path) ToRelationship() (tuple.Relationship, error) {
 // MustPathFromString is a helper function for tests that creates a Path from a relationship string.
 // It uses tuple.MustParse to parse the string and then converts it to a Path using FromRelationship.
 // Example: MustPathFromString("document:doc1#viewer@user:alice")
-func MustPathFromString(relationshipStr string) Path {
+func MustPathFromString(relationshipStr string) *Path {
 	rel := tuple.MustParse(relationshipStr)
 	return FromRelationship(rel)
 }
@@ -461,8 +452,8 @@ func PathOrder(a, b Path) int {
 }
 
 // CollectAll is a helper function to build read a complete PathSeq and turn it into a fully realized slice of Paths.
-func CollectAll(seq PathSeq) ([]Path, error) {
-	out := make([]Path, 0)
+func CollectAll(seq PathSeq) ([]*Path, error) {
+	out := make([]*Path, 0)
 	for x, err := range seq {
 		if err != nil {
 			return nil, err
@@ -473,10 +464,10 @@ func CollectAll(seq PathSeq) ([]Path, error) {
 }
 
 // PathSeqFromSlice creates a PathSeq that yields all paths from the given slice.
-func PathSeqFromSlice(paths []Path) PathSeq {
-	return func(yield func(Path, error) bool) {
-		for _, path := range paths {
-			if !yield(path, nil) {
+func PathSeqFromSlice(paths []*Path) PathSeq {
+	return func(yield func(*Path, error) bool) {
+		for _, p := range paths {
+			if !yield(p, nil) {
 				return
 			}
 		}
@@ -488,51 +479,38 @@ func PathSeqFromSlice(paths []Path) PathSeq {
 // are merged using OR semantics (caveats are OR'd, no caveat wins over caveat).
 // This collects all paths first, deduplicates with merging, then yields results.
 func DeduplicatePathSeq(seq PathSeq) PathSeq {
-	return func(yield func(Path, error) bool) {
-		seen := make(map[string]Path)
+	return func(yield func(*Path, error) bool) {
+		seen := make(map[string]bool)
 		for path, err := range seq {
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
 			key := path.EndpointsKey()
-			if existing, exists := seen[key]; !exists {
-				seen[key] = path
-			} else {
-				// Merge with existing path using OR semantics
-				merged, err := existing.MergeOr(path)
-				if err != nil {
-					yield(Path{}, err)
+			if !seen[key] {
+				seen[key] = true
+				if !yield(path, nil) {
 					return
 				}
-				seen[key] = merged
-			}
-		}
-
-		// Yield all deduplicated paths
-		for _, path := range seen {
-			if !yield(path, nil) {
-				return
 			}
 		}
 	}
 }
 
 func RewriteSubject(seq PathSeq, subject ObjectAndRelation) PathSeq {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
 			}
 
-			// Replace the wildcard subject with the concrete subject
+			// Replace the wildcard subject with the concrete subject (mutate in place)
 			path.Subject = subject
 
-			// Convert to Path
 			if !yield(path, nil) {
 				return
 			}
@@ -542,10 +520,10 @@ func RewriteSubject(seq PathSeq, subject ObjectAndRelation) PathSeq {
 
 // FilterWildcardSubjects filters out any paths with wildcard subjects.
 func FilterWildcardSubjects(seq PathSeq) PathSeq {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
@@ -566,10 +544,10 @@ func FilterWildcardSubjects(seq PathSeq) PathSeq {
 // FilterResourcesByType filters a PathSeq to only include paths where the resource
 // matches the specified ObjectType. If filter.Type is empty, no filtering is applied.
 func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
@@ -603,18 +581,14 @@ func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
 // FilterSubjectsByType filters a PathSeq to only include paths where the subject
 // matches the specified ObjectType. If filter.Type is empty, no filtering is applied.
 func FilterSubjectsByType(seq PathSeq, filter ObjectType) PathSeq {
-	return func(yield func(Path, error) bool) {
+	if filter.Type == "" {
+		return seq
+	}
+
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
-					return
-				}
-				continue
-			}
-
-			// Empty Type means no filtering
-			if filter.Type == "" {
-				if !yield(path, nil) {
+				if !yield(nil, err) {
 					return
 				}
 				continue

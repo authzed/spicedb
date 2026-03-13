@@ -107,7 +107,7 @@ func iterSubjectsTraceString(resource Object, filter ObjectType) string {
 }
 
 // ExitIterator logs exiting an iterator and pops it from the stack
-func (t *TraceLogger) ExitIterator(it Iterator, paths []Path) {
+func (t *TraceLogger) ExitIterator(it Iterator, paths []*Path) {
 	// Pop from stack to maintain stack consistency
 	if len(t.stack) > 0 {
 		t.stack = t.stack[:len(t.stack)-1]

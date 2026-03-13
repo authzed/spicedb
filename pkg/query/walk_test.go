@@ -10,7 +10,7 @@ import (
 func TestWalkBasic(t *testing.T) {
 	// Create a simple tree: union with two fixed iterators
 	path1 := MustPathFromString("document:doc1#view@user:alice")
-	fixedIter1 := NewFixedIterator(path1)
+	fixedIter1 := NewFixedIterator(*path1)
 	fixedIter2 := NewEmptyFixedIterator()
 
 	union := NewUnionIterator(fixedIter1, fixedIter2)
@@ -116,8 +116,8 @@ func TestWalkDeepTree(t *testing.T) {
 	path1 := MustPathFromString("document:doc1#view@user:alice")
 	path2 := MustPathFromString("document:doc2#view@user:bob")
 
-	fixedIter1 := NewFixedIterator(path1)
-	fixedIter2 := NewFixedIterator(path2)
+	fixedIter1 := NewFixedIterator(*path1)
+	fixedIter2 := NewFixedIterator(*path2)
 	fixedIter3 := NewEmptyFixedIterator()
 
 	union := NewUnionIterator(fixedIter1, fixedIter2)

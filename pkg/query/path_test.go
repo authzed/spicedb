@@ -75,7 +75,7 @@ func TestPath_MergeOr(t *testing.T) {
 			Caveat:   caveat2,
 		}
 
-		merged, err := path1.MergeOr(path2)
+		merged, err := path1.MergeOr(&path2)
 		require.NoError(err)
 
 		// Should OR the caveats
@@ -95,7 +95,7 @@ func TestPath_MergeOr(t *testing.T) {
 			Subject:  NewObjectAndRelation("alice", "user", ""),
 		}
 
-		_, err := path1.MergeOr(path2)
+		_, err := path1.MergeOr(&path2)
 		require.Error(err)
 		require.Contains(err.Error(), "cannot merge paths with different resources")
 	})
@@ -112,7 +112,7 @@ func TestPath_MergeOr(t *testing.T) {
 			Subject:  NewObjectAndRelation("user", "bob", ""),
 		}
 
-		_, err := path1.MergeOr(path2)
+		_, err := path1.MergeOr(&path2)
 		require.Error(err)
 		require.Contains(err.Error(), "cannot merge paths with different subjects")
 	})
@@ -138,7 +138,7 @@ func TestPath_MergeAnd(t *testing.T) {
 			Caveat:   caveat2,
 		}
 
-		merged, err := path1.MergeAnd(path2)
+		merged, err := path1.MergeAnd(&path2)
 		require.NoError(err)
 
 		// Should AND the caveats
@@ -167,7 +167,7 @@ func TestPath_MergeAndNot(t *testing.T) {
 			Caveat:   caveat2,
 		}
 
-		merged, err := path1.MergeAndNot(path2)
+		merged, err := path1.MergeAndNot(&path2)
 		require.NoError(err)
 
 		// Should subtract the caveats
@@ -192,7 +192,7 @@ func TestPath_mergeFrom(t *testing.T) {
 				Subject:  NewObjectAndRelation("alice", "user", ""),
 			}
 
-			merged, err := path1.MergeOr(path2)
+			merged, err := path1.MergeOr(&path2)
 			require.NoError(err)
 			require.Equal("viewer", merged.Relation)
 		})
@@ -211,7 +211,7 @@ func TestPath_mergeFrom(t *testing.T) {
 				Subject:  NewObjectAndRelation("alice", "user", ""),
 			}
 
-			merged, err := path1.MergeOr(path2)
+			merged, err := path1.MergeOr(&path2)
 			require.NoError(err)
 			require.Empty(merged.Relation)
 		})
@@ -230,7 +230,7 @@ func TestPath_mergeFrom(t *testing.T) {
 				Subject:  NewObjectAndRelation("alice", "user", ""),
 			}
 
-			merged, err := path1.MergeOr(path2)
+			merged, err := path1.MergeOr(&path2)
 			require.NoError(err)
 			require.Nil(merged.Expiration)
 		})
@@ -249,7 +249,7 @@ func TestPath_mergeFrom(t *testing.T) {
 				Expiration: &later,
 			}
 
-			merged, err := path1.MergeOr(path2)
+			merged, err := path1.MergeOr(&path2)
 			require.NoError(err)
 			require.NotNil(merged.Expiration)
 			require.Equal(later, *merged.Expiration)
@@ -272,7 +272,7 @@ func TestPath_mergeFrom(t *testing.T) {
 				Expiration: &earlier,
 			}
 
-			merged, err := path1.MergeOr(path2)
+			merged, err := path1.MergeOr(&path2)
 			require.NoError(err)
 			require.Equal(earlier, *merged.Expiration)
 		})
@@ -295,7 +295,7 @@ func TestPath_mergeFrom(t *testing.T) {
 			Integrity: []*core.RelationshipIntegrity{integrity2},
 		}
 
-		merged, err := path1.MergeOr(path2)
+		merged, err := path1.MergeOr(&path2)
 		require.NoError(err)
 		require.Len(merged.Integrity, 2)
 		require.Equal(integrity1, merged.Integrity[0])
@@ -322,7 +322,7 @@ func TestPath_mergeFrom(t *testing.T) {
 			},
 		}
 
-		merged, err := path1.MergeOr(path2)
+		merged, err := path1.MergeOr(&path2)
 		require.NoError(err)
 		require.Len(merged.Metadata, 3)
 		require.Equal("value1", merged.Metadata["existing"])
@@ -344,7 +344,7 @@ func TestPath_mergeFrom(t *testing.T) {
 			Metadata: map[string]any{"key": "value"},
 		}
 
-		merged, err := path1.MergeOr(path2)
+		merged, err := path1.MergeOr(&path2)
 		require.NoError(err)
 		require.NotNil(merged.Metadata)
 		require.Equal("value", merged.Metadata["key"])
@@ -356,26 +356,26 @@ func TestPath_mergeFrom(t *testing.T) {
 
 		testCases := []struct {
 			name      string
-			mergeFunc func(p1, p2 Path) (Path, error)
+			mergeFunc func(p1, p2 *Path) (*Path, error)
 			expected  *core.CaveatExpression
 		}{
 			{
 				name: "or_operation",
-				mergeFunc: func(p1, p2 Path) (Path, error) {
+				mergeFunc: func(p1, p2 *Path) (*Path, error) {
 					return p1.MergeOr(p2)
 				},
 				expected: caveats.Or(caveat1, caveat2),
 			},
 			{
 				name: "and_operation",
-				mergeFunc: func(p1, p2 Path) (Path, error) {
+				mergeFunc: func(p1, p2 *Path) (*Path, error) {
 					return p1.MergeAnd(p2)
 				},
 				expected: caveats.And(caveat1, caveat2),
 			},
 			{
 				name: "andnot_operation",
-				mergeFunc: func(p1, p2 Path) (Path, error) {
+				mergeFunc: func(p1, p2 *Path) (*Path, error) {
 					return p1.MergeAndNot(p2)
 				},
 				expected: caveats.Subtract(caveat1, caveat2),
@@ -385,13 +385,13 @@ func TestPath_mergeFrom(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				require := require.New(t)
-				path1 := Path{
+				path1 := &Path{
 					Resource: NewObject("document", "doc1"),
 					Subject:  NewObjectAndRelation("alice", "user", ""),
 					Caveat:   caveat1,
 				}
 
-				path2 := Path{
+				path2 := &Path{
 					Resource: NewObject("document", "doc1"),
 					Subject:  NewObjectAndRelation("alice", "user", ""),
 					Caveat:   caveat2,
@@ -643,20 +643,20 @@ func TestPath_EqualsEndpoints(t *testing.T) {
 	path5 := MustPathFromString("document:doc1#view@user:bob")   // Different subject
 
 	t.Run("identical_endpoints", func(t *testing.T) {
-		require.True(path1.EqualsEndpoints(path2))
+		require.True(path1.EqualsEndpoints(*path2))
 	})
 
 	t.Run("different_relation_same_endpoints", func(t *testing.T) {
 		// EqualsEndpoints should ignore relation and only compare resource/subject
-		require.True(path1.EqualsEndpoints(path3))
+		require.True(path1.EqualsEndpoints(*path3))
 	})
 
 	t.Run("different_resource", func(t *testing.T) {
-		require.False(path1.EqualsEndpoints(path4))
+		require.False(path1.EqualsEndpoints(*path4))
 	})
 
 	t.Run("different_subject", func(t *testing.T) {
-		require.False(path1.EqualsEndpoints(path5))
+		require.False(path1.EqualsEndpoints(*path5))
 	})
 
 	// Note: nil path tests removed since Equals methods now use value receivers
@@ -669,7 +669,7 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	basePath := MustPathFromString("document:doc1#view@user:alice")
 
 	// Path with caveat
-	pathWithCaveat := basePath
+	pathWithCaveat := *basePath
 	pathWithCaveat.Caveat = &core.CaveatExpression{
 		OperationOrCaveat: &core.CaveatExpression_Caveat{
 			Caveat: &core.ContextualizedCaveat{CaveatName: "test_caveat"},
@@ -677,7 +677,7 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	}
 
 	// Path with different caveat
-	pathWithDifferentCaveat := basePath
+	pathWithDifferentCaveat := *basePath
 	pathWithDifferentCaveat.Caveat = &core.CaveatExpression{
 		OperationOrCaveat: &core.CaveatExpression_Caveat{
 			Caveat: &core.ContextualizedCaveat{CaveatName: "other_caveat"},
@@ -686,61 +686,61 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 
 	// Path with expiration
 	expiration := time.Now().Add(time.Hour)
-	pathWithExpiration := basePath
+	pathWithExpiration := *basePath
 	pathWithExpiration.Expiration = &expiration
 
 	// Path with different expiration
 	differentExpiration := time.Now().Add(2 * time.Hour)
-	pathWithDifferentExpiration := basePath
+	pathWithDifferentExpiration := *basePath
 	pathWithDifferentExpiration.Expiration = &differentExpiration
 
 	// Path with metadata
-	pathWithMetadata := basePath
+	pathWithMetadata := *basePath
 	pathWithMetadata.Metadata = map[string]any{"key": "value"}
 
 	// Path with different metadata
-	pathWithDifferentMetadata := basePath
+	pathWithDifferentMetadata := *basePath
 	pathWithDifferentMetadata.Metadata = map[string]any{"key": "different_value"}
 
 	// Path with integrity
-	pathWithIntegrity := basePath
+	pathWithIntegrity := *basePath
 	pathWithIntegrity.Integrity = []*core.RelationshipIntegrity{{KeyId: "key1"}}
 
 	t.Run("identical_paths", func(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#view@user:alice")
 		path2 := MustPathFromString("document:doc1#view@user:alice")
-		require.True(path1.Equals(path2))
+		require.True(path1.Equals(*path2))
 	})
 
 	t.Run("different_resource_type", func(t *testing.T) {
 		path2 := MustPathFromString("folder:doc1#view@user:alice")
-		require.False(basePath.Equals(path2))
+		require.False(basePath.Equals(*path2))
 	})
 
 	t.Run("different_resource_id", func(t *testing.T) {
 		path2 := MustPathFromString("document:doc2#view@user:alice")
-		require.False(basePath.Equals(path2))
+		require.False(basePath.Equals(*path2))
 	})
 
 	t.Run("different_relation", func(t *testing.T) {
 		path2 := MustPathFromString("document:doc1#edit@user:alice")
-		require.False(basePath.Equals(path2))
+		require.False(basePath.Equals(*path2))
 	})
 
 	t.Run("different_subject_type", func(t *testing.T) {
 		path2 := MustPathFromString("document:doc1#view@group:alice")
-		require.False(basePath.Equals(path2))
+		require.False(basePath.Equals(*path2))
 	})
 
 	t.Run("different_subject_id", func(t *testing.T) {
 		path2 := MustPathFromString("document:doc1#view@user:bob")
-		require.False(basePath.Equals(path2))
+		require.False(basePath.Equals(*path2))
 	})
 
 	t.Run("different_subject_relation", func(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#view@group:admin#member")
 		path2 := MustPathFromString("document:doc1#view@group:admin")
-		require.False(path1.Equals(path2))
+		require.False(path1.Equals(*path2))
 	})
 
 	// Note: nil path tests removed since Equals methods now use value receivers
@@ -786,7 +786,7 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 		require.False(basePath.Equals(pathWithIntegrity))
 
 		// Different integrity
-		pathWithDifferentIntegrity := basePath
+		pathWithDifferentIntegrity := *basePath
 		pathWithDifferentIntegrity.Integrity = []*core.RelationshipIntegrity{{KeyId: "key2"}}
 		require.False(pathWithIntegrity.Equals(pathWithDifferentIntegrity))
 
@@ -884,7 +884,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 func TestPathOrder_Metadata(t *testing.T) {
 	base := MustPathFromString("document:doc1#view@user:alice")
 	withMeta := func(m map[string]any) Path {
-		p := base
+		p := *base
 		p.Metadata = m
 		return p
 	}

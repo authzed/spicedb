@@ -304,8 +304,8 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		path2 := MustPathFromString("document:doc1#viewer@user:alice")
 
 		// Create iterators that return the same resource-subject pair
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -338,8 +338,8 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		// Test both orders to ensure preference is consistent
 		t.Run("NoCaveatFirst", func(t *testing.T) {
 			ctx := NewTestContext(t)
-			iter1 := NewFixedIterator(pathNoCaveat)
-			iter2 := NewFixedIterator(pathWithCaveat)
+			iter1 := NewFixedIterator(*pathNoCaveat)
+			iter2 := NewFixedIterator(*pathWithCaveat)
 
 			union := NewUnionIterator(iter1, iter2)
 
@@ -355,8 +355,8 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 		t.Run("CaveatFirst", func(t *testing.T) {
 			ctx := NewTestContext(t)
-			iter1 := NewFixedIterator(pathWithCaveat)
-			iter2 := NewFixedIterator(pathNoCaveat)
+			iter1 := NewFixedIterator(*pathWithCaveat)
+			iter2 := NewFixedIterator(*pathNoCaveat)
 
 			union := NewUnionIterator(iter1, iter2)
 
@@ -377,8 +377,8 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathDoc2 := MustPathFromString("document:doc2#viewer@user:alice")
 
-		iter1 := NewFixedIterator(pathDoc1)
-		iter2 := NewFixedIterator(pathDoc2)
+		iter1 := NewFixedIterator(*pathDoc1)
+		iter2 := NewFixedIterator(*pathDoc2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -403,8 +403,8 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
 		pathEditor := MustPathFromString("document:doc1#editor@user:alice")
 
-		iter1 := NewFixedIterator(pathViewer)
-		iter2 := NewFixedIterator(pathEditor)
+		iter1 := NewFixedIterator(*pathViewer)
+		iter2 := NewFixedIterator(*pathEditor)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -445,8 +445,8 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathWithCaveat1)
-		iter2 := NewFixedIterator(pathWithCaveat2)
+		iter1 := NewFixedIterator(*pathWithCaveat1)
+		iter2 := NewFixedIterator(*pathWithCaveat2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -478,8 +478,8 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathNoCaveat)
-		iter2 := NewFixedIterator(pathWithCaveat)
+		iter1 := NewFixedIterator(*pathNoCaveat)
+		iter2 := NewFixedIterator(*pathWithCaveat)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -514,8 +514,8 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathDoc1)
-		iter2 := NewFixedIterator(pathDoc2)
+		iter1 := NewFixedIterator(*pathDoc1)
+		iter2 := NewFixedIterator(*pathDoc2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -562,9 +562,9 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathNoCaveat)
-		iter2 := NewFixedIterator(pathCaveat1)
-		iter3 := NewFixedIterator(pathCaveat2)
+		iter1 := NewFixedIterator(*pathNoCaveat)
+		iter2 := NewFixedIterator(*pathCaveat1)
+		iter3 := NewFixedIterator(*pathCaveat2)
 
 		union := NewUnionIterator(iter1, iter2, iter3)
 
@@ -590,8 +590,8 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#viewer@user:alice")
 
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -629,8 +629,8 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
 		pathCarol := MustPathFromString("document:doc1#editor@user:carol")
 
-		iter1 := NewFixedIterator(pathAlice)
-		iter2 := NewFixedIterator(pathBob, pathCarol)
+		iter1 := NewFixedIterator(*pathAlice)
+		iter2 := NewFixedIterator(*pathBob, *pathCarol)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -664,8 +664,8 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@user:alice")
 
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -703,8 +703,8 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 		pathDoc2 := MustPathFromString("document:doc2#viewer@user:alice")
 		pathDoc3 := MustPathFromString("document:doc3#editor@user:alice")
 
-		iter1 := NewFixedIterator(pathDoc1)
-		iter2 := NewFixedIterator(pathDoc2, pathDoc3)
+		iter1 := NewFixedIterator(*pathDoc1)
+		iter2 := NewFixedIterator(*pathDoc2, *pathDoc3)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -734,8 +734,8 @@ func TestUnion_Types(t *testing.T) {
 		// Create union with fixed iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -761,8 +761,8 @@ func TestUnion_Types(t *testing.T) {
 		// Create union with different subject types across iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@group:engineers#member")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -787,8 +787,8 @@ func TestUnion_Types(t *testing.T) {
 		// Create union where multiple iterators have same subject types
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		union := NewUnionIterator(iter1, iter2)
 
@@ -814,8 +814,8 @@ func TestUnion_Types(t *testing.T) {
 		// Create union with mismatched resource types
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("folder:folder1#viewer@user:bob")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		union := NewUnionIterator(iter1, iter2)
 

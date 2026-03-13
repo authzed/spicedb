@@ -1,6 +1,8 @@
 package query
 
-import "github.com/authzed/spicedb/pkg/tuple"
+import (
+	"github.com/authzed/spicedb/pkg/tuple"
+)
 
 type ObjectAndRelation = tuple.ObjectAndRelation
 

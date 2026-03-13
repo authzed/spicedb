@@ -124,7 +124,7 @@ func TestOutline_Compile(t *testing.T) {
 		outline := Outline{
 			Type: FixedIteratorType,
 			Args: &IteratorArgs{
-				FixedPaths: []Path{path1, path2},
+				FixedPaths: []Path{*path1, *path2},
 			},
 		}
 
@@ -529,7 +529,7 @@ func TestOutline_Decompile(t *testing.T) {
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
-		fixed := NewFixedIterator(path1, path2)
+		fixed := NewFixedIterator(*path1, *path2)
 
 		outline, err := Decompile(fixed)
 		require.NoError(err)
@@ -1038,8 +1038,8 @@ func TestArgsCompare(t *testing.T) {
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 
-		a1 := &IteratorArgs{FixedPaths: []Path{path1}}
-		a2 := &IteratorArgs{FixedPaths: []Path{path1, path1}}
+		a1 := &IteratorArgs{FixedPaths: []Path{*path1}}
+		a2 := &IteratorArgs{FixedPaths: []Path{*path1, *path1}}
 
 		require.Equal(-1, argsCompare(a1, a2))
 		require.Equal(1, argsCompare(a2, a1))
@@ -1051,8 +1051,8 @@ func TestArgsCompare(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#viewer@user:alice")
 
-		a1 := &IteratorArgs{FixedPaths: []Path{path1}}
-		a2 := &IteratorArgs{FixedPaths: []Path{path2}}
+		a1 := &IteratorArgs{FixedPaths: []Path{*path1}}
+		a2 := &IteratorArgs{FixedPaths: []Path{*path2}}
 
 		result := argsCompare(a1, a2)
 		require.NotEqual(0, result)
@@ -1070,14 +1070,14 @@ func TestArgsCompare(t *testing.T) {
 			DefinitionName: "document",
 			RelationName:   "viewer",
 			Caveat:         caveat,
-			FixedPaths:     []Path{path},
+			FixedPaths:     []Path{*path},
 		}
 		a2 := &IteratorArgs{
 			Relation:       rel,
 			DefinitionName: "document",
 			RelationName:   "viewer",
 			Caveat:         caveat,
-			FixedPaths:     []Path{path},
+			FixedPaths:     []Path{*path},
 		}
 
 		require.Equal(0, argsCompare(a1, a2))
@@ -1329,7 +1329,7 @@ func TestSerializeOutline(t *testing.T) {
 		outline := Outline{
 			Type: FixedIteratorType,
 			Args: &IteratorArgs{
-				FixedPaths: []Path{path1, path2},
+				FixedPaths: []Path{*path1, *path2},
 			},
 		}
 

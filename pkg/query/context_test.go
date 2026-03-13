@@ -26,7 +26,7 @@ func TestTraceLogger(t *testing.T) {
 
 		// Create a test iterator with known Explain output
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		logger.EnterIterator(iterator, checkTraceString(resources, subject))
 
@@ -42,13 +42,13 @@ func TestTraceLogger(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Simulate entering the iterator first
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		paths := []Path{testPath}
+		paths := []*Path{testPath}
 		logger.ExitIterator(iterator, paths)
 
 		require.Equal(0, logger.depth)
@@ -62,7 +62,7 @@ func TestTraceLogger(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Add iterator to stack
 		logger.stack = append(logger.stack, iterator)
@@ -79,7 +79,7 @@ func TestTraceLogger(t *testing.T) {
 		logger := NewTraceLogger()
 		logger.depth = 3
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Don't add iterator to stack - should use current depth
 		logger.LogStep(iterator, "fallback message")
@@ -107,7 +107,7 @@ func TestContext(t *testing.T) {
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		ctx.TraceStep(iterator, "test message: %s", "data")
 
@@ -122,7 +122,7 @@ func TestContext(t *testing.T) {
 		// No TraceLogger set
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Should not panic when no logger is set
 		require.NotPanics(func() {
@@ -137,7 +137,7 @@ func TestContext(t *testing.T) {
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 		resources := []Object{NewObject("document", "doc1")}
 		subject := NewObject("user", "alice").WithEllipses()
 
@@ -154,13 +154,13 @@ func TestContext(t *testing.T) {
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Simulate having entered
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		ctx.TraceExit(iterator, []Path{testPath})
+		ctx.TraceExit(iterator, []*Path{testPath})
 
 		require.Equal(0, logger.depth)
 		require.Empty(logger.stack)
@@ -186,7 +186,7 @@ func TestContext(t *testing.T) {
 		ctx.Executor = nil // Manually remove executor to test the panic path
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		require.Panics(func() {
 			_, _ = ctx.Check(iterator, []Object{NewObject("document", "doc1")}, NewObject("user", "alice").WithEllipses())
@@ -201,7 +201,7 @@ func TestContext(t *testing.T) {
 		ctx.Executor = nil // Manually remove executor to test the panic path
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		require.Panics(func() {
 			_, _ = ctx.IterSubjects(iterator, NewObject("document", "doc1"), NoObjectFilter())
@@ -216,7 +216,7 @@ func TestContext(t *testing.T) {
 		ctx.Executor = nil // Manually remove executor to test the panic path
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		require.Panics(func() {
 			_, _ = ctx.IterResources(iterator, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
@@ -229,9 +229,9 @@ func TestContext(t *testing.T) {
 		// No TraceLogger
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
-		originalSeq := func(yield func(Path, error) bool) {
+		originalSeq := func(yield func(*Path, error) bool) {
 			yield(testPath, nil)
 		}
 
@@ -254,13 +254,13 @@ func TestContext(t *testing.T) {
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Simulate having entered the iterator
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		originalSeq := func(yield func(Path, error) bool) {
+		originalSeq := func(yield func(*Path, error) bool) {
 			yield(testPath, nil)
 		}
 
@@ -287,13 +287,13 @@ func TestContext(t *testing.T) {
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1 // Set proper depth to avoid negative repeat count
 
 		expectedErr := errors.New("test error")
-		originalSeq := func(yield func(Path, error) bool) {
-			yield(Path{}, expectedErr)
+		originalSeq := func(yield func(*Path, error) bool) {
+			yield(nil, expectedErr)
 		}
 
 		wrappedSeq := ctx.wrapPathSeqForTracing(iterator, originalSeq)
