@@ -857,11 +857,11 @@ func (itctx *importResolutionContext) translateImports(root *dslNode, locallyVis
 				return err
 			}
 
-			if err := validateFilepath(importPath); err != nil {
+			if err := validateFilepath(importPath, topLevelNode, itctx.mapper); err != nil {
 				return err
 			}
 			if itctx.sourceFS == nil {
-				return fmt.Errorf("import statement found but no source filesystem was configured for compilation")
+				return errors.New("import statement found but no source filesystem was configured for compilation")
 			}
 			filePath := filepath.Join(itctx.sourcePrefix, importPath)
 
@@ -870,12 +870,8 @@ func (itctx *importResolutionContext) translateImports(root *dslNode, locallyVis
 			currentLocallyVisitedFiles := locallyVisitedFiles.Copy()
 
 			if ok := currentLocallyVisitedFiles.Add(filePath); !ok {
-				// If we've already visited the file on this particular branch walk, it's
-				// a circular import issue.
-				return &CircularImportError{
-					error:    fmt.Errorf("circular import detected: %s has been visited on this branch", filePath),
-					filePath: filePath,
-				}
+				errMsg := fmt.Errorf("circular import detected: %s has been visited on this branch", filePath)
+				return toContextError(errMsg.Error(), filePath, topLevelNode, itctx.mapper)
 			}
 
 			if ok := globallyVisitedFiles.Add(filePath); !ok {
@@ -889,10 +885,13 @@ func (itctx *importResolutionContext) translateImports(root *dslNode, locallyVis
 
 			// Do the actual import here
 			// This is a new node provided by the translateImport
-			parsedImportRoot, err := importFile(itctx.sourceFS, filePath)
+			parsedImportRoot, importedContent, err := importFile(itctx.sourceFS, filePath, topLevelNode, itctx.mapper)
 			if err != nil {
-				return toContextError("failed to read import in schema file", "", topLevelNode, itctx.mapper)
+				return err
 			}
+
+			// Register the imported file so position mapping works correctly for cross-file references.
+			itctx.mapper.RegisterImportedFile(input.Source(filePath), importedContent)
 
 			// We recurse on that node to resolve any further imports
 			irc, err := newImportResolutionContext(itctx.sourceFS, itctx.mapper, newSourcePrefix)

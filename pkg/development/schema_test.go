@@ -2,6 +2,7 @@ package development
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 
@@ -110,4 +111,53 @@ definition document {
 	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
 	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
 	require.Contains(t, devErr.Message, "unknown_type")
+}
+
+func TestCompileSchemaWithRootFileNameOnImportError(t *testing.T) {
+	rootSchema := `use import
+
+definition user {}
+
+import "doesnotexist.zed"
+`
+	sourceFS := fstest.MapFS{} // empty FS, so the import will fail
+
+	compiled, devErr, err := CompileSchema(rootSchema,
+		WithSourceFS(sourceFS),
+		WithRootFileName("myroot.zed"),
+	)
+	require.NoError(t, err)
+	require.Nil(t, compiled)
+	require.NotNil(t, devErr)
+	require.Equal(t, "myroot.zed", devErr.Context)
+	require.Equal(t, "failed to read import \"doesnotexist.zed\": open doesnotexist.zed: file does not exist", devErr.Message)
+}
+
+func TestCompileSchemaWithErrorInImportedFile(t *testing.T) {
+	rootSchema := `use import
+
+definition user {}
+
+import "imported.zed"
+`
+	sourceFS := fstest.MapFS{
+		"imported.zed": &fstest.MapFile{Data: []byte("definition document {\n\tinvalid syntax here\n}")},
+	}
+
+	compiled, devErr, err := CompileSchema(rootSchema,
+		WithSourceFS(sourceFS),
+		WithRootFileName("myroot.zed"),
+	)
+	require.NoError(t, err)
+	require.Nil(t, compiled)
+	require.NotNil(t, devErr)
+	t.Log(devErr.Message)
+	require.Equal(t, "Expected end of statement or definition, found: TokenTypeIdentifier", devErr.Message)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
+	require.Equal(t, "invalid", devErr.Context)
+	require.Len(t, devErr.Path, 1)
+	require.Equal(t, "imported.zed", devErr.Path[0])
+	require.Positive(t, devErr.Line)
+	require.Positive(t, devErr.Column)
 }

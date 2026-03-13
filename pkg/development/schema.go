@@ -16,13 +16,20 @@ import (
 type CompileOption func(*compileConfig)
 
 type compileConfig struct {
-	fsys fs.FS
+	fsys         fs.FS
+	rootFileName string
 }
 
 // WithSourceFS enables import resolution using the given filesystem.
 // The filesystem should be rooted at the directory containing the schema file.
 func WithSourceFS(fsys fs.FS) CompileOption {
 	return func(cfg *compileConfig) { cfg.fsys = fsys }
+}
+
+// WithRootFileName saves the root file of the schema
+// so errors can be displayed accurately on UIs.
+func WithRootFileName(name string) CompileOption {
+	return func(cfg *compileConfig) { cfg.rootFileName = name }
 }
 
 // CompileSchema compiles a schema into its caveat and namespace definition(s), returning a developer
@@ -39,8 +46,13 @@ func CompileSchema(schema string, opts ...CompileOption) (*compiler.CompiledSche
 		compilerOpts = append(compilerOpts, compiler.SourceFS(cfg.fsys))
 	}
 
+	sourceFileName := "schema"
+	if cfg.rootFileName != "" {
+		sourceFileName = cfg.rootFileName
+	}
+
 	compiled, err := compiler.Compile(compiler.InputSchema{
-		Source:       input.Source("schema"),
+		Source:       input.Source(sourceFileName),
 		SchemaString: schema,
 	}, compiler.AllowUnprefixedObjectType(), compilerOpts...)
 
@@ -67,6 +79,7 @@ func CompileSchema(schema string, opts ...CompileOption) (*compiler.CompiledSche
 			Line:    uintLine + 1,   // 0-indexed in parser.
 			Column:  uintColumn + 1, // 0-indexed in parser.
 			Context: contextError.ErrorSourceCode,
+			Path:    []string{string(contextError.Source)},
 		}, nil
 	}
 

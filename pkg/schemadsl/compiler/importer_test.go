@@ -175,3 +175,28 @@ func TestConflictingDefinitionsCausesError(t *testing.T) {
 
 	require.ErrorContains(t, err, "found name reused between multiple definitions and/or caveats")
 }
+
+func TestMissingImportErrorContainsSourceFile(t *testing.T) {
+	t.Parallel()
+
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+	test := importerTest{"", "missing-import"}
+
+	sourceFolder := path.Join(workingDir, test.relativePath())
+
+	inputSchema := test.input()
+
+	_, err = compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("root.zed"),
+		SchemaString: inputSchema,
+	}, compiler.AllowUnprefixedObjectType(),
+		compiler.SourceFolder(sourceFolder))
+
+	require.Error(t, err)
+	var contextErr compiler.WithContextError
+	require.ErrorAs(t, err, &contextErr)
+
+	t.Log(contextErr.Error())
+	require.Equal(t, "parse error in `root.zed`, line 5, column 1: failed to read import \"doesnotexist.zed\": open doesnotexist.zed: no such file or directory", contextErr.Error())
+}
