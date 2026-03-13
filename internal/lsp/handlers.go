@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/jzelinskie/persistent"
@@ -33,11 +34,6 @@ func (s *Server) textDocDiagnostic(ctx context.Context, r *jsonrpc2.Request) (Fu
 	if err != nil {
 		return FullDocumentDiagnosticReport{}, err
 	}
-
-	log.Info().
-		Str("uri", string(params.TextDocument.URI)).
-		Int("diagnostics", len(diagnostics)).
-		Msg("diagnostics complete")
 
 	return FullDocumentDiagnosticReport{
 		Kind:  "full",
@@ -102,7 +98,6 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 		return nil, err
 	}
 
-	log.Info().Int("diagnostics", len(diagnostics)).Str("uri", string(uri)).Msg("computed diagnostics")
 	return diagnostics, nil
 }
 
@@ -172,14 +167,15 @@ func (s *Server) publishDiagnosticsIfNecessary(ctx context.Context, conn *jsonrp
 		return nil
 	}
 
-	log.Debug().
-		Str("uri", string(uri)).
-		Msg("publishing diagnostics")
-
 	diagnostics, err := s.computeDiagnostics(ctx, uri)
 	if err != nil {
 		return fmt.Errorf("failed to compute diagnostics: %w", err)
 	}
+
+	log.Info().
+		Str("uri", string(uri)).
+		Int("diagnostics", len(diagnostics)).
+		Msg("publishing diagnostics")
 
 	return conn.Notify(ctx, "textDocument/publishDiagnostics", lsp.PublishDiagnosticsParams{
 		URI:         uri,
@@ -284,6 +280,63 @@ func (s *Server) textDocHover(_ context.Context, r *jsonrpc2.Request) (*Hover, e
 	return hoverContents, nil
 }
 
+func (s *Server) textDocDefinition(_ context.Context, r *jsonrpc2.Request) (*lsp.Location, error) {
+	params, err := unmarshalParams[lsp.TextDocumentPositionParams](r)
+	if err != nil {
+		return nil, err
+	}
+
+	var location *lsp.Location
+	err = s.withFiles(func(files *persistent.Map[lsp.DocumentURI, trackedFile]) error {
+		compiled, err := s.getCompiledContents(params.TextDocument.URI, files)
+		if err != nil {
+			return err
+		}
+
+		resolver, err := development.NewSchemaPositionMapper(compiled)
+		if err != nil {
+			return err
+		}
+
+		position := input.Position{
+			LineNumber:     params.Position.Line,
+			ColumnPosition: params.Position.Character,
+		}
+
+		resolved, err := resolver.ReferenceAtPosition(input.Source("schema"), position)
+		if err != nil {
+			return err
+		}
+
+		if resolved == nil || resolved.TargetPosition == nil {
+			return nil
+		}
+
+		// Determine the target file URI from TargetSource.
+		targetURI := params.TextDocument.URI
+		if resolved.TargetSource != nil && *resolved.TargetSource != "schema" {
+			sourceDir := uriToSourceDir(params.TextDocument.URI)
+			targetURI = lsp.DocumentURI("file://" + filepath.Join(sourceDir, string(*resolved.TargetSource)))
+		}
+
+		nameStart := resolved.TargetPosition.ColumnPosition + resolved.TargetNamePositionOffset
+		location = &lsp.Location{
+			URI: targetURI,
+			Range: lsp.Range{
+				Start: lsp.Position{Line: resolved.TargetPosition.LineNumber, Character: nameStart},
+				End:   lsp.Position{Line: resolved.TargetPosition.LineNumber, Character: nameStart + len(resolved.Text)},
+			},
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return location, nil
+}
+
 func (s *Server) textDocFormat(_ context.Context, r *jsonrpc2.Request) ([]lsp.TextEdit, error) {
 	params, err := unmarshalParams[lsp.DocumentFormattingParams](r)
 	if err != nil {
@@ -337,8 +390,8 @@ func (s *Server) initialize(_ context.Context, r *jsonrpc2.Request) (any, error)
 		return nil, err
 	}
 
-	s.requestsDiagnostics = ip.Capabilities.Diagnostics.RefreshSupport
-	log.Debug().
+	s.requestsDiagnostics = ip.Capabilities.Workspace.Diagnostics.RefreshSupport
+	log.Info().
 		Bool("requestsDiagnostics", s.requestsDiagnostics).
 		Msg("initialize")
 
@@ -355,6 +408,7 @@ func (s *Server) initialize(_ context.Context, r *jsonrpc2.Request) (any, error)
 			DocumentFormattingProvider: true,
 			DiagnosticProvider:         &DiagnosticOptions{Identifier: "spicedb", InterFileDependencies: false, WorkspaceDiagnostics: false},
 			HoverProvider:              true,
+			DefinitionProvider:         true,
 		},
 	}, nil
 }

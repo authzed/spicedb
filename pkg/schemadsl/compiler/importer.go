@@ -15,18 +15,19 @@ type CircularImportError struct {
 	filePath string
 }
 
-func importFile(fsys fs.FS, filePath string) (*dslNode, error) {
+func importFile(fsys fs.FS, filePath string) (*dslNode, string, error) {
 	schemaBytes, err := fs.ReadFile(fsys, filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read import in schema file %q: %w", filePath, err)
+		return nil, "", fmt.Errorf("failed to read import %q: %w", filePath, err)
 	}
 	logging.Trace().Str("schema", string(schemaBytes)).Str("file", filePath).Msg("read schema from file")
 
+	content := string(schemaBytes)
 	parsedSchema, _, err := parseSchema(InputSchema{
 		Source:       input.Source(filePath),
-		SchemaString: string(schemaBytes),
+		SchemaString: content,
 	})
-	return parsedSchema, err
+	return parsedSchema, content, err
 }
 
 // Take a filepath and ensure that it's local to the current context.

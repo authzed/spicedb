@@ -48,8 +48,10 @@ type lspTester struct {
 func (lt *lspTester) initialize() {
 	resp, serverState := sendAndReceive[lsp.InitializeResult](lt, "initialize", InitializeParams{
 		Capabilities: ClientCapabilities{
-			Diagnostics: DiagnosticWorkspaceClientCapabilities{
-				RefreshSupport: true,
+			Workspace: WorkspaceClientCapabilities{
+				Diagnostics: DiagnosticWorkspaceClientCapabilities{
+					RefreshSupport: true,
+				},
 			},
 		},
 	})

@@ -826,7 +826,7 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 			// This is a new node provided by the translateImport
 			parsedImportRoot, err := importFile(itctx.sourceFS, filePath)
 			if err != nil {
-				return toContextError("failed to read import in schema file", "", topLevelNode, itctx.mapper)
+				return toContextError(err.Error(), "", topLevelNode, itctx.mapper)
 			}
 
 			// We recurse on that node to resolve any further imports

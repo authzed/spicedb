@@ -292,8 +292,10 @@ func TestDiagnosticsRefreshSupport(t *testing.T) {
 	// Initialize with diagnostic refresh support enabled
 	resp, serverState := sendAndReceive[lsp.InitializeResult](tester, "initialize", InitializeParams{
 		Capabilities: ClientCapabilities{
-			Diagnostics: DiagnosticWorkspaceClientCapabilities{
-				RefreshSupport: true,
+			Workspace: WorkspaceClientCapabilities{
+				Diagnostics: DiagnosticWorkspaceClientCapabilities{
+					RefreshSupport: true,
+				},
 			},
 		},
 	})
@@ -305,8 +307,10 @@ func TestDiagnosticsRefreshSupport(t *testing.T) {
 	tester2 := newLSPTester(t)
 	resp2, serverState2 := sendAndReceive[lsp.InitializeResult](tester2, "initialize", InitializeParams{
 		Capabilities: ClientCapabilities{
-			Diagnostics: DiagnosticWorkspaceClientCapabilities{
-				RefreshSupport: false,
+			Workspace: WorkspaceClientCapabilities{
+				Diagnostics: DiagnosticWorkspaceClientCapabilities{
+					RefreshSupport: false,
+				},
 			},
 		},
 	})
@@ -355,6 +359,219 @@ func TestUnmarshalParamsErrors(t *testing.T) {
 		_ = errors.As(err, &target)
 		return target
 	}().Code)
+}
+
+func TestMultiFileNoDiagnostics(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/users.zed", "definition user {}")
+	tester.setFileContents("file:///testdir/root.zed", `use import
+
+import "users.zed"
+
+definition resource {
+	relation viewer: user
+	permission view = viewer
+}
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/root.zed"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Empty(t, resp.Items)
+}
+
+func TestMultiFileUndefinedDefinitionDiagnostics(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/broken.zed", `
+definition resource {
+	relation viewer: organization
+	permission view = viewer
+}`)
+	tester.setFileContents("file:///testdir/root.zed", `use import
+
+import "broken.zed"
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/root.zed"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	t.Log(resp.Items[0].Message)
+	require.Contains(t, resp.Items[0].Message, "could not lookup definition `organization` for relation `viewer`: object definition `organization` not found")
+}
+
+func TestMultiFileBrokenImportDiagnostics(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/root.zed", `use import
+import "unknown.zed"
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/root.zed"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "failed to read import \"unknown.zed\": open unknown.zed: no such file or director")
+}
+
+func TestDefinitionSameFileTypeReference(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///test", `definition user {}
+
+definition resource {
+	relation viewer: user
+	permission view = viewer
+}
+`)
+
+	// Click on "user" in "relation viewer: user" (line 3, character 18)
+	resp, _ := sendAndReceive[lsp.Location](tester, "textDocument/definition",
+		lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file:///test"},
+			Position:     lsp.Position{Line: 3, Character: 18},
+		})
+	require.Equal(t, lsp.DocumentURI("file:///test"), resp.URI)
+	require.Equal(t, 0, resp.Range.Start.Line)
+	require.Equal(t, len("definition "), resp.Range.Start.Character)
+}
+
+func TestDefinitionSameFileRelationReference(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///test", `definition user {}
+
+definition resource {
+	relation viewer: user
+	permission view = viewer
+}
+`)
+
+	// Click on "viewer" in "permission view = viewer" (line 4, character 19)
+	resp, _ := sendAndReceive[lsp.Location](tester, "textDocument/definition",
+		lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file:///test"},
+			Position:     lsp.Position{Line: 4, Character: 19},
+		})
+	require.Equal(t, lsp.DocumentURI("file:///test"), resp.URI)
+	require.Equal(t, 3, resp.Range.Start.Line)
+	require.Equal(t, len("\trelation "), resp.Range.Start.Character)
+}
+
+func TestDefinitionCrossFileTypeReference(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/users.zed", "definition user {}")
+	tester.setFileContents("file:///testdir/root.zed", `use import
+
+import "users.zed"
+
+definition resource {
+	relation viewer: user
+	permission view = viewer
+}
+`)
+
+	// Click on "user" in "relation viewer: user" (line 5, character 18)
+	// It should point to "users.zed"
+	resp, _ := sendAndReceive[lsp.Location](tester, "textDocument/definition",
+		lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file:///testdir/root.zed"},
+			Position:     lsp.Position{Line: 5, Character: 18},
+		})
+	require.Equal(t, lsp.DocumentURI("file:///testdir/users.zed"), resp.URI)
+	require.Equal(t, 0, resp.Range.Start.Line)
+	require.Equal(t, len("definition "), resp.Range.Start.Character)
+}
+
+func TestDefinitionImportReference(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/users.zed", "definition user {}")
+	tester.setFileContents("file:///testdir/root.zed", `use import
+
+import "users.zed"
+
+definition resource {
+	relation viewer: user
+	permission view = viewer
+}
+`)
+
+	// Click on import "users.zed" (line 2, character 10)
+	// It should point on the very begginning of "users.zed"
+	resp, _ := sendAndReceive[lsp.Location](tester, "textDocument/definition",
+		lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file:///testdir/root.zed"},
+			Position:     lsp.Position{Line: 2, Character: 10},
+		})
+	require.Equal(t, lsp.DocumentURI("file:///testdir/users.zed"), resp.URI)
+	require.Equal(t, 0, resp.Range.Start.Line)
+	require.Equal(t, 0, resp.Range.Start.Character)
+}
+
+func TestDefinitionCrossFileCaveatReference(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/caveats.zed", `caveat some_caveat(some_param int) {
+	some_param < 100
+}`)
+	tester.setFileContents("file:///testdir/root.zed", `use import
+
+import "caveats.zed"
+
+definition user {}
+
+definition resource {
+	relation viewer: user with some_caveat
+}
+`)
+
+	// Click on "some_caveat" in "relation viewer: user with some_caveat" (line 7, character 30)
+	// "\trelation viewer: user with some_caveat"
+	//  0         1         2         3
+	//  0123456789012345678901234567890123456789
+	resp, _ := sendAndReceive[lsp.Location](tester, "textDocument/definition",
+		lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file:///testdir/root.zed"},
+			Position:     lsp.Position{Line: 7, Character: 30},
+		})
+	require.Equal(t, lsp.DocumentURI("file:///testdir/caveats.zed"), resp.URI)
+	require.Equal(t, 0, resp.Range.Start.Line)
+	require.Equal(t, len("caveat "), resp.Range.Start.Character)
+}
+
+func TestDefinitionNoReference(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///test", "definition user {}")
+
+	// Click on whitespace / keyword where no reference exists
+	resp, _ := sendAndReceive[*lsp.Location](tester, "textDocument/definition",
+		lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file:///test"},
+			Position:     lsp.Position{Line: 0, Character: 0},
+		})
+	require.Nil(t, resp)
 }
 
 func TestInvalidParams(t *testing.T) {

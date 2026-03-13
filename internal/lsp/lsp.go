@@ -96,6 +96,8 @@ func (s *Server) handle(ctx context.Context, conn *jsonrpc2.Conn, r *jsonrpc2.Re
 		result, err = s.textDocFormat(ctx, r)
 	case "textDocument/hover":
 		result, err = s.textDocHover(ctx, r)
+	case "textDocument/definition":
+		result, err = s.textDocDefinition(ctx, r)
 	default:
 		log.Ctx(ctx).Warn().
 			Str("method", r.Method).
