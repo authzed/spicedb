@@ -48,7 +48,7 @@ func (c *CountObserver) ObserveEnterIterator(op ObserverOperation, key Canonical
 }
 
 // ObservePath increments the result counter for the given operation and key.
-func (c *CountObserver) ObservePath(op ObserverOperation, key CanonicalKey, _ Path) {
+func (c *CountObserver) ObservePath(op ObserverOperation, key CanonicalKey, _ *Path) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

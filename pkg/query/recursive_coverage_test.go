@@ -245,14 +245,14 @@ func (i *infiniteRecursiveIterator) IterSubjectsImpl(ctx *Context, resource Obje
 }
 
 func (i *infiniteRecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		i.counter++
 		counter, err := safecast.Convert[int32](i.counter)
 		if err != nil {
-			yield(Path{}, err)
+			yield(nil, err)
 			return
 		}
-		path := Path{
+		path := &Path{
 			Resource: Object{ObjectType: i.resourceType, ObjectID: "folder" + string('0'+counter)},
 			Relation: "parent",
 			Subject:  subject,
@@ -299,9 +299,9 @@ type depthCountingIterator struct {
 
 func (d *depthCountingIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	d.counter++
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		// Always return a path so iterative deepening continues
-		path := Path{
+		path := &Path{
 			Resource: resources[0],
 			Relation: "view",
 			Subject:  subject,

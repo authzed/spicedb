@@ -50,7 +50,7 @@ func (a *AnalyzeObserver) ObserveEnterIterator(op ObserverOperation, key Canonic
 }
 
 // ObservePath increments the result counter (via CountObserver).
-func (a *AnalyzeObserver) ObservePath(op ObserverOperation, key CanonicalKey, path Path) {
+func (a *AnalyzeObserver) ObservePath(op ObserverOperation, key CanonicalKey, path *Path) {
 	// Delegate entirely to CountObserver for result counting
 	a.CountObserver.ObservePath(op, key, path)
 }

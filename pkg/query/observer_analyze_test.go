@@ -315,10 +315,10 @@ func TestAnalyzeObserver(t *testing.T) {
 		key := CanonicalKey("test-key")
 		path := Path{}
 
-		obs.ObservePath(CheckOperation, key, path)
-		obs.ObservePath(CheckOperation, key, path)
-		obs.ObservePath(IterSubjectsOperation, key, path)
-		obs.ObservePath(IterResourcesOperation, key, path)
+		obs.ObservePath(CheckOperation, key, &path)
+		obs.ObservePath(CheckOperation, key, &path)
+		obs.ObservePath(IterSubjectsOperation, key, &path)
+		obs.ObservePath(IterResourcesOperation, key, &path)
 
 		stats := obs.GetStats()[key]
 		require.Equal(t, 2, stats.CheckResults)

@@ -220,7 +220,7 @@ func TestRecursiveIterator_Types(t *testing.T) {
 
 		// Create a recursive iterator with a template tree
 		path := MustPathFromString("folder:folder1#parent@folder:folder2")
-		templateTree := NewFixedIterator(path)
+		templateTree := NewFixedIterator(*path)
 		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
 
 		resourceType, err := recursive.ResourceType()
@@ -234,7 +234,7 @@ func TestRecursiveIterator_Types(t *testing.T) {
 
 		// Create a recursive iterator with a template tree
 		path := MustPathFromString("folder:folder1#parent@folder:folder2")
-		templateTree := NewFixedIterator(path)
+		templateTree := NewFixedIterator(*path)
 		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
 
 		subjectTypes, err := recursive.SubjectTypes()

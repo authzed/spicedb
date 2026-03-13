@@ -59,8 +59,10 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 		return subSeq, nil
 	}
 
-	return func(yield func(Path, error) bool) {
-		ctx.TraceStep(c, "applying caveat '%s' to sub-iterator results", c.caveat.CaveatName)
+	return func(yield func(*Path, error) bool) {
+		if ctx.shouldTrace() {
+			ctx.TraceStep(c, "applying caveat '%s' to sub-iterator results", c.caveat.CaveatName)
+		}
 
 		processedCount := 0
 		passedCount := 0
@@ -77,7 +79,9 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 			// Apply caveat simplification to the path
 			simplified, passes, err := c.simplifyCaveat(ctx, path)
 			if err != nil {
-				ctx.TraceStep(c, "caveat evaluation failed for path: %v", err)
+				if ctx.shouldTrace() {
+					ctx.TraceStep(c, "caveat evaluation failed for path: %v", err)
+				}
 				if !yield(path, err) {
 					return
 				}
@@ -85,7 +89,9 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 
 			if !passes {
 				// Caveat evaluated to false - don't yield the path
-				ctx.TraceStep(c, "path failed caveat evaluation")
+				if ctx.shouldTrace() {
+					ctx.TraceStep(c, "path failed caveat evaluation")
+				}
 				continue
 			}
 
@@ -97,13 +103,15 @@ func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, erro
 			}
 		}
 
-		ctx.TraceStep(c, "processed %d paths, %d passed caveat evaluation", processedCount, passedCount)
+		if ctx.shouldTrace() {
+			ctx.TraceStep(c, "processed %d paths, %d passed caveat evaluation", processedCount, passedCount)
+		}
 	}, nil
 }
 
 // simplifyCaveat simplifies the caveat on the given path using AND/OR logic.
 // Returns: (simplified_expression, passes, error)
-func (c *CaveatIterator) simplifyCaveat(ctx *Context, path Path) (*core.CaveatExpression, bool, error) {
+func (c *CaveatIterator) simplifyCaveat(ctx *Context, path *Path) (*core.CaveatExpression, bool, error) {
 	// If no caveat is specified on the iterator, allow all paths
 	if c.caveat == nil {
 		return path.Caveat, true, nil

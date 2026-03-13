@@ -31,10 +31,10 @@ func TestCountObserverPath(t *testing.T) {
 	key := CanonicalKey("test-key")
 	path := Path{}
 
-	obs.ObservePath(CheckOperation, key, path)
-	obs.ObservePath(CheckOperation, key, path)
-	obs.ObservePath(IterSubjectsOperation, key, path)
-	obs.ObservePath(IterResourcesOperation, key, path)
+	obs.ObservePath(CheckOperation, key, &path)
+	obs.ObservePath(CheckOperation, key, &path)
+	obs.ObservePath(IterSubjectsOperation, key, &path)
+	obs.ObservePath(IterResourcesOperation, key, &path)
 
 	stats := obs.GetStats()[key]
 	require.Equal(t, 2, stats.CheckResults)
@@ -178,7 +178,7 @@ func TestCountObserverMultipleCalls(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		obs.ObserveEnterIterator(CheckOperation, key)
 		for j := 0; j < 2; j++ {
-			obs.ObservePath(CheckOperation, key, Path{})
+			obs.ObservePath(CheckOperation, key, &Path{})
 		}
 		obs.ObserveReturnIterator(CheckOperation, key)
 	}
@@ -199,7 +199,7 @@ func TestCountObserverConcurrency(t *testing.T) {
 	go func() {
 		for i := 0; i < 100; i++ {
 			obs.ObserveEnterIterator(CheckOperation, key1)
-			obs.ObservePath(CheckOperation, key1, Path{})
+			obs.ObservePath(CheckOperation, key1, &Path{})
 			obs.ObserveReturnIterator(CheckOperation, key1)
 		}
 		done <- true
@@ -209,7 +209,7 @@ func TestCountObserverConcurrency(t *testing.T) {
 	go func() {
 		for i := 0; i < 100; i++ {
 			obs.ObserveEnterIterator(IterSubjectsOperation, key2)
-			obs.ObservePath(IterSubjectsOperation, key2, Path{})
+			obs.ObservePath(IterSubjectsOperation, key2, &Path{})
 			obs.ObserveReturnIterator(IterSubjectsOperation, key2)
 		}
 		done <- true

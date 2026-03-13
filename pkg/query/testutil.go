@@ -74,7 +74,7 @@ func NewDocumentAccessFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -104,7 +104,7 @@ func NewFolderHierarchyFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -133,7 +133,7 @@ func NewMultiRoleFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -151,7 +151,7 @@ func NewSingleUserFixedIterator(userID string) *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -192,7 +192,7 @@ func NewLargeFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -213,8 +213,8 @@ func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject Obj
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Path, error) bool) {
-			yield(Path{}, errors.New("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -227,8 +227,8 @@ func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object, filterS
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Path, error) bool) {
-			yield(Path{}, errors.New("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -241,8 +241,8 @@ func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Path, error) bool) {
-			yield(Path{}, errors.New("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence

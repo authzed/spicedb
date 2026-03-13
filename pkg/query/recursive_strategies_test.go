@@ -154,7 +154,7 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 	}
 	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
 
-	allResults := make([][]Path, 0, len(strategies))
+	allResults := make([][]*Path, 0, len(strategies))
 
 	for _, strategy := range strategies {
 		recursive := NewRecursiveIterator(union, "folder", "view")
@@ -179,9 +179,9 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 
 	// All strategies should produce same results
 	for i := range allResults[0] {
-		require.True(t, allResults[0][i].EqualsEndpoints(allResults[1][i]),
+		require.True(t, allResults[0][i].EqualsEndpoints(*allResults[1][i]),
 			"IterSubjects and IterResources should match at path %d", i)
-		require.True(t, allResults[0][i].EqualsEndpoints(allResults[2][i]),
+		require.True(t, allResults[0][i].EqualsEndpoints(*allResults[2][i]),
 			"IterSubjects and Deepening should match at path %d", i)
 	}
 }

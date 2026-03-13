@@ -20,8 +20,8 @@ func applyDirectionHint(t *testing.T, hints []Hint) arrowDirection {
 	t.Helper()
 	require.Len(t, hints, 1)
 	arrow := NewArrowIterator(
-		NewFixedIterator(MustPathFromString("document:doc1#parent@folder:folder1")),
-		NewFixedIterator(MustPathFromString("folder:folder1#viewer@user:alice")),
+		NewFixedIterator(*MustPathFromString("document:doc1#parent@folder:folder1")),
+		NewFixedIterator(*MustPathFromString("folder:folder1#viewer@user:alice")),
 	)
 	require.NoError(t, hints[0](arrow))
 	return arrow.direction
