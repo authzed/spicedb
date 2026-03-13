@@ -498,11 +498,14 @@ func DeduplicatePathSeq(seq PathSeq) PathSeq {
 					yield(nil, err)
 					return
 				}
-			} else {
-				seen[key] = path
-				if !yield(path, nil) {
-					return
-				}
+				seen[key] = merged
+			}
+		}
+
+		// Yield all deduplicated paths
+		for _, path := range seen {
+			if !yield(path, nil) {
+				return
 			}
 		}
 	}
