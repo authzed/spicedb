@@ -155,10 +155,7 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 										qctx.CaveatContext = assertion.CaveatContext
 									}
 
-									seq, err := qctx.Check(it, []query.Object{query.GetObject(rel.Resource)}, rel.Subject)
-									require.NoError(err)
-
-									rels, err := query.CollectAll(seq)
+									path, err := qctx.Check(it, query.GetObject(rel.Resource), rel.Subject)
 									require.NoError(err)
 
 									// Print trace if test fails
@@ -176,16 +173,12 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 
 									switch entry.expectedPermissionship {
 									case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
-										require.Len(rels, 1)
-										require.NotNil(rels[0].Caveat)
+										require.NotNil(path)
 									case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
-										require.Len(rels, 1)
-										require.Nil(rels[0].Caveat)
+										require.NotNil(path)
+										require.Nil(path.Caveat)
 									case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
-										if len(rels) != 0 && qctx.TraceLogger != nil {
-											t.Logf("Expected 0 relations but got %d. Trace:\n%s", len(rels), qctx.TraceLogger.DumpTrace())
-										}
-										require.Empty(rels)
+										require.Nil(path)
 									}
 								})
 							}

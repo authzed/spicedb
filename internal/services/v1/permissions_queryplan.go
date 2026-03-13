@@ -13,7 +13,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt"
-	schema "github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -151,16 +151,13 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		Relation:   normalizeSubjectRelation(req.Subject),
 	}
 
-	pathSeq, err := qctx.Check(it, []query.Object{resource}, subject)
+	path, err := qctx.Check(it, resource, subject)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Collect results and convert to response
-	permissionship, partialCaveat, err := convertPathsToPermissionship(pathSeq)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
+	// Convert result path to response
+	permissionship, partialCaveat := convertPathToPermissionship(path)
 
 	// Merge count statistics into metadata after query completes
 	countStats := countObserver.GetStats()
@@ -175,29 +172,21 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	return resp, nil
 }
 
-// convertPathsToPermissionship iterates over paths and determines the permissionship result.
-// Returns the first path's permissionship status, as any path indicates access.
-func convertPathsToPermissionship(pathSeq query.PathSeq) (v1.CheckPermissionResponse_Permissionship, *v1.PartialCaveatInfo, error) {
-	// Iterate over paths to find the first valid result
-	for path, err := range pathSeq {
-		if err != nil {
-			return v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED, nil, err
-		}
-
-		// Found a path - determine permissionship based on caveat presence
-		if path.Caveat != nil {
-			// TODO: Extract missing required context from caveat expression
-			return v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION, &v1.PartialCaveatInfo{
-				MissingRequiredContext: []string{},
-			}, nil
-		}
-
-		// Path exists without caveat - has permission
-		return v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, nil, nil
+// convertPathToPermissionship converts a single check result path to a permissionship response.
+// A nil path means no permission; a non-nil path means permission (conditional if it has a caveat).
+func convertPathToPermissionship(path *query.Path) (v1.CheckPermissionResponse_Permissionship, *v1.PartialCaveatInfo) {
+	if path == nil {
+		return v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, nil
 	}
 
-	// No paths found - no permission
-	return v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, nil, nil
+	if path.Caveat != nil {
+		// TODO: Extract missing required context from caveat expression
+		return v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION, &v1.PartialCaveatInfo{
+			MissingRequiredContext: []string{},
+		}
+	}
+
+	return v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, nil
 }
 
 // lookupResourcesWithQueryPlan executes a LookupResources call using the query plan API.
@@ -249,7 +238,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 
 	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
 		SubjectType:     req.Subject.Object.ObjectType,
-		SubjectRelation: req.Subject.OptionalRelation,
+		SubjectRelation: normalizeSubjectRelation(req.Subject),
 	})
 	if err != nil {
 		return ps.rewriteError(ctx, err)
@@ -369,7 +358,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 
 	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
 		SubjectType:     req.SubjectObjectType,
-		SubjectRelation: req.OptionalSubjectRelation,
+		SubjectRelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 	})
 	if err != nil {
 		return ps.rewriteError(ctx, err)

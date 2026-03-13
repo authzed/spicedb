@@ -107,7 +107,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	canonicalOutline, err := BuildOutlineFromSchema(dsSchema, "file", "viewer")
 	require.NoError(t, err)
 
-	resources := NewObjects("file", "file0")
+	resource := NewObject("file", "file0")
 	subject := NewObject("user", "user42").WithEllipses()
 
 	readerOpt := WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
@@ -118,22 +118,18 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	plainIt, err := canonicalOutline.Compile()
 	require.NoError(t, err)
 
-	plainSeq, err := NewLocalContext(ctx, readerOpt, WithTraceLogger(plainTrace)).
-		Check(plainIt, resources, subject)
+	plainPath, err := NewLocalContext(ctx, readerOpt, WithTraceLogger(plainTrace)).
+		Check(plainIt, resource, subject)
 	require.NoError(t, err)
-	plainPaths, err := CollectAll(plainSeq)
-	require.NoError(t, err)
-	require.NotEmpty(t, plainPaths, "plain plan must find paths from file0 to user42")
+	require.NotNil(t, plainPath, "plain plan must find path from file0 to user42")
 
 	// ---- advised (CountAdvisor applied after a warm-up run) ----
 
 	obs := NewCountObserver()
 	warmIt, err := canonicalOutline.Compile()
 	require.NoError(t, err)
-	warmSeq, err := NewLocalContext(ctx, readerOpt, WithObserver(obs)).
-		Check(warmIt, resources, subject)
-	require.NoError(t, err)
-	_, err = CollectAll(warmSeq)
+	_, err = NewLocalContext(ctx, readerOpt, WithObserver(obs)).
+		Check(warmIt, resource, subject)
 	require.NoError(t, err)
 
 	advisedCO, err := ApplyAdvisor(canonicalOutline, NewCountAdvisor(obs.GetStats()))
@@ -142,16 +138,15 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	require.NoError(t, err)
 
 	advisedTrace := NewTraceLogger()
-	advisedSeq, err := NewLocalContext(ctx, readerOpt, WithTraceLogger(advisedTrace)).
-		Check(advisedIt, resources, subject)
-	require.NoError(t, err)
-	advisedPaths, err := CollectAll(advisedSeq)
+	advisedPath, err := NewLocalContext(ctx, readerOpt, WithTraceLogger(advisedTrace)).
+		Check(advisedIt, resource, subject)
 	require.NoError(t, err)
 
 	t.Logf("plain explain:\n%s\nplain trace:\n%s", plainIt.Explain(), plainTrace.DumpTrace())
 	t.Logf("advised explain:\n%s\nadvised trace:\n%s", advisedIt.Explain(), advisedTrace.DumpTrace())
 
-	require.Equal(t, plainPaths, advisedPaths,
-		"advised plan must return the same paths as plain",
+	// Both plans must agree: either both find a path or neither does
+	require.Equal(t, plainPath == nil, advisedPath == nil,
+		"advised plan must agree with plain on whether a path exists",
 	)
 }

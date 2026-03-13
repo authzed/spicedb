@@ -22,41 +22,28 @@ func TestUnionIterator(t *testing.T) {
 		// Create a union of different access patterns
 		union := NewUnionIterator(documentAccess, multiRole)
 
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		// Check doc1 for alice — both DocumentAccess and MultiRole have alice on doc1
+		pathDoc1, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
+		require.NotNil(pathDoc1, "Union should find alice on doc1")
+		require.Equal("alice", pathDoc1.Subject.ObjectID)
+		require.Equal("doc1", pathDoc1.Resource.ObjectID)
 
-		paths, err := CollectAll(pathSeq)
+		// Check doc2 for alice — DocumentAccess has alice on doc2
+		pathDoc2, err := ctx.Check(union, NewObject("document", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		// Union should contain relations from both iterators for alice on doc1 and doc2
-		// DocumentAccess: alice viewer/editor/owner on doc1, alice viewer on doc2
-		// MultiRole: alice viewer/editor/owner on doc1
-		// With the new deduplication fix, we deduplicate by resource (type + id), not by full relation
-		// So we expect only one relation per resource: 1 for doc1, 1 for doc2 (2 total)
-		require.Len(paths, 2, "Union should deduplicate to one relation per resource")
-
-		// Check that we have relations for both doc1 and doc2
-		resourceIDs := make(map[string]bool)
-		for _, path := range paths {
-			require.Equal("alice", path.Subject.ObjectID, "All paths should be for alice")
-			require.Equal("document", path.Resource.ObjectType, "All paths should be for documents")
-			resourceIDs[path.Resource.ObjectID] = true
-		}
-		require.Contains(resourceIDs, "doc1", "Should have relation for doc1")
-		require.Contains(resourceIDs, "doc2", "Should have relation for doc2")
+		require.NotNil(pathDoc2, "Union should find alice on doc2")
+		require.Equal("doc2", pathDoc2.Resource.ObjectID)
 	})
 
 	t.Run("Check_EmptyUnion", func(t *testing.T) {
 		ctx := NewTestContext(t)
 		union := NewUnionIterator()
 
-		// Empty union should return empty results
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		// Empty union should return nil
+		path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.Empty(paths, "empty union should return no results")
+		require.Nil(path, "empty union should return nil")
 	})
 
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
@@ -64,31 +51,11 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Even with a single sub-iterator, union applies deduplication logic
-		// DocumentAccess iterator has alice with viewer, editor, and owner access to doc1
-		// But union deduplication by resource (type + id) means only 1 relation for doc1
-		require.Len(paths, 1, "Union should deduplicate to one relation per resource")
-		require.Equal("doc1", paths[0].Resource.ObjectID)
-		require.Equal("alice", paths[0].Subject.ObjectID)
-	})
-
-	t.Run("Check_EmptyResourceList", func(t *testing.T) {
-		ctx := NewTestContext(t)
-		documentAccess := NewDocumentAccessFixedIterator()
-		union := NewUnionIterator(documentAccess)
-
-		pathSeq, err := ctx.Check(union, []Object{}, NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.Empty(paths, "empty resource list should return no results")
+		require.NotNil(path, "Union should find alice on doc1")
+		require.Equal("doc1", path.Resource.ObjectID)
+		require.Equal("alice", path.Subject.ObjectID)
 	})
 
 	t.Run("Check_EarlyTermination", func(t *testing.T) {
@@ -97,18 +64,11 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		singleUser := NewSingleUserFixedIterator("alice")
 
-		// Test the optimization where union stops checking remaining resources
-		// once all have been found by earlier sub-iterators
 		union := NewUnionIterator(documentAccess, singleUser)
 
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// The union should optimize by not checking already found resources
-		require.NotEmpty(paths, "Union should find results")
+		require.NotNil(path, "Union should find results")
 	})
 
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
@@ -116,13 +76,9 @@ func TestUnionIterator(t *testing.T) {
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
+		path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-		// Should be empty since subject doesn't exist
-		require.Empty(paths, "nonexistent subject should return no results")
+		require.Nil(path, "nonexistent subject should return nil")
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
@@ -256,19 +212,11 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 
 	union := NewUnionIterator(documentAccess, multiRole)
 
-	pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+	path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
-
-	paths, err := CollectAll(pathSeq)
-	require.NoError(err)
-
-	// The union should handle potential duplicates correctly through its
-	// resource elimination optimization. Both iterators have alice with various
-	// permissions on doc1, but with the new deduplication fix, we deduplicate by
-	// resource (type + id), so we expect only 1 relation for doc1.
-	require.Len(paths, 1, "Union should deduplicate to one relation per resource")
-	require.Equal("doc1", paths[0].Resource.ObjectID)
-	require.Equal("alice", paths[0].Subject.ObjectID)
+	require.NotNil(path, "Union should find alice on doc1")
+	require.Equal("doc1", path.Resource.ObjectID)
+	require.Equal("alice", path.Subject.ObjectID)
 }
 
 func TestUnionIteratorMultipleResources(t *testing.T) {
@@ -282,15 +230,14 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 
 	union := NewUnionIterator(documentAccess, multiRole)
 
-	// Test with multiple resource IDs
-	pathSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2", "nonexistent"), NewObject("user", "alice").WithEllipses())
+	// Test with individual resource IDs
+	pathDoc1, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
+	require.NoError(err)
+	pathDoc2, err := ctx.Check(union, NewObject("document", "doc2"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 
-	paths, err := CollectAll(pathSeq)
-	require.NoError(err)
-
-	// The result should include all valid union relationships found across all resources
-	require.NotEmpty(paths, "Union should find relations from multiple resources")
+	// The result should include valid union relationships found for each resource
+	require.True(pathDoc1 != nil || pathDoc2 != nil, "Union should find relations from multiple resources")
 }
 
 func TestUnionDeduplicationBugFix(t *testing.T) {
@@ -309,16 +256,11 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 		union := NewUnionIterator(iter1, iter2)
 
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Should be deduplicated to only one relation
-		require.Len(paths, 1, "Union should deduplicate identical relations")
-		require.Equal("doc1", paths[0].Resource.ObjectID)
-		require.Equal("alice", paths[0].Subject.ObjectID)
+		require.NotNil(path, "Union should deduplicate identical relations")
+		require.Equal("doc1", path.Resource.ObjectID)
+		require.Equal("alice", path.Subject.ObjectID)
 	})
 
 	t.Run("PreferNoCaveatRelations", func(t *testing.T) {
@@ -343,14 +285,10 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 			union := NewUnionIterator(iter1, iter2)
 
-			pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+			path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 			require.NoError(err)
-
-			paths, err := CollectAll(pathSeq)
-			require.NoError(err)
-
-			require.Len(paths, 1, "Union should deduplicate to one relation")
-			require.Nil(paths[0].Caveat, "Union should prefer relation without caveat")
+			require.NotNil(path, "Union should deduplicate to one relation")
+			require.Nil(path.Caveat, "Union should prefer relation without caveat")
 		})
 
 		t.Run("CaveatFirst", func(t *testing.T) {
@@ -360,14 +298,10 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 			union := NewUnionIterator(iter1, iter2)
 
-			pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+			path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 			require.NoError(err)
-
-			paths, err := CollectAll(pathSeq)
-			require.NoError(err)
-
-			require.Len(paths, 1, "Union should deduplicate to one relation")
-			require.Nil(paths[0].Caveat, "Union should prefer relation without caveat")
+			require.NotNil(path, "Union should deduplicate to one relation")
+			require.Nil(path.Caveat, "Union should prefer relation without caveat")
 		})
 	})
 
@@ -382,18 +316,15 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 		union := NewUnionIterator(iter1, iter2)
 
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		resultDoc1, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
+		require.NotNil(resultDoc1, "Should find alice on doc1")
+		require.Equal("doc1", resultDoc1.Resource.ObjectID)
 
-		paths, err := CollectAll(pathSeq)
+		resultDoc2, err := ctx.Check(union, NewObject("document", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		// Both relations should be kept since they are for different resources
-		require.Len(paths, 2, "Union should keep relations to different resources")
-
-		resourceIDs := []string{paths[0].Resource.ObjectID, paths[1].Resource.ObjectID}
-		require.Contains(resourceIDs, "doc1")
-		require.Contains(resourceIDs, "doc2")
+		require.NotNil(resultDoc2, "Should find alice on doc2")
+		require.Equal("doc2", resultDoc2.Resource.ObjectID)
 	})
 
 	t.Run("DeduplicationSameResourceDifferentRelations", func(t *testing.T) {
@@ -408,16 +339,11 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 		union := NewUnionIterator(iter1, iter2)
 
-		pathSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Should be deduplicated to only one relation since same resource
-		require.Len(paths, 1, "Union should deduplicate relations to same resource")
-		require.Equal("doc1", paths[0].Resource.ObjectID)
-		require.Equal("alice", paths[0].Subject.ObjectID)
+		require.NotNil(path, "Union should deduplicate relations to same resource")
+		require.Equal("doc1", path.Resource.ObjectID)
+		require.Equal("alice", path.Subject.ObjectID)
 	})
 }
 
@@ -450,14 +376,10 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 
 		union := NewUnionIterator(iter1, iter2)
 
-		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Union should deduplicate to one relation")
-		relCaveat := rels[0].Caveat
+		require.NotNil(rel, "Union should deduplicate to one relation")
+		relCaveat := rel.Caveat
 		require.NotNil(relCaveat, "Result should have combined caveat")
 		require.NotNil(relCaveat.GetOperation(), "Caveat should be an operation")
 		require.Equal(core.CaveatOperation_OR, relCaveat.GetOperation().Op, "Caveat should be an OR")
@@ -483,14 +405,10 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 
 		union := NewUnionIterator(iter1, iter2)
 
-		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Union should deduplicate to one relation")
-		require.Nil(rels[0].Caveat, "No caveat should win in OR logic")
+		require.NotNil(rel, "Union should deduplicate to one relation")
+		require.Nil(rel.Caveat, "No caveat should win in OR logic")
 	})
 
 	t.Run("Different_Resources_Not_Combined", func(t *testing.T) {
@@ -519,24 +437,17 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 
 		union := NewUnionIterator(iter1, iter2)
 
-		relSeq, err := ctx.Check(union, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		relDoc1, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
+		require.NotNil(relDoc1, "Should find alice on doc1")
+		require.NotNil(relDoc1.Caveat, "doc1 path should keep its caveat")
+		require.Equal("caveat1", relDoc1.Caveat.GetCaveat().GetCaveatName())
 
-		rels, err := CollectAll(relSeq)
+		relDoc2, err := ctx.Check(union, NewObject("document", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		require.Len(rels, 2, "Different resources should not be combined")
-
-		// Both paths should preserve their original caveats
-		caveatNames := make([]string, 2)
-		for i, path := range rels {
-			require.NotNil(path.Caveat, "Each path should keep its caveat")
-			// Extract caveat name - simplified check for test
-			if caveatExpr := path.Caveat.GetCaveat(); caveatExpr != nil {
-				caveatNames[i] = caveatExpr.CaveatName
-			}
-		}
-		require.ElementsMatch([]string{"caveat1", "caveat2"}, caveatNames)
+		require.NotNil(relDoc2, "Should find alice on doc2")
+		require.NotNil(relDoc2.Caveat, "doc2 path should keep its caveat")
+		require.Equal("caveat2", relDoc2.Caveat.GetCaveat().GetCaveatName())
 	})
 
 	t.Run("Three_Relations_Same_Resource_Mixed_Caveats", func(t *testing.T) {
@@ -568,14 +479,10 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 
 		union := NewUnionIterator(iter1, iter2, iter3)
 
-		relSeq, err := ctx.Check(union, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
+		rel, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err)
-
-		require.Len(rels, 1, "Union should deduplicate to one relation")
-		require.Nil(rels[0].Caveat, "No caveat should win over any caveated relations")
+		require.NotNil(rel, "Union should deduplicate to one relation")
+		require.Nil(rel.Caveat, "No caveat should win over any caveated relations")
 	})
 }
 

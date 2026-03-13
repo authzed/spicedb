@@ -28,24 +28,20 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		ctx := NewTestContext(t)
 
 		// Test: alice should have access because she's a member of ALL teams (team1 and team2)
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Should return a single result since alice is in ALL teams (intersection semantics)
-		require.Len(paths, 1, "Should return single path representing the intersection")
+		// Should return a path since alice is in ALL teams (intersection semantics)
+		require.NotNil(path, "Should return path representing the intersection")
 
 		// Verify the result path properties
-		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
-		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
-		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
-		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+		require.Equal("document", path.Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", path.Resource.ObjectID, "Resource ID should match input")
+		require.Empty(path.Relation, "Relation should be empty after traversal")
+		require.Equal("user", path.Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", path.Subject.ObjectID, "Subject ID should match input")
 	})
 
 	t.Run("NotAllSubjectsSatisfyCondition", func(t *testing.T) {
@@ -65,17 +61,13 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		ctx := NewTestContext(t)
 
 		// Test: alice should NOT have access because she's not a member of ALL teams
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Should return empty since alice is not in ALL teams
-		require.Empty(paths, "Should return no results since alice is not in all teams")
+		// Should return nil since alice is not in ALL teams
+		require.Nil(path, "Should return no results since alice is not in all teams")
 	})
 
 	t.Run("SingleSubjectSatisfiesCondition", func(t *testing.T) {
@@ -93,24 +85,20 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		ctx := NewTestContext(t)
 
 		// Test: alice should have access because she's a member of the only team
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Should return result since alice is in the only team
-		require.Len(paths, 1, "Should return one result since alice is in the single team")
+		// Should return path since alice is in the only team
+		require.NotNil(path, "Should return result since alice is in the single team")
 
 		// Verify the result path properties
-		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
-		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
-		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
-		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+		require.Equal("document", path.Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", path.Resource.ObjectID, "Resource ID should match input")
+		require.Empty(path.Relation, "Relation should be empty after traversal")
+		require.Equal("user", path.Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", path.Subject.ObjectID, "Subject ID should match input")
 	})
 
 	t.Run("NoLeftSubjects", func(t *testing.T) {
@@ -125,17 +113,13 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		ctx := NewTestContext(t)
 
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Should return empty since there are no left subjects
-		require.Empty(paths, "Should return no results when there are no left subjects")
+		// Should return nil since there are no left subjects
+		require.Nil(path, "Should return no results when there are no left subjects")
 	})
 
 	t.Run("ThreeTeamsAllSatisfied", func(t *testing.T) {
@@ -156,24 +140,20 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		ctx := NewTestContext(t)
 
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		// Should return a single result representing the intersection of all three teams
-		require.Len(paths, 1, "Should return single path representing the intersection")
+		// Should return a single path representing the intersection of all three teams
+		require.NotNil(path, "Should return path representing the intersection")
 
 		// Verify the result path properties
-		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
-		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
-		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
-		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+		require.Equal("document", path.Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", path.Resource.ObjectID, "Resource ID should match input")
+		require.Empty(path.Relation, "Relation should be empty after traversal")
+		require.Equal("user", path.Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", path.Subject.ObjectID, "Subject ID should match input")
 	})
 
 	t.Run("EmptyResources", func(t *testing.T) {
@@ -183,15 +163,12 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		ctx := NewTestContext(t)
 
-		resources := []Object{}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		// With empty iterators, Check should return nil (not found)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "nonexistent"), subject)
 		require.NoError(err)
-
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-		require.Empty(paths, "empty resource list should return no results")
+		require.Nil(path, "empty iterators should return no results")
 	})
 }
 
@@ -226,26 +203,22 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		require.Len(paths, 1, "IntersectionArrow should return one combined path")
+		require.NotNil(path, "IntersectionArrow should return one combined path")
 
 		// Verify the result path properties
-		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
-		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
-		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
-		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+		require.Equal("document", path.Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", path.Resource.ObjectID, "Resource ID should match input")
+		require.Empty(path.Relation, "Relation should be empty after traversal")
+		require.Equal("user", path.Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", path.Subject.ObjectID, "Subject ID should match input")
 
 		// Verify caveat combination
-		pathCaveat := paths[0].Caveat
+		pathCaveat := path.Caveat
 		require.NotNil(pathCaveat, "Result should have combined caveat")
 		require.NotNil(pathCaveat.GetOperation(), "Caveat should be an operation")
 		require.Equal(core.CaveatOperation_AND, pathCaveat.GetOperation().Op, "Caveat should be an AND")
@@ -274,27 +247,23 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		require.Len(paths, 1, "IntersectionArrow should return one path")
+		require.NotNil(path, "IntersectionArrow should return one path")
 
 		// Verify the result path properties
-		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
-		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
-		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
-		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+		require.Equal("document", path.Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", path.Resource.ObjectID, "Resource ID should match input")
+		require.Empty(path.Relation, "Relation should be empty after traversal")
+		require.Equal("user", path.Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", path.Subject.ObjectID, "Subject ID should match input")
 
 		// Verify caveat preservation
-		require.NotNil(paths[0].Caveat, "Left caveat should be preserved")
-		require.Equal("left_caveat", paths[0].Caveat.GetCaveat().CaveatName)
+		require.NotNil(path.Caveat, "Left caveat should be preserved")
+		require.Equal("left_caveat", path.Caveat.GetCaveat().CaveatName)
 	})
 
 	t.Run("MultiplePaths_CombineCaveats_AND_Logic", func(t *testing.T) {
@@ -361,30 +330,26 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-		pathSeq, err := ctx.Check(intersectionArrow, resources, subject)
+		path, err := ctx.Check(intersectionArrow, NewObject("document", "doc1"), subject)
 		require.NoError(err)
 
-		paths, err := CollectAll(pathSeq)
-		require.NoError(err)
-
-		require.Len(paths, 1, "IntersectionArrow should return one combined path for the intersection")
+		require.NotNil(path, "IntersectionArrow should return one combined path for the intersection")
 
 		// Verify the result path properties
-		require.Equal("document", paths[0].Resource.ObjectType, "Resource type should match input")
-		require.Equal("doc1", paths[0].Resource.ObjectID, "Resource ID should match input")
-		require.Empty(paths[0].Relation, "Relation should be empty after traversal")
-		require.Equal("user", paths[0].Subject.ObjectType, "Subject type should match input")
-		require.Equal("alice", paths[0].Subject.ObjectID, "Subject ID should match input")
+		require.Equal("document", path.Resource.ObjectType, "Resource type should match input")
+		require.Equal("doc1", path.Resource.ObjectID, "Resource ID should match input")
+		require.Empty(path.Relation, "Relation should be empty after traversal")
+		require.Equal("user", path.Subject.ObjectType, "Subject type should match input")
+		require.Equal("alice", path.Subject.ObjectID, "Subject ID should match input")
 
 		// Verify caveat combination
-		require.NotNil(paths[0].Caveat, "Result should have combined caveat")
+		require.NotNil(path.Caveat, "Result should have combined caveat")
 
 		// The result should have a complex caveat combining all left and right caveats with AND logic
 		// Verify it's an AND operation
-		caveatOp := paths[0].Caveat.GetOperation()
+		caveatOp := path.Caveat.GetOperation()
 		require.NotNil(caveatOp, "Result caveat should be an operation")
 		require.Equal(core.CaveatOperation_AND, caveatOp.Op, "Combined caveat should use AND operation")
 		require.NotEmpty(caveatOp.Children, "Combined caveat should have children")
@@ -414,22 +379,17 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	ctx := NewTestContext(t)
 
 	// Test that both iterators produce the same results
-	resources := []Object{NewObject("document", "doc1")}
 	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-	originalSeq, err := ctx.Check(original, resources, subject)
-	require.NoError(err)
-	originalResults, err := CollectAll(originalSeq)
+	originalPath, err := ctx.Check(original, NewObject("document", "doc1"), subject)
 	require.NoError(err)
 
 	// Collect results from cloned iterator
-	clonedSeq, err := ctx.Check(cloned, resources, subject)
-	require.NoError(err)
-	clonedResults, err := CollectAll(clonedSeq)
+	clonedPath, err := ctx.Check(cloned, NewObject("document", "doc1"), subject)
 	require.NoError(err)
 
-	// Both iterators should produce identical results
-	require.Equal(originalResults, clonedResults, "original and cloned iterators should produce identical results")
+	// Both iterators should produce identical results (both nil or both non-nil with same content)
+	require.Equal(originalPath, clonedPath, "original and cloned iterators should produce identical results")
 }
 
 func TestIntersectionArrowIteratorExplain(t *testing.T) {

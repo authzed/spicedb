@@ -39,10 +39,7 @@ func TestCheck(t *testing.T) {
 	ctx := NewLocalContext(t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
-	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
-	require.NoError(err)
-
-	_, err = CollectAll(relSeq)
+	_, err = ctx.Check(it, NewObject("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
 }
 
@@ -96,9 +93,6 @@ func TestCheckArrow(t *testing.T) {
 	ctx := NewLocalContext(t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 
-	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
-	require.NoError(err)
-
-	_, err = CollectAll(relSeq)
+	_, err = ctx.Check(it, NewObject("document", "companyplan"), NewObject("user", "legal").WithEllipses())
 	require.NoError(err)
 }

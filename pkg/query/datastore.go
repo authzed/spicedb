@@ -27,7 +27,7 @@ func NewDatastoreIterator(base *schema.BaseRelation) *DatastoreIterator {
 	}
 }
 
-func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	// For subrelations, we need to allow type mismatches because the subrelation might bridge different types
 	// For example, group:member -> group:member should find group:everyone#member@group:engineering#member
 	// and then that relationship should be used by the Arrow to check group:engineering#member for user subjects
@@ -45,25 +45,24 @@ func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject 
 		if ctx.shouldTrace() {
 			ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
 		}
-		return EmptyPathSeq(), nil
+		return nil, nil
 	}
 
 	if r.base.Wildcard() {
-		return r.checkWildcardImpl(ctx, resources, subject)
+		return r.checkWildcardImpl(ctx, resource, subject)
 	}
-	return r.checkNormalImpl(ctx, resources, subject)
+	return r.checkNormalImpl(ctx, resource, subject)
 }
 
-func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	ids := resourceIDs(resources)
+func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	if ctx.shouldTrace() {
-		ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), ids)
+		ctx.TraceStep(r, "querying datastore for %s:%s with resource=%s:%s", r.base.Type(), r.base.RelationName(), resource.ObjectType, resource.ObjectID)
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
 	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
 		resourceType,
-		ids,
+		resource.ObjectID,
 		r.base.RelationName(),
 		subject,
 		r.base.Caveat() != "", r.base.Expiration(),
@@ -72,15 +71,19 @@ func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resources []Object, su
 		return nil, err
 	}
 
-	// Eagerly collect all results to terminate the database query immediately
+	// Collect results and return the first (there is at most one for a single resource).
+	// Eagerly collecting also terminates the database query immediately.
 	paths, err := CollectAll(pathSeq)
 	if err != nil {
 		return nil, err
 	}
-	return PathSeqFromSlice(paths), nil
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	return paths[0], nil
 }
 
-func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	// Invariant: wildcard subjects in the datastore are always stored with the ellipsis
 	// relation. The "*" is only ever an ObjectID; "type:*#relation" is syntactically
 	// invalid and cannot be written. Any caller passing a non-ellipsis relation here
@@ -99,7 +102,7 @@ func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resources []Object, 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
 	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
 		resourceType,
-		resourceIDs(resources),
+		resource.ObjectID,
 		r.base.RelationName(),
 		wildcardSubject,
 		r.base.Caveat() != "", r.base.Expiration(),
@@ -108,15 +111,16 @@ func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resources []Object, 
 		return nil, err
 	}
 
-	// Rewrite subjects from wildcard back to the actual subject
+	// Rewrite subjects from wildcard back to the actual subject, collect, return first.
 	pathSeq = RewriteSubject(pathSeq, subject)
-
-	// Eagerly collect all results to terminate the database query immediately
 	paths, err := CollectAll(pathSeq)
 	if err != nil {
 		return nil, err
 	}
-	return PathSeqFromSlice(paths), nil
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	return paths[0], nil
 }
 
 func (r *DatastoreIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
@@ -227,7 +231,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
 	wildcardPathSeq, err := ctx.Reader.CheckRelationships(ctx,
 		resourceType,
-		[]string{resource.ObjectID},
+		resource.ObjectID,
 		r.base.RelationName(),
 		wildcardSubject,
 		r.base.Caveat() != "", r.base.Expiration(),
@@ -591,13 +595,4 @@ func (r *DatastoreIterator) SubjectTypes() ([]ObjectType, error) {
 		Type:        r.base.Type(),
 		Subrelation: r.base.Subrelation(),
 	}}, nil
-}
-
-// resourceIDs extracts the ObjectID strings from a slice of Objects.
-func resourceIDs(resources []Object) []string {
-	ids := make([]string, len(resources))
-	for i, r := range resources {
-		ids[i] = r.ObjectID
-	}
-	return ids
 }

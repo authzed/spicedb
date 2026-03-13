@@ -22,44 +22,46 @@ func NewUnionIterator(subiterators ...Iterator) Iterator {
 	}
 }
 
-func (u *UnionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (u *UnionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	if ctx.shouldTrace() {
-		ctx.TraceStep(u, "processing %d sub-iterators with %d resources", len(u.subIts), len(resources))
+		ctx.TraceStep(u, "processing %d sub-iterators for resource %s:%s", len(u.subIts), resource.ObjectType, resource.ObjectID)
 	}
 
-	// Create a concatenated sequence from all sub-iterators
-	combinedSeq := func(yield func(*Path, error) bool) {
-		for iterIdx, it := range u.subIts {
-			if ctx.shouldTrace() {
-				ctx.TraceStep(u, "processing sub-iterator %d", iterIdx)
-			}
+	// Visit all sub-iterators and OR-merge any matching paths.
+	var result *Path
+	for iterIdx, it := range u.subIts {
+		if ctx.shouldTrace() {
+			ctx.TraceStep(u, "processing sub-iterator %d", iterIdx)
+		}
 
-			pathSeq, err := ctx.Check(it, resources, subject)
+		path, err := ctx.Check(it, resource, subject)
+		if err != nil {
+			return nil, err
+		}
+
+		if path == nil {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(u, "sub-iterator %d: no match", iterIdx)
+			}
+			continue
+		}
+
+		if ctx.shouldTrace() {
+			ctx.TraceStep(u, "sub-iterator %d: matched", iterIdx)
+		}
+
+		if result == nil {
+			result = path
+		} else {
+			merged, err := result.MergeOr(path)
 			if err != nil {
-				yield(nil, err)
-				return
+				return nil, err
 			}
-
-			pathCount := 0
-			for path, err := range pathSeq {
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-				pathCount++
-				if !yield(path, nil) {
-					return
-				}
-			}
-
-			if ctx.shouldTrace() {
-				ctx.TraceStep(u, "sub-iterator %d returned %d paths", iterIdx, pathCount)
-			}
+			result = merged
 		}
 	}
 
-	// Wrap with deduplication
-	return DeduplicatePathSeq(combinedSeq), nil
+	return result, nil
 }
 
 func (u *UnionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {

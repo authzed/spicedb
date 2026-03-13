@@ -21,14 +21,14 @@ func TestTraceLogger(t *testing.T) {
 	t.Run("EnterIterator", func(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
-		resources := []Object{NewObject("document", "doc1")}
+		resource := NewObject("document", "doc1")
 		subject := NewObject("user", "alice").WithEllipses()
 
 		// Create a test iterator with known Explain output
 		testPath := MustPathFromString("document:doc1#view@user:alice")
 		iterator := NewFixedIterator(*testPath)
 
-		logger.EnterIterator(iterator, checkTraceString(resources, subject))
+		logger.EnterIterator(iterator, checkTraceString(resource, subject))
 
 		require.Len(logger.traces, 1)
 		require.Equal(1, logger.depth)
@@ -138,10 +138,10 @@ func TestContext(t *testing.T) {
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
 		iterator := NewFixedIterator(*testPath)
-		resources := []Object{NewObject("document", "doc1")}
+		resource := NewObject("document", "doc1")
 		subject := NewObject("user", "alice").WithEllipses()
 
-		ctx.TraceEnter(iterator, checkTraceString(resources, subject))
+		ctx.TraceEnter(iterator, checkTraceString(resource, subject))
 
 		require.Equal(1, logger.depth)
 		require.Len(logger.stack, 1)
@@ -189,7 +189,7 @@ func TestContext(t *testing.T) {
 		iterator := NewFixedIterator(*testPath)
 
 		require.Panics(func() {
-			_, _ = ctx.Check(iterator, []Object{NewObject("document", "doc1")}, NewObject("user", "alice").WithEllipses())
+			_, _ = ctx.Check(iterator, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		})
 	})
 
