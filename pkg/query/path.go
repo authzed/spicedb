@@ -554,6 +554,10 @@ func FilterWildcardSubjects(seq PathSeq) PathSeq {
 // FilterResourcesByType filters a PathSeq to only include paths where the resource
 // matches the specified ObjectType. If filter.Type is empty, no filtering is applied.
 func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
+	if filter.Type == "" {
+		return seq
+	}
+
 	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
@@ -563,17 +567,9 @@ func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
 				continue
 			}
 
-			// Empty Type means no filtering
-			if filter.Type == "" {
-				if !yield(path, nil) {
-					return
-				}
-				continue
-			}
-
 			// Check if resource matches the filter
 			if path.Resource.ObjectType != filter.Type {
-				continue // Skip this path
+				continue
 			}
 
 			// If Subrelation specified, check relation too
