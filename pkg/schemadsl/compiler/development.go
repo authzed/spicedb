@@ -55,6 +55,69 @@ func (nc *NodeChain) String() string {
 	return out.String()
 }
 
+// DefinitionNodeSource returns the input source for the AST node defining the given name.
+// For definitions compiled from imports, this will be the imported file path (e.g. "users.zed").
+// For definitions in the root schema, this will be the root source (e.g. "schema").
+// Returns empty string if not found.
+func (cs *CompiledSchema) DefinitionNodeSource(name string) string {
+	for _, child := range cs.rootNode.GetChildren() {
+		nodeType := child.GetType()
+		var predicateName string
+		switch nodeType {
+		case dslshape.NodeTypeDefinition:
+			predicateName = dslshape.NodeDefinitionPredicateName
+		case dslshape.NodeTypeCaveatDefinition:
+			predicateName = dslshape.NodeCaveatDefinitionPredicateName
+		case dslshape.NodeTypePartial:
+			predicateName = dslshape.NodePartialPredicateName
+		default:
+			continue
+		}
+
+		defName, err := child.GetString(predicateName)
+		if err != nil {
+			continue
+		}
+
+		if defName == name {
+			source, err := child.GetString(dslshape.NodePredicateSource)
+			if err != nil {
+				return ""
+			}
+			return source
+		}
+	}
+	return ""
+}
+
+// PartialNodePosition returns the start rune position and source of the partial
+// definition with the given name. Returns (-1, -1, "") if not found.
+func (cs *CompiledSchema) PartialNodePosition(name string) (int, int) {
+	for _, child := range cs.rootNode.GetChildren() {
+		if child.GetType() != dslshape.NodeTypePartial {
+			continue
+		}
+
+		partialName, err := child.GetString(dslshape.NodePartialPredicateName)
+		if err != nil || partialName != name {
+			continue
+		}
+
+		sourceRange, err := child.Range(cs.mapper)
+		if err != nil {
+			return -1, -1
+		}
+
+		line, col, err := sourceRange.Start().LineAndColumn()
+		if err != nil {
+			return -1, -1
+		}
+
+		return line, col
+	}
+	return -1, -1
+}
+
 // PositionToAstNodeChain returns the AST node, and its parents (if any), found at the given position in the source, if any.
 func PositionToAstNodeChain(schema *CompiledSchema, source input.Source, position input.Position) (*NodeChain, error) {
 	rootSource, err := schema.rootNode.GetString(dslshape.NodePredicateSource)
@@ -73,7 +136,7 @@ func PositionToAstNodeChain(schema *CompiledSchema, source input.Source, positio
 	}
 
 	// Find the node at the rune position.
-	found, err := runePositionToAstNodeChain(schema.rootNode, runePosition)
+	found, err := runePositionToAstNodeChain(schema.rootNode, runePosition, rootSource)
 	if err != nil {
 		return nil, err
 	}
@@ -85,9 +148,16 @@ func PositionToAstNodeChain(schema *CompiledSchema, source input.Source, positio
 	return &NodeChain{nodes: found, runePosition: runePosition}, nil
 }
 
-func runePositionToAstNodeChain(node *dslNode, runePosition int) ([]DSLNode, error) {
+func runePositionToAstNodeChain(node *dslNode, runePosition int, rootSource string) ([]DSLNode, error) {
 	if !node.Has(dslshape.NodePredicateStartRune) {
 		return nil, nil
+	}
+
+	// Skip nodes from imported files whose rune positions may overlap with the root file.
+	if nodeSource, err := node.GetString(dslshape.NodePredicateSource); err == nil {
+		if nodeSource != rootSource {
+			return nil, nil
+		}
 	}
 
 	startRune, err := node.GetInt(dslshape.NodePredicateStartRune)
@@ -105,7 +175,7 @@ func runePositionToAstNodeChain(node *dslNode, runePosition int) ([]DSLNode, err
 	}
 
 	for _, child := range node.AllSubNodes() {
-		childChain, err := runePositionToAstNodeChain(child, runePosition)
+		childChain, err := runePositionToAstNodeChain(child, runePosition, rootSource)
 		if err != nil {
 			return nil, err
 		}

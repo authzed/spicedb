@@ -29,6 +29,8 @@ const (
 	ReferenceTypeRelation
 	ReferenceTypePermission
 	ReferenceTypeCaveatParameter
+	ReferenceTypeImport
+	ReferenceTypePartial
 )
 
 // SchemaReference represents a reference to a schema node.
@@ -84,6 +86,40 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 
 	if nodeChain == nil {
 		return nil, nil
+	}
+
+	// Import reference.
+	if importPath, ok := r.importReferenceChain(nodeChain); ok {
+		importSource := input.Source(importPath)
+		return &SchemaReference{
+			ReferenceType:  ReferenceTypeImport,
+			Source:         source,
+			Position:       position,
+			TargetSource:   &importSource,
+			TargetPosition: &input.Position{LineNumber: 0, ColumnPosition: 0},
+			Text:           importPath,
+		}, nil
+	}
+
+	// Partial reference.
+	if partialName, ok := r.partialReferenceChain(nodeChain); ok {
+		line, col := r.schema.PartialNodePosition(partialName)
+		var targetPosition *input.Position
+		if line >= 0 && col >= 0 {
+			targetPosition = &input.Position{LineNumber: line, ColumnPosition: col}
+		}
+
+		targetSource := r.resolveTargetSource(partialName, source)
+		return &SchemaReference{
+			Source:                   source,
+			Position:                 position,
+			Text:                     partialName,
+			TargetSourceCode:         "partial " + partialName,
+			ReferenceType:            ReferenceTypePartial,
+			TargetSource:             &targetSource,
+			TargetPosition:           targetPosition,
+			TargetNamePositionOffset: len("partial "),
+		}, nil
 	}
 
 	relationReference := func(relation *core.Relation, def *schema.Definition) (*SchemaReference, error) {
@@ -171,6 +207,7 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 			targetSourceCode = fmt.Sprintf("%sdefinition %s {}", docComment, def.Name)
 		}
 
+		targetSource := r.resolveTargetSource(def.Name, source)
 		return &SchemaReference{
 			Source:   source,
 			Position: position,
@@ -179,7 +216,7 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 			ReferenceType:     ReferenceTypeDefinition,
 			ReferenceMarkdown: "definition " + def.Name,
 
-			TargetSource:             &source,
+			TargetSource:             &targetSource,
 			TargetPosition:           &defPosition,
 			TargetSourceCode:         targetSourceCode,
 			TargetNamePositionOffset: len("definition "),
@@ -216,6 +253,7 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 		}
 		caveatSourceCode.WriteString(") {\n\t// ...\n}")
 
+		targetSource := r.resolveTargetSource(caveatDef.Name, source)
 		return &SchemaReference{
 			Source:   source,
 			Position: position,
@@ -224,7 +262,7 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 			ReferenceType:     ReferenceTypeCaveat,
 			ReferenceMarkdown: "caveat " + caveatDef.Name,
 
-			TargetSource:             &source,
+			TargetSource:             &targetSource,
 			TargetPosition:           &defPosition,
 			TargetSourceCode:         caveatSourceCode.String(),
 			TargetNamePositionOffset: len("caveat "),
@@ -254,6 +292,16 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 	}
 
 	return nil, nil
+}
+
+// resolveTargetSource returns the input.Source for the file where a definition or caveat
+// is defined. For imported definitions, this will be the imported file path. For definitions
+// in the root schema, this returns the fallback source.
+func (r *SchemaPositionMapper) resolveTargetSource(name string, fallback input.Source) input.Source {
+	if defSource := r.schema.DefinitionNodeSource(name); defSource != "" {
+		return input.Source(defSource)
+	}
+	return fallback
 }
 
 func (r *SchemaPositionMapper) lookupCaveat(caveatName string) (*core.CaveatDefinition, bool) {
@@ -422,4 +470,31 @@ func (r *SchemaPositionMapper) relationReferenceChain(nodeChain *compiler.NodeCh
 	}
 
 	return r.lookupRelation(defName, relationName)
+}
+
+func (r *SchemaPositionMapper) importReferenceChain(nodeChain *compiler.NodeChain) (string, bool) {
+	importNode := nodeChain.FindNodeOfType(dslshape.NodeTypeImport)
+	if importNode == nil {
+		return "", false
+	}
+
+	importPath, err := importNode.GetString(dslshape.NodeImportPredicatePath)
+	if err != nil {
+		return "", false
+	}
+
+	return importPath, true
+}
+
+func (r *SchemaPositionMapper) partialReferenceChain(nodeChain *compiler.NodeChain) (string, bool) {
+	if !nodeChain.HasHeadType(dslshape.NodeTypePartialReference) {
+		return "", false
+	}
+
+	partialName, err := nodeChain.Head().GetString(dslshape.NodePartialReferencePredicateName)
+	if err != nil {
+		return "", false
+	}
+
+	return partialName, true
 }

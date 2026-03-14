@@ -840,6 +840,9 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 			if err := validateFilepath(importPath); err != nil {
 				return err
 			}
+			if itctx.sourceFS == nil {
+				return errors.New("import statement found but no source filesystem was configured for compilation")
+			}
 			filePath := filepath.Join(itctx.sourcePrefix, importPath)
 
 			newSourcePrefix := filepath.Dir(filePath)
@@ -866,10 +869,13 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 
 			// Do the actual import here
 			// This is a new node provided by the translateImport
-			parsedImportRoot, err := importFile(itctx.sourceFS, filePath)
+			parsedImportRoot, importedContent, err := importFile(itctx.sourceFS, filePath)
 			if err != nil {
-				return toContextError("failed to read import in schema file", "", topLevelNode, itctx.mapper)
+				return toContextError(err.Error(), "", topLevelNode, itctx.mapper)
 			}
+
+			// Register the imported file so position mapping works correctly for cross-file references.
+			itctx.mapper.RegisterImportedFile(input.Source(filePath), importedContent)
 
 			// We recurse on that node to resolve any further imports
 			err = translateImports(importResolutionContext{
