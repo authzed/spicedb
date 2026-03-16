@@ -6,6 +6,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/graph/computed"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -17,6 +18,7 @@ type groupedCheckParameters struct {
 
 type groupingParameters struct {
 	atRevision           datastore.Revision
+	schemaHash           datalayer.SchemaHash
 	maximumAPIDepth      uint32
 	maxCaveatContextSize int
 	withTracing          bool
@@ -68,5 +70,6 @@ func checkParametersFromCheckBulkPermissionsRequestItem(
 		AtRevision:    params.atRevision,
 		MaximumDepth:  params.maximumAPIDepth,
 		DebugOption:   debugOption,
+		SchemaHash:    params.schemaHash,
 	}
 }

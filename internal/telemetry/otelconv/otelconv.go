@@ -119,4 +119,11 @@ const (
 
 	AttrTestKey    = "spicedb.internal.test.key"
 	AttrTestNumber = "spicedb.internal.test.number"
+
+	AttrSchemaReadFromCache  = "spicedb.internal.schema.read_from_cache"
+	AttrSchemaChunkCount     = "spicedb.internal.schema.chunk_count"
+	AttrSchemaDataSizeBytes  = "spicedb.internal.schema.data_size_bytes"
+	AttrSchemaHash           = "spicedb.internal.schema.hash"
+	AttrSchemaCacheBypassed  = "spicedb.internal.schema.cache_bypassed"
+	AttrSchemaDefinitionName = "spicedb.internal.schema.definition_name"
 )

@@ -155,6 +155,10 @@ func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.Relat
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (fakeSnapshotReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return nil, nil
+}
+
 func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCallbackForTest) datastore.RelationshipIterator {
 	return func(yield func(tuple.Relationship, error) bool) {
 		if explainCallback != nil {
@@ -217,4 +221,8 @@ func (f *fakeRWT) DeleteRelationships(ctx context.Context, filter *v1.Relationsh
 
 func (f *fakeRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return 0, nil
+}
+
+func (f *fakeRWT) WriteStoredSchema(ctx context.Context, schema *corev1.StoredSchema) error {
+	return nil
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -40,7 +41,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
@@ -66,7 +67,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
@@ -92,7 +93,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(head.Equal(rev))
@@ -119,7 +120,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
@@ -146,7 +147,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
@@ -185,7 +186,7 @@ func TestAddRevisionToContextNoConsistencyAPI(t *testing.T) {
 	updated := ContextWithHandle(t.Context())
 	updated = datalayer.ContextWithDataLayer(updated, dl)
 
-	_, _, err := RevisionFromContext(updated)
+	_, _, _, err := RevisionFromContext(updated)
 	require.Error(err)
 }
 
@@ -198,7 +199,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	dl := datalayer.NewDataLayer(ds)
 
 	// cursor is at `optimized`
-	cursor, err := cursor.EncodeFromDispatchCursor(&dispatch.Cursor{}, "somehash", optimized, nil)
+	cursor, err := cursor.EncodeFromDispatchCursor(&dispatch.Cursor{}, "somehash", optimized, datalayer.NoSchemaHashForLegacyCursor, nil)
 	require.NoError(err)
 
 	// revision in context is at `exact`
@@ -216,10 +217,54 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	require.NoError(err)
 
 	// ensure we get back `optimized` from the cursor
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
+	ds.AssertExpectations(t)
+}
+
+func TestAddRevisionToContextWithCursorAndSchemaHash(t *testing.T) {
+	require := require.New(t)
+
+	ds := &proxy_test.MockDatastore{}
+	ds.On("CheckRevision", optimized).Return(nil).Times(1)
+	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
+
+	// Encode a cursor with DatastoreUniqueId set so the schema hash roundtrips.
+	// The mock datastore returns "mockds" as its unique ID.
+	encodedCursor, err := cursor.Encode(&impl.DecodedCursor{
+		VersionOneof: &impl.DecodedCursor_V1{
+			V1: &impl.V1Cursor{
+				Revision:              optimized.String(),
+				DispatchVersion:       1,
+				CallAndParametersHash: "somehash",
+				DatastoreUniqueId:     "mockds",
+				SchemaHash:            []byte("myspecialschema"),
+			},
+		},
+	})
+	require.NoError(err)
+
+	updated := ContextWithHandle(t.Context())
+	updated = datalayer.ContextWithDataLayer(updated, dl)
+
+	err = AddRevisionToContext(updated, &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtExactSnapshot{
+				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact),
+			},
+		},
+		OptionalCursor: encodedCursor,
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
+	require.NoError(err)
+
+	rev, schemaHash, _, err := RevisionFromContext(updated)
+	require.NoError(err)
+
+	require.True(optimized.Equal(rev))
+	require.Equal(datalayer.SchemaHash("myspecialschema"), schemaHash)
 	ds.AssertExpectations(t)
 }
 
@@ -253,7 +298,7 @@ func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 
 func TestRevisionFromContextMissingConsistency(t *testing.T) {
 	updated := ContextWithHandle(t.Context())
-	_, _, err := RevisionFromContext(updated)
+	_, _, _, err := RevisionFromContext(updated)
 	require.Error(t, err)
 	grpcutil.RequireStatus(t, codes.Internal, err)
 	require.ErrorContains(t, err, "consistency middleware did not inject revision")
@@ -389,7 +434,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsMinLatency)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
@@ -424,7 +469,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsFullConsistency)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(head.Equal(rev))
@@ -453,7 +498,7 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
 	require.NoError(err)
 
-	rev, _, err := RevisionFromContext(updated)
+	rev, _, _, err := RevisionFromContext(updated)
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))

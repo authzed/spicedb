@@ -403,8 +403,11 @@ type V1Cursor struct {
 	// datastore_unique_id is the unique ID for the datastore. Will be empty for legacy
 	// cursors.
 	DatastoreUniqueId string `protobuf:"bytes,6,opt,name=datastore_unique_id,json=datastoreUniqueId,proto3" json:"datastore_unique_id,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// schema_hash is the hash of the schema at the time the cursor was created. Will be
+	// empty for legacy cursors.
+	SchemaHash    []byte `protobuf:"bytes,7,opt,name=schema_hash,json=schemaHash,proto3" json:"schema_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *V1Cursor) Reset() {
@@ -477,6 +480,13 @@ func (x *V1Cursor) GetDatastoreUniqueId() string {
 		return x.DatastoreUniqueId
 	}
 	return ""
+}
+
+func (x *V1Cursor) GetSchemaHash() []byte {
+	if x != nil {
+		return x.SchemaHash
+	}
+	return nil
 }
 
 type DocComment struct {
@@ -932,14 +942,16 @@ const file_impl_v1_impl_proto_rawDesc = "" +
 	"\rversion_oneof\"E\n" +
 	"\rDecodedCursor\x12#\n" +
 	"\x02v1\x18\x01 \x01(\v2\x11.impl.v1.V1CursorH\x00R\x02v1B\x0f\n" +
-	"\rversion_oneof\"\xc4\x02\n" +
+	"\rversion_oneof\"\xe5\x02\n" +
 	"\bV1Cursor\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\tR\brevision\x12\x1a\n" +
 	"\bsections\x18\x02 \x03(\tR\bsections\x127\n" +
 	"\x18call_and_parameters_hash\x18\x03 \x01(\tR\x15callAndParametersHash\x12)\n" +
 	"\x10dispatch_version\x18\x04 \x01(\rR\x0fdispatchVersion\x122\n" +
 	"\x05flags\x18\x05 \x03(\v2\x1c.impl.v1.V1Cursor.FlagsEntryR\x05flags\x12.\n" +
-	"\x13datastore_unique_id\x18\x06 \x01(\tR\x11datastoreUniqueId\x1a8\n" +
+	"\x13datastore_unique_id\x18\x06 \x01(\tR\x11datastoreUniqueId\x12\x1f\n" +
+	"\vschema_hash\x18\a \x01(\fR\n" +
+	"schemaHash\x1a8\n" +
 	"\n" +
 	"FlagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +

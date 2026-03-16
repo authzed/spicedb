@@ -24,7 +24,7 @@ func TestIteratorTracing(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)),
 		WithTraceLogger(traceLogger),
 	)
 

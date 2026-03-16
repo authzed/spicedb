@@ -41,7 +41,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 		// Test: alice should have access because she's a member of ALL teams (team1 and team2)
 		resources := []Object{NewObject("document", "doc1")}
@@ -90,7 +90,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 		// Test: alice should NOT have access because she's not a member of ALL teams
 		resources := []Object{NewObject("document", "doc1")}
@@ -130,7 +130,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 		// Test: alice should have access because she's a member of the only team
 		resources := []Object{NewObject("document", "doc1")}
@@ -175,7 +175,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -218,7 +218,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -257,7 +257,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		require.NoError(err)
 
 		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 		resources := []Object{}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -286,7 +286,7 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
@@ -513,7 +513,7 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	require.NoError(err)
 
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	// Test that both iterators produce the same results
 	resources := []Object{NewObject("document", "doc1")}

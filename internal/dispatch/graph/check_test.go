@@ -135,6 +135,7 @@ func TestSimpleCheck(t *testing.T) {
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,
+							SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 						},
 					})
 
@@ -184,6 +185,7 @@ func TestMaxDepth(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	})
 
@@ -279,6 +281,7 @@ func TestCheckMetadata(t *testing.T) {
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,
+							SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 						},
 					})
 
@@ -1442,6 +1445,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				ResultsSetting: v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 			})
@@ -1570,6 +1574,7 @@ func TestCheckDebugging(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				Debug: v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING,
 			})
@@ -1951,6 +1956,7 @@ func TestCheckWithHints(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				CheckHints: tc.hints,
 			})
@@ -2003,6 +2009,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		CheckHints: []*v1.CheckHint{
 			hints.CheckHintForComputedUserset("document", "anotherdoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -2058,6 +2065,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		CheckHints: []*v1.CheckHint{
 			hints.CheckHintForArrow("document", "anotherdoc", "org", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{

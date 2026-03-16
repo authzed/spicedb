@@ -277,6 +277,12 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	}, nil
 }
 
+func (r *observableReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	ctx, closer := observe(ctx, "ReadStoredSchema", "")
+	defer closer()
+	return r.delegate.ReadStoredSchema(ctx)
+}
+
 type observableRWT struct {
 	*observableReader
 	delegate datastore.ReadWriteTransaction
@@ -380,6 +386,12 @@ func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWrite
 	defer closer()
 
 	return rwt.delegate.BulkLoad(ctx, iter)
+}
+
+func (rwt *observableRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	ctx, closer := observe(ctx, "WriteStoredSchema", "")
+	defer closer()
+	return rwt.delegate.WriteStoredSchema(ctx, schema)
 }
 
 // nolint:spancheck
