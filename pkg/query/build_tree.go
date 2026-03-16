@@ -22,16 +22,6 @@ type outlineBuilder struct {
 	recursiveSentinels []*recursiveSentinelInfo     // Track recursion points for wrapping in RecursiveIterator
 }
 
-// BuildIteratorFromSchema takes a schema and walks the schema tree for a given definition namespace and a relationship or
-// permission therein. From this, it generates an iterator tree, rooted on that relationship.
-func BuildIteratorFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (Iterator, error) {
-	canonical, err := BuildOutlineFromSchema(fullSchema, definitionName, relationName)
-	if err != nil {
-		return nil, err
-	}
-	return canonical.Compile()
-}
-
 // BuildOutlineFromSchema builds a canonical Outline tree from the schema.
 func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (CanonicalOutline, error) {
 	builder := &outlineBuilder{
