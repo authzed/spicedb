@@ -2,20 +2,16 @@ package pool
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/time/rate"
 )
 
 func TestNodeHealthTracker(t *testing.T) {
-	tracker := &NodeHealthTracker{
-		healthyNodes:  make(map[uint32]struct{}),
-		nodesEverSeen: make(map[uint32]*rate.Limiter),
-		newLimiter: func() *rate.Limiter {
-			return rate.NewLimiter(rate.Every(1*time.Minute), 2)
-		},
-	}
+	tracker, err := NewNodeHealthChecker("postgres://user:password@localhost:5432/dbname")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tracker.Close()
+	})
 
 	tracker.SetNodeHealth(1, true)
 	require.True(t, tracker.IsHealthy(1))

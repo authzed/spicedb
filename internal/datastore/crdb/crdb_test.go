@@ -904,7 +904,7 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 
 	writePoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", writeMaxConns))
 	require.NoError(t, err)
-	writePool, err := pool.NewRetryPool(t.Context(), "read", writePoolConfig, nil, 18, 20)
+	writePool, err := pool.NewRetryPool(t.Context(), "write", writePoolConfig, nil, 18, 20)
 	require.NoError(t, err)
 
 	// Create datastore with those pools
