@@ -628,13 +628,11 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
-
 	t.Run("DeduplicateSubjects", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Create paths with same subject appearing in multiple iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -659,6 +657,8 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 	t.Run("EmptyUnion", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 		union := NewUnionIterator()
 
 		pathSeq, err := ctx.IterSubjects(union, NewObject("document", "doc1"), NoObjectFilter())
@@ -672,6 +672,9 @@ func TestUnionIterSubjectsDeduplication(t *testing.T) {
 
 	t.Run("MultipleSubjects", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Create paths with different subjects
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -707,13 +710,11 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
-
 	t.Run("DeduplicateResources", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Create paths with same resource appearing in multiple iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -738,6 +739,8 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 	t.Run("EmptyUnion", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 		union := NewUnionIterator()
 
 		pathSeq, err := ctx.IterResources(union, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
@@ -751,6 +754,9 @@ func TestUnionIterResourcesDeduplication(t *testing.T) {
 
 	t.Run("MultipleResources", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Create paths with different resources
 		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")

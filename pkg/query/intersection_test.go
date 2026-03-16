@@ -503,13 +503,11 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
-
 	t.Run("SimpleIntersection", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Both iterators return alice for doc1
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -533,6 +531,9 @@ func TestIntersectionIterSubjects(t *testing.T) {
 	t.Run("NoCommonSubjects", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// Different subjects in each iterator
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@user:bob")
@@ -554,6 +555,9 @@ func TestIntersectionIterSubjects(t *testing.T) {
 	t.Run("EmptyIterator", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// One iterator is empty
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		iter1 := NewFixedIterator(path1)
@@ -572,6 +576,9 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 	t.Run("ThreeIteratorsWithCommonSubject", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Alice appears in all three
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -596,6 +603,9 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 	t.Run("CaveatCombination", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Both have alice with different caveats
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")

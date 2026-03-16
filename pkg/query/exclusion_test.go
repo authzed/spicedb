@@ -709,13 +709,11 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
-
 	t.Run("SimpleExclusion", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Main has alice and bob, exclude bob
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -739,6 +737,9 @@ func TestExclusionIterSubjects(t *testing.T) {
 	t.Run("ExcludeAll", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// Main has alice, exclude alice
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -758,6 +759,9 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 	t.Run("ExcludeNone", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Main has alice, exclude nothing
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -780,6 +784,9 @@ func TestExclusionIterSubjects(t *testing.T) {
 	t.Run("EmptyMainSet", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// Empty main set
 		pathBob := MustPathFromString("document:doc1#viewer@user:bob")
 
@@ -799,6 +806,9 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 	t.Run("MultipleSubjectsPartialExclusion", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Main has alice, bob, carol; exclude bob
 		pathAlice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -829,6 +839,9 @@ func TestExclusionIterSubjects(t *testing.T) {
 
 	t.Run("CaveatHandling", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Main has alice with no caveat, exclude has alice with caveat
 		pathMainAlice := MustPathFromString("document:doc1#viewer@user:alice")

@@ -491,13 +491,11 @@ func TestArrowIterSubjects(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
-
 	t.Run("SimpleArrow", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Left: doc1 -> folder1
 		// Right: folder1 -> alice
@@ -522,6 +520,9 @@ func TestArrowIterSubjects(t *testing.T) {
 
 	t.Run("MultipleSubjects", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Left: doc1 -> folder1
 		// Right: folder1 -> alice, folder1 -> bob
@@ -553,6 +554,9 @@ func TestArrowIterSubjects(t *testing.T) {
 	t.Run("NoLeftPaths", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// Empty left side
 		leftIter := NewFixedIterator()
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
@@ -572,6 +576,9 @@ func TestArrowIterSubjects(t *testing.T) {
 	t.Run("NoRightPaths", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// Left exists but right is empty
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 		leftIter := NewFixedIterator(leftPath)
@@ -590,6 +597,9 @@ func TestArrowIterSubjects(t *testing.T) {
 
 	t.Run("CaveatCombination", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Left with caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
