@@ -58,7 +58,10 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations)
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+		SubjectType:     req.Subject.Object.ObjectType,
+		SubjectRelation: req.Subject.OptionalRelation,
+	})
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

@@ -29,13 +29,29 @@ func GetOptimization(name string) (Optimizer, error) {
 // no custom selection is required.
 var StandardOptimzations = []string{
 	"simple-caveat-pushdown",
+	"reachability-pruning",
 }
+
+// RequestParams holds request-specific values available to optimizations.
+// Static (schema-level) optimizations ignore these; request-parameterized
+// optimizations (e.g. reachability pruning) use them to tailor their behavior.
+type RequestParams struct {
+	SubjectType     string
+	SubjectRelation string
+}
+
+// OutlineTransform is a function that transforms an entire outline tree.
+// Each optimizer produces one of these, and they are applied sequentially.
+type OutlineTransform func(query.Outline) query.Outline
 
 // Optimizer describes a single named outline optimization.
 type Optimizer struct {
 	Name        string
 	Description string
-	Mutation    query.OutlineMutation
+	// NewTransform creates a whole-tree transformation for this optimizer,
+	// optionally using request-specific parameters. Each transform typically
+	// calls query.MutateOutline internally with its own mutations.
+	NewTransform func(RequestParams) OutlineTransform
 	// Priority controls the order in which optimizations are applied.
 	// Higher values run first.
 	Priority int
@@ -46,7 +62,7 @@ type Optimizer struct {
 // outline via query.MutateOutline. Nodes that survive mutation unchanged keep
 // their existing IDs. Newly synthesized nodes (ID==0) receive fresh IDs via
 // query.FillMissingNodeIDs. The returned CanonicalOutline is ready to compile.
-func ApplyOptimizations(co query.CanonicalOutline, names []string) (query.CanonicalOutline, error) {
+func ApplyOptimizations(co query.CanonicalOutline, names []string, requestParams RequestParams) (query.CanonicalOutline, error) {
 	// Look up each named optimizer.
 	opts := make([]Optimizer, 0, len(names))
 	for _, name := range names {
@@ -62,14 +78,12 @@ func ApplyOptimizations(co query.CanonicalOutline, names []string) (query.Canoni
 		return cmp.Compare(b.Priority, a.Priority)
 	})
 
-	// Collect mutations in priority order.
-	mutations := make([]query.OutlineMutation, len(opts))
-	for i, opt := range opts {
-		mutations[i] = opt.Mutation
+	// Apply each optimizer's transform sequentially in priority order.
+	mutated := co.Root
+	for _, opt := range opts {
+		transform := opt.NewTransform(requestParams)
+		mutated = transform(mutated)
 	}
-
-	// Apply all mutations bottom-up.
-	mutated := query.MutateOutline(co.Root, mutations)
 
 	// Extend the CanonicalKeys map with entries for any newly created nodes.
 	// We copy first so the original CanonicalOutline's map is not mutated.

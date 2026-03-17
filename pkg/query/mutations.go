@@ -18,6 +18,53 @@ func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
 	return result
 }
 
+// NullPropagation is an OutlineMutation that propagates NullIteratorType nodes
+// upward through the tree according to each node type's semantics:
+//   - Union: null if ALL children are null
+//   - Intersection: null if ANY child is null
+//   - Arrow/IntersectionArrow: null if the right child is null
+//   - Exclusion: null if the left child is null
+//   - Caveat/Alias/Recursive: null if the only child is null
+//
+// This is intended to run after a mutation that nullifies leaf nodes (e.g.
+// reachability pruning), so that the nulls cascade correctly through the tree
+// during the bottom-up walk.
+func NullPropagation(outline Outline) Outline {
+	switch outline.Type {
+	case UnionIteratorType:
+		for _, sub := range outline.SubOutlines {
+			if sub.Type != NullIteratorType {
+				return outline
+			}
+		}
+		return Outline{Type: NullIteratorType, ID: outline.ID}
+
+	case IntersectionIteratorType:
+		for _, sub := range outline.SubOutlines {
+			if sub.Type == NullIteratorType {
+				return Outline{Type: NullIteratorType, ID: outline.ID}
+			}
+		}
+
+	case ArrowIteratorType, IntersectionArrowIteratorType:
+		if len(outline.SubOutlines) == 2 && outline.SubOutlines[1].Type == NullIteratorType {
+			return Outline{Type: NullIteratorType, ID: outline.ID}
+		}
+
+	case ExclusionIteratorType:
+		if len(outline.SubOutlines) == 2 && outline.SubOutlines[0].Type == NullIteratorType {
+			return Outline{Type: NullIteratorType, ID: outline.ID}
+		}
+
+	case CaveatIteratorType, AliasIteratorType, RecursiveIteratorType:
+		if len(outline.SubOutlines) == 1 && outline.SubOutlines[0].Type == NullIteratorType {
+			return Outline{Type: NullIteratorType, ID: outline.ID}
+		}
+	}
+
+	return outline
+}
+
 // ReorderMutation returns an OutlineMutation that reorders SubOutlines according
 // to order, where order[i] is the index of the child to place at position i.
 // If order has a different length than the node's SubOutlines, it is a no-op.
