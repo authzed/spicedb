@@ -1,16 +1,11 @@
 package query
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestFormatAnalysisSimpleTree(t *testing.T) {
@@ -130,10 +125,6 @@ func TestFormatAnalysisEdgeCases(t *testing.T) {
 }
 
 func TestAnalysisIntegration(t *testing.T) {
-	// Create a datastore
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
 	// Create a simple iterator
 	fixed := NewFixedIterator(
 		Path{
@@ -148,8 +139,7 @@ func TestAnalysisIntegration(t *testing.T) {
 
 	// Create a context with analysis enabled
 	analyze := NewAnalyzeObserver()
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithObserver(analyze))
 
 	// Execute a Check operation

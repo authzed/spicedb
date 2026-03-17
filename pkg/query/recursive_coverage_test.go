@@ -1,15 +1,10 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 // TestRecursiveIterator_CanonicalKey tests the CanonicalKey() method (currently 0% coverage)
@@ -106,12 +101,8 @@ func TestBreadthFirstIterResources_MaxDepth(t *testing.T) {
 	union := NewUnionIterator(infiniteIter, sentinel)
 	recursive := NewRecursiveIterator(union, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(err)
-
 	// Set a low max depth
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(3))
 
 	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
@@ -139,11 +130,7 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 		union := NewUnionIterator(faultyIter, sentinel)
 		recursive := NewRecursiveIterator(union, "folder", "parent")
 
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
+		ctx := NewTestContext(t)
 
 		seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
 		require.NoError(err)
@@ -164,11 +151,7 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 		union := NewUnionIterator(faultyIter, sentinel)
 		recursive := NewRecursiveIterator(union, "folder", "parent")
 
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
+		ctx := NewTestContext(t)
 
 		seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
 		require.NoError(err)
@@ -198,11 +181,7 @@ func TestBreadthFirstIterResources_MergeOrSemantics(t *testing.T) {
 	union := NewUnionIterator(iter, sentinel)
 	recursive := NewRecursiveIterator(union, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(5))
 
 	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
@@ -225,12 +204,8 @@ func TestIterativeDeepening_MaxDepth(t *testing.T) {
 	depthCounter := &depthCountingIterator{counter: 0}
 	recursive := NewRecursiveIterator(depthCounter, "folder", "view")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(err)
-
 	maxDepth := 5
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(maxDepth))
 
 	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
