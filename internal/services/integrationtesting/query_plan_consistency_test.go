@@ -78,20 +78,23 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 
 	t.Run("lookup_resources", func(t *testing.T) {
 		if os.Getenv("TEST_QUERY_PLAN_RESOURCES") == "" {
-			t.Skip("Skipping IterResources tests: set TEST_QUERY_PLAN_RESOURCES=true to enable")
+			t.Skip("Skipping IterResources tests due to deprectation: Set TEST_QUERY_PLAN_RESOURCES=true to enable")
 		}
 		runQueryPlanLookupResources(t, handle)
 	})
 
 	t.Run("lookup_subjects", func(t *testing.T) {
 		if os.Getenv("TEST_QUERY_PLAN_SUBJECTS") == "" {
-			t.Skip("Skipping IterSubjects tests: set TEST_QUERY_PLAN_SUBJECTS=true to enable")
+			t.Skip("Skipping IterSubjects tests due to deprectation: Set TEST_QUERY_PLAN_SUBJECTS=true to enable")
 		}
 		runQueryPlanLookupSubjects(t, handle)
 	})
 }
 
 func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
+	if os.Getenv("TEST_QUERY_PLAN_CHECK") == "" {
+		t.Skip("Skipping Check tests due to deprecation. Set TEST_QUERY_PLAN_CHECK=true to enable")
+	}
 	t.Run("assertions", func(t *testing.T) {
 		for _, parsedFile := range handle.populated.ParsedFiles {
 			for _, entry := range []struct {

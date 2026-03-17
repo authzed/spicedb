@@ -14,11 +14,10 @@ func TestUnionIterator(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("Check_Union", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
 
 		// Add different iterators with distinct data sets
 		documentAccess := NewDocumentAccessFixedIterator()
@@ -54,6 +53,7 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EmptyUnion", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		union := NewUnionIterator()
 
 		// Empty union should return empty results
@@ -68,6 +68,7 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
@@ -88,6 +89,7 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
@@ -102,6 +104,7 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_EarlyTermination", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Add iterators that might find the same resource
 		documentAccess := NewDocumentAccessFixedIterator()
 		singleUser := NewSingleUserFixedIterator("alice")
@@ -123,6 +126,7 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		documentAccess := NewDocumentAccessFixedIterator()
 		union := NewUnionIterator(documentAccess)
 
@@ -138,6 +142,7 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
@@ -167,6 +172,7 @@ func TestUnionIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
@@ -267,7 +273,7 @@ func TestUnionIteratorDuplicateElimination(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := NewLocalContext(t.Context())
+	ctx := NewTestContext(t)
 
 	// Create a union with overlapping sub-iterators
 	// This tests the deduplication logic where resources found by earlier
@@ -299,7 +305,7 @@ func TestUnionIteratorMultipleResources(t *testing.T) {
 	require := require.New(t)
 
 	// Create test context
-	ctx := NewLocalContext(t.Context())
+	ctx := NewTestContext(t)
 
 	documentAccess := NewDocumentAccessFixedIterator()
 	multiRole := NewMultiRoleFixedIterator()
@@ -322,11 +328,10 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("DeduplicatesByResourceKey", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Create relations that would create duplicates under the old string-based deduplication
 		// but should be properly deduplicated by resource key (type + id)
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -370,6 +375,7 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		t.Run("NoCaveatFirst", func(t *testing.T) {
 			t.Parallel()
 
+			ctx := NewTestContext(t)
 			iter1 := NewFixedIterator(pathNoCaveat)
 			iter2 := NewFixedIterator(pathWithCaveat)
 
@@ -388,6 +394,7 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 		t.Run("CaveatFirst", func(t *testing.T) {
 			t.Parallel()
 
+			ctx := NewTestContext(t)
 			iter1 := NewFixedIterator(pathWithCaveat)
 			iter2 := NewFixedIterator(pathNoCaveat)
 
@@ -407,6 +414,7 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 	t.Run("DeduplicationWithDifferentResources", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Relations to different resources should not be deduplicated
 		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathDoc2 := MustPathFromString("document:doc2#viewer@user:alice")
@@ -433,6 +441,7 @@ func TestUnionDeduplicationBugFix(t *testing.T) {
 	t.Run("DeduplicationSameResourceDifferentRelations", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Relations with different relation names on the same resource should be deduplicated
 		// because the fix deduplicates by resource (type + id), not by full relation
 		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
@@ -461,12 +470,10 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("CombineTwoCaveats_OR_Logic", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Both paths have different caveats - should combine with OR logic
 		pathWithCaveat1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathWithCaveat1.Caveat = &core.CaveatExpression{
@@ -508,6 +515,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 	t.Run("NoCaveat_Wins_Over_Caveat", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// One path has no caveat, one has caveat - no caveat should win
 		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
 
@@ -538,6 +546,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 	t.Run("Different_Resources_Not_Combined", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Paths to different resources should not be combined
 		pathDoc1 := MustPathFromString("document:doc1#viewer@user:alice")
 		pathDoc1.Caveat = &core.CaveatExpression{
@@ -585,6 +594,7 @@ func TestUnionIteratorCaveatCombination(t *testing.T) {
 	t.Run("Three_Relations_Same_Resource_Mixed_Caveats", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Mix of paths: no caveat, caveat1, caveat2 - no caveat should win
 		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
 

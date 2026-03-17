@@ -22,12 +22,10 @@ func TestDatastoreIterator(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("SubjectTypeMismatchReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Create a base relation that expects "user" type subjects (no subrelation for pure type checking)
 		baseRel := createTestBaseRelation("document", "viewer", "user", "")
 		relationIter := NewDatastoreIterator(baseRel)
@@ -147,8 +145,6 @@ func TestDatastoreIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := NewLocalContext(t.Context())
-
 	// Test only mismatched types since matching types require a real datastore
 	testCases := []struct {
 		name                string
@@ -186,6 +182,7 @@ func TestDatastoreIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := NewTestContext(t)
 			// Use empty string instead of Ellipsis to test pure type mismatch without subrelation bridging
 			baseRel := createTestBaseRelation("document", "viewer", tc.expectedSubjectType, "")
 			relationIter := NewDatastoreIterator(baseRel)
@@ -208,12 +205,10 @@ func TestDatastoreIteratorWildcard(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("WildcardSubjectTypeMismatchReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Create a wildcard base relation that expects "user" type subjects
 		baseRel := createTestWildcardBaseRelation("document", "viewer", "user")
 		relationIter := NewDatastoreIterator(baseRel)
@@ -294,8 +289,6 @@ func TestDatastoreIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := NewLocalContext(t.Context())
-
 	// Test wildcard relations with various subject type mismatches
 	testCases := []struct {
 		name                string
@@ -328,6 +321,7 @@ func TestDatastoreIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := NewTestContext(t)
 			baseRel := createTestWildcardBaseRelation("document", "viewer", tc.expectedSubjectType)
 			relationIter := NewDatastoreIterator(baseRel)
 

@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"sync"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -39,6 +40,7 @@ type Context struct {
 	// IterSubjects call on this context. Nil means not yet set.
 	// Used to wrap only the top-level call with DeduplicatePathSeq.
 	topLevelIterator Iterator
+	topLevelOnce     sync.Once
 }
 
 // NewLocalContext creates a new query execution context with a LocalExecutor.
@@ -243,10 +245,11 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	isTopLevel := ctx.topLevelIterator == nil
-	if isTopLevel {
+	isTopLevel := false
+	ctx.topLevelOnce.Do(func() {
 		ctx.topLevelIterator = it
-	}
+		isTopLevel = true
+	})
 
 	tracedIterator := ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource, filterSubjectType))
 	key := it.CanonicalKey()
@@ -275,10 +278,11 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	isTopLevel := ctx.topLevelIterator == nil
-	if isTopLevel {
+	isTopLevel := false
+	ctx.topLevelOnce.Do(func() {
 		ctx.topLevelIterator = it
-	}
+		isTopLevel = true
+	})
 
 	tracedIterator := ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject, filterResourceType))
 	key := it.CanonicalKey()

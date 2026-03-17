@@ -1,14 +1,10 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -33,15 +29,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		// Create test context
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		revision, err := ds.HeadRevision(context.Background())
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		ctx := NewTestContext(t)
 
 		// Test: alice should have access because she's a member of ALL teams (team1 and team2)
 		resources := []Object{NewObject("document", "doc1")}
@@ -80,17 +68,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		// Create test context
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-			return nil
-		})
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		ctx := NewTestContext(t)
 
 		// Test: alice should NOT have access because she's not a member of ALL teams
 		resources := []Object{NewObject("document", "doc1")}
@@ -120,17 +98,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		// Create test context
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-			return nil
-		})
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		ctx := NewTestContext(t)
 
 		// Test: alice should have access because she's a member of the only team
 		resources := []Object{NewObject("document", "doc1")}
@@ -165,17 +133,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		// Create test context
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-			return nil
-		})
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		ctx := NewTestContext(t)
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -208,17 +166,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		// Create test context
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-			return nil
-		})
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		ctx := NewTestContext(t)
 
 		resources := []Object{NewObject("document", "doc1")}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -247,17 +195,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		rightIter := NewFixedIterator()
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-		// Create test context
-		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-		require.NoError(err)
-
-		revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-			return nil
-		})
-		require.NoError(err)
-
-		ctx := NewLocalContext(context.Background(),
-			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		ctx := NewTestContext(t)
 
 		resources := []Object{}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
@@ -276,20 +214,10 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test context
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(err)
-
-	revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return nil
-	})
-	require.NoError(err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
-
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
 
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#team@team:team1")
@@ -345,6 +273,8 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#team@team:team1")
 		leftPath.Caveat = &core.CaveatExpression{
@@ -389,6 +319,8 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 
 	t.Run("MultiplePaths_CombineCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
 
 		// Left side: document has multiple teams, each with different caveats
 		leftPath1 := MustPathFromString("document:doc1#team@team:team1")
@@ -503,17 +435,7 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	require.Equal(originalExplain.Info, clonedExplain.Info)
 	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
-	// Create test context
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(err)
-
-	revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return nil
-	})
-	require.NoError(err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+	ctx := NewTestContext(t)
 
 	// Test that both iterators produce the same results
 	resources := []Object{NewObject("document", "doc1")}
@@ -564,7 +486,7 @@ func TestIntersectionArrowIteratorIterSubjects(t *testing.T) {
 	rightIter := NewFixedIterator()
 	intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-	ctx := NewLocalContext(context.Background())
+	ctx := NewTestContext(t)
 
 	// Test with empty iterators - should return empty
 	pathSeq, err := ctx.IterSubjects(intersectionArrow, NewObject("document", "doc1"), NoObjectFilter())
@@ -585,7 +507,7 @@ func TestIntersectionArrowIteratorIterResources(t *testing.T) {
 	rightIter := NewFixedIterator()
 	intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
-	ctx := NewLocalContext(context.Background())
+	ctx := NewTestContext(t)
 
 	// Test with empty iterators - should return empty
 	pathSeq, err := ctx.IterResources(intersectionArrow, NewObject("user", "alice").WithEllipses(), NoObjectFilter())

@@ -11,14 +11,10 @@ func TestSelfIterator(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test context
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		selfIt := NewSelfIterator("view", "user")
 
 		// Create a resource seq with both Alice and Bob
@@ -41,6 +37,7 @@ func TestSelfIterator(t *testing.T) {
 	t.Run("Check_EmptyResults", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		selfIt := NewSelfIterator("view", "user")
 
 		// Only bob in the list now
@@ -55,6 +52,7 @@ func TestSelfIterator(t *testing.T) {
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		selfIt := NewSelfIterator("view", "user")
 		pathSeq, err := ctx.IterResources(selfIt, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
@@ -75,6 +73,7 @@ func TestSelfIterator(t *testing.T) {
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		selfIt := NewSelfIterator("view", "user")
 		pathSeq, err := ctx.IterSubjects(selfIt, NewObject("user", "alice"), NoObjectFilter())
 		require.NoError(err)

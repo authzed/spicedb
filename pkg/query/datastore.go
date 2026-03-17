@@ -290,7 +290,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 			allSubjectsResource,
 			noResourceRelation,
 			subjectType,
-			false, false, // fetch all — we override caveats below
+			false, r.base.Expiration(),
 			QueryPage{},
 		)
 		if err != nil {
@@ -315,7 +315,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 				allSubjectsResource,
 				noResourceRelation,
 				subjectType,
-				false, false, // fetch all — we override caveats below
+				false, r.base.Expiration(),
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
