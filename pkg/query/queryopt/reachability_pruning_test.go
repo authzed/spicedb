@@ -9,6 +9,13 @@ import (
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
+// applyReachabilityPruning is a test helper that applies the reachability
+// pruning transform to a CanonicalOutline, bypassing the registry.
+func applyReachabilityPruning(co query.CanonicalOutline, targetSubjectType, targetSubjectRelation string) query.CanonicalOutline {
+	co.Root = reachabilityPruning(RequestParams{SubjectType: targetSubjectType, SubjectRelation: targetSubjectRelation})(co.Root)
+	return co
+}
+
 // dsOutlineForType returns a DatastoreIteratorType outline with the given
 // definition, relation, subject type, and subrelation.
 func dsOutlineForType(defName, relName, subjectType, subrelation string) query.Outline {
@@ -49,21 +56,35 @@ func TestReachabilityPruning(t *testing.T) {
 	t.Run("does not prune NullIteratorType", func(t *testing.T) {
 		t.Parallel()
 		co := canonicalize(query.Outline{Type: query.NullIteratorType})
-		result := ApplyReachabilityPruning(co, "user")
+		result := applyReachabilityPruning(co, "user", "")
 		require.Equal(t, query.NullIteratorType, result.Root.Type)
+	})
+
+	t.Run("does not prune if subject type is empty", func(t *testing.T) {
+		t.Parallel()
+		co := canonicalize(dsOutlineForType("document", "viewer", "group", "..."))
+		result := applyReachabilityPruning(co, "", "")
+		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
+	})
+
+	t.Run("does not prune if subject relation is non-empty", func(t *testing.T) {
+		t.Parallel()
+		co := canonicalize(dsOutlineForType("document", "viewer", "group", "..."))
+		result := applyReachabilityPruning(co, "group", "member")
+		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
 	})
 
 	t.Run("prunes leaf with subject type that does not match", func(t *testing.T) {
 		t.Parallel()
 		co := canonicalize(dsOutlineForType("document", "viewer", "group", "..."))
-		result := ApplyReachabilityPruning(co, "user")
+		result := applyReachabilityPruning(co, "user", "")
 		require.Equal(t, query.NullIteratorType, result.Root.Type)
 	})
 
 	t.Run("keeps leaf with matching subject type", func(t *testing.T) {
 		t.Parallel()
 		co := canonicalize(dsOutlineForType("document", "viewer", "user", "..."))
-		result := ApplyReachabilityPruning(co, "user")
+		result := applyReachabilityPruning(co, "user", "")
 		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
 	})
 
@@ -75,7 +96,7 @@ func TestReachabilityPruning(t *testing.T) {
 			groupIt := dsOutlineForType("document", "editor", "group", "...")
 			co := canonicalize(unionOutline(userIt, groupIt))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.UnionIteratorType, result.Root.Type)
 			require.Len(t, result.Root.SubOutlines, 2)
 			require.Equal(t, query.DatastoreIteratorType, result.Root.SubOutlines[0].Type, "user branch should remain")
@@ -89,7 +110,7 @@ func TestReachabilityPruning(t *testing.T) {
 			userIt2 := dsOutlineForType("document", "editor", "user", "...")
 			co := canonicalize(unionOutline(userIt1, userIt2))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.UnionIteratorType, result.Root.Type)
 			require.Equal(t, query.DatastoreIteratorType, result.Root.SubOutlines[0].Type)
 			require.Equal(t, query.DatastoreIteratorType, result.Root.SubOutlines[1].Type)
@@ -104,7 +125,7 @@ func TestReachabilityPruning(t *testing.T) {
 			userIt2 := dsOutlineForType("document", "editor", "user", "...")
 			co := canonicalize(intersectionOutline(userIt1, userIt2))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.IntersectionIteratorType, result.Root.Type)
 			require.Equal(t, query.DatastoreIteratorType, result.Root.SubOutlines[0].Type)
 			require.Equal(t, query.DatastoreIteratorType, result.Root.SubOutlines[1].Type)
@@ -117,7 +138,7 @@ func TestReachabilityPruning(t *testing.T) {
 			groupIt := dsOutlineForType("document", "editor", "group", "...")
 			co := canonicalize(intersectionOutline(userIt, groupIt))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "entire intersection should be pruned because one branch can't produce target type")
 		})
 	})
@@ -130,7 +151,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := dsOutlineForType("folder", "viewer", "group", "...")
 			co := canonicalize(arrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "entire arrow should be pruned")
 		})
 
@@ -141,7 +162,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := dsOutlineForType("folder", "viewer", "user", "...")
 			co := canonicalize(arrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.ArrowIteratorType, result.Root.Type, "arrow should remain")
 		})
 
@@ -155,7 +176,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := unionOutline(rightUser, rightGroup, rightTeam)
 			co := canonicalize(arrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.ArrowIteratorType, result.Root.Type, "arrow should remain because user is reachable")
 
 			// The right side union should have the group and team branches pruned
@@ -177,7 +198,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := unionOutline(rightGroup, rightTeam, rightOrg)
 			co := canonicalize(arrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "entire arrow should be pruned")
 		})
 
@@ -190,7 +211,7 @@ func TestReachabilityPruning(t *testing.T) {
 			arrow := arrowOutline(left, right)
 			co := canonicalize(unionOutline(directUser, arrow))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.UnionIteratorType, result.Root.Type)
 			subs := result.Root.SubOutlines
 			require.Len(t, subs, 2)
@@ -207,7 +228,7 @@ func TestReachabilityPruning(t *testing.T) {
 			arrow := arrowOutline(left, right)
 			co := canonicalize(unionOutline(directUser, arrow))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.UnionIteratorType, result.Root.Type)
 			subs := result.Root.SubOutlines
 			require.Len(t, subs, 2)
@@ -224,7 +245,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := dsOutlineForType("folder", "viewer", "group", "...")
 			co := canonicalize(intersectionArrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "entire intersection arrow should be pruned")
 		})
 
@@ -235,7 +256,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := dsOutlineForType("folder", "viewer", "user", "...")
 			co := canonicalize(intersectionArrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.IntersectionArrowIteratorType, result.Root.Type, "intersection arrow should remain")
 		})
 
@@ -249,7 +270,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := unionOutline(rightUser, rightGroup, rightTeam)
 			co := canonicalize(intersectionArrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.IntersectionArrowIteratorType, result.Root.Type, "intersection arrow should remain")
 
 			rightResult := result.Root.SubOutlines[1]
@@ -270,7 +291,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := unionOutline(rightGroup, rightTeam, rightOrg)
 			co := canonicalize(intersectionArrowOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "entire intersection arrow should be pruned")
 		})
 
@@ -283,7 +304,7 @@ func TestReachabilityPruning(t *testing.T) {
 			arrow := intersectionArrowOutline(left, right)
 			co := canonicalize(unionOutline(directUser, arrow))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.UnionIteratorType, result.Root.Type)
 			subs := result.Root.SubOutlines
 			require.Len(t, subs, 2)
@@ -300,7 +321,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := dsOutlineForType("document", "blocked", "user", "...")
 			co := canonicalize(exclusionOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "entire exclusion should be pruned because left has no matching subject type")
 		})
 
@@ -313,7 +334,7 @@ func TestReachabilityPruning(t *testing.T) {
 			right := dsOutlineForType("document", "blocked", "team", "...")
 			co := canonicalize(exclusionOutline(left, right))
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.ExclusionIteratorType, result.Root.Type, "exclusion should remain because left has matching subject type")
 
 			// The left union should have the group branch pruned
@@ -334,7 +355,7 @@ func TestReachabilityPruning(t *testing.T) {
 				Args: &query.IteratorArgs{DefinitionName: "group"},
 			})
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "self iterator should be pruned")
 		})
 
@@ -346,7 +367,7 @@ func TestReachabilityPruning(t *testing.T) {
 				Args: &query.IteratorArgs{DefinitionName: "user"},
 			})
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.SelfIteratorType, result.Root.Type, "self iterator should remain")
 		})
 	})
@@ -361,7 +382,7 @@ func TestReachabilityPruning(t *testing.T) {
 				SubOutlines: []query.Outline{child},
 			})
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "recursive iterator should be pruned")
 		})
 
@@ -374,7 +395,7 @@ func TestReachabilityPruning(t *testing.T) {
 				SubOutlines: []query.Outline{child},
 			})
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.RecursiveIteratorType, result.Root.Type, "recursive iterator should remain")
 		})
 	})
@@ -389,7 +410,7 @@ func TestReachabilityPruning(t *testing.T) {
 				SubOutlines: []query.Outline{child},
 			})
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.NullIteratorType, result.Root.Type, "alias iterator should be pruned")
 		})
 
@@ -402,7 +423,7 @@ func TestReachabilityPruning(t *testing.T) {
 				SubOutlines: []query.Outline{child},
 			})
 
-			result := ApplyReachabilityPruning(co, "user")
+			result := applyReachabilityPruning(co, "user", "")
 			require.Equal(t, query.AliasIteratorType, result.Root.Type, "alias iterator should remain")
 		})
 	})

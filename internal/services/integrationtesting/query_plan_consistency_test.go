@@ -135,7 +135,7 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 
 									// Apply static optimizations if requested
 									if optimizationMode.optimize {
-										co, err = queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations)
+										co, err = queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{SubjectType: rel.Subject.ObjectType, SubjectRelation: rel.Subject.Relation})
 										require.NoError(err)
 									}
 

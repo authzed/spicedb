@@ -9,7 +9,11 @@ func init() {
 		Pushes caveat evalution to the lowest point in the tree.
 		Cannot push through intersection arrows
 		`,
-		Mutation: caveatPushdown,
+		NewTransform: func(_ RequestParams) OutlineTransform {
+			return func(outline query.Outline) query.Outline {
+				return query.MutateOutline(outline, []query.OutlineMutation{caveatPushdown})
+			}
+		},
 	})
 }
 

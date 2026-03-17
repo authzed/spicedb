@@ -1,129 +1,91 @@
 package queryopt
 
 import (
-	"slices"
-
 	"github.com/authzed/spicedb/pkg/query"
 )
 
-// ApplyReachabilityPruning applies subject-type reachability pruning to a
-// CanonicalOutline, replacing subtrees with NullIteratorType nodes when they
-// can never produce the target subject type.
-//
-// For arrows (e.g. editor->view), the pruning decision is based on whether the
-// right side (computed userset) can reach the target subject type. If not, the
-// entire arrow is elided. (The left side's subject types are intermediate hops
-// and are not considered for pruning.)
-//
-// For exclusions (e.g. editor - writer), the pruning decision is based on whether the
-// main set on the left can reach the target subject type. The right set is ignored.
-//
-// For intersections (e.g. a & b & c), the pruning decision is based on whether
-// all of the branches can reach the target subject type. If at least one cannot, the
-// entire intersection is elided.
-func ApplyReachabilityPruning(co query.CanonicalOutline, targetSubjectType string) query.CanonicalOutline {
-	pruned, _ := pruneOutline(co.Root, targetSubjectType)
-
-	// TODO do i need to call FillMissingIds?
-	co.Root = pruned
-	return co
+func init() {
+	MustRegisterOptimization(Optimizer{
+		Name: "reachability-pruning",
+		Description: `
+		Replaces subtrees with NullIteratorType nodes when they can never
+		produce the target subject type of the request.
+		`,
+		NewTransform: func(params RequestParams) OutlineTransform {
+			return reachabilityPruning(params)
+		},
+	})
 }
 
-// pruneOutline recursively prunes an outline tree, replacing subtrees that
-// cannot produce the target subject type with NullIteratorType nodes.
-// Returns the (possibly replaced) outline and whether any change was made.
-func pruneOutline(outline query.Outline, targetSubjectType string) (query.Outline, bool) {
-	// Recurse into all children first (bottom-up).
-	changed := false
-	if len(outline.SubOutlines) > 0 {
-		newSubs := make([]query.Outline, len(outline.SubOutlines))
-		copy(newSubs, outline.SubOutlines)
-
-		for i, sub := range newSubs {
-			newSub, ok := pruneOutline(sub, targetSubjectType)
-			if ok {
-				newSubs[i] = newSub
-				changed = true
-			}
+func reachabilityPruning(params RequestParams) func(outline query.Outline) query.Outline {
+	return func(outline query.Outline) query.Outline {
+		if params.SubjectType == "" || (params.SubjectRelation != "" && params.SubjectRelation != "...") {
+			// do not mutate if subjectType is empty or if subjectRelation is non-empty
+			return outline
 		}
-		if changed {
-			outline = query.Outline{
-				Type:        outline.Type,
-				Args:        outline.Args,
-				SubOutlines: newSubs,
-				ID:          outline.ID,
-			}
-		}
+		// Pre-pass: find all node IDs inside arrow left subtrees.
+		// These are intermediate hops whose subject type does not need
+		// to match the target, so they must be excluded from pruning.
+		immune := collectArrowLeftSubtreeIDs(outline)
+		return query.MutateOutline(outline, []query.OutlineMutation{
+			leafSubjectTypePruner(params.SubjectType, immune),
+			query.NullPropagation,
+		})
 	}
-
-	// Now check this node's subject types.
-	if slices.Contains(outlineSubjectTypes(outline), targetSubjectType) {
-		return outline, changed
-	}
-
-	return query.Outline{Type: query.NullIteratorType, ID: outline.ID}, true
 }
 
-// outlineSubjectTypes computes the subject types reachable from an outline
-// node, mirroring the Iterator.SubjectTypes() logic for each node type.
-func outlineSubjectTypes(outline query.Outline) []string {
-	switch outline.Type {
-	case query.DatastoreIteratorType:
-		if outline.Args != nil && outline.Args.Relation != nil {
-			return []string{outline.Args.Relation.Type()}
+// leafSubjectTypePruner returns an OutlineMutation that replaces leaf outline
+// nodes (DatastoreIteratorType, SelfIteratorType) with NullIteratorType when
+// their subject type does not match the target. Nodes whose IDs appear in the
+// immune set are skipped — these are nodes inside arrow left subtrees whose
+// subject types are intermediate hops, not final outputs.
+//
+// Null propagation through compound nodes (unions, intersections, arrows, etc.)
+// is handled by query.NullPropagation, which should run after this mutation in
+// the same MutateOutline call.
+func leafSubjectTypePruner(targetSubjectType string, immune map[query.OutlineNodeID]bool) query.OutlineMutation {
+	return func(outline query.Outline) query.Outline {
+		if immune[outline.ID] {
+			return outline
 		}
-		return nil
 
-	case query.ArrowIteratorType, query.IntersectionArrowIteratorType:
-		// Subject types come from the right child only.
-		if len(outline.SubOutlines) == 2 {
-			return outlineSubjectTypes(outline.SubOutlines[1])
-		}
-		return nil
-
-	case query.ExclusionIteratorType:
-		// Subject types come from left child only.
-		if len(outline.SubOutlines) == 2 {
-			return outlineSubjectTypes(outline.SubOutlines[0])
-		}
-		return nil
-
-	case query.UnionIteratorType:
-		// Subject types come from all children.
-		var types []string
-		for _, sub := range outline.SubOutlines {
-			types = append(types, outlineSubjectTypes(sub)...)
-		}
-		return types
-
-	case query.IntersectionIteratorType:
-		// All branches must produce results, so if any branch has no
-		// reachable subject types, the intersection can never produce results.
-		var types []string
-		for _, sub := range outline.SubOutlines {
-			childTypes := outlineSubjectTypes(sub)
-			if len(childTypes) == 0 {
-				return nil
+		switch outline.Type {
+		case query.DatastoreIteratorType:
+			if outline.Args != nil && outline.Args.Relation != nil && outline.Args.Relation.Type() == targetSubjectType {
+				return outline
 			}
-			types = append(types, childTypes...)
-		}
-		return types
+			return query.Outline{Type: query.NullIteratorType, ID: outline.ID}
 
-	case query.SelfIteratorType:
-		if outline.Args != nil && outline.Args.DefinitionName != "" {
-			return []string{outline.Args.DefinitionName}
+		case query.SelfIteratorType:
+			if outline.Args != nil && outline.Args.DefinitionName == targetSubjectType {
+				return outline
+			}
+			return query.Outline{Type: query.NullIteratorType, ID: outline.ID}
+
+		default:
+			return outline
+		}
+	}
+}
+
+// collectArrowLeftSubtreeIDs walks the outline tree and collects the IDs of all
+// nodes that appear inside the left subtree of an arrow (or intersection arrow).
+// These nodes have intermediate subject types that should not be pruned.
+func collectArrowLeftSubtreeIDs(outline query.Outline) map[query.OutlineNodeID]bool {
+	ids := make(map[query.OutlineNodeID]bool)
+	_ = query.WalkOutlinePreOrder(outline, func(node query.Outline) error {
+		if (node.Type == query.ArrowIteratorType || node.Type == query.IntersectionArrowIteratorType) && len(node.SubOutlines) == 2 {
+			markAllIDs(node.SubOutlines[0], ids)
 		}
 		return nil
+	})
+	return ids
+}
 
-	case query.CaveatIteratorType, query.AliasIteratorType, query.RecursiveIteratorType:
-		if len(outline.SubOutlines) == 1 {
-			return outlineSubjectTypes(outline.SubOutlines[0])
-		}
-		return nil
-
-	default:
-		// FixedIteratorType, NullIteratorType, RecursiveSentinelIteratorType
-		// TODO is this correct?
-		return nil
+// markAllIDs recursively adds the ID of every node in the subtree to the set.
+func markAllIDs(outline query.Outline, ids map[query.OutlineNodeID]bool) {
+	ids[outline.ID] = true
+	for _, sub := range outline.SubOutlines {
+		markAllIDs(sub, ids)
 	}
 }
