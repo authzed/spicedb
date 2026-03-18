@@ -247,7 +247,10 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations)
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+		SubjectType:     req.Subject.Object.ObjectType,
+		SubjectRelation: req.Subject.OptionalRelation,
+	})
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -364,7 +367,10 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations)
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+		SubjectType:     req.SubjectObjectType,
+		SubjectRelation: req.OptionalSubjectRelation,
+	})
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
