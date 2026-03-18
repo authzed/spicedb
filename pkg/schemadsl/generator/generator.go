@@ -82,13 +82,7 @@ func GenerateSchemaWithCaveatTypeSet(ctx context.Context, definitions []compiler
 
 // GenerateCaveatSource generates a DSL view of the given caveat definition.
 func GenerateCaveatSource(caveat *core.CaveatDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
-	generator := &sourceGenerator{
-		indentationLevel: 0,
-		hasNewline:       true,
-		hasBlankline:     true,
-		hasNewScope:      true,
-		caveatTypeSet:    caveatTypeSet,
-	}
+	generator := NewSourceGenerator(caveatTypeSet)
 
 	err := generator.emitCaveat(caveat)
 	if err != nil {
@@ -105,14 +99,7 @@ func GenerateSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveatty
 }
 
 func generateDefinitionSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveattypes.TypeSet) (string, []string, bool, error) {
-	generator := &sourceGenerator{
-		indentationLevel: 0,
-		hasNewline:       true,
-		hasBlankline:     true,
-		hasNewScope:      true,
-		flags:            mapz.NewSet[string](),
-		caveatTypeSet:    caveatTypeSet,
-	}
+	generator := NewSourceGenerator(caveatTypeSet)
 
 	err := generator.emitNamespace(namespace)
 	if err != nil {
@@ -124,13 +111,7 @@ func generateDefinitionSource(namespace *core.NamespaceDefinition, caveatTypeSet
 
 // GenerateRelationSource generates a DSL view of the given relation definition.
 func GenerateRelationSource(relation *core.Relation, caveatTypeSet *caveattypes.TypeSet) (string, error) {
-	generator := &sourceGenerator{
-		indentationLevel: 0,
-		hasNewline:       true,
-		hasBlankline:     true,
-		hasNewScope:      true,
-		caveatTypeSet:    caveatTypeSet,
-	}
+	generator := NewSourceGenerator(caveatTypeSet)
 
 	err := generator.emitRelation(relation)
 	if err != nil {

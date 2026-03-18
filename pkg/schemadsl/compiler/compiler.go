@@ -153,12 +153,11 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	if present {
 		// NOTE: import translation is done separately so that partial references
 		// and definitions defined in separate files can correctly resolve.
-		err = translateImports(importResolutionContext{
-			globallyVisitedFiles: mapz.NewSet[string](),
-			locallyVisitedFiles:  mapz.NewSet[string](),
-			sourceFS:             cfg.sourceFS,
-			mapper:               mapper,
-		}, root)
+		irc, err := newImportResolutionContext(cfg.sourceFS, mapper, "")
+		if err != nil {
+			return nil, err
+		}
+		err = irc.translateImports(root, nil, nil)
 		if err != nil {
 			return nil, err
 		}

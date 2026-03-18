@@ -271,3 +271,9 @@ func TestWarnings(t *testing.T) {
 		})
 	}
 }
+
+func TestWarningsIfNilDevCtx(t *testing.T) {
+	warnings, err := GetWarnings(t.Context(), nil)
+	require.Nil(t, warnings)
+	require.ErrorContains(t, err, "cannot compute warnings: nil dev context")
+}

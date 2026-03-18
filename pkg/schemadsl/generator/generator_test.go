@@ -14,6 +14,12 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
+func TestNewSourceGenerator(t *testing.T) {
+	mm := NewSourceGenerator(caveattypes.Default.TypeSet)
+	require.NotNil(t, mm)
+	require.True(t, mm.flags.IsEmpty())
+}
+
 func TestGenerateCaveat(t *testing.T) {
 	type generatorTest struct {
 		name     string

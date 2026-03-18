@@ -19,6 +19,18 @@ type sourceGenerator struct {
 	caveatTypeSet      *caveattypes.TypeSet
 }
 
+func NewSourceGenerator(caveatTypeSet *caveattypes.TypeSet) *sourceGenerator {
+	return &sourceGenerator{
+		indentationLevel: 0,
+		hasNewline:       true,
+		hasBlankline:     true,
+		hasNewScope:      true,
+		hasIssue:         false,
+		flags:            mapz.NewSet[string](),
+		caveatTypeSet:    caveatTypeSet,
+	}
+}
+
 // ensureBlankLineOrNewScope ensures that there is a blank line or new scope at the tail of the buffer. If not,
 // a new line is added.
 func (sg *sourceGenerator) ensureBlankLineOrNewScope() {
