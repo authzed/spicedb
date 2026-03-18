@@ -1,30 +1,16 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestIteratorTracing(t *testing.T) {
 	// Create a test context with TraceLogger
 	traceLogger := NewTraceLogger()
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
-	revision, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return nil
-	})
-	require.NoError(t, err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)),
+	ctx := NewLocalContext(t.Context(),
 		WithTraceLogger(traceLogger),
 	)
 

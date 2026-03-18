@@ -1,12 +1,32 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"testing"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// NewTestContext creates a fresh Context with a LocalExecutor for use in tests.
+// Each call returns an independent context — parallel subtests must each call
+// this rather than sharing a single context, because Context holds mutable
+// state (e.g. topLevelIterator) that is not safe for concurrent reuse.
+//
+// Pass the current *testing.T so that the Go context is tied to the test's
+// lifetime. Passing nil leaves Context.Context unset (callers must set it).
+func NewTestContext(t testing.TB) *Context {
+	var goCtx context.Context
+	if t != nil {
+		goCtx = t.Context()
+	}
+	return &Context{
+		Context:  goCtx,
+		Executor: LocalExecutor{},
+	}
+}
 
 // createRelation is a helper function to create a relation with the given parameters
 func createRelation(resourceType, resourceID, resourceRel, subjectType, subjectID, subjectRel string) tuple.Relationship {

@@ -4,10 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 // Benchmarks for comparing BFS vs iterative deepening performance
@@ -38,13 +34,7 @@ func BenchmarkRecursiveShallowGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -91,13 +81,7 @@ func BenchmarkRecursiveWideGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -139,13 +123,7 @@ func BenchmarkRecursiveDeepGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -169,13 +147,7 @@ func BenchmarkRecursiveEmptyGraph(b *testing.B) {
 	sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
 	recursive := NewRecursiveIterator(sentinel, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -228,13 +200,7 @@ func BenchmarkRecursiveSparseGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -276,13 +242,7 @@ func BenchmarkRecursiveCyclicGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -324,13 +284,7 @@ func BenchmarkRecursiveIterResources(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()

@@ -118,8 +118,19 @@ type PermissionsServerConfig struct {
 	// EnableExperimentalLookupResources3 is used to enable LookupResources v3 for testing.
 	EnableExperimentalLookupResources3 bool // TODO: remove when LookupResources v3 is fully enabled
 
-	// ExperimentalQueryPlan enables the experimental query plan for API calls.
-	ExperimentalQueryPlan bool
+	// ExperimentalQueryPlan configures which API operations use the experimental query plan.
+	ExperimentalQueryPlan ExperimentalQueryPlanConfig
+}
+
+// ExperimentalQueryPlanConfig controls which API operations are routed through the
+// experimental query plan engine instead of the standard dispatcher.
+type ExperimentalQueryPlanConfig struct {
+	// Check enables the query plan for CheckPermission calls.
+	Check bool
+	// LookupResources enables the query plan for LookupResources calls.
+	LookupResources bool
+	// LookupSubjects enables the query plan for LookupSubjects calls.
+	LookupSubjects bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -147,7 +158,6 @@ func NewPermissionsServer(
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 	}
-
 	validator := genutil.MustNewProtoValidator(
 		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
 		protovalidate.WithMessages(
@@ -180,6 +190,7 @@ func NewPermissionsServer(
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
+		queryPlanMetadata: NewQueryPlanMetadata(),
 	}
 }
 
@@ -190,7 +201,8 @@ type permissionServer struct {
 	dispatch dispatch.Dispatcher
 	config   PermissionsServerConfig
 
-	bulkChecker *bulkChecker
+	bulkChecker       *bulkChecker
+	queryPlanMetadata *QueryPlanMetadata
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {

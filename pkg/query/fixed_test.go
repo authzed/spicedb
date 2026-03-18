@@ -8,25 +8,23 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestFixedIterator(t *testing.T) {
-	require := require.New(t)
-	t.Parallel()
-
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
-	// Create test paths
+func newTestPaths() (*FixedIterator, Path, Path, Path) {
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 	path2 := MustPathFromString("document:doc2#editor@user:bob")
 	path3 := MustPathFromString("document:doc1#editor@user:charlie")
+	return NewFixedIterator(path1, path2, path3), path1, path2, path3
+}
 
-	// Create fixed iterator
-	fixed := NewFixedIterator(path1, path2, path3)
+func TestFixedIterator(t *testing.T) {
+	t.Parallel()
 
 	t.Run("Check", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
-		// Test Check method
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
+
 		seq, err := ctx.Check(fixed, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
@@ -41,6 +39,10 @@ func TestFixedIterator(t *testing.T) {
 
 	t.Run("Check_NoMatches", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
+
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 
 		seq, err := ctx.Check(fixed, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
@@ -52,6 +54,10 @@ func TestFixedIterator(t *testing.T) {
 
 	t.Run("IterSubjects", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
+
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 
 		seq, err := ctx.IterSubjects(fixed, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -69,6 +75,10 @@ func TestFixedIterator(t *testing.T) {
 
 	t.Run("IterResources", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
+
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 
 		seq, err := ctx.IterResources(fixed, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
@@ -84,7 +94,10 @@ func TestFixedIterator(t *testing.T) {
 
 	t.Run("Clone", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 		cloned := fixed.Clone()
 		require.NotSame(fixed, cloned)
 
@@ -104,7 +117,9 @@ func TestFixedIterator(t *testing.T) {
 
 	t.Run("Explain", func(t *testing.T) {
 		t.Parallel()
+		require := require.New(t)
 
+		fixed, _, _, _ := newTestPaths()
 		explain := fixed.Explain()
 		require.Equal("Fixed(3 paths)", explain.Info)
 		require.Empty(explain.SubExplain)

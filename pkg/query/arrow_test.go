@@ -38,7 +38,7 @@ func TestArrowIterator(t *testing.T) {
 		require := require.New(t)
 
 		// Create context with LocalExecutor
-		ctx := NewLocalContext(t.Context())
+		ctx := NewTestContext(t)
 
 		// Test arrow operation: find resources where left side connects to right side
 		// This looks for documents whose parent folder has viewers
@@ -61,7 +61,7 @@ func TestArrowIterator(t *testing.T) {
 		require := require.New(t)
 
 		// Create context with LocalExecutor
-		ctx := NewLocalContext(t.Context())
+		ctx := NewTestContext(t)
 
 		pathSeq, err := ctx.Check(arrow, []Object{}, NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -76,7 +76,7 @@ func TestArrowIterator(t *testing.T) {
 		require := require.New(t)
 
 		// Create context with LocalExecutor
-		ctx := NewLocalContext(t.Context())
+		ctx := NewTestContext(t)
 
 		pathSeq, err := ctx.Check(arrow, NewObjects("document", "nonexistent"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
@@ -92,7 +92,7 @@ func TestArrowIterator(t *testing.T) {
 		require := require.New(t)
 
 		// Create context with LocalExecutor
-		ctx := NewLocalContext(t.Context())
+		ctx := NewTestContext(t)
 
 		pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
@@ -108,7 +108,7 @@ func TestArrowIterator(t *testing.T) {
 		require := require.New(t)
 
 		// Create context with LocalExecutor
-		ctx := NewLocalContext(t.Context())
+		ctx := NewTestContext(t)
 
 		// Test arrow IterSubjects: find all subjects for a resource through the arrow
 		// This finds subjects who have access to a resource via the left->right path
@@ -183,7 +183,7 @@ func TestArrowIteratorClone(t *testing.T) {
 	require.Len(clonedExplain.SubExplain, len(originalExplain.SubExplain))
 
 	// Create context with LocalExecutor
-	ctx := NewLocalContext(t.Context())
+	ctx := NewTestContext(t)
 
 	// Test that both iterators produce the same results
 	resourceIDs := []string{"spec1"}
@@ -233,7 +233,7 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	arrow := NewArrowIterator(leftRels, rightRels)
 
 	// Create context with LocalExecutor
-	ctx := NewLocalContext(t.Context())
+	ctx := NewTestContext(t)
 
 	// Test with multiple resource IDs
 	pathSeq, err := ctx.Check(arrow, NewObjects("document", "spec1", "spec2", "nonexistent"), NewObject("user", "alice").WithEllipses())
@@ -261,12 +261,10 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 		leftPath.Caveat = &core.CaveatExpression{
@@ -309,6 +307,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 		leftPath.Caveat = &core.CaveatExpression{
@@ -341,6 +340,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	t.Run("Left_NoCaveat_Right_Caveat", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Left side path with no caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 
@@ -373,6 +373,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	t.Run("Neither_Side_Has_Caveat", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Left side path with no caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 
@@ -397,6 +398,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	t.Run("Multiple_Relations_Mixed_Caveats", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Left side has multiple paths, some with caveats
 		leftPath1 := MustPathFromString("document:doc1#parent@folder:folder1")
 		leftPath1.Caveat = &core.CaveatExpression{
@@ -452,6 +454,7 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	t.Run("No_Matching_Arrow_Relations", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
 		// Left side points to folder1, but right side only has folder2
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 		leftPath.Caveat = &core.CaveatExpression{
@@ -491,13 +494,11 @@ func TestArrowIterSubjects(t *testing.T) {
 
 	require := require.New(t)
 
-	ctx := &Context{
-		Context:  t.Context(),
-		Executor: LocalExecutor{},
-	}
-
 	t.Run("SimpleArrow", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Left: doc1 -> folder1
 		// Right: folder1 -> alice
@@ -522,6 +523,9 @@ func TestArrowIterSubjects(t *testing.T) {
 
 	t.Run("MultipleSubjects", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Left: doc1 -> folder1
 		// Right: folder1 -> alice, folder1 -> bob
@@ -553,6 +557,9 @@ func TestArrowIterSubjects(t *testing.T) {
 	t.Run("NoLeftPaths", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// Empty left side
 		leftIter := NewFixedIterator()
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
@@ -572,6 +579,9 @@ func TestArrowIterSubjects(t *testing.T) {
 	t.Run("NoRightPaths", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
+
 		// Left exists but right is empty
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 		leftIter := NewFixedIterator(leftPath)
@@ -590,6 +600,9 @@ func TestArrowIterSubjects(t *testing.T) {
 
 	t.Run("CaveatCombination", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewTestContext(t)
+		ctx.Context = t.Context()
 
 		// Left with caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")

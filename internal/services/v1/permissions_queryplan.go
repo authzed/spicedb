@@ -1,7 +1,9 @@
 package v1
 
 import (
+	"cmp"
 	"context"
+	"sync"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -11,12 +13,61 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt"
-	"github.com/authzed/spicedb/pkg/schema/v2"
+	schema "github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// QueryPlanMetadata aggregates CountStats for iterator canonical keys across multiple queries.
+// This allows tracking which parts of query plans are used most frequently.
+type QueryPlanMetadata struct {
+	mu    sync.Mutex
+	stats map[query.CanonicalKey]query.CountStats // GUARDED_BY(mu)
+}
+
+// NewQueryPlanMetadata creates a new QueryPlanMetadata tracker.
+func NewQueryPlanMetadata() *QueryPlanMetadata {
+	return &QueryPlanMetadata{
+		stats: make(map[query.CanonicalKey]query.CountStats),
+	}
+}
+
+// MergeCountStats merges CountStats from a query execution into the aggregated metadata.
+func (m *QueryPlanMetadata) MergeCountStats(counts map[query.CanonicalKey]query.CountStats) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for key, newStats := range counts {
+		existing := m.stats[key]
+		existing.CheckCalls += newStats.CheckCalls
+		existing.IterSubjectsCalls += newStats.IterSubjectsCalls
+		existing.IterResourcesCalls += newStats.IterResourcesCalls
+		existing.CheckResults += newStats.CheckResults
+		existing.IterSubjectsResults += newStats.IterSubjectsResults
+		existing.IterResourcesResults += newStats.IterResourcesResults
+		m.stats[key] = existing
+	}
+}
+
+// GetStats returns a copy of all aggregated stats.
+func (m *QueryPlanMetadata) GetStats() map[query.CanonicalKey]query.CountStats {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	result := make(map[query.CanonicalKey]query.CountStats, len(m.stats))
+	for k, v := range m.stats {
+		result[k] = v
+	}
+	return result
+}
 
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
 func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
+	// Lazy initialization of QueryPlanMetadata if nil
+	if ps.queryPlanMetadata == nil {
+		ps.queryPlanMetadata = NewQueryPlanMetadata()
+	}
+
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -77,14 +128,16 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Create query context with optional tracing
-	qctx := &query.Context{
-		Context:       ctx,
-		Executor:      query.LocalExecutor{},
-		Reader:        query.NewQueryDatastoreReader(reader),
-		CaveatContext: caveatContext,
-		CaveatRunner:  caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
-	}
+	// Create count observer to track query execution statistics
+	countObserver := query.NewCountObserver()
+
+	// Create query context with count observer
+	qctx := query.NewLocalContext(ctx,
+		query.WithReader(query.NewQueryDatastoreReader(reader)),
+		query.WithCaveatContext(caveatContext),
+		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+		query.WithObserver(countObserver),
+	)
 
 	// Execute the check
 	resource := query.Object{
@@ -108,6 +161,10 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
+
+	// Merge count statistics into metadata after query completes
+	countStats := countObserver.GetStats()
+	ps.queryPlanMetadata.MergeCountStats(countStats)
 
 	resp := &v1.CheckPermissionResponse{
 		CheckedAt:         checkedAt,
@@ -141,4 +198,258 @@ func convertPathsToPermissionship(pathSeq query.PathSeq) (v1.CheckPermissionResp
 
 	// No paths found - no permission
 	return v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, nil, nil
+}
+
+// lookupResourcesWithQueryPlan executes a LookupResources call using the query plan API.
+// It builds an iterator tree from the schema and calls IterResources to stream results.
+func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	if ps.queryPlanMetadata == nil {
+		ps.queryPlanMetadata = NewQueryPlanMetadata()
+	}
+
+	ctx := resp.Context()
+
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	dl := datalayer.MustFromContext(ctx)
+	reader := dl.SnapshotReader(atRevision)
+
+	// Load schema
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	namespaces, err := sr.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	caveats, err := sr.ListAllCaveatDefinitions(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	fullSchema, err := schema.BuildSchemaFromDefinitions(
+		datastore.DefinitionsOf(namespaces),
+		datastore.DefinitionsOf(caveats),
+	)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Build and compile the iterator tree for the requested resource type and permission
+	co, err := query.BuildOutlineFromSchema(fullSchema, req.ResourceObjectType, req.Permission)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+		SubjectType:     req.Subject.Object.ObjectType,
+		SubjectRelation: req.Subject.OptionalRelation,
+	})
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	it, err := optimized.Compile()
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Parse caveat context if provided
+	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	countObserver := query.NewCountObserver()
+
+	qctx := query.NewLocalContext(ctx,
+		query.WithReader(query.NewQueryDatastoreReader(reader)),
+		query.WithCaveatContext(caveatContext),
+		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+		query.WithObserver(countObserver),
+	)
+
+	// Build the subject from the request
+	subject := query.ObjectAndRelation{
+		ObjectType: req.Subject.Object.ObjectType,
+		ObjectID:   req.Subject.Object.ObjectId,
+		Relation:   normalizeSubjectRelation(req.Subject),
+	}
+
+	// Iterate over resources accessible from this subject
+	pathSeq, err := qctx.IterResources(it, subject, query.NoObjectFilter())
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	var totalCountPublished uint64
+	for path, err := range pathSeq {
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+
+		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+		var partial *v1.PartialCaveatInfo
+		if path.Caveat != nil {
+			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			partial = &v1.PartialCaveatInfo{
+				MissingRequiredContext: []string{},
+			}
+		}
+
+		if err := resp.Send(&v1.LookupResourcesResponse{
+			LookedUpAt:        revisionReadAt,
+			ResourceObjectId:  path.Resource.ObjectID,
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partial,
+		}); err != nil {
+			return err
+		}
+		totalCountPublished++
+	}
+
+	countStats := countObserver.GetStats()
+	ps.queryPlanMetadata.MergeCountStats(countStats)
+
+	return nil
+}
+
+// lookupSubjectsWithQueryPlan executes a LookupSubjects call using the query plan API.
+// It builds an iterator tree from the schema and calls IterSubjects to stream results.
+func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
+	if ps.queryPlanMetadata == nil {
+		ps.queryPlanMetadata = NewQueryPlanMetadata()
+	}
+
+	ctx := resp.Context()
+
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	dl := datalayer.MustFromContext(ctx)
+	reader := dl.SnapshotReader(atRevision)
+
+	// Load schema
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	namespaces, err := sr.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	caveats, err := sr.ListAllCaveatDefinitions(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	fullSchema, err := schema.BuildSchemaFromDefinitions(
+		datastore.DefinitionsOf(namespaces),
+		datastore.DefinitionsOf(caveats),
+	)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Build and compile the iterator tree for the resource type and permission
+	co, err := query.BuildOutlineFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+		SubjectType:     req.SubjectObjectType,
+		SubjectRelation: req.OptionalSubjectRelation,
+	})
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	it, err := optimized.Compile()
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Parse caveat context if provided
+	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	countObserver := query.NewCountObserver()
+
+	qctx := query.NewLocalContext(ctx,
+		query.WithReader(query.NewQueryDatastoreReader(reader)),
+		query.WithCaveatContext(caveatContext),
+		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+		query.WithObserver(countObserver),
+	)
+
+	// Build the resource object from the request
+	resource := query.Object{
+		ObjectType: req.Resource.ObjectType,
+		ObjectID:   req.Resource.ObjectId,
+	}
+
+	// Build a subject type filter from the request (type + optional relation)
+	subjectFilter := query.ObjectType{
+		Type:        req.SubjectObjectType,
+		Subrelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
+	}
+
+	// Iterate over subjects that have access to this resource
+	pathSeq, err := qctx.IterSubjects(it, resource, subjectFilter)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	var totalCountPublished uint64
+	for path, err := range pathSeq {
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+
+		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+		var partial *v1.PartialCaveatInfo
+		if path.Caveat != nil {
+			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			partial = &v1.PartialCaveatInfo{
+				MissingRequiredContext: []string{},
+			}
+		}
+
+		subject := &v1.ResolvedSubject{
+			SubjectObjectId:   path.Subject.ObjectID,
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partial,
+		}
+
+		if err := resp.Send(&v1.LookupSubjectsResponse{
+			LookedUpAt:         revisionReadAt,
+			Subject:            subject,
+			SubjectObjectId:    path.Subject.ObjectID, // Deprecated
+			Permissionship:     permissionship,        // Deprecated
+			PartialCaveatInfo:  partial,               // Deprecated
+			ExcludedSubjectIds: []string{},            // Deprecated; query plan does not compute exclusions
+			ExcludedSubjects:   []*v1.ResolvedSubject{},
+		}); err != nil {
+			return err
+		}
+		totalCountPublished++
+	}
+
+	countStats := countObserver.GetStats()
+	ps.queryPlanMetadata.MergeCountStats(countStats)
+
+	return nil
 }

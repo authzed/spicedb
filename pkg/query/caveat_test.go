@@ -100,19 +100,9 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 			fixedIter := NewFixedIterator(tc.paths...)
 			caveatIter := NewCaveatIterator(fixedIter, nil)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-			require.NoError(t, err)
-
-			dl := datalayer.NewDataLayer(ds)
-			rev, err := dl.ReadWriteTx(context.Background(), func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
-				return nil
-			})
-			require.NoError(t, err)
-
-			queryCtx := NewLocalContext(context.Background(),
-				WithRevisionedReader(dl.SnapshotReader(rev)),
-				WithCaveatContext(tc.caveatContext),
-				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
+			queryCtx := NewTestContext(t)
+			queryCtx.CaveatContext = tc.caveatContext
+			queryCtx.CaveatRunner = caveats.NewCaveatRunner(types.NewTypeSet())
 
 			resource := NewObject("document", "doc1")
 			seq, err := queryCtx.IterSubjects(caveatIter, resource, NoObjectFilter())

@@ -287,13 +287,13 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
-
 	userDef := testfixtures.UserNS.CloneVT()
 
 	t.Run("Exclusion with Relation Reference", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewLocalContext(t.Context(),
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 		// Create schema with exclusion using relation references
 		docDef := namespace.Namespace("document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
@@ -567,13 +567,13 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
-
 	userDef := testfixtures.UserNS.CloneVT()
 
 	t.Run("Base Relation with Ellipsis Subrelation", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewLocalContext(t.Context(),
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 		// Test that base relations with ellipsis (group:...) work correctly with arrows
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -611,6 +611,9 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Base Relation with Specific Subrelation", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewLocalContext(t.Context(),
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 		// Create schema with specific subrelation that should create union with arrow
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
@@ -700,6 +703,9 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Multiple Base Relations with Different Subrelation Handling", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := NewLocalContext(t.Context(),
+			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
 		// Test relation with multiple base relations, some with subrelations, some without
 		groupDef := namespace.Namespace("group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
