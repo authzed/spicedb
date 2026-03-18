@@ -808,22 +808,42 @@ func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.Al
 }
 
 type importResolutionContext struct {
-	// The global set of files we've visited in the import process.
-	// If these collide we short circuit, preventing duplicate imports.
-	globallyVisitedFiles *mapz.Set[string]
+	sourceFS     fs.FS
+	sourcePrefix string
+	mapper       input.PositionMapper
+}
+
+func newImportResolutionContext(fs fs.FS, mapper input.PositionMapper, sourcePrefix string) (*importResolutionContext, error) {
+	if fs == nil {
+		return nil, errors.New("import resolution context requires a non-nil filesystem")
+	}
+	if mapper == nil {
+		return nil, errors.New("import resolution context requires a non-nil position mapper")
+	}
+
+	return &importResolutionContext{
+		sourceFS:     fs,
+		sourcePrefix: sourcePrefix,
+		mapper:       mapper,
+	}, nil
+}
+
+// translateImports takes a parsed schema and recursively translates import syntax and replaces
+// import nodes with parsed nodes from the target files
+func (itctx *importResolutionContext) translateImports(root *dslNode, locallyVisitedFiles, globallyVisitedFiles *mapz.Set[string]) error {
 	// The set of files that we've visited on a particular leg of the recursion.
 	// This allows for detection of circular imports.
 	// NOTE: This depends on an assumption that a depth-first search will always
 	// find a cycle, even if we're otherwise marking globally visited nodes.
-	locallyVisitedFiles *mapz.Set[string]
-	sourceFS            fs.FS
-	sourcePrefix        string
-	mapper              input.PositionMapper
-}
+	if locallyVisitedFiles == nil {
+		locallyVisitedFiles = mapz.NewSet[string]()
+	}
+	// The global set of files we've visited in the import process.
+	// If these collide we short circuit, preventing duplicate imports.
+	if globallyVisitedFiles == nil {
+		globallyVisitedFiles = mapz.NewSet[string]()
+	}
 
-// Takes a parsed schema and recursively translates import syntax and replaces
-// import nodes with parsed nodes from the target files
-func translateImports(itctx importResolutionContext, root *dslNode) error {
 	// We create a new list so that we can maintain the order
 	// of imported nodes
 	importedDefinitionNodes := list.New()
@@ -844,7 +864,7 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 
 			newSourcePrefix := filepath.Dir(filePath)
 
-			currentLocallyVisitedFiles := itctx.locallyVisitedFiles.Copy()
+			currentLocallyVisitedFiles := locallyVisitedFiles.Copy()
 
 			if ok := currentLocallyVisitedFiles.Add(filePath); !ok {
 				// If we've already visited the file on this particular branch walk, it's
@@ -855,7 +875,7 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 				}
 			}
 
-			if ok := itctx.globallyVisitedFiles.Add(filePath); !ok {
+			if ok := globallyVisitedFiles.Add(filePath); !ok {
 				// If the file has already been visited, we short-circuit the import process
 				// by not reading the schema file in and compiling a schema with an empty string.
 				// This prevents duplicate definitions from ending up in the output, as well
@@ -872,13 +892,11 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 			}
 
 			// We recurse on that node to resolve any further imports
-			err = translateImports(importResolutionContext{
-				sourceFS:             itctx.sourceFS,
-				sourcePrefix:         newSourcePrefix,
-				locallyVisitedFiles:  currentLocallyVisitedFiles,
-				globallyVisitedFiles: itctx.globallyVisitedFiles,
-				mapper:               itctx.mapper,
-			}, parsedImportRoot)
+			irc, err := newImportResolutionContext(itctx.sourceFS, itctx.mapper, newSourcePrefix)
+			if err != nil {
+				return err
+			}
+			err = irc.translateImports(parsedImportRoot, currentLocallyVisitedFiles, globallyVisitedFiles)
 			if err != nil {
 				return err
 			}

@@ -2,6 +2,7 @@ package development
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -61,6 +62,9 @@ func warningForPosition(warningName string, message string, sourceCode string, s
 
 // GetWarnings returns a list of warnings for the given developer context.
 func GetWarnings(ctx context.Context, devCtx *DevContext) ([]*devinterface.DeveloperWarning, error) {
+	if devCtx == nil {
+		return nil, errors.New("cannot compute warnings: nil dev context")
+	}
 	warnings := []*devinterface.DeveloperWarning{}
 	res := schema.ResolverForCompiledSchema(devCtx.CompiledSchema)
 	ts := schema.NewTypeSystem(res)
