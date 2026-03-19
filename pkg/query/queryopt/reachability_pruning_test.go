@@ -51,38 +51,31 @@ func canonicalize(outline query.Outline) query.CanonicalOutline {
 }
 
 func TestReachabilityPruning(t *testing.T) {
-	t.Parallel()
-
 	t.Run("does not prune NullIteratorType", func(t *testing.T) {
-		t.Parallel()
 		co := canonicalize(query.Outline{Type: query.NullIteratorType})
 		result := applyReachabilityPruning(co, "user", "")
 		require.Equal(t, query.NullIteratorType, result.Root.Type)
 	})
 
 	t.Run("does not prune if subject type is empty", func(t *testing.T) {
-		t.Parallel()
 		co := canonicalize(dsOutlineForType("document", "viewer", "group", "..."))
 		result := applyReachabilityPruning(co, "", "")
 		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
 	})
 
 	t.Run("does not prune if subject relation is non-empty", func(t *testing.T) {
-		t.Parallel()
 		co := canonicalize(dsOutlineForType("document", "viewer", "group", "..."))
 		result := applyReachabilityPruning(co, "group", "member")
 		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
 	})
 
 	t.Run("prunes leaf with subject type that does not match", func(t *testing.T) {
-		t.Parallel()
 		co := canonicalize(dsOutlineForType("document", "viewer", "group", "..."))
 		result := applyReachabilityPruning(co, "user", "")
 		require.Equal(t, query.NullIteratorType, result.Root.Type)
 	})
 
 	t.Run("keeps leaf with matching subject type", func(t *testing.T) {
-		t.Parallel()
 		co := canonicalize(dsOutlineForType("document", "viewer", "user", "..."))
 		result := applyReachabilityPruning(co, "user", "")
 		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
@@ -90,8 +83,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("union", func(t *testing.T) {
 		t.Run("prunes one branch of union", func(t *testing.T) {
-			t.Parallel()
-
 			userIt := dsOutlineForType("document", "viewer", "user", "...")
 			groupIt := dsOutlineForType("document", "editor", "group", "...")
 			co := canonicalize(unionOutline(userIt, groupIt))
@@ -104,8 +95,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("does not prune union when both branches match", func(t *testing.T) {
-			t.Parallel()
-
 			userIt1 := dsOutlineForType("document", "viewer", "user", "...")
 			userIt2 := dsOutlineForType("document", "editor", "user", "...")
 			co := canonicalize(unionOutline(userIt1, userIt2))
@@ -119,8 +108,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("intersection", func(t *testing.T) {
 		t.Run("keeps intersection when all branches match", func(t *testing.T) {
-			t.Parallel()
-
 			userIt1 := dsOutlineForType("document", "viewer", "user", "...")
 			userIt2 := dsOutlineForType("document", "editor", "user", "...")
 			co := canonicalize(intersectionOutline(userIt1, userIt2))
@@ -132,8 +119,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("prunes entire intersection when one branch doesn't match", func(t *testing.T) {
-			t.Parallel()
-
 			userIt := dsOutlineForType("document", "viewer", "user", "...")
 			groupIt := dsOutlineForType("document", "editor", "group", "...")
 			co := canonicalize(intersectionOutline(userIt, groupIt))
@@ -145,8 +130,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("arrows", func(t *testing.T) {
 		t.Run("prunes entire arrow when right side subject type doesn't match", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			right := dsOutlineForType("folder", "viewer", "group", "...")
 			co := canonicalize(arrowOutline(left, right))
@@ -156,8 +139,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps arrow when right side subject type matches", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			right := dsOutlineForType("folder", "viewer", "user", "...")
 			co := canonicalize(arrowOutline(left, right))
@@ -167,8 +148,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps arrow when right side has multiple subject types and one matches", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			rightUser := dsOutlineForType("folder", "viewer", "user", "...")
 			rightGroup := dsOutlineForType("folder", "viewer", "group", "...")
@@ -189,8 +168,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("prunes arrow when right side has multiple subject types and none match", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			rightGroup := dsOutlineForType("folder", "viewer", "group", "...")
 			rightTeam := dsOutlineForType("folder", "viewer", "team", "...")
@@ -203,8 +180,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps arrow inside union when reachable", func(t *testing.T) {
-			t.Parallel()
-
 			directUser := dsOutlineForType("document", "viewer", "user", "...")
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			right := dsOutlineForType("folder", "viewer", "user", "...")
@@ -220,8 +195,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("prunes arrow inside union when unreachable", func(t *testing.T) {
-			t.Parallel()
-
 			directUser := dsOutlineForType("document", "viewer", "user", "...")
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			right := dsOutlineForType("folder", "viewer", "group", "...")
@@ -239,8 +212,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("intersection arrows", func(t *testing.T) {
 		t.Run("prunes entire intersection arrow when right side subject type doesn't match", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			right := dsOutlineForType("folder", "viewer", "group", "...")
 			co := canonicalize(intersectionArrowOutline(left, right))
@@ -250,8 +221,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps intersection arrow when right side subject type matches", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			right := dsOutlineForType("folder", "viewer", "user", "...")
 			co := canonicalize(intersectionArrowOutline(left, right))
@@ -261,8 +230,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps intersection arrow when right side has multiple subject types and one matches", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			rightUser := dsOutlineForType("folder", "viewer", "user", "...")
 			rightGroup := dsOutlineForType("folder", "viewer", "group", "...")
@@ -282,8 +249,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("prunes intersection arrow when right side has multiple subject types and none match", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			rightGroup := dsOutlineForType("folder", "viewer", "group", "...")
 			rightTeam := dsOutlineForType("folder", "viewer", "team", "...")
@@ -296,8 +261,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("prunes intersection arrow inside union when unreachable", func(t *testing.T) {
-			t.Parallel()
-
 			directUser := dsOutlineForType("document", "viewer", "user", "...")
 			left := dsOutlineForType("document", "parent", "folder", "...")
 			right := dsOutlineForType("folder", "viewer", "group", "...")
@@ -315,8 +278,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("exclusion", func(t *testing.T) {
 		t.Run("prunes entire exclusion when main set on left doesn't match subject type", func(t *testing.T) {
-			t.Parallel()
-
 			left := dsOutlineForType("document", "viewer", "group", "...")
 			right := dsOutlineForType("document", "blocked", "user", "...")
 			co := canonicalize(exclusionOutline(left, right))
@@ -326,8 +287,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps exclusion when main set on left matches one of the subject types", func(t *testing.T) {
-			t.Parallel()
-
 			leftUser := dsOutlineForType("document", "viewer", "user", "...")
 			leftGroup := dsOutlineForType("document", "viewer", "group", "...")
 			left := unionOutline(leftUser, leftGroup)
@@ -348,8 +307,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("self iterator", func(t *testing.T) {
 		t.Run("prunes self iterator when definition name doesn't match", func(t *testing.T) {
-			t.Parallel()
-
 			co := canonicalize(query.Outline{
 				Type: query.SelfIteratorType,
 				Args: &query.IteratorArgs{DefinitionName: "group"},
@@ -360,8 +317,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps self iterator when definition name matches", func(t *testing.T) {
-			t.Parallel()
-
 			co := canonicalize(query.Outline{
 				Type: query.SelfIteratorType,
 				Args: &query.IteratorArgs{DefinitionName: "user"},
@@ -374,8 +329,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("recursive iterator", func(t *testing.T) {
 		t.Run("prunes recursive iterator when child doesn't match", func(t *testing.T) {
-			t.Parallel()
-
 			child := dsOutlineForType("document", "viewer", "group", "...")
 			co := canonicalize(query.Outline{
 				Type:        query.RecursiveIteratorType,
@@ -387,8 +340,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps recursive iterator when child matches", func(t *testing.T) {
-			t.Parallel()
-
 			child := dsOutlineForType("document", "viewer", "user", "...")
 			co := canonicalize(query.Outline{
 				Type:        query.RecursiveIteratorType,
@@ -402,8 +353,6 @@ func TestReachabilityPruning(t *testing.T) {
 
 	t.Run("alias iterator", func(t *testing.T) {
 		t.Run("prunes alias iterator when child doesn't match", func(t *testing.T) {
-			t.Parallel()
-
 			child := dsOutlineForType("document", "viewer", "group", "...")
 			co := canonicalize(query.Outline{
 				Type:        query.AliasIteratorType,
@@ -415,8 +364,6 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 
 		t.Run("keeps alias iterator when child matches", func(t *testing.T) {
-			t.Parallel()
-
 			child := dsOutlineForType("document", "viewer", "user", "...")
 			co := canonicalize(query.Outline{
 				Type:        query.AliasIteratorType,

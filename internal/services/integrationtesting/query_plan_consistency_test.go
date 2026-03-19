@@ -30,7 +30,6 @@ import (
 )
 
 func TestQueryPlanConsistency(t *testing.T) { // nolint:tparallel
-	t.Parallel()
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
 	require.NoError(t, err)
 	for _, filePath := range consistencyTestFiles {
@@ -202,7 +201,6 @@ func runQueryPlanLookupResources(t *testing.T, handle *queryPlanConsistencyHandl
 	// that are accessible to the subject.
 	testQueryPlanForEachResourceType(t, handle.populated, "validate_lookup_resources",
 		func(t *testing.T, resourceRelation tuple.RelationReference) {
-			t.Parallel()
 			for _, subject := range accessibilitySet.AllSubjectsNoWildcards() {
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					accessibleResources := accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
@@ -254,7 +252,6 @@ func runQueryPlanLookupSubjects(t *testing.T, handle *queryPlanConsistencyHandle
 	// that have access to the resource.
 	testQueryPlanForEachResourceType(t, handle.populated, "validate_lookup_subjects",
 		func(t *testing.T, resourceRelation tuple.RelationReference) {
-			t.Parallel()
 			for _, resource := range accessibilitySet.AllResourcesNoWildcards() {
 				// Only test resources that match the current resource type
 				if resource.ObjectType != resourceRelation.ObjectType || resource.Relation != resourceRelation.Relation {
@@ -334,7 +331,6 @@ func testQueryPlanForEachResourceType(
 // environment flags are set. This test should be removed when those flags are removed and
 // the corresponding tests run unconditionally.
 func TestAccessibilitySetMethods(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)

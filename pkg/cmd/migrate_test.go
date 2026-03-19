@@ -203,8 +203,6 @@ func TestExecuteMigrate(t *testing.T) {
 }
 
 func TestMigrateRun(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		args          []string
@@ -253,8 +251,6 @@ func TestMigrateRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			cmd := &cobra.Command{
 				Use:  "migrate [revision]",
 				RunE: migrateRun,

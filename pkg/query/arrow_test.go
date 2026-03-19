@@ -11,19 +11,15 @@ import (
 // testArrowBothDirections runs the same test with both arrow directions
 func testArrowBothDirections(t *testing.T, name string, testFn func(t *testing.T, direction arrowDirection)) {
 	t.Run(name+"_LTR", func(t *testing.T) {
-		t.Parallel()
 		testFn(t, leftToRight)
 	})
 
 	t.Run(name+"_RTL", func(t *testing.T) {
-		t.Parallel()
 		testFn(t, rightToLeft)
 	})
 }
 
 func TestArrowIterator(t *testing.T) {
-	t.Parallel()
-
 	// Create test iterators using fixed helpers
 	// Left side: document parent relationships to folders
 	leftRels := NewFolderHierarchyFixedIterator()
@@ -34,7 +30,6 @@ func TestArrowIterator(t *testing.T) {
 	arrow := NewArrowIterator(leftRels, rightRels)
 
 	t.Run("Check", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create context with LocalExecutor
@@ -57,7 +52,6 @@ func TestArrowIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EmptyResources", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create context with LocalExecutor
@@ -72,7 +66,6 @@ func TestArrowIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NonexistentResource", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create context with LocalExecutor
@@ -88,7 +81,6 @@ func TestArrowIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create context with LocalExecutor
@@ -104,7 +96,6 @@ func TestArrowIterator(t *testing.T) {
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create context with LocalExecutor
@@ -134,7 +125,6 @@ func TestArrowIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		logger := NewTraceLogger()
@@ -164,8 +154,6 @@ func TestArrowIterator(t *testing.T) {
 }
 
 func TestArrowIteratorClone(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test iterators using fixed helpers
@@ -206,8 +194,6 @@ func TestArrowIteratorClone(t *testing.T) {
 }
 
 func TestArrowIteratorExplain(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	leftRels := NewFolderHierarchyFixedIterator()
 	rightRels := NewDocumentAccessFixedIterator()
@@ -223,8 +209,6 @@ func TestArrowIteratorExplain(t *testing.T) {
 }
 
 func TestArrowIteratorMultipleResources(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	leftRels := NewFolderHierarchyFixedIterator()  // Documents -> Folders
@@ -257,13 +241,9 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 }
 
 func TestArrowIteratorCaveatCombination(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
@@ -305,8 +285,6 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("LeftCaveat_Right_NoCaveat", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Left side path with caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
@@ -338,8 +316,6 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("Left_NoCaveat_Right_Caveat", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Left side path with no caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
@@ -371,8 +347,6 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("Neither_Side_Has_Caveat", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Left side path with no caveat
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
@@ -396,8 +370,6 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("Multiple_Relations_Mixed_Caveats", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Left side has multiple paths, some with caveats
 		leftPath1 := MustPathFromString("document:doc1#parent@folder:folder1")
@@ -452,8 +424,6 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("No_Matching_Arrow_Relations", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Left side points to folder1, but right side only has folder2
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
@@ -490,13 +460,9 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 }
 
 func TestArrowIterSubjects(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("SimpleArrow", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		ctx.Context = t.Context()
 
@@ -522,8 +488,6 @@ func TestArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("MultipleSubjects", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		ctx.Context = t.Context()
 
@@ -555,8 +519,6 @@ func TestArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("NoLeftPaths", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		ctx.Context = t.Context()
 
@@ -577,8 +539,6 @@ func TestArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("NoRightPaths", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		ctx.Context = t.Context()
 
@@ -599,8 +559,6 @@ func TestArrowIterSubjects(t *testing.T) {
 	})
 
 	t.Run("CaveatCombination", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		ctx.Context = t.Context()
 
@@ -643,8 +601,6 @@ func TestArrowIterSubjects(t *testing.T) {
 }
 
 func TestArrowIteratorBidirectional(t *testing.T) {
-	t.Parallel()
-
 	testArrowBothDirections(t, "BasicCheck", func(t *testing.T, direction arrowDirection) {
 		require := require.New(t)
 
@@ -709,10 +665,7 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 }
 
 func TestArrow_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create left and right iterators
@@ -731,7 +684,6 @@ func TestArrow_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create left and right iterators

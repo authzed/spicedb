@@ -8,7 +8,6 @@ import (
 )
 
 func TestParseSelectStatement(t *testing.T) {
-	t.Parallel()
 	tcs := []struct {
 		name                string
 		query               string
@@ -173,8 +172,6 @@ func TestParseSelectStatement(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 

@@ -114,7 +114,7 @@ func (Test) Steelthread(ctx context.Context) error {
 // RegenSteelthread Regenerate the steelthread tests
 func (Test) RegenSteelthread() error {
 	fmt.Println("regenerating steel thread tests")
-	return RunSh(goCmdForTests(), WithV(), WithDir("."), WithEnv(map[string]string{
+	return RunSh("go", WithV(), WithDir("."), WithEnv(map[string]string{
 		"REGENERATE_STEEL_RESULTS": "true",
 	}), WithArgs("test", "./internal/services/steelthreadtesting/...", "-tags", "steelthread,docker,image,ci", "-timeout", "15m", "-v"))("go")
 }
@@ -127,14 +127,14 @@ func (Test) Analyzers(ctx context.Context) error {
 // Wasm Run wasm browser tests
 func (Test) Wasm() error {
 	// build the test binary
-	if err := sh.RunWithV(map[string]string{"GOOS": "js", "GOARCH": "wasm"}, goCmdForTests(),
+	if err := sh.RunWithV(map[string]string{"GOOS": "js", "GOARCH": "wasm"}, "go",
 		"test", "-c", "./pkg/development/wasm/..."); err != nil {
 		return err
 	}
 	defer os.Remove("wasm.test")
 
 	// run the tests with wasmbrowsertests
-	return RunSh(goCmdForTests(), Tool())("run", "github.com/agnivade/wasmbrowsertest", "../wasm.test")
+	return RunSh("go", Tool())("run", "github.com/agnivade/wasmbrowsertest", "../wasm.test")
 }
 
 type Testds mg.Namespace

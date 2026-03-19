@@ -11,13 +11,9 @@ import (
 )
 
 func TestIntersectionIterator(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("Check_Intersection", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Create an intersection where both iterators have matching data
 		// Both iterators should have alice with access to doc1
@@ -44,8 +40,6 @@ func TestIntersectionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EmptyIntersection", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Create an intersection with contradictory requirements
 		// Use iterators that don't have overlapping data
@@ -66,8 +60,6 @@ func TestIntersectionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NoSubIterators", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		intersect := NewIntersectionIterator()
 
@@ -84,8 +76,6 @@ func TestIntersectionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_SingleSubIterator", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect := NewIntersectionIterator(documentAccess)
@@ -99,8 +89,6 @@ func TestIntersectionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_EmptyResourceList", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		documentAccess := NewDocumentAccessFixedIterator()
 		intersect := NewIntersectionIterator(documentAccess)
@@ -118,8 +106,6 @@ func TestIntersectionIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NoMatchingSubject", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
@@ -137,8 +123,6 @@ func TestIntersectionIterator(t *testing.T) {
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
@@ -157,8 +141,6 @@ func TestIntersectionIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Add test iterators
 		documentAccess := NewDocumentAccessFixedIterator()
@@ -178,8 +160,6 @@ func TestIntersectionIterator(t *testing.T) {
 }
 
 func TestIntersectionIteratorClone(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test context
@@ -230,13 +210,9 @@ func TestIntersectionIteratorClone(t *testing.T) {
 }
 
 func TestIntersectionIteratorExplain(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("EmptyIntersection", func(t *testing.T) {
-		t.Parallel()
-
 		// NewIntersectionIterator() with no args returns empty FixedIterator (canonical form)
 		intersect := NewIntersectionIterator()
 		_, isFixed := intersect.(*FixedIterator)
@@ -248,8 +224,6 @@ func TestIntersectionIteratorExplain(t *testing.T) {
 	})
 
 	t.Run("IntersectionWithSubIterators", func(t *testing.T) {
-		t.Parallel()
-
 		documentAccess := NewDocumentAccessFixedIterator()
 		multiRole := NewMultiRoleFixedIterator()
 
@@ -266,8 +240,6 @@ func TestIntersectionIteratorExplain(t *testing.T) {
 }
 
 func TestIntersectionIteratorEarlyTermination(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	// Create test context
@@ -295,13 +267,9 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 }
 
 func TestIntersectionIteratorCaveatCombination(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("CombineTwoCaveats_AND_Logic", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Both iterators return the same path but with different caveats
 		// Should combine with AND logic
@@ -343,8 +311,6 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("OneCaveat_One_NoCaveat_AND_Logic", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// One path has caveat, one doesn't - caveat should be preserved (AND logic)
 		pathWithCaveat := MustPathFromString("document:doc1#viewer@user:alice")
@@ -375,8 +341,6 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("Different_Relations_Same_Endpoint", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Two iterators with different relations on same endpoint - should merge into one path
 		pathViewer := MustPathFromString("document:doc1#viewer@user:alice")
@@ -423,8 +387,6 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("No_Common_Endpoints", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Iterators with no common endpoints - should return empty
 		pathDoc1Alice := MustPathFromString("document:doc1#viewer@user:alice")
@@ -460,8 +422,6 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 	})
 
 	t.Run("Three_Iterators_Mixed_Caveats", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 		// Three iterators with the same path but different caveat combinations
 		pathCaveat1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -506,13 +466,9 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 }
 
 func TestIntersectionIterSubjects(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	t.Run("SimpleIntersection", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 
 		// Both iterators return alice for doc1
@@ -535,8 +491,6 @@ func TestIntersectionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("NoCommonSubjects", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 
 		// Different subjects in each iterator
@@ -558,8 +512,6 @@ func TestIntersectionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("EmptyIterator", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 
 		// One iterator is empty
@@ -579,8 +531,6 @@ func TestIntersectionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("ThreeIteratorsWithCommonSubject", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 
 		// Alice appears in all three
@@ -605,8 +555,6 @@ func TestIntersectionIterSubjects(t *testing.T) {
 	})
 
 	t.Run("CaveatCombination", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := NewTestContext(t)
 
 		// Both have alice with different caveats
@@ -647,10 +595,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 }
 
 func TestIntersection_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create intersection with fixed iterators
@@ -668,7 +613,6 @@ func TestIntersection_Types(t *testing.T) {
 	})
 
 	t.Run("ResourceType_EmptyIntersection", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		intersect := NewIntersectionIterator()
@@ -679,7 +623,6 @@ func TestIntersection_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create intersection with different subject types across iterators
@@ -698,7 +641,6 @@ func TestIntersection_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_Deduplication", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create intersection where multiple iterators have same subject types
@@ -716,7 +658,6 @@ func TestIntersection_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_EmptyIntersection", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		intersect := NewIntersectionIterator()
@@ -727,7 +668,6 @@ func TestIntersection_Types(t *testing.T) {
 	})
 
 	t.Run("ResourceType_Mismatch", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create intersection with mismatched resource types

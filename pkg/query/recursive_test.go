@@ -215,10 +215,7 @@ func TestBFSResourcesWithEllipses(t *testing.T) {
 }
 
 func TestRecursiveIterator_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a recursive iterator with a template tree
@@ -233,7 +230,6 @@ func TestRecursiveIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a recursive iterator with a template tree
@@ -250,7 +246,6 @@ func TestRecursiveIterator_Types(t *testing.T) {
 
 // TestRecursiveSentinel_ReplaceSubiterators tests that RecursiveSentinel panics
 func TestRecursiveSentinel_ReplaceSubiterators(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)

@@ -9,10 +9,7 @@ import (
 )
 
 func TestTraceLogger(t *testing.T) {
-	t.Parallel()
-
 	t.Run("NewTraceLogger", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		require.NotNil(logger)
@@ -22,7 +19,6 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("EnterIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		resources := []Object{NewObject("document", "doc1")}
@@ -43,7 +39,6 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("ExitIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -64,7 +59,6 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("LogStep", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -81,7 +75,6 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("LogStep_IteratorNotInStack", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		logger.depth = 3
@@ -97,7 +90,6 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("DumpTrace", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		logger.traces = []string{"line1", "line2", "line3"}
@@ -108,10 +100,7 @@ func TestTraceLogger(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	t.Parallel()
-
 	t.Run("TraceStep", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		ctx := NewLocalContext(context.Background(),
@@ -128,7 +117,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceStep_NoLogger", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		ctx := NewLocalContext(context.Background())
 		// No TraceLogger set
@@ -143,7 +131,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceEnter", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		ctx := NewLocalContext(context.Background(),
@@ -161,7 +148,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceExit", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		ctx := NewLocalContext(context.Background(),
@@ -181,7 +167,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("shouldTrace", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		// With logger
 		ctx := NewLocalContext(context.Background(),
@@ -194,7 +179,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("Check_NoExecutor", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		ctx := NewLocalContext(context.Background())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
@@ -210,7 +194,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("IterSubjects_NoExecutor", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		ctx := NewLocalContext(context.Background())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
@@ -226,7 +209,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("IterResources_NoExecutor", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		ctx := NewLocalContext(context.Background())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
@@ -242,7 +224,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_NoTracing", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		ctx := NewLocalContext(context.Background())
 		// No TraceLogger
@@ -267,7 +248,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_WithTracing", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		ctx := NewLocalContext(context.Background(),
@@ -301,7 +281,6 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_WithError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		ctx := NewLocalContext(context.Background(),

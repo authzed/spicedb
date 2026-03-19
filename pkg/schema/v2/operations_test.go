@@ -10,8 +10,6 @@ import (
 // for all elements created during construction. This ensures that the entire schema hierarchy is
 // connected and can be traversed upward from any element.
 func TestBuilderSetsParentsCorrectly(t *testing.T) {
-	t.Parallel()
-
 	// Build a comprehensive schema using the fluent builder
 	schema := NewSchemaBuilder().
 		AddDefinition("user").

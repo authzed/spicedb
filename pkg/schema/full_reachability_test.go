@@ -22,8 +22,6 @@ type testcase struct {
 }
 
 func TestRelationsReferencing(t *testing.T) {
-	t.Parallel()
-
 	tcs := []testcase{
 		{
 			name: "basic",
@@ -351,7 +349,6 @@ func TestRelationsReferencing(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			schema, err := compiler.Compile(compiler.InputSchema{
 				Source:       "",
