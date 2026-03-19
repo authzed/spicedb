@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	"github.com/authzed/spicedb/pkg/genutil"
 )
 
 // SchemaServiceOption defines the options for enabling or disabling the V1 Schema service.
@@ -59,12 +60,16 @@ func RegisterGrpcServices(
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
-	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig))
-	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer(dispatch, permSysConfig))
+	// Create a single shared protovalidate validator for all services to reduce
+	// live heap objects from CEL/protovalidate infrastructure (~137K objects per instance).
+	validator := genutil.MustNewProtoValidator(v1svc.AllServiceValidatorOptions()...)
+
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig, validator))
+	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer(dispatch, permSysConfig, validator))
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {
-		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(watchHeartbeatDuration))
+		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(watchHeartbeatDuration, validator))
 		healthManager.RegisterReportedService(v1.WatchService_ServiceDesc.ServiceName)
 	}
 
@@ -75,7 +80,7 @@ func RegisterGrpcServices(
 			ExpiringRelsEnabled:              permSysConfig.ExpiringRelationshipsEnabled,
 			PerformanceInsightMetricsEnabled: permSysConfig.PerformanceInsightMetricsEnabled,
 		}
-		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaConfig))
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaConfig, validator))
 		healthManager.RegisterReportedService(v1.SchemaService_ServiceDesc.ServiceName)
 	}
 

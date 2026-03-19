@@ -17,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -32,13 +31,7 @@ type watchServer struct {
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
-	validator := genutil.MustNewProtoValidator(
-		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
-		protovalidate.WithMessages(
-			inputMessagesForService(v1.RegisterWatchServiceServer, v1.WatchServiceServer(nil))...,
-		))
-
+func NewWatchServer(heartbeatDuration time.Duration, validator protovalidate.Validator) v1.WatchServiceServer {
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
 			Stream: grpcvalidate.StreamServerInterceptor(validator),

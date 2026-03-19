@@ -31,6 +31,7 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -180,6 +181,7 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 			consistency.StreamServerInterceptor("development", consistency.TreatMismatchingTokensAsError),
 		),
 	)
+	validator := genutil.MustNewProtoValidator(v1svc.AllServiceValidatorOptions()...)
 	ps := v1svc.NewPermissionsServer(dc.Dispatcher, v1svc.PermissionsServerConfig{
 		MaxUpdatesPerWrite:               50,
 		MaxPreconditionsCount:            50,
@@ -188,13 +190,13 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		ExpiringRelationshipsEnabled:     true,
 		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 		PerformanceInsightMetricsEnabled: false,
-	})
+	}, validator)
 	ss := v1svc.NewSchemaServer(v1svc.SchemaServerConfig{
 		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 		AdditiveOnly:                     false,
 		ExpiringRelsEnabled:              true,
 		PerformanceInsightMetricsEnabled: false,
-	})
+	}, validator)
 
 	v1.RegisterPermissionsServiceServer(s, ps)
 	v1.RegisterSchemaServiceServer(s, ss)
