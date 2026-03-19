@@ -28,8 +28,6 @@ func TestHealthCheck(t *testing.T) {
 		t.Run(engine, func(t *testing.T) {
 			require := require.New(t)
 
-			t.Logf("Running %s health check test", engine)
-
 			connPoolConfig := dsconfig.NewConnPoolConfigWithOptionsAndDefaults(
 				dsconfig.WithMinOpenConns(1),
 				dsconfig.WithMaxOpenConns(5),
