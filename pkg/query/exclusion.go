@@ -124,10 +124,8 @@ func (e *ExclusionIterator) CheckImpl(ctx *Context, resources []Object, subject 
 					if !yield(resultPath, nil) {
 						return
 					}
-				} else {
-					if ctx.shouldTrace() {
-						ctx.TraceStep(e, "path completely excluded")
-					}
+				} else if ctx.shouldTrace() {
+					ctx.TraceStep(e, "path completely excluded")
 				}
 			} else {
 				// No exclusion, yield as-is
@@ -206,10 +204,8 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 					if !yield(resultPath, nil) {
 						return
 					}
-				} else {
-					if ctx.shouldTrace() {
-						ctx.TraceStep(e, "subject completely excluded")
-					}
+				} else if ctx.shouldTrace() {
+					ctx.TraceStep(e, "subject completely excluded")
 				}
 			} else {
 				// No exclusion, yield as-is
@@ -288,10 +284,8 @@ func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 					if !yield(resultPath, nil) {
 						return
 					}
-				} else {
-					if ctx.shouldTrace() {
-						ctx.TraceStep(e, "resource completely excluded")
-					}
+				} else if ctx.shouldTrace() {
+					ctx.TraceStep(e, "resource completely excluded")
 				}
 			} else {
 				// No exclusion, yield as-is

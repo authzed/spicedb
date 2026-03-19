@@ -38,7 +38,7 @@ func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject 
 		// This allows finding intermediate relationships that bridge type gaps
 		if ctx.shouldTrace() {
 			ctx.TraceStep(r, "subject type %s doesn't match base type %s, but proceeding due to subrelation %s",
-			subject.ObjectType, r.base.Type(), r.base.Subrelation())
+				subject.ObjectType, r.base.Type(), r.base.Subrelation())
 		}
 	} else if subject.ObjectType != r.base.Type() {
 		// For non-subrelations, ellipsis, and all wildcard relations, strict type checking applies
@@ -265,9 +265,9 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 
 	// synthesizeWildcardPaths takes a raw PathSeq from the datastore and replaces each
 	// path's caveat with the wildcard caveat so that callers see the correct conditionality.
-	synthesizeWildcardPaths := func(raw []Path, wildcardCav *core.CaveatExpression) []Path {
+	synthesizeWildcardPaths := func(raw []*Path, wildcardCav *core.CaveatExpression) []*Path {
 		seen := make(map[string]struct{}, len(raw))
-		result := make([]Path, 0, len(raw))
+		result := make([]*Path, 0, len(raw))
 		for _, p := range raw {
 			key := ObjectAndRelationKey(p.Subject)
 			if _, dup := seen[key]; dup {
@@ -276,7 +276,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 			seen[key] = struct{}{}
 			// Synthesize a path: resource stays as-is from wildcard expansion, subject
 			// keeps its identity, but the caveat is the wildcard's caveat.
-			synthesized := Path{
+			synthesized := &Path{
 				Resource: resource,
 				Relation: r.base.RelationName(),
 				Subject: ObjectAndRelation{

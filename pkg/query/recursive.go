@@ -380,10 +380,8 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 						if ctx.shouldTrace() {
 							ctx.TraceStep(r, "Ply %d: adding %s to next frontier", ply, objKey)
 						}
-					} else {
-						if ctx.shouldTrace() {
-							ctx.TraceStep(r, "Ply %d: skipping %s (already queried, cycle detected)", ply, objKey)
-						}
+					} else if ctx.shouldTrace() {
+						ctx.TraceStep(r, "Ply %d: skipping %s (already queried, cycle detected)", ply, objKey)
 					}
 				}
 			}
@@ -403,10 +401,8 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 					if ctx.shouldTrace() {
 						ctx.TraceStep(r, "Ply %d: adding collected object %s to frontier", ply, objKey)
 					}
-				} else {
-					if ctx.shouldTrace() {
-						ctx.TraceStep(r, "Ply %d: skipping collected object %s (already queried, cycle detected)", ply, objKey)
-					}
+				} else if ctx.shouldTrace() {
+					ctx.TraceStep(r, "Ply %d: skipping collected object %s (already queried, cycle detected)", ply, objKey)
 				}
 			}
 
@@ -505,7 +501,8 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 					}
 				} else {
 					// Genuinely new path — record, yield, and add to frontier.
-					yieldedPaths[key] = path
+					pathCopy := *path
+					yieldedPaths[key] = &pathCopy
 					newPaths = append(newPaths, path)
 					if !yield(path, nil) {
 						return

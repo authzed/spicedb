@@ -71,7 +71,7 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object,
 				if len(paths) == 0 {
 					if ctx.shouldTrace() {
 						ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
-						path.Subject.ObjectType, path.Subject.ObjectID)
+							path.Subject.ObjectType, path.Subject.ObjectID)
 					}
 					unsatisfied = true
 					break
@@ -79,7 +79,7 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object,
 				checkPath := paths[0]
 				if ctx.shouldTrace() {
 					ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
-					path.Subject.ObjectType, path.Subject.ObjectID)
+						path.Subject.ObjectType, path.Subject.ObjectID)
 				}
 
 				// Combine this path's left caveat with the right caveat

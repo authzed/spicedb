@@ -136,7 +136,7 @@ func (a *ArrowIterator) checkRightToLeft(ctx *Context, resources []Object, subje
 	return func(yield func(*Path, error) bool) {
 		if ctx.shouldTrace() {
 			ctx.TraceStep(a, "arrow check (right-to-left) with %d resources for subject %s:%s",
-			len(resources), subject.ObjectType, subject.ObjectID)
+				len(resources), subject.ObjectType, subject.ObjectID)
 		}
 
 		// Strategy: Start from the right side with the target subject
@@ -181,13 +181,13 @@ func (a *ArrowIterator) checkRightToLeft(ctx *Context, resources []Object, subje
 
 			if ctx.shouldTrace() {
 				ctx.TraceStep(a, "left side returned %d paths for intermediate %s:%s",
-				count, intermediateAsSubject.ObjectType, intermediateAsSubject.ObjectID)
+					count, intermediateAsSubject.ObjectType, intermediateAsSubject.ObjectID)
 			}
 		}
 
 		if ctx.shouldTrace() {
 			ctx.TraceStep(a, "arrow check (right-to-left) completed: %d right paths, %d total result paths",
-			rightPathCount, totalResultPaths)
+				rightPathCount, totalResultPaths)
 		}
 	}, nil
 }
@@ -378,7 +378,7 @@ func (a *ArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 				if ctx.shouldTrace() {
 					ctx.TraceStep(a, "iterating left side for right resource %s:%s#%s (and ellipsis, schema arrow)",
-					rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation)
+						rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation)
 				}
 
 				// Query with specific relation
@@ -433,7 +433,7 @@ func (a *ArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 					if ctx.shouldTrace() {
 						ctx.TraceStep(a, "iterating left side for right resource %s:%s#%s (subrelation arrow, using expected subrelation %s)",
-						rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation, expectedSubject.Relation)
+							rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation, expectedSubject.Relation)
 					}
 
 					leftSeq, err := ctx.IterResources(a.left, expectedSubject, filterResourceType)
