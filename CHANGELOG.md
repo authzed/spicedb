@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [1.50.0] - 2026-03-19
 ### Added
 - New `pkg/query/queryopt` package for building optimizations into the query plan
 
@@ -12,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added tracing to request validation (https://github.com/authzed/spicedb/pull/2950)
 - Query Planner optimization: in Check requests, prune branches that cannot lead to the subject type specified (https://github.com/authzed/spicedb/pull/2968)
 - Added `lr` and `ls` to `--experimental-query-plan` for those endpoints, as well as in-memory statistics for optimizing the plans (https://github.com/authzed/spicedb/pull/2929)
+- Use `protovalidate` instead of `protoc-gen-validate` for request validation (https://github.com/authzed/spicedb/pull/2863, https://github.com/authzed/spicedb/pull/2596, https://github.com/authzed/spicedb/pull/2959)
 
 ### Fixed
 - Regression introduced in 1.49.2: missing spans in ReadSchema calls (https://github.com/authzed/spicedb/pull/2947)
@@ -3543,7 +3546,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 [#2353]: https://github.com/authzed/spicedb/issues/2353
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.49.2...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.50.0...HEAD
+[1.50.0]: https://github.com/authzed/spicedb/compare/v1.49.2...v1.50.0
 [1.49.2]: https://github.com/authzed/spicedb/compare/v1.49.1...v1.49.2
 [1.49.1]: https://github.com/authzed/spicedb/compare/v1.49.0...v1.49.1
 [1.49.0]: https://github.com/authzed/spicedb/compare/v1.48.0...v1.49.0
