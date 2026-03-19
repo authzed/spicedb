@@ -58,7 +58,8 @@ func (i *IntersectionIterator) CheckImpl(ctx *Context, resources []Object, subje
 			for _, path := range paths {
 				key := path.Resource.Key()
 				if existing, exists := pathsByKey[key]; !exists {
-					pathsByKey[key] = path
+					pathCopy := *path
+					pathsByKey[key] = &pathCopy
 				} else {
 					// If multiple paths for same endpoint in first iterator, merge with OR (mutates existing)
 					if _, err := existing.MergeOr(path); err != nil {
@@ -75,7 +76,8 @@ func (i *IntersectionIterator) CheckImpl(ctx *Context, resources []Object, subje
 			for _, path := range paths {
 				key := path.Resource.Key()
 				if existing, exists := currentIterPaths[key]; !exists {
-					currentIterPaths[key] = path
+					pathCopy := *path
+					currentIterPaths[key] = &pathCopy
 				} else {
 					// Multiple paths for same endpoint in current iterator, merge with OR (mutates existing)
 					if _, err := existing.MergeOr(path); err != nil {
@@ -161,7 +163,8 @@ func (i *IntersectionIterator) IterSubjectsImpl(ctx *Context, resource Object, f
 			for _, path := range paths {
 				key := ObjectAndRelationKey(path.Subject)
 				if existing, exists := pathsByKey[key]; !exists {
-					pathsByKey[key] = path
+					pathCopy := *path
+					pathsByKey[key] = &pathCopy
 				} else {
 					// If multiple paths for same subject in first iterator, merge with OR (mutates existing)
 					if _, err := existing.MergeOr(path); err != nil {
@@ -178,7 +181,8 @@ func (i *IntersectionIterator) IterSubjectsImpl(ctx *Context, resource Object, f
 			for _, path := range paths {
 				key := ObjectAndRelationKey(path.Subject)
 				if existing, exists := currentIterPaths[key]; !exists {
-					currentIterPaths[key] = path
+					pathCopy := *path
+					currentIterPaths[key] = &pathCopy
 				} else {
 					// Multiple paths for same subject in current iterator, merge with OR (mutates existing)
 					if _, err := existing.MergeOr(path); err != nil {
@@ -253,7 +257,8 @@ func (i *IntersectionIterator) IterResourcesImpl(ctx *Context, subject ObjectAnd
 			for _, path := range paths {
 				key := path.Resource.Key()
 				if existing, exists := pathsByKey[key]; !exists {
-					pathsByKey[key] = path
+					pathCopy := *path
+					pathsByKey[key] = &pathCopy
 				} else {
 					// Only merge paths with matching subjects
 					if !GetObject(existing.Subject).Equals(GetObject(path.Subject)) {
@@ -276,7 +281,8 @@ func (i *IntersectionIterator) IterResourcesImpl(ctx *Context, subject ObjectAnd
 			for _, path := range paths {
 				key := path.Resource.Key()
 				if existing, exists := currentIterPaths[key]; !exists {
-					currentIterPaths[key] = path
+					pathCopy := *path
+					currentIterPaths[key] = &pathCopy
 				} else {
 					// Only merge paths with matching subjects
 					if !GetObject(existing.Subject).Equals(GetObject(path.Subject)) {

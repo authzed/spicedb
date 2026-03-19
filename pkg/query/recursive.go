@@ -505,7 +505,8 @@ func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject Obje
 					}
 				} else {
 					// Genuinely new path — record, yield, and add to frontier.
-					yieldedPaths[key] = path
+					pathCopy := *path
+					yieldedPaths[key] = &pathCopy
 					newPaths = append(newPaths, path)
 					if !yield(path, nil) {
 						return

@@ -799,48 +799,48 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	require := require.New(t)
 
-	// Create base paths
-	basePath := MustPathFromString("document:doc1#view@user:alice")
+	// Create base path (returns *Path, so dereference to get owned copies)
+	basePathPtr := MustPathFromString("document:doc1#view@user:alice")
 
-	// Paths with caveats
-	pathWithCaveat1 := basePath
-	pathWithCaveat1.Caveat = &core.CaveatExpression{
-		OperationOrCaveat: &core.CaveatExpression_Caveat{
-			Caveat: &core.ContextualizedCaveat{CaveatName: "caveat1"},
-		},
+	// Helper to create a fresh copy of the base path
+	newBasePath := func() *Path {
+		p := *basePathPtr
+		return &p
 	}
-
-	pathWithCaveat2 := basePath
-	pathWithCaveat2.Caveat = &core.CaveatExpression{
-		OperationOrCaveat: &core.CaveatExpression_Caveat{
-			Caveat: &core.ContextualizedCaveat{CaveatName: "caveat2"},
-		},
-	}
-
-	// Paths with metadata
-	pathWithMetadata1 := basePath
-	pathWithMetadata1.Metadata = map[string]any{"source": "path1", "priority": "high"}
-
-	pathWithMetadata2 := basePath
-	pathWithMetadata2.Metadata = map[string]any{"source": "path2", "priority": "low"}
 
 	t.Run("basic_merge_and_not", func(t *testing.T) {
-		// Make a copy to test on
-		testPath := basePath
-		testPath, err := testPath.MergeAndNot(pathWithCaveat1)
+		testPath := newBasePath()
+		other := newBasePath()
+		other.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{CaveatName: "caveat1"},
+			},
+		}
+		testPath, err := testPath.MergeAndNot(other)
 
 		require.NoError(err)
-		require.Equal(basePath.Resource, testPath.Resource)
-		require.Equal(basePath.Relation, testPath.Relation)
-		require.Equal(basePath.Subject, testPath.Subject)
+		require.Equal(basePathPtr.Resource, testPath.Resource)
+		require.Equal(basePathPtr.Relation, testPath.Relation)
+		require.Equal(basePathPtr.Subject, testPath.Subject)
 
 		// Should have modified caveat (subtraction from nil should create negation)
 		require.NotNil(testPath.Caveat)
 	})
 
 	t.Run("both_paths_have_caveats", func(t *testing.T) {
-		testPath := pathWithCaveat1
-		testPath, err := testPath.MergeAndNot(pathWithCaveat2)
+		testPath := newBasePath()
+		testPath.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{CaveatName: "caveat1"},
+			},
+		}
+		other := newBasePath()
+		other.Caveat = &core.CaveatExpression{
+			OperationOrCaveat: &core.CaveatExpression_Caveat{
+				Caveat: &core.ContextualizedCaveat{CaveatName: "caveat2"},
+			},
+		}
+		testPath, err := testPath.MergeAndNot(other)
 
 		require.NoError(err)
 		// Should combine caveats with AND NOT logic (subtraction)
@@ -849,8 +849,11 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("merge_metadata", func(t *testing.T) {
-		testPath := pathWithMetadata1
-		testPath, err := testPath.MergeAndNot(pathWithMetadata2)
+		testPath := newBasePath()
+		testPath.Metadata = map[string]any{"source": "path1", "priority": "high"}
+		other := newBasePath()
+		other.Metadata = map[string]any{"source": "path2", "priority": "low"}
+		testPath, err := testPath.MergeAndNot(other)
 
 		require.NoError(err)
 		require.NotNil(testPath.Metadata)
@@ -862,7 +865,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 
 	t.Run("merge_different_resources_should_error", func(t *testing.T) {
 		differentResourcePath := MustPathFromString("folder:doc1#view@user:alice")
-		testPath := basePath
+		testPath := newBasePath()
 
 		_, err := testPath.MergeAndNot(differentResourcePath)
 
@@ -872,7 +875,7 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 
 	t.Run("merge_different_subjects_should_error", func(t *testing.T) {
 		differentSubjectPath := MustPathFromString("document:doc1#view@user:bob")
-		testPath := basePath
+		testPath := newBasePath()
 
 		_, err := testPath.MergeAndNot(differentSubjectPath)
 
