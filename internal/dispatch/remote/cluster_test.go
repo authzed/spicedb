@@ -1226,3 +1226,25 @@ func TestPrimaryDispatcherErrorReturned(t *testing.T) {
 	require.Contains(t, err.Error(), "primary dispatcher error")
 	require.NotContains(t, err.Error(), "secondary dispatcher error")
 }
+
+func TestReadyStateConnecting(t *testing.T) {
+	// localhost:0 is a target address that will never successfully connect — port 0 means "no
+	//	specific port." The connection will stay stuck in Connecting state because there's nothing
+	//	listening there
+	conn, err := grpc.NewClient("localhost:0",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	conn.Connect() // moves state to Connecting
+
+	dispatcher, err := NewClusterDispatcher(
+		v1.NewDispatchServiceClient(conn), conn,
+		ClusterDispatcherConfig{KeyHandler: &keys.DirectKeyHandler{}},
+		nil, nil, 0,
+	)
+	t.Cleanup(func() { dispatcher.Close() })
+	require.NoError(t, err)
+	require.True(t, dispatcher.ReadyState().IsReady, "expected dispatcher to be ready but was not")
+}

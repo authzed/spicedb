@@ -863,7 +863,7 @@ func (cr *clusterDispatcher) ReadyState() dispatch.ReadyState {
 	state := cr.conn.GetState()
 	log.Trace().Interface("connection-state", state).Msg("checked if cluster dispatcher is ready")
 	return dispatch.ReadyState{
-		IsReady: state == connectivity.Ready || state == connectivity.Idle,
+		IsReady: state == connectivity.Ready || state == connectivity.Idle || state == connectivity.Connecting,
 		Message: fmt.Sprintf("found expected state when trying to connect to cluster: %v", state),
 	}
 }
