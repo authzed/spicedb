@@ -128,7 +128,7 @@ func (ctx *Context) TraceEnter(it Iterator, traceString string) {
 	}
 }
 
-func (ctx *Context) TraceExit(it Iterator, paths []Path) {
+func (ctx *Context) TraceExit(it Iterator, paths []*Path) {
 	if ctx.TraceLogger != nil {
 		ctx.TraceLogger.ExitIterator(it, paths)
 	}
@@ -147,7 +147,7 @@ func (ctx *Context) traceEnterIfEnabled(it Iterator, traceString string) Iterato
 	return it
 }
 
-func (ctx *Context) traceExitIfEnabled(it Iterator, paths []Path) {
+func (ctx *Context) traceExitIfEnabled(it Iterator, paths []*Path) {
 	if ctx.shouldTrace() && it != nil {
 		ctx.TraceExit(it, paths)
 	}
@@ -160,8 +160,8 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 		return pathSeq
 	}
 
-	return func(yield func(Path, error) bool) {
-		var resultPaths []Path
+	return func(yield func(*Path, error) bool) {
+		var resultPaths []*Path
 		defer func() {
 			ctx.traceExitIfEnabled(it, resultPaths)
 		}()
@@ -195,7 +195,7 @@ func (ctx *Context) wrapPathSeqWithObservers(op ObserverOperation, key Canonical
 	if len(ctx.observers) == 0 {
 		return pathSeq
 	}
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		defer func() {
 			for _, obs := range ctx.observers {
 				obs.ObserveReturnIterator(op, key)
@@ -222,7 +222,10 @@ func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRela
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, checkTraceString(resources, subject))
+	var tracedIterator Iterator
+	if ctx.shouldTrace() {
+		tracedIterator = ctx.traceEnterIfEnabled(it, checkTraceString(resources, subject))
+	}
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(CheckOperation, key)
 
@@ -251,7 +254,10 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 		isTopLevel = true
 	})
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource, filterSubjectType))
+	var tracedIterator Iterator
+	if ctx.shouldTrace() {
+		tracedIterator = ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource, filterSubjectType))
+	}
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(IterSubjectsOperation, key)
 
@@ -284,7 +290,10 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 		isTopLevel = true
 	})
 
-	tracedIterator := ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject, filterResourceType))
+	var tracedIterator Iterator
+	if ctx.shouldTrace() {
+		tracedIterator = ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject, filterResourceType))
+	}
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(IterResourcesOperation, key)
 

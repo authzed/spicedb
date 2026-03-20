@@ -731,7 +731,7 @@ func TestAlias_Types(t *testing.T) {
 
 		// Create an alias iterator
 		path := MustPathFromString("document:doc1#viewer@user:alice")
-		subIter := NewFixedIterator(path)
+		subIter := NewFixedIterator(*path)
 		alias := NewAliasIterator("admin", subIter)
 
 		resourceType, err := alias.ResourceType()
@@ -745,7 +745,7 @@ func TestAlias_Types(t *testing.T) {
 
 		// Create an alias iterator
 		path := MustPathFromString("document:doc1#viewer@user:alice")
-		subIter := NewFixedIterator(path)
+		subIter := NewFixedIterator(*path)
 		alias := NewAliasIterator("admin", subIter)
 
 		subjectTypes, err := alias.SubjectTypes()

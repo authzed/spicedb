@@ -36,11 +36,15 @@ func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject 
 	if subject.ObjectType != r.base.Type() && r.base.Subrelation() != "" && r.base.Subrelation() != tuple.Ellipsis && !r.base.Wildcard() {
 		// For non-wildcard, non-ellipsis subrelations, we proceed with the query even if types don't match
 		// This allows finding intermediate relationships that bridge type gaps
-		ctx.TraceStep(r, "subject type %s doesn't match base type %s, but proceeding due to subrelation %s",
+		if ctx.shouldTrace() {
+			ctx.TraceStep(r, "subject type %s doesn't match base type %s, but proceeding due to subrelation %s",
 			subject.ObjectType, r.base.Type(), r.base.Subrelation())
+		}
 	} else if subject.ObjectType != r.base.Type() {
 		// For non-subrelations, ellipsis, and all wildcard relations, strict type checking applies
-		ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
+		if ctx.shouldTrace() {
+			ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
+		}
 		return EmptyPathSeq(), nil
 	}
 
@@ -52,7 +56,9 @@ func (r *DatastoreIterator) CheckImpl(ctx *Context, resources []Object, subject 
 
 func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	ids := resourceIDs(resources)
-	ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), ids)
+	if ctx.shouldTrace() {
+		ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), ids)
+	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
 	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
@@ -148,7 +154,7 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 	}
 
 	// Pagination is configured - return a PathSeq that fetches pages as needed
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		iteratorID := fmt.Sprintf("%016x:iter_subjects", r.CanonicalKey().Hash())
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
@@ -161,13 +167,13 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
 			paths, err := CollectAll(FilterWildcardSubjects(pathSeq))
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
@@ -259,9 +265,9 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 
 	// synthesizeWildcardPaths takes a raw PathSeq from the datastore and replaces each
 	// path's caveat with the wildcard caveat so that callers see the correct conditionality.
-	synthesizeWildcardPaths := func(raw []Path, wildcardCav *core.CaveatExpression) []Path {
+	synthesizeWildcardPaths := func(raw []*Path, wildcardCav *core.CaveatExpression) []*Path {
 		seen := make(map[string]struct{}, len(raw))
-		result := make([]Path, 0, len(raw))
+		result := make([]*Path, 0, len(raw))
 		for _, p := range raw {
 			key := ObjectAndRelationKey(p.Subject)
 			if _, dup := seen[key]; dup {
@@ -270,7 +276,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 			seen[key] = struct{}{}
 			// Synthesize a path: resource stays as-is from wildcard expansion, subject
 			// keeps its identity, but the caveat is the wildcard's caveat.
-			synthesized := Path{
+			synthesized := &Path{
 				Resource: resource,
 				Relation: r.base.RelationName(),
 				Subject: ObjectAndRelation{
@@ -306,7 +312,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	}
 
 	// Pagination is configured
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		iteratorID := fmt.Sprintf("%016x:iter_subjects_wildcard", r.CanonicalKey().Hash())
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
@@ -319,13 +325,13 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
 			raw, err := CollectAll(FilterWildcardSubjects(pathSeq))
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
@@ -396,7 +402,7 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 		return PathSeqFromSlice(paths), nil
 	}
 
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		iteratorID := fmt.Sprintf("%016x:iter_resources", r.CanonicalKey().Hash())
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
@@ -409,13 +415,13 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
 			paths, err := CollectAll(pathSeq)
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
@@ -477,7 +483,7 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 		return PathSeqFromSlice(paths), nil
 	}
 
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		iteratorID := fmt.Sprintf("%016x:iter_resources_wildcard", r.CanonicalKey().Hash())
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
@@ -490,14 +496,14 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
 			pathSeq = RewriteSubject(pathSeq, subject)
 			paths, err := CollectAll(pathSeq)
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 

@@ -8,11 +8,11 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func newTestPaths() (*FixedIterator, Path, Path, Path) {
+func newTestPaths() (*FixedIterator, *Path, *Path, *Path) {
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 	path2 := MustPathFromString("document:doc2#editor@user:bob")
 	path3 := MustPathFromString("document:doc1#editor@user:charlie")
-	return NewFixedIterator(path1, path2, path3), path1, path2, path3
+	return NewFixedIterator(*path1, *path2, *path3), path1, path2, path3
 }
 
 func TestFixedIterator(t *testing.T) {
@@ -124,7 +124,7 @@ func TestFixedIterator_Types(t *testing.T) {
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
-		fixed := NewFixedIterator(path1, path2)
+		fixed := NewFixedIterator(*path1, *path2)
 
 		resourceType, err := fixed.ResourceType()
 		require.NoError(err)
@@ -139,7 +139,7 @@ func TestFixedIterator_Types(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
 		path3 := MustPathFromString("document:doc3#owner@group:engineers#member")
-		fixed := NewFixedIterator(path1, path2, path3)
+		fixed := NewFixedIterator(*path1, *path2, *path3)
 
 		subjectTypes, err := fixed.SubjectTypes()
 		require.NoError(err)

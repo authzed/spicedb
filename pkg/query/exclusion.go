@@ -27,38 +27,36 @@ func NewExclusionIterator(mainSet, excluded Iterator) *ExclusionIterator {
 // If main has no caveat and excluded has caveat_b, result should be: NOT caveat_b
 // If main has caveat_a and excluded has no caveat, result should be completely excluded (return false)
 // If neither has caveats, use simple exclusion logic
-// Returns (path, shouldInclude) where shouldInclude indicates if the path should be included in results
-func combineExclusionCaveats(mainPath, excludedPath Path) (Path, bool) {
+// Mutates mainPath in place and returns (mainPath, shouldInclude).
+func combineExclusionCaveats(mainPath, excludedPath *Path) (*Path, bool) {
 	// Case 1: Main has caveat, excluded has no caveat
 	// Since excluded always applies (no conditions), main is completely excluded
 	if mainPath.Caveat != nil && excludedPath.Caveat == nil {
-		return Path{}, false // Completely excluded
+		return nil, false // Completely excluded
 	}
 
 	// Case 2: Main has no caveat, excluded has no caveat
 	// Simple exclusion - excluded always applies, so main is completely excluded
 	if mainPath.Caveat == nil && excludedPath.Caveat == nil {
-		return Path{}, false // Completely excluded
+		return nil, false // Completely excluded
 	}
 
 	// Case 3: Main has no caveat, excluded has caveat
 	// Main applies unconditionally, excluded applies conditionally
 	// Result: main path with caveat NOT(excluded_caveat)
 	if mainPath.Caveat == nil && excludedPath.Caveat != nil {
-		// Return main path with negated excluded caveat
+		// Mutate main path with negated excluded caveat in place
 		// This represents "main applies when excluded caveat is false"
-		result := mainPath
-		result.Caveat = caveats.Invert(excludedPath.Caveat)
-		return result, true
+		mainPath.Caveat = caveats.Invert(excludedPath.Caveat)
+		return mainPath, true
 	}
 
 	// Case 4: Main has caveat, excluded has caveat
 	// Result should be: main_caveat AND NOT(excluded_caveat)
 	if mainPath.Caveat != nil && excludedPath.Caveat != nil {
-		// Return main path with combined caveat: main_caveat AND NOT(excluded_caveat)
-		result := mainPath
-		result.Caveat = caveats.And(mainPath.Caveat, caveats.Invert(excludedPath.Caveat))
-		return result, true
+		// Mutate main path with combined caveat: main_caveat AND NOT(excluded_caveat)
+		mainPath.Caveat = caveats.And(mainPath.Caveat, caveats.Invert(excludedPath.Caveat))
+		return mainPath, true
 	}
 
 	return mainPath, true
@@ -66,7 +64,9 @@ func combineExclusionCaveats(mainPath, excludedPath Path) (Path, bool) {
 
 func (e *ExclusionIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
 	// Get all paths from the excluded set first and build a lookup map
-	ctx.TraceStep(e, "getting paths from excluded set")
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "getting paths from excluded set")
+	}
 	excludedSeq, err := ctx.Check(e.excluded, resources, subject)
 	if err != nil {
 		return nil, err
@@ -77,30 +77,36 @@ func (e *ExclusionIterator) CheckImpl(ctx *Context, resources []Object, subject 
 		return nil, err
 	}
 
-	ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+	}
 
 	// Build a map for O(1) lookup: key is "resourceKey:subjectKey"
-	excludedMap := make(map[string]Path, len(excludedPaths))
+	excludedMap := make(map[string]*Path, len(excludedPaths))
 	for _, excludedPath := range excludedPaths {
 		key := excludedPath.Resource.Key() + ":" + GetObject(excludedPath.Subject).Key()
 		excludedMap[key] = excludedPath
 	}
 
 	// Get the main sequence (this catches immediate errors from main set's CheckImpl)
-	ctx.TraceStep(e, "getting sequence from main set")
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "getting sequence from main set")
+	}
 	mainSeq, err := ctx.Check(e.mainSet, resources, subject)
 	if err != nil {
 		return nil, err
 	}
 
 	// Stream the main set and yield non-excluded paths immediately
-	return func(yield func(Path, error) bool) {
-		ctx.TraceStep(e, "streaming paths from main set")
+	return func(yield func(*Path, error) bool) {
+		if ctx.shouldTrace() {
+			ctx.TraceStep(e, "streaming paths from main set")
+		}
 		mainCount := 0
 		yieldedCount := 0
 		for mainPath, err := range mainSeq {
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 			mainCount++
@@ -109,7 +115,9 @@ func (e *ExclusionIterator) CheckImpl(ctx *Context, resources []Object, subject 
 			key := mainPath.Resource.Key() + ":" + GetObject(mainPath.Subject).Key()
 			if excludedPath, found := excludedMap[key]; found {
 				// Found matching path in excluded set - combine caveats
-				ctx.TraceStep(e, "found matching excluded path, combining caveats")
+				if ctx.shouldTrace() {
+					ctx.TraceStep(e, "found matching excluded path, combining caveats")
+				}
 				resultPath, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
 				if shouldInclude {
 					yieldedCount++
@@ -117,7 +125,9 @@ func (e *ExclusionIterator) CheckImpl(ctx *Context, resources []Object, subject 
 						return
 					}
 				} else {
-					ctx.TraceStep(e, "path completely excluded")
+					if ctx.shouldTrace() {
+						ctx.TraceStep(e, "path completely excluded")
+					}
 				}
 			} else {
 				// No exclusion, yield as-is
@@ -128,13 +138,17 @@ func (e *ExclusionIterator) CheckImpl(ctx *Context, resources []Object, subject 
 			}
 		}
 
-		ctx.TraceStep(e, "exclusion completed: %d main paths, %d yielded", mainCount, yieldedCount)
+		if ctx.shouldTrace() {
+			ctx.TraceStep(e, "exclusion completed: %d main paths, %d yielded", mainCount, yieldedCount)
+		}
 	}, nil
 }
 
 func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// Get all subjects from the excluded set first and build a lookup map
-	ctx.TraceStep(e, "getting subjects from excluded set for resource %s:%s", resource.ObjectType, resource.ObjectID)
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "getting subjects from excluded set for resource %s:%s", resource.ObjectType, resource.ObjectID)
+	}
 	excludedSeq, err := ctx.IterSubjects(e.excluded, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
@@ -145,30 +159,36 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 		return nil, err
 	}
 
-	ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+	}
 
 	// Build a map for O(1) lookup: key is subject key
-	excludedMap := make(map[string]Path, len(excludedPaths))
+	excludedMap := make(map[string]*Path, len(excludedPaths))
 	for _, excludedPath := range excludedPaths {
 		key := ObjectAndRelationKey(excludedPath.Subject)
 		excludedMap[key] = excludedPath
 	}
 
 	// Get the main sequence (this catches immediate errors from main set's IterSubjectsImpl)
-	ctx.TraceStep(e, "getting sequence from main set")
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "getting sequence from main set")
+	}
 	mainSeq, err := ctx.IterSubjects(e.mainSet, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
 	}
 
 	// Stream the main set and yield non-excluded subjects immediately
-	return func(yield func(Path, error) bool) {
-		ctx.TraceStep(e, "streaming subjects from main set")
+	return func(yield func(*Path, error) bool) {
+		if ctx.shouldTrace() {
+			ctx.TraceStep(e, "streaming subjects from main set")
+		}
 		mainCount := 0
 		yieldedCount := 0
 		for mainPath, err := range mainSeq {
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 			mainCount++
@@ -177,7 +197,9 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 			key := ObjectAndRelationKey(mainPath.Subject)
 			if excludedPath, found := excludedMap[key]; found {
 				// Found matching subject in excluded set - combine caveats
-				ctx.TraceStep(e, "found matching excluded subject, combining caveats")
+				if ctx.shouldTrace() {
+					ctx.TraceStep(e, "found matching excluded subject, combining caveats")
+				}
 				resultPath, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
 				if shouldInclude {
 					yieldedCount++
@@ -185,7 +207,9 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 						return
 					}
 				} else {
-					ctx.TraceStep(e, "subject completely excluded")
+					if ctx.shouldTrace() {
+						ctx.TraceStep(e, "subject completely excluded")
+					}
 				}
 			} else {
 				// No exclusion, yield as-is
@@ -196,13 +220,17 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 			}
 		}
 
-		ctx.TraceStep(e, "exclusion completed: %d main subjects, %d yielded", mainCount, yieldedCount)
+		if ctx.shouldTrace() {
+			ctx.TraceStep(e, "exclusion completed: %d main subjects, %d yielded", mainCount, yieldedCount)
+		}
 	}, nil
 }
 
 func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// Get all resources from the excluded set first and build a lookup map
-	ctx.TraceStep(e, "getting resources from excluded set for subject %s:%s", subject.ObjectType, subject.ObjectID)
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "getting resources from excluded set for subject %s:%s", subject.ObjectType, subject.ObjectID)
+	}
 	excludedSeq, err := ctx.IterResources(e.excluded, subject, filterResourceType)
 	if err != nil {
 		return nil, err
@@ -213,30 +241,36 @@ func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 		return nil, err
 	}
 
-	ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
+	}
 
 	// Build a map for O(1) lookup: key is resource key
-	excludedMap := make(map[string]Path, len(excludedPaths))
+	excludedMap := make(map[string]*Path, len(excludedPaths))
 	for _, excludedPath := range excludedPaths {
 		key := excludedPath.Resource.Key()
 		excludedMap[key] = excludedPath
 	}
 
 	// Get the main sequence (this catches immediate errors from main set's IterResourcesImpl)
-	ctx.TraceStep(e, "getting sequence from main set")
+	if ctx.shouldTrace() {
+		ctx.TraceStep(e, "getting sequence from main set")
+	}
 	mainSeq, err := ctx.IterResources(e.mainSet, subject, filterResourceType)
 	if err != nil {
 		return nil, err
 	}
 
 	// Stream the main set and yield non-excluded subjects immediately
-	return func(yield func(Path, error) bool) {
-		ctx.TraceStep(e, "streaming resources from main set")
+	return func(yield func(*Path, error) bool) {
+		if ctx.shouldTrace() {
+			ctx.TraceStep(e, "streaming resources from main set")
+		}
 		mainCount := 0
 		yieldedCount := 0
 		for mainPath, err := range mainSeq {
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 			mainCount++
@@ -245,7 +279,9 @@ func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 			key := mainPath.Resource.Key()
 			if excludedPath, found := excludedMap[key]; found {
 				// Found matching resource in excluded set - combine caveats
-				ctx.TraceStep(e, "found matching excluded resource, combining caveats")
+				if ctx.shouldTrace() {
+					ctx.TraceStep(e, "found matching excluded resource, combining caveats")
+				}
 				resultPath, shouldInclude := combineExclusionCaveats(mainPath, excludedPath)
 				if shouldInclude {
 					yieldedCount++
@@ -253,7 +289,9 @@ func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 						return
 					}
 				} else {
-					ctx.TraceStep(e, "resource completely excluded")
+					if ctx.shouldTrace() {
+						ctx.TraceStep(e, "resource completely excluded")
+					}
 				}
 			} else {
 				// No exclusion, yield as-is
@@ -264,7 +302,9 @@ func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 			}
 		}
 
-		ctx.TraceStep(e, "exclusion completed: %d main resources, %d yielded", mainCount, yieldedCount)
+		if ctx.shouldTrace() {
+			ctx.TraceStep(e, "exclusion completed: %d main resources, %d yielded", mainCount, yieldedCount)
+		}
 	}, nil
 }
 

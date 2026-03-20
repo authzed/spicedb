@@ -48,12 +48,14 @@ func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resources []Object, 
 	// Check if collection mode is enabled for this sentinel
 	if ctx.IsCollectingFrontier(r.CanonicalKey().Hash()) {
 		// Collection mode: append resources to frontier, return empty
-		return func(yield func(Path, error) bool) {
+		return func(yield func(*Path, error) bool) {
 			for _, resource := range resources {
 				// Only collect if it matches our recursion type
 				if resource.ObjectType == r.definitionName {
 					ctx.CollectFrontierObject(r.CanonicalKey().Hash(), resource)
-					ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
+					if ctx.shouldTrace() {
+						ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
+					}
 				}
 			}
 			// Return empty (collection doesn't yield paths)
@@ -70,11 +72,13 @@ func (r *RecursiveSentinelIterator) IterSubjectsImpl(ctx *Context, resource Obje
 	// Check if collection mode is enabled for this sentinel
 	if ctx.IsCollectingFrontier(r.CanonicalKey().Hash()) {
 		// Collection mode: append resource to frontier, return empty
-		return func(yield func(Path, error) bool) {
+		return func(yield func(*Path, error) bool) {
 			// Only collect if it matches our recursion type
 			if resource.ObjectType == r.definitionName {
 				ctx.CollectFrontierObject(r.CanonicalKey().Hash(), resource)
-				ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
+				if ctx.shouldTrace() {
+					ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
+				}
 			}
 			// Return empty (collection doesn't yield paths)
 		}, nil

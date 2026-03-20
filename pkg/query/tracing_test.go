@@ -19,7 +19,7 @@ func TestIteratorTracing(t *testing.T) {
 	testPath2 := MustPathFromString("document:doc2#view@user:bob")
 
 	// Test FixedIterator tracing
-	fixedIter := NewFixedIterator(testPath1, testPath2)
+	fixedIter := NewFixedIterator(*testPath1, *testPath2)
 
 	// Test CheckImpl tracing
 	resources := []Object{NewObject("document", "doc1")}
@@ -72,7 +72,7 @@ func TestIteratorTracing(t *testing.T) {
 		ctx.TraceLogger = traceLogger
 
 		// Test Union iterator tracing
-		union := NewUnionIterator(NewFixedIterator(testPath1), NewFixedIterator(testPath2))
+		union := NewUnionIterator(NewFixedIterator(*testPath1), NewFixedIterator(*testPath2))
 
 		seq, err := ctx.Check(union, resources, subject)
 		require.NoError(t, err)

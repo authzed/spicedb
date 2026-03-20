@@ -45,7 +45,7 @@ func TestArrowIterator(t *testing.T) {
 
 		// Expected: spec1 should match because alice has viewer access to project1 (spec1's parent)
 		// spec2 should NOT match because alice does not have access to project2 (spec2's parent)
-		expected := []Path{
+		expected := []*Path{
 			MustPathFromString("document:spec1#parent@user:alice"),
 		}
 		require.Equal(expected, rels)
@@ -234,7 +234,7 @@ func TestArrowIteratorMultipleResources(t *testing.T) {
 	// - nonexistent doesn't exist -> should NOT match
 
 	// We expect exactly 1 result: spec1 with alice as subject
-	expected := []Path{
+	expected := []*Path{
 		MustPathFromString("document:spec1#parent@user:alice"),
 	}
 	require.Equal(expected, rels)
@@ -265,8 +265,8 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -299,8 +299,8 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		// Right side path with no caveat
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -330,8 +330,8 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -354,8 +354,8 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 		// Right side path with no caveat
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -402,8 +402,8 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2)
-		rightIter := NewFixedIterator(rightPath1, rightPath2)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -444,8 +444,8 @@ func TestArrowIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -471,8 +471,8 @@ func TestArrowIterSubjects(t *testing.T) {
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -497,8 +497,8 @@ func TestArrowIterSubjects(t *testing.T) {
 		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightPath2 := MustPathFromString("folder:folder1#viewer@user:bob")
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath1, rightPath2)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -525,7 +525,7 @@ func TestArrowIterSubjects(t *testing.T) {
 		// Empty left side
 		leftIter := NewFixedIterator()
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -544,7 +544,7 @@ func TestArrowIterSubjects(t *testing.T) {
 
 		// Left exists but right is empty
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
-		leftIter := NewFixedIterator(leftPath)
+		leftIter := NewFixedIterator(*leftPath)
 		rightIter := NewFixedIterator()
 
 		arrow := NewArrowIterator(leftIter, rightIter)
@@ -582,8 +582,8 @@ func TestArrowIterSubjects(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -606,11 +606,11 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 
 		// Left side: document parent relationships to folders
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
-		leftIter := NewFixedIterator(leftPath)
+		leftIter := NewFixedIterator(*leftPath)
 
 		// Right side: folder viewer relationships
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 		arrow.direction = direction // Set the direction explicitly
@@ -639,11 +639,11 @@ func TestArrowIteratorBidirectional(t *testing.T) {
 
 		// Left side points to folder1
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
-		leftIter := NewFixedIterator(leftPath)
+		leftIter := NewFixedIterator(*leftPath)
 
 		// Right side only has folder2 (no match)
 		rightPath := MustPathFromString("folder:folder2#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 		arrow.direction = direction
@@ -670,10 +670,10 @@ func TestArrow_Types(t *testing.T) {
 
 		// Create left and right iterators
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
-		leftIter := NewFixedIterator(leftPath)
+		leftIter := NewFixedIterator(*leftPath)
 
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 
@@ -688,10 +688,10 @@ func TestArrow_Types(t *testing.T) {
 
 		// Create left and right iterators
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
-		leftIter := NewFixedIterator(leftPath)
+		leftIter := NewFixedIterator(*leftPath)
 
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		arrow := NewArrowIterator(leftIter, rightIter)
 

@@ -196,7 +196,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 
 		// Should get both concrete users
 		require.Len(paths, 2)
-		subjectIDs := slicez.Map(paths, func(p Path) string { return p.Subject.ObjectID })
+		subjectIDs := slicez.Map(paths, func(p *Path) string { return p.Subject.ObjectID })
 		require.ElementsMatch([]string{"alice", "bob"}, subjectIDs)
 	})
 }

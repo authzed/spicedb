@@ -8,9 +8,9 @@ import (
 
 func TestReorderMutation(t *testing.T) {
 	t.Run("reorders children correctly", func(t *testing.T) {
-		child0 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc0#viewer@user:alice")}}}
-		child1 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc1#viewer@user:bob")}}}
-		child2 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc2#viewer@user:charlie")}}}
+		child0 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc0#viewer@user:alice")}}}
+		child1 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:bob")}}}
+		child2 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:charlie")}}}
 
 		outline := Outline{
 			Type:        UnionIteratorType,
@@ -77,9 +77,9 @@ func TestReorderMutation(t *testing.T) {
 func TestRotateArrowMutation(t *testing.T) {
 	t.Run("rotate left: (A->B)->C to A->(B->C)", func(t *testing.T) {
 		// Build A, B, C
-		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:a#viewer@user:alice")}}}
-		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:b#viewer@user:bob")}}}
-		c := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:c#viewer@user:charlie")}}}
+		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("doc:a#viewer@user:alice")}}}
+		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("doc:b#viewer@user:bob")}}}
+		c := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("doc:c#viewer@user:charlie")}}}
 
 		// Build A->B
 		ab := Outline{
@@ -114,9 +114,9 @@ func TestRotateArrowMutation(t *testing.T) {
 
 	t.Run("rotate right: A->(B->C) to (A->B)->C", func(t *testing.T) {
 		// Build A, B, C
-		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:a#viewer@user:alice")}}}
-		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:b#viewer@user:bob")}}}
-		c := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:c#viewer@user:charlie")}}}
+		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("doc:a#viewer@user:alice")}}}
+		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("doc:b#viewer@user:bob")}}}
+		c := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("doc:c#viewer@user:charlie")}}}
 
 		// Build B->C
 		bc := Outline{
