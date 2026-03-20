@@ -2,6 +2,7 @@ package development
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 
@@ -235,7 +236,7 @@ func TestSchemaPositionMapper(t *testing.T) {
 			schema: `definition user {}
 
 			caveat somecaveat(someparam int) {
-				someparam < 42
+				someparam < 42 || someparam > 43
 			}
 
 			definition resource {
@@ -244,7 +245,7 @@ func TestSchemaPositionMapper(t *testing.T) {
 			}
 			`,
 			line:   3,
-			column: 6,
+			column: 6, // TODO if you put 23, the mapper doesn't return anything
 			expectedReference: &SchemaReference{
 				Source:                   input.Source("test"),
 				Position:                 input.Position{LineNumber: 3, ColumnPosition: 6},
@@ -442,6 +443,32 @@ definition document {
 				TargetNamePositionOffset: 9,
 			},
 		},
+		{
+			name: "reference to a partial",
+			schema: `use partial
+
+				partial view_partial {
+					relation user: user
+					permission view = user
+				}
+
+				definition secret {
+					...view_partial
+				}
+			`,
+			line:   8,
+			column: 8,
+			expectedReference: &SchemaReference{
+				Source:                   "test",
+				Position:                 input.Position{LineNumber: 8, ColumnPosition: 8},
+				Text:                     "view_partial",
+				ReferenceType:            ReferenceTypePartial,
+				TargetSource:             &testSource,
+				TargetSourceCode:         "partial view_partial",
+				TargetPosition:           &input.Position{LineNumber: 2, ColumnPosition: 4},
+				TargetNamePositionOffset: len("partial "),
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -464,4 +491,114 @@ definition document {
 			require.Equal(t, tc.expectedReference, ref)
 		})
 	}
+}
+
+func TestSchemaPositionMapperComposableSchema(t *testing.T) {
+	rootSchema := `// this is a comment
+use import
+use partial
+import "path/users.zed"
+import "path/partials.zed"
+
+definition resource {
+	relation somerelation: user with is_raining
+	relation oops: group#member
+	...secret
+	permission usessecret = secret
+}
+`
+	sourceFS := fstest.MapFS{
+		"path/partials.zed": &fstest.MapFile{Data: []byte("use partial\npartial secret {\nrelation secret: user\n}")},
+		"path/users.zed":    &fstest.MapFile{Data: []byte("definition user {}\ncaveat is_raining(day string) {\nday == \"saturday\"\n}")},
+	}
+
+	rootSource := input.Source("path/root.zed")
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       rootSource,
+		SchemaString: rootSchema,
+	}, compiler.AllowUnprefixedObjectType(), compiler.SourceFS(sourceFS))
+	require.NoError(t, err)
+
+	mapper, err := NewSchemaPositionMapper(compiled)
+	require.NoError(t, err)
+
+	t.Run("cursor on the import path", func(t *testing.T) {
+		ref, err := mapper.ReferenceAtPosition(rootSource, input.Position{
+			LineNumber:     3,
+			ColumnPosition: 5,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, ref)
+		require.Equal(t, ReferenceTypeImport, ref.ReferenceType)
+		require.Equal(t, input.Source("path/users.zed"), *ref.TargetSource)
+		require.Empty(t, ref.TargetSourceCode)
+		require.Equal(t, "path/users.zed", ref.Text)
+		require.Equal(t, rootSource, ref.Source)
+		require.Equal(t, input.Position{LineNumber: 3, ColumnPosition: 5}, ref.Position)
+		require.Equal(t, &input.Position{LineNumber: 0, ColumnPosition: 0}, ref.TargetPosition)
+	})
+
+	t.Run("cursor on the user definition", func(t *testing.T) {
+		ref, err := mapper.ReferenceAtPosition(rootSource, input.Position{
+			LineNumber:     7,
+			ColumnPosition: 30,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, ref)
+		require.Equal(t, ReferenceTypeDefinition, ref.ReferenceType)
+		require.Equal(t, "definition user {}", ref.TargetSourceCode)
+		require.Equal(t, "user", ref.Text)
+		require.Equal(t, rootSource, ref.Source)
+		require.Equal(t, input.Source("path/users.zed"), *ref.TargetSource)
+		require.Equal(t, input.Position{LineNumber: 7, ColumnPosition: 30}, ref.Position)
+		require.Equal(t, &input.Position{LineNumber: 0, ColumnPosition: 0}, ref.TargetPosition)
+	})
+
+	t.Run("cursor on the referenced relation", func(t *testing.T) {
+		ref, err := mapper.ReferenceAtPosition(rootSource, input.Position{
+			LineNumber:     10,
+			ColumnPosition: 26,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, ref)
+		require.Equal(t, ReferenceTypeRelation, ref.ReferenceType)
+		require.Equal(t, "relation secret: user\n", ref.TargetSourceCode)
+		require.Equal(t, "secret", ref.Text)
+		require.Equal(t, rootSource, ref.Source)
+		require.Equal(t, input.Source("path/partials.zed"), *ref.TargetSource)
+		require.Equal(t, input.Position{LineNumber: 10, ColumnPosition: 26}, ref.Position)
+		require.Equal(t, &input.Position{LineNumber: 2, ColumnPosition: 0}, ref.TargetPosition)
+	})
+
+	t.Run("cursor on the caveat ref", func(t *testing.T) {
+		ref, err := mapper.ReferenceAtPosition(rootSource, input.Position{
+			LineNumber:     7,
+			ColumnPosition: 43,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, ref)
+		require.Equal(t, ReferenceTypeCaveat, ref.ReferenceType)
+		require.Equal(t, "caveat is_raining(day string) {\n\t// ...\n}", ref.TargetSourceCode)
+		require.Equal(t, "is_raining", ref.Text)
+		require.Equal(t, rootSource, ref.Source)
+		require.Equal(t, input.Source("path/users.zed"), *ref.TargetSource)
+		require.Equal(t, input.Position{LineNumber: 7, ColumnPosition: 43}, ref.Position)
+		require.Equal(t, &input.Position{LineNumber: 1, ColumnPosition: 0}, ref.TargetPosition)
+	})
+
+	t.Run("cursor on the partial ref", func(t *testing.T) {
+		ref, err := mapper.ReferenceAtPosition(rootSource, input.Position{
+			LineNumber:     9,
+			ColumnPosition: 5,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, ref)
+		require.Equal(t, ReferenceTypePartial, ref.ReferenceType)
+		require.Equal(t, "partial secret", ref.TargetSourceCode)
+		require.Equal(t, "secret", ref.Text)
+		require.Equal(t, input.Source("path/partials.zed"), *ref.TargetSource)
+		require.Equal(t, rootSource, ref.Source)
+		require.Equal(t, input.Position{LineNumber: 9, ColumnPosition: 5}, ref.Position)
+		require.Equal(t, &input.Position{LineNumber: 1, ColumnPosition: 0}, ref.TargetPosition)
+	})
 }

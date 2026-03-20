@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Changed
+- Updated DevContext and LSP to support composable schemas (https://github.com/authzed/spicedb/pull/2965)
+
 ### Fixed
 - Fix duplicate diagnostics in LSP server when VS Code pulls diagnostics (https://github.com/authzed/spicedb/pull/2977)
 - In DevContext's schema position mapper, only the first occurrence of a caveat parameter could be found (https://github.com/authzed/spicedb/pull/2972)

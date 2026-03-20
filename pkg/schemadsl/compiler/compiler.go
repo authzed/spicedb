@@ -19,6 +19,7 @@ import (
 // InputSchema defines the input for a Compile.
 type InputSchema struct {
 	// Source is the source of the schema being compiled.
+	// It may be a simple string like "schema" or a full path like "file://something/root.zed"
 	Source input.Source
 
 	// Schema is the contents being compiled.
