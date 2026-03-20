@@ -177,8 +177,7 @@ func (p *RetryPool) MinConns() uint32 {
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		tag, err := conn.Conn().Exec(ctx, sql, arguments...)
-		return tagFunc(ctx, tag, err)
+		return common.QuerierFuncsFor(conn.Conn()).ExecFunc(ctx, tagFunc, sql, arguments...)
 	})
 }
 
@@ -186,16 +185,7 @@ func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Conte
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		rows, err := conn.Conn().Query(ctx, sql, optionsAndArgs...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		err = rowsFunc(ctx, rows)
-		if err != nil {
-			return err
-		}
-		return rows.Err()
+		return common.QuerierFuncsFor(conn.Conn()).QueryFunc(ctx, rowsFunc, sql, optionsAndArgs...)
 	})
 }
 
@@ -203,7 +193,7 @@ func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Con
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return rowFunc(ctx, conn.Conn().QueryRow(ctx, sql, optionsAndArgs...))
+		return common.QuerierFuncsFor(conn.Conn()).QueryRowFunc(ctx, rowFunc, sql, optionsAndArgs...)
 	})
 }
 
