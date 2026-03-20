@@ -4,6 +4,8 @@ import (
 	"context"
 	"maps"
 
+	"go.opentelemetry.io/otel"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -21,6 +23,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+var tracer = otel.Tracer("spicedb/internal/services/shared")
+
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
 	compiled             *compiler.CompiledSchema
@@ -36,6 +40,8 @@ type ValidatedSchemaChanges struct {
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
 func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool, schemaText string) (*ValidatedSchemaChanges, error) {
+	ctx, span := tracer.Start(ctx, "schema.ValidateSchemaChanges")
+	defer span.End()
 	// 1) Validate the caveats defined.
 	newCaveatDefNames := mapz.NewSet[string]()
 	for _, caveatDef := range compiled.CaveatDefinitions {
@@ -94,6 +100,8 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datalayer.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
+	ctx, span := tracer.Start(ctx, "schema.ApplySchemaChanges")
+	defer span.End()
 	sr, err := rwt.ReadSchema(ctx)
 	if err != nil {
 		return nil, err
@@ -132,6 +140,8 @@ func ApplySchemaChangesOverExisting(
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
 ) (*AppliedSchemaChanges, error) {
+	ctx, span := tracer.Start(ctx, "schema.ApplySchemaChangesOverExisting")
+	defer span.End()
 	// Build a map of existing caveats to determine those being removed, if any.
 	existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
 	existingCaveatDefNames := mapz.NewSet[string]()

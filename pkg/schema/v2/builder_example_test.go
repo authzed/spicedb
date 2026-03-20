@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -39,7 +40,7 @@ func ExampleSchemaBuilder() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -67,7 +68,7 @@ func ExampleSchemaBuilder_incrementalUnion() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -99,7 +100,7 @@ func ExampleSchemaBuilder_withArrow() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -119,7 +120,7 @@ func ExampleSchemaBuilder_withCaveat() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -148,7 +149,7 @@ func ExampleSchemaBuilder_withCaveatTypes() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -172,7 +173,7 @@ func ExampleSchemaBuilder_withExclusion() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -196,7 +197,7 @@ func ExampleSchemaBuilder_withIntersection() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -211,7 +212,7 @@ func ExampleSchemaBuilder_withWildcard() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -280,7 +281,7 @@ func ExampleSchemaBuilder_complex() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -306,7 +307,7 @@ func ExampleSchemaBuilder_constructorPattern() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -327,7 +328,7 @@ func ExampleSchemaBuilder_constructorWithIntersection() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -348,7 +349,7 @@ func ExampleSchemaBuilder_constructorWithExclusion() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -374,7 +375,7 @@ func ExampleSchemaBuilder_constructorWithArrow() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -395,7 +396,7 @@ func ExampleSchemaBuilder_constructorWithIntersectionArrow() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -418,7 +419,7 @@ func ExampleSchemaBuilder_constructorWithCaveat() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -475,7 +476,7 @@ func ExampleSchemaBuilder_constructorComplexNested() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }
 
@@ -498,6 +499,6 @@ func ExampleSchemaBuilder_withIntersectionArrow() {
 		Build()
 
 	defs, caveats, _ := s.ToDefinitions()
-	schemaText, _, _ := generator.GenerateSchema(append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
+	schemaText, _, _ := generator.GenerateSchema(context.Background(), append(toSchemaDefinitions(defs), toSchemaDefinitions(caveats)...))
 	fmt.Println(strings.TrimSpace(schemaText))
 }

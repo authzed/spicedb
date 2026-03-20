@@ -30,7 +30,7 @@ func TestExampleRunWithSchemaForTesting(t *testing.T) {
 			definitions = append(definitions, cd)
 		}
 
-		generated, _, err := generator.GenerateSchema(definitions)
+		generated, _, err := generator.GenerateSchema(t.Context(), definitions)
 		require.NoError(t, err)
 		t.Logf("Generated schema:\n%s", generated)
 
