@@ -264,6 +264,7 @@ func newPostgresDatastore(
 		quantizationPeriodNanos,
 		schema.ColSnapshot,
 		followerReadDelayNanos,
+		schema.ColTimestamp,
 	)
 
 	var revisionHeartbeatQuery string
