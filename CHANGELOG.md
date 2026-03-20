@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- Fix duplicate diagnostics in LSP server when VS Code pulls diagnostics (https://github.com/authzed/spicedb/pull/2977)
 
 ## [1.50.0] - 2026-03-19
 ### Added

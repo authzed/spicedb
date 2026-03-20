@@ -335,7 +335,7 @@ func (s *Server) initialize(_ context.Context, r *jsonrpc2.Request) (any, error)
 		return nil, err
 	}
 
-	s.requestsDiagnostics = ip.Capabilities.Diagnostics.RefreshSupport
+	s.requestsDiagnostics = ip.Capabilities.SupportsPullDiagnostics()
 	log.Debug().
 		Bool("requestsDiagnostics", s.requestsDiagnostics).
 		Msg("initialize")
