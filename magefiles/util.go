@@ -28,7 +28,7 @@ func goDirTest(ctx context.Context, dir string, path string, args ...string) err
 	if err != nil {
 		return err
 	}
-	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
+	return RunSh("go", WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
 // goDirTestWithEnv runs go test in a directory with a timeout and environment variables
@@ -37,7 +37,7 @@ func goDirTestWithEnv(ctx context.Context, dir string, path string, env map[stri
 	if err != nil {
 		return err
 	}
-	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
+	return RunSh("go", WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
 }
 
 // testWithArgs includes -race and -timeout=30m.
@@ -70,14 +70,6 @@ func checkDocker() error {
 func hasBinary(binaryName string) bool {
 	_, err := exec.LookPath(binaryName)
 	return err == nil
-}
-
-// use `richgo` for running tests if it's available
-func goCmdForTests() string {
-	if hasBinary("richgo") {
-		return "richgo"
-	}
-	return "go"
 }
 
 // runOptions is a set of options to be applied with ExecSh.

@@ -1,6 +1,6 @@
 //go:build !skipintegrationtests
 
-package integrationtesting_test
+package opstest_test
 
 import (
 	"context"
@@ -145,7 +145,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 						definition user {}
-					
+
 						definition document {
 							relation viewer: user
 						}
@@ -159,7 +159,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 						definition user {}
-					
+
 						definition document {
 						}
 					`}, "cannot delete relation",
@@ -172,7 +172,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 							definition user {}
-						
+
 							definition document {
 							}
 					`}, "",
@@ -190,7 +190,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 					writeSchema{`
 						definition user {}
 						definition anotheruser {}
-					
+
 						definition document {
 							relation viewer: user | anotheruser
 						}
@@ -205,7 +205,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 					writeSchema{`
 						definition user {}
 						definition anotheruser {}
-					
+
 						definition document {
 							relation viewer: anotheruser
 						}
@@ -241,7 +241,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 						}
 
 						definition user {}
-					
+
 						definition document {
 							relation viewer: user with somecaveat | user
 						}
@@ -262,7 +262,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 						}
 
 						definition user {}
-					
+
 						definition document {
 							relation viewer: user
 						}
@@ -297,7 +297,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				// Write the schema.
 				{
 					writeSchema{`
-						definition user {}			
+						definition user {}
 
 						definition document {
 							relation viewer: user
@@ -312,7 +312,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 						definition user {}
-					
+
 						definition document {
 							relation viewuser: user
 						}
@@ -560,9 +560,9 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 							caveat somecaveat(someParam int, anotherParam int, newParam int) {
 								someParam == 42 && anotherParam == 43 && newParam == 44
 							}
-	
+
 							definition user {}
-	
+
 							definition document {
 								relation viewer: user with somecaveat
 							}
@@ -574,9 +574,9 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 							caveat somecaveat(someParam int, anotherParam int) {
 								someParam == 42 && anotherParam == 43
 							}
-	
+
 							definition user {}
-	
+
 							definition document {
 								relation viewer: user with somecaveat
 							}
@@ -588,9 +588,9 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 							caveat somecaveat(someParam int, anotherParam int, newParam bool) {
 								someParam == 42 && anotherParam == 43 && newParam
 							}
-	
+
 							definition user {}
-	
+
 							definition document {
 								relation viewer: user with somecaveat
 							}

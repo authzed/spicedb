@@ -1,14 +1,16 @@
 //go:build !skipintegrationtests
 
-package integrationtesting_test
+package queryconsistency_test
 
 import (
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +30,8 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
+
+const testTimedelta = 1 * time.Second
 
 func TestQueryPlanConsistency(t *testing.T) { // nolint:tparallel
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
@@ -337,7 +341,8 @@ func TestAccessibilitySetMethods(t *testing.T) {
 	require.NoError(err)
 
 	// Use a simple test config
-	testConfigPath := filepath.Join("testconfigs", "document.yaml")
+	_, thisFile, _, _ := runtime.Caller(0)
+	testConfigPath := filepath.Join(filepath.Dir(thisFile), "..", "testconfigs", "document.yaml")
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{testConfigPath})
 	require.NoError(err)
 

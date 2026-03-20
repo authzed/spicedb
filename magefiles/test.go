@@ -100,7 +100,7 @@ func (Test) E2e(ctx context.Context, crdbVersion string) error {
 // IntegrationCover Run integration tests with cover
 func (Test) IntegrationCover(ctx context.Context) error {
 	mg.Deps(checkDocker)
-	args := []string{"-tags", "ci,docker", "-timeout", "30m", "-count=1"}
+	args := []string{"-tags", "ci,docker", "-timeout", "30m", "-count=1", "-v"}
 	args = append(args, coverageFlags...)
 	return goTest(ctx, "./internal/services/integrationtesting/...", args...)
 }
