@@ -287,13 +287,12 @@ func TestRequestAfterShutdown(t *testing.T) {
 }
 
 func TestDiagnosticsRefreshSupport(t *testing.T) {
+	// Initialize with textDocument diagnostic support enabled
 	tester := newLSPTester(t)
-
-	// Initialize with diagnostic refresh support enabled
 	resp, serverState := sendAndReceive[lsp.InitializeResult](tester, "initialize", InitializeParams{
 		Capabilities: ClientCapabilities{
-			Diagnostics: DiagnosticWorkspaceClientCapabilities{
-				RefreshSupport: true,
+			TextDocument: &TextDocumentClientCapabilities{
+				Diagnostic: &DiagnosticClientCapabilities{},
 			},
 		},
 	})
@@ -301,18 +300,29 @@ func TestDiagnosticsRefreshSupport(t *testing.T) {
 	require.True(t, resp.Capabilities.DocumentFormattingProvider)
 	require.True(t, tester.server.requestsDiagnostics)
 
-	// Initialize without diagnostic refresh support
+	// Initialize with only workspace diagnostic refresh support (not pull diagnostics)
 	tester2 := newLSPTester(t)
 	resp2, serverState2 := sendAndReceive[lsp.InitializeResult](tester2, "initialize", InitializeParams{
 		Capabilities: ClientCapabilities{
-			Diagnostics: DiagnosticWorkspaceClientCapabilities{
-				RefreshSupport: false,
+			Workspace: &WorkspaceClientCapabilities{
+				Diagnostics: &DiagnosticWorkspaceClientCapabilities{
+					RefreshSupport: true,
+				},
 			},
 		},
 	})
 	require.Equal(t, serverStateInitialized, serverState2)
 	require.True(t, resp2.Capabilities.DocumentFormattingProvider)
 	require.False(t, tester2.server.requestsDiagnostics)
+
+	// Initialize without any diagnostic support
+	tester3 := newLSPTester(t)
+	resp3, serverState3 := sendAndReceive[lsp.InitializeResult](tester3, "initialize", InitializeParams{
+		Capabilities: ClientCapabilities{},
+	})
+	require.Equal(t, serverStateInitialized, serverState3)
+	require.True(t, resp3.Capabilities.DocumentFormattingProvider)
+	require.False(t, tester3.server.requestsDiagnostics)
 }
 
 func TestLogJSONPtr(t *testing.T) {
