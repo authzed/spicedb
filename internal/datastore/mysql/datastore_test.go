@@ -208,7 +208,7 @@ func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err, metrics)
 	var collectorStatsFound, connectorStatsFound bool
 	for _, metric := range metrics {
-		if metric.GetName() == "go_sql_stats_connections_open" {
+		if metric.GetName() == "go_sql_open_connections" {
 			collectorStatsFound = true
 		}
 		if metric.GetName() == "spicedb_datastore_mysql_connect_count_total" {
