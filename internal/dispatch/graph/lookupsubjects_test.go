@@ -29,8 +29,6 @@ var (
 )
 
 func TestSimpleLookupSubjects(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		resourceType     string
 		resourceID       string
@@ -131,8 +129,6 @@ func TestSimpleLookupSubjects(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -192,7 +188,6 @@ func TestSimpleLookupSubjects(t *testing.T) {
 }
 
 func TestLookupSubjectsMaxDepth(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -227,7 +222,6 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 }
 
 func TestLookupSubjectsDispatchCount(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		resourceType          string
 		resourceID            string
@@ -256,8 +250,6 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("dispatch-count-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -282,7 +274,6 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 }
 
 func TestLookupSubjectsOverSchema(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name          string
 		schema        string
@@ -998,8 +989,6 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())

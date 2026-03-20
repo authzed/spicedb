@@ -1,6 +1,6 @@
 //go:build !skipintegrationtests
 
-package integrationtesting_test
+package opstest_test
 
 import (
 	"context"
@@ -120,8 +120,6 @@ func (dr deleteCaveatedRelationship) Execute(tester opsTester) error {
 }
 
 func TestSchemaAndRelationshipsOperations(t *testing.T) {
-	t.Parallel()
-
 	tcs := []schemaTestCase{
 		// Test: write a basic, valid schema.
 		{
@@ -147,7 +145,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 						definition user {}
-					
+
 						definition document {
 							relation viewer: user
 						}
@@ -161,7 +159,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 						definition user {}
-					
+
 						definition document {
 						}
 					`}, "cannot delete relation",
@@ -174,7 +172,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 							definition user {}
-						
+
 							definition document {
 							}
 					`}, "",
@@ -192,7 +190,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 					writeSchema{`
 						definition user {}
 						definition anotheruser {}
-					
+
 						definition document {
 							relation viewer: user | anotheruser
 						}
@@ -207,7 +205,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 					writeSchema{`
 						definition user {}
 						definition anotheruser {}
-					
+
 						definition document {
 							relation viewer: anotheruser
 						}
@@ -243,7 +241,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 						}
 
 						definition user {}
-					
+
 						definition document {
 							relation viewer: user with somecaveat | user
 						}
@@ -264,7 +262,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 						}
 
 						definition user {}
-					
+
 						definition document {
 							relation viewer: user
 						}
@@ -299,7 +297,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				// Write the schema.
 				{
 					writeSchema{`
-						definition user {}			
+						definition user {}
 
 						definition document {
 							relation viewer: user
@@ -314,7 +312,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				{
 					writeSchema{`
 						definition user {}
-					
+
 						definition document {
 							relation viewuser: user
 						}
@@ -562,9 +560,9 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 							caveat somecaveat(someParam int, anotherParam int, newParam int) {
 								someParam == 42 && anotherParam == 43 && newParam == 44
 							}
-	
+
 							definition user {}
-	
+
 							definition document {
 								relation viewer: user with somecaveat
 							}
@@ -576,9 +574,9 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 							caveat somecaveat(someParam int, anotherParam int) {
 								someParam == 42 && anotherParam == 43
 							}
-	
+
 							definition user {}
-	
+
 							definition document {
 								relation viewer: user with somecaveat
 							}
@@ -590,9 +588,9 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 							caveat somecaveat(someParam int, anotherParam int, newParam bool) {
 								someParam == 42 && anotherParam == 43 && newParam
 							}
-	
+
 							definition user {}
-	
+
 							definition document {
 								relation viewer: user with somecaveat
 							}
@@ -752,7 +750,6 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			for _, testerName := range []string{"v1"} {
 				t.Run(testerName, func(t *testing.T) {
 					conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)

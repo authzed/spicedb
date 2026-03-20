@@ -7,11 +7,7 @@ import (
 )
 
 func TestReorderMutation(t *testing.T) {
-	t.Parallel()
-
 	t.Run("reorders children correctly", func(t *testing.T) {
-		t.Parallel()
-
 		child0 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc0#viewer@user:alice")}}}
 		child1 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc1#viewer@user:bob")}}}
 		child2 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("document:doc2#viewer@user:charlie")}}}
@@ -33,8 +29,6 @@ func TestReorderMutation(t *testing.T) {
 	})
 
 	t.Run("no-op when order length mismatches", func(t *testing.T) {
-		t.Parallel()
-
 		child0 := Outline{Type: FixedIteratorType}
 		child1 := Outline{Type: FixedIteratorType}
 
@@ -52,8 +46,6 @@ func TestReorderMutation(t *testing.T) {
 	})
 
 	t.Run("identity reordering", func(t *testing.T) {
-		t.Parallel()
-
 		child0 := Outline{Type: FixedIteratorType}
 		child1 := Outline{Type: FixedIteratorType}
 
@@ -70,8 +62,6 @@ func TestReorderMutation(t *testing.T) {
 	})
 
 	t.Run("empty outline", func(t *testing.T) {
-		t.Parallel()
-
 		outline := Outline{
 			Type:        UnionIteratorType,
 			SubOutlines: []Outline{},
@@ -85,11 +75,7 @@ func TestReorderMutation(t *testing.T) {
 }
 
 func TestRotateArrowMutation(t *testing.T) {
-	t.Parallel()
-
 	t.Run("rotate left: (A->B)->C to A->(B->C)", func(t *testing.T) {
-		t.Parallel()
-
 		// Build A, B, C
 		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:a#viewer@user:alice")}}}
 		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:b#viewer@user:bob")}}}
@@ -127,8 +113,6 @@ func TestRotateArrowMutation(t *testing.T) {
 	})
 
 	t.Run("rotate right: A->(B->C) to (A->B)->C", func(t *testing.T) {
-		t.Parallel()
-
 		// Build A, B, C
 		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:a#viewer@user:alice")}}}
 		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{MustPathFromString("doc:b#viewer@user:bob")}}}
@@ -166,8 +150,6 @@ func TestRotateArrowMutation(t *testing.T) {
 	})
 
 	t.Run("no-op when not an arrow", func(t *testing.T) {
-		t.Parallel()
-
 		outline := Outline{
 			Type: UnionIteratorType,
 			SubOutlines: []Outline{
@@ -183,8 +165,6 @@ func TestRotateArrowMutation(t *testing.T) {
 	})
 
 	t.Run("no-op when left child not arrow (rotate left)", func(t *testing.T) {
-		t.Parallel()
-
 		a := Outline{Type: FixedIteratorType}
 		b := Outline{Type: FixedIteratorType}
 
@@ -200,8 +180,6 @@ func TestRotateArrowMutation(t *testing.T) {
 	})
 
 	t.Run("no-op when right child not arrow (rotate right)", func(t *testing.T) {
-		t.Parallel()
-
 		a := Outline{Type: FixedIteratorType}
 		b := Outline{Type: FixedIteratorType}
 
@@ -217,8 +195,6 @@ func TestRotateArrowMutation(t *testing.T) {
 	})
 
 	t.Run("preserves Args fields", func(t *testing.T) {
-		t.Parallel()
-
 		a := Outline{Type: FixedIteratorType}
 		b := Outline{Type: FixedIteratorType}
 		c := Outline{Type: FixedIteratorType}

@@ -16,10 +16,7 @@ func newTestPaths() (*FixedIterator, Path, Path, Path) {
 }
 
 func TestFixedIterator(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Check", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		ctx := NewTestContext(t)
@@ -38,7 +35,6 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("Check_NoMatches", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		ctx := NewTestContext(t)
@@ -53,7 +49,6 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		ctx := NewTestContext(t)
@@ -74,7 +69,6 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		ctx := NewTestContext(t)
@@ -93,7 +87,6 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("Clone", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		ctx := NewTestContext(t)
@@ -116,7 +109,6 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("Explain", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		fixed, _, _, _ := newTestPaths()
@@ -127,10 +119,7 @@ func TestFixedIterator(t *testing.T) {
 }
 
 func TestFixedIterator_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -145,7 +134,6 @@ func TestFixedIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
@@ -161,7 +149,6 @@ func TestFixedIterator_Types(t *testing.T) {
 	})
 
 	t.Run("EmptyIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		fixed := NewFixedIterator()

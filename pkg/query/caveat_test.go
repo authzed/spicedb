@@ -285,7 +285,6 @@ func createTestCaveat(name string, context map[string]any) *core.ContextualizedC
 // Additional comprehensive tests for caveat.go
 
 func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create a CaveatIterator to test the containsExpectedCaveat method
@@ -294,14 +293,12 @@ func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
 
 	// Test simple caveat expressions
 	t.Run("Simple caveat match", func(t *testing.T) {
-		t.Parallel()
 		expr := createTestCaveatExpression("expected_caveat", nil)
 		contains := caveatIter.containsExpectedCaveat(expr)
 		require.True(contains)
 	})
 
 	t.Run("Simple caveat no match", func(t *testing.T) {
-		t.Parallel()
 		expr := createTestCaveatExpression("different_caveat", nil)
 		contains := caveatIter.containsExpectedCaveat(expr)
 		require.False(contains)
@@ -309,7 +306,6 @@ func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
 
 	// Test complex caveat expressions
 	t.Run("AND expression contains expected caveat", func(t *testing.T) {
-		t.Parallel()
 		child1 := createTestCaveatExpression("expected_caveat", nil)
 		child2 := createTestCaveatExpression("other_caveat", nil)
 		andExpr := createComplexCaveatExpression(core.CaveatOperation_AND, []*core.CaveatExpression{child1, child2})
@@ -319,7 +315,6 @@ func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
 	})
 
 	t.Run("OR expression contains expected caveat", func(t *testing.T) {
-		t.Parallel()
 		child1 := createTestCaveatExpression("wrong_caveat", nil)
 		child2 := createTestCaveatExpression("expected_caveat", nil)
 		orExpr := createComplexCaveatExpression(core.CaveatOperation_OR, []*core.CaveatExpression{child1, child2})
@@ -329,7 +324,6 @@ func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
 	})
 
 	t.Run("Complex expression without expected caveat", func(t *testing.T) {
-		t.Parallel()
 		child1 := createTestCaveatExpression("wrong_caveat1", nil)
 		child2 := createTestCaveatExpression("wrong_caveat2", nil)
 		andExpr := createComplexCaveatExpression(core.CaveatOperation_AND, []*core.CaveatExpression{child1, child2})
@@ -339,7 +333,6 @@ func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
 	})
 
 	t.Run("No expected caveat - should always return true", func(t *testing.T) {
-		t.Parallel()
 		noCaveatIter := NewCaveatIterator(NewFixedIterator(), nil)
 		expr := createTestCaveatExpression("any_caveat", nil)
 		contains := noCaveatIter.containsExpectedCaveat(expr)
@@ -348,7 +341,6 @@ func TestCaveatIterator_ContainsExpectedCaveat(t *testing.T) {
 }
 
 func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	testCaveat := createTestCaveat("test_caveat", nil)
@@ -356,7 +348,6 @@ func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
 
 	// Test with no caveat on iterator - should pass through
 	t.Run("No caveat on iterator", func(t *testing.T) {
-		t.Parallel()
 		noCaveatIter := NewCaveatIterator(NewFixedIterator(), nil)
 		path := MustPathFromString("document:doc1#view@user:alice")
 		path.Caveat = createTestCaveatExpression("any_caveat", nil)
@@ -369,7 +360,6 @@ func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("No caveat on path", func(t *testing.T) {
-		t.Parallel()
 		path := MustPathFromString("document:doc1#view@user:alice")
 		// path.Caveat is nil
 
@@ -380,7 +370,6 @@ func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("No caveat runner", func(t *testing.T) {
-		t.Parallel()
 		path := MustPathFromString("document:doc1#view@user:alice")
 		path.Caveat = createTestCaveatExpression("test_caveat", nil)
 
@@ -394,7 +383,6 @@ func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
 }
 
 func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create test paths
@@ -405,7 +393,6 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 	subIterator := NewFixedIterator(path1, path2, path3)
 
 	t.Run("with no caveat filter", func(t *testing.T) {
-		t.Parallel()
 		// No caveat filter - should pass through all paths
 		caveatIter := NewCaveatIterator(subIterator, nil)
 
@@ -424,7 +411,6 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 	})
 
 	t.Run("with caveat filter", func(t *testing.T) {
-		t.Parallel()
 		// With caveat filter - test that the method can be called
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIterator, testCaveat)
@@ -443,7 +429,6 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 }
 
 func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create test paths
@@ -453,7 +438,6 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 	subIterator := NewFixedIterator(path1, path2)
 
 	t.Run("with no caveat filter", func(t *testing.T) {
-		t.Parallel()
 		// No caveat filter - should pass through all paths
 		caveatIter := NewCaveatIterator(subIterator, nil)
 
@@ -472,7 +456,6 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 	})
 
 	t.Run("with caveat filter", func(t *testing.T) {
-		t.Parallel()
 		// With caveat filter - test that the method can be called
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIterator, testCaveat)
@@ -491,18 +474,15 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 }
 
 func TestCaveatIterator_BuildExplainInfo(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	t.Run("No caveat", func(t *testing.T) {
-		t.Parallel()
 		caveatIter := NewCaveatIterator(NewFixedIterator(), nil)
 		info := caveatIter.buildExplainInfo()
 		require.Equal("Caveat(none)", info)
 	})
 
 	t.Run("Simple caveat without context", func(t *testing.T) {
-		t.Parallel()
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(NewFixedIterator(), testCaveat)
 		info := caveatIter.buildExplainInfo()
@@ -510,7 +490,6 @@ func TestCaveatIterator_BuildExplainInfo(t *testing.T) {
 	})
 
 	t.Run("Caveat with context", func(t *testing.T) {
-		t.Parallel()
 		testCaveat := createTestCaveat("test_caveat", map[string]any{
 			"limit": 10,
 			"user":  "alice",
@@ -528,10 +507,7 @@ func TestCaveatIterator_BuildExplainInfo(t *testing.T) {
 }
 
 func TestCaveatIterator_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a caveat iterator with a subiterator
@@ -547,7 +523,6 @@ func TestCaveatIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a caveat iterator with a subiterator

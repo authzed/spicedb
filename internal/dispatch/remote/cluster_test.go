@@ -240,8 +240,6 @@ func TestDispatchTimeout(t *testing.T) {
 }
 
 func TestCheckSecondaryDispatch(t *testing.T) {
-	t.Parallel()
-
 	for _, tc := range []struct {
 		name             string
 		expr             string
@@ -326,7 +324,6 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: tc.primarySleepTime})
 			secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 0 * time.Millisecond})
 

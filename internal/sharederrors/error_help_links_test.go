@@ -9,15 +9,11 @@ import (
 )
 
 func TestHelpLinks(t *testing.T) {
-	t.Parallel()
-
 	c := http.Client{}
 	t.Cleanup(c.CloseIdleConnections)
 
 	for _, helpURL := range allErrorHelpUrls {
 		t.Run(helpURL, func(t *testing.T) {
-			t.Parallel()
-
 			require.Eventually(t, func() bool {
 				get, err := c.Get(helpURL)
 				if err != nil {

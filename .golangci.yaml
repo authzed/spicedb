@@ -39,7 +39,6 @@ linters:
     - "staticcheck"
     - "tagalign"
     - "testifylint"
-    - "tparallel"
     - "unparam"
     - "unconvert"
     - "usetesting"

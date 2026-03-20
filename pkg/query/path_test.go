@@ -12,7 +12,6 @@ import (
 )
 
 func TestPath_ResourceOAR(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	path := Path{
@@ -27,17 +26,13 @@ func TestPath_ResourceOAR(t *testing.T) {
 }
 
 func TestPath_IsExpired(t *testing.T) {
-	t.Parallel()
-
 	t.Run("nil_expiration", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		path := Path{}
 		require.False(path.IsExpired())
 	})
 
 	t.Run("future_expiration", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		future := time.Now().Add(time.Hour)
 		path := Path{Expiration: &future}
@@ -45,7 +40,6 @@ func TestPath_IsExpired(t *testing.T) {
 	})
 
 	t.Run("past_expiration", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		past := time.Now().Add(-time.Hour)
 		path := Path{Expiration: &past}
@@ -53,7 +47,6 @@ func TestPath_IsExpired(t *testing.T) {
 	})
 
 	t.Run("exact_now_expiration", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		now := time.Now().Add(-time.Millisecond)
 		path := &Path{Expiration: &now}
@@ -63,10 +56,7 @@ func TestPath_IsExpired(t *testing.T) {
 }
 
 func TestPath_MergeOr(t *testing.T) {
-	t.Parallel()
-
 	t.Run("same_resource_and_subject", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
@@ -94,7 +84,6 @@ func TestPath_MergeOr(t *testing.T) {
 	})
 
 	t.Run("different_resources", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
@@ -112,7 +101,6 @@ func TestPath_MergeOr(t *testing.T) {
 	})
 
 	t.Run("different_subjects", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
@@ -131,10 +119,7 @@ func TestPath_MergeOr(t *testing.T) {
 }
 
 func TestPath_MergeAnd(t *testing.T) {
-	t.Parallel()
-
 	t.Run("basic_merge", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
@@ -163,10 +148,7 @@ func TestPath_MergeAnd(t *testing.T) {
 }
 
 func TestPath_MergeAndNot(t *testing.T) {
-	t.Parallel()
-
 	t.Run("basic_merge", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
@@ -195,12 +177,8 @@ func TestPath_MergeAndNot(t *testing.T) {
 }
 
 func TestPath_mergeFrom(t *testing.T) {
-	t.Parallel()
-
 	t.Run("relation_handling", func(t *testing.T) {
-		t.Parallel()
 		t.Run("same_relation_preserved", func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 			path1 := Path{
 				Resource: NewObject("document", "doc1"),
@@ -220,7 +198,6 @@ func TestPath_mergeFrom(t *testing.T) {
 		})
 
 		t.Run("different_relation_cleared", func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 			path1 := Path{
 				Resource: NewObject("document", "doc1"),
@@ -241,9 +218,7 @@ func TestPath_mergeFrom(t *testing.T) {
 	})
 
 	t.Run("expiration_handling", func(t *testing.T) {
-		t.Parallel()
 		t.Run("nil_expiration_both", func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 			path1 := Path{
 				Resource: NewObject("document", "doc1"),
@@ -261,7 +236,6 @@ func TestPath_mergeFrom(t *testing.T) {
 		})
 
 		t.Run("nil_expiration_first", func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 			later := time.Now().Add(time.Hour)
 			path1 := Path{
@@ -282,7 +256,6 @@ func TestPath_mergeFrom(t *testing.T) {
 		})
 
 		t.Run("earlier_expiration_wins", func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 			earlier := time.Now().Add(time.Hour)
 			later := time.Now().Add(2 * time.Hour)
@@ -306,7 +279,6 @@ func TestPath_mergeFrom(t *testing.T) {
 	})
 
 	t.Run("integrity_handling", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
 		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
@@ -331,7 +303,6 @@ func TestPath_mergeFrom(t *testing.T) {
 	})
 
 	t.Run("metadata_handling", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
@@ -360,7 +331,6 @@ func TestPath_mergeFrom(t *testing.T) {
 	})
 
 	t.Run("metadata_nil_initialization", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		path1 := Path{
 			Resource: NewObject("document", "doc1"),
@@ -381,7 +351,6 @@ func TestPath_mergeFrom(t *testing.T) {
 	})
 
 	t.Run("caveat_operations", func(t *testing.T) {
-		t.Parallel()
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
 
@@ -437,11 +406,9 @@ func TestPath_mergeFrom(t *testing.T) {
 }
 
 func TestFromRelationship(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	t.Run("basic_conversion", func(t *testing.T) {
-		t.Parallel()
 		rel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ObjectAndRelation{
@@ -470,7 +437,6 @@ func TestFromRelationship(t *testing.T) {
 	})
 
 	t.Run("with_caveat", func(t *testing.T) {
-		t.Parallel()
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
 		expiration := time.Now().Add(time.Hour)
 		integrity := &core.RelationshipIntegrity{KeyId: "key1"}
@@ -503,11 +469,9 @@ func TestFromRelationship(t *testing.T) {
 }
 
 func TestPath_ToRelationship(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	t.Run("basic_conversion", func(t *testing.T) {
-		t.Parallel()
 		path := Path{
 			Resource: NewObject("document", "doc1"),
 			Relation: "viewer",
@@ -528,7 +492,6 @@ func TestPath_ToRelationship(t *testing.T) {
 	})
 
 	t.Run("with_simple_caveat", func(t *testing.T) {
-		t.Parallel()
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
 		caveatExpr := caveats.CaveatAsExpr(caveat)
 		expiration := time.Now().Add(time.Hour)
@@ -552,7 +515,6 @@ func TestPath_ToRelationship(t *testing.T) {
 	})
 
 	t.Run("empty_relation_error", func(t *testing.T) {
-		t.Parallel()
 		path := Path{
 			Resource: NewObject("document", "doc1"),
 			Relation: "", // Empty relation should cause error
@@ -565,7 +527,6 @@ func TestPath_ToRelationship(t *testing.T) {
 	})
 
 	t.Run("complex_caveat_error", func(t *testing.T) {
-		t.Parallel()
 		// Create a complex caveat expression (OR operation)
 		caveat1 := caveats.CaveatExprForTesting("caveat1")
 		caveat2 := caveats.CaveatExprForTesting("caveat2")
@@ -584,7 +545,6 @@ func TestPath_ToRelationship(t *testing.T) {
 	})
 
 	t.Run("multiple_integrity_error", func(t *testing.T) {
-		t.Parallel()
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
 		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
 
@@ -602,11 +562,9 @@ func TestPath_ToRelationship(t *testing.T) {
 }
 
 func TestPath_ConversionRoundtrip(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	t.Run("basic_roundtrip", func(t *testing.T) {
-		t.Parallel()
 		originalRel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: tuple.ObjectAndRelation{
@@ -636,7 +594,6 @@ func TestPath_ConversionRoundtrip(t *testing.T) {
 	})
 
 	t.Run("roundtrip_with_optional_fields", func(t *testing.T) {
-		t.Parallel()
 		caveat := &core.ContextualizedCaveat{CaveatName: "test_caveat"}
 		expiration := time.Now().Add(time.Hour).Truncate(time.Microsecond) // Truncate for comparison
 		integrity := &core.RelationshipIntegrity{KeyId: "key1"}
@@ -676,7 +633,6 @@ func TestPath_ConversionRoundtrip(t *testing.T) {
 // Additional comprehensive tests for uncovered path.go functions
 
 func TestPath_EqualsEndpoints(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Base paths for comparison
@@ -687,23 +643,19 @@ func TestPath_EqualsEndpoints(t *testing.T) {
 	path5 := MustPathFromString("document:doc1#view@user:bob")   // Different subject
 
 	t.Run("identical_endpoints", func(t *testing.T) {
-		t.Parallel()
 		require.True(path1.EqualsEndpoints(path2))
 	})
 
 	t.Run("different_relation_same_endpoints", func(t *testing.T) {
-		t.Parallel()
 		// EqualsEndpoints should ignore relation and only compare resource/subject
 		require.True(path1.EqualsEndpoints(path3))
 	})
 
 	t.Run("different_resource", func(t *testing.T) {
-		t.Parallel()
 		require.False(path1.EqualsEndpoints(path4))
 	})
 
 	t.Run("different_subject", func(t *testing.T) {
-		t.Parallel()
 		require.False(path1.EqualsEndpoints(path5))
 	})
 
@@ -711,7 +663,6 @@ func TestPath_EqualsEndpoints(t *testing.T) {
 }
 
 func TestPath_Equals_Comprehensive(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create paths with various attributes for comprehensive testing
@@ -756,44 +707,37 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	pathWithIntegrity.Integrity = []*core.RelationshipIntegrity{{KeyId: "key1"}}
 
 	t.Run("identical_paths", func(t *testing.T) {
-		t.Parallel()
 		path1 := MustPathFromString("document:doc1#view@user:alice")
 		path2 := MustPathFromString("document:doc1#view@user:alice")
 		require.True(path1.Equals(path2))
 	})
 
 	t.Run("different_resource_type", func(t *testing.T) {
-		t.Parallel()
 		path2 := MustPathFromString("folder:doc1#view@user:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_resource_id", func(t *testing.T) {
-		t.Parallel()
 		path2 := MustPathFromString("document:doc2#view@user:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_relation", func(t *testing.T) {
-		t.Parallel()
 		path2 := MustPathFromString("document:doc1#edit@user:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_subject_type", func(t *testing.T) {
-		t.Parallel()
 		path2 := MustPathFromString("document:doc1#view@group:alice")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_subject_id", func(t *testing.T) {
-		t.Parallel()
 		path2 := MustPathFromString("document:doc1#view@user:bob")
 		require.False(basePath.Equals(path2))
 	})
 
 	t.Run("different_subject_relation", func(t *testing.T) {
-		t.Parallel()
 		path1 := MustPathFromString("document:doc1#view@group:admin#member")
 		path2 := MustPathFromString("document:doc1#view@group:admin")
 		require.False(path1.Equals(path2))
@@ -802,7 +746,6 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	// Note: nil path tests removed since Equals methods now use value receivers
 
 	t.Run("caveat_differences", func(t *testing.T) {
-		t.Parallel()
 		// Base path vs path with caveat
 		require.False(basePath.Equals(pathWithCaveat))
 
@@ -815,7 +758,6 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("expiration_differences", func(t *testing.T) {
-		t.Parallel()
 		// Base path vs path with expiration
 		require.False(basePath.Equals(pathWithExpiration))
 
@@ -828,7 +770,6 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("metadata_differences", func(t *testing.T) {
-		t.Parallel()
 		// Base path vs path with metadata
 		require.False(basePath.Equals(pathWithMetadata))
 
@@ -841,7 +782,6 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("integrity_differences", func(t *testing.T) {
-		t.Parallel()
 		// Base path vs path with integrity
 		require.False(basePath.Equals(pathWithIntegrity))
 
@@ -857,7 +797,6 @@ func TestPath_Equals_Comprehensive(t *testing.T) {
 }
 
 func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create base paths
@@ -886,7 +825,6 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	pathWithMetadata2.Metadata = map[string]any{"source": "path2", "priority": "low"}
 
 	t.Run("basic_merge_and_not", func(t *testing.T) {
-		t.Parallel()
 		// Make a copy to test on
 		testPath := basePath
 		testPath, err := testPath.MergeAndNot(pathWithCaveat1)
@@ -901,7 +839,6 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("both_paths_have_caveats", func(t *testing.T) {
-		t.Parallel()
 		testPath := pathWithCaveat1
 		testPath, err := testPath.MergeAndNot(pathWithCaveat2)
 
@@ -912,7 +849,6 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("merge_metadata", func(t *testing.T) {
-		t.Parallel()
 		testPath := pathWithMetadata1
 		testPath, err := testPath.MergeAndNot(pathWithMetadata2)
 
@@ -925,7 +861,6 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("merge_different_resources_should_error", func(t *testing.T) {
-		t.Parallel()
 		differentResourcePath := MustPathFromString("folder:doc1#view@user:alice")
 		testPath := basePath
 
@@ -936,7 +871,6 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 	})
 
 	t.Run("merge_different_subjects_should_error", func(t *testing.T) {
-		t.Parallel()
 		differentSubjectPath := MustPathFromString("document:doc1#view@user:bob")
 		testPath := basePath
 
@@ -948,8 +882,6 @@ func TestPath_MergeAndNot_Comprehensive(t *testing.T) {
 }
 
 func TestPathOrder_Metadata(t *testing.T) {
-	t.Parallel()
-
 	base := MustPathFromString("document:doc1#view@user:alice")
 	withMeta := func(m map[string]any) Path {
 		p := base
@@ -958,25 +890,21 @@ func TestPathOrder_Metadata(t *testing.T) {
 	}
 
 	t.Run("nil vs nil equal", func(t *testing.T) {
-		t.Parallel()
 		require.Equal(t, 0, PathOrder(withMeta(nil), withMeta(nil)))
 	})
 
 	t.Run("nil vs empty equal", func(t *testing.T) {
-		t.Parallel()
 		// nil and empty map both have zero keys
 		require.Equal(t, 0, PathOrder(withMeta(nil), withMeta(map[string]any{})))
 	})
 
 	t.Run("no metadata less than with metadata", func(t *testing.T) {
-		t.Parallel()
 		// nil (0 keys) < map with 1 key ("a" is the first key encountered)
 		require.Equal(t, -1, PathOrder(withMeta(nil), withMeta(map[string]any{"a": "x"})))
 		require.Equal(t, 1, PathOrder(withMeta(map[string]any{"a": "x"}), withMeta(nil)))
 	})
 
 	t.Run("first differing key determines order", func(t *testing.T) {
-		t.Parallel()
 		// {a:x} < {b:x} because key "a" < "b"
 		require.Equal(t, -1, PathOrder(
 			withMeta(map[string]any{"a": "x"}),
@@ -989,7 +917,6 @@ func TestPathOrder_Metadata(t *testing.T) {
 	})
 
 	t.Run("key order beats key count", func(t *testing.T) {
-		t.Parallel()
 		// sorted keys ["a","b"] vs ["b","c"]: first key "a" < "b", so first map is less
 		// even though both have the same count
 		require.Equal(t, -1, PathOrder(
@@ -999,7 +926,6 @@ func TestPathOrder_Metadata(t *testing.T) {
 	})
 
 	t.Run("same keys compare values", func(t *testing.T) {
-		t.Parallel()
 		require.Equal(t, -1, PathOrder(
 			withMeta(map[string]any{"k": "alpha"}),
 			withMeta(map[string]any{"k": "beta"}),
@@ -1011,7 +937,6 @@ func TestPathOrder_Metadata(t *testing.T) {
 	})
 
 	t.Run("same keys same values equal", func(t *testing.T) {
-		t.Parallel()
 		require.Equal(t, 0, PathOrder(
 			withMeta(map[string]any{"x": "1", "y": "2"}),
 			withMeta(map[string]any{"x": "1", "y": "2"}),
@@ -1019,7 +944,6 @@ func TestPathOrder_Metadata(t *testing.T) {
 	})
 
 	t.Run("value compared in sorted key order", func(t *testing.T) {
-		t.Parallel()
 		// Keys ["a","b"] match; first values match; second value "alpha" < "beta"
 		require.Equal(t, -1, PathOrder(
 			withMeta(map[string]any{"a": "same", "b": "alpha"}),
@@ -1028,7 +952,6 @@ func TestPathOrder_Metadata(t *testing.T) {
 	})
 
 	t.Run("prefix key list is less", func(t *testing.T) {
-		t.Parallel()
 		// {a:x} keys ["a"] vs {a:x, b:x} keys ["a","b"]: first keys match, then left runs out
 		require.Equal(t, -1, PathOrder(
 			withMeta(map[string]any{"a": "x"}),
@@ -1042,17 +965,13 @@ func TestPathOrder_Metadata(t *testing.T) {
 }
 
 func TestCombineExpiration(t *testing.T) {
-	t.Parallel()
-
 	t.Run("both_nil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		result := combineExpiration(nil, nil)
 		require.Nil(result)
 	})
 
 	t.Run("first_nil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		later := time.Now().Add(time.Hour)
 		result := combineExpiration(nil, &later)
@@ -1061,7 +980,6 @@ func TestCombineExpiration(t *testing.T) {
 	})
 
 	t.Run("second_nil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		later := time.Now().Add(time.Hour)
 		result := combineExpiration(&later, nil)
@@ -1070,7 +988,6 @@ func TestCombineExpiration(t *testing.T) {
 	})
 
 	t.Run("first_earlier", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		earlier := time.Now().Add(time.Hour)
 		later := time.Now().Add(2 * time.Hour)
@@ -1080,7 +997,6 @@ func TestCombineExpiration(t *testing.T) {
 	})
 
 	t.Run("second_earlier", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		earlier := time.Now().Add(time.Hour)
 		later := time.Now().Add(2 * time.Hour)
@@ -1090,7 +1006,6 @@ func TestCombineExpiration(t *testing.T) {
 	})
 
 	t.Run("identical_times", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		now := time.Now().Add(time.Hour)
 		result := combineExpiration(&now, &now)
@@ -1100,24 +1015,19 @@ func TestCombineExpiration(t *testing.T) {
 }
 
 func TestCombineIntegrity(t *testing.T) {
-	t.Parallel()
-
 	t.Run("both_nil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		result := combineIntegrity(nil, nil)
 		require.Nil(result) // Should return nil to match codebase convention
 	})
 
 	t.Run("both_empty", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		result := combineIntegrity([]*core.RelationshipIntegrity{}, []*core.RelationshipIntegrity{})
 		require.Nil(result) // Should return nil when both are empty
 	})
 
 	t.Run("first_nil_second_has_values", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
 		result := combineIntegrity(nil, []*core.RelationshipIntegrity{integrity1})
@@ -1126,7 +1036,6 @@ func TestCombineIntegrity(t *testing.T) {
 	})
 
 	t.Run("first_has_values_second_nil", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
 		result := combineIntegrity([]*core.RelationshipIntegrity{integrity1}, nil)
@@ -1135,7 +1044,6 @@ func TestCombineIntegrity(t *testing.T) {
 	})
 
 	t.Run("both_have_values", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
 		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
@@ -1149,7 +1057,6 @@ func TestCombineIntegrity(t *testing.T) {
 	})
 
 	t.Run("multiple_values_each", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}
 		integrity2 := &core.RelationshipIntegrity{KeyId: "key2"}
@@ -1167,7 +1074,6 @@ func TestCombineIntegrity(t *testing.T) {
 	})
 
 	t.Run("no_aliasing", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		// Verify that modifying the result doesn't affect the inputs
 		integrity1 := &core.RelationshipIntegrity{KeyId: "key1"}

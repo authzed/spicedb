@@ -66,11 +66,7 @@ func applyPushdown(outline query.Outline) query.Outline {
 }
 
 func TestCaveatPushdown(t *testing.T) {
-	t.Parallel()
-
 	t.Run("pushes caveat through union when both sides have caveat", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(Union[DS(cav), DS(cav)])
 		input := caveatOutline("test_caveat", unionOutline(
 			dsOutline("test_caveat"),
@@ -87,8 +83,6 @@ func TestCaveatPushdown(t *testing.T) {
 	})
 
 	t.Run("pushes caveat through union only on side with caveat", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(Union[DS(cav), DS(no cav)])
 		input := caveatOutline("test_caveat", unionOutline(
 			dsOutline("test_caveat"),
@@ -106,8 +100,6 @@ func TestCaveatPushdown(t *testing.T) {
 	})
 
 	t.Run("does not push caveat through intersection arrow", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(IntersectionArrow[DS(cav), DS(no cav)])
 		input := caveatOutline("test_caveat", intersectionArrowOutline(
 			dsOutline("test_caveat"),
@@ -122,8 +114,6 @@ func TestCaveatPushdown(t *testing.T) {
 	})
 
 	t.Run("does not push when no children contain the caveat", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(Union[DS(no cav), DS(no cav)])
 		input := caveatOutline("test_caveat", unionOutline(
 			dsOutline(""),
@@ -138,8 +128,6 @@ func TestCaveatPushdown(t *testing.T) {
 	})
 
 	t.Run("does not push through leaf datastore node", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(DS(cav)) — DS has no SubOutlines, nothing to push into
 		input := caveatOutline("test_caveat", dsOutline("test_caveat"))
 
@@ -151,8 +139,6 @@ func TestCaveatPushdown(t *testing.T) {
 	})
 
 	t.Run("pushes all the way through nested union recursively", func(t *testing.T) {
-		t.Parallel()
-
 		// Three levels deep: Caveat(Union[Union[Union[DS(cav), DS(no cav)], DS(no cav)], DS(cav)])
 		//
 		// MutateOutline walks bottom-up, so by the time the outer Caveat node is
@@ -195,8 +181,6 @@ func TestCaveatPushdown(t *testing.T) {
 	})
 
 	t.Run("works with intersection of relations", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(Intersection[DS(cav), DS(no cav)])
 		input := caveatOutline("test_caveat", intersectionOutline(
 			dsOutline("test_caveat"),
@@ -213,8 +197,6 @@ func TestCaveatPushdown(t *testing.T) {
 	})
 
 	t.Run("does not push through nested caveat node", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(Caveat(DS(cav)))
 		// Bottom-up: inner Caveat(DS) is visited first — leaf below, no push.
 		// Then outer Caveat sees a CaveatIteratorType child — blocked.
@@ -230,11 +212,7 @@ func TestCaveatPushdown(t *testing.T) {
 }
 
 func TestOutlineContainsCaveat(t *testing.T) {
-	t.Parallel()
-
 	t.Run("detects caveat directly in datastore node", func(t *testing.T) {
-		t.Parallel()
-
 		// Pushdown is blocked at leaf, so result stays Caveat(DS) — proving the
 		// caveat was detected (otherwise nothing would have changed to check).
 		// Test containment indirectly: wrap in union with a no-caveat peer.
@@ -247,8 +225,6 @@ func TestOutlineContainsCaveat(t *testing.T) {
 	})
 
 	t.Run("does not detect when caveat name differs", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat("test_caveat") over a DS with "other_caveat" — no match
 		input := caveatOutline("test_caveat", unionOutline(
 			dsOutline("other_caveat"),
@@ -261,8 +237,6 @@ func TestOutlineContainsCaveat(t *testing.T) {
 	})
 
 	t.Run("detects caveat in nested datastore", func(t *testing.T) {
-		t.Parallel()
-
 		// Caveat(Union[DS(no cav), Union[DS(no cav), DS(cav)]])
 		input := caveatOutline("test_caveat", unionOutline(
 			dsOutline(""),

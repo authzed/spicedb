@@ -23,8 +23,6 @@ import (
 // arrow directions to RTL) and asserts the advised plan returns the same set
 // of paths.
 func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
-	t.Parallel()
-
 	const (
 		numFiles      = 5
 		numOrgs       = 29  // prime

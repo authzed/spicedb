@@ -245,8 +245,6 @@ func TestBasicIntegrityFailureDueToWriteWithExpiredKey(t *testing.T) {
 }
 
 func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
-	t.Parallel()
-
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 

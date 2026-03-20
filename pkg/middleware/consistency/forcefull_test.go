@@ -34,11 +34,7 @@ func (r requestWithConsistency) GetConsistency() *v1.Consistency {
 // implement hasConsistency. The unit tests below cover the behavior by testing interceptors directly.
 
 func TestSetFullConsistencyRevisionToContext(t *testing.T) {
-	t.Parallel()
-
 	t.Run("returns nil when no handle in context", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -53,8 +49,6 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 	})
 
 	t.Run("sets head revision for request with consistency", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -75,8 +69,6 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 	})
 
 	t.Run("sets head revision without service label", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -97,8 +89,6 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 	})
 
 	t.Run("returns nil for request without consistency interface", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -110,8 +100,6 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 	})
 
 	t.Run("returns error when HeadRevision fails", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -127,11 +115,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 }
 
 func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
-	t.Parallel()
-
 	t.Run("sets full consistency revision for non-bypass method", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -163,8 +147,6 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 	})
 
 	t.Run("returns error when HeadRevision fails", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -187,8 +169,6 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 	})
 
 	t.Run("does not call HeadRevision for non-consistency request", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -232,11 +212,7 @@ func (f *failingRecvStream) Context() context.Context { return f.ctx }
 func (f *failingRecvStream) RecvMsg(_ any) error      { return f.err }
 
 func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
-	t.Parallel()
-
 	t.Run("wraps stream with recvWrapper for non-bypass method", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -275,8 +251,6 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 	})
 
 	t.Run("recvWrapper returns error when HeadRevision fails", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -307,8 +281,6 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 	})
 
 	t.Run("recvWrapper propagates upstream RecvMsg errors", func(t *testing.T) {
-		t.Parallel()
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
@@ -339,8 +311,6 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 }
 
 func TestForceFullConsistencyUnaryBypassWhitelist(t *testing.T) {
-	t.Parallel()
-
 	bypassMethods := []struct {
 		name   string
 		method string
@@ -352,8 +322,6 @@ func TestForceFullConsistencyUnaryBypassWhitelist(t *testing.T) {
 
 	for _, tc := range bypassMethods {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			interceptor := ForceFullConsistencyUnaryServerInterceptor("somelabel")
 
 			var capturedCtx context.Context
@@ -377,8 +345,6 @@ func TestForceFullConsistencyUnaryBypassWhitelist(t *testing.T) {
 }
 
 func TestForceFullConsistencyStreamBypassWhitelist(t *testing.T) {
-	t.Parallel()
-
 	bypassMethods := []struct {
 		name   string
 		method string
@@ -390,8 +356,6 @@ func TestForceFullConsistencyStreamBypassWhitelist(t *testing.T) {
 
 	for _, tc := range bypassMethods {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
 			originalStream := &mockServerStream{ctx: context.Background()}
 
@@ -412,8 +376,6 @@ func TestForceFullConsistencyStreamBypassWhitelist(t *testing.T) {
 }
 
 func TestSetFullConsistencyRevisionToContextWithReadonlyError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dl := mock_datalayer.NewMockDataLayer(ctrl)

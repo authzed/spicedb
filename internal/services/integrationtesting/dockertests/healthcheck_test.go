@@ -1,6 +1,6 @@
 //go:build ci && docker && !skipintegrationtests
 
-package integrationtesting_test
+package dockertests_test
 
 import (
 	"context"

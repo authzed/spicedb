@@ -33,8 +33,6 @@ var (
 )
 
 func TestSimpleCheck(t *testing.T) {
-	t.Parallel()
-
 	type expected struct {
 		relation string
 		isMember bool
@@ -122,7 +120,6 @@ func TestSimpleCheck(t *testing.T) {
 				userset := userset
 				expected := expected
 				t.Run(name, func(t *testing.T) {
-					t.Parallel()
 					require := require.New(t)
 
 					ctx, dispatch, revision := newLocalDispatcher(t)
@@ -154,7 +151,6 @@ func TestSimpleCheck(t *testing.T) {
 }
 
 func TestMaxDepth(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
@@ -191,7 +187,6 @@ func TestMaxDepth(t *testing.T) {
 }
 
 func TestCheckMetadata(t *testing.T) {
-	t.Parallel()
 	type expected struct {
 		relation              string
 		isMember              bool
@@ -265,8 +260,6 @@ func TestCheckMetadata(t *testing.T) {
 				userset := userset
 				expected := expected
 				t.Run(name, func(t *testing.T) {
-					t.Parallel()
-
 					require := require.New(t)
 
 					ctx, dispatch, revision := newLocalDispatcher(t)
@@ -299,7 +292,6 @@ func TestCheckMetadata(t *testing.T) {
 }
 
 func TestCheckPermissionOverSchema(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name                      string
 		schema                    string
@@ -1417,8 +1409,6 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -1478,7 +1468,6 @@ func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
 }
 
 func TestCheckDebugging(t *testing.T) {
-	t.Parallel()
 	type expectedFrame struct {
 		resourceType tuple.RelationReference
 		resourceIDs  []string
@@ -1556,8 +1545,6 @@ func TestCheckDebugging(t *testing.T) {
 
 		tc := tc
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcher(t)
@@ -1593,7 +1580,6 @@ func TestCheckDebugging(t *testing.T) {
 }
 
 func TestCheckWithHints(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name                   string
 		schema                 string
@@ -1925,8 +1911,6 @@ func TestCheckWithHints(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -1968,7 +1952,6 @@ func TestCheckWithHints(t *testing.T) {
 }
 
 func TestCheckHintsPartialApplication(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -2018,7 +2001,6 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 }
 
 func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())

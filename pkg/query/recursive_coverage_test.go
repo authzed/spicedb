@@ -9,7 +9,6 @@ import (
 
 // TestRecursiveIterator_CanonicalKey tests the CanonicalKey() method (currently 0% coverage)
 func TestRecursiveIterator_CanonicalKey(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
@@ -24,7 +23,6 @@ func TestRecursiveIterator_CanonicalKey(t *testing.T) {
 
 // TestReplaceRecursiveSentinel_NonMatchingSentinel tests replacing sentinels that don't match
 func TestReplaceRecursiveSentinel_NonMatchingSentinel(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create sentinels with different definitions/relations
@@ -62,7 +60,6 @@ func TestReplaceRecursiveSentinel_NonMatchingSentinel(t *testing.T) {
 
 // TestReplaceRecursiveSentinel_DeepNesting tests replacement in deeply nested trees
 func TestReplaceRecursiveSentinel_DeepNesting(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
@@ -88,7 +85,6 @@ func TestReplaceRecursiveSentinel_DeepNesting(t *testing.T) {
 
 // TestBreadthFirstIterResources_MaxDepth tests that BFS respects max depth limit
 func TestBreadthFirstIterResources_MaxDepth(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create an iterator that always returns new paths (infinite recursion)
@@ -118,10 +114,7 @@ func TestBreadthFirstIterResources_MaxDepth(t *testing.T) {
 
 // TestBreadthFirstIterResources_ErrorHandling tests error paths in BFS IterResources
 func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ErrorDuringQuery", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty iterator that fails during query
@@ -142,7 +135,6 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("ErrorDuringCollection", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a faulty iterator that fails during collection
@@ -165,7 +157,6 @@ func TestBreadthFirstIterResources_ErrorHandling(t *testing.T) {
 
 // TestBreadthFirstIterResources_MergeOrSemantics tests OR merging of duplicate paths
 func TestBreadthFirstIterResources_MergeOrSemantics(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create an iterator that returns the same endpoint in different plies
@@ -197,7 +188,6 @@ func TestBreadthFirstIterResources_MergeOrSemantics(t *testing.T) {
 
 // TestIterativeDeepening_MaxDepth tests that iterative deepening respects max depth
 func TestIterativeDeepening_MaxDepth(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create a simple iterator that always returns something at each depth
@@ -220,7 +210,6 @@ func TestIterativeDeepening_MaxDepth(t *testing.T) {
 
 // TestUnwrapRecursiveIterators_NestedRecursion tests unwrapping nested RecursiveIterators
 func TestUnwrapRecursiveIterators_NestedRecursion(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	// Create nested recursive iterators

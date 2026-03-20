@@ -1,6 +1,6 @@
 //go:build !skipintegrationtests
 
-package integrationtesting_test
+package certtest_test
 
 import (
 	"context"
