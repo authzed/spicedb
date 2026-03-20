@@ -257,6 +257,49 @@ func TestSchemaPositionMapper(t *testing.T) {
 			},
 		},
 		{
+			name: "caveat parameter reference second reference",
+			schema: `definition user {}
+
+			caveat somecaveat(someparam int) {
+				someparam < 42 || someparam > 43
+			}
+
+			definition resource {
+				relation viewer: user with somecaveat
+				permission view = viewer
+			}
+			`,
+			line:   3,
+			column: 23,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 3, ColumnPosition: 23},
+				Text:                     "someparam",
+				ReferenceType:            ReferenceTypeCaveatParameter,
+				ReferenceMarkdown:        "someparam int",
+				TargetSource:             &testSource,
+				TargetSourceCode:         "someparam int",
+				TargetNamePositionOffset: 0,
+			},
+		},
+		{
+			name: "caveat expression non-parameter token",
+			schema: `definition user {}
+
+			caveat somecaveat(someparam int) {
+				someparam < 42 || someparam > 43
+			}
+
+			definition resource {
+				relation viewer: user with somecaveat
+				permission view = viewer
+			}
+			`,
+			line:              3,
+			column:            19, // space
+			expectedReference: nil,
+		},
+		{
 			name: "longer test",
 			schema: `definition user {}
 

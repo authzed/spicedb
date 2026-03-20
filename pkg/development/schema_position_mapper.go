@@ -237,8 +237,8 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 	}
 
 	// Caveat parameter used in expression.
-	if caveatParamName, caveatDef, ok := r.caveatParamChain(nodeChain, source, position); ok {
-		targetSourceCode := fmt.Sprintf("%s %s", caveatParamName, caveats.ParameterTypeString(caveatDef.ParameterTypes[caveatParamName]))
+	if caveatParamName, paramTypeString, ok := r.caveatParamChain(nodeChain, source, position); ok {
+		targetSourceCode := fmt.Sprintf("%s %s", caveatParamName, paramTypeString)
 
 		return &SchemaReference{
 			Source:   source,
@@ -279,59 +279,77 @@ func (r *SchemaPositionMapper) lookupRelation(defName, relationName string) (*co
 	return rel, ts, true
 }
 
-func (r *SchemaPositionMapper) caveatParamChain(nodeChain *compiler.NodeChain, source input.Source, position input.Position) (string, *core.CaveatDefinition, bool) {
+// caveatParamChain determines whether the given position within a caveat expression refers to a
+// caveat parameter. It walks the node chain to find the enclosing caveat definition, tokenizes the
+// CEL expression, and checks if the token at the cursor position matches a declared parameter name.
+//
+// For example, given the schema:
+//
+//	caveat my_caveat(some_param int) {
+//	    some_param > 0
+//	}
+//
+// If the cursor is on "some_param" in the expression "some_param > 0", this returns
+// ("some_param", "int", true).
+//
+// Returns ("", "", false) if the position is not within a caveat expression or does not correspond
+// to a known parameter.
+func (r *SchemaPositionMapper) caveatParamChain(nodeChain *compiler.NodeChain, source input.Source, position input.Position) (string, string, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeCaveatExpression) {
-		return "", nil, false
+		return "", "", false
 	}
 
 	caveatDefNode := nodeChain.FindNodeOfType(dslshape.NodeTypeCaveatDefinition)
 	if caveatDefNode == nil {
-		return "", nil, false
+		return "", "", false
 	}
 
 	caveatName, err := caveatDefNode.GetString(dslshape.NodeCaveatDefinitionPredicateName)
 	if err != nil {
-		return "", nil, false
+		return "", "", false
 	}
 
 	caveatDef, ok := r.lookupCaveat(caveatName)
 	if !ok {
-		return "", nil, false
+		return "", "", false
 	}
 
 	runePosition, err := r.schema.SourcePositionToRunePosition(source, position)
 	if err != nil {
-		return "", nil, false
+		return "", "", false
 	}
 
 	exprRunePosition, err := nodeChain.Head().GetInt(dslshape.NodePredicateStartRune)
 	if err != nil {
-		return "", nil, false
+		return "", "", false
 	}
 
 	if exprRunePosition > runePosition {
-		return "", nil, false
+		return "", "", false
 	}
 
-	relationRunePosition := runePosition - exprRunePosition
+	relativeRunePosition := runePosition - exprRunePosition
 
 	caveatExpr, err := nodeChain.Head().GetString(dslshape.NodeCaveatExpressionPredicateExpression)
 	if err != nil {
-		return "", nil, false
+		return "", "", false
 	}
 
 	// Split the expression into tokens and find the associated token.
 	tokens := strings.FieldsFunc(caveatExpr, splitCELToken)
 	currentIndex := 0
 	for _, token := range tokens {
-		if currentIndex <= relationRunePosition && currentIndex+len(token) >= relationRunePosition {
-			if _, ok := caveatDef.ParameterTypes[token]; ok {
-				return token, caveatDef, true
+		// Find the token's actual position in the expression starting from currentIndex.
+		tokenStart := strings.Index(caveatExpr[currentIndex:], token) + currentIndex
+		if tokenStart <= relativeRunePosition && tokenStart+len(token) >= relativeRunePosition {
+			if paramType, ok := caveatDef.ParameterTypes[token]; ok {
+				return token, caveats.ParameterTypeString(paramType), true
 			}
 		}
+		currentIndex = tokenStart + len(token)
 	}
 
-	return "", caveatDef, true
+	return "", "", false
 }
 
 func splitCELToken(r rune) bool {
