@@ -371,7 +371,7 @@ definition document {
 	testutil.RequireProtoEqual(t, caveatDef, readCaveatDef, "found changed caveat definition")
 
 	// Ensure the read namespace's string form matches the input as an extra check.
-	generated, _, err := generator.GenerateSchema([]compiler.SchemaDefinition{readCaveatDef, readNsDef})
+	generated, _, err := generator.GenerateSchema(ctx, []compiler.SchemaDefinition{readCaveatDef, readNsDef})
 	require.NoError(err)
 	require.Equal(schemaString, generated)
 }

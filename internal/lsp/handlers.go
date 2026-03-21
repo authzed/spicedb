@@ -282,7 +282,7 @@ func (s *Server) textDocHover(_ context.Context, r *jsonrpc2.Request) (*Hover, e
 	return hoverContents, nil
 }
 
-func (s *Server) textDocFormat(_ context.Context, r *jsonrpc2.Request) ([]lsp.TextEdit, error) {
+func (s *Server) textDocFormat(ctx context.Context, r *jsonrpc2.Request) ([]lsp.TextEdit, error) {
 	params, err := unmarshalParams[lsp.DocumentFormattingParams](r)
 	if err != nil {
 		return nil, err
@@ -295,7 +295,7 @@ func (s *Server) textDocFormat(_ context.Context, r *jsonrpc2.Request) ([]lsp.Te
 			return err
 		}
 
-		formattedSchema, _, err := generator.GenerateSchema(compiled.OrderedDefinitions)
+		formattedSchema, _, err := generator.GenerateSchema(ctx, compiled.OrderedDefinitions)
 		if err != nil {
 			return err
 		}
