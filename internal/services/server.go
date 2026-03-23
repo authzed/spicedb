@@ -3,6 +3,7 @@ package services
 import (
 	"time"
 
+	"buf.build/go/protovalidate"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -60,7 +61,16 @@ func RegisterGrpcServices(
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
-	validator := genutil.MustNewProtoValidator()
+	validator := genutil.MustNewProtoValidator(protovalidate.WithMessages(
+		// NOTE: these are the messages associated with the most latency-sensitive
+		// services, which are the messages we want to have a warm cache for.
+		// We do not warm the cache for every message because it increases memory
+		// usage and startup time.
+		&v1.BulkCheckPermissionRequest{},
+		&v1.CheckPermissionRequest{},
+		&v1.LookupResourcesRequest{},
+		&v1.LookupSubjectsRequest{},
+	))
 
 	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig, validator))
 	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer(dispatch, permSysConfig, validator))
