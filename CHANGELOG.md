@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - Fix duplicate diagnostics in LSP server when VS Code pulls diagnostics (https://github.com/authzed/spicedb/pull/2977)
 - In DevContext's schema position mapper, only the first occurrence of a caveat parameter could be found (https://github.com/authzed/spicedb/pull/2972)
+- Fix increase in memory usage brought in v1.50.0 due to replacing `protoc-gen-validate` with `protovalidate` (https://github.com/authzed/spicedb/pull/2984)
 
 ## [1.50.0] - 2026-03-19
 ### Added

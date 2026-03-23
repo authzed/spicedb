@@ -137,6 +137,7 @@ type ExperimentalQueryPlanConfig struct {
 func NewPermissionsServer(
 	dispatch dispatch.Dispatcher,
 	config PermissionsServerConfig,
+	validator protovalidate.Validator,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
 		MaxPreconditionsCount:              defaultIfZero(config.MaxPreconditionsCount, 1000),
@@ -158,12 +159,6 @@ func NewPermissionsServer(
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 	}
-	validator := genutil.MustNewProtoValidator(
-		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
-		protovalidate.WithMessages(
-			inputMessagesForService(v1.RegisterPermissionsServiceServer, v1.PermissionsServiceServer(nil))...,
-		))
-
 	return &permissionServer{
 		dispatch: dispatch,
 		config:   configWithDefaults,

@@ -38,7 +38,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
-	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -56,7 +55,7 @@ const (
 )
 
 // NewExperimentalServer creates a ExperimentalServiceServer instance.
-func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig PermissionsServerConfig, opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
+func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig PermissionsServerConfig, validator protovalidate.Validator, opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
 	config := options.NewExperimentalServerOptionsWithOptionsAndDefaults(opts...)
 	if config.DefaultExportBatchSize == 0 {
 		log.
@@ -95,12 +94,6 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 			Msg("experimental server config specified invalid DispatchChunkSize, defaulting to 100")
 		chunkSize = 100
 	}
-
-	validator := genutil.MustNewProtoValidator(
-		// NOTE: using `WithMessages` here allows us to pre-warm the validator cache
-		protovalidate.WithMessages(
-			inputMessagesForService(v1.RegisterExperimentalServiceServer, v1.ExperimentalServiceServer(nil))...,
-		))
 
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{

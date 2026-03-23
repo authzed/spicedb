@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/cespare/xxhash/v2"
 )
 
@@ -71,9 +70,7 @@ func memhash(p unsafe.Pointer, h, s uintptr) uintptr
 
 func runMemHash(seed uint64, data []byte) uint64 {
 	ss := (*stringStruct)(unsafe.Pointer(&data))
-	// NOTE: s.len represents a length which should never be negative, so we ignore the error.
-	length, _ := safecast.Convert[uintptr](ss.len)
-	return uint64(memhash(ss.str, uintptr(seed), length))
+	return uint64(memhash(ss.str, uintptr(seed), uintptr(ss.len))) //nolint:gosec
 }
 
 // BuildKey returns the constructed DispatchCheckKey.
