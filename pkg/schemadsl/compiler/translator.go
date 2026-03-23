@@ -336,6 +336,10 @@ func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.Sour
 		return nil
 	}
 
+	if !dslNode.Has(dslshape.NodePredicateSource) {
+		return nil
+	}
+
 	sourceRange, err := dslNode.Range(mapper)
 	if err != nil {
 		return nil
@@ -355,9 +359,15 @@ func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.Sour
 		uintCol = 0
 	}
 
+	filename, err := dslNode.GetString(dslshape.NodePredicateSource)
+	if err != nil {
+		return nil
+	}
+
 	return &core.SourcePosition{
 		ZeroIndexedLineNumber:     uintLine,
 		ZeroIndexedColumnPosition: uintCol,
+		FileName:                  filename,
 	}
 }
 
