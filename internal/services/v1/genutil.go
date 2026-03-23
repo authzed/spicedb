@@ -1,13 +1,10 @@
 package v1
 
 import (
-	"buf.build/go/protovalidate"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
-
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 )
 
 // fakeServiceRegistrar implements the grpc.ServiceRegistrar interface
@@ -60,16 +57,4 @@ func inputMessagesForService[S any](
 		msgs = append(msgs, msgType.New().Interface())
 	}
 	return msgs
-}
-
-// AllServiceValidatorOptions returns protovalidate options that pre-warm the
-// validator cache with input messages from all gRPC services. This allows a
-// single shared validator to be used across all services.
-func AllServiceValidatorOptions() []protovalidate.ValidatorOption {
-	allMessages := make([]proto.Message, 0, 100)
-	allMessages = append(allMessages, inputMessagesForService(v1.RegisterPermissionsServiceServer, v1.PermissionsServiceServer(nil))...)
-	allMessages = append(allMessages, inputMessagesForService(v1.RegisterExperimentalServiceServer, v1.ExperimentalServiceServer(nil))...)
-	allMessages = append(allMessages, inputMessagesForService(v1.RegisterSchemaServiceServer, v1.SchemaServiceServer(nil))...)
-	allMessages = append(allMessages, inputMessagesForService(v1.RegisterWatchServiceServer, v1.WatchServiceServer(nil))...)
-	return []protovalidate.ValidatorOption{protovalidate.WithMessages(allMessages...)}
 }

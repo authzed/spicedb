@@ -181,7 +181,7 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 			consistency.StreamServerInterceptor("development", consistency.TreatMismatchingTokensAsError),
 		),
 	)
-	validator := genutil.MustNewProtoValidator(v1svc.AllServiceValidatorOptions()...)
+	validator := genutil.MustNewProtoValidator()
 	ps := v1svc.NewPermissionsServer(dc.Dispatcher, v1svc.PermissionsServerConfig{
 		MaxUpdatesPerWrite:               50,
 		MaxPreconditionsCount:            50,

@@ -18,9 +18,9 @@ replace github.com/influxdata/tdigest => github.com/hdrodz/tdigest v0.0.0-202304
 replace github.com/docker/docker => github.com/docker/docker v28.0.0+incompatible
 
 require (
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.10-20251209175733-2a1774d88802.1
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260209202127-80ab13bee0bf.1
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.10-20251118093737-4105057cc7d4.1
-	buf.build/go/protovalidate v1.1.0
+	buf.build/go/protovalidate v1.1.3
 	cloud.google.com/go/spanner v1.86.1
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.2
@@ -284,7 +284,7 @@ require (
 	github.com/golangci/revgrep v0.8.0 // indirect
 	github.com/golangci/swaggoswag v0.0.0-20250504205917-77f2aca3143e // indirect
 	github.com/golangci/unconvert v0.0.0-20250410112200-a129a6e6413e // indirect
-	github.com/google/cel-go v0.26.1 // indirect
+	github.com/google/cel-go v0.27.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect

@@ -60,9 +60,7 @@ func RegisterGrpcServices(
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
-	// Create a single shared protovalidate validator for all services to reduce
-	// live heap objects from CEL/protovalidate infrastructure (~137K objects per instance).
-	validator := genutil.MustNewProtoValidator(v1svc.AllServiceValidatorOptions()...)
+	validator := genutil.MustNewProtoValidator()
 
 	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig, validator))
 	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer(dispatch, permSysConfig, validator))
