@@ -60,7 +60,7 @@ func getFullSchema(ctx context.Context, reader datalayer.SchemaReader) (string, 
 		defs = append(defs, ns.Definition)
 	}
 
-	schema, _, err := generator.GenerateSchema(defs)
+	schema, _, err := generator.GenerateSchema(ctx, defs)
 	if err != nil {
 		return "", err
 	}

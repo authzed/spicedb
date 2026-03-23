@@ -459,7 +459,7 @@ definition user {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			source, _, err := GenerateSchema(compiled.OrderedDefinitions)
+			source, _, err := GenerateSchema(t.Context(), compiled.OrderedDefinitions)
 			require.NoError(err)
 			require.Equal(test.expected, source)
 		})

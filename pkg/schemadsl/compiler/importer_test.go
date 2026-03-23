@@ -82,7 +82,7 @@ func TestImporter(t *testing.T) {
 				compiler.SourceFolder(sourceFolder))
 			require.NoError(t, err)
 
-			generated, _, err := generator.GenerateSchema(compiled.OrderedDefinitions)
+			generated, _, err := generator.GenerateSchema(t.Context(), compiled.OrderedDefinitions)
 			require.NoError(t, err)
 
 			if os.Getenv("REGEN") == "true" {
@@ -107,7 +107,7 @@ func TestImporter(t *testing.T) {
 				compiler.SourceFS(fsys))
 			require.NoError(t, err)
 
-			generated, _, err := generator.GenerateSchema(compiled.OrderedDefinitions)
+			generated, _, err := generator.GenerateSchema(t.Context(), compiled.OrderedDefinitions)
 			require.NoError(t, err)
 
 			if os.Getenv("REGEN") == "true" {

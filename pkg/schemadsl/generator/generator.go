@@ -29,8 +29,8 @@ const Ellipsis = "..."
 // MaxSingleLineCommentLength sets the maximum length for a comment to made single line.
 const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
-func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
-	return GenerateSchemaWithCaveatTypeSet(context.TODO(), definitions, caveattypes.Default.TypeSet)
+func GenerateSchema(ctx context.Context, definitions []compiler.SchemaDefinition) (string, bool, error) {
+	return GenerateSchemaWithCaveatTypeSet(ctx, definitions, caveattypes.Default.TypeSet)
 }
 
 // GenerateSchemaWithCaveatTypeSet generates a DSL view of the given schema.

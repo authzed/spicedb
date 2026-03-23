@@ -327,7 +327,7 @@ definition folder {
 				schemaDefinitions = append(schemaDefinitions, caveat)
 			}
 
-			generatedSchema, _, err := generator.GenerateSchema(schemaDefinitions)
+			generatedSchema, _, err := generator.GenerateSchema(t.Context(), schemaDefinitions)
 			require.NoError(t, err)
 
 			// Verify the generated schema compiles
@@ -365,7 +365,7 @@ definition folder {
 				expectedSchemaDefinitions = append(expectedSchemaDefinitions, caveat)
 			}
 
-			expectedGenerated, _, err := generator.GenerateSchema(expectedSchemaDefinitions)
+			expectedGenerated, _, err := generator.GenerateSchema(t.Context(), expectedSchemaDefinitions)
 			require.NoError(t, err)
 
 			// Compare the two generated schemas
@@ -674,7 +674,7 @@ definition user {}`,
 				schemaDefinitions = append(schemaDefinitions, caveat)
 			}
 
-			generatedSchema, _, err := generator.GenerateSchema(schemaDefinitions)
+			generatedSchema, _, err := generator.GenerateSchema(t.Context(), schemaDefinitions)
 			require.NoError(t, err)
 
 			// Verify the generated schema compiles
@@ -712,7 +712,7 @@ definition user {}`,
 				expectedSchemaDefinitions = append(expectedSchemaDefinitions, caveat)
 			}
 
-			expectedGenerated, _, err := generator.GenerateSchema(expectedSchemaDefinitions)
+			expectedGenerated, _, err := generator.GenerateSchema(t.Context(), expectedSchemaDefinitions)
 			require.NoError(t, err)
 
 			// Compare the two generated schemas
@@ -1116,7 +1116,7 @@ definition user {}
 				schemaDefinitions = append(schemaDefinitions, caveat)
 			}
 
-			generatedSchema, _, err := generator.GenerateSchema(schemaDefinitions)
+			generatedSchema, _, err := generator.GenerateSchema(t.Context(), schemaDefinitions)
 			require.NoError(t, err)
 
 			// Verify the generated schema compiles
@@ -1154,7 +1154,7 @@ definition user {}
 				expectedSchemaDefinitions = append(expectedSchemaDefinitions, caveat)
 			}
 
-			expectedGenerated, _, err := generator.GenerateSchema(expectedSchemaDefinitions)
+			expectedGenerated, _, err := generator.GenerateSchema(t.Context(), expectedSchemaDefinitions)
 			require.NoError(t, err)
 
 			// Compare the two generated schemas

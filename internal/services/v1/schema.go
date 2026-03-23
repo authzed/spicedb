@@ -7,6 +7,7 @@ import (
 
 	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
+	"go.opentelemetry.io/otel"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -28,6 +29,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
+
+var tracer = otel.Tracer("spicedb/internal/services/v1/schema")
 
 type SchemaServerConfig struct {
 	// CaveatTypeSet is the set of caveat types that are allowed in the schema.
@@ -142,13 +145,16 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	// the user must first compile them with `zed`
 	opts = append(opts, compiler.DisallowImportFlag())
 
+	_, span := tracer.Start(ctx, "compile")
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
 	}, compiler.AllowUnprefixedObjectType(), opts...)
 	if err != nil {
+		span.End()
 		return nil, ss.rewriteError(ctx, err)
 	}
+	span.End()
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
 	// Do as much validation as we can before talking to the datastore.
