@@ -66,13 +66,15 @@ jobs:
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478" # master
+      - uses: "aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1" # For https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23
+        #uses: "aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478" # master
         with:
           scan-type: "fs"
           ignore-unfixed: true
           format: "table"
           exit-code: "1"
           severity: "CRITICAL,HIGH,MEDIUM"
+          version: "v0.69.3"
         env:
           TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db"
           TRIVY_JAVA_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-java-db"
@@ -87,4 +89,4 @@ jobs:
       - name: "Obtain container image to scan"
         run: 'echo "IMAGE_VERSION=$(jq .version dist/linux_amd64_v1/metadata.json --raw-output)" >> $GITHUB_ENV'
       - name: "run trivy on release image"
-        run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64 --db-repository public.ecr.aws/aquasecurity/trivy-db --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db"
+        run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.69.3 image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64 --db-repository public.ecr.aws/aquasecurity/trivy-db --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db"
