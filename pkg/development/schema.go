@@ -16,8 +16,9 @@ import (
 type CompileOption func(*compileConfig)
 
 type compileConfig struct {
-	fsys         fs.FS
-	rootFileName string
+	fsys           fs.FS
+	rootFileName   string
+	disableImports bool
 }
 
 // WithSourceFS enables import resolution using the given filesystem.
@@ -32,6 +33,12 @@ func WithRootFileName(name string) CompileOption {
 	return func(cfg *compileConfig) { cfg.rootFileName = name }
 }
 
+// WithDisableImports lets a caller disable imports in a given
+// development context.
+func WithDisableImports() CompileOption {
+	return func(cfg *compileConfig) { cfg.disableImports = true }
+}
+
 // CompileSchema compiles a schema into its caveat and namespace definition(s), returning a developer
 // error if the schema could not be compiled. The non-developer error is returned only if an
 // internal errors occurred.
@@ -44,6 +51,10 @@ func CompileSchema(schema string, opts ...CompileOption) (*compiler.CompiledSche
 	var compilerOpts []compiler.Option
 	if cfg.fsys != nil {
 		compilerOpts = append(compilerOpts, compiler.SourceFS(cfg.fsys))
+	}
+
+	if cfg.disableImports {
+		compilerOpts = append(compilerOpts, compiler.DisallowImportFlag())
 	}
 
 	sourceFileName := "schema"

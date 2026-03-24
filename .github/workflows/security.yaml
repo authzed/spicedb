@@ -24,7 +24,6 @@ jobs:
     name: "CodeQL Analyze"
     if: "${{ github.event_name == 'pull_request' }}" # workaround to https://github.com/github/codeql-action/issues/1537
     runs-on: "depot-ubuntu-24.04-8"
-    timeout-minutes: "${{ (matrix.language == 'swift' && 120) || 360 }}"
     permissions:
       # required for all workflows
       security-events: "write"
@@ -33,15 +32,10 @@ jobs:
       actions: "read"
       contents: "read"
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ["go"]
-
     steps:
       - uses: "actions/checkout@v6"
       - uses: "authzed/actions/setup-go@main"
-      - uses: "authzed/actions/codeql@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main"
+      - uses: "authzed/actions/codeql@main"
 
   trivy:
     name: "Analyze Code and Docker Image with Trivvy"
