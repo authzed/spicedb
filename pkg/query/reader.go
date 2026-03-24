@@ -92,10 +92,10 @@ type datalayerQueryDatastoreReader struct {
 // convertRelationSeqToPathSeq converts an iter.Seq2[tuple.Relationship, error] from
 // the datastore into a PathSeq by transforming each Relationship into a Path.
 func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) PathSeq {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for rel, err := range relSeq {
 			if err != nil {
-				if !yield(Path{}, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue

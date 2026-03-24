@@ -186,7 +186,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Collect results from original iterator
 	originalSeq, err := ctx.Check(original, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var originalResults []Path
+	var originalResults []*Path
 	if originalSeq != nil {
 		originalResults, err = CollectAll(originalSeq)
 		require.NoError(err)
@@ -195,7 +195,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Collect results from cloned iterator
 	clonedSeq, err := ctx.Check(cloned, NewObjects("document", resourceIDs[0]), NewObject("user", subjectID).WithEllipses())
 	require.NoError(err)
-	var clonedResults []Path
+	var clonedResults []*Path
 	if clonedSeq != nil {
 		clonedResults, err = CollectAll(clonedSeq)
 		require.NoError(err)
@@ -204,7 +204,7 @@ func TestIntersectionIteratorClone(t *testing.T) {
 	// Both iterators should produce identical results (order may vary)
 	require.Len(clonedResults, len(originalResults), "cloned iterator should produce same number of results")
 	for _, expectedPath := range originalResults {
-		found := slices.ContainsFunc(clonedResults, expectedPath.Equals)
+		found := slices.ContainsFunc(clonedResults, func(p *Path) bool { return expectedPath.Equals(*p) })
 		require.True(found, "Expected path %v should be found in cloned results", expectedPath)
 	}
 }
@@ -291,8 +291,8 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathWithCaveat1)
-		iter2 := NewFixedIterator(pathWithCaveat2)
+		iter1 := NewFixedIterator(*pathWithCaveat1)
+		iter2 := NewFixedIterator(*pathWithCaveat2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -324,8 +324,8 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 
 		pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
 
-		iter1 := NewFixedIterator(pathWithCaveat)
-		iter2 := NewFixedIterator(pathNoCaveat)
+		iter1 := NewFixedIterator(*pathWithCaveat)
+		iter2 := NewFixedIterator(*pathNoCaveat)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -362,8 +362,8 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 		}
 
 		// Create iterators that return both paths
-		iter1 := NewFixedIterator(pathViewer, pathEditor)
-		iter2 := NewFixedIterator(pathViewer, pathEditor)
+		iter1 := NewFixedIterator(*pathViewer, *pathEditor)
+		iter2 := NewFixedIterator(*pathViewer, *pathEditor)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -407,8 +407,8 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathDoc1Alice)
-		iter2 := NewFixedIterator(pathDoc2Bob)
+		iter1 := NewFixedIterator(*pathDoc1Alice)
+		iter2 := NewFixedIterator(*pathDoc2Bob)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -444,9 +444,9 @@ func TestIntersectionIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(pathCaveat1)
-		iter2 := NewFixedIterator(pathNoCaveat)
-		iter3 := NewFixedIterator(pathCaveat2)
+		iter1 := NewFixedIterator(*pathCaveat1)
+		iter2 := NewFixedIterator(*pathNoCaveat)
+		iter3 := NewFixedIterator(*pathCaveat2)
 
 		intersect := NewIntersectionIterator(iter1, iter2, iter3)
 
@@ -475,8 +475,8 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@user:alice")
 
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -497,8 +497,8 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@user:bob")
 
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -516,7 +516,7 @@ func TestIntersectionIterSubjects(t *testing.T) {
 
 		// One iterator is empty
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
-		iter1 := NewFixedIterator(path1)
+		iter1 := NewFixedIterator(*path1)
 		iter2 := NewFixedIterator()
 
 		intersect := NewIntersectionIterator(iter1, iter2)
@@ -538,9 +538,9 @@ func TestIntersectionIterSubjects(t *testing.T) {
 		path2 := MustPathFromString("document:doc1#editor@user:alice")
 		path3 := MustPathFromString("document:doc1#owner@user:alice")
 
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
-		iter3 := NewFixedIterator(path3)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
+		iter3 := NewFixedIterator(*path3)
 
 		intersect := NewIntersectionIterator(iter1, iter2, iter3)
 
@@ -576,8 +576,8 @@ func TestIntersectionIterSubjects(t *testing.T) {
 			},
 		}
 
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -601,8 +601,8 @@ func TestIntersection_Types(t *testing.T) {
 		// Create intersection with fixed iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@user:alice")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -628,8 +628,8 @@ func TestIntersection_Types(t *testing.T) {
 		// Create intersection with different subject types across iterators
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@group:engineers#member")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -646,8 +646,8 @@ func TestIntersection_Types(t *testing.T) {
 		// Create intersection where multiple iterators have same subject types
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc1#editor@user:bob")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 
@@ -673,8 +673,8 @@ func TestIntersection_Types(t *testing.T) {
 		// Create intersection with mismatched resource types
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("folder:folder1#viewer@user:bob")
-		iter1 := NewFixedIterator(path1)
-		iter2 := NewFixedIterator(path2)
+		iter1 := NewFixedIterator(*path1)
+		iter2 := NewFixedIterator(*path2)
 
 		intersect := NewIntersectionIterator(iter1, iter2)
 

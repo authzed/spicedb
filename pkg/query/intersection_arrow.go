@@ -27,13 +27,15 @@ func NewIntersectionArrowIterator(left, right Iterator) *IntersectionArrowIterat
 }
 
 func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for _, resource := range resources {
-			ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
+			if ctx.shouldTrace() {
+				ctx.TraceStep(ia, "processing resource %s:%s", resource.ObjectType, resource.ObjectID)
+			}
 
 			subit, err := ctx.IterSubjects(ia.left, resource, NoObjectFilter())
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
@@ -43,12 +45,12 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object,
 			// 3. Only yield results if ALL existing left subjects satisfy the right condition
 			// 4. Combine all (leftCaveat AND rightCaveat) pairs with AND logic
 
-			var validResults []Path
+			var validResults []*Path
 			unsatisfied := false
 
 			for path, err := range subit {
 				if err != nil {
-					yield(Path{}, err)
+					yield(nil, err)
 					return
 				}
 
@@ -56,30 +58,34 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object,
 				checkResources := []Object{GetObject(path.Subject)}
 				checkit, err := ctx.Check(ia.right, checkResources, subject)
 				if err != nil {
-					yield(Path{}, err)
+					yield(nil, err)
 					return
 				}
 
 				// There is only one possible result from this check.
 				paths, err := CollectAll(checkit)
 				if err != nil {
-					yield(Path{}, err)
+					yield(nil, err)
 					return
 				}
 				if len(paths) == 0 {
-					ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
-						path.Subject.ObjectType, path.Subject.ObjectID)
+					if ctx.shouldTrace() {
+						ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
+							path.Subject.ObjectType, path.Subject.ObjectID)
+					}
 					unsatisfied = true
 					break
 				}
 				checkPath := paths[0]
-				ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
-					path.Subject.ObjectType, path.Subject.ObjectID)
+				if ctx.shouldTrace() {
+					ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
+						path.Subject.ObjectType, path.Subject.ObjectID)
+				}
 
 				// Combine this path's left caveat with the right caveat
 				combinedCaveat := caveats.And(path.Caveat, checkPath.Caveat)
 
-				combinedPath := Path{
+				combinedPath := &Path{
 					Resource:   path.Resource,
 					Relation:   path.Relation,
 					Subject:    checkPath.Subject,
@@ -93,11 +99,15 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object,
 			}
 
 			if unsatisfied {
-				ctx.TraceStep(ia, "intersection FAILED - not all subjects satisfied")
+				if ctx.shouldTrace() {
+					ctx.TraceStep(ia, "intersection FAILED - not all subjects satisfied")
+				}
 				continue
 			}
 
-			ctx.TraceStep(ia, "intersection SUCCESS - combining %d results", len(validResults))
+			if ctx.shouldTrace() {
+				ctx.TraceStep(ia, "intersection SUCCESS - combining %d results", len(validResults))
+			}
 
 			// For intersection semantics, we need to create a single path that represents
 			// the AND of all individual conditions: each (leftCaveat AND rightCaveat) must be AND'd together
@@ -128,7 +138,7 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object,
 					combinedIntegrity = combineIntegrity(combinedIntegrity, validResults[i].Integrity)
 				}
 
-				finalResult := Path{
+				finalResult := &Path{
 					Resource:   resource,
 					Relation:   "",
 					Subject:    subject,
@@ -148,7 +158,9 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resources []Object,
 
 func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	// IntersectionArrow: ALL left subjects must satisfy the right side
-	ctx.TraceStep(ia, "iterating subjects for resource %s:%s", resource.ObjectType, resource.ObjectID)
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "iterating subjects for resource %s:%s", resource.ObjectType, resource.ObjectID)
+	}
 
 	// Get all left subjects
 	leftSeq, err := ctx.IterSubjects(ia.left, resource, NoObjectFilter())
@@ -161,21 +173,27 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 		return nil, err
 	}
 
-	ctx.TraceStep(ia, "left side returned %d subjects", len(leftPaths))
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "left side returned %d subjects", len(leftPaths))
+	}
 
 	if len(leftPaths) == 0 {
-		ctx.TraceStep(ia, "no left subjects, returning empty")
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "no left subjects, returning empty")
+		}
 		return EmptyPathSeq(), nil
 	}
 
 	// For intersection arrow, we need ALL left subjects to satisfy the right side
 	// Track all valid results
-	var validResults []Path
+	var validResults []*Path
 	unsatisfied := false
 
 	for _, leftPath := range leftPaths {
 		leftSubjectAsResource := GetObject(leftPath.Subject)
-		ctx.TraceStep(ia, "checking right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "checking right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+		}
 
 		rightSeq, err := ctx.IterSubjects(ia.right, leftSubjectAsResource, filterSubjectType)
 		if err != nil {
@@ -188,19 +206,23 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 		}
 
 		if len(rightPaths) == 0 {
-			ctx.TraceStep(ia, "left subject %s:%s did NOT satisfy right side", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+			if ctx.shouldTrace() {
+				ctx.TraceStep(ia, "left subject %s:%s did NOT satisfy right side", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+			}
 			unsatisfied = true
 			break
 		}
 
-		ctx.TraceStep(ia, "left subject %s:%s satisfied with %d right subjects", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID, len(rightPaths))
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "left subject %s:%s satisfied with %d right subjects", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID, len(rightPaths))
+		}
 
 		// Collect all valid combinations
 		for _, rightPath := range rightPaths {
 			// Combine caveats from left and right with AND logic
 			combinedCaveat := caveats.And(leftPath.Caveat, rightPath.Caveat)
 
-			combinedPath := Path{
+			combinedPath := &Path{
 				Resource:   leftPath.Resource,
 				Relation:   leftPath.Relation,
 				Subject:    rightPath.Subject,
@@ -214,13 +236,17 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 	}
 
 	if unsatisfied {
-		ctx.TraceStep(ia, "intersection arrow FAILED - not all left subjects satisfied")
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "intersection arrow FAILED - not all left subjects satisfied")
+		}
 		return EmptyPathSeq(), nil
 	}
 
-	ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final subjects", len(validResults))
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final subjects", len(validResults))
+	}
 
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for _, path := range validResults {
 			if !yield(path, nil) {
 				return
@@ -231,7 +257,9 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 
 func (ia *IntersectionArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// IntersectionArrow: ALL left subjects must satisfy the right side
-	ctx.TraceStep(ia, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "iterating resources for subject %s:%s", subject.ObjectType, subject.ObjectID)
+	}
 
 	// Get all right resources
 	rightSeq, err := ctx.IterResources(ia.right, subject, NoObjectFilter())
@@ -244,20 +272,26 @@ func (ia *IntersectionArrowIterator) IterResourcesImpl(ctx *Context, subject Obj
 		return nil, err
 	}
 
-	ctx.TraceStep(ia, "right side returned %d resources", len(rightPaths))
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "right side returned %d resources", len(rightPaths))
+	}
 
 	if len(rightPaths) == 0 {
-		ctx.TraceStep(ia, "no right resources, returning empty")
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "no right resources, returning empty")
+		}
 		return EmptyPathSeq(), nil
 	}
 
 	// seenResources is used to avoid rechecking resources that we've already seen
 	seenResources := mapz.NewSet[string]()
-	validResults := make([]Path, 0)
+	validResults := make([]*Path, 0)
 
 	for _, rightPath := range rightPaths {
 		rightResourceAsSubject := rightPath.Resource.WithEllipses()
-		ctx.TraceStep(ia, "looking up left resources for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "looking up left resources for right resource %s:%s", rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID)
+		}
 
 		leftSeq, err := ctx.IterResources(ia.left, rightResourceAsSubject, filterResourceType)
 		if err != nil {
@@ -269,7 +303,9 @@ func (ia *IntersectionArrowIterator) IterResourcesImpl(ctx *Context, subject Obj
 			return nil, err
 		}
 
-		ctx.TraceStep(ia, "right subject %s:%s returned %d left resources", rightPath.Resource.ObjectType, rightPath.Resource.ObjectID, len(leftPaths))
+		if ctx.shouldTrace() {
+			ctx.TraceStep(ia, "right subject %s:%s returned %d left resources", rightPath.Resource.ObjectType, rightPath.Resource.ObjectID, len(leftPaths))
+		}
 
 		// Make a list of the leftPaths that we haven't seen
 		// before that we need to check
@@ -299,9 +335,11 @@ func (ia *IntersectionArrowIterator) IterResourcesImpl(ctx *Context, subject Obj
 		}
 	}
 
-	ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final resources", len(validResults))
+	if ctx.shouldTrace() {
+		ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final resources", len(validResults))
+	}
 
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for _, path := range validResults {
 			if !yield(path, nil) {
 				return

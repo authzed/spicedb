@@ -68,29 +68,29 @@ func TestCaveatIteratorNoCaveat(t *testing.T) {
 		{
 			name: "allows all paths through",
 			paths: []Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
-				pathWithDifferentCaveat,
+				*pathWithCaveat,
+				*pathWithoutCaveat,
+				*pathWithDifferentCaveat,
 			},
 			caveatContext: nil,
 			expectedPaths: []Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
-				pathWithDifferentCaveat,
+				*pathWithCaveat,
+				*pathWithoutCaveat,
+				*pathWithDifferentCaveat,
 			},
 		},
 		{
 			name: "allows paths even with context provided",
 			paths: []Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
+				*pathWithCaveat,
+				*pathWithoutCaveat,
 			},
 			caveatContext: map[string]any{
 				"allowed": true,
 			},
 			expectedPaths: []Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
+				*pathWithCaveat,
+				*pathWithoutCaveat,
 			},
 		},
 	}
@@ -147,9 +147,9 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			name:   "filters by matching caveat name",
 			caveat: createTestCaveat("test_caveat", nil),
 			paths: []Path{
-				pathWithCaveat,          // has test_caveat
-				pathWithoutCaveat,       // has no caveat
-				pathWithDifferentCaveat, // has other_caveat
+				*pathWithCaveat,          // has test_caveat
+				*pathWithoutCaveat,       // has no caveat
+				*pathWithDifferentCaveat, // has other_caveat
 			},
 			caveatContext: map[string]any{
 				"allowed": true,
@@ -159,9 +159,9 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			name:   "filters out paths without matching caveat",
 			caveat: createTestCaveat("test_caveat", nil),
 			paths: []Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
-				pathWithDifferentCaveat,
+				*pathWithCaveat,
+				*pathWithoutCaveat,
+				*pathWithDifferentCaveat,
 			},
 			caveatContext: map[string]any{
 				"allowed": true,
@@ -171,8 +171,8 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			name:   "denies caveated paths without context",
 			caveat: createTestCaveat("test_caveat", nil),
 			paths: []Path{
-				pathWithCaveat,
-				pathWithoutCaveat,
+				*pathWithCaveat,
+				*pathWithoutCaveat,
 			},
 			caveatContext: nil,
 		},
@@ -224,7 +224,7 @@ func TestCaveatIteratorClone(t *testing.T) {
 	})
 
 	// Create original iterator
-	fixedIter := NewFixedIterator(testPath)
+	fixedIter := NewFixedIterator(*testPath)
 	originalIter := NewCaveatIterator(fixedIter, testCaveat)
 
 	// Clone the iterator
@@ -390,7 +390,7 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 	path2 := MustPathFromString("document:doc1#view@user:bob")
 	path3 := MustPathFromString("document:doc2#view@user:charlie")
 
-	subIterator := NewFixedIterator(path1, path2, path3)
+	subIterator := NewFixedIterator(*path1, *path2, *path3)
 
 	t.Run("with no caveat filter", func(t *testing.T) {
 		// No caveat filter - should pass through all paths
@@ -435,7 +435,7 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 	path1 := MustPathFromString("document:doc1#view@user:alice")
 	path2 := MustPathFromString("folder:folder1#view@user:alice")
 
-	subIterator := NewFixedIterator(path1, path2)
+	subIterator := NewFixedIterator(*path1, *path2)
 
 	t.Run("with no caveat filter", func(t *testing.T) {
 		// No caveat filter - should pass through all paths
@@ -512,7 +512,7 @@ func TestCaveatIterator_Types(t *testing.T) {
 
 		// Create a caveat iterator with a subiterator
 		path := MustPathFromString("document:doc1#viewer@user:alice")
-		subIter := NewFixedIterator(path)
+		subIter := NewFixedIterator(*path)
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIter, testCaveat)
 
@@ -527,7 +527,7 @@ func TestCaveatIterator_Types(t *testing.T) {
 
 		// Create a caveat iterator with a subiterator
 		path := MustPathFromString("document:doc1#viewer@user:alice")
-		subIter := NewFixedIterator(path)
+		subIter := NewFixedIterator(*path)
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIter, testCaveat)
 

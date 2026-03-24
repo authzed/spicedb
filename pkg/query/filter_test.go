@@ -9,8 +9,8 @@ import (
 
 func TestFilterResourcesByType(t *testing.T) {
 	// Helper to create a PathSeq from paths
-	createSeq := func(paths []Path) PathSeq {
-		return func(yield func(Path, error) bool) {
+	createSeq := func(paths []*Path) PathSeq {
+		return func(yield func(*Path, error) bool) {
 			for _, path := range paths {
 				if !yield(path, nil) {
 					return
@@ -23,7 +23,7 @@ func TestFilterResourcesByType(t *testing.T) {
 		require := require.New(t)
 
 		// Create test paths with different resource types
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("folder:folder1#viewer@user:bob"),
 			MustPathFromString("document:doc2#editor@user:carol"),
@@ -42,7 +42,7 @@ func TestFilterResourcesByType(t *testing.T) {
 	t.Run("FilterByType_OnlyReturnsMatchingResources", func(t *testing.T) {
 		require := require.New(t)
 
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("folder:folder1#viewer@user:bob"),
 			MustPathFromString("document:doc2#editor@user:carol"),
@@ -66,7 +66,7 @@ func TestFilterResourcesByType(t *testing.T) {
 	t.Run("FilterByTypeAndSubrelation_OnlyReturnsMatchingResources", func(t *testing.T) {
 		require := require.New(t)
 
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("document:doc2#editor@user:bob"),
 			MustPathFromString("document:doc3#viewer@user:carol"),
@@ -91,7 +91,7 @@ func TestFilterResourcesByType(t *testing.T) {
 	t.Run("NoMatchingResources_ReturnsEmpty", func(t *testing.T) {
 		require := require.New(t)
 
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("document:doc2#editor@user:bob"),
 		}
@@ -112,8 +112,8 @@ func TestFilterResourcesByType(t *testing.T) {
 
 		// Create a sequence that yields an error
 		testErr := errors.New("test error")
-		errorSeq := func(yield func(Path, error) bool) {
-			yield(Path{}, testErr)
+		errorSeq := func(yield func(*Path, error) bool) {
+			yield(nil, testErr)
 		}
 
 		// Filter should propagate the error
@@ -128,8 +128,8 @@ func TestFilterResourcesByType(t *testing.T) {
 
 func TestFilterSubjectsByType(t *testing.T) {
 	// Helper to create a PathSeq from paths
-	createSeq := func(paths []Path) PathSeq {
-		return func(yield func(Path, error) bool) {
+	createSeq := func(paths []*Path) PathSeq {
+		return func(yield func(*Path, error) bool) {
 			for _, path := range paths {
 				if !yield(path, nil) {
 					return
@@ -141,7 +141,7 @@ func TestFilterSubjectsByType(t *testing.T) {
 	t.Run("EmptyFilter_ReturnsAllPaths", func(t *testing.T) {
 		require := require.New(t)
 
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("document:doc2#viewer@group:group1"),
 			MustPathFromString("document:doc3#editor@user:bob"),
@@ -160,7 +160,7 @@ func TestFilterSubjectsByType(t *testing.T) {
 	t.Run("FilterByType_OnlyReturnsMatchingSubjects", func(t *testing.T) {
 		require := require.New(t)
 
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("document:doc2#viewer@group:group1"),
 			MustPathFromString("document:doc3#editor@user:bob"),
@@ -184,7 +184,7 @@ func TestFilterSubjectsByType(t *testing.T) {
 	t.Run("FilterByTypeAndSubrelation_OnlyReturnsMatchingSubjects", func(t *testing.T) {
 		require := require.New(t)
 
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@group:group1#member"),
 			MustPathFromString("document:doc2#viewer@group:group2#..."),
 			MustPathFromString("document:doc3#viewer@group:group3#member"),
@@ -209,7 +209,7 @@ func TestFilterSubjectsByType(t *testing.T) {
 	t.Run("NoMatchingSubjects_ReturnsEmpty", func(t *testing.T) {
 		require := require.New(t)
 
-		paths := []Path{
+		paths := []*Path{
 			MustPathFromString("document:doc1#viewer@user:alice"),
 			MustPathFromString("document:doc2#editor@user:bob"),
 		}
@@ -230,8 +230,8 @@ func TestFilterSubjectsByType(t *testing.T) {
 
 		// Create a sequence that yields an error
 		testErr := errors.New("test error")
-		errorSeq := func(yield func(Path, error) bool) {
-			yield(Path{}, testErr)
+		errorSeq := func(yield func(*Path, error) bool) {
+			yield(nil, testErr)
 		}
 
 		// Filter should propagate the error

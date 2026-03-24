@@ -220,7 +220,7 @@ func (g *outlineGenerator) randomPath() Path {
 		}
 	}
 
-	return path
+	return *path
 }
 
 func (g *outlineGenerator) randomID() string {

@@ -34,8 +34,8 @@ func (s *SelfIterator) CheckImpl(ctx *Context, resources []Object, subject Objec
 		// are the same, and a subject with a non-ellipsis relation can't semantically
 		// match the object.
 		if subject.Equals(resource.WithEllipses()) {
-			return func(yield func(Path, error) bool) {
-				yield(Path{
+			return func(yield func(*Path, error) bool) {
+				yield(&Path{
 					Resource: resource,
 					Relation: s.relation,
 					Subject:  subject,
@@ -48,8 +48,8 @@ func (s *SelfIterator) CheckImpl(ctx *Context, resources []Object, subject Objec
 }
 
 func (s *SelfIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
-	return func(yield func(Path, error) bool) {
-		yield(Path{
+	return func(yield func(*Path, error) bool) {
+		yield(&Path{
 			Resource: resource,
 			Relation: s.relation,
 			// NOTE: this is WithEllipses() for the same reason as the comment above.
@@ -64,8 +64,8 @@ func (s *SelfIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation
 		return EmptyPathSeq(), nil
 	}
 
-	return func(yield func(Path, error) bool) {
-		yield(Path{
+	return func(yield func(*Path, error) bool) {
+		yield(&Path{
 			Resource: GetObject(subject),
 			Relation: s.relation,
 			Subject:  subject,

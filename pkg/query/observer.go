@@ -10,6 +10,6 @@ const (
 
 type Observer interface {
 	ObserveEnterIterator(op ObserverOperation, key CanonicalKey)
-	ObservePath(op ObserverOperation, key CanonicalKey, path Path)
+	ObservePath(op ObserverOperation, key CanonicalKey, path *Path)
 	ObserveReturnIterator(op ObserverOperation, key CanonicalKey)
 }

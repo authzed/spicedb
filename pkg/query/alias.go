@@ -24,10 +24,10 @@ func NewAliasIterator(relation string, subIt Iterator) *AliasIterator {
 func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, shouldAddSelfEdge bool) PathSeq {
 	if !shouldAddSelfEdge {
 		// No self-edge, just rewrite paths from sub-iterator
-		return func(yield func(Path, error) bool) {
+		return func(yield func(*Path, error) bool) {
 			for path, err := range subSeq {
 				if err != nil {
-					yield(Path{}, err)
+					yield(nil, err)
 					return
 				}
 
@@ -40,7 +40,7 @@ func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, sh
 	}
 
 	// Create a self-edge path
-	selfPath := Path{
+	selfPath := &Path{
 		Resource: resource,
 		Relation: a.relation,
 		Subject: ObjectAndRelation{
@@ -52,7 +52,7 @@ func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, sh
 	}
 
 	// Combine self-edge with paths from sub-iterator
-	combined := func(yield func(Path, error) bool) {
+	combined := func(yield func(*Path, error) bool) {
 		// Yield the self-edge first
 		if !yield(selfPath, nil) {
 			return
@@ -61,7 +61,7 @@ func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, sh
 		// Then yield rewritten paths from sub-iterator
 		for path, err := range subSeq {
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 

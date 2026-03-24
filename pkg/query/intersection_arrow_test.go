@@ -20,8 +20,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		rightPath1 := MustPathFromString("team:team1#member@user:alice")
 		rightPath2 := MustPathFromString("team:team2#member@user:alice")
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2)
-		rightIter := NewFixedIterator(rightPath1, rightPath2)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -57,8 +57,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		rightPath1 := MustPathFromString("team:team1#member@user:alice")
 		// Note: no rightPath2 for team2, so alice is not in team2
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2)
-		rightIter := NewFixedIterator(rightPath1)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2)
+		rightIter := NewFixedIterator(*rightPath1)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -85,8 +85,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		// Right side: alice is member of team1
 		rightPath1 := MustPathFromString("team:team1#member@user:alice")
 
-		leftIter := NewFixedIterator(leftPath1)
-		rightIter := NewFixedIterator(rightPath1)
+		leftIter := NewFixedIterator(*leftPath1)
+		rightIter := NewFixedIterator(*rightPath1)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -119,7 +119,7 @@ func TestIntersectionArrowIterator(t *testing.T) {
 
 		// Right side: alice is member of some team
 		rightPath1 := MustPathFromString("team:team1#member@user:alice")
-		rightIter := NewFixedIterator(rightPath1)
+		rightIter := NewFixedIterator(*rightPath1)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -149,8 +149,8 @@ func TestIntersectionArrowIterator(t *testing.T) {
 		rightPath2 := MustPathFromString("team:team2#member@user:alice")
 		rightPath3 := MustPathFromString("team:team3#member@user:alice")
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
-		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2, *leftPath3)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2, *rightPath3)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -221,8 +221,8 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -269,8 +269,8 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 		rightPath := MustPathFromString("team:team1#member@user:alice")
 		rightPath.Caveat = nil
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -356,8 +356,8 @@ func TestIntersectionArrowIteratorCaveatCombination(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
-		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2, *leftPath3)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2, *rightPath3)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -398,8 +398,8 @@ func TestIntersectionArrowIteratorClone(t *testing.T) {
 	leftPath := MustPathFromString("document:doc1#team@team:team1")
 	rightPath := MustPathFromString("team:team1#member@user:alice")
 
-	leftIter := NewFixedIterator(leftPath)
-	rightIter := NewFixedIterator(rightPath)
+	leftIter := NewFixedIterator(*leftPath)
+	rightIter := NewFixedIterator(*rightPath)
 	original := NewIntersectionArrowIterator(leftIter, rightIter)
 
 	cloned := original.Clone()
@@ -438,8 +438,8 @@ func TestIntersectionArrowIteratorExplain(t *testing.T) {
 	leftPath := MustPathFromString("document:doc1#team@team:team1")
 	rightPath := MustPathFromString("team:team1#member@user:alice")
 
-	leftIter := NewFixedIterator(leftPath)
-	rightIter := NewFixedIterator(rightPath)
+	leftIter := NewFixedIterator(*leftPath)
+	rightIter := NewFixedIterator(*rightPath)
 	intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
 	explain := intersectionArrow.Explain()
@@ -502,8 +502,8 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightPath2 := MustPathFromString("folder:folder2#viewer@user:alice")
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2)
-		rightIter := NewFixedIterator(rightPath1, rightPath2)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -530,8 +530,8 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		leftPath2 := MustPathFromString("document:doc1#parent@folder:folder2")
 		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2)
-		rightIter := NewFixedIterator(rightPath1)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2)
+		rightIter := NewFixedIterator(*rightPath1)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -551,7 +551,7 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		// No left paths
 		leftIter := NewFixedIterator()
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -575,8 +575,8 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		rightPath1 := MustPathFromString("folder:folder1#viewer@user:alice")
 		rightPath2 := MustPathFromString("folder:folder1#viewer@user:bob")
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath1, rightPath2)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -619,8 +619,8 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 			},
 		}
 
-		leftIter := NewFixedIterator(leftPath)
-		rightIter := NewFixedIterator(rightPath)
+		leftIter := NewFixedIterator(*leftPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -652,8 +652,8 @@ func TestIntersectionArrowIterSubjects(t *testing.T) {
 		rightPath2 := MustPathFromString("folder:folder2#viewer@user:alice")
 		rightPath3 := MustPathFromString("folder:folder3#viewer@user:alice")
 
-		leftIter := NewFixedIterator(leftPath1, leftPath2, leftPath3)
-		rightIter := NewFixedIterator(rightPath1, rightPath2, rightPath3)
+		leftIter := NewFixedIterator(*leftPath1, *leftPath2, *leftPath3)
+		rightIter := NewFixedIterator(*rightPath1, *rightPath2, *rightPath3)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -675,10 +675,10 @@ func TestIntersectionArrow_Types(t *testing.T) {
 
 		// Create left and right iterators
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
-		leftIter := NewFixedIterator(leftPath)
+		leftIter := NewFixedIterator(*leftPath)
 
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
@@ -693,10 +693,10 @@ func TestIntersectionArrow_Types(t *testing.T) {
 
 		// Create left and right iterators
 		leftPath := MustPathFromString("document:doc1#parent@folder:folder1")
-		leftIter := NewFixedIterator(leftPath)
+		leftIter := NewFixedIterator(*leftPath)
 
 		rightPath := MustPathFromString("folder:folder1#viewer@user:alice")
-		rightIter := NewFixedIterator(rightPath)
+		rightIter := NewFixedIterator(*rightPath)
 
 		intersectionArrow := NewIntersectionArrowIterator(leftIter, rightIter)
 
