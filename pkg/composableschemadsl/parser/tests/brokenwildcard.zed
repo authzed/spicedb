@@ -1,6 +1,0 @@
-definition user {}
-
-definition resource {
-    relation viewer: user | user: | anothertype
-    permission view = viewer
-}

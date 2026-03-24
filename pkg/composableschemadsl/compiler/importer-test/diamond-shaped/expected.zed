@@ -1,8 +1,0 @@
-definition user {}
-
-definition persona {}
-
-definition resource {
-	relation viewer: user
-	permission view = viewer
-}

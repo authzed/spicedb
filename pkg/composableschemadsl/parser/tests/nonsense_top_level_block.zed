@@ -1,4 +1,0 @@
-nonsense thing {
-  relation: user
-  permission view = user
-}
