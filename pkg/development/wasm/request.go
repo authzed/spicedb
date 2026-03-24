@@ -46,7 +46,7 @@ func runDeveloperRequest(this js.Value, args []js.Value) any {
 	}
 
 	// Construct the developer context.
-	devContext, devErrors, err := development.NewDevContext(context.Background(), devRequest.Context)
+	devContext, devErrors, err := development.NewDevContext(context.Background(), devRequest.Context, development.WithDisableImports())
 	if err != nil {
 		return respErr(err)
 	}
