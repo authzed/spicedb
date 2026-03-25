@@ -50,19 +50,19 @@ func TestNewPackage(t *testing.T) {
 func TestAddWidthSample(t *testing.T) {
 	testCases := []struct {
 		name    string
-		samples []uint
+		samples []int
 	}{
 		{
 			name:    "single sample",
-			samples: []uint{100},
+			samples: []int{100},
 		},
 		{
 			name:    "multiple samples",
-			samples: []uint{50, 100, 150, 200},
+			samples: []int{50, 100, 150, 200},
 		},
 		{
 			name:    "varying widths",
-			samples: []uint{10, 500, 250, 100, 300},
+			samples: []int{10, 500, 250, 100, 300},
 		},
 	}
 
@@ -175,7 +175,7 @@ func TestExplainWithSamples(t *testing.T) {
 		samples   []struct {
 			cost  float32
 			rows  uint
-			width uint
+			width int
 		}
 		expectedCost   float32
 		expectedRows   int32
@@ -191,7 +191,7 @@ func TestExplainWithSamples(t *testing.T) {
 			samples: []struct {
 				cost  float32
 				rows  uint
-				width uint
+				width int
 			}{
 				{cost: 100.0, rows: 1000, width: 50},
 			},
@@ -209,7 +209,7 @@ func TestExplainWithSamples(t *testing.T) {
 			samples: []struct {
 				cost  float32
 				rows  uint
-				width uint
+				width int
 			}{
 				{cost: 50.0, rows: 500, width: 40},
 				{cost: 100.0, rows: 1000, width: 50},
@@ -231,7 +231,7 @@ func TestExplainWithSamples(t *testing.T) {
 			samples: []struct {
 				cost  float32
 				rows  uint
-				width uint
+				width int
 			}{
 				{cost: 10.0, rows: 100, width: 20},
 				{cost: 20.0, rows: 200, width: 30},
@@ -305,7 +305,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 	go func() {
 		for i := range 100 {
-			pkg.AddWidthSample(safecast.MustConvert[uint](i * 5))
+			pkg.AddWidthSample((i * 5))
 		}
 		done <- true
 	}()

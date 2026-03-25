@@ -261,7 +261,11 @@ func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransac
 		return -1, fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
-	return int64(len(mutations)), nil
+	numDeleted, err := safecast.Convert[int64](len(mutations))
+	if err != nil {
+		return -1, err
+	}
+	return numDeleted, nil
 }
 
 func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter) (int64, error) {

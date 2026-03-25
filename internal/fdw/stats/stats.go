@@ -35,7 +35,7 @@ func NewPackage(table, operation string) *Package {
 }
 
 // AddWidthSample records a result width sample.
-func (p *Package) AddWidthSample(width uint) {
+func (p *Package) AddWidthSample(width int) {
 	p.Lock()
 	defer p.Unlock()
 	p.width.Insert(float64(width))

@@ -86,22 +86,12 @@ func (Lint) Golangcilint() error {
 func (Lint) Analyzers() error {
 	fmt.Println("running analyzers")
 	return RunSh("go", WithDir("tools/analyzers"), WithV())("run", "./cmd/analyzers/main.go",
-		"-mutexcheck",
-		"-nilvaluecheck",
 		"-nilvaluecheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1",
 		"-nilvaluecheck.disallowed-nil-return-type-paths=*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse",
-		"-exprstatementcheck",
 		"-exprstatementcheck.disallowed-expr-statement-types=*github.com/rs/zerolog.Event:MarshalZerologObject:missing Send or Msg on zerolog log Event",
-		"-paniccheck",
 		"-paniccheck.skip-files=_test,zz_,migrations/index.go",
-		"-mustcallcheck",
 		"-mustcallcheck.skip-files=_test,zz_",
-		"-zerologmarshalcheck",
 		"-zerologmarshalcheck.skip-files=_test,zz_",
-		"-protomarshalcheck",
-		"-telemetryconvcheck",
-		"-iferrafterrowclosecheck",
-		"-singleflightcheck",
 		// Skip generated protobuf files for this check
 		// Also skip test where we're explicitly using proto.Marshal to assert
 		// that the proto.Marshal behavior matches foo.MarshalVT()
