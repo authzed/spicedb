@@ -11,13 +11,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	ocprom "contrib.go.opencensus.io/exporter/prometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	slogzerolog "github.com/samber/slog-zerolog/v2"
-	"go.opencensus.io/plugin/ocgrpc"
-	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -145,31 +141,6 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		meterProvider, err = getMeterProviderWithPromExporter(res)
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable Spanner prometheus metrics: %w", err)
-		}
-	}
-
-	if config.datastoreMetricsOption == DatastoreMetricsOptionLegacyPrometheus {
-		log.Warn().Msg("DEPRECATED: please set --datastore-spanner-metrics=otel. Note that the name of these metrics have changed.")
-		err = spanner.EnableStatViews() // nolint: staticcheck
-		if err != nil {
-			return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
-		}
-		err = spanner.EnableGfeLatencyAndHeaderMissingCountViews() // nolint: staticcheck
-		if err != nil {
-			return nil, fmt.Errorf("failed to enable spanner GFE metrics: %w", err)
-		}
-
-		// Register Spanner client gRPC metrics (include round-trip latency, received/sent bytes...)
-		if err := view.Register(ocgrpc.DefaultClientViews...); err != nil {
-			return nil, fmt.Errorf("failed to enable gRPC metrics for Spanner client: %w", err)
-		}
-
-		_, err = ocprom.NewExporter(ocprom.Options{
-			Namespace:  "spicedb",
-			Registerer: prometheus.DefaultRegisterer,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create exporter for spanner metrics: %w", err)
 		}
 	}
 
