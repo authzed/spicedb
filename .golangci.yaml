@@ -52,6 +52,10 @@ linters:
           deny:
             - pkg: "k8s.io/utils/strings/slices$"
               desc: "use github.com/samber/lo"
+            - pkg: "gopkg.in/yaml.v2"
+              desc: "use go.yaml.in/yaml/v3"
+            - pkg: "gopkg.in/yaml.v3"
+              desc: "use go.yaml.in/yaml/v3"
     staticcheck:
       checks:
         - "all"

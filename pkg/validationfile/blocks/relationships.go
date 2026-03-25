@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/ccoveille/go-safecast/v2"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "go.yaml.in/yaml/v3"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
