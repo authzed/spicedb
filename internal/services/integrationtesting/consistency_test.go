@@ -12,8 +12,8 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
+	yamlv3 "go.yaml.in/yaml/v3"
 	"google.golang.org/protobuf/types/known/structpb"
-	yamlv2 "gopkg.in/yaml.v2"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -1002,7 +1002,7 @@ func validateDevelopmentAssertions(t *testing.T, devContext *development.DevCont
 		"assertCaveated": caveatedAssertions,
 		"assertFalse":    falseAssertions,
 	}
-	assertions, err := yamlv2.Marshal(assertionsMap)
+	assertions, err := yamlv3.Marshal(assertionsMap)
 	require.NoError(t, err, "Could not marshal assertions map")
 
 	// Run validation with the assertions and the updated YAML.
@@ -1029,7 +1029,7 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 		expectedMap[tuple.StringONR(relationship.Resource)] = []string{}
 	}
 
-	expectedRelations, err := yamlv2.Marshal(expectedMap)
+	expectedRelations, err := yamlv3.Marshal(expectedMap)
 	require.NoError(t, err, "Could not marshal expected relations map")
 
 	expectedRelationsMap, devErr := development.ParseExpectedRelationsYAML(string(expectedRelations))
