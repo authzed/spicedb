@@ -37,7 +37,7 @@ func TestCheck(t *testing.T) {
 	it := NewIntersectionIterator(vande, edit)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "specialplan"), NewObject("user", "multiroleguy").WithEllipses())
 	require.NoError(err)
@@ -63,7 +63,7 @@ func TestBaseIterSubjects(t *testing.T) {
 	vande := NewDatastoreIterator(vandeRel.BaseRelations()[0])
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.IterSubjects(vande, NewObject("document", "specialplan"), NoObjectFilter())
 	require.NoError(err)
@@ -94,7 +94,7 @@ func TestCheckArrow(t *testing.T) {
 	it := NewArrowIterator(folders, view)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision)))
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 
 	relSeq, err := ctx.Check(it, NewObjects("document", "companyplan"), NewObject("user", "legal").WithEllipses())
 	require.NoError(err)

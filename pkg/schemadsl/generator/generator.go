@@ -3,6 +3,8 @@ package generator
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
@@ -29,11 +31,35 @@ const Ellipsis = "..."
 // MaxSingleLineCommentLength sets the maximum length for a comment to made single line.
 const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
+// GenerateSchema generates a DSL view of the given schema.
+// Definitions are output in the order provided. For canonical output, sort
+// definitions by name before calling.
 func GenerateSchema(ctx context.Context, definitions []compiler.SchemaDefinition) (string, bool, error) {
 	return GenerateSchemaWithCaveatTypeSet(ctx, definitions, caveattypes.Default.TypeSet)
 }
 
+// ComputeSchemaHash computes a SHA256 hash of the given schema definitions.
+// Definitions are sorted by name before generating the schema text for consistent ordering.
+func ComputeSchemaHash(definitions []compiler.SchemaDefinition) (string, error) {
+	sorted := make([]compiler.SchemaDefinition, len(definitions))
+	copy(sorted, definitions)
+
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].GetName() < sorted[j].GetName()
+	})
+
+	schemaText, _, err := GenerateSchema(context.Background(), sorted)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate schema for hashing: %w", err)
+	}
+
+	hash := sha256.Sum256([]byte(schemaText))
+	return hex.EncodeToString(hash[:]), nil
+}
+
 // GenerateSchemaWithCaveatTypeSet generates a DSL view of the given schema.
+// Definitions are output in the order provided. For canonical output, sort
+// definitions by name before calling.
 func GenerateSchemaWithCaveatTypeSet(ctx context.Context, definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
 	_, span := tracer.Start(ctx, "GenerateSchemaWithCaveatTypeSet")
 	defer span.End()

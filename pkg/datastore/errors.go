@@ -312,6 +312,7 @@ var (
 	ErrClosedIterator        = errors.New("unable to iterate: iterator closed")
 	ErrCursorsWithoutSorting = errors.New("cursors are disabled on unsorted results")
 	ErrCursorEmpty           = errors.New("cursors are only available after the first result")
+	ErrSchemaNotFound        = errors.New("schema not found")
 )
 
 // CreateRelationshipExistsError is returned when attempting to CREATE an already-existing relationship.

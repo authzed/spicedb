@@ -149,7 +149,7 @@ var StandardCaveatedRelationships = []string{
 func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	rev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
-	return ds, rev
+	return ds, rev.Revision
 }
 
 // StandardDatastoreWithSchema returns a datastore populated with the standard test definitions.

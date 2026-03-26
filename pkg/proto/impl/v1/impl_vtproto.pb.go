@@ -256,6 +256,11 @@ func (m *V1Cursor) CloneVT() *V1Cursor {
 		}
 		r.Flags = tmpContainer
 	}
+	if rhs := m.SchemaHash; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.SchemaHash = tmpBytes
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -754,6 +759,9 @@ func (this *V1Cursor) EqualVT(that *V1Cursor) bool {
 		}
 	}
 	if this.DatastoreUniqueId != that.DatastoreUniqueId {
+		return false
+	}
+	if string(this.SchemaHash) != string(that.SchemaHash) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1410,6 +1418,13 @@ func (m *V1Cursor) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.SchemaHash) > 0 {
+		i -= len(m.SchemaHash)
+		copy(dAtA[i:], m.SchemaHash)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SchemaHash)))
+		i--
+		dAtA[i] = 0x3a
+	}
 	if len(m.DatastoreUniqueId) > 0 {
 		i -= len(m.DatastoreUniqueId)
 		copy(dAtA[i:], m.DatastoreUniqueId)
@@ -1928,6 +1943,10 @@ func (m *V1Cursor) SizeVT() (n int) {
 		}
 	}
 	l = len(m.DatastoreUniqueId)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.SchemaHash)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -3173,6 +3192,40 @@ func (m *V1Cursor) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.DatastoreUniqueId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SchemaHash", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SchemaHash = append(m.SchemaHash[:0], dAtA[iNdEx:postIndex]...)
+			if m.SchemaHash == nil {
+				m.SchemaHash = []byte{}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

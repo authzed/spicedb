@@ -176,11 +176,10 @@ const (
 	DefaultMiddlewareServerVersion    = "serverversion"
 	DefaultMiddlewareMemoryProtection = "memoryprotection"
 
-	DefaultInternalMiddlewareDispatch          = "dispatch"
-	DefaultInternalMiddlewareDatastore         = "datastore"
-	DefaultInternalMiddlewareDatastoreCounting = "datastore-counting"
-	DefaultInternalMiddlewareConsistency       = "consistency"
-	DefaultInternalMiddlewareServerSpecific    = "servicespecific"
+	DefaultInternalMiddlewareDispatch       = "dispatch"
+	DefaultInternalMiddlewareDatastore      = "datastore"
+	DefaultInternalMiddlewareConsistency    = "consistency"
+	DefaultInternalMiddlewareServerSpecific = "servicespecific"
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go . MiddlewareOption
@@ -225,8 +224,8 @@ func (m MiddlewareOption) WithDatastoreMiddleware(middleware Middleware) Middlew
 	return m
 }
 
-func (m MiddlewareOption) WithDatastore(ds datastore.Datastore) MiddlewareOption {
-	dl := datalayer.NewDataLayer(ds)
+func (m MiddlewareOption) WithDatastore(ds datastore.Datastore, dlOpts ...datalayer.DataLayerOption) MiddlewareOption {
+	dl := datalayer.NewDataLayer(ds, dlOpts...)
 	unary := NewUnaryMiddleware().
 		WithName(DefaultInternalMiddlewareDatastore).
 		WithInternal(true).
@@ -338,12 +337,6 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		*opts.unaryDatastoreMiddleware,
 
 		NewUnaryMiddleware().
-			WithName(DefaultInternalMiddlewareDatastoreCounting).
-			WithInternal(true).
-			WithInterceptor(datalayer.UnaryCountingInterceptor(nil)).
-			Done(),
-
-		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.MiddlewareServiceLabel, opts.MismatchingZedTokenOption)).
 			Done(),
@@ -417,12 +410,6 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		*opts.streamDatastoreMiddleware,
 
 		NewStreamMiddleware().
-			WithName(DefaultInternalMiddlewareDatastoreCounting).
-			WithInternal(true).
-			WithInterceptor(datalayer.StreamCountingInterceptor(nil)).
-			Done(),
-
-		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInterceptor(consistencymw.StreamServerInterceptor(opts.MiddlewareServiceLabel, opts.MismatchingZedTokenOption)).
 			Done(),
@@ -450,10 +437,10 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 }
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
-func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, disableGRPCLatencyHistogram bool, memoryUsageProvider memoryprotection.MemoryUsageProvider) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, disableGRPCLatencyHistogram bool, memoryUsageProvider memoryprotection.MemoryUsageProvider, dlOpts ...datalayer.DataLayerOption) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
 	dispatchMemoryProtection := memoryprotection.New(memoryUsageProvider, "dispatch-middleware")
-	dl := datalayer.NewDataLayer(ds)
+	dl := datalayer.NewDataLayer(ds, dlOpts...)
 
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
