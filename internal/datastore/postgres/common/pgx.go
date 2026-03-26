@@ -283,7 +283,11 @@ func (t *QuerierFuncs) QueryFunc(ctx context.Context, rowsFunc func(ctx context.
 	if err != nil {
 		return err
 	}
-	return rows.Err()
+	rows.Close() // drain all results sets in case it was a multi-statementy query
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+	return nil
 }
 
 func (t *QuerierFuncs) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
