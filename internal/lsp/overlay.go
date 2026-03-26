@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/persistent"
 	"github.com/sourcegraph/go-lsp"
 )
@@ -63,16 +64,16 @@ func newMemFile(name, content string) *memFile {
 func (m *memFile) Read(b []byte) (int, error) { return m.reader.Read(b) }
 func (m *memFile) Close() error               { return nil }
 func (m *memFile) Stat() (fs.FileInfo, error) {
-	return memFileInfo{name: m.name, size: int64(len(m.content))}, nil
+	return memFileInfo{name: m.name, size: len(m.content)}, nil
 }
 
 type memFileInfo struct {
 	name string
-	size int64
+	size int
 }
 
 func (i memFileInfo) Name() string       { return filepath.Base(i.name) }
-func (i memFileInfo) Size() int64        { return i.size }
+func (i memFileInfo) Size() int64        { return safecast.MustConvert[int64](i.size) }
 func (i memFileInfo) Mode() fs.FileMode  { return 0o444 }
 func (i memFileInfo) ModTime() time.Time { return time.Time{} }
 func (i memFileInfo) IsDir() bool        { return false }

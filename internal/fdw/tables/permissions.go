@@ -226,7 +226,7 @@ func buildRowValues(
 	hasPermission bool,
 	isMaybe bool,
 	zedToken *v1.ZedToken,
-) ([]any, uint, error) {
+) ([]any, int, error) {
 	rowValues := make([]any, 0, len(selectStatement.columnNames))
 	for _, colName := range selectStatement.columnNames {
 		switch colName {
@@ -255,7 +255,7 @@ func buildRowValues(
 		}
 	}
 
-	var width uint = 1
+	width := 1
 	for _, value := range rowValues {
 		if value == nil {
 			continue
@@ -263,7 +263,7 @@ func buildRowValues(
 
 		strValue, ok := value.(string)
 		if ok {
-			width += uint(len(strValue))
+			width += len(strValue)
 		}
 	}
 
