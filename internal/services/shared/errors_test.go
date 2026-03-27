@@ -196,6 +196,7 @@ func TestRewriteError(t *testing.T) {
 			inputError: spiceerrors.NewWithSourceError(
 				fmt.Errorf("invalid schema definition"),
 				"definition document {\n  relation viewer: user\n}",
+				"source",
 				1,
 				1,
 			),
