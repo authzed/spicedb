@@ -66,11 +66,11 @@ func (a *AnalyzeObserver) ObserveReturnIterator(op Operation, key CanonicalKey) 
 			elapsed := time.Since(start)
 			stats := a.timings[key]
 			switch op {
-			case Check:
+			case OperationCheck:
 				stats.CheckTime += elapsed
-			case IterSubjects:
+			case OperationIterSubjects:
 				stats.IterSubjectsTime += elapsed
-			case IterResources:
+			case OperationIterResources:
 				stats.IterResourcesTime += elapsed
 			}
 			a.timings[key] = stats

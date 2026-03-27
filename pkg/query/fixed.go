@@ -79,13 +79,13 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resource Object, subject ObjectA
 		ctx.TraceStep(f, "checking %d paths against resource %s:%s", len(f.paths), resource.ObjectType, resource.ObjectID)
 	}
 
-	for i := range f.paths {
-		if f.paths[i].Resource.Equals(resource) &&
-			GetObject(f.paths[i].Subject).Equals(GetObject(subject)) {
+	for _, path := range f.paths {
+		if path.Resource.Equals(resource) &&
+			GetObject(path.Subject).Equals(GetObject(subject)) {
 			if ctx.shouldTrace() {
 				ctx.TraceStep(f, "found matching path")
 			}
-			return &f.paths[i], nil
+			return &path, nil
 		}
 	}
 

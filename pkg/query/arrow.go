@@ -103,14 +103,13 @@ func (a *ArrowIterator) checkLeftToRight(ctx *Context, resource Object, subject 
 		}
 
 		combined := combineArrowPaths(leftPath, rightPath)
-		if result == nil {
-			result = combined
-		} else {
-			merged, err := result.MergeOr(combined)
-			if err != nil {
-				return nil, err
-			}
-			result = merged
+		if combined.Caveat == nil {
+			return combined, nil
+		}
+
+		result, err = result.MergeOr(combined)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -162,14 +161,13 @@ func (a *ArrowIterator) checkRightToLeft(ctx *Context, resource Object, subject 
 		}
 
 		combined := combineArrowPaths(leftPath, rightPath)
-		if result == nil {
-			result = combined
-		} else {
-			merged, err := result.MergeOr(combined)
-			if err != nil {
-				return nil, err
-			}
-			result = merged
+		if combined.Caveat == nil {
+			return combined, nil
+		}
+
+		result, err = result.MergeOr(combined)
+		if err != nil {
+			return nil, err
 		}
 
 		if ctx.shouldTrace() {

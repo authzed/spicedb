@@ -585,14 +585,9 @@ func (r *RecursiveIterator) deepeningCheck(ctx *Context, resource Object, subjec
 		}
 
 		if plyPath != nil {
-			if result == nil {
-				result = plyPath
-			} else {
-				merged, err := result.MergeOr(plyPath)
-				if err != nil {
-					return nil, err
-				}
-				result = merged
+			result, err = result.MergeOr(plyPath)
+			if err != nil {
+				return nil, err
 			}
 		}
 
@@ -643,14 +638,9 @@ func (r *RecursiveIterator) recursiveCheckIterSubjects(ctx *Context, resource Ob
 			if ctx.shouldTrace() {
 				ctx.TraceStep(r, "Check via IterSubjects: found matching path")
 			}
-			if result == nil {
-				result = path
-			} else {
-				merged, err := result.MergeOr(path)
-				if err != nil {
-					return nil, err
-				}
-				result = merged
+			result, err = result.MergeOr(path)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -689,14 +679,9 @@ func (r *RecursiveIterator) recursiveCheckIterResources(ctx *Context, resource O
 				ctx.TraceStep(r, "Check via IterResources: found matching path from %s to %s",
 					path.Resource.Key(), path.Subject.String())
 			}
-			if result == nil {
-				result = path
-			} else {
-				merged, err := result.MergeOr(path)
-				if err != nil {
-					return nil, err
-				}
-				result = merged
+			result, err = result.MergeOr(path)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}

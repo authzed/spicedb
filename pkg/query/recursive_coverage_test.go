@@ -198,12 +198,8 @@ func TestIterativeDeepening_MaxDepth(t *testing.T) {
 	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(maxDepth))
 
-	path, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	_, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(err)
-
-	// Should complete within maxDepth iterations (result may or may not be found)
-	_ = path
-	_ = maxDepth
 }
 
 // TestUnwrapRecursiveIterators_NestedRecursion tests unwrapping nested RecursiveIterators

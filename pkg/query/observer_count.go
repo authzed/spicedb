@@ -37,28 +37,31 @@ func (c *CountObserver) ObserveEnterIterator(op Operation, key CanonicalKey) {
 
 	stats := c.stats[key]
 	switch op {
-	case Check:
+	case OperationCheck:
 		stats.CheckCalls++
-	case IterSubjects:
+	case OperationIterSubjects:
 		stats.IterSubjectsCalls++
-	case IterResources:
+	case OperationIterResources:
 		stats.IterResourcesCalls++
 	}
 	c.stats[key] = stats
 }
 
 // ObservePath increments the result counter for the given operation and key.
-func (c *CountObserver) ObservePath(op Operation, key CanonicalKey, _ *Path) {
+func (c *CountObserver) ObservePath(op Operation, key CanonicalKey, p *Path) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	stats := c.stats[key]
 	switch op {
-	case Check:
-		stats.CheckResults++
-	case IterSubjects:
+	case OperationCheck:
+		if p == nil {
+			// A check which failed. Therefore, one fewer result.
+			stats.CheckResults++
+		}
+	case OperationIterSubjects:
 		stats.IterSubjectsResults++
-	case IterResources:
+	case OperationIterResources:
 		stats.IterResourcesResults++
 	}
 	c.stats[key] = stats

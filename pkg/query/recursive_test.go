@@ -6,10 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestRecursiveSentinel(t *testing.T) {
@@ -52,11 +48,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
+	ctx := NewLocalContext(context.Background())
 
 	// Execute - should terminate immediately with nil (not found)
 	path, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -153,14 +145,10 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	faultyIter := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{}) // Fails on Check
 	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(datastore.NoRevision)))
+	ctx := NewLocalContext(context.Background())
 
 	// Test CheckImpl with a faulty iterator - error occurs eagerly
-	_, err = recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
+	_, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
 	require.Error(t, err, "Should get error from faulty iterator during execution")
 	// The error message depends on which strategy is used:
 	// - IterSubjects strategy: "IterSubjects failed... at depth" or "execution failed at ply" (from BFS)

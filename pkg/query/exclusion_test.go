@@ -275,8 +275,7 @@ func TestExclusionErrorHandling(t *testing.T) {
 
 		// The error from shouldFailOnCollect propagates via CheckImpl
 		_, err := ctx.Check(exclusion, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		// Behavior depends on implementation; either error or nil result
-		_ = err
+		require.Error(err)
 	})
 
 	t.Run("Excluded Set Collection Error", func(t *testing.T) {
