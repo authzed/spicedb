@@ -31,41 +31,44 @@ func NewCountObserver() *CountObserver {
 }
 
 // ObserveEnterIterator increments the call counter for the given operation and key.
-func (c *CountObserver) ObserveEnterIterator(op ObserverOperation, key CanonicalKey) {
+func (c *CountObserver) ObserveEnterIterator(op Operation, key CanonicalKey) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	stats := c.stats[key]
 	switch op {
-	case CheckOperation:
+	case OperationCheck:
 		stats.CheckCalls++
-	case IterSubjectsOperation:
+	case OperationIterSubjects:
 		stats.IterSubjectsCalls++
-	case IterResourcesOperation:
+	case OperationIterResources:
 		stats.IterResourcesCalls++
 	}
 	c.stats[key] = stats
 }
 
 // ObservePath increments the result counter for the given operation and key.
-func (c *CountObserver) ObservePath(op ObserverOperation, key CanonicalKey, _ *Path) {
+func (c *CountObserver) ObservePath(op Operation, key CanonicalKey, p *Path) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	stats := c.stats[key]
 	switch op {
-	case CheckOperation:
-		stats.CheckResults++
-	case IterSubjectsOperation:
+	case OperationCheck:
+		if p == nil {
+			// A check which failed. Therefore, one fewer result.
+			stats.CheckResults++
+		}
+	case OperationIterSubjects:
 		stats.IterSubjectsResults++
-	case IterResourcesOperation:
+	case OperationIterResources:
 		stats.IterResourcesResults++
 	}
 	c.stats[key] = stats
 }
 
 // ObserveReturnIterator is a no-op for CountObserver; no timing is recorded.
-func (c *CountObserver) ObserveReturnIterator(_ ObserverOperation, _ CanonicalKey) {}
+func (c *CountObserver) ObserveReturnIterator(_ Operation, _ CanonicalKey) {}
 
 // GetStats returns a copy of all collected count stats.
 func (c *CountObserver) GetStats() map[CanonicalKey]CountStats {

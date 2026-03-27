@@ -54,28 +54,17 @@ func TestRecursiveCheckStrategies(t *testing.T) {
 			recursive.checkStrategy = tc.strategy
 
 			// Test Check: does alice have access to folder1?
-			resources := []Object{{ObjectType: "folder", ObjectID: "folder1"}}
+			resource := Object{ObjectType: "folder", ObjectID: "folder1"}
 			subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
 
-			seq, err := recursive.CheckImpl(queryCtx, resources, subject)
+			path, err := recursive.CheckImpl(queryCtx, resource, subject)
 			require.NoError(t, err)
 
-			paths, err := CollectAll(seq)
-			require.NoError(t, err)
-
-			// Sort paths for comparison (by resource, then subject)
-			sort.Slice(paths, func(i, j int) bool {
-				if paths[i].Resource.Key() != paths[j].Resource.Key() {
-					return paths[i].Resource.Key() < paths[j].Resource.Key()
-				}
-				return paths[i].Subject.String() < paths[j].Subject.String()
-			})
-
-			t.Logf("Strategy %s found %d paths", tc.name, len(paths))
+			t.Logf("Strategy %s found path: %v", tc.name, path != nil)
 
 			// Verify IterSubjects strategy works (primary implementation)
 			if tc.strategy == recursiveCheckIterSubjects {
-				require.NotEmpty(t, paths, "IterSubjects should find at least one path")
+				require.NotNil(t, path, "IterSubjects should find a path")
 			}
 
 			// TODO: IterResources and Deepening strategies need updates to work with
@@ -102,15 +91,12 @@ func TestRecursiveCheckStrategiesEmpty(t *testing.T) {
 	for _, strategy := range strategies {
 		recursive.checkStrategy = strategy
 
-		resources := []Object{{ObjectType: "folder", ObjectID: "folder1"}}
+		resource := Object{ObjectType: "folder", ObjectID: "folder1"}
 		subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
 
-		seq, err := recursive.CheckImpl(queryCtx, resources, subject)
+		path, err := recursive.CheckImpl(queryCtx, resource, subject)
 		require.NoError(t, err)
-
-		paths, err := CollectAll(seq)
-		require.NoError(t, err)
-		require.Empty(t, paths, "Strategy %d should return no paths for empty iterator", strategy)
+		require.Nil(t, path, "Strategy %d should return nil for empty iterator", strategy)
 	}
 }
 
@@ -147,8 +133,8 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 		recursiveCheckDeepening,
 	}
 
-	// Test with multiple resources
-	resources := []Object{
+	// Test with multiple resources - call CheckImpl once per resource
+	resourceObjects := []Object{
 		{ObjectType: "folder", ObjectID: "folder1"},
 		{ObjectType: "folder", ObjectID: "folder2"},
 	}
@@ -157,14 +143,17 @@ func TestRecursiveCheckStrategiesMultipleResources(t *testing.T) {
 	allResults := make([][]*Path, 0, len(strategies))
 
 	for _, strategy := range strategies {
-		recursive := NewRecursiveIterator(union, "folder", "view")
-		recursive.checkStrategy = strategy
+		var resultPaths []*Path
+		for _, res := range resourceObjects {
+			recursive := NewRecursiveIterator(union, "folder", "view")
+			recursive.checkStrategy = strategy
 
-		seq, err := recursive.CheckImpl(queryCtx, resources, subject)
-		require.NoError(t, err)
-
-		resultPaths, err := CollectAll(seq)
-		require.NoError(t, err)
+			path, err := recursive.CheckImpl(queryCtx, res, subject)
+			require.NoError(t, err)
+			if path != nil {
+				resultPaths = append(resultPaths, path)
+			}
+		}
 
 		// Sort for comparison
 		sort.Slice(resultPaths, func(i, j int) bool {

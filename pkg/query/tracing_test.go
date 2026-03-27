@@ -22,15 +22,11 @@ func TestIteratorTracing(t *testing.T) {
 	fixedIter := NewFixedIterator(*testPath1, *testPath2)
 
 	// Test CheckImpl tracing
-	resources := []Object{NewObject("document", "doc1")}
 	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice"}
 
-	seq, err := ctx.Check(fixedIter, resources, subject)
+	path, err := ctx.Check(fixedIter, NewObject("document", "doc1"), subject)
 	require.NoError(t, err)
-
-	paths, err := CollectAll(seq)
-	require.NoError(t, err)
-	require.Len(t, paths, 1)
+	require.NotNil(t, path)
 
 	// Verify tracing output
 	trace := traceLogger.DumpTrace()
@@ -38,9 +34,6 @@ func TestIteratorTracing(t *testing.T) {
 	require.Contains(t, trace, "Fixed")
 	require.Contains(t, trace, "check(document:doc1, user:alice)")
 	require.Contains(t, trace, "<- ")
-	require.Contains(t, trace, "returned 1 paths")
-	require.Contains(t, trace, "checking 2 paths against 1 resources")
-	require.Contains(t, trace, "found 1 matching paths")
 
 	t.Run("IterSubjects tracing", func(t *testing.T) {
 		// Reset trace logger
@@ -74,12 +67,9 @@ func TestIteratorTracing(t *testing.T) {
 		// Test Union iterator tracing
 		union := NewUnionIterator(NewFixedIterator(*testPath1), NewFixedIterator(*testPath2))
 
-		seq, err := ctx.Check(union, resources, subject)
+		unionPath, err := ctx.Check(union, NewObject("document", "doc1"), subject)
 		require.NoError(t, err)
-
-		paths, err := CollectAll(seq)
-		require.NoError(t, err)
-		require.Len(t, paths, 1) // Should match only doc1 for alice
+		require.NotNil(t, unionPath) // Should match doc1 for alice
 
 		// Verify tracing output
 		trace := traceLogger.DumpTrace()

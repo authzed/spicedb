@@ -84,7 +84,7 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 	require.NoError(b, err)
 
 	// The resource and subject are the same for all sub-benchmarks.
-	resources := query.NewObjects("document", "target")
+	resource := query.NewObject("document", "target")
 	subject := query.NewObject("user", "slow").WithEllipses()
 
 	// Base reader (no simulated latency).
@@ -105,9 +105,7 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 			query.WithObserver(obs),
 			query.WithMaxRecursionDepth(50),
 		)
-		seq, err := warmCtx.Check(warmIt, resources, subject)
-		require.NoError(b, err)
-		_, err = query.CollectAll(seq)
+		_, err = warmCtx.Check(warmIt, resource, subject)
 		require.NoError(b, err)
 
 		advisor := query.NewCountAdvisor(obs.GetStats())
@@ -133,12 +131,10 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(it, resources, subject)
+			path, err := queryCtx.Check(it, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.Len(b, paths, 1)
-			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+			require.NotNil(b, path)
+			require.Equal(b, "slow", path.Subject.ObjectID)
 		}
 	})
 
@@ -156,12 +152,10 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			path, err := queryCtx.Check(advisedIt, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.Len(b, paths, 1)
-			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+			require.NotNil(b, path)
+			require.Equal(b, "slow", path.Subject.ObjectID)
 		}
 	})
 
@@ -178,12 +172,10 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(it, resources, subject)
+			path, err := queryCtx.Check(it, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.Len(b, paths, 1)
-			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+			require.NotNil(b, path)
+			require.Equal(b, "slow", path.Subject.ObjectID)
 		}
 	})
 
@@ -198,12 +190,10 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			seq, err := queryCtx.Check(advisedIt, resources, subject)
+			path, err := queryCtx.Check(advisedIt, resource, subject)
 			require.NoError(b, err)
-			paths, err := query.CollectAll(seq)
-			require.NoError(b, err)
-			require.Len(b, paths, 1)
-			require.Equal(b, "slow", paths[0].Subject.ObjectID)
+			require.NotNil(b, path)
+			require.Equal(b, "slow", path.Subject.ObjectID)
 		}
 	})
 }

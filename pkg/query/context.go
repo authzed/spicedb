@@ -23,6 +23,11 @@ type Context struct {
 	TraceLogger       *TraceLogger // For debugging iterator execution (used by TraceStep calls inside iterators)
 	MaxRecursionDepth int          // Maximum depth for recursive iterators (0 = use default of 10)
 
+	// TopLevelOperation records the first operation (Check/IterSubjects/IterResources) invoked on
+	// this context. It is set exactly once — on the first call — and never changes after that.
+	// Iterators may inspect it to skip work that is irrelevant for the current operation type.
+	TopLevelOperation Operation
+
 	// Pagination options for IterSubjects and IterResources
 	PaginationCursors map[string]*tuple.Relationship // Cursors for pagination, keyed by iterator ID
 	PaginationLimit   *uint64                        // Limit for pagination (max number of results to return)
@@ -153,8 +158,90 @@ func (ctx *Context) traceExitIfEnabled(it Iterator, paths []*Path) {
 	}
 }
 
+// traceCheckResult records the result of a Check call for exit tracing if tracing is enabled.
+func (ctx *Context) traceCheckResult(it Iterator, path *Path) {
+	if !ctx.shouldTrace() || it == nil {
+		return
+	}
+	var paths []*Path
+	if path != nil {
+		paths = []*Path{path}
+	}
+	ctx.traceExitIfEnabled(it, paths)
+}
+
+// notifyEnterIterator calls ObserveEnterIterator on all registered observers.
+func (ctx *Context) notifyEnterIterator(op Operation, key CanonicalKey) {
+	for _, obs := range ctx.observers {
+		obs.ObserveEnterIterator(op, key)
+	}
+}
+
+// notifyCheckResult notifies all observers of a Check result (path may be nil for a miss).
+// ObservePath is always called — even for nil — so observers can cache failures.
+// ObserveReturnIterator is always called afterward.
+func (ctx *Context) notifyCheckResult(key CanonicalKey, path *Path) {
+	for _, obs := range ctx.observers {
+		obs.ObservePath(OperationCheck, key, path)
+		obs.ObserveReturnIterator(OperationCheck, key)
+	}
+}
+
+// wrapPathSeqWithObservers wraps a PathSeq to notify all registered observers of paths and completion.
+// Returns the original PathSeq unchanged when there are no observers.
+func (ctx *Context) wrapPathSeqWithObservers(op Operation, key CanonicalKey, pathSeq PathSeq) PathSeq {
+	if len(ctx.observers) == 0 {
+		return pathSeq
+	}
+	return func(yield func(*Path, error) bool) {
+		defer func() {
+			for _, obs := range ctx.observers {
+				obs.ObserveReturnIterator(op, key)
+			}
+		}()
+		for path, err := range pathSeq {
+			if err == nil {
+				for _, obs := range ctx.observers {
+					obs.ObservePath(op, key, path)
+				}
+			}
+			if !yield(path, err) {
+				return
+			}
+		}
+	}
+}
+
+// Check tests if the given resource is connected to subject in the underlying set of
+// relationships. Returns the matching Path if found, or nil if not found.
+func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.Executor == nil {
+		return nil, spiceerrors.MustBugf("no executor has been set")
+	}
+
+	if ctx.TopLevelOperation == OperationUnset {
+		ctx.TopLevelOperation = OperationCheck
+	}
+
+	var tracedIterator Iterator
+	if ctx.shouldTrace() {
+		tracedIterator = ctx.traceEnterIfEnabled(it, checkTraceString(resource, subject))
+	}
+	key := it.CanonicalKey()
+	ctx.notifyEnterIterator(OperationCheck, key)
+
+	path, err := ctx.Executor.Check(ctx, it, resource, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.traceCheckResult(tracedIterator, path)
+	ctx.notifyCheckResult(key, path)
+	return path, nil
+}
+
 // wrapPathSeqForTracing wraps a PathSeq to collect results for exit tracing if tracing is enabled,
-// otherwise returns the original PathSeq unchanged
+// otherwise returns the original PathSeq unchanged.
 func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq {
 	if !ctx.shouldTrace() || it == nil {
 		return pathSeq
@@ -182,62 +269,6 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 	}
 }
 
-// notifyEnterIterator calls ObserveEnterIterator on all registered observers.
-func (ctx *Context) notifyEnterIterator(op ObserverOperation, key CanonicalKey) {
-	for _, obs := range ctx.observers {
-		obs.ObserveEnterIterator(op, key)
-	}
-}
-
-// wrapPathSeqWithObservers wraps a PathSeq to notify all registered observers of paths and completion.
-// Returns the original PathSeq unchanged when there are no observers.
-func (ctx *Context) wrapPathSeqWithObservers(op ObserverOperation, key CanonicalKey, pathSeq PathSeq) PathSeq {
-	if len(ctx.observers) == 0 {
-		return pathSeq
-	}
-	return func(yield func(*Path, error) bool) {
-		defer func() {
-			for _, obs := range ctx.observers {
-				obs.ObserveReturnIterator(op, key)
-			}
-		}()
-		for path, err := range pathSeq {
-			if err == nil {
-				for _, obs := range ctx.observers {
-					obs.ObservePath(op, key, path)
-				}
-			}
-			if !yield(path, err) {
-				return
-			}
-		}
-	}
-}
-
-// Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
-// any of the `resources` are connected to `subject`.
-// Returns the sequence of matching paths, if they exist, at most `len(resources)`.
-func (ctx *Context) Check(it Iterator, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	if ctx.Executor == nil {
-		return nil, spiceerrors.MustBugf("no executor has been set")
-	}
-
-	var tracedIterator Iterator
-	if ctx.shouldTrace() {
-		tracedIterator = ctx.traceEnterIfEnabled(it, checkTraceString(resources, subject))
-	}
-	key := it.CanonicalKey()
-	ctx.notifyEnterIterator(CheckOperation, key)
-
-	pathSeq, err := ctx.Executor.Check(ctx, it, resources, subject)
-	if err != nil {
-		return nil, err
-	}
-
-	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
-	return ctx.wrapPathSeqWithObservers(CheckOperation, key, pathSeq), nil
-}
-
 // IterSubjects returns a sequence of all the paths in this set that match the given resource.
 // The filterSubjectType parameter filters results to only include subjects matching the
 // specified ObjectType. If filterSubjectType.Type is empty, no filtering is applied.
@@ -252,6 +283,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	ctx.topLevelOnce.Do(func() {
 		ctx.topLevelIterator = it
 		isTopLevel = true
+		ctx.TopLevelOperation = OperationIterSubjects
 	})
 
 	var tracedIterator Iterator
@@ -259,7 +291,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 		tracedIterator = ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource, filterSubjectType))
 	}
 	key := it.CanonicalKey()
-	ctx.notifyEnterIterator(IterSubjectsOperation, key)
+	ctx.notifyEnterIterator(OperationIterSubjects, key)
 
 	pathSeq, err := ctx.Executor.IterSubjects(ctx, it, resource, filterSubjectType)
 	if err != nil {
@@ -271,7 +303,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	}
 
 	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
-	return ctx.wrapPathSeqWithObservers(IterSubjectsOperation, key, pathSeq), nil
+	return ctx.wrapPathSeqWithObservers(OperationIterSubjects, key, pathSeq), nil
 }
 
 // IterResources returns a sequence of all the relations in this set that match the given subject.
@@ -288,6 +320,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 	ctx.topLevelOnce.Do(func() {
 		ctx.topLevelIterator = it
 		isTopLevel = true
+		ctx.TopLevelOperation = OperationIterResources
 	})
 
 	var tracedIterator Iterator
@@ -295,7 +328,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 		tracedIterator = ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject, filterResourceType))
 	}
 	key := it.CanonicalKey()
-	ctx.notifyEnterIterator(IterResourcesOperation, key)
+	ctx.notifyEnterIterator(OperationIterResources, key)
 
 	pathSeq, err := ctx.Executor.IterResources(ctx, it, subject, filterResourceType)
 	if err != nil {
@@ -307,17 +340,17 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 	}
 
 	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
-	return ctx.wrapPathSeqWithObservers(IterResourcesOperation, key, pathSeq), nil
+	return ctx.wrapPathSeqWithObservers(OperationIterResources, key, pathSeq), nil
 }
 
-// Executor as chooses how to proceed given an iterator -- perhaps in parallel, perhaps by RPC, etc -- and chooses how to process iteration from the subtree.
-// The correctness logic for the results that are generated are up to each iterator, and each iterator may use statistics to choose the best, yet still correct, logical evaluation strategy.
-// The Executor, meanwhile, makes that evaluation happen in the most convienent form, based on its implementation.
+// Executor chooses how to proceed given an iterator -- perhaps in parallel, perhaps by RPC, etc --
+// and chooses how to process iteration from the subtree. The correctness logic for the results
+// that are generated are up to each iterator, and each iterator may use statistics to choose the
+// best, yet still correct, logical evaluation strategy.
 type Executor interface {
-	// Check tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
-	// any of the `resources` are connected to `subject`.
-	// Returns the sequence of matching relations, if they exist, at most `len(resources)`.
-	Check(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) (PathSeq, error)
+	// Check tests if the given resource is connected to subject.
+	// Returns the matching Path if found, or nil if not found.
+	Check(ctx *Context, it Iterator, resource Object, subject ObjectAndRelation) (*Path, error)
 
 	// IterSubjects returns a sequence of all the relations in this set that match the given resource.
 	// The filterSubjectType parameter filters results to only include subjects matching the
