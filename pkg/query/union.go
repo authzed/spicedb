@@ -50,14 +50,9 @@ func (u *UnionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectA
 			ctx.TraceStep(u, "sub-iterator %d: matched", iterIdx)
 		}
 
-		if result == nil {
-			result = path
-		} else {
-			merged, err := result.MergeOr(path)
-			if err != nil {
-				return nil, err
-			}
-			result = merged
+		result, err = result.MergeOr(path)
+		if err != nil {
+			return nil, err
 		}
 	}
 

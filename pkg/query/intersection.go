@@ -45,14 +45,9 @@ func (i *IntersectionIterator) CheckImpl(ctx *Context, resource Object, subject 
 			return nil, nil
 		}
 
-		if result == nil {
-			result = path
-		} else {
-			merged, err := result.MergeAnd(path)
-			if err != nil {
-				return nil, err
-			}
-			result = merged
+		result, err = result.MergeAnd(path)
+		if err != nil {
+			return nil, err
 		}
 
 		if ctx.shouldTrace() {

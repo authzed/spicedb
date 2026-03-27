@@ -157,8 +157,10 @@ func BenchmarkCheckDoubleWideArrow(b *testing.B) {
 			query.WithReader(r),
 			query.WithObserver(obs),
 		)
-		_, err = warmCtx.Check(warmIt, resource, subject)
-		require.NoError(b, err)
+		for range 10 {
+			_, err = warmCtx.Check(warmIt, resource, subject)
+			require.NoError(b, err)
+		}
 
 		advisor := query.NewCountAdvisor(obs.GetStats())
 		advisedCO, err := query.ApplyAdvisor(canonicalOutline, advisor)

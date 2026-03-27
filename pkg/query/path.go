@@ -55,7 +55,11 @@ func (p Path) EndpointsKey() string {
 
 // MergeOr combines the paths, ORing the caveats and expiration and metadata together.
 // Mutates p in place and returns p. The other path is not modified.
+// If p is nil, returns other directly.
 func (p *Path) MergeOr(other *Path) (*Path, error) {
+	if p == nil {
+		return other, nil
+	}
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil && otherCaveat != nil {
 			return caveats.Or(pCaveat, otherCaveat)
@@ -68,7 +72,11 @@ func (p *Path) MergeOr(other *Path) (*Path, error) {
 
 // MergeAnd combines the paths, ANDing the caveats and expiration and metadata together.
 // Mutates p in place and returns p. The other path is not modified.
+// If p is nil, returns other directly.
 func (p *Path) MergeAnd(other *Path) (*Path, error) {
+	if p == nil {
+		return other, nil
+	}
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil {
 			if otherCaveat != nil {
