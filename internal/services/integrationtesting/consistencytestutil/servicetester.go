@@ -17,10 +17,8 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-func ServiceTesters(conn *grpc.ClientConn) []ServiceTester {
-	return []ServiceTester{
-		v1ServiceTester{v1.NewPermissionsServiceClient(conn), v1.NewExperimentalServiceClient(conn)},
-	}
+func NewServiceTester(conn *grpc.ClientConn) ServiceTester {
+	return v1ServiceTester{v1.NewPermissionsServiceClient(conn), v1.NewExperimentalServiceClient(conn)}
 }
 
 type ServiceTester interface {
