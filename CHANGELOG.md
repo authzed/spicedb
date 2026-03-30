@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - On a Postgres setup with read replicas, some requests may silently swallow errors of sort "revision not found in replica" (https://github.com/authzed/spicedb/pull/2979)
+- Use cgroup-aware memory detection for cache and watch buffer sizing in containerized environments (https://github.com/authzed/spicedb/pull/3000)
 
 ## [1.51.0] - 2026-03-24
 ### Changed

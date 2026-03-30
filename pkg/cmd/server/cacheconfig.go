@@ -10,25 +10,16 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/dustin/go-humanize"
-	"github.com/pbnjay/memory"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/pkg/cache"
+	pkgruntime "github.com/authzed/spicedb/pkg/runtime"
 )
 
 // Factor by which we will extend the maximum amount of expected needed TTL
 const ttlExtensionFactor = 2.0
 
-var (
-	// At startup, measure 75% of available free memory.
-	freeMemory uint64
-
-	errOverHundredPercent = errors.New("percentage greater than 100")
-)
-
-func init() {
-	freeMemory = memory.FreeMemory() / 100 * 75
-}
+var errOverHundredPercent = errors.New("percentage greater than 100")
 
 // CacheConfig defines the configuration various SpiceDB caches.
 //
@@ -67,7 +58,7 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 	)
 
 	if strings.HasSuffix(cc.MaxCost, "%") {
-		maxCost, err = parsePercent(cc.MaxCost, freeMemory)
+		maxCost, err = parsePercent(cc.MaxCost, pkgruntime.AvailableMemory())
 	} else {
 		maxCost, err = humanize.ParseBytes(cc.MaxCost)
 	}
