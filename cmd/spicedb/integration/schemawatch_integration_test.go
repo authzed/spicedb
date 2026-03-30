@@ -3,7 +3,6 @@
 package integration_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -98,7 +97,7 @@ func TestSchemaWatch(t *testing.T) {
 
 			// Grab logs and ensure GC has run before starting a graceful shutdown.
 			opts := docker.LogsOptions{
-				Context:      context.Background(),
+				Context:      t.Context(),
 				Stderr:       true,
 				Stdout:       true,
 				Follow:       true,

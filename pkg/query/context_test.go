@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -103,7 +102,7 @@ func TestContext(t *testing.T) {
 	t.Run("TraceStep", func(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -118,7 +117,7 @@ func TestContext(t *testing.T) {
 
 	t.Run("TraceStep_NoLogger", func(t *testing.T) {
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No TraceLogger set
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -133,7 +132,7 @@ func TestContext(t *testing.T) {
 	t.Run("TraceEnter", func(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -150,7 +149,7 @@ func TestContext(t *testing.T) {
 	t.Run("TraceExit", func(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -169,7 +168,7 @@ func TestContext(t *testing.T) {
 	t.Run("shouldTrace", func(t *testing.T) {
 		require := require.New(t)
 		// With logger
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(NewTraceLogger()))
 		require.True(ctx.shouldTrace())
 
@@ -180,7 +179,7 @@ func TestContext(t *testing.T) {
 
 	t.Run("Check_NoExecutor", func(t *testing.T) {
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
 		// This test won't actually panic anymore, so we need to modify it
 		ctx.Executor = nil // Manually remove executor to test the panic path
@@ -195,7 +194,7 @@ func TestContext(t *testing.T) {
 
 	t.Run("IterSubjects_NoExecutor", func(t *testing.T) {
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
 		// This test won't actually panic anymore, so we need to modify it
 		ctx.Executor = nil // Manually remove executor to test the panic path
@@ -210,7 +209,7 @@ func TestContext(t *testing.T) {
 
 	t.Run("IterResources_NoExecutor", func(t *testing.T) {
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
 		// This test won't actually panic anymore, so we need to modify it
 		ctx.Executor = nil // Manually remove executor to test the panic path
@@ -225,7 +224,7 @@ func TestContext(t *testing.T) {
 
 	t.Run("wrapPathSeqForTracing_NoTracing", func(t *testing.T) {
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No TraceLogger
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -250,7 +249,7 @@ func TestContext(t *testing.T) {
 	t.Run("wrapPathSeqForTracing_WithTracing", func(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
@@ -283,7 +282,7 @@ func TestContext(t *testing.T) {
 	t.Run("wrapPathSeqForTracing_WithError", func(t *testing.T) {
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")

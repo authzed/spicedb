@@ -200,7 +200,7 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 				Debug: v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING,
 			}
 
-			resp, err := dispatcher.DispatchCheck(context.Background(), request)
+			resp, err := dispatcher.DispatchCheck(t.Context(), request)
 			if err != nil {
 				errors <- err
 				return

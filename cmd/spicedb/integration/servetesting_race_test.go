@@ -3,7 +3,6 @@
 package integration_test
 
 import (
-	"context"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -44,7 +43,7 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
-			resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+			resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 			if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
 				return false
 			}
@@ -53,7 +52,7 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 		}, 5*time.Second, 1*time.Millisecond, "was unable to connect to running service")
 
 		client := v1.NewPermissionsServiceClient(conn)
-		result, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+		result, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
 			Resource: &v1.ObjectReference{
 				ObjectType: "access",
 				ObjectId:   "blue",

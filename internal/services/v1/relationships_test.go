@@ -1369,7 +1369,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				})
 				require.NoError(err)
 
-				headRev, err = ds.HeadRevision(context.Background())
+				headRev, err = ds.HeadRevision(t.Context())
 				require.NoError(err)
 
 				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
@@ -2299,7 +2299,7 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 
 			// Write the schema
 			schemaClient := v1.NewSchemaServiceClient(conn)
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tc.schema,
 			})
 			require.NoError(err)
@@ -2314,14 +2314,14 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 						Relationship: tuple.ToV1Relationship(rel),
 					})
 				}
-				_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				_, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 					Updates: updates,
 				})
 				require.NoError(err)
 			}
 
 			// Execute ReadRelationships request
-			stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+			stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 				RelationshipFilter: tc.filter,
 			})
 			require.NoError(err)

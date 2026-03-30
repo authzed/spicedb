@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -358,7 +357,7 @@ func TestToDefinitionsRoundTripWithTypeSystem(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -593,7 +592,7 @@ func TestToDefinitionsFlattenedRoundTripWithTypeSystem(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -662,7 +661,7 @@ func TestToDefinitionsRoundTripWithTypeSystemNegativeCases(t *testing.T) {
 		}
 	`
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Compile and convert
 	compiled, err := compiler.Compile(compiler.InputSchema{

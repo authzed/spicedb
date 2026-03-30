@@ -64,7 +64,7 @@ func TestServe(t *testing.T) {
 			})
 
 			require.Eventually(func() bool {
-				resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+				resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 				if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
 					return false
 				}
@@ -73,7 +73,7 @@ func TestServe(t *testing.T) {
 			}, 5*time.Second, 1*time.Millisecond, "was unable to connect to running service")
 
 			client := v1.NewSchemaServiceClient(conn)
-			_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: `definition user {}`,
 			})
 
@@ -227,7 +227,7 @@ func TestGracefulShutdown(t *testing.T) {
 
 				// Grab logs and ensure GC has run before starting a graceful shutdown.
 				opts := docker.LogsOptions{
-					Context:      context.Background(),
+					Context:      t.Context(),
 					Stderr:       true,
 					Stdout:       true,
 					Follow:       true,

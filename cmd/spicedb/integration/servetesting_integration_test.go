@@ -4,7 +4,6 @@ package integration_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,12 +58,12 @@ func TestTestServer(t *testing.T) {
 	defer roConn.Close()
 
 	require.Eventually(func() bool {
-		resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
 			return false
 		}
 
-		resp, err = healthpb.NewHealthClient(roConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		resp, err = healthpb.NewHealthClient(roConn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
 			return false
 		}
@@ -78,7 +77,7 @@ func TestTestServer(t *testing.T) {
 	relationship := tuple.MustParse("resource:someresource#reader@user:somegal")
 
 	// Try writing a simple relationship against readonly and ensure it fails.
-	_, err = rov1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = rov1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
 			tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(relationship)),
 		},
@@ -86,7 +85,7 @@ func TestTestServer(t *testing.T) {
 	require.Equal("rpc error: code = Unavailable desc = service read-only", err.Error())
 
 	// Write a simple relationship.
-	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+	_, err = v1client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
 			tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(relationship)),
 		},
@@ -111,12 +110,12 @@ func TestTestServer(t *testing.T) {
 		},
 	}
 
-	v1Resp, err := v1client.CheckPermission(context.Background(), checkReq)
+	v1Resp, err := v1client.CheckPermission(t.Context(), checkReq)
 	require.NoError(err)
 	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
 	// Ensure check against readonly works as well.
-	v1Resp, err = rov1client.CheckPermission(context.Background(), checkReq)
+	v1Resp, err = rov1client.CheckPermission(t.Context(), checkReq)
 	require.NoError(err)
 	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
@@ -128,7 +127,7 @@ func TestTestServer(t *testing.T) {
 	defer authedConn.Close()
 
 	require.Eventually(func() bool {
-		resp, err := healthpb.NewHealthClient(authedConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		resp, err := healthpb.NewHealthClient(authedConn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
 			return false
 		}
@@ -137,7 +136,7 @@ func TestTestServer(t *testing.T) {
 	}, 5*time.Second, 5*time.Millisecond, "was unable to connect to running service(s)")
 
 	authedv1client := v1.NewPermissionsServiceClient(authedConn)
-	_, err = authedv1client.CheckPermission(context.Background(), checkReq)
+	_, err = authedv1client.CheckPermission(t.Context(), checkReq)
 	s, ok := status.FromError(err)
 	require.True(ok)
 	require.Equal(codes.FailedPrecondition, s.Code())
@@ -230,12 +229,12 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			client := v1.NewSchemaServiceClient(conn)
 
 			if withExistingSchema {
-				_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+				_, err = client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 				return err
 			}
 
 			// Write a basic schema.
-			_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: `
 			definition user {}
 			

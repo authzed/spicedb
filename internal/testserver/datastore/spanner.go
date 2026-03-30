@@ -55,7 +55,7 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 	t.Setenv("SPANNER_EMULATOR_HOST", spannerEmulatorAddr)
 
 	require.NoError(t, pool.Retry(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancel()
 
 		instancesClient, err := instances.NewInstanceAdminClient(ctx)
@@ -64,7 +64,7 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 		}
 		defer func() { require.NoError(t, instancesClient.Close()) }()
 
-		ctx, cancel = context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancel = context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancel()
 		_, err = instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
 			Parent:     "projects/fake-project-id",
@@ -100,7 +100,7 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 
 	newInstanceName := "fake-instance-" + uniquePortion
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	instancesClient, err := instances.NewInstanceAdminClient(ctx)
@@ -140,13 +140,13 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	db := b.NewDatabase(t)
 
-	migrationDriver, err := migrations.NewSpannerDriver(context.Background(), db, "", os.Getenv("SPANNER_EMULATOR_HOST"))
+	migrationDriver, err := migrations.NewSpannerDriver(t.Context(), db, "", os.Getenv("SPANNER_EMULATOR_HOST"))
 	require.NoError(t, err)
 	defer func() {
-		migrationDriver.Close(context.Background())
+		migrationDriver.Close(t.Context())
 	}()
 
-	err = migrations.SpannerMigrations.Run(context.Background(), migrationDriver, b.targetMigration, migrate.LiveRun)
+	err = migrations.SpannerMigrations.Run(t.Context(), migrationDriver, b.targetMigration, migrate.LiveRun)
 	require.NoError(t, err)
 
 	return initFunc("spanner", db)

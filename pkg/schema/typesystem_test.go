@@ -210,7 +210,7 @@ func TestDirectPossibleTraitsForFilter(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := NewTypeSystem(ResolverForPredefinedDefinitions(*setup))
 
 	testCases := []struct {
@@ -375,7 +375,7 @@ func (mr *mockResolver) LookupCaveat(ctx context.Context, name string) (*Caveat,
 }
 
 func TestDirectPossibleTraitsForFilterErrorCases(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test case for generic error (not DefinitionNotFoundError)
 	t.Run("generic error from resolver", func(t *testing.T) {
@@ -439,7 +439,7 @@ func TestPossibleTraitsForFilter(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := NewTypeSystem(ResolverForPredefinedDefinitions(*setup))
 
 	testCases := []struct {
