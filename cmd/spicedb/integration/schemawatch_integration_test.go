@@ -3,6 +3,7 @@
 package integration_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -97,7 +98,8 @@ func TestSchemaWatch(t *testing.T) {
 
 			// Grab logs and ensure GC has run before starting a graceful shutdown.
 			opts := docker.LogsOptions{
-				Context:      t.Context(),
+				// nolint:usetesting // t.Context() is canceled when the test ends, which kills the Follow goroutine prematurely
+				Context:      context.Background(),
 				Stderr:       true,
 				Stdout:       true,
 				Follow:       true,
