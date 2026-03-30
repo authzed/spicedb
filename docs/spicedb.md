@@ -464,7 +464,6 @@ spicedb serve [flags]
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
-
       --datastore-password string                                                       datastore password (used to build connection URI if datastore-conn-uri is not provided)
       --datastore-port string                                                           datastore port (used to build connection URI if datastore-conn-uri is not provided)
       --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
