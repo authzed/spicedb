@@ -8,20 +8,13 @@ import (
 	"strings"
 
 	"github.com/dustin/go-humanize"
-	"github.com/pbnjay/memory"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	pkgruntime "github.com/authzed/spicedb/pkg/runtime"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-// At startup, measure 75% of available free memory.
-var freeMemory uint64
-
-func init() {
-	freeMemory = memory.FreeMemory() / 100 * 75
-}
 
 // WriteRelationships is a convenience method to perform the same update operation on a set of relationships
 func WriteRelationships(ctx context.Context, ds datastore.Datastore, op tuple.UpdateOperation, rels ...tuple.Relationship) (datastore.Revision, error) {
@@ -88,7 +81,7 @@ func WatchBufferSize(sizeString string) (size uint64, err error) {
 	}
 
 	if strings.HasSuffix(sizeString, "%") {
-		size, err := parsePercent(sizeString, freeMemory)
+		size, err := parsePercent(sizeString, pkgruntime.AvailableMemory())
 		if err != nil {
 			return 0, fmt.Errorf("could not parse %s as percentage: %w", sizeString, err)
 		}
