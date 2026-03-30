@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Lint warning for permission expressions that mix operators (union, intersection, exclusion) at the same scope level without explicit parentheses (https://github.com/authzed/spicedb/pull/2786)
+
 ### Changed
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)
 - Removed support for Spanner flag value `--datastore-spanner-metrics=deprecated-prometheus`; please use values `otel` or `native` (https://github.com/authzed/spicedb/pull/2980)
