@@ -49,6 +49,8 @@ type DevContext struct {
 	Revision       datastore.Revision
 	CompiledSchema *compiler.CompiledSchema
 	Dispatcher     dispatch.Dispatcher
+	// SchemaString is the original schema source text, used for source-scanning warnings.
+	SchemaString string
 }
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
@@ -161,6 +163,7 @@ func newDevContextWithDataLayer(ctx context.Context, requestContext *devinterfac
 		CompiledSchema: compiled,
 		Revision:       currentRevision,
 		Dispatcher:     dispatcher,
+		SchemaString:   requestContext.Schema,
 	}, nil, nil
 }
 
