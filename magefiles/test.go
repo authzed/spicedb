@@ -134,7 +134,7 @@ func (Test) Wasm() error {
 	defer os.Remove("wasm.test")
 
 	// run the tests with wasmbrowsertests
-	return RunSh("go", Tool())("run", "github.com/agnivade/wasmbrowsertest", "../wasm.test")
+	return buildAndRunTool("magefiles", "github.com/agnivade/wasmbrowsertest", "wasm.test")
 }
 
 type Testds mg.Namespace
