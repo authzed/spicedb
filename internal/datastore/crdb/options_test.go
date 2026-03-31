@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestConfiguration(t *testing.T) {
