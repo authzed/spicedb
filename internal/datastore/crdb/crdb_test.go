@@ -257,6 +257,15 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Run("TestRelationshipIntegrityInfo", func(t *testing.T) { RelationshipIntegrityInfoTest(t, unwrappedTester) })
 	t.Run("TestBulkRelationshipIntegrityInfo", func(t *testing.T) { BulkRelationshipIntegrityInfoTest(t, unwrappedTester) })
 	t.Run("TestWatchRelationshipIntegrity", func(t *testing.T) { RelationshipIntegrityWatchTest(t, unwrappedTester) })
+
+	t.Run("TestWatchSnapshotOnly", createDatastoreTest(
+		b,
+		SnapshotOnlyWatchTest,
+		RevisionQuantization(0),
+		GCWindow(veryLargeGCWindow),
+		WithIntegrity(true),
+		WithAcquireTimeout(5*time.Second),
+	))
 }
 
 func TestWatchFeatureDetection(t *testing.T) {
@@ -895,6 +904,11 @@ func SnapshotOnlyWatchTest(t *testing.T, rawDS datastore.Datastore) {
 		}
 	`, nil, require)
 	ctx := t.Context()
+
+	// Verify OfflineFeatures reports snapshot support.
+	offlineFeatures, err := ds.OfflineFeatures()
+	require.NoError(err)
+	require.Equal(datastore.FeatureSupported, offlineFeatures.WatchSnapshot.Status)
 
 	snapshotOpts := datastore.WatchOptions{
 		Content:                 datastore.WatchRelationships | datastore.WatchCheckpoints,
