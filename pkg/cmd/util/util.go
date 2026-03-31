@@ -23,8 +23,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
-	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
-	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics" // Register cert watcher metrics
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -146,12 +144,12 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 	}, nil, nil
 }
 
-func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *certwatcher.CertWatcher, error) {
+func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *x509util.CertWatcher, error) {
 	switch {
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		return nil, nil, nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		watcher, err := certwatcher.New(c.TLSCertPath, c.TLSKeyPath)
+		watcher, err := x509util.NewCertWatcher(c.TLSCertPath, c.TLSKeyPath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -203,7 +201,7 @@ type completedGRPCServer struct {
 	dial              func(context.Context, ...grpc.DialOption) (*grpc.ClientConn, error)
 	netDial           func(ctx context.Context, s string) (net.Conn, error)
 	creds             credentials.TransportCredentials
-	certWatcher       *certwatcher.CertWatcher
+	certWatcher       *x509util.CertWatcher
 	srv               *grpc.Server
 }
 
@@ -298,7 +296,7 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 		}
 
 	case c.HTTPTLSCertPath != "" && c.HTTPTLSKeyPath != "":
-		watcher, err := certwatcher.New(c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
+		watcher, err := x509util.NewCertWatcher(c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
 		if err != nil {
 			return nil, err
 		}
