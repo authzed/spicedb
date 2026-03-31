@@ -625,6 +625,8 @@ type WatchOptions struct {
 
 	// SnapshotOnly, when true, causes the Watch to emit all existing rows at the given revision
 	// and then close. Only supported on datastores that have WatchSnapshot feature enabled.
+	// When SnapshotOnly is true, EmissionStrategy is ignored: rows are always emitted immediately
+	// as they are scanned, since there are no checkpoints in a snapshot changefeed.
 	SnapshotOnly bool
 }
 

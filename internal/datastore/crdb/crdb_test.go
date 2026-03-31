@@ -924,7 +924,7 @@ func SnapshotOnlyWatchTest(t *testing.T, rawDS datastore.Datastore) {
 	})
 
 	// Write initial relationships.
-	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:tom")),
 			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:fred")),
