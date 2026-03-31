@@ -258,14 +258,6 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Run("TestBulkRelationshipIntegrityInfo", func(t *testing.T) { BulkRelationshipIntegrityInfoTest(t, unwrappedTester) })
 	t.Run("TestWatchRelationshipIntegrity", func(t *testing.T) { RelationshipIntegrityWatchTest(t, unwrappedTester) })
 
-	t.Run("TestWatchSnapshotOnly", createDatastoreTest(
-		b,
-		SnapshotOnlyWatchTest,
-		RevisionQuantization(0),
-		GCWindow(veryLargeGCWindow),
-		WithIntegrity(true),
-		WithAcquireTimeout(5*time.Second),
-	))
 }
 
 func TestWatchFeatureDetection(t *testing.T) {

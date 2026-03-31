@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,6 +63,24 @@ func TestConfiguration(t *testing.T) {
 			config, err := generateConfig(tt.options)
 			require.NoError(t, err)
 			tt.validate(t, config)
+		})
+	}
+}
+
+func TestOfflineFeaturesWatchSnapshot(t *testing.T) {
+	tests := []struct {
+		name              string
+		supportsIntegrity bool
+	}{
+		{"without integrity", false},
+		{"with integrity", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ds := &crdbDatastore{supportsIntegrity: tt.supportsIntegrity}
+			features, err := ds.OfflineFeatures()
+			require.NoError(t, err)
+			require.Equal(t, datastore.FeatureSupported, features.WatchSnapshot.Status)
 		})
 	}
 }
