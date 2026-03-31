@@ -518,6 +518,9 @@ func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 			WatchEmitsImmediately: datastore.Feature{
 				Status: datastore.FeatureSupported,
 			},
+			WatchSnapshot: datastore.Feature{
+				Status: datastore.FeatureSupported,
+			},
 		}, nil
 	}
 
@@ -529,6 +532,9 @@ func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 			Status: datastore.FeatureSupported,
 		},
 		WatchEmitsImmediately: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		WatchSnapshot: datastore.Feature{
 			Status: datastore.FeatureSupported,
 		},
 	}, nil
@@ -564,6 +570,10 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 		},
 		WatchEmitsImmediately: datastore.Feature{
 			Status: datastore.FeatureSupported,
+		},
+		WatchSnapshot: datastore.Feature{
+			Status: datastore.FeatureSupported,
+			Reason: "CockroachDB supports point-in-time snapshots via changefeeds",
 		},
 	}
 	if cds.supportsIntegrity {

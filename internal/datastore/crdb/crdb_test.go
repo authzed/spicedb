@@ -101,6 +101,14 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		WithAcquireTimeout(5*time.Second),
 	))
 
+	t.Run("TestWatchSnapshotOnly", createDatastoreTest(
+		b,
+		SnapshotOnlyWatchTest,
+		RevisionQuantization(0),
+		GCWindow(veryLargeGCWindow),
+		WithAcquireTimeout(5*time.Second),
+	))
+
 	t.Run("TestTransactionMetadataMarking", createDatastoreTest(
 		b,
 		TransactionMetadataMarkingTest,
@@ -873,6 +881,101 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 			require.Fail("Timed out")
 		}
 	}
+}
+
+func SnapshotOnlyWatchTest(t *testing.T, rawDS datastore.Datastore) {
+	require := require.New(t)
+
+	// Write schema only, no relationships yet.
+	ds, emptyRev := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+		definition user {}
+
+		definition resource {
+			relation viewer: user
+		}
+	`, nil, require)
+	ctx := t.Context()
+
+	snapshotOpts := datastore.WatchOptions{
+		Content:                 datastore.WatchRelationships | datastore.WatchCheckpoints,
+		WatchBufferLength:       128,
+		WatchBufferWriteTimeout: 1 * time.Minute,
+		SnapshotOnly:            true,
+	}
+
+	// Snapshot before any relationships exist — should close cleanly with no emissions.
+	emptyChanges, emptyErrchan := ds.Watch(ctx, emptyRev, snapshotOpts)
+	drainSnapshotWatch(t, emptyChanges, emptyErrchan, func(seen *mapz.Set[string]) {
+		require.Equal(0, len(seen.AsSlice()), "expected empty snapshot, got: %v", seen.AsSlice())
+	})
+
+	// Write initial relationships.
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:tom")),
+			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:fred")),
+			tuple.Touch(tuple.MustParse("resource:bar#viewer@user:sarah")),
+		})
+	})
+	require.NoError(err)
+
+	// Delete one relationship to verify the snapshot reflects the live state at the
+	// revision, not a replay of the full write history.
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Delete(tuple.MustParse("resource:foo#viewer@user:fred")),
+		})
+	})
+	require.NoError(err)
+
+	// Snapshot at the current head revision.
+	changes, errchan := ds.Watch(ctx, rev, snapshotOpts)
+
+	// Write additional relationships after the snapshot revision; these should NOT appear.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("resource:baz#viewer@user:late")),
+		})
+	})
+	require.NoError(err)
+
+	drainSnapshotWatch(t, changes, errchan, func(seen *mapz.Set[string]) {
+		// Exactly the 2 surviving relationships should be in the snapshot.
+		require.Equal(2, len(seen.AsSlice()), "expected exactly 2 relationships in snapshot, got: %v", seen.AsSlice())
+		require.True(seen.Has("resource:foo#viewer@user:tom"), "missing resource:foo#viewer@user:tom")
+		require.True(seen.Has("resource:bar#viewer@user:sarah"), "missing resource:bar#viewer@user:sarah")
+	})
+}
+
+func drainSnapshotWatch(t *testing.T, changes <-chan datastore.RevisionChanges, errchan <-chan error, assert func(seen *mapz.Set[string])) {
+	t.Helper()
+	require := require.New(t)
+
+	seen := mapz.NewSet[string]()
+	timeout := time.After(30 * time.Second)
+	for {
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				goto done
+			}
+			for _, update := range change.RelationshipChanges {
+				seen.Add(tuple.MustString(update.Relationship))
+			}
+		case <-timeout:
+			require.Fail("timed out waiting for snapshot watch to complete")
+		}
+	}
+done:
+	select {
+	case err, ok := <-errchan:
+		if ok && err != nil {
+			require.Failf("unexpected error from watch", "error: %v", err)
+		}
+	default:
+	}
+
+	assert(seen)
 }
 
 func TestWrapErr(t *testing.T) {

@@ -622,6 +622,10 @@ type WatchOptions struct {
 	// EmissionStrategy defines when are changes streamed to the client. If unspecified, changes will be buffered until
 	// they can be checkpointed, which is the default behavior.
 	EmissionStrategy EmissionStrategy
+
+	// SnapshotOnly, when true, causes the Watch to emit all existing rows at the given revision
+	// and then close. Only supported on datastores that have WatchSnapshot feature enabled.
+	SnapshotOnly bool
 }
 
 // EmissionStrategy describes when changes are emitted to the client.
@@ -885,6 +889,10 @@ type Features struct {
 	// IntegrityData is enabled if the underlying datastore supports retrieving and storing
 	// integrity information.
 	IntegrityData Feature
+
+	// WatchSnapshot is enabled if the underlying datastore supports emitting a point-in-time
+	// snapshot of all existing rows at a given revision via the Watch pipeline.
+	WatchSnapshot Feature
 }
 
 // ObjectTypeStat represents statistics for a single object type (namespace).

@@ -213,6 +213,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 		t.Run("TestWatchWithMetadata", runner(tester, WatchWithMetadataTest))
 		t.Run("TestWatchWithExpiration", runner(tester, WatchWithExpirationTest))
 		t.Run("TestWatchEmissionStrategy", runner(tester, WatchEmissionStrategyTest))
+		t.Run("TestWatchSnapshotOnlyUnsupported", runner(tester, WatchSnapshotOnlyUnsupportedTest))
 	}
 
 	if !except.Watch() && !except.WatchSchema() {

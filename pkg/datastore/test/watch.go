@@ -942,3 +942,32 @@ func verifyCheckpointUpdate(
 		}
 	}
 }
+
+func WatchSnapshotOnlyUnsupportedTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx := t.Context()
+
+	features, err := ds.Features(ctx)
+	require.NoError(err)
+
+	if features.WatchSnapshot.Status == datastore.FeatureSupported {
+		t.Skip("datastore supports snapshot watch, skipping unsupported test")
+	}
+
+	rev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	_, errchan := ds.Watch(ctx, rev, datastore.WatchOptions{
+		Content:      datastore.WatchRelationships,
+		SnapshotOnly: true,
+	})
+	require.NotEmpty(errchan)
+	err = <-errchan
+	require.ErrorContains(err, "snapshot only watch is unsupported")
+}

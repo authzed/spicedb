@@ -31,9 +31,10 @@ const (
 	// resolved: the minimum duration between "resolved" checkpoint messages
 	// min_checkpoint_frequency: how frequently CRDB will attempt to produce a checkpoint. the docs say that this can be 0,
 	// but that doesn't seem to be true for 26.1, so we set it to 1ms, which is still short but seems to work.
-	queryChangefeed       = "CREATE CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '1ms';"
-	queryChangefeedPreV25 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
-	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
+	queryChangefeed             = "CREATE CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '1ms';"
+	queryChangefeedSnapshotOnly = "CREATE CHANGEFEED FOR %s WITH initial_scan = 'only', cursor = '%s';"
+	queryChangefeedPreV25       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
+	queryChangefeedPreV22       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
 )
 
 type changeDetails struct {
@@ -156,7 +157,12 @@ func (cds *crdbDatastore) watch(
 	}
 
 	resolvedDurationString := strconv.FormatInt(resolvedDuration.Milliseconds(), 10) + "ms"
-	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision, resolvedDurationString)
+	var interpolated string
+	if opts.SnapshotOnly {
+		interpolated = fmt.Sprintf(queryChangefeedSnapshotOnly, strings.Join(tableNames, ","), afterRevision)
+	} else {
+		interpolated = fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision, resolvedDurationString)
+	}
 
 	sendError := func(err error) {
 		if errors.Is(ctx.Err(), context.Canceled) {
@@ -213,7 +219,7 @@ func (cds *crdbDatastore) watch(
 	// no return value so we're not really losing anything.
 	defer func() { go changes.Close() }()
 
-	cds.processChanges(ctx, changes, sendError, sendChange, opts, opts.EmissionStrategy == datastore.EmitImmediatelyStrategy)
+	cds.processChanges(ctx, changes, afterRevision, sendError, sendChange, opts, opts.EmissionStrategy == datastore.EmitImmediatelyStrategy || opts.SnapshotOnly)
 }
 
 // changeTracker takes care of accumulating changes received from CockroachDB until a checkpoint is emitted
@@ -326,7 +332,7 @@ type (
 	sendErrorFunc  func(err error)
 )
 
-func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, sendError sendErrorFunc, sendChange sendChangeFunc, opts datastore.WatchOptions, streaming bool) {
+func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, afterRevision datastore.Revision, sendError sendErrorFunc, sendChange sendChangeFunc, opts datastore.WatchOptions, streaming bool) {
 	var tracked changeTracker[revisions.HLCRevision, revisions.HLCRevision]
 	if streaming {
 		tracked = &streamingChangeProvider{
@@ -358,6 +364,12 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 		if err := json.Unmarshal(changeJSON, &details); err != nil {
 			sendError(err)
 			return
+		}
+
+		// For initial_scan = 'only' changefeeds, CRDB does not include the "updated" timestamp.
+		// Use the snapshot revision as the timestamp for these rows.
+		if details.Updated == "" && opts.SnapshotOnly {
+			details.Updated = afterRevision.String()
 		}
 
 		// Resolved indicates that the specified revision is "complete"; no additional updates can come in before or at it.

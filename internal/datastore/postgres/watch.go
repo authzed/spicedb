@@ -81,6 +81,12 @@ func (pgd *pgDatastore) Watch(
 		return updates, errs
 	}
 
+	if options.SnapshotOnly {
+		close(updates)
+		errs <- errors.New("snapshot only watch is unsupported in Postgres")
+		return updates, errs
+	}
+
 	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
 		close(updates)
 		errs <- errors.New("emit immediately strategy is unsupported in Postgres")

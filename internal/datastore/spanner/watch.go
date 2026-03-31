@@ -49,6 +49,12 @@ func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.R
 	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 2) // we may try to send >1 error
 
+	if opts.SnapshotOnly {
+		close(updates)
+		errs <- errors.New("snapshot only watch is unsupported in Spanner")
+		return updates, errs
+	}
+
 	if opts.EmissionStrategy == datastore.EmitImmediatelyStrategy {
 		close(updates)
 		errs <- errors.New("emit immediately strategy is unsupported in Spanner")

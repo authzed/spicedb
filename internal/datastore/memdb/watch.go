@@ -23,6 +23,12 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, opt
 	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
+	if options.SnapshotOnly {
+		close(updates)
+		errs <- errors.New("snapshot only watch is unsupported in MemDB")
+		return updates, errs
+	}
+
 	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
 		close(updates)
 		errs <- errors.New("emit immediately strategy is unsupported in MemDB")
