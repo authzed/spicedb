@@ -906,7 +906,7 @@ func SnapshotOnlyWatchTest(t *testing.T, rawDS datastore.Datastore) {
 	// Snapshot before any relationships exist — should close cleanly with no emissions.
 	emptyChanges, emptyErrchan := ds.Watch(ctx, emptyRev, snapshotOpts)
 	drainSnapshotWatch(t, emptyChanges, emptyErrchan, func(seen *mapz.Set[string]) {
-		require.Equal(0, len(seen.AsSlice()), "expected empty snapshot, got: %v", seen.AsSlice())
+		require.Empty(seen.AsSlice(), "expected empty snapshot, got: %v", seen.AsSlice())
 	})
 
 	// Write initial relationships.
@@ -941,7 +941,7 @@ func SnapshotOnlyWatchTest(t *testing.T, rawDS datastore.Datastore) {
 
 	drainSnapshotWatch(t, changes, errchan, func(seen *mapz.Set[string]) {
 		// Exactly the 2 surviving relationships should be in the snapshot.
-		require.Equal(2, len(seen.AsSlice()), "expected exactly 2 relationships in snapshot, got: %v", seen.AsSlice())
+		require.Len(seen.AsSlice(), 2, "expected exactly 2 relationships in snapshot, got: %v", seen.AsSlice())
 		require.True(seen.Has("resource:foo#viewer@user:tom"), "missing resource:foo#viewer@user:tom")
 		require.True(seen.Has("resource:bar#viewer@user:sarah"), "missing resource:bar#viewer@user:sarah")
 	})

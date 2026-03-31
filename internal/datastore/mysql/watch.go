@@ -41,6 +41,12 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 		return updates, errs
 	}
 
+	if options.SnapshotOnly {
+		close(updates)
+		errs <- errors.New("snapshot only watch is unsupported in MySQL")
+		return updates, errs
+	}
+
 	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
 		close(updates)
 		errs <- errors.New("emit immediately strategy is unsupported in MySQL")
