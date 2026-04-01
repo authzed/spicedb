@@ -11,8 +11,8 @@ type ExperimentalServerOptionsOption func(e *ExperimentalServerOptions)
 // NewExperimentalServerOptionsWithOptions creates a new ExperimentalServerOptions with the passed in options set
 func NewExperimentalServerOptionsWithOptions(opts ...ExperimentalServerOptionsOption) *ExperimentalServerOptions {
 	e := &ExperimentalServerOptions{}
-	for _, o := range opts {
-		o(e)
+	for _, opt := range opts {
+		opt(e)
 	}
 	return e
 }
@@ -21,8 +21,8 @@ func NewExperimentalServerOptionsWithOptions(opts ...ExperimentalServerOptionsOp
 func NewExperimentalServerOptionsWithOptionsAndDefaults(opts ...ExperimentalServerOptionsOption) *ExperimentalServerOptions {
 	e := &ExperimentalServerOptions{}
 	defaults.MustSet(e)
-	for _, o := range opts {
-		o(e)
+	for _, opt := range opts {
+		opt(e)
 	}
 	return e
 }
@@ -40,7 +40,13 @@ func (e *ExperimentalServerOptions) ToOption() ExperimentalServerOptionsOption {
 // DebugMap returns a map form of ExperimentalServerOptions for debugging
 func (e *ExperimentalServerOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["StreamReadTimeout"] = e.StreamReadTimeout
+	if dm, ok := any(&e.StreamReadTimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["StreamReadTimeout"] = dm.DebugMap()
+	} else {
+		debugMap["StreamReadTimeout"] = e.StreamReadTimeout
+	}
 	debugMap["DefaultExportBatchSize"] = e.DefaultExportBatchSize
 	debugMap["MaxExportBatchSize"] = e.MaxExportBatchSize
 	debugMap["BulkCheckMaxConcurrency"] = e.BulkCheckMaxConcurrency
@@ -70,16 +76,16 @@ func (e *ExperimentalServerOptions) FlatDebugMap() map[string]any {
 
 // ExperimentalServerOptionsWithOptions configures an existing ExperimentalServerOptions with the passed in options set
 func ExperimentalServerOptionsWithOptions(e *ExperimentalServerOptions, opts ...ExperimentalServerOptionsOption) *ExperimentalServerOptions {
-	for _, o := range opts {
-		o(e)
+	for _, opt := range opts {
+		opt(e)
 	}
 	return e
 }
 
 // WithOptions configures the receiver ExperimentalServerOptions with the passed in options set
 func (e *ExperimentalServerOptions) WithOptions(opts ...ExperimentalServerOptionsOption) *ExperimentalServerOptions {
-	for _, o := range opts {
-		o(e)
+	for _, opt := range opts {
+		opt(e)
 	}
 	return e
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -706,4 +707,14 @@ func TestBuildDispatchServer(t *testing.T) {
 			require.Len(t, tc.config.DispatchStreamingMiddleware, tc.expectedDispatchStreamingMiddleware)
 		})
 	}
+}
+
+func TestDebugMapRedactsURI(t *testing.T) {
+	c := &Config{
+		DatastoreConfig: datastore.Config{
+			URI: "postgresql://root@localhost:26257/defaultdb",
+		},
+	}
+	out := fmt.Sprintln(c.FlatDebugMap())
+	require.NotContains(t, out, "postgresql://root@localhost:26257/defaultdb")
 }
