@@ -29,12 +29,15 @@ func NewCaveatIterator(subiterator Iterator, caveat *core.ContextualizedCaveat) 
 	}
 }
 
-func (c *CaveatIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	subSeq, err := ctx.Check(c.subiterator, resources, subject)
+func (c *CaveatIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	path, err := ctx.Check(c.subiterator, resource, subject)
 	if err != nil {
 		return nil, err
 	}
-	return c.runCaveats(ctx, subSeq)
+	if path == nil {
+		return nil, nil
+	}
+	return c.runCaveatOnPath(ctx, path)
 }
 
 func (c *CaveatIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
@@ -52,6 +55,23 @@ func (c *CaveatIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 	}
 
 	return c.runCaveats(ctx, subSeq)
+}
+
+// runCaveatOnPath applies caveat evaluation to a single path (used by CheckImpl).
+// Returns nil if the path fails caveat evaluation, or the (possibly annotated) path if it passes.
+func (c *CaveatIterator) runCaveatOnPath(ctx *Context, path *Path) (*Path, error) {
+	if c.caveat == nil {
+		return path, nil
+	}
+	simplified, passes, err := c.simplifyCaveat(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if !passes {
+		return nil, nil
+	}
+	path.Caveat = simplified
+	return path, nil
 }
 
 func (c *CaveatIterator) runCaveats(ctx *Context, subSeq PathSeq) (PathSeq, error) {

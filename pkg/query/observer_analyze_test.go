@@ -143,15 +143,11 @@ func TestAnalysisIntegration(t *testing.T) {
 		WithObserver(analyze))
 
 	// Execute a Check operation
-	resources := []Object{{ObjectType: "document", ObjectID: "doc1"}}
+	resource := Object{ObjectType: "document", ObjectID: "doc1"}
 	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
-	pathSeq, err := ctx.Check(fixed, resources, subject)
+	path, err := ctx.Check(fixed, resource, subject)
 	require.NoError(t, err)
-
-	// Consume the results
-	paths, err := CollectAll(pathSeq)
-	require.NoError(t, err)
-	require.Len(t, paths, 1)
+	require.NotNil(t, path)
 
 	// Verify stats were recorded
 	analyzeStats := analyze.GetStats()
@@ -295,14 +291,14 @@ func TestAnalyzeObserver(t *testing.T) {
 		obs := NewAnalyzeObserver()
 		key := CanonicalKey("test-key")
 
-		obs.ObserveEnterIterator(CheckOperation, key)
-		obs.ObserveEnterIterator(IterSubjectsOperation, key)
-		obs.ObserveEnterIterator(IterResourcesOperation, key)
+		obs.ObserveEnterIterator(OperationCheck, key)
+		obs.ObserveEnterIterator(OperationIterSubjects, key)
+		obs.ObserveEnterIterator(OperationIterResources, key)
 
 		// Need to call ObserveReturnIterator to finalize timing
-		obs.ObserveReturnIterator(CheckOperation, key)
-		obs.ObserveReturnIterator(IterSubjectsOperation, key)
-		obs.ObserveReturnIterator(IterResourcesOperation, key)
+		obs.ObserveReturnIterator(OperationCheck, key)
+		obs.ObserveReturnIterator(OperationIterSubjects, key)
+		obs.ObserveReturnIterator(OperationIterResources, key)
 
 		stats := obs.GetStats()[key]
 		require.Equal(t, 1, stats.CheckCalls)
@@ -315,10 +311,10 @@ func TestAnalyzeObserver(t *testing.T) {
 		key := CanonicalKey("test-key")
 		path := Path{}
 
-		obs.ObservePath(CheckOperation, key, &path)
-		obs.ObservePath(CheckOperation, key, &path)
-		obs.ObservePath(IterSubjectsOperation, key, &path)
-		obs.ObservePath(IterResourcesOperation, key, &path)
+		obs.ObservePath(OperationCheck, key, &path)
+		obs.ObservePath(OperationCheck, key, &path)
+		obs.ObservePath(OperationIterSubjects, key, &path)
+		obs.ObservePath(OperationIterResources, key, &path)
 
 		stats := obs.GetStats()[key]
 		require.Equal(t, 2, stats.CheckResults)
@@ -330,9 +326,9 @@ func TestAnalyzeObserver(t *testing.T) {
 		obs := NewAnalyzeObserver()
 		key := CanonicalKey("test-key")
 
-		obs.ObserveEnterIterator(CheckOperation, key)
+		obs.ObserveEnterIterator(OperationCheck, key)
 		time.Sleep(time.Millisecond)
-		obs.ObserveReturnIterator(CheckOperation, key)
+		obs.ObserveReturnIterator(OperationCheck, key)
 
 		stats := obs.GetStats()[key]
 		require.Greater(t, stats.CheckTime, time.Duration(0))
@@ -341,8 +337,8 @@ func TestAnalyzeObserver(t *testing.T) {
 	t.Run("GetStats returns copy", func(t *testing.T) {
 		obs := NewAnalyzeObserver()
 		key := CanonicalKey("test-key")
-		obs.ObserveEnterIterator(CheckOperation, key)
-		obs.ObserveReturnIterator(CheckOperation, key)
+		obs.ObserveEnterIterator(OperationCheck, key)
+		obs.ObserveReturnIterator(OperationCheck, key)
 
 		stats1 := obs.GetStats()
 		stats2 := obs.GetStats()

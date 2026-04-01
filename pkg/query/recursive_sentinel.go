@@ -42,28 +42,21 @@ func (r *RecursiveSentinelIterator) WithSubRelations() bool {
 	return r.withSubRelations
 }
 
-// CheckImpl returns an empty PathSeq. If collection mode is enabled, it collects
-// the queried resources to the frontier collection instead of returning paths.
-func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+// CheckImpl returns nil. If collection mode is enabled, it collects the queried
+// resource to the frontier collection instead of returning a path.
+func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	// Check if collection mode is enabled for this sentinel
 	if ctx.IsCollectingFrontier(r.CanonicalKey().Hash()) {
-		// Collection mode: append resources to frontier, return empty
-		return func(yield func(*Path, error) bool) {
-			for _, resource := range resources {
-				// Only collect if it matches our recursion type
-				if resource.ObjectType == r.definitionName {
-					ctx.CollectFrontierObject(r.CanonicalKey().Hash(), resource)
-					if ctx.shouldTrace() {
-						ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
-					}
-				}
+		// Only collect if it matches our recursion type
+		if resource.ObjectType == r.definitionName {
+			ctx.CollectFrontierObject(r.CanonicalKey().Hash(), resource)
+			if ctx.shouldTrace() {
+				ctx.TraceStep(r, "Collected frontier: %s:%s", resource.ObjectType, resource.ObjectID)
 			}
-			// Return empty (collection doesn't yield paths)
-		}, nil
+		}
 	}
-
-	// Normal mode: return empty (standard sentinel behavior)
-	return EmptyPathSeq(), nil
+	// Sentinel always returns nil (no path produced at recursion boundary)
+	return nil, nil
 }
 
 // IterSubjectsImpl returns an empty PathSeq. If collection mode is enabled, it collects

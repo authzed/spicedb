@@ -11,10 +11,10 @@ import (
 // Plan is the external-facing notion of a query plan. These follow the general API for
 // querying anything in the database as well as describing the plan.
 type Plan interface {
-	// CheckImpl tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
-	// any of the `resourceIDs` are connected to `subjectID`.
-	// Returns the sequence of matching paths, if they exist, at most `len(resourceIDs)`.
-	CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error)
+	// CheckImpl tests if the given resource is connected to subject in the underlying
+	// set of relationships (which may be a full expression or a basic lookup, depending
+	// on the iterator). Returns the matching Path if found, or nil if not found.
+	CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error)
 
 	// IterSubjectsImpl returns a sequence of all the paths in this set that match the given resourceID.
 	// The filterSubjectType parameter filters the results to only include subjects matching the

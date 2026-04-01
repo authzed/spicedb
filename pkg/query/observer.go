@@ -1,15 +1,22 @@
 package query
 
-type ObserverOperation int
+// Operation identifies which query operation is being executed.
+// The zero value (OperationUnset) means no operation has been set yet.
+type Operation int
 
 const (
-	CheckOperation ObserverOperation = iota
-	IterSubjectsOperation
-	IterResourcesOperation
+	// OperationUnset is the zero value; no operation has started yet.
+	OperationUnset Operation = iota
+	// OperationCheck means the operation is a point-lookup check.
+	OperationCheck
+	// OperationIterSubjects means the operation enumerates subjects for a given resource.
+	OperationIterSubjects
+	// OperationIterResources means the operation enumerates resources for a given subject.
+	OperationIterResources
 )
 
 type Observer interface {
-	ObserveEnterIterator(op ObserverOperation, key CanonicalKey)
-	ObservePath(op ObserverOperation, key CanonicalKey, path *Path)
-	ObserveReturnIterator(op ObserverOperation, key CanonicalKey)
+	ObserveEnterIterator(op Operation, key CanonicalKey)
+	ObservePath(op Operation, key CanonicalKey, path *Path)
+	ObserveReturnIterator(op Operation, key CanonicalKey)
 }

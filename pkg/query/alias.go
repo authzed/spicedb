@@ -76,25 +76,42 @@ func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, sh
 	return DeduplicatePathSeq(combined)
 }
 
-func (a *AliasIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	// Get relations from sub-iterator
-	subSeq, err := ctx.Check(a.subIt, resources, subject)
+func (a *AliasIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	// Get path from sub-iterator
+	subPath, err := ctx.Check(a.subIt, resource, subject)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check for self-edge: if any resource with the alias relation matches the subject
-	for _, resource := range resources {
-		resourceWithAlias := resource.WithRelation(a.relation)
-		if resourceWithAlias.ObjectID == subject.ObjectID &&
-			resourceWithAlias.ObjectType == subject.ObjectType &&
-			resourceWithAlias.Relation == subject.Relation {
-			return a.maybePrependSelfEdge(GetObject(resourceWithAlias), subSeq, true), nil
-		}
+	if subPath != nil {
+		// We have a path! Even if it's caveated, rewrite it and return.
+		subPath.Relation = a.relation
+		return subPath, nil
 	}
 
-	// No self-edge detected, just rewrite paths from sub-iterator
-	return DeduplicatePathSeq(a.maybePrependSelfEdge(Object{}, subSeq, false)), nil
+	// We have no sub-path. We need to check for the self edge, if resource with the alias relation matches the subject
+	resourceWithAlias := resource.WithRelation(a.relation)
+	isSelfEdge := resourceWithAlias.ObjectID == subject.ObjectID &&
+		resourceWithAlias.ObjectType == subject.ObjectType &&
+		resourceWithAlias.Relation == subject.Relation
+
+	if !isSelfEdge {
+		return nil, nil
+	}
+
+	// Build the synthetic self-edge path
+	selfPath := &Path{
+		Resource: GetObject(resourceWithAlias),
+		Relation: a.relation,
+		Subject: ObjectAndRelation{
+			ObjectType: resource.ObjectType,
+			ObjectID:   resource.ObjectID,
+			Relation:   a.relation,
+		},
+		Metadata: make(map[string]any),
+	}
+
+	return selfPath, nil
 }
 
 func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
@@ -118,6 +135,9 @@ func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 // a subject anywhere in the datastore (expired or not), and the filter allows it, we
 // include a self-edge in the results.
 func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubjectType ObjectType) bool {
+	if ctx.TopLevelOperation != OperationIterSubjects {
+		return false
+	}
 	// First check: does the filter allow this resource type as a subject?
 	typeMatches := filterSubjectType.Type == "" || filterSubjectType.Type == resource.ObjectType
 	relationMatches := filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == a.relation

@@ -51,7 +51,7 @@ func NewSchemaArrow(left, right Iterator) *ArrowIterator {
 	}
 }
 
-func (a *ArrowIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (a *ArrowIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	// There are three major strategies:
 	// - IterSubjects on the left, Check on the right
 	// - IterResources on the right, Check on the left
@@ -60,136 +60,125 @@ func (a *ArrowIterator) CheckImpl(ctx *Context, resources []Object, subject Obje
 	// But for now, we cover the first two.
 	switch a.direction {
 	case leftToRight:
-		return a.checkLeftToRight(ctx, resources, subject)
+		return a.checkLeftToRight(ctx, resource, subject)
 	case rightToLeft:
-		return a.checkRightToLeft(ctx, resources, subject)
+		return a.checkRightToLeft(ctx, resource, subject)
 	default:
 		return nil, spiceerrors.MustBugf("unknown arrow direction: %d", a.direction)
 	}
 }
 
 // checkLeftToRight implements the left-to-right strategy:
-// For each resource, IterSubjects on left, then Check on right
-func (a *ArrowIterator) checkLeftToRight(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
-		if ctx.shouldTrace() {
-			ctx.TraceStep(a, "processing %d resources", len(resources))
+// IterSubjects on left for the resource, then Check on right for each left subject.
+// Returns the first found combined path (OR-merged if multiple left paths lead to the same subject).
+func (a *ArrowIterator) checkLeftToRight(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow check (left-to-right) for resource %s:%s", resource.ObjectType, resource.ObjectID)
+	}
+
+	subit, err := ctx.IterSubjects(a.left, resource, NoObjectFilter())
+	if err != nil {
+		return nil, err
+	}
+
+	var result *Path
+	leftPathCount := 0
+	for leftPath, err := range subit {
+		if err != nil {
+			return nil, err
 		}
-
-		totalResultPaths := 0
-		for resourceIdx, resource := range resources {
-			if ctx.shouldTrace() {
-				ctx.TraceStep(a, "processing resource %d: %s:%s", resourceIdx, resource.ObjectType, resource.ObjectID)
-			}
-
-			subit, err := ctx.IterSubjects(a.left, resource, NoObjectFilter())
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			leftPathCount := 0
-			for path, err := range subit {
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-				leftPathCount++
-
-				checkResources := []Object{GetObject(path.Subject)}
-				if ctx.shouldTrace() {
-					ctx.TraceStep(a, "checking right side for subject %s:%s", path.Subject.ObjectType, path.Subject.ObjectID)
-				}
-
-				checkit, err := ctx.Check(a.right, checkResources, subject)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-
-				// Process right check results and combine with left path
-				count, ok := processLeftPathSequence(checkit, path, yield)
-				totalResultPaths += count
-				if !ok {
-					return
-				}
-
-				if ctx.shouldTrace() {
-					ctx.TraceStep(a, "right side returned %d paths for subject %s:%s", count, path.Subject.ObjectType, path.Subject.ObjectID)
-				}
-			}
-
-			if ctx.shouldTrace() {
-				ctx.TraceStep(a, "left side returned %d paths for resource %s:%s", leftPathCount, resource.ObjectType, resource.ObjectID)
-			}
-		}
+		leftPathCount++
 
 		if ctx.shouldTrace() {
-			ctx.TraceStep(a, "arrow completed with %d total result paths", totalResultPaths)
+			ctx.TraceStep(a, "checking right side for left subject %s:%s", leftPath.Subject.ObjectType, leftPath.Subject.ObjectID)
 		}
-	}, nil
+
+		rightPath, err := ctx.Check(a.right, GetObject(leftPath.Subject), subject)
+		if err != nil {
+			return nil, err
+		}
+
+		if rightPath == nil {
+			continue
+		}
+
+		combined := combineArrowPaths(leftPath, rightPath)
+		if combined.Caveat == nil {
+			return combined, nil
+		}
+
+		result, err = result.MergeOr(combined)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow (left-to-right) completed: %d left paths, found=%v", leftPathCount, result != nil)
+	}
+	return result, nil
 }
 
 // checkRightToLeft implements the right-to-left strategy:
-// IterResources on right to get candidate resources, then Check on left
-func (a *ArrowIterator) checkRightToLeft(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return func(yield func(*Path, error) bool) {
-		if ctx.shouldTrace() {
-			ctx.TraceStep(a, "arrow check (right-to-left) with %d resources for subject %s:%s",
-				len(resources), subject.ObjectType, subject.ObjectID)
-		}
+// IterResources on right to get candidate intermediates, then Check on left for the resource.
+func (a *ArrowIterator) checkRightToLeft(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow check (right-to-left) for resource %s:%s, subject %s:%s",
+			resource.ObjectType, resource.ObjectID, subject.ObjectType, subject.ObjectID)
+	}
 
-		// Strategy: Start from the right side with the target subject
-		// Get all resources that connect to subject on the right side
-		rightSeq, err := ctx.IterResources(a.right, subject, NoObjectFilter())
+	// Start from the right side with the target subject to get candidate intermediates
+	rightSeq, err := ctx.IterResources(a.right, subject, NoObjectFilter())
+	if err != nil {
+		return nil, err
+	}
+
+	var result *Path
+	rightPathCount := 0
+	for rightPath, err := range rightSeq {
 		if err != nil {
-			yield(nil, err)
-			return
+			return nil, err
+		}
+		rightPathCount++
+
+		// rightPath.Resource is an intermediate object from the right side.
+		// Check if our input resource connects to this intermediate via the left side.
+		// Use tuple.Ellipsis as the relation since the left side stores subjects with "..."
+		// (the canonical relation for direct membership with no subrelation).
+		intermediateAsSubject := ObjectAndRelation{
+			ObjectType: rightPath.Resource.ObjectType,
+			ObjectID:   rightPath.Resource.ObjectID,
+			Relation:   tuple.Ellipsis,
 		}
 
-		rightPathCount := 0
-		totalResultPaths := 0
-		for rightPath, err := range rightSeq {
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-			rightPathCount++
+		leftPath, err := ctx.Check(a.left, resource, intermediateAsSubject)
+		if err != nil {
+			return nil, err
+		}
 
-			// rightPath.Resource is an intermediate object from the right side.
-			// Now check if any of our input resources connect to this intermediate via left.
-			// Use tuple.Ellipsis as the relation since the left side stores subjects with "..."
-			// (the canonical relation for direct membership with no subrelation).
-			intermediateAsSubject := ObjectAndRelation{
-				ObjectType: rightPath.Resource.ObjectType,
-				ObjectID:   rightPath.Resource.ObjectID,
-				Relation:   tuple.Ellipsis,
-			}
+		if leftPath == nil {
+			continue
+		}
 
-			leftSeq, err := ctx.Check(a.left, resources, intermediateAsSubject)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
+		combined := combineArrowPaths(leftPath, rightPath)
+		if combined.Caveat == nil {
+			return combined, nil
+		}
 
-			// Process left check results and combine with right path
-			count, ok := processRightPathSequence(leftSeq, rightPath, yield)
-			totalResultPaths += count
-			if !ok {
-				return
-			}
-
-			if ctx.shouldTrace() {
-				ctx.TraceStep(a, "left side returned %d paths for intermediate %s:%s",
-					count, intermediateAsSubject.ObjectType, intermediateAsSubject.ObjectID)
-			}
+		result, err = result.MergeOr(combined)
+		if err != nil {
+			return nil, err
 		}
 
 		if ctx.shouldTrace() {
-			ctx.TraceStep(a, "arrow check (right-to-left) completed: %d right paths, %d total result paths",
-				rightPathCount, totalResultPaths)
+			ctx.TraceStep(a, "left matched intermediate %s:%s", intermediateAsSubject.ObjectType, intermediateAsSubject.ObjectID)
 		}
-	}, nil
+	}
+
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow (right-to-left) completed: %d right paths, found=%v", rightPathCount, result != nil)
+	}
+	return result, nil
 }
 
 // processPathSequence is a helper that iterates a path sequence, combines each path with a fixed path,

@@ -198,14 +198,8 @@ func TestIterativeDeepening_MaxDepth(t *testing.T) {
 	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(maxDepth))
 
-	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	_, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(err)
-
-	paths, err := CollectAll(seq)
-	require.NoError(err)
-
-	// Should have run exactly maxDepth iterations
-	require.LessOrEqual(len(paths), maxDepth, "Should not exceed max depth")
 }
 
 // TestUnwrapRecursiveIterators_NestedRecursion tests unwrapping nested RecursiveIterators
@@ -236,8 +230,8 @@ type infiniteRecursiveIterator struct {
 	counter      int
 }
 
-func (i *infiniteRecursiveIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	return EmptyPathSeq(), nil
+func (i *infiniteRecursiveIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	return nil, nil
 }
 
 func (i *infiniteRecursiveIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
@@ -297,16 +291,13 @@ type depthCountingIterator struct {
 	counter int
 }
 
-func (d *depthCountingIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (d *depthCountingIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	d.counter++
-	return func(yield func(*Path, error) bool) {
-		// Always return a path so iterative deepening continues
-		path := &Path{
-			Resource: resources[0],
-			Relation: "view",
-			Subject:  subject,
-		}
-		yield(path, nil)
+	// Always return a path so iterative deepening continues
+	return &Path{
+		Resource: resource,
+		Relation: "view",
+		Subject:  subject,
 	}, nil
 }
 
