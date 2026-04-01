@@ -1115,8 +1115,9 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	require.False(commitFirstRev.Equal(commitLastRev))
 
 	// Ensure a call to HeadRevision now reflects both sets of data applied.
-	headRev, err := ds.HeadRevision(ctx)
+	headRevResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRev := headRevResult.Revision
 
 	reader := ds.SnapshotReader(headRev)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -1252,8 +1253,9 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 
-	rev, err := ds.HeadRevision(ctx)
+	revResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	rev := revResult.Revision
 
 	pds := ds.(*pgDatastore)
 	require.True(pds.watchEnabled)
@@ -1668,8 +1670,9 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngin
 
 	// Get the head revision.
 	ctx := context.Background()
-	revision, err := ds.HeadRevision(ctx)
+	revisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	revision := revisionResult.Revision
 
 	casted := datastore.UnwrapAs[*pgDatastore](ds)
 	require.NotNil(casted)
@@ -1794,8 +1797,9 @@ func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unw
 	require.NoError(err)
 
 	// Get the HEAD revision.
-	lowestRevision, err := primaryDS.HeadRevision(ctx)
+	lowestRevisionResult, err := primaryDS.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Wrap the replica DS.
 	replicaDS, err := proxy.NewStrictReplicatedDatastore(primaryDS, unwrappedReplicaDS.(datastore.StrictReadDatastore))
@@ -1848,8 +1852,9 @@ func StrictReadModeTest(t *testing.T, primaryDS datastore.Datastore, replicaDS d
 	require.NoError(err)
 
 	// Get the HEAD revision.
-	lowestRevision, err := primaryDS.HeadRevision(ctx)
+	lowestRevisionResult, err := primaryDS.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Perform a read at the head revision, which should succeed.
 	reader := replicaDS.SnapshotReader(lowestRevision)
@@ -1891,8 +1896,9 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
@@ -1962,8 +1968,9 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
@@ -2026,8 +2033,9 @@ func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
@@ -2084,8 +2092,9 @@ func ExceedInsertQuerySizeTest(t *testing.T, ds datastore.Datastore) {
 	require.Error(err)
 	require.ErrorContains(err, "exceeds the maximum size supported by this datastore")
 
-	headRev, err := ds.HeadRevision(ctx)
+	headRevResult2, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRev := headRevResult2.Revision
 	iter, err := ds.SnapshotReader(headRev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})

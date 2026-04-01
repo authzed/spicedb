@@ -234,6 +234,19 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
 	t.Run("TestRegisterRelationshipCountersInParallel", runner(tester, RegisterRelationshipCountersInParallelTest))
 	t.Run("TestRelationshipCountersWithOddFilter", runner(tester, RelationshipCountersWithOddFilterTest))
+
+	t.Run("TestStoredSchemaNotFound", runner(tester, StoredSchemaNotFoundTest))
+	t.Run("TestStoredSchemaWriteRead", runner(tester, StoredSchemaWriteReadTest))
+	t.Run("TestStoredSchemaRevision", runner(tester, StoredSchemaRevisionTest))
+	t.Run("TestStoredSchemaUpdate", runner(tester, StoredSchemaUpdateTest))
+	t.Run("TestStoredSchemaMultipleRevisions", runner(tester, StoredSchemaMultipleRevisionsTest))
+	if !except.Transaction() {
+		t.Run("TestStoredSchemaReadWithinTransaction", runner(tester, StoredSchemaReadWithinTransactionTest))
+	}
+	t.Run("TestStoredSchemaStableText", runner(tester, StoredSchemaStableTextTest))
+	t.Run("TestStoredSchemaLarge", runner(tester, StoredSchemaLargeTest))
+	t.Run("TestStoredSchemaPhaseMigration", runner(tester, StoredSchemaPhaseMigrationTest))
+	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {

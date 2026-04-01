@@ -88,7 +88,7 @@ func BenchmarkCheckDeepArrow(b *testing.B) {
 	subject := query.NewObject("user", "slow").WithEllipses()
 
 	// Base reader (no simulated latency).
-	reader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
+	reader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting))
 
 	// Delay reader wrapping the base reader with simulated network latency.
 	delayReader := query.NewDelayReader(networkDelay, reader)

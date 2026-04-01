@@ -326,7 +326,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		}
 	}()
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
 
 	directSubjectsAndWildcardsWithoutCaveats := 0
 	directSubjectsAndWildcardsWithoutExpiration := 0
@@ -658,7 +658,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	// for TTU-based computed usersets, as directly computed ones reference relations within
 	// the same namespace as the caller, and thus must be fully typed checked.
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
-		dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
 		sr, err := dl.ReadSchema(ctx)
 		if err != nil {
 			return checkResultError(err, emptyMetadata)
@@ -811,7 +811,7 @@ func checkIntersectionTupleToUserset(
 
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
 	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
@@ -977,7 +977,7 @@ func checkTupleToUserset[T relation](
 	defer span.End()
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
 
 	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {

@@ -68,13 +68,13 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		ps.queryPlanMetadata = NewQueryPlanMetadata()
 	}
 
-	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load all namespace and caveat definitions to build the schema
 	// TODO: Better schema caching
@@ -198,13 +198,13 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load schema
 	sr, err := reader.ReadSchema(ctx)
@@ -318,13 +318,13 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load schema
 	sr, err := reader.ReadSchema(ctx)
