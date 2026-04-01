@@ -35,6 +35,8 @@ const (
 	queryChangefeedSnapshotOnly = "CREATE CHANGEFEED FOR %s WITH initial_scan = 'only', cursor = '%s';"
 	queryChangefeedPreV25       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
 	queryChangefeedPreV22       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
+
+	defaultSnapshotBatchSize = 1000
 )
 
 type changeDetails struct {
@@ -230,6 +232,8 @@ type changeTracker[R datastore.Revision, K comparable] interface {
 	AddDeletedNamespace(ctx context.Context, rev R, namespaceName string) error
 	AddDeletedCaveat(ctx context.Context, rev R, caveatName string) error
 	AddRevisionMetadata(ctx context.Context, rev R, metadata common.TransactionMetadata) error
+	// Close flushes any buffered changes. Called when the changefeed ends.
+	Close() error
 }
 
 // streamingChangeProvider is a changeTracker that streams changes as they are processed. Instead of accumulating
@@ -242,6 +246,8 @@ type streamingChangeProvider struct {
 	sendChange sendChangeFunc
 	sendError  sendErrorFunc
 }
+
+func (s streamingChangeProvider) Close() error { return nil }
 
 func (s streamingChangeProvider) FilterAndRemoveRevisionChanges(_ func(lhs revisions.HLCRevision, rhs revisions.HLCRevision) bool, _ revisions.HLCRevision) ([]datastore.RevisionChanges, error) {
 	// we do not accumulate in this implementation, but stream right away
@@ -327,6 +333,68 @@ func (s streamingChangeProvider) AddRevisionMetadata(_ context.Context, rev revi
 	return nil
 }
 
+// batchingChangeProvider accumulates relationship changes and flushes them in batches.
+// Used for snapshot-only watches where all rows share the same revision and throughput matters
+// more than latency.
+type batchingChangeProvider struct {
+	content    datastore.WatchContent
+	sendChange sendChangeFunc
+	batchSize  int
+	pending    datastore.RevisionChanges
+}
+
+func (b *batchingChangeProvider) Close() error {
+	if len(b.pending.RelationshipChanges) == 0 {
+		return nil
+	}
+	err := b.sendChange(b.pending)
+	b.pending = datastore.RevisionChanges{Revision: b.pending.Revision}
+	return err
+}
+
+func (b *batchingChangeProvider) FilterAndRemoveRevisionChanges(_ func(lhs revisions.HLCRevision, rhs revisions.HLCRevision) bool, _ revisions.HLCRevision) ([]datastore.RevisionChanges, error) {
+	return nil, nil
+}
+
+func (b *batchingChangeProvider) AddRelationshipChange(_ context.Context, rev revisions.HLCRevision, rel tuple.Relationship, op tuple.UpdateOperation) error {
+	if b.content&datastore.WatchRelationships != datastore.WatchRelationships {
+		return nil
+	}
+
+	b.pending.Revision = rev
+	switch op {
+	case tuple.UpdateOperationCreate:
+		b.pending.RelationshipChanges = append(b.pending.RelationshipChanges, tuple.Create(rel))
+	case tuple.UpdateOperationTouch:
+		b.pending.RelationshipChanges = append(b.pending.RelationshipChanges, tuple.Touch(rel))
+	case tuple.UpdateOperationDelete:
+		b.pending.RelationshipChanges = append(b.pending.RelationshipChanges, tuple.Delete(rel))
+	default:
+		return spiceerrors.MustBugf("unknown change operation")
+	}
+
+	if len(b.pending.RelationshipChanges) >= b.batchSize {
+		return b.Close()
+	}
+	return nil
+}
+
+func (b *batchingChangeProvider) AddChangedDefinition(_ context.Context, _ revisions.HLCRevision, _ datastore.SchemaDefinition) error {
+	return nil
+}
+
+func (b *batchingChangeProvider) AddDeletedNamespace(_ context.Context, _ revisions.HLCRevision, _ string) error {
+	return nil
+}
+
+func (b *batchingChangeProvider) AddDeletedCaveat(_ context.Context, _ revisions.HLCRevision, _ string) error {
+	return nil
+}
+
+func (b *batchingChangeProvider) AddRevisionMetadata(_ context.Context, _ revisions.HLCRevision, _ common.TransactionMetadata) error {
+	return nil
+}
+
 type (
 	sendChangeFunc func(change datastore.RevisionChanges) error
 	sendErrorFunc  func(err error)
@@ -334,7 +402,13 @@ type (
 
 func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, afterRevision datastore.Revision, sendError sendErrorFunc, sendChange sendChangeFunc, opts datastore.WatchOptions, streaming bool) {
 	var tracked changeTracker[revisions.HLCRevision, revisions.HLCRevision]
-	if streaming {
+	if opts.SnapshotOnly {
+		tracked = &batchingChangeProvider{
+			content:    opts.Content,
+			sendChange: sendChange,
+			batchSize:  defaultSnapshotBatchSize,
+		}
+	} else if streaming {
 		tracked = &streamingChangeProvider{
 			sendChange: sendChange,
 			sendError:  sendError,
@@ -637,6 +711,11 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 
 	if changes.Err() != nil {
 		sendError(changes.Err())
+		return
+	}
+
+	if err := tracked.Close(); err != nil {
+		sendError(err)
 		return
 	}
 }

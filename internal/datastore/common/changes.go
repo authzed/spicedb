@@ -54,6 +54,10 @@ func NewChanges[R datastore.Revision, K comparable](keyFunc func(R) K, content d
 	}
 }
 
+// Close implements the changeTracker interface. For the default accumulating tracker,
+// this is a no-op since changes are flushed at checkpoints.
+func (ch *Changes[R, K]) Close() error { return nil }
+
 // IsEmpty returns if the change set is empty.
 func (ch *Changes[R, K]) IsEmpty() bool {
 	ch.recordsMutex.RLock()
