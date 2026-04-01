@@ -8,8 +8,8 @@ type RelIntegrityKeyOption func(r *RelIntegrityKey)
 // NewRelIntegrityKeyWithOptions creates a new RelIntegrityKey with the passed in options set
 func NewRelIntegrityKeyWithOptions(opts ...RelIntegrityKeyOption) *RelIntegrityKey {
 	r := &RelIntegrityKey{}
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
@@ -18,8 +18,8 @@ func NewRelIntegrityKeyWithOptions(opts ...RelIntegrityKeyOption) *RelIntegrityK
 func NewRelIntegrityKeyWithOptionsAndDefaults(opts ...RelIntegrityKeyOption) *RelIntegrityKey {
 	r := &RelIntegrityKey{}
 	defaults.MustSet(r)
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
@@ -71,16 +71,16 @@ func (r *RelIntegrityKey) FlatDebugMap() map[string]any {
 
 // RelIntegrityKeyWithOptions configures an existing RelIntegrityKey with the passed in options set
 func RelIntegrityKeyWithOptions(r *RelIntegrityKey, opts ...RelIntegrityKeyOption) *RelIntegrityKey {
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
 
 // WithOptions configures the receiver RelIntegrityKey with the passed in options set
 func (r *RelIntegrityKey) WithOptions(opts ...RelIntegrityKeyOption) *RelIntegrityKey {
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }

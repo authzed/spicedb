@@ -19,8 +19,8 @@ type ConfigOption func(c *Config)
 // NewConfigWithOptions creates a new Config with the passed in options set
 func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	c := &Config{}
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -29,8 +29,8 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 func NewConfigWithOptionsAndDefaults(opts ...ConfigOption) *Config {
 	c := &Config{}
 	defaults.MustSet(c)
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -116,17 +116,41 @@ func (c *Config) ToOption() ConfigOption {
 // DebugMap returns a map form of Config for debugging
 func (c *Config) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["GRPCServer"] = c.GRPCServer
-	debugMap["GRPCAuthFunc"] = c.GRPCAuthFunc
+	if dm, ok := any(&c.GRPCServer).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["GRPCServer"] = dm.DebugMap()
+	} else {
+		debugMap["GRPCServer"] = c.GRPCServer
+	}
+	if dm, ok := any(&c.GRPCAuthFunc).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["GRPCAuthFunc"] = dm.DebugMap()
+	} else {
+		debugMap["GRPCAuthFunc"] = c.GRPCAuthFunc
+	}
 	debugMap["PresharedSecureKey"] = "(sensitive)"
-	debugMap["ShutdownGracePeriod"] = c.ShutdownGracePeriod
+	if dm, ok := any(&c.ShutdownGracePeriod).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ShutdownGracePeriod"] = dm.DebugMap()
+	} else {
+		debugMap["ShutdownGracePeriod"] = c.ShutdownGracePeriod
+	}
 	debugMap["DisableVersionResponse"] = c.DisableVersionResponse
 	if c.ServerName == "" {
 		debugMap["ServerName"] = "(empty)"
 	} else {
 		debugMap["ServerName"] = c.ServerName
 	}
-	debugMap["HTTPGateway"] = c.HTTPGateway
+	if dm, ok := any(&c.HTTPGateway).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["HTTPGateway"] = dm.DebugMap()
+	} else {
+		debugMap["HTTPGateway"] = c.HTTPGateway
+	}
 	if c.HTTPGatewayUpstreamAddr == "" {
 		debugMap["HTTPGatewayUpstreamAddr"] = "(empty)"
 	} else {
@@ -151,18 +175,54 @@ func (c *Config) DebugMap() map[string]any {
 		}
 		debugMap["HTTPGatewayCorsAllowedOrigins"] = debugHTTPGatewayCorsAllowedOrigins
 	}
-	debugMap["DatastoreConfig"] = c.DatastoreConfig
-	debugMap["Datastore"] = c.Datastore
+	if dm, ok := any(&c.DatastoreConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["DatastoreConfig"] = dm.DebugMap()
+	} else {
+		debugMap["DatastoreConfig"] = c.DatastoreConfig
+	}
+	if dm, ok := any(&c.Datastore).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["Datastore"] = dm.DebugMap()
+	} else {
+		debugMap["Datastore"] = c.Datastore
+	}
 	debugMap["MaxCaveatContextSize"] = c.MaxCaveatContextSize
 	debugMap["MaxRelationshipContextSize"] = c.MaxRelationshipContextSize
 	debugMap["EnableExperimentalWatchableSchemaCache"] = c.EnableExperimentalWatchableSchemaCache
-	debugMap["SchemaWatchHeartbeat"] = c.SchemaWatchHeartbeat
-	debugMap["NamespaceCacheConfig"] = c.NamespaceCacheConfig
+	if dm, ok := any(&c.SchemaWatchHeartbeat).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["SchemaWatchHeartbeat"] = dm.DebugMap()
+	} else {
+		debugMap["SchemaWatchHeartbeat"] = c.SchemaWatchHeartbeat
+	}
+	if dm, ok := any(&c.NamespaceCacheConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["NamespaceCacheConfig"] = dm.DebugMap()
+	} else {
+		debugMap["NamespaceCacheConfig"] = c.NamespaceCacheConfig
+	}
 	debugMap["SchemaPrefixesRequired"] = c.SchemaPrefixesRequired
-	debugMap["DispatchServer"] = c.DispatchServer
+	if dm, ok := any(&c.DispatchServer).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["DispatchServer"] = dm.DebugMap()
+	} else {
+		debugMap["DispatchServer"] = c.DispatchServer
+	}
 	debugMap["DispatchMaxDepth"] = c.DispatchMaxDepth
 	debugMap["GlobalDispatchConcurrencyLimit"] = c.GlobalDispatchConcurrencyLimit
-	debugMap["DispatchConcurrencyLimits"] = c.DispatchConcurrencyLimits
+	if dm, ok := any(&c.DispatchConcurrencyLimits).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["DispatchConcurrencyLimits"] = dm.DebugMap()
+	} else {
+		debugMap["DispatchConcurrencyLimits"] = c.DispatchConcurrencyLimits
+	}
 	if c.DispatchUpstreamAddr == "" {
 		debugMap["DispatchUpstreamAddr"] = "(empty)"
 	} else {
@@ -173,7 +233,13 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchUpstreamCAPath"] = c.DispatchUpstreamCAPath
 	}
-	debugMap["DispatchUpstreamTimeout"] = c.DispatchUpstreamTimeout
+	if dm, ok := any(&c.DispatchUpstreamTimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["DispatchUpstreamTimeout"] = dm.DebugMap()
+	} else {
+		debugMap["DispatchUpstreamTimeout"] = c.DispatchUpstreamTimeout
+	}
 	debugMap["DispatchClientMetricsEnabled"] = c.DispatchClientMetricsEnabled
 	if c.DispatchClientMetricsPrefix == "" {
 		debugMap["DispatchClientMetricsPrefix"] = "(empty)"
@@ -186,7 +252,13 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchClusterMetricsPrefix"] = c.DispatchClusterMetricsPrefix
 	}
-	debugMap["Dispatcher"] = c.Dispatcher
+	if dm, ok := any(&c.Dispatcher).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["Dispatcher"] = dm.DebugMap()
+	} else {
+		debugMap["Dispatcher"] = c.Dispatcher
+	}
 	debugMap["DispatchHashringReplicationFactor"] = c.DispatchHashringReplicationFactor
 	debugMap["DispatchHashringSpread"] = c.DispatchHashringSpread
 	debugMap["DispatchChunkSize"] = c.DispatchChunkSize
@@ -205,16 +277,46 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryMaximumPrimaryHedgingDelays))
 	}
-	debugMap["DispatchCacheConfig"] = c.DispatchCacheConfig
-	debugMap["ClusterDispatchCacheConfig"] = c.ClusterDispatchCacheConfig
-	debugMap["LR3ResourceChunkCacheConfig"] = c.LR3ResourceChunkCacheConfig
+	if dm, ok := any(&c.DispatchCacheConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["DispatchCacheConfig"] = dm.DebugMap()
+	} else {
+		debugMap["DispatchCacheConfig"] = c.DispatchCacheConfig
+	}
+	if dm, ok := any(&c.ClusterDispatchCacheConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ClusterDispatchCacheConfig"] = dm.DebugMap()
+	} else {
+		debugMap["ClusterDispatchCacheConfig"] = c.ClusterDispatchCacheConfig
+	}
+	if dm, ok := any(&c.LR3ResourceChunkCacheConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["LR3ResourceChunkCacheConfig"] = dm.DebugMap()
+	} else {
+		debugMap["LR3ResourceChunkCacheConfig"] = c.LR3ResourceChunkCacheConfig
+	}
 	debugMap["DisableV1SchemaAPI"] = c.DisableV1SchemaAPI
 	debugMap["V1SchemaAdditiveOnly"] = c.V1SchemaAdditiveOnly
 	debugMap["MaximumUpdatesPerWrite"] = c.MaximumUpdatesPerWrite
 	debugMap["MaximumPreconditionCount"] = c.MaximumPreconditionCount
 	debugMap["MaxDatastoreReadPageSize"] = c.MaxDatastoreReadPageSize
-	debugMap["StreamingAPITimeout"] = c.StreamingAPITimeout
-	debugMap["WatchHeartbeat"] = c.WatchHeartbeat
+	if dm, ok := any(&c.StreamingAPITimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["StreamingAPITimeout"] = dm.DebugMap()
+	} else {
+		debugMap["StreamingAPITimeout"] = c.StreamingAPITimeout
+	}
+	if dm, ok := any(&c.WatchHeartbeat).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["WatchHeartbeat"] = dm.DebugMap()
+	} else {
+		debugMap["WatchHeartbeat"] = c.WatchHeartbeat
+	}
 	debugMap["MaxReadRelationshipsLimit"] = c.MaxReadRelationshipsLimit
 	debugMap["MaxDeleteRelationshipsLimit"] = c.MaxDeleteRelationshipsLimit
 	debugMap["MaxLookupResourcesLimit"] = c.MaxLookupResourcesLimit
@@ -238,7 +340,13 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["MismatchZedTokenBehavior"] = c.MismatchZedTokenBehavior
 	}
-	debugMap["MetricsAPI"] = c.MetricsAPI
+	if dm, ok := any(&c.MetricsAPI).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["MetricsAPI"] = dm.DebugMap()
+	} else {
+		debugMap["MetricsAPI"] = c.MetricsAPI
+	}
 	debugMap["EnableMemoryProtectionMiddleware"] = c.EnableMemoryProtectionMiddleware
 	debugMap["SilentlyDisableTelemetry"] = c.SilentlyDisableTelemetry
 	if c.TelemetryCAOverridePath == "" {
@@ -251,7 +359,13 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["TelemetryEndpoint"] = c.TelemetryEndpoint
 	}
-	debugMap["TelemetryInterval"] = c.TelemetryInterval
+	if dm, ok := any(&c.TelemetryInterval).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["TelemetryInterval"] = dm.DebugMap()
+	} else {
+		debugMap["TelemetryInterval"] = c.TelemetryInterval
+	}
 	debugMap["EnableRequestLogs"] = c.EnableRequestLogs
 	debugMap["EnableResponseLogs"] = c.EnableResponseLogs
 	debugMap["DisableGRPCLatencyHistogram"] = c.DisableGRPCLatencyHistogram
@@ -281,16 +395,16 @@ func (c *Config) FlatDebugMap() map[string]any {
 
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
 
 // WithOptions configures the receiver Config with the passed in options set
 func (c *Config) WithOptions(opts ...ConfigOption) *Config {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }

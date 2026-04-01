@@ -914,8 +914,8 @@ github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/ecordell/optgen v0.2.3 h1:DXuT9cYRInIJEh/dIOuLPgi7gYXrlfjzV/KsD80CXLE=
-github.com/ecordell/optgen v0.2.3/go.mod h1:pqjipFkG6vAwvKgjPGWaZyqmtWAqdb2w6EcTnP+kgqQ=
+github.com/ecordell/optgen v0.2.6 h1:qPglm/JyuW6vL9IYnSwgFMces2dLFCuEd2Yw6B0VRmU=
+github.com/ecordell/optgen v0.2.6/go.mod h1:pqjipFkG6vAwvKgjPGWaZyqmtWAqdb2w6EcTnP+kgqQ=
 github.com/emicklei/go-restful/v3 v3.12.2 h1:DhwDP0vY3k8ZzE0RunuJy8GhNpPL6zqLkDf9B/a0/xU=
 github.com/emicklei/go-restful/v3 v3.12.2/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=

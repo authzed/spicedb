@@ -3,7 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.51.1] - 2026-04-14
+### Fixed
+- [Moderate severity CVE-2026-40091](https://github.com/authzed/spicedb/security/advisories/GHSA-jf4f-rr2c-9m58)
+
+## [1.51.0] - 2026-03-24
 ### Changed
 - Updated DevContext and LSP to support composable schemas (https://github.com/authzed/spicedb/pull/2965)
 
@@ -3553,7 +3557,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 [#2353]: https://github.com/authzed/spicedb/issues/2353
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.50.0...HEAD
+[1.51.1]: https://github.com/authzed/spicedb/compare/v1.51.0...v1.51.1
+[1.51.0]: https://github.com/authzed/spicedb/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/authzed/spicedb/compare/v1.49.2...v1.50.0
 [1.49.2]: https://github.com/authzed/spicedb/compare/v1.49.1...v1.49.2
 [1.49.1]: https://github.com/authzed/spicedb/compare/v1.49.0...v1.49.1
