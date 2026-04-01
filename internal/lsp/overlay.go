@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jzelinskie/persistent"
 	"github.com/sourcegraph/go-lsp"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // lspOverlayFS is an fs.FS that serves open editor files from memory
@@ -73,7 +74,7 @@ type memFileInfo struct {
 }
 
 func (i memFileInfo) Name() string       { return filepath.Base(i.name) }
-func (i memFileInfo) Size() int64        { return safecast.MustConvert[int64](i.size) }
+func (i memFileInfo) Size() int64        { return spiceerrors.MustSafecast[int64](i.size) }
 func (i memFileInfo) Mode() fs.FileMode  { return 0o444 }
 func (i memFileInfo) ModTime() time.Time { return time.Time{} }
 func (i memFileInfo) IsDir() bool        { return false }
