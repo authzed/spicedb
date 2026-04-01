@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/agnivade/wasmbrowsertest v0.11.0
 	github.com/bufbuild/buf v1.66.2-0.20260325185754-9c513a258905
-	github.com/ecordell/optgen v0.2.3
+	github.com/ecordell/optgen v0.2.6
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	github.com/magefile/mage v1.17.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240917153116-6f2963f01587

@@ -8,8 +8,8 @@ type DeleteOptionsOption func(d *DeleteOptions)
 // NewDeleteOptionsWithOptions creates a new DeleteOptions with the passed in options set
 func NewDeleteOptionsWithOptions(opts ...DeleteOptionsOption) *DeleteOptions {
 	d := &DeleteOptions{}
-	for _, o := range opts {
-		o(d)
+	for _, opt := range opts {
+		opt(d)
 	}
 	return d
 }
@@ -18,8 +18,8 @@ func NewDeleteOptionsWithOptions(opts ...DeleteOptionsOption) *DeleteOptions {
 func NewDeleteOptionsWithOptionsAndDefaults(opts ...DeleteOptionsOption) *DeleteOptions {
 	d := &DeleteOptions{}
 	defaults.MustSet(d)
-	for _, o := range opts {
-		o(d)
+	for _, opt := range opts {
+		opt(d)
 	}
 	return d
 }
@@ -36,6 +36,10 @@ func (d *DeleteOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	if d.DeleteLimit == nil {
 		debugMap["DeleteLimit"] = "nil"
+	} else if dm, ok := any(d.DeleteLimit).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["DeleteLimit"] = dm.DebugMap()
 	} else {
 		debugMap["DeleteLimit"] = *d.DeleteLimit
 	}
@@ -65,16 +69,16 @@ func (d *DeleteOptions) FlatDebugMap() map[string]any {
 
 // DeleteOptionsWithOptions configures an existing DeleteOptions with the passed in options set
 func DeleteOptionsWithOptions(d *DeleteOptions, opts ...DeleteOptionsOption) *DeleteOptions {
-	for _, o := range opts {
-		o(d)
+	for _, opt := range opts {
+		opt(d)
 	}
 	return d
 }
 
 // WithOptions configures the receiver DeleteOptions with the passed in options set
 func (d *DeleteOptions) WithOptions(opts ...DeleteOptionsOption) *DeleteOptions {
-	for _, o := range opts {
-		o(d)
+	for _, opt := range opts {
+		opt(d)
 	}
 	return d
 }

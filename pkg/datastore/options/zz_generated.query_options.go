@@ -12,8 +12,8 @@ type QueryOptionsOption func(q *QueryOptions)
 // NewQueryOptionsWithOptions creates a new QueryOptions with the passed in options set
 func NewQueryOptionsWithOptions(opts ...QueryOptionsOption) *QueryOptions {
 	q := &QueryOptions{}
-	for _, o := range opts {
-		o(q)
+	for _, opt := range opts {
+		opt(q)
 	}
 	return q
 }
@@ -22,8 +22,8 @@ func NewQueryOptionsWithOptions(opts ...QueryOptionsOption) *QueryOptions {
 func NewQueryOptionsWithOptionsAndDefaults(opts ...QueryOptionsOption) *QueryOptions {
 	q := &QueryOptions{}
 	defaults.MustSet(q)
-	for _, o := range opts {
-		o(q)
+	for _, opt := range opts {
+		opt(q)
 	}
 	return q
 }
@@ -47,16 +47,50 @@ func (q *QueryOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	if q.Limit == nil {
 		debugMap["Limit"] = "nil"
+	} else if dm, ok := any(q.Limit).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["Limit"] = dm.DebugMap()
 	} else {
 		debugMap["Limit"] = *q.Limit
 	}
-	debugMap["Sort"] = q.Sort
-	debugMap["After"] = q.After
+	if dm, ok := any(&q.Sort).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["Sort"] = dm.DebugMap()
+	} else {
+		debugMap["Sort"] = q.Sort
+	}
+	if dm, ok := any(&q.After).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["After"] = dm.DebugMap()
+	} else {
+		debugMap["After"] = q.After
+	}
 	debugMap["SkipCaveats"] = q.SkipCaveats
 	debugMap["SkipExpiration"] = q.SkipExpiration
-	debugMap["SQLCheckAssertionForTest"] = q.SQLCheckAssertionForTest
-	debugMap["SQLExplainCallbackForTest"] = q.SQLExplainCallbackForTest
-	debugMap["QueryShape"] = q.QueryShape
+	if dm, ok := any(&q.SQLCheckAssertionForTest).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["SQLCheckAssertionForTest"] = dm.DebugMap()
+	} else {
+		debugMap["SQLCheckAssertionForTest"] = q.SQLCheckAssertionForTest
+	}
+	if dm, ok := any(&q.SQLExplainCallbackForTest).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["SQLExplainCallbackForTest"] = dm.DebugMap()
+	} else {
+		debugMap["SQLExplainCallbackForTest"] = q.SQLExplainCallbackForTest
+	}
+	if dm, ok := any(&q.QueryShape).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["QueryShape"] = dm.DebugMap()
+	} else {
+		debugMap["QueryShape"] = q.QueryShape
+	}
 	return debugMap
 }
 
@@ -83,16 +117,16 @@ func (q *QueryOptions) FlatDebugMap() map[string]any {
 
 // QueryOptionsWithOptions configures an existing QueryOptions with the passed in options set
 func QueryOptionsWithOptions(q *QueryOptions, opts ...QueryOptionsOption) *QueryOptions {
-	for _, o := range opts {
-		o(q)
+	for _, opt := range opts {
+		opt(q)
 	}
 	return q
 }
 
 // WithOptions configures the receiver QueryOptions with the passed in options set
 func (q *QueryOptions) WithOptions(opts ...QueryOptionsOption) *QueryOptions {
-	for _, o := range opts {
-		o(q)
+	for _, opt := range opts {
+		opt(q)
 	}
 	return q
 }
@@ -158,8 +192,8 @@ type ReverseQueryOptionsOption func(r *ReverseQueryOptions)
 // NewReverseQueryOptionsWithOptions creates a new ReverseQueryOptions with the passed in options set
 func NewReverseQueryOptionsWithOptions(opts ...ReverseQueryOptionsOption) *ReverseQueryOptions {
 	r := &ReverseQueryOptions{}
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
@@ -168,8 +202,8 @@ func NewReverseQueryOptionsWithOptions(opts ...ReverseQueryOptionsOption) *Rever
 func NewReverseQueryOptionsWithOptionsAndDefaults(opts ...ReverseQueryOptionsOption) *ReverseQueryOptions {
 	r := &ReverseQueryOptions{}
 	defaults.MustSet(r)
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
@@ -193,20 +227,52 @@ func (r *ReverseQueryOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	if r.ResRelation == nil {
 		debugMap["ResRelation"] = "nil"
+	} else if dm, ok := any(r.ResRelation).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ResRelation"] = dm.DebugMap()
 	} else {
 		debugMap["ResRelation"] = *r.ResRelation
 	}
 	if r.LimitForReverse == nil {
 		debugMap["LimitForReverse"] = "nil"
+	} else if dm, ok := any(r.LimitForReverse).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["LimitForReverse"] = dm.DebugMap()
 	} else {
 		debugMap["LimitForReverse"] = *r.LimitForReverse
 	}
-	debugMap["SortForReverse"] = r.SortForReverse
-	debugMap["AfterForReverse"] = r.AfterForReverse
+	if dm, ok := any(&r.SortForReverse).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["SortForReverse"] = dm.DebugMap()
+	} else {
+		debugMap["SortForReverse"] = r.SortForReverse
+	}
+	if dm, ok := any(&r.AfterForReverse).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["AfterForReverse"] = dm.DebugMap()
+	} else {
+		debugMap["AfterForReverse"] = r.AfterForReverse
+	}
 	debugMap["SkipCaveatsForReverse"] = r.SkipCaveatsForReverse
 	debugMap["SkipExpirationForReverse"] = r.SkipExpirationForReverse
-	debugMap["SQLExplainCallbackForTestForReverse"] = r.SQLExplainCallbackForTestForReverse
-	debugMap["QueryShapeForReverse"] = r.QueryShapeForReverse
+	if dm, ok := any(&r.SQLExplainCallbackForTestForReverse).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["SQLExplainCallbackForTestForReverse"] = dm.DebugMap()
+	} else {
+		debugMap["SQLExplainCallbackForTestForReverse"] = r.SQLExplainCallbackForTestForReverse
+	}
+	if dm, ok := any(&r.QueryShapeForReverse).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["QueryShapeForReverse"] = dm.DebugMap()
+	} else {
+		debugMap["QueryShapeForReverse"] = r.QueryShapeForReverse
+	}
 	return debugMap
 }
 
@@ -233,16 +299,16 @@ func (r *ReverseQueryOptions) FlatDebugMap() map[string]any {
 
 // ReverseQueryOptionsWithOptions configures an existing ReverseQueryOptions with the passed in options set
 func ReverseQueryOptionsWithOptions(r *ReverseQueryOptions, opts ...ReverseQueryOptionsOption) *ReverseQueryOptions {
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
 
 // WithOptions configures the receiver ReverseQueryOptions with the passed in options set
 func (r *ReverseQueryOptions) WithOptions(opts ...ReverseQueryOptionsOption) *ReverseQueryOptions {
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
@@ -308,8 +374,8 @@ type RWTOptionsOption func(r *RWTOptions)
 // NewRWTOptionsWithOptions creates a new RWTOptions with the passed in options set
 func NewRWTOptionsWithOptions(opts ...RWTOptionsOption) *RWTOptions {
 	r := &RWTOptions{}
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
@@ -318,8 +384,8 @@ func NewRWTOptionsWithOptions(opts ...RWTOptionsOption) *RWTOptions {
 func NewRWTOptionsWithOptionsAndDefaults(opts ...RWTOptionsOption) *RWTOptions {
 	r := &RWTOptions{}
 	defaults.MustSet(r)
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
@@ -339,6 +405,10 @@ func (r *RWTOptions) DebugMap() map[string]any {
 	debugMap["DisableRetries"] = r.DisableRetries
 	if r.Metadata == nil {
 		debugMap["Metadata"] = "nil"
+	} else if dm, ok := any(r.Metadata).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["Metadata"] = dm.DebugMap()
 	} else {
 		debugMap["Metadata"] = *r.Metadata
 	}
@@ -369,16 +439,16 @@ func (r *RWTOptions) FlatDebugMap() map[string]any {
 
 // RWTOptionsWithOptions configures an existing RWTOptions with the passed in options set
 func RWTOptionsWithOptions(r *RWTOptions, opts ...RWTOptionsOption) *RWTOptions {
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
 
 // WithOptions configures the receiver RWTOptions with the passed in options set
 func (r *RWTOptions) WithOptions(opts ...RWTOptionsOption) *RWTOptions {
-	for _, o := range opts {
-		o(r)
+	for _, opt := range opts {
+		opt(r)
 	}
 	return r
 }
