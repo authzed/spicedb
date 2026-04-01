@@ -44,6 +44,20 @@ func TestPatternMatcher(t *testing.T) {
 			},
 		},
 		{
+			name:  "typecasted literal",
+			query: "SELECT * FROM relationships WHERE resource_type = 'document'::text",
+			expectedFields: map[string]valueOrRef{
+				"resource_type": {value: "document"},
+			},
+		},
+		{
+			name:  "explicit cast literal",
+			query: "SELECT * FROM relationships WHERE resource_type = CAST('document' AS text)",
+			expectedFields: map[string]valueOrRef{
+				"resource_type": {value: "document"},
+			},
+		},
+		{
 			name:          "unsupported OR",
 			query:         "SELECT * FROM relationships WHERE resource_type = 'document' OR resource_id = 'doc1'",
 			expectedError: "only AND supported",
@@ -110,6 +124,20 @@ func TestEqualityPattern(t *testing.T) {
 			query:              "SELECT * FROM relationships WHERE resource_type = $1",
 			expectedFieldName:  "resource_type",
 			expectedFieldValue: valueOrRef{parameterIndex: 1},
+			shouldMatch:        true,
+		},
+		{
+			name:               "column = literal with typecast",
+			query:              "SELECT * FROM relationships WHERE resource_type = 'document'::text",
+			expectedFieldName:  "resource_type",
+			expectedFieldValue: valueOrRef{value: "document"},
+			shouldMatch:        true,
+		},
+		{
+			name:               "column = literal with explicit cast",
+			query:              "SELECT * FROM relationships WHERE resource_type = CAST('document' AS text)",
+			expectedFieldName:  "resource_type",
+			expectedFieldValue: valueOrRef{value: "document"},
 			shouldMatch:        true,
 		},
 		{
