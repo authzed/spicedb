@@ -15,8 +15,8 @@ type MiddlewareOptionOption func(m *MiddlewareOption)
 // NewMiddlewareOptionWithOptions creates a new MiddlewareOption with the passed in options set
 func NewMiddlewareOptionWithOptions(opts ...MiddlewareOptionOption) *MiddlewareOption {
 	m := &MiddlewareOption{}
-	for _, o := range opts {
-		o(m)
+	for _, opt := range opts {
+		opt(m)
 	}
 	return m
 }
@@ -25,8 +25,8 @@ func NewMiddlewareOptionWithOptions(opts ...MiddlewareOptionOption) *MiddlewareO
 func NewMiddlewareOptionWithOptionsAndDefaults(opts ...MiddlewareOptionOption) *MiddlewareOption {
 	m := &MiddlewareOption{}
 	defaults.MustSet(m)
-	for _, o := range opts {
-		o(m)
+	for _, opt := range opts {
+		opt(m)
 	}
 	return m
 }
@@ -59,7 +59,13 @@ func (m *MiddlewareOption) DebugMap() map[string]any {
 	} else {
 		debugMap["MiddlewareServiceLabel"] = m.MiddlewareServiceLabel
 	}
-	debugMap["MismatchingZedTokenOption"] = m.MismatchingZedTokenOption
+	if dm, ok := any(&m.MismatchingZedTokenOption).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["MismatchingZedTokenOption"] = dm.DebugMap()
+	} else {
+		debugMap["MismatchingZedTokenOption"] = m.MismatchingZedTokenOption
+	}
 	return debugMap
 }
 
@@ -86,16 +92,16 @@ func (m *MiddlewareOption) FlatDebugMap() map[string]any {
 
 // MiddlewareOptionWithOptions configures an existing MiddlewareOption with the passed in options set
 func MiddlewareOptionWithOptions(m *MiddlewareOption, opts ...MiddlewareOptionOption) *MiddlewareOption {
-	for _, o := range opts {
-		o(m)
+	for _, opt := range opts {
+		opt(m)
 	}
 	return m
 }
 
 // WithOptions configures the receiver MiddlewareOption with the passed in options set
 func (m *MiddlewareOption) WithOptions(opts ...MiddlewareOptionOption) *MiddlewareOption {
-	for _, o := range opts {
-		o(m)
+	for _, opt := range opts {
+		opt(m)
 	}
 	return m
 }

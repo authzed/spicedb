@@ -9,7 +9,7 @@ require (
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/authzed/spicedb v1.29.5
 	github.com/brianvoe/gofakeit/v6 v6.28.0
-	github.com/ecordell/optgen v0.2.3
+	github.com/ecordell/optgen v0.2.6
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/tools v0.40.0

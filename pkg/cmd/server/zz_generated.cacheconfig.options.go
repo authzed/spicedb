@@ -8,8 +8,8 @@ type CacheConfigOption func(c *CacheConfig)
 // NewCacheConfigWithOptions creates a new CacheConfig with the passed in options set
 func NewCacheConfigWithOptions(opts ...CacheConfigOption) *CacheConfig {
 	c := &CacheConfig{}
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -18,8 +18,8 @@ func NewCacheConfigWithOptions(opts ...CacheConfigOption) *CacheConfig {
 func NewCacheConfigWithOptionsAndDefaults(opts ...CacheConfigOption) *CacheConfig {
 	c := &CacheConfig{}
 	defaults.MustSet(c)
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -83,16 +83,16 @@ func (c *CacheConfig) FlatDebugMap() map[string]any {
 
 // CacheConfigWithOptions configures an existing CacheConfig with the passed in options set
 func CacheConfigWithOptions(c *CacheConfig, opts ...CacheConfigOption) *CacheConfig {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
 
 // WithOptions configures the receiver CacheConfig with the passed in options set
 func (c *CacheConfig) WithOptions(opts ...CacheConfigOption) *CacheConfig {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
