@@ -59,8 +59,7 @@ func TestPaginatedIterator(t *testing.T) {
 
 			ds := generateMock(t, rels, tc.pageSize, options.ByResource)
 
-			pageSize, err := safecast.Convert[uint64](tc.pageSize)
-			require.NoError(err)
+			pageSize := safecast.RequireConvert[uint64](t, tc.pageSize)
 
 			ctx := t.Context()
 			iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{
@@ -86,8 +85,7 @@ func generateMock(t *testing.T, rels []tuple.Relationship, pageSize int, order o
 	for i := 0; i <= relsLen; i += pageSize {
 		pastLastIndex := min(i+pageSize, relsLen)
 
-		pageSize64, err := safecast.Convert[uint64](pageSize)
-		require.NoError(t, err)
+		pageSize64 := safecast.RequireConvert[uint64](t, pageSize)
 
 		iter := common.NewSliceRelationshipIterator(rels[i:pastLastIndex])
 		mock.On("QueryRelationships", last, order, pageSize64).Return(iter, nil)

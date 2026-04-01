@@ -1155,8 +1155,7 @@ func TestDALCount(t *testing.T) {
 	}
 
 	for i := range minimumDigestCount - 1 {
-		uintValue, err := safecast.Convert[uint64](i + 1)
-		require.NoError(t, err)
+		uintValue := safecast.RequireConvert[uint64](t, i+1)
 
 		dal.addResultTime(t.Context(), 3*time.Millisecond)
 		require.Equal(t, uintValue, dal.digest.Count())

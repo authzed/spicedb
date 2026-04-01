@@ -75,8 +75,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 						used := m2.TotalAlloc - m1.TotalAlloc
 
 						// Ensure the memory used is less than the SizeVT * the multiplier.
-						uintEstimated, err := safecast.Convert[uint64](estimated)
-						require.NoError(err)
+						uintEstimated := safecast.RequireConvert[uint64](t, estimated)
 						if used <= uintEstimated {
 							succeeded = true
 							break
@@ -110,8 +109,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 						used := m2.TotalAlloc - m1.TotalAlloc
 
 						// Ensure the memory used is less than the SizeVT * the multiplier.
-						uintEstimated, err := safecast.Convert[uint64](estimated)
-						require.NoError(err)
+						uintEstimated := safecast.RequireConvert[uint64](t, estimated)
 						if used <= uintEstimated {
 							succeeded = true
 							break
