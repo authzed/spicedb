@@ -12,6 +12,8 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	bm "github.com/authzed/spicedb/pkg/benchmarks"
+
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
@@ -26,7 +28,7 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-//go:embed benchconfigs/*.yaml testconfigs/*.yaml
+//go:embed testconfigs/*.yaml
 var testFiles embed.FS
 
 func BenchmarkServices(b *testing.B) {
@@ -37,15 +39,21 @@ func BenchmarkServices(b *testing.B) {
 		// spanner is a simulator so not useful
 	}
 
-	bts := []struct {
-		title    string
-		fileName string
-		runner   func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error
-	}{
+	type benchmarkTest struct {
+		title string
+
+		// Either fileName (for YAML-based) or benchmarkName (for registry-based) is set.
+		fileName      string
+		benchmarkName string
+
+		runner func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error
+	}
+
+	bts := []benchmarkTest{
 		{
-			"basic lookup of view for a user",
-			"testconfigs/basicrbac.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:    "basic lookup of view for a user",
+			fileName: "testconfigs/basicrbac.yaml",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				results, _, err := tester.LookupResources(ctx, tuple.RelationReference{
 					ObjectType: "example/document",
 					Relation:   "view",
@@ -59,9 +67,9 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
-			"recursively through groups",
-			"testconfigs/simplerecursive.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:    "recursively through groups",
+			fileName: "testconfigs/simplerecursive.yaml",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				results, _, err := tester.LookupResources(ctx, tuple.RelationReference{
 					ObjectType: "srrr/resource",
 					Relation:   "viewer",
@@ -75,9 +83,9 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
-			"recursively through wide groups",
-			"benchconfigs/widegroups.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:         "recursively through wide groups",
+			benchmarkName: "WideGroups",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				results, _, err := tester.LookupResources(ctx, tuple.RelationReference{
 					ObjectType: "resource",
 					Relation:   "view",
@@ -91,9 +99,9 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
-			"lookup with intersection",
-			"benchconfigs/lookupintersection.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:         "lookup with intersection",
+			benchmarkName: "LookupIntersection",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				results, _, err := tester.LookupResources(ctx, tuple.RelationReference{
 					ObjectType: "resource",
 					Relation:   "view",
@@ -107,9 +115,9 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
-			"basic check for a user",
-			"testconfigs/basicrbac.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:    "basic check for a user",
+			fileName: "testconfigs/basicrbac.yaml",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, tuple.ObjectAndRelation{
 					ObjectType: "example/document",
 					ObjectID:   "firstdoc",
@@ -124,9 +132,9 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
-			"recursive check for a user",
-			"testconfigs/quay.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:    "recursive check for a user",
+			fileName: "testconfigs/quay.yaml",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, tuple.ObjectAndRelation{
 					ObjectType: "repo",
 					ObjectID:   "buynlarge/orgrepo",
@@ -141,9 +149,9 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
-			"wide groups check for a user",
-			"benchconfigs/checkwidegroups.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:         "wide groups check for a user",
+			benchmarkName: "CheckWideGroups",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, tuple.ObjectAndRelation{
 					ObjectType: "resource",
 					ObjectID:   "someresource",
@@ -158,9 +166,9 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
-			"wide direct relation check",
-			"benchconfigs/checkwidedirect.yaml",
-			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+			title:         "wide direct relation check",
+			benchmarkName: "CheckWideDirect",
+			runner: func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, tuple.ObjectAndRelation{
 					ObjectType: "resource",
 					ObjectID:   "someresource",
@@ -193,13 +201,27 @@ func BenchmarkServices(b *testing.B) {
 						dsconfig.WithWriteAcquisitionTimeout(5*time.Second),
 					))
 
-					contents, err := testFiles.ReadFile(bt.fileName)
-					require.NoError(b, err)
+					var revision datastore.Revision
+					if bt.fileName != "" {
+						contents, err := testFiles.ReadFile(bt.fileName)
+						require.NoError(b, err)
 
-					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, map[string][]byte{
-						"testfile": contents,
-					})
-					brequire.NoError(err)
+						_, rev, err := validationfile.PopulateFromFilesContents(context.Background(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, map[string][]byte{
+							"testfile": contents,
+						})
+						brequire.NoError(err)
+						revision = rev
+					} else {
+						benchmark, ok := bm.Get(bt.benchmarkName)
+						brequire.True(ok, "benchmark %q not found in registry", bt.benchmarkName)
+
+						_, err := benchmark.Setup(context.Background(), ds)
+						brequire.NoError(err)
+
+						rev, err := ds.HeadRevision(context.Background())
+						brequire.NoError(err)
+						revision = rev
+					}
 
 					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds)
 					b.Cleanup(cleanup)
