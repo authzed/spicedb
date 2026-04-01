@@ -3,8 +3,9 @@ package query
 import (
 	"testing"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // TestRecursiveIterator_CanonicalKey tests the CanonicalKey() method (currently 0% coverage)
@@ -247,11 +248,7 @@ func (i *infiniteRecursiveIterator) IterSubjectsImpl(ctx *Context, resource Obje
 func (i *infiniteRecursiveIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	return func(yield func(*Path, error) bool) {
 		i.counter++
-		counter, err := safecast.Convert[int32](i.counter)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
+		counter := spiceerrors.MustSafecast[int32](i.counter)
 		path := &Path{
 			Resource: Object{ObjectType: i.resourceType, ObjectID: "folder" + string('0'+counter)},
 			Relation: "parent",

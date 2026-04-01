@@ -3,7 +3,6 @@ package proxy_test
 import (
 	"context"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/mock"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -11,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -307,12 +307,7 @@ func (dm *MockReadWriteTransaction) LegacyDeleteNamespaces(_ context.Context, ns
 
 func (dm *MockReadWriteTransaction) BulkLoad(_ context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	args := dm.Called(iter)
-	// We're assuming this is non-negative.
-	uintArg, err := safecast.Convert[uint64](args.Int(0))
-	if err != nil {
-		uintArg = 0
-	}
-	return uintArg, args.Error(1)
+	return spiceerrors.MustSafecast[uint64](args.Int(0)), args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) LegacyReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
