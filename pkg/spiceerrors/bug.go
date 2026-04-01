@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/go-errors/errors"
 )
 
@@ -32,4 +33,21 @@ func MustBugf(format string, args ...any) error {
 
 	e := errors.Errorf(format, args...)
 	return fmt.Errorf("BUG: %s", e.ErrorStack())
+}
+
+// MustSafecast converts a numeric value to another numeric type.
+// It is intended for conversions that should never fail in practice — if the
+// conversion fails, it represents a bug. In tests it panics immediately (same
+// sentinel as MustBugf); in production it returns the zero value of NumOut so
+// that the caller degrades gracefully rather than returning an error.
+func MustSafecast[NumOut safecast.Number, NumIn safecast.Number](value NumIn) NumOut {
+	result, err := safecast.Convert[NumOut](value)
+	if err != nil {
+		if IsInTests() {
+			panic(fmt.Sprintf("safecast conversion failed: %v", err))
+		}
+		var zero NumOut
+		return zero
+	}
+	return result
 }

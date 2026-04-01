@@ -14,3 +14,14 @@ func TestMustBug(t *testing.T) {
 		require.Error(t, err)
 	}, "The code did not panic")
 }
+
+func TestMustSafecast(t *testing.T) {
+	// Valid conversion returns the correct value.
+	result := MustSafecast[uint64](42)
+	assert.Equal(t, uint64(42), result)
+
+	// Overflow panics when running under tests (IsInTests() == true).
+	assert.Panics(t, func() {
+		MustSafecast[uint8](256)
+	})
+}
