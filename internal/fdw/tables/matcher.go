@@ -106,6 +106,10 @@ type literalPattern struct {
 }
 
 func (l literalPattern) Match(node *pg_query.Node) (MatchResult, bool) {
+	if typeCast := node.GetTypeCast(); typeCast != nil {
+		node = typeCast.Arg
+	}
+
 	aConst := node.GetAConst()
 	if aConst == nil {
 		return MatchResult{}, false
