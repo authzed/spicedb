@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	safecast "github.com/ccoveille/go-safecast/v2"
 	wire "github.com/jeroenrinzema/psql-wire"
 	"github.com/lib/pq/oid"
 	"google.golang.org/grpc"
@@ -302,7 +303,16 @@ func buildLookupResourcesHandler(fields fieldMap[permissionsField]) (selectHandl
 			return nil, fmt.Errorf("error getting optional_subject_relation: %w", err)
 		}
 
-		// TODO: support cursors
+		var currentCursor *v1.Cursor
+		if rowsCursor != nil {
+			currentCursor = rowsCursor.(*v1.Cursor)
+		}
+
+		limit, err := safecast.Convert[uint32](howMany)
+		if err != nil {
+			return nil, err
+		}
+
 		// TODO: support caveat context
 		stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
 			ResourceObjectType: resourceType,
@@ -314,7 +324,9 @@ func buildLookupResourcesHandler(fields fieldMap[permissionsField]) (selectHandl
 				},
 				OptionalRelation: optionalSubjectRelation,
 			},
-			Consistency: consistency,
+			Consistency:    consistency,
+			OptionalLimit:  limit,
+			OptionalCursor: currentCursor,
 		})
 		if err != nil {
 			return nil, common.ConvertError(err)
@@ -353,6 +365,7 @@ func buildLookupResourcesHandler(fields fieldMap[permissionsField]) (selectHandl
 			if err := writer.Row(rowValues); err != nil {
 				return nil, fmt.Errorf("error writing LR result row: %w", err)
 			}
+			currentCursor = result.AfterResultCursor
 		}
 
 		cost, err := costFromTrailers(stream.Trailer())
@@ -362,98 +375,128 @@ func buildLookupResourcesHandler(fields fieldMap[permissionsField]) (selectHandl
 			lrStats.AddSample(cost, uint(writer.Written()))
 		}
 
-		return nil, writer.Complete("SELECT")
+		return currentCursor, writer.Complete("SELECT")
 	}, nil
+}
+
+// lookupSubjectsCursor implements FDW-side buffered cursoring for LookupSubjects,
+// since the LookupSubjects API does not yet support server-side cursor pagination.
+// TODO: switch to API-level OptionalCursor/OptionalConcreteLimit once LookupSubjects supports them.
+type lookupSubjectsCursor struct {
+	rows [][]any
+	pos  int
 }
 
 func buildLookupSubjectsHandler(fields fieldMap[permissionsField]) (selectHandler, error) {
 	return func(ctx context.Context, client *authzed.Client, parameters []wire.Parameter, howMany int64, writer wire.DataWriter, rowsCursor RowsCursor, selectStatement *SelectStatement) (RowsCursor, error) {
-		consistency, err := consistencyFromFields(convertFieldMap(fields), parameters)
-		if err != nil {
-			return nil, fmt.Errorf("error getting consistency: %w", err)
+		var lsCursor *lookupSubjectsCursor
+		if rowsCursor != nil {
+			lsCursor = rowsCursor.(*lookupSubjectsCursor)
 		}
 
-		resourceType, err := stringValue(fields[permissionsResourceTypeField], parameters)
-		if err != nil {
-			return nil, fmt.Errorf("error getting resource_type: %w", err)
-		}
-
-		resourceID, err := stringValue(fields[permissionsResourceIDField], parameters)
-		if err != nil {
-			return nil, fmt.Errorf("error getting resource_id: %w", err)
-		}
-
-		permission, err := stringValue(fields[permissionsPermissionField], parameters)
-		if err != nil {
-			return nil, fmt.Errorf("error getting permission: %w", err)
-		}
-
-		subjectType, err := stringValue(fields[permissionsSubjectTypeField], parameters)
-		if err != nil {
-			return nil, fmt.Errorf("error getting subject_type: %w", err)
-		}
-
-		optionalSubjectRelation, err := optionalStringValue(fields[permissionsOptionalSubjectRelationField], parameters)
-		if err != nil {
-			return nil, fmt.Errorf("error getting optional_subject_relation: %w", err)
-		}
-
-		stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
-			Resource: &v1.ObjectReference{
-				ObjectType: resourceType,
-				ObjectId:   resourceID,
-			},
-			SubjectObjectType: subjectType,
-			Permission:        permission,
-			Consistency:       consistency,
-		})
-		if err != nil {
-			return nil, common.ConvertError(err)
-		}
-
-		for {
-			result, err := stream.Recv()
+		// On the first fetch, stream all results from the API and buffer them.
+		if lsCursor == nil {
+			consistency, err := consistencyFromFields(convertFieldMap(fields), parameters)
 			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
+				return nil, fmt.Errorf("error getting consistency: %w", err)
+			}
 
+			resourceType, err := stringValue(fields[permissionsResourceTypeField], parameters)
+			if err != nil {
+				return nil, fmt.Errorf("error getting resource_type: %w", err)
+			}
+
+			resourceID, err := stringValue(fields[permissionsResourceIDField], parameters)
+			if err != nil {
+				return nil, fmt.Errorf("error getting resource_id: %w", err)
+			}
+
+			permission, err := stringValue(fields[permissionsPermissionField], parameters)
+			if err != nil {
+				return nil, fmt.Errorf("error getting permission: %w", err)
+			}
+
+			subjectType, err := stringValue(fields[permissionsSubjectTypeField], parameters)
+			if err != nil {
+				return nil, fmt.Errorf("error getting subject_type: %w", err)
+			}
+
+			optionalSubjectRelation, err := optionalStringValue(fields[permissionsOptionalSubjectRelationField], parameters)
+			if err != nil {
+				return nil, fmt.Errorf("error getting optional_subject_relation: %w", err)
+			}
+
+			stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
+				Resource: &v1.ObjectReference{
+					ObjectType: resourceType,
+					ObjectId:   resourceID,
+				},
+				SubjectObjectType: subjectType,
+				Permission:        permission,
+				Consistency:       consistency,
+			})
+			if err != nil {
 				return nil, common.ConvertError(err)
 			}
 
-			hasPermission := result.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
-			isMaybe := result.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			lsCursor = &lookupSubjectsCursor{}
+			for {
+				result, err := stream.Recv()
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						break
+					}
 
-			rowValues, width, buildErr := buildRowValues(
-				selectStatement,
-				resourceType,
-				resourceID,
-				permission,
-				subjectType,
-				result.Subject.SubjectObjectId,
-				optionalSubjectRelation,
-				hasPermission,
-				isMaybe,
-				result.LookedUpAt,
-			)
-			if buildErr != nil {
-				return nil, fmt.Errorf("error building row values: %w", buildErr)
+					return nil, common.ConvertError(err)
+				}
+
+				hasPermission := result.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+				isMaybe := result.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+
+				rowValues, width, buildErr := buildRowValues(
+					selectStatement,
+					resourceType,
+					resourceID,
+					permission,
+					subjectType,
+					result.Subject.SubjectObjectId,
+					optionalSubjectRelation,
+					hasPermission,
+					isMaybe,
+					result.LookedUpAt,
+				)
+				if buildErr != nil {
+					return nil, fmt.Errorf("error building row values: %w", buildErr)
+				}
+				lsStats.AddWidthSample(width)
+
+				lsCursor.rows = append(lsCursor.rows, rowValues)
 			}
-			lsStats.AddWidthSample(width)
 
-			if err := writer.Row(rowValues); err != nil {
+			cost, err := costFromTrailers(stream.Trailer())
+			if err != nil {
+				log.Error().Err(err).Msg("error reading cost from trailers")
+			} else {
+				lsStats.AddSample(cost, uint(len(lsCursor.rows)))
+			}
+		}
+
+		// Emit up to howMany rows from the buffer starting at the current position.
+		rowCount := 0
+		for lsCursor.pos < len(lsCursor.rows) && (howMany <= 0 || int64(rowCount) < howMany) {
+			if err := writer.Row(lsCursor.rows[lsCursor.pos]); err != nil {
 				return nil, fmt.Errorf("error writing LS result row: %w", err)
 			}
+			lsCursor.pos++
+			rowCount++
 		}
 
-		cost, err := costFromTrailers(stream.Trailer())
-		if err != nil {
-			log.Error().Err(err).Msg("error reading cost from trailers")
-		} else {
-			lsStats.AddSample(cost, uint(writer.Written()))
+		// If all rows have been emitted, no cursor to return.
+		if lsCursor.pos >= len(lsCursor.rows) {
+			return nil, writer.Complete(fmt.Sprintf("SELECT %d", rowCount))
 		}
 
-		return nil, writer.Complete("SELECT")
+		return lsCursor, writer.Complete(fmt.Sprintf("SELECT %d", rowCount))
 	}, nil
 }
 
