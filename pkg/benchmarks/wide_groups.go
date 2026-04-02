@@ -127,5 +127,14 @@ func setupWideGroups(ctx context.Context, ds datastore.Datastore) (*QuerySets, e
 				ExpectedResourceIDs: []string{"someresource", "anotherresource"},
 			},
 		},
+		IterSubjects: []IterSubjectsQuery{
+			{
+				ResourceType:       "resource",
+				ResourceID:         "someresource",
+				Permission:         "view",
+				FilterSubjectType:  "user",
+				ExpectedSubjectIDs: []string{"tom"},
+			},
+		},
 	}, nil
 }
