@@ -123,34 +123,36 @@ func BenchmarkCheck(b *testing.B) {
 				}
 			})
 
-			b.Run("plain_delay", func(b *testing.B) {
-				it, err := canonicalOutline.Compile()
-				require.NoError(b, err)
-
-				opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
-				queryCtx := query.NewLocalContext(ctx, opts...)
-
-				b.ResetTimer()
-				for b.Loop() {
-					path, err := queryCtx.Check(it, resource, subject)
+			if *includeDelay {
+				b.Run("plain_delay", func(b *testing.B) {
+					it, err := canonicalOutline.Compile()
 					require.NoError(b, err)
-					require.NotNil(b, path)
-				}
-			})
 
-			b.Run("advised_delay", func(b *testing.B) {
-				advisedIt := buildAdvisedIterator(b, delayReader)
+					opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
+					queryCtx := query.NewLocalContext(ctx, opts...)
 
-				opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
-				queryCtx := query.NewLocalContext(ctx, opts...)
+					b.ResetTimer()
+					for b.Loop() {
+						path, err := queryCtx.Check(it, resource, subject)
+						require.NoError(b, err)
+						require.NotNil(b, path)
+					}
+				})
 
-				b.ResetTimer()
-				for b.Loop() {
-					path, err := queryCtx.Check(advisedIt, resource, subject)
-					require.NoError(b, err)
-					require.NotNil(b, path)
-				}
-			})
+				b.Run("advised_delay", func(b *testing.B) {
+					advisedIt := buildAdvisedIterator(b, delayReader)
+
+					opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
+					queryCtx := query.NewLocalContext(ctx, opts...)
+
+					b.ResetTimer()
+					for b.Loop() {
+						path, err := queryCtx.Check(advisedIt, resource, subject)
+						require.NoError(b, err)
+						require.NotNil(b, path)
+					}
+				})
+			}
 		})
 	}
 }

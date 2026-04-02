@@ -115,38 +115,40 @@ func BenchmarkLookupResources(b *testing.B) {
 				}
 			})
 
-			b.Run("plain_delay", func(b *testing.B) {
-				it, err := canonicalOutline.Compile()
-				require.NoError(b, err)
-
-				opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
-				queryCtx := query.NewLocalContext(ctx, opts...)
-
-				b.ResetTimer()
-				for b.Loop() {
-					paths, err := queryCtx.IterResources(it, subject, filterResourceType)
+			if *includeDelay {
+				b.Run("plain_delay", func(b *testing.B) {
+					it, err := canonicalOutline.Compile()
 					require.NoError(b, err)
-					results, err := query.CollectAll(paths)
-					require.NoError(b, err)
-					require.Len(b, results, len(lrQuery.ExpectedResourceIDs))
-				}
-			})
 
-			b.Run("advised_delay", func(b *testing.B) {
-				advisedIt := buildAdvisedIterator(b, delayReader)
+					opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
+					queryCtx := query.NewLocalContext(ctx, opts...)
 
-				opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
-				queryCtx := query.NewLocalContext(ctx, opts...)
+					b.ResetTimer()
+					for b.Loop() {
+						paths, err := queryCtx.IterResources(it, subject, filterResourceType)
+						require.NoError(b, err)
+						results, err := query.CollectAll(paths)
+						require.NoError(b, err)
+						require.Len(b, results, len(lrQuery.ExpectedResourceIDs))
+					}
+				})
 
-				b.ResetTimer()
-				for b.Loop() {
-					paths, err := queryCtx.IterResources(advisedIt, subject, filterResourceType)
-					require.NoError(b, err)
-					results, err := query.CollectAll(paths)
-					require.NoError(b, err)
-					require.Len(b, results, len(lrQuery.ExpectedResourceIDs))
-				}
-			})
+				b.Run("advised_delay", func(b *testing.B) {
+					advisedIt := buildAdvisedIterator(b, delayReader)
+
+					opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
+					queryCtx := query.NewLocalContext(ctx, opts...)
+
+					b.ResetTimer()
+					for b.Loop() {
+						paths, err := queryCtx.IterResources(advisedIt, subject, filterResourceType)
+						require.NoError(b, err)
+						results, err := query.CollectAll(paths)
+						require.NoError(b, err)
+						require.Len(b, results, len(lrQuery.ExpectedResourceIDs))
+					}
+				})
+			}
 		})
 	}
 }
