@@ -549,6 +549,287 @@ definition document {
 			runEndToEndTest(t, tc)
 		})
 	}
+
+	t.Run("lookupresources cursor pagination", func(t *testing.T) {
+		runLookupResourcesCursorPaginationTest(t)
+	})
+	t.Run("readrelationships cursor pagination", func(t *testing.T) {
+		runReadRelationshipsCursorPaginationTest(t)
+	})
+	t.Run("lookupsubjects cursor pagination", func(t *testing.T) {
+		runLookupSubjectsCursorPaginationTest(t)
+	})
+}
+
+// runLookupResourcesCursorPaginationTest verifies that LookupResources returns
+// correct, non-duplicated results when the result set exceeds a single cursor
+// fetch page (regression test for cursor pagination support).
+func runLookupResourcesCursorPaginationTest(t *testing.T) {
+	const totalDocs = 150
+	const fetchSize = 50
+
+	// Start SpiceDB server.
+	client := runSpiceDB(t)
+
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+	permission view = viewer
+}`,
+	})
+	require.NoError(t, err)
+
+	// Create 150 relationships for a single user.
+	updates := make([]*v1.RelationshipUpdate, 0, totalDocs)
+	expectedIDs := make(map[string]struct{}, totalDocs)
+	for i := range totalDocs {
+		docID := fmt.Sprintf("doc-%04d", i)
+		expectedIDs[docID] = struct{}{}
+		updates = append(updates, &v1.RelationshipUpdate{
+			Relationship: tuple.MustParseV1Rel(fmt.Sprintf("document:%s#viewer@user:testuser", docID)),
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+		})
+	}
+
+	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: updates,
+	})
+	require.NoError(t, err)
+
+	// Start PGServer and Postgres.
+	pgServerPort := runPGServer(t, client)
+	pgconn := runPostgres(t)
+
+	_, filename, _, _ := runtime.Caller(0)
+	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
+	require.NoError(t, err)
+	createCommands := strings.ReplaceAll(string(dat), "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
+
+	_, err = pgconn.Exec(context.Background(), createCommands)
+	require.NoError(t, err)
+
+	// Use cursor-based fetching to page through LookupResources results.
+	_, err = pgconn.Exec(context.Background(), "BEGIN")
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(),
+		"DECLARE lr_cursor CURSOR FOR SELECT resource_id FROM permissions WHERE resource_type = $1 AND permission = $2 AND subject_type = $3 AND subject_id = $4",
+		"document", "view", "user", "testuser",
+	)
+	require.NoError(t, err)
+
+	// Fetch all results in pages and collect resource IDs.
+	seenIDs := make(map[string]struct{})
+	for {
+		rows, err := pgconn.Query(context.Background(), fmt.Sprintf("FETCH %d FROM lr_cursor", fetchSize))
+		require.NoError(t, err)
+
+		fetchCount := 0
+		for rows.Next() {
+			var resourceID string
+			require.NoError(t, rows.Scan(&resourceID))
+
+			_, isDuplicate := seenIDs[resourceID]
+			require.False(t, isDuplicate, "duplicate resource_id %q returned by cursor pagination", resourceID)
+
+			seenIDs[resourceID] = struct{}{}
+			fetchCount++
+		}
+		require.NoError(t, rows.Err())
+		rows.Close()
+
+		if fetchCount == 0 {
+			break
+		}
+	}
+
+	_, err = pgconn.Exec(context.Background(), "CLOSE lr_cursor")
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(), "COMMIT")
+	require.NoError(t, err)
+
+	// Verify we got exactly the expected set of resources.
+	require.Len(t, seenIDs, totalDocs, "expected %d unique resources, got %d", totalDocs, len(seenIDs))
+	require.Equal(t, expectedIDs, seenIDs)
+}
+
+// runReadRelationshipsCursorPaginationTest verifies that ReadRelationships returns
+// correct, non-duplicated results when the result set exceeds a single cursor fetch page.
+func runReadRelationshipsCursorPaginationTest(t *testing.T) {
+	const totalRels = 150
+	const fetchSize = 50
+
+	client := runSpiceDB(t)
+
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+}`,
+	})
+	require.NoError(t, err)
+
+	updates := make([]*v1.RelationshipUpdate, 0, totalRels)
+	expectedIDs := make(map[string]struct{}, totalRels)
+	for i := range totalRels {
+		docID := fmt.Sprintf("doc-%04d", i)
+		expectedIDs[docID] = struct{}{}
+		updates = append(updates, &v1.RelationshipUpdate{
+			Relationship: tuple.MustParseV1Rel(fmt.Sprintf("document:%s#viewer@user:testuser", docID)),
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+		})
+	}
+
+	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: updates,
+	})
+	require.NoError(t, err)
+
+	pgServerPort := runPGServer(t, client)
+	pgconn := runPostgres(t)
+
+	_, filename, _, _ := runtime.Caller(0)
+	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
+	require.NoError(t, err)
+	createCommands := strings.ReplaceAll(string(dat), "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
+
+	_, err = pgconn.Exec(context.Background(), createCommands)
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(), "BEGIN")
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(),
+		"DECLARE rel_cursor CURSOR FOR SELECT resource_id FROM relationships WHERE resource_type = $1",
+		"document",
+	)
+	require.NoError(t, err)
+
+	seenIDs := make(map[string]struct{})
+	for {
+		rows, err := pgconn.Query(context.Background(), fmt.Sprintf("FETCH %d FROM rel_cursor", fetchSize))
+		require.NoError(t, err)
+
+		fetchCount := 0
+		for rows.Next() {
+			var resourceID string
+			require.NoError(t, rows.Scan(&resourceID))
+
+			_, isDuplicate := seenIDs[resourceID]
+			require.False(t, isDuplicate, "duplicate resource_id %q returned by cursor pagination", resourceID)
+
+			seenIDs[resourceID] = struct{}{}
+			fetchCount++
+		}
+		require.NoError(t, rows.Err())
+		rows.Close()
+
+		if fetchCount == 0 {
+			break
+		}
+	}
+
+	_, err = pgconn.Exec(context.Background(), "CLOSE rel_cursor")
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(), "COMMIT")
+	require.NoError(t, err)
+
+	require.Len(t, seenIDs, totalRels, "expected %d unique resources, got %d", totalRels, len(seenIDs))
+	require.Equal(t, expectedIDs, seenIDs)
+}
+
+// runLookupSubjectsCursorPaginationTest verifies that LookupSubjects returns
+// correct, non-duplicated results when the result set exceeds a single cursor
+// fetch page (regression test for FDW-side buffered cursor pagination).
+func runLookupSubjectsCursorPaginationTest(t *testing.T) {
+	const totalUsers = 150
+	const fetchSize = 50
+
+	client := runSpiceDB(t)
+
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+	permission view = viewer
+}`,
+	})
+	require.NoError(t, err)
+
+	updates := make([]*v1.RelationshipUpdate, 0, totalUsers)
+	expectedIDs := make(map[string]struct{}, totalUsers)
+	for i := range totalUsers {
+		userID := fmt.Sprintf("user-%04d", i)
+		expectedIDs[userID] = struct{}{}
+		updates = append(updates, &v1.RelationshipUpdate{
+			Relationship: tuple.MustParseV1Rel(fmt.Sprintf("document:testdoc#viewer@user:%s", userID)),
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+		})
+	}
+
+	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: updates,
+	})
+	require.NoError(t, err)
+
+	pgServerPort := runPGServer(t, client)
+	pgconn := runPostgres(t)
+
+	_, filename, _, _ := runtime.Caller(0)
+	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
+	require.NoError(t, err)
+	createCommands := strings.ReplaceAll(string(dat), "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
+
+	_, err = pgconn.Exec(context.Background(), createCommands)
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(), "BEGIN")
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(),
+		"DECLARE ls_cursor CURSOR FOR SELECT subject_id FROM permissions WHERE resource_type = $1 AND resource_id = $2 AND permission = $3 AND subject_type = $4",
+		"document", "testdoc", "view", "user",
+	)
+	require.NoError(t, err)
+
+	seenIDs := make(map[string]struct{})
+	for {
+		rows, err := pgconn.Query(context.Background(), fmt.Sprintf("FETCH %d FROM ls_cursor", fetchSize))
+		require.NoError(t, err)
+
+		fetchCount := 0
+		for rows.Next() {
+			var subjectID string
+			require.NoError(t, rows.Scan(&subjectID))
+
+			_, isDuplicate := seenIDs[subjectID]
+			require.False(t, isDuplicate, "duplicate subject_id %q returned by cursor pagination", subjectID)
+
+			seenIDs[subjectID] = struct{}{}
+			fetchCount++
+		}
+		require.NoError(t, rows.Err())
+		rows.Close()
+
+		if fetchCount == 0 {
+			break
+		}
+	}
+
+	_, err = pgconn.Exec(context.Background(), "CLOSE ls_cursor")
+	require.NoError(t, err)
+
+	_, err = pgconn.Exec(context.Background(), "COMMIT")
+	require.NoError(t, err)
+
+	require.Len(t, seenIDs, totalUsers, "expected %d unique subjects, got %d", totalUsers, len(seenIDs))
+	require.Equal(t, expectedIDs, seenIDs)
 }
 
 func runEndToEndTest(t *testing.T, tc e2eTestCase) {
