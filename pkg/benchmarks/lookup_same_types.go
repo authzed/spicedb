@@ -121,5 +121,14 @@ func setupLookupSameTypes(ctx context.Context, ds datastore.Datastore) (*QuerySe
 				ExpectedResourceIDs: []string{"promserver", "jira"},
 			},
 		},
+		IterSubjects: []IterSubjectsQuery{
+			{
+				ResourceType:       "resource",
+				ResourceID:         "promserver",
+				Permission:         "view",
+				FilterSubjectType:  "user",
+				ExpectedSubjectIDs: []string{"an_engineer", "an_eng_manager", "an_eng_director", "cto", "ceo", "an_external_user"},
+			},
+		},
 	}, nil
 }
