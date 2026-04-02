@@ -2262,6 +2262,7 @@ type SourcePosition struct {
 	state                     protoimpl.MessageState `protogen:"open.v1"`
 	ZeroIndexedLineNumber     uint64                 `protobuf:"varint,1,opt,name=zero_indexed_line_number,json=zeroIndexedLineNumber,proto3" json:"zero_indexed_line_number,omitempty"`
 	ZeroIndexedColumnPosition uint64                 `protobuf:"varint,2,opt,name=zero_indexed_column_position,json=zeroIndexedColumnPosition,proto3" json:"zero_indexed_column_position,omitempty"`
+	FileName                  string                 `protobuf:"bytes,3,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -2308,6 +2309,13 @@ func (x *SourcePosition) GetZeroIndexedColumnPosition() uint64 {
 		return x.ZeroIndexedColumnPosition
 	}
 	return 0
+}
+
+func (x *SourcePosition) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
 }
 
 type CaveatExpression struct {
@@ -3233,10 +3241,11 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0fsource_position\x18\x03 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\"4\n" +
 	"\x06Object\x12\x10\n" +
 	"\fTUPLE_OBJECT\x10\x00\x12\x18\n" +
-	"\x14TUPLE_USERSET_OBJECT\x10\x01\"\x8a\x01\n" +
+	"\x14TUPLE_USERSET_OBJECT\x10\x01\"\xa7\x01\n" +
 	"\x0eSourcePosition\x127\n" +
 	"\x18zero_indexed_line_number\x18\x01 \x01(\x04R\x15zeroIndexedLineNumber\x12?\n" +
-	"\x1czero_indexed_column_position\x18\x02 \x01(\x04R\x19zeroIndexedColumnPosition\"\x9c\x01\n" +
+	"\x1czero_indexed_column_position\x18\x02 \x01(\x04R\x19zeroIndexedColumnPosition\x12\x1b\n" +
+	"\tfile_name\x18\x03 \x01(\tR\bfileName\"\x9c\x01\n" +
 	"\x10CaveatExpression\x128\n" +
 	"\toperation\x18\x01 \x01(\v2\x18.core.v1.CaveatOperationH\x00R\toperation\x127\n" +
 	"\x06caveat\x18\x02 \x01(\v2\x1d.core.v1.ContextualizedCaveatH\x00R\x06caveatB\x15\n" +
