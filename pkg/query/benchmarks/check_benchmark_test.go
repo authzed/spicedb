@@ -7,9 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	bm "github.com/authzed/spicedb/pkg/benchmarks"
-
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	bm "github.com/authzed/spicedb/pkg/benchmarks"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/query"
 )

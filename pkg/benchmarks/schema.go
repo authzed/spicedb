@@ -3,9 +3,8 @@ package benchmarks
 import (
 	"context"
 
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/datastore"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	schema "github.com/authzed/spicedb/pkg/schema/v2"
 )
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -83,7 +82,7 @@ func setupLookupIntersection(ctx context.Context, ds datastore.Datastore) (*Quer
 		)
 	}
 
-	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, relationships...)
+	_, err = writeRelationships(ctx, ds, relationships)
 	if err != nil {
 		return nil, err
 	}

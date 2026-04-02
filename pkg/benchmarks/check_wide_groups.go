@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -87,7 +86,7 @@ func setupCheckWideGroups(ctx context.Context, ds datastore.Datastore) (*QuerySe
 	// user:tom is at the deepest leaf
 	relationships = append(relationships, tuple.MustParse("group:eng-99-1#member@user:tom"))
 
-	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, relationships...)
+	_, err = writeRelationships(ctx, ds, relationships)
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -62,7 +61,7 @@ func setupDeepArrow(ctx context.Context, ds datastore.Datastore) (*QuerySets, er
 	}
 	relationships = append(relationships, tuple.MustParse("document:29#view@user:slow"))
 
-	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, relationships...)
+	_, err = writeRelationships(ctx, ds, relationships)
 	if err != nil {
 		return nil, err
 	}
