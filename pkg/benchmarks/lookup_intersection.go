@@ -113,5 +113,14 @@ func setupLookupIntersection(ctx context.Context, ds datastore.Datastore) (*Quer
 				ExpectedResourceIDs: expectedIDs,
 			},
 		},
+		IterSubjects: []IterSubjectsQuery{
+			{
+				ResourceType:       "resource",
+				ResourceID:         "resource1",
+				Permission:         "view",
+				FilterSubjectType:  "user",
+				ExpectedSubjectIDs: []string{"tom"},
+			},
+		},
 	}, nil
 }
