@@ -66,6 +66,7 @@ type QueryOptions struct {
 	Limit          *uint64   `debugmap:"visible"`
 	Sort           SortOrder `debugmap:"visible"`
 	After          Cursor    `debugmap:"visible"`
+	Before         Cursor    `debugmap:"visible"`
 	SkipCaveats    bool      `debugmap:"visible"`
 	SkipExpiration bool      `debugmap:"visible"`
 

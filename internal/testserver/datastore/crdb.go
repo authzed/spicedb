@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -128,4 +129,117 @@ func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Dat
 	}()
 
 	return initFunc("cockroachdb", connectStr)
+}
+
+// RunCRDBClusterForTesting starts a multi-node CockroachDB cluster for testing
+// and returns a RunningEngineForTest connected to the first node.
+func RunCRDBClusterForTesting(t testing.TB, numNodes int, crdbVersion string) *crdbTester {
+	require.GreaterOrEqual(t, numNodes, 1, "cluster must have at least 1 node")
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err)
+
+	clusterID := uuid.New().String()[:8]
+	networkName := "crdb-cluster-" + clusterID
+
+	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{
+		Name:   networkName,
+		Driver: "bridge",
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = pool.Client.RemoveNetwork(network.ID)
+	})
+
+	// Build the join list: all node hostnames.
+	nodeNames := make([]string, numNodes)
+	for i := range numNodes {
+		nodeNames[i] = fmt.Sprintf("crdb-%s-%d", clusterID, i)
+	}
+	joinList := ""
+	for i, name := range nodeNames {
+		if i > 0 {
+			joinList += ","
+		}
+		joinList += name + ":26257"
+	}
+
+	// Start all nodes.
+	var resources []*dockertest.Resource
+	for i := range numNodes {
+		resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+			Name:       nodeNames[i],
+			Repository: "cockroachdb/cockroach",
+			Tag:        "v" + crdbVersion,
+			Cmd: []string{
+				"start",
+				"--insecure",
+				"--max-offset=50ms",
+				"--join=" + joinList,
+				"--advertise-addr=" + nodeNames[i],
+			},
+			NetworkID: network.ID,
+		}, func(config *docker.HostConfig) {
+			config.AutoRemove = true
+			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		})
+		require.NoError(t, err)
+		resources = append(resources, resource)
+	}
+
+	t.Cleanup(func() {
+		for _, r := range resources {
+			_ = pool.Purge(r)
+		}
+	})
+
+	firstNodePort := resources[0].GetPort("26257/tcp")
+
+	// Wait for cockroach init to succeed — retry until the RPC port is up.
+	pool.MaxWait = 60 * time.Second
+	require.NoError(t, pool.Retry(func() error {
+		exitCode, err := resources[0].Exec([]string{
+			"cockroach", "init", "--insecure", "--host=" + nodeNames[0] + ":26257",
+		}, dockertest.ExecOptions{})
+		if err != nil {
+			return err
+		}
+		// Exit code 0 = success, 1 = already initialized (both fine).
+		if exitCode != 0 && exitCode != 1 {
+			return fmt.Errorf("cockroach init exited with code %d", exitCode)
+		}
+		return nil
+	}))
+
+	// Wait for SQL layer to be ready.
+	builder := &crdbTester{
+		hostname: "localhost",
+		creds:    "root",
+		port:     firstNodePort,
+	}
+
+	require.NoError(t, pool.Retry(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), dockerBootTimeout)
+		defer cancel()
+		uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, firstNodePort)
+		conn, err := pgx.Connect(ctx, uri)
+		if err != nil {
+			return err
+		}
+		builder.connMutex.Lock()
+		builder.conn = conn
+		_, err = conn.Exec(ctx, enableRangefeeds)
+		builder.connMutex.Unlock()
+		return err
+	}))
+
+	t.Cleanup(func() {
+		builder.connMutex.Lock()
+		defer builder.connMutex.Unlock()
+		if builder.conn != nil {
+			_ = builder.conn.Close(context.Background())
+		}
+	})
+
+	return builder
 }
