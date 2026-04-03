@@ -1,0 +1,56 @@
+syntax = "proto3";
+package partitionedexport.v1;
+
+option go_package = "github.com/authzed/spicedb/pkg/proto/partitionedexport/v1";
+
+service PartitionedExportService {
+  rpc PlanPartitionedExport(PlanPartitionedExportRequest) returns (PlanPartitionedExportResponse) {}
+  rpc StreamPartitionedExport(StreamPartitionedExportRequest) returns (stream StreamPartitionedExportResponse) {}
+}
+
+message PlanPartitionedExportRequest {
+  uint32 desired_partitions = 1;
+}
+
+message PlanPartitionedExportResponse {
+  string revision = 1;
+  repeated ExportPartition partitions = 2;
+}
+
+message ExportPartition {
+  uint32 index = 1;
+  optional PartitionBound lower_bound = 2;
+  optional PartitionBound upper_bound = 3;
+}
+
+message PartitionBound {
+  string namespace = 1;
+  string object_id = 2;
+  string relation = 3;
+  string userset_namespace = 4;
+  string userset_object_id = 5;
+  string userset_relation = 6;
+}
+
+message StreamPartitionedExportRequest {
+  ExportPartition partition = 1;
+  string revision = 2;
+  optional string cursor = 3;
+  uint32 batch_size = 4;
+}
+
+message StreamPartitionedExportResponse {
+  string after_result_cursor = 1;
+  repeated ExportedRelationship relationships = 2;
+}
+
+message ExportedRelationship {
+  string resource_type = 1;
+  string resource_id = 2;
+  string relation = 3;
+  string subject_type = 4;
+  string subject_id = 5;
+  string subject_relation = 6;
+  optional string caveat_name = 7;
+  optional bytes caveat_context = 8;
+}

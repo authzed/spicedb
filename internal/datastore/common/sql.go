@@ -359,6 +359,84 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 	return sqf, nil
 }
 
+func (sqf SchemaQueryFilterer) MustBeforeOrEqual(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
+	updated, err := sqf.BeforeOrEqual(cursor, order)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
+func (sqf SchemaQueryFilterer) BeforeOrEqual(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
+	spiceerrors.DebugAssertNotNilf(cursor, "cursor cannot be nil")
+
+	columnsAndValues, err := columnsAndValuesForSort(order, sqf.schema, cursor)
+	if err != nil {
+		return sqf, err
+	}
+
+	switch sqf.schema.PaginationFilterType {
+	case TupleComparison:
+		columnNames := make([]string, 0, len(columnsAndValues))
+		valueSlots := make([]any, 0, len(columnsAndValues))
+		comparisonSlotCount := 0
+
+		for _, cav := range columnsAndValues {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
+				columnNames = append(columnNames, cav.name)
+				valueSlots = append(valueSlots, cav.value)
+				comparisonSlotCount++
+			}
+		}
+
+		if comparisonSlotCount > 0 {
+			comparisonTuple := "(" + strings.Join(columnNames, ",") + ") <= (" + strings.Repeat(",?", comparisonSlotCount)[1:] + ")"
+			sqf.queryBuilder = sqf.queryBuilder.Where(
+				comparisonTuple,
+				valueSlots...,
+			)
+		}
+
+	case ExpandedLogicComparison:
+		orClause := sq.Or{}
+
+		// Find the last non-static column. The expanded form of (a,b,c) <= (1,2,3)
+		// uses < for intermediate levels and <= only for the final level:
+		// (a < 1) OR (a = 1 AND b < 2) OR (a = 1 AND b = 2 AND c <= 3)
+		lastNonStaticIdx := -1
+		for i := len(columnsAndValues) - 1; i >= 0; i-- {
+			if !sqf.filteringColumnTracker.hasStaticValue(columnsAndValues[i].name) {
+				lastNonStaticIdx = i
+				break
+			}
+		}
+
+		for index, cav := range columnsAndValues {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
+				andClause := sq.And{}
+				for _, previous := range columnsAndValues[0:index] {
+					if !sqf.filteringColumnTracker.hasStaticValue(previous.name) {
+						andClause = append(andClause, sq.Eq{previous.name: previous.value})
+					}
+				}
+
+				if index == lastNonStaticIdx {
+					andClause = append(andClause, sq.LtOrEq{cav.name: cav.value})
+				} else {
+					andClause = append(andClause, sq.Lt{cav.name: cav.value})
+				}
+				orClause = append(orClause, andClause)
+			}
+		}
+
+		if len(orClause) > 0 {
+			sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
+		}
+	}
+
+	return sqf, nil
+}
+
 // FilterToResourceType returns a new SchemaQueryFilterer that is limited to resources of the
 // specified type.
 func (sqf SchemaQueryFilterer) FilterToResourceType(resourceType string) SchemaQueryFilterer {
@@ -725,6 +803,19 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 		}
 
 		q, err := query.After(queryOpts.After, sort)
+		if err != nil {
+			return nil, err
+		}
+		query = q
+	}
+
+	// Add upper bound cursor.
+	if queryOpts.BeforeOrEqual != nil {
+		if sort == options.Unsorted {
+			return nil, datastore.ErrCursorsWithoutSorting
+		}
+
+		q, err := query.BeforeOrEqual(queryOpts.BeforeOrEqual, sort)
 		if err != nil {
 			return nil, err
 		}

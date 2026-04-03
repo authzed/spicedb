@@ -34,6 +34,7 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.Limit = q.Limit
 		to.Sort = q.Sort
 		to.After = q.After
+		to.BeforeOrEqual = q.BeforeOrEqual
 		to.SkipCaveats = q.SkipCaveats
 		to.SkipExpiration = q.SkipExpiration
 		to.SQLCheckAssertionForTest = q.SQLCheckAssertionForTest
@@ -67,6 +68,13 @@ func (q *QueryOptions) DebugMap() map[string]any {
 		debugMap["After"] = dm.DebugMap()
 	} else {
 		debugMap["After"] = q.After
+	}
+	if dm, ok := any(&q.BeforeOrEqual).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["BeforeOrEqual"] = dm.DebugMap()
+	} else {
+		debugMap["BeforeOrEqual"] = q.BeforeOrEqual
 	}
 	debugMap["SkipCaveats"] = q.SkipCaveats
 	debugMap["SkipExpiration"] = q.SkipExpiration
@@ -149,6 +157,13 @@ func WithSort(sort SortOrder) QueryOptionsOption {
 func WithAfter(after Cursor) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.After = after
+	}
+}
+
+// WithBeforeOrEqual returns an option that can set BeforeOrEqual on a QueryOptions
+func WithBeforeOrEqual(beforeOrEqual Cursor) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.BeforeOrEqual = beforeOrEqual
 	}
 }
 
