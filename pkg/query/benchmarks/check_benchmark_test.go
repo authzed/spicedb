@@ -23,6 +23,8 @@ var advisorWarmUp = map[string]int{
 	"DoubleWideArrow": 10,
 }
 
+const defaultWarmupIterations = 1
+
 func BenchmarkCheck(b *testing.B) {
 	for _, benchmark := range bm.All() {
 		b.Run(benchmark.Name, func(b *testing.B) {
