@@ -140,7 +140,9 @@ func (pgd *pgDatastore) getHeadRevision(ctx context.Context, querier common.Quer
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-
+		if common.IsMissingTableError(err) {
+			err = dscommon.NewSchemaNotInitializedError(err)
+		}
 		return nil, fmt.Errorf(errRevision, err)
 	}
 
@@ -312,6 +314,9 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]an
 
 	cterr := tx.QueryRow(ctx, sql, args...).Scan(&newXID, &newSnapshot, &timestamp)
 	if cterr != nil {
+		if common.IsMissingTableError(cterr) {
+			cterr = dscommon.NewSchemaNotInitializedError(cterr)
+		}
 		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
 	}
 	return newXID, newSnapshot, timestamp, err
