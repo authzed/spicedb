@@ -38,7 +38,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "", TreatMismatchingTokensAsFullConsistency)
 		require.NoError(t, err)
@@ -326,7 +326,7 @@ func TestForceFullConsistencyUnaryBypassWhitelist(t *testing.T) {
 
 			var capturedCtx context.Context
 			resp, err := interceptor(
-				context.Background(),
+				t.Context(),
 				&requestWithConsistency{},
 				&grpc.UnaryServerInfo{FullMethod: tc.method},
 				func(ctx context.Context, req any) (any, error) {
@@ -357,7 +357,7 @@ func TestForceFullConsistencyStreamBypassWhitelist(t *testing.T) {
 	for _, tc := range bypassMethods {
 		t.Run(tc.name, func(t *testing.T) {
 			interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
-			originalStream := &mockServerStream{ctx: context.Background()}
+			originalStream := &mockServerStream{ctx: t.Context()}
 
 			var capturedStream grpc.ServerStream
 			err := interceptor(

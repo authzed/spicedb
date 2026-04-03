@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -48,7 +47,7 @@ func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
-	ctx := NewLocalContext(context.Background())
+	ctx := NewLocalContext(t.Context())
 
 	// Execute - should terminate immediately with nil (not found)
 	path, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
@@ -145,7 +144,7 @@ func TestRecursiveIteratorExecutionError(t *testing.T) {
 	faultyIter := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{}) // Fails on Check
 	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
-	ctx := NewLocalContext(context.Background())
+	ctx := NewLocalContext(t.Context())
 
 	// Test CheckImpl with a faulty iterator - error occurs eagerly
 	_, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})

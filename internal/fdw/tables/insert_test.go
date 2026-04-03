@@ -1,7 +1,6 @@
 package tables
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -102,7 +101,7 @@ func TestParseInsertStatement(t *testing.T) {
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			stmt, err := ParseInsertStatement(ctx, parsed.Stmts[0].Stmt.GetInsertStmt())
 
 			if tc.expectedError != "" {
@@ -141,7 +140,7 @@ func TestInsertStatementReturningColumns(t *testing.T) {
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			stmt, err := ParseInsertStatement(ctx, parsed.Stmts[0].Stmt.GetInsertStmt())
 			require.NoError(t, err)
 			require.NotNil(t, stmt)

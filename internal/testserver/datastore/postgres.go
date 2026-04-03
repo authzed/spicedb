@@ -116,7 +116,7 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 
 	newDBName := "db" + uniquePortion
 
-	ctx := context.Background()
+	ctx := t.Context()
 	conn := b.initializeHostConnection(t)
 	defer conn.Close(ctx)
 
@@ -148,14 +148,14 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 	for i := 1; i <= retryCount; i++ {
 		connectStr := b.NewDatabase(t)
 
-		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr, datastore.NoCredentialsProvider, false)
+		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(t.Context(), connectStr, datastore.NoCredentialsProvider, false)
 		if err == nil {
-			ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
+			ctx := context.WithValue(t.Context(), migrate.BackfillBatchSize, uint64(1000))
 			require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
 			return initFunc("postgres", connectStr)
 		}
 		defer func() {
-			migrationDriver.Close(context.Background())
+			migrationDriver.Close(t.Context())
 		}()
 
 		if i == retryCount {
@@ -222,7 +222,7 @@ func (b *postgresTester) initializeHostConnection(t testing.TB) (conn *pgx.Conn)
 	uri := fmt.Sprintf("postgresql://%s@%s:%s/?sslmode=disable", b.creds, hostname, port)
 	err := b.pool.Retry(func() error {
 		var err error
-		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancelConnect := context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancelConnect()
 		conn, err = pgx.Connect(ctx, uri)
 		if err != nil {

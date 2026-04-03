@@ -356,7 +356,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
 	})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,
@@ -435,7 +435,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
 	})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,

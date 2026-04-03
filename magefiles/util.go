@@ -142,6 +142,24 @@ func Tool() RunOpt {
 	}
 }
 
+// buildAndRunTool builds a Go binary from a submodule and runs it in the repo
+// root. This is used for tool commands whose dependencies live in a separate
+// module (e.g., magefiles/ or tools/analyzers/).
+func buildAndRunTool(moduleDir, pkg string, args ...string) error {
+	tmpBin, err := os.CreateTemp("", "mage-tool-*")
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+	tmpBin.Close()
+	binPath := tmpBin.Name()
+	defer os.Remove(binPath)
+
+	if err := RunSh("go", WithDir(moduleDir), WithV())("build", "-o", binPath, pkg); err != nil {
+		return fmt.Errorf("building %s: %w", pkg, err)
+	}
+	return RunSh(binPath, WithV())(args...)
+}
+
 // RunSh returns a function that calls ExecSh, only returning errors.
 func RunSh(cmd string, options ...RunOpt) func(args ...string) error {
 	run := ExecSh(cmd, options...)

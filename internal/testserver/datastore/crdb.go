@@ -60,7 +60,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 		builder.connMutex.Lock()
 		defer builder.connMutex.Unlock()
 		if builder.conn != nil {
-			require.NoError(t, builder.conn.Close(context.Background()))
+			require.NoError(t, builder.conn.Close(t.Context()))
 		}
 		require.NoError(t, pool.Purge(resource))
 	})
@@ -76,7 +76,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, port)
 	require.NoError(t, pool.Retry(func() error {
 		var err error
-		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancelConnect := context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancelConnect()
 		conn, err := pgx.Connect(ctx, uri)
 		if err != nil {
@@ -84,7 +84,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion strin
 		}
 		builder.connMutex.Lock()
 		builder.conn = conn
-		ctx, cancelRangeFeeds := context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancelRangeFeeds := context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancelRangeFeeds()
 		_, err = builder.conn.Exec(ctx, enableRangefeeds)
 		builder.connMutex.Unlock()
@@ -103,7 +103,7 @@ func (r *crdbTester) NewDatabase(t testing.TB) string {
 
 	r.connMutex.Lock()
 	defer r.connMutex.Unlock()
-	_, err = r.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
+	_, err = r.conn.Exec(t.Context(), "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
 
 	connectStr := fmt.Sprintf(
@@ -122,9 +122,9 @@ func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Dat
 
 	migrationDriver, err := crdbmigrations.NewCRDBDriver(connectStr)
 	require.NoError(t, err)
-	require.NoError(t, crdbmigrations.CRDBMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun))
+	require.NoError(t, crdbmigrations.CRDBMigrations.Run(t.Context(), migrationDriver, migrate.Head, migrate.LiveRun))
 	defer func() {
-		migrationDriver.Close(context.Background())
+		migrationDriver.Close(t.Context())
 	}()
 
 	return initFunc("cockroachdb", connectStr)

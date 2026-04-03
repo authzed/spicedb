@@ -226,7 +226,7 @@ func TestWriteChunkedBytes_InsertWithTombstones(t *testing.T) {
 
 	data := []byte("Hello, World! This is a test.")
 	createdAt := uint64(123)
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, createdAt)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, createdAt)
 	require.NoError(t, err)
 
 	// Should have 1 UPDATE (tombstone old) + 1 INSERT query
@@ -278,7 +278,7 @@ func TestWriteChunkedBytes_DeleteAndInsert(t *testing.T) {
 	})
 
 	data := []byte("Hello, World!")
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, 0)
 	require.NoError(t, err)
 
 	// Should have 1 DELETE + 1 INSERT query
@@ -317,7 +317,7 @@ func TestWriteChunkedBytes_EmptyData(t *testing.T) {
 	})
 
 	data := []byte{}
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, 0)
 	require.NoError(t, err)
 
 	// Should insert a single empty chunk
@@ -343,7 +343,7 @@ func TestWriteChunkedBytes_EmptyName(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.WriteChunkedBytes(context.Background(), "", []byte("test"), 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "", []byte("test"), 0)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -368,7 +368,7 @@ func TestWriteAndReadZeroByteChunk(t *testing.T) {
 	})
 
 	// Write zero-byte data
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", []byte{}, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte{}, 0)
 	require.NoError(t, err)
 
 	// Verify that a single empty chunk was inserted
@@ -380,7 +380,7 @@ func TestWriteAndReadZeroByteChunk(t *testing.T) {
 	require.Equal(t, []byte{}, insertArgs[2])
 
 	// Read it back
-	data, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
+	data, err := chunker.ReadChunkedBytes(t.Context(), "test-key")
 	require.NoError(t, err)
 	require.NotNil(t, data)
 	require.Empty(t, data)
@@ -448,7 +448,7 @@ func TestReadChunkedBytes(t *testing.T) {
 				WriteMode:         WriteModeDeleteAndInsert,
 			})
 
-			data, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
+			data, err := chunker.ReadChunkedBytes(t.Context(), "test-key")
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -474,7 +474,7 @@ func TestReadChunkedBytes_EmptyName(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	_, err := chunker.ReadChunkedBytes(context.Background(), "")
+	_, err := chunker.ReadChunkedBytes(t.Context(), "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -494,7 +494,7 @@ func TestReadChunkedBytes_ExecutorError(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	_, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
+	_, err := chunker.ReadChunkedBytes(t.Context(), "test-key")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to read chunks")
 	require.Contains(t, err.Error(), "database error")
@@ -514,7 +514,7 @@ func TestDeleteChunkedBytes_DeleteAndInsert(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.DeleteChunkedBytes(context.Background(), "test-key", 0)
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", 0)
 	require.NoError(t, err)
 
 	// Verify the DELETE query
@@ -543,7 +543,7 @@ func TestDeleteChunkedBytes_InsertWithTombstones(t *testing.T) {
 	})
 
 	deletedAt := uint64(456)
-	err := chunker.DeleteChunkedBytes(context.Background(), "test-key", deletedAt)
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", deletedAt)
 	require.NoError(t, err)
 
 	// Verify the UPDATE query (tombstone)
@@ -570,7 +570,7 @@ func TestDeleteChunkedBytes_EmptyName(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.DeleteChunkedBytes(context.Background(), "", 0)
+	err := chunker.DeleteChunkedBytes(t.Context(), "", 0)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -667,7 +667,7 @@ func TestWriteChunkedBytes_LargeData_DeleteAndInsert(t *testing.T) {
 		data[i] = byte(i % 256)
 	}
 
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, 0)
 	require.NoError(t, err)
 
 	// Should have 1 DELETE + 1 INSERT
@@ -701,7 +701,7 @@ func TestWriteChunkedBytes_LargeData_InsertWithTombstones(t *testing.T) {
 	}
 
 	createdAt := uint64(999)
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, createdAt)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, createdAt)
 	require.NoError(t, err)
 
 	// Should have 1 UPDATE (tombstone) + 1 INSERT

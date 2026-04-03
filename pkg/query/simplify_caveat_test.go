@@ -17,7 +17,7 @@ import (
 )
 
 func TestSimplifyLeafCaveat(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create test caveat
@@ -94,7 +94,7 @@ func TestSimplifyLeafCaveat(t *testing.T) {
 }
 
 func TestSimplifyAndOperation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create two test caveats
@@ -198,7 +198,7 @@ func TestSimplifyAndOperation(t *testing.T) {
 }
 
 func TestSimplifyOrOperation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create two test caveats
@@ -302,7 +302,7 @@ func TestSimplifyOrOperation(t *testing.T) {
 }
 
 func TestSimplifyNestedOperations(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create test caveats
@@ -408,7 +408,7 @@ func TestSimplifyNestedOperations(t *testing.T) {
 }
 
 func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create write_limit caveat: count < limit
@@ -494,7 +494,7 @@ func TestSimplifyOrWithSameCaveatDifferentContexts(t *testing.T) {
 }
 
 func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create write_limit caveat: count < limit
@@ -590,7 +590,7 @@ func TestSimplifyAndWithSameCaveatDifferentContexts(t *testing.T) {
 }
 
 func TestSimplifyNotWithSameCaveatDifferentContexts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create write_limit caveat: count < limit
@@ -658,7 +658,7 @@ func TestSimplifyNotWithSameCaveatDifferentContexts(t *testing.T) {
 }
 
 func TestSimplifyComplexNestedExpressions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create two different caveats
@@ -1121,7 +1121,7 @@ func TestCollectRelationshipContexts(t *testing.T) {
 }
 
 func TestSimplifyWithEmptyContext(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create test caveats
@@ -1208,7 +1208,7 @@ func TestSimplifyWithEmptyContext(t *testing.T) {
 }
 
 func TestSimplifyNotConditional(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create test caveat: count < limit
@@ -1273,7 +1273,7 @@ func TestSimplifyNotConditional(t *testing.T) {
 }
 
 func TestSimplifyDeeplyNestedCaveats(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	// Create multiple test caveats for deep nesting

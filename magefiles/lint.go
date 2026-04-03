@@ -73,13 +73,13 @@ func (l Lint) Go() error {
 // Gofumpt Run gofumpt
 func (Lint) Gofumpt() error {
 	fmt.Println("formatting go")
-	return RunSh("go", Tool())("run", "mvdan.cc/gofumpt", "-l", "-w", "..")
+	return buildAndRunTool("magefiles", "mvdan.cc/gofumpt", "-l", "-w", ".")
 }
 
 // Golangcilint Run golangci-lint
 func (Lint) Golangcilint() error {
 	fmt.Println("running golangci-lint")
-	return RunSh("go", WithV())("run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", "run", "--fix")
+	return buildAndRunTool("magefiles", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", "run", "--fix")
 }
 
 // Analyzers Run all analyzers
@@ -106,12 +106,12 @@ func (Lint) Analyzers() error {
 // Vulncheck Run vulncheck
 func (Lint) Vulncheck() error {
 	fmt.Println("running vulncheck")
-	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "./...")
+	return buildAndRunTool("magefiles", "golang.org/x/vuln/cmd/govulncheck", "-show", "verbose", "./...")
 }
 
 // BufFormat runs buf format command
 func (l Lint) BufFormat() error {
-	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write", "../")
+	return buildAndRunTool("magefiles", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write", ".")
 }
 
 // Trivy Run Trivy

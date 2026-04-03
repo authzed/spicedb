@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -553,7 +552,7 @@ func TestConvertDiff(t *testing.T) {
 			dl, err := dsfortesting.DataLayerForTesting(t, 100, 1*time.Second, 100*time.Minute)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = datalayer.ContextWithDataLayer(ctx, dl)
 
 			resp, err := convertDiff(
