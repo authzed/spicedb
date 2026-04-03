@@ -67,6 +67,24 @@ var lexerTests = []lexerTest{
 		tEOF,
 	}},
 
+	// Underscore prefix tests
+	{"underscore identifier", "_private", []Lexeme{{TokenTypeIdentifier, 0, "_private", ""}, tEOF}},
+	{"underscore relation", "_internal_permission", []Lexeme{{TokenTypeIdentifier, 0, "_internal_permission", ""}, tEOF}},
+	{"underscore namespace", "_system", []Lexeme{{TokenTypeIdentifier, 0, "_system", ""}, tEOF}},
+	{"underscore typepath", "_tenant/_resource", []Lexeme{
+		{TokenTypeIdentifier, 0, "_tenant", ""},
+		{TokenTypeDiv, 0, "/", ""},
+		{TokenTypeIdentifier, 0, "_resource", ""},
+		tEOF,
+	}},
+	{"mixed underscore path", "_private/public/_internal", []Lexeme{
+		{TokenTypeIdentifier, 0, "_private", ""},
+		{TokenTypeDiv, 0, "/", ""},
+		{TokenTypeIdentifier, 0, "public", ""},
+		{TokenTypeDiv, 0, "/", ""},
+		{TokenTypeIdentifier, 0, "_internal", ""},
+		tEOF,
+	}},
 	{"unicode identifier", "一级", []Lexeme{{TokenTypeIdentifier, 0, "一级", ""}, tEOF}},
 	{"unicode singlequoted string literal", "'一级'", []Lexeme{{TokenTypeString, 0, "'一级'", ""}, tEOF}},
 	{"ascii singlequoted string literal", "'foo'", []Lexeme{{TokenTypeString, 0, "'foo'", ""}, tEOF}},
