@@ -1,18 +1,18 @@
 syntax = "proto3";
-package bulkexport.v1;
+package partitionedexport.v1;
 
-option go_package = "github.com/authzed/spicedb/pkg/proto/bulkexport/v1";
+option go_package = "github.com/authzed/spicedb/pkg/proto/partitionedexport/v1";
 
-service BulkExportService {
-  rpc PlanBulkExport(PlanBulkExportRequest) returns (PlanBulkExportResponse) {}
-  rpc StreamBulkExport(StreamBulkExportRequest) returns (stream StreamBulkExportResponse) {}
+service PartitionedExportService {
+  rpc PlanPartitionedExport(PlanPartitionedExportRequest) returns (PlanPartitionedExportResponse) {}
+  rpc StreamPartitionedExport(StreamPartitionedExportRequest) returns (stream StreamPartitionedExportResponse) {}
 }
 
-message PlanBulkExportRequest {
+message PlanPartitionedExportRequest {
   uint32 desired_partitions = 1;
 }
 
-message PlanBulkExportResponse {
+message PlanPartitionedExportResponse {
   string revision = 1;
   repeated ExportPartition partitions = 2;
 }
@@ -32,14 +32,14 @@ message PartitionBound {
   string userset_relation = 6;
 }
 
-message StreamBulkExportRequest {
+message StreamPartitionedExportRequest {
   ExportPartition partition = 1;
   string revision = 2;
   optional string cursor = 3;
   uint32 batch_size = 4;
 }
 
-message StreamBulkExportResponse {
+message StreamPartitionedExportResponse {
   string after_result_cursor = 1;
   repeated ExportedRelationship relationships = 2;
 }

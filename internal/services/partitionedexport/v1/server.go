@@ -12,23 +12,23 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
-	bulkexportv1 "github.com/authzed/spicedb/pkg/proto/bulkexport/v1"
+	pev1 "github.com/authzed/spicedb/pkg/proto/partitionedexport/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const defaultBatchSize = 1000
 
-// NewBulkExportServer creates a new BulkExportService server.
-func NewBulkExportServer(ds datastore.Datastore) bulkexportv1.BulkExportServiceServer {
-	return &bulkExportServer{ds: ds}
+// NewPartitionedExportServer creates a new PartitionedExportService server.
+func NewPartitionedExportServer(ds datastore.Datastore) pev1.PartitionedExportServiceServer {
+	return &partitionedExportServer{ds: ds}
 }
 
-type bulkExportServer struct {
-	bulkexportv1.UnimplementedBulkExportServiceServer
+type partitionedExportServer struct {
+	pev1.UnimplementedPartitionedExportServiceServer
 	ds datastore.Datastore
 }
 
-func (s *bulkExportServer) PlanBulkExport(ctx context.Context, req *bulkexportv1.PlanBulkExportRequest) (*bulkexportv1.PlanBulkExportResponse, error) {
+func (s *partitionedExportServer) PlanPartitionedExport(ctx context.Context, req *pev1.PlanPartitionedExportRequest) (*pev1.PlanPartitionedExportResponse, error) {
 	desiredCount := req.DesiredPartitions
 	if desiredCount == 0 {
 		desiredCount = 1
@@ -41,10 +41,9 @@ func (s *bulkExportServer) PlanBulkExport(ctx context.Context, req *bulkexportv1
 
 	partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](s.ds)
 	if partitioner == nil {
-		// Datastore doesn't support partitioning; return single partition.
-		return &bulkexportv1.PlanBulkExportResponse{
+		return &pev1.PlanPartitionedExportResponse{
 			Revision: revision.String(),
-			Partitions: []*bulkexportv1.ExportPartition{
+			Partitions: []*pev1.ExportPartition{
 				{Index: 0},
 			},
 		}, nil
@@ -55,42 +54,45 @@ func (s *bulkExportServer) PlanBulkExport(ctx context.Context, req *bulkexportv1
 		return nil, status.Errorf(codes.Internal, "failed to plan partitions: %v", err)
 	}
 
-	return &bulkexportv1.PlanBulkExportResponse{
+	return &pev1.PlanPartitionedExportResponse{
 		Revision:   revision.String(),
 		Partitions: partitionRangesToProto(ranges),
 	}, nil
 }
 
-func (s *bulkExportServer) StreamBulkExport(req *bulkexportv1.StreamBulkExportRequest, stream grpc.ServerStreamingServer[bulkexportv1.StreamBulkExportResponse]) error {
-	ctx := stream.Context()
+func (s *partitionedExportServer) StreamPartitionedExport(req *pev1.StreamPartitionedExportRequest, stream grpc.ServerStreamingServer[pev1.StreamPartitionedExportResponse]) error {
+	return StreamPartitionedExportToSender(stream.Context(), s.ds, req, stream.Send)
+}
 
+// StreamPartitionedExportToSender implements the StreamPartitionedExport logic. Given a datastore,
+// it will stream via the sender all relationships matched by the partition in the request.
+// If no cursor is provided, it will start from the partition's lower bound.
+func StreamPartitionedExportToSender(ctx context.Context, ds datastore.Datastore, req *pev1.StreamPartitionedExportRequest, sender func(response *pev1.StreamPartitionedExportResponse) error) error {
 	if req.Revision == "" {
 		return status.Error(codes.InvalidArgument, "revision is required")
 	}
 
-	revision, err := s.ds.RevisionFromString(req.Revision)
+	revision, err := ds.RevisionFromString(req.Revision)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid revision: %v", err)
 	}
 
-	if err := s.ds.CheckRevision(ctx, revision); err != nil {
+	if err := ds.CheckRevision(ctx, revision); err != nil {
 		return status.Errorf(codes.FailedPrecondition, "revision expired: %v", err)
 	}
 
-	reader := s.ds.SnapshotReader(revision)
+	reader := ds.SnapshotReader(revision)
 
 	batchSize := uint64(req.BatchSize)
 	if batchSize == 0 {
 		batchSize = defaultBatchSize
 	}
 
-	// Build query options.
 	opts := []dsoptions.QueryOptionsOption{
 		dsoptions.WithSort(dsoptions.ByResource),
 		dsoptions.WithQueryShape(queryshape.Varying),
 	}
 
-	// Determine lower bound: cursor (resume) takes priority over partition lower bound.
 	if req.Cursor != nil && *req.Cursor != "" {
 		cur, err := decodeCursor(*req.Cursor)
 		if err != nil {
@@ -102,10 +104,9 @@ func (s *bulkExportServer) StreamBulkExport(req *bulkexportv1.StreamBulkExportRe
 		opts = append(opts, dsoptions.WithAfter(cur))
 	}
 
-	// Upper bound from partition.
 	if req.Partition != nil && req.Partition.UpperBound != nil {
 		cur := partitionBoundToCursor(req.Partition.UpperBound)
-		opts = append(opts, dsoptions.WithBefore(cur))
+		opts = append(opts, dsoptions.WithBeforeOrEqual(cur))
 	}
 
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{}, opts...)
@@ -113,7 +114,7 @@ func (s *bulkExportServer) StreamBulkExport(req *bulkexportv1.StreamBulkExportRe
 		return status.Errorf(codes.Internal, "query failed: %v", err)
 	}
 
-	batch := make([]*bulkexportv1.ExportedRelationship, 0, batchSize)
+	batch := make([]*pev1.ExportedRelationship, 0, batchSize)
 	var last tuple.Relationship
 
 	for rel, err := range iter {
@@ -121,7 +122,7 @@ func (s *bulkExportServer) StreamBulkExport(req *bulkexportv1.StreamBulkExportRe
 			return status.Errorf(codes.Internal, "iteration error: %v", err)
 		}
 
-		batch = append(batch, &bulkexportv1.ExportedRelationship{
+		batch = append(batch, &pev1.ExportedRelationship{
 			ResourceType:    rel.Resource.ObjectType,
 			ResourceId:      rel.Resource.ObjectID,
 			Relation:        rel.Resource.Relation,
@@ -134,16 +135,15 @@ func (s *bulkExportServer) StreamBulkExport(req *bulkexportv1.StreamBulkExportRe
 		last = rel
 
 		if uint64(len(batch)) == batchSize {
-			if err := sendExportBatch(stream, batch, last); err != nil {
+			if err := sendBatch(sender, batch, last); err != nil {
 				return err
 			}
 			batch = batch[:0]
 		}
 	}
 
-	// Send remaining partial batch.
 	if len(batch) > 0 {
-		if err := sendExportBatch(stream, batch, last); err != nil {
+		if err := sendBatch(sender, batch, last); err != nil {
 			return err
 		}
 	}
@@ -151,8 +151,8 @@ func (s *bulkExportServer) StreamBulkExport(req *bulkexportv1.StreamBulkExportRe
 	return nil
 }
 
-func sendExportBatch(stream grpc.ServerStreamingServer[bulkexportv1.StreamBulkExportResponse], batch []*bulkexportv1.ExportedRelationship, last tuple.Relationship) error {
-	return stream.Send(&bulkexportv1.StreamBulkExportResponse{
+func sendBatch(sender func(response *pev1.StreamPartitionedExportResponse) error, batch []*pev1.ExportedRelationship, last tuple.Relationship) error {
+	return sender(&pev1.StreamPartitionedExportResponse{
 		AfterResultCursor: encodeCursor(last),
 		Relationships:     batch,
 	})
@@ -176,10 +176,10 @@ func decodeCursor(encoded string) (dsoptions.Cursor, error) {
 	return dsoptions.ToCursor(rel), nil
 }
 
-func partitionRangesToProto(ranges []datastore.PartitionRange) []*bulkexportv1.ExportPartition {
-	partitions := make([]*bulkexportv1.ExportPartition, len(ranges))
+func partitionRangesToProto(ranges []datastore.PartitionRange) []*pev1.ExportPartition {
+	partitions := make([]*pev1.ExportPartition, len(ranges))
 	for i, r := range ranges {
-		partitions[i] = &bulkexportv1.ExportPartition{
+		partitions[i] = &pev1.ExportPartition{
 			Index: uint32(i),
 		}
 		if r.LowerBound != nil {
@@ -192,12 +192,12 @@ func partitionRangesToProto(ranges []datastore.PartitionRange) []*bulkexportv1.E
 	return partitions
 }
 
-func cursorToPartitionBound(c dsoptions.Cursor) *bulkexportv1.PartitionBound {
+func cursorToPartitionBound(c dsoptions.Cursor) *pev1.PartitionBound {
 	rel := dsoptions.ToRelationship(c)
 	if rel == nil {
 		return nil
 	}
-	return &bulkexportv1.PartitionBound{
+	return &pev1.PartitionBound{
 		Namespace:        rel.Resource.ObjectType,
 		ObjectId:         rel.Resource.ObjectID,
 		Relation:         rel.Resource.Relation,
@@ -207,8 +207,8 @@ func cursorToPartitionBound(c dsoptions.Cursor) *bulkexportv1.PartitionBound {
 	}
 }
 
-func partitionBoundToCursor(b *bulkexportv1.PartitionBound) dsoptions.Cursor {
-	rel := tuple.Relationship{
+func partitionBoundToCursor(b *pev1.PartitionBound) dsoptions.Cursor {
+	return dsoptions.ToCursor(tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
 			Resource: tuple.ObjectAndRelation{
 				ObjectType: b.Namespace,
@@ -221,8 +221,7 @@ func partitionBoundToCursor(b *bulkexportv1.PartitionBound) dsoptions.Cursor {
 				Relation:   b.UsersetRelation,
 			},
 		},
-	}
-	return dsoptions.ToCursor(rel)
+	})
 }
 
 func caveatName(rel tuple.Relationship) *string {

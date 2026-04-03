@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        (unknown)
-// source: bulkexport/v1/bulkexport.proto
+// source: partitionedexport/v1/partitionedexport.proto
 
-package bulkexportv1
+package partitionedexportv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -21,28 +21,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type PlanBulkExportRequest struct {
+type PlanPartitionedExportRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	DesiredPartitions uint32                 `protobuf:"varint,1,opt,name=desired_partitions,json=desiredPartitions,proto3" json:"desired_partitions,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
 
-func (x *PlanBulkExportRequest) Reset() {
-	*x = PlanBulkExportRequest{}
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[0]
+func (x *PlanPartitionedExportRequest) Reset() {
+	*x = PlanPartitionedExportRequest{}
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PlanBulkExportRequest) String() string {
+func (x *PlanPartitionedExportRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PlanBulkExportRequest) ProtoMessage() {}
+func (*PlanPartitionedExportRequest) ProtoMessage() {}
 
-func (x *PlanBulkExportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[0]
+func (x *PlanPartitionedExportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53,19 +53,19 @@ func (x *PlanBulkExportRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PlanBulkExportRequest.ProtoReflect.Descriptor instead.
-func (*PlanBulkExportRequest) Descriptor() ([]byte, []int) {
-	return file_bulkexport_v1_bulkexport_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use PlanPartitionedExportRequest.ProtoReflect.Descriptor instead.
+func (*PlanPartitionedExportRequest) Descriptor() ([]byte, []int) {
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *PlanBulkExportRequest) GetDesiredPartitions() uint32 {
+func (x *PlanPartitionedExportRequest) GetDesiredPartitions() uint32 {
 	if x != nil {
 		return x.DesiredPartitions
 	}
 	return 0
 }
 
-type PlanBulkExportResponse struct {
+type PlanPartitionedExportResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Revision      string                 `protobuf:"bytes,1,opt,name=revision,proto3" json:"revision,omitempty"`
 	Partitions    []*ExportPartition     `protobuf:"bytes,2,rep,name=partitions,proto3" json:"partitions,omitempty"`
@@ -73,21 +73,21 @@ type PlanBulkExportResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PlanBulkExportResponse) Reset() {
-	*x = PlanBulkExportResponse{}
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[1]
+func (x *PlanPartitionedExportResponse) Reset() {
+	*x = PlanPartitionedExportResponse{}
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PlanBulkExportResponse) String() string {
+func (x *PlanPartitionedExportResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PlanBulkExportResponse) ProtoMessage() {}
+func (*PlanPartitionedExportResponse) ProtoMessage() {}
 
-func (x *PlanBulkExportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[1]
+func (x *PlanPartitionedExportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -98,19 +98,19 @@ func (x *PlanBulkExportResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PlanBulkExportResponse.ProtoReflect.Descriptor instead.
-func (*PlanBulkExportResponse) Descriptor() ([]byte, []int) {
-	return file_bulkexport_v1_bulkexport_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use PlanPartitionedExportResponse.ProtoReflect.Descriptor instead.
+func (*PlanPartitionedExportResponse) Descriptor() ([]byte, []int) {
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PlanBulkExportResponse) GetRevision() string {
+func (x *PlanPartitionedExportResponse) GetRevision() string {
 	if x != nil {
 		return x.Revision
 	}
 	return ""
 }
 
-func (x *PlanBulkExportResponse) GetPartitions() []*ExportPartition {
+func (x *PlanPartitionedExportResponse) GetPartitions() []*ExportPartition {
 	if x != nil {
 		return x.Partitions
 	}
@@ -128,7 +128,7 @@ type ExportPartition struct {
 
 func (x *ExportPartition) Reset() {
 	*x = ExportPartition{}
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[2]
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -140,7 +140,7 @@ func (x *ExportPartition) String() string {
 func (*ExportPartition) ProtoMessage() {}
 
 func (x *ExportPartition) ProtoReflect() protoreflect.Message {
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[2]
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -153,7 +153,7 @@ func (x *ExportPartition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportPartition.ProtoReflect.Descriptor instead.
 func (*ExportPartition) Descriptor() ([]byte, []int) {
-	return file_bulkexport_v1_bulkexport_proto_rawDescGZIP(), []int{2}
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ExportPartition) GetIndex() uint32 {
@@ -191,7 +191,7 @@ type PartitionBound struct {
 
 func (x *PartitionBound) Reset() {
 	*x = PartitionBound{}
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[3]
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -203,7 +203,7 @@ func (x *PartitionBound) String() string {
 func (*PartitionBound) ProtoMessage() {}
 
 func (x *PartitionBound) ProtoReflect() protoreflect.Message {
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[3]
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -216,7 +216,7 @@ func (x *PartitionBound) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartitionBound.ProtoReflect.Descriptor instead.
 func (*PartitionBound) Descriptor() ([]byte, []int) {
-	return file_bulkexport_v1_bulkexport_proto_rawDescGZIP(), []int{3}
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PartitionBound) GetNamespace() string {
@@ -261,7 +261,7 @@ func (x *PartitionBound) GetUsersetRelation() string {
 	return ""
 }
 
-type StreamBulkExportRequest struct {
+type StreamPartitionedExportRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Partition     *ExportPartition       `protobuf:"bytes,1,opt,name=partition,proto3" json:"partition,omitempty"`
 	Revision      string                 `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
@@ -271,21 +271,21 @@ type StreamBulkExportRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *StreamBulkExportRequest) Reset() {
-	*x = StreamBulkExportRequest{}
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[4]
+func (x *StreamPartitionedExportRequest) Reset() {
+	*x = StreamPartitionedExportRequest{}
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *StreamBulkExportRequest) String() string {
+func (x *StreamPartitionedExportRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StreamBulkExportRequest) ProtoMessage() {}
+func (*StreamPartitionedExportRequest) ProtoMessage() {}
 
-func (x *StreamBulkExportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[4]
+func (x *StreamPartitionedExportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -296,40 +296,40 @@ func (x *StreamBulkExportRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StreamBulkExportRequest.ProtoReflect.Descriptor instead.
-func (*StreamBulkExportRequest) Descriptor() ([]byte, []int) {
-	return file_bulkexport_v1_bulkexport_proto_rawDescGZIP(), []int{4}
+// Deprecated: Use StreamPartitionedExportRequest.ProtoReflect.Descriptor instead.
+func (*StreamPartitionedExportRequest) Descriptor() ([]byte, []int) {
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *StreamBulkExportRequest) GetPartition() *ExportPartition {
+func (x *StreamPartitionedExportRequest) GetPartition() *ExportPartition {
 	if x != nil {
 		return x.Partition
 	}
 	return nil
 }
 
-func (x *StreamBulkExportRequest) GetRevision() string {
+func (x *StreamPartitionedExportRequest) GetRevision() string {
 	if x != nil {
 		return x.Revision
 	}
 	return ""
 }
 
-func (x *StreamBulkExportRequest) GetCursor() string {
+func (x *StreamPartitionedExportRequest) GetCursor() string {
 	if x != nil && x.Cursor != nil {
 		return *x.Cursor
 	}
 	return ""
 }
 
-func (x *StreamBulkExportRequest) GetBatchSize() uint32 {
+func (x *StreamPartitionedExportRequest) GetBatchSize() uint32 {
 	if x != nil {
 		return x.BatchSize
 	}
 	return 0
 }
 
-type StreamBulkExportResponse struct {
+type StreamPartitionedExportResponse struct {
 	state             protoimpl.MessageState  `protogen:"open.v1"`
 	AfterResultCursor string                  `protobuf:"bytes,1,opt,name=after_result_cursor,json=afterResultCursor,proto3" json:"after_result_cursor,omitempty"`
 	Relationships     []*ExportedRelationship `protobuf:"bytes,2,rep,name=relationships,proto3" json:"relationships,omitempty"`
@@ -337,21 +337,21 @@ type StreamBulkExportResponse struct {
 	sizeCache         protoimpl.SizeCache
 }
 
-func (x *StreamBulkExportResponse) Reset() {
-	*x = StreamBulkExportResponse{}
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[5]
+func (x *StreamPartitionedExportResponse) Reset() {
+	*x = StreamPartitionedExportResponse{}
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *StreamBulkExportResponse) String() string {
+func (x *StreamPartitionedExportResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StreamBulkExportResponse) ProtoMessage() {}
+func (*StreamPartitionedExportResponse) ProtoMessage() {}
 
-func (x *StreamBulkExportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[5]
+func (x *StreamPartitionedExportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -362,19 +362,19 @@ func (x *StreamBulkExportResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StreamBulkExportResponse.ProtoReflect.Descriptor instead.
-func (*StreamBulkExportResponse) Descriptor() ([]byte, []int) {
-	return file_bulkexport_v1_bulkexport_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use StreamPartitionedExportResponse.ProtoReflect.Descriptor instead.
+func (*StreamPartitionedExportResponse) Descriptor() ([]byte, []int) {
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *StreamBulkExportResponse) GetAfterResultCursor() string {
+func (x *StreamPartitionedExportResponse) GetAfterResultCursor() string {
 	if x != nil {
 		return x.AfterResultCursor
 	}
 	return ""
 }
 
-func (x *StreamBulkExportResponse) GetRelationships() []*ExportedRelationship {
+func (x *StreamPartitionedExportResponse) GetRelationships() []*ExportedRelationship {
 	if x != nil {
 		return x.Relationships
 	}
@@ -397,7 +397,7 @@ type ExportedRelationship struct {
 
 func (x *ExportedRelationship) Reset() {
 	*x = ExportedRelationship{}
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[6]
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -409,7 +409,7 @@ func (x *ExportedRelationship) String() string {
 func (*ExportedRelationship) ProtoMessage() {}
 
 func (x *ExportedRelationship) ProtoReflect() protoreflect.Message {
-	mi := &file_bulkexport_v1_bulkexport_proto_msgTypes[6]
+	mi := &file_partitionedexport_v1_partitionedexport_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -422,7 +422,7 @@ func (x *ExportedRelationship) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportedRelationship.ProtoReflect.Descriptor instead.
 func (*ExportedRelationship) Descriptor() ([]byte, []int) {
-	return file_bulkexport_v1_bulkexport_proto_rawDescGZIP(), []int{6}
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ExportedRelationship) GetResourceType() string {
@@ -481,23 +481,23 @@ func (x *ExportedRelationship) GetCaveatContext() []byte {
 	return nil
 }
 
-var File_bulkexport_v1_bulkexport_proto protoreflect.FileDescriptor
+var File_partitionedexport_v1_partitionedexport_proto protoreflect.FileDescriptor
 
-const file_bulkexport_v1_bulkexport_proto_rawDesc = "" +
+const file_partitionedexport_v1_partitionedexport_proto_rawDesc = "" +
 	"\n" +
-	"\x1ebulkexport/v1/bulkexport.proto\x12\rbulkexport.v1\"F\n" +
-	"\x15PlanBulkExportRequest\x12-\n" +
-	"\x12desired_partitions\x18\x01 \x01(\rR\x11desiredPartitions\"t\n" +
-	"\x16PlanBulkExportResponse\x12\x1a\n" +
-	"\brevision\x18\x01 \x01(\tR\brevision\x12>\n" +
+	",partitionedexport/v1/partitionedexport.proto\x12\x14partitionedexport.v1\"M\n" +
+	"\x1cPlanPartitionedExportRequest\x12-\n" +
+	"\x12desired_partitions\x18\x01 \x01(\rR\x11desiredPartitions\"\x82\x01\n" +
+	"\x1dPlanPartitionedExportResponse\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\tR\brevision\x12E\n" +
 	"\n" +
-	"partitions\x18\x02 \x03(\v2\x1e.bulkexport.v1.ExportPartitionR\n" +
-	"partitions\"\xd1\x01\n" +
+	"partitions\x18\x02 \x03(\v2%.partitionedexport.v1.ExportPartitionR\n" +
+	"partitions\"\xdf\x01\n" +
 	"\x0fExportPartition\x12\x14\n" +
-	"\x05index\x18\x01 \x01(\rR\x05index\x12C\n" +
-	"\vlower_bound\x18\x02 \x01(\v2\x1d.bulkexport.v1.PartitionBoundH\x00R\n" +
-	"lowerBound\x88\x01\x01\x12C\n" +
-	"\vupper_bound\x18\x03 \x01(\v2\x1d.bulkexport.v1.PartitionBoundH\x01R\n" +
+	"\x05index\x18\x01 \x01(\rR\x05index\x12J\n" +
+	"\vlower_bound\x18\x02 \x01(\v2$.partitionedexport.v1.PartitionBoundH\x00R\n" +
+	"lowerBound\x88\x01\x01\x12J\n" +
+	"\vupper_bound\x18\x03 \x01(\v2$.partitionedexport.v1.PartitionBoundH\x01R\n" +
 	"upperBound\x88\x01\x01B\x0e\n" +
 	"\f_lower_boundB\x0e\n" +
 	"\f_upper_bound\"\xeb\x01\n" +
@@ -507,17 +507,17 @@ const file_bulkexport_v1_bulkexport_proto_rawDesc = "" +
 	"\brelation\x18\x03 \x01(\tR\brelation\x12+\n" +
 	"\x11userset_namespace\x18\x04 \x01(\tR\x10usersetNamespace\x12*\n" +
 	"\x11userset_object_id\x18\x05 \x01(\tR\x0fusersetObjectId\x12)\n" +
-	"\x10userset_relation\x18\x06 \x01(\tR\x0fusersetRelation\"\xba\x01\n" +
-	"\x17StreamBulkExportRequest\x12<\n" +
-	"\tpartition\x18\x01 \x01(\v2\x1e.bulkexport.v1.ExportPartitionR\tpartition\x12\x1a\n" +
+	"\x10userset_relation\x18\x06 \x01(\tR\x0fusersetRelation\"\xc8\x01\n" +
+	"\x1eStreamPartitionedExportRequest\x12C\n" +
+	"\tpartition\x18\x01 \x01(\v2%.partitionedexport.v1.ExportPartitionR\tpartition\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\x12\x1b\n" +
 	"\x06cursor\x18\x03 \x01(\tH\x00R\x06cursor\x88\x01\x01\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\x04 \x01(\rR\tbatchSizeB\t\n" +
-	"\a_cursor\"\x95\x01\n" +
-	"\x18StreamBulkExportResponse\x12.\n" +
-	"\x13after_result_cursor\x18\x01 \x01(\tR\x11afterResultCursor\x12I\n" +
-	"\rrelationships\x18\x02 \x03(\v2#.bulkexport.v1.ExportedRelationshipR\rrelationships\"\xda\x02\n" +
+	"\a_cursor\"\xa3\x01\n" +
+	"\x1fStreamPartitionedExportResponse\x12.\n" +
+	"\x13after_result_cursor\x18\x01 \x01(\tR\x11afterResultCursor\x12P\n" +
+	"\rrelationships\x18\x02 \x03(\v2*.partitionedexport.v1.ExportedRelationshipR\rrelationships\"\xda\x02\n" +
 	"\x14ExportedRelationship\x12#\n" +
 	"\rresource_type\x18\x01 \x01(\tR\fresourceType\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
@@ -531,44 +531,44 @@ const file_bulkexport_v1_bulkexport_proto_rawDesc = "" +
 	"caveatName\x88\x01\x01\x12*\n" +
 	"\x0ecaveat_context\x18\b \x01(\fH\x01R\rcaveatContext\x88\x01\x01B\x0e\n" +
 	"\f_caveat_nameB\x11\n" +
-	"\x0f_caveat_context2\xdd\x01\n" +
-	"\x11BulkExportService\x12_\n" +
-	"\x0ePlanBulkExport\x12$.bulkexport.v1.PlanBulkExportRequest\x1a%.bulkexport.v1.PlanBulkExportResponse\"\x00\x12g\n" +
-	"\x10StreamBulkExport\x12&.bulkexport.v1.StreamBulkExportRequest\x1a'.bulkexport.v1.StreamBulkExportResponse\"\x000\x01B\xba\x01\n" +
-	"\x11com.bulkexport.v1B\x0fBulkexportProtoP\x01Z?github.com/authzed/spicedb/pkg/proto/bulkexport/v1;bulkexportv1\xa2\x02\x03BXX\xaa\x02\rBulkexport.V1\xca\x02\rBulkexport\\V1\xe2\x02\x19Bulkexport\\V1\\GPBMetadata\xea\x02\x0eBulkexport::V1b\x06proto3"
+	"\x0f_caveat_context2\xac\x02\n" +
+	"\x18PartitionedExportService\x12\x82\x01\n" +
+	"\x15PlanPartitionedExport\x122.partitionedexport.v1.PlanPartitionedExportRequest\x1a3.partitionedexport.v1.PlanPartitionedExportResponse\"\x00\x12\x8a\x01\n" +
+	"\x17StreamPartitionedExport\x124.partitionedexport.v1.StreamPartitionedExportRequest\x1a5.partitionedexport.v1.StreamPartitionedExportResponse\"\x000\x01B\xf2\x01\n" +
+	"\x18com.partitionedexport.v1B\x16PartitionedexportProtoP\x01ZMgithub.com/authzed/spicedb/pkg/proto/partitionedexport/v1;partitionedexportv1\xa2\x02\x03PXX\xaa\x02\x14Partitionedexport.V1\xca\x02\x14Partitionedexport\\V1\xe2\x02 Partitionedexport\\V1\\GPBMetadata\xea\x02\x15Partitionedexport::V1b\x06proto3"
 
 var (
-	file_bulkexport_v1_bulkexport_proto_rawDescOnce sync.Once
-	file_bulkexport_v1_bulkexport_proto_rawDescData []byte
+	file_partitionedexport_v1_partitionedexport_proto_rawDescOnce sync.Once
+	file_partitionedexport_v1_partitionedexport_proto_rawDescData []byte
 )
 
-func file_bulkexport_v1_bulkexport_proto_rawDescGZIP() []byte {
-	file_bulkexport_v1_bulkexport_proto_rawDescOnce.Do(func() {
-		file_bulkexport_v1_bulkexport_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_bulkexport_v1_bulkexport_proto_rawDesc), len(file_bulkexport_v1_bulkexport_proto_rawDesc)))
+func file_partitionedexport_v1_partitionedexport_proto_rawDescGZIP() []byte {
+	file_partitionedexport_v1_partitionedexport_proto_rawDescOnce.Do(func() {
+		file_partitionedexport_v1_partitionedexport_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_partitionedexport_v1_partitionedexport_proto_rawDesc), len(file_partitionedexport_v1_partitionedexport_proto_rawDesc)))
 	})
-	return file_bulkexport_v1_bulkexport_proto_rawDescData
+	return file_partitionedexport_v1_partitionedexport_proto_rawDescData
 }
 
-var file_bulkexport_v1_bulkexport_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
-var file_bulkexport_v1_bulkexport_proto_goTypes = []any{
-	(*PlanBulkExportRequest)(nil),    // 0: bulkexport.v1.PlanBulkExportRequest
-	(*PlanBulkExportResponse)(nil),   // 1: bulkexport.v1.PlanBulkExportResponse
-	(*ExportPartition)(nil),          // 2: bulkexport.v1.ExportPartition
-	(*PartitionBound)(nil),           // 3: bulkexport.v1.PartitionBound
-	(*StreamBulkExportRequest)(nil),  // 4: bulkexport.v1.StreamBulkExportRequest
-	(*StreamBulkExportResponse)(nil), // 5: bulkexport.v1.StreamBulkExportResponse
-	(*ExportedRelationship)(nil),     // 6: bulkexport.v1.ExportedRelationship
+var file_partitionedexport_v1_partitionedexport_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_partitionedexport_v1_partitionedexport_proto_goTypes = []any{
+	(*PlanPartitionedExportRequest)(nil),    // 0: partitionedexport.v1.PlanPartitionedExportRequest
+	(*PlanPartitionedExportResponse)(nil),   // 1: partitionedexport.v1.PlanPartitionedExportResponse
+	(*ExportPartition)(nil),                 // 2: partitionedexport.v1.ExportPartition
+	(*PartitionBound)(nil),                  // 3: partitionedexport.v1.PartitionBound
+	(*StreamPartitionedExportRequest)(nil),  // 4: partitionedexport.v1.StreamPartitionedExportRequest
+	(*StreamPartitionedExportResponse)(nil), // 5: partitionedexport.v1.StreamPartitionedExportResponse
+	(*ExportedRelationship)(nil),            // 6: partitionedexport.v1.ExportedRelationship
 }
-var file_bulkexport_v1_bulkexport_proto_depIdxs = []int32{
-	2, // 0: bulkexport.v1.PlanBulkExportResponse.partitions:type_name -> bulkexport.v1.ExportPartition
-	3, // 1: bulkexport.v1.ExportPartition.lower_bound:type_name -> bulkexport.v1.PartitionBound
-	3, // 2: bulkexport.v1.ExportPartition.upper_bound:type_name -> bulkexport.v1.PartitionBound
-	2, // 3: bulkexport.v1.StreamBulkExportRequest.partition:type_name -> bulkexport.v1.ExportPartition
-	6, // 4: bulkexport.v1.StreamBulkExportResponse.relationships:type_name -> bulkexport.v1.ExportedRelationship
-	0, // 5: bulkexport.v1.BulkExportService.PlanBulkExport:input_type -> bulkexport.v1.PlanBulkExportRequest
-	4, // 6: bulkexport.v1.BulkExportService.StreamBulkExport:input_type -> bulkexport.v1.StreamBulkExportRequest
-	1, // 7: bulkexport.v1.BulkExportService.PlanBulkExport:output_type -> bulkexport.v1.PlanBulkExportResponse
-	5, // 8: bulkexport.v1.BulkExportService.StreamBulkExport:output_type -> bulkexport.v1.StreamBulkExportResponse
+var file_partitionedexport_v1_partitionedexport_proto_depIdxs = []int32{
+	2, // 0: partitionedexport.v1.PlanPartitionedExportResponse.partitions:type_name -> partitionedexport.v1.ExportPartition
+	3, // 1: partitionedexport.v1.ExportPartition.lower_bound:type_name -> partitionedexport.v1.PartitionBound
+	3, // 2: partitionedexport.v1.ExportPartition.upper_bound:type_name -> partitionedexport.v1.PartitionBound
+	2, // 3: partitionedexport.v1.StreamPartitionedExportRequest.partition:type_name -> partitionedexport.v1.ExportPartition
+	6, // 4: partitionedexport.v1.StreamPartitionedExportResponse.relationships:type_name -> partitionedexport.v1.ExportedRelationship
+	0, // 5: partitionedexport.v1.PartitionedExportService.PlanPartitionedExport:input_type -> partitionedexport.v1.PlanPartitionedExportRequest
+	4, // 6: partitionedexport.v1.PartitionedExportService.StreamPartitionedExport:input_type -> partitionedexport.v1.StreamPartitionedExportRequest
+	1, // 7: partitionedexport.v1.PartitionedExportService.PlanPartitionedExport:output_type -> partitionedexport.v1.PlanPartitionedExportResponse
+	5, // 8: partitionedexport.v1.PartitionedExportService.StreamPartitionedExport:output_type -> partitionedexport.v1.StreamPartitionedExportResponse
 	7, // [7:9] is the sub-list for method output_type
 	5, // [5:7] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
@@ -576,29 +576,29 @@ var file_bulkexport_v1_bulkexport_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_bulkexport_v1_bulkexport_proto_init() }
-func file_bulkexport_v1_bulkexport_proto_init() {
-	if File_bulkexport_v1_bulkexport_proto != nil {
+func init() { file_partitionedexport_v1_partitionedexport_proto_init() }
+func file_partitionedexport_v1_partitionedexport_proto_init() {
+	if File_partitionedexport_v1_partitionedexport_proto != nil {
 		return
 	}
-	file_bulkexport_v1_bulkexport_proto_msgTypes[2].OneofWrappers = []any{}
-	file_bulkexport_v1_bulkexport_proto_msgTypes[4].OneofWrappers = []any{}
-	file_bulkexport_v1_bulkexport_proto_msgTypes[6].OneofWrappers = []any{}
+	file_partitionedexport_v1_partitionedexport_proto_msgTypes[2].OneofWrappers = []any{}
+	file_partitionedexport_v1_partitionedexport_proto_msgTypes[4].OneofWrappers = []any{}
+	file_partitionedexport_v1_partitionedexport_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bulkexport_v1_bulkexport_proto_rawDesc), len(file_bulkexport_v1_bulkexport_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_partitionedexport_v1_partitionedexport_proto_rawDesc), len(file_partitionedexport_v1_partitionedexport_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_bulkexport_v1_bulkexport_proto_goTypes,
-		DependencyIndexes: file_bulkexport_v1_bulkexport_proto_depIdxs,
-		MessageInfos:      file_bulkexport_v1_bulkexport_proto_msgTypes,
+		GoTypes:           file_partitionedexport_v1_partitionedexport_proto_goTypes,
+		DependencyIndexes: file_partitionedexport_v1_partitionedexport_proto_depIdxs,
+		MessageInfos:      file_partitionedexport_v1_partitionedexport_proto_msgTypes,
 	}.Build()
-	File_bulkexport_v1_bulkexport_proto = out.File
-	file_bulkexport_v1_bulkexport_proto_goTypes = nil
-	file_bulkexport_v1_bulkexport_proto_depIdxs = nil
+	File_partitionedexport_v1_partitionedexport_proto = out.File
+	file_partitionedexport_v1_partitionedexport_proto_goTypes = nil
+	file_partitionedexport_v1_partitionedexport_proto_depIdxs = nil
 }

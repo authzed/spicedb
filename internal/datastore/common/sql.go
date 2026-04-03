@@ -359,15 +359,15 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 	return sqf, nil
 }
 
-func (sqf SchemaQueryFilterer) MustBefore(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
-	updated, err := sqf.Before(cursor, order)
+func (sqf SchemaQueryFilterer) MustBeforeOrEqual(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
+	updated, err := sqf.BeforeOrEqual(cursor, order)
 	if err != nil {
 		panic(err)
 	}
 	return updated
 }
 
-func (sqf SchemaQueryFilterer) Before(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
+func (sqf SchemaQueryFilterer) BeforeOrEqual(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
 	spiceerrors.DebugAssertNotNilf(cursor, "cursor cannot be nil")
 
 	columnsAndValues, err := columnsAndValuesForSort(order, sqf.schema, cursor)
@@ -400,17 +400,19 @@ func (sqf SchemaQueryFilterer) Before(cursor options.Cursor, order options.SortO
 	case ExpandedLogicComparison:
 		orClause := sq.Or{}
 
-		nonStaticCount := 0
-		for _, cav := range columnsAndValues {
-			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
-				nonStaticCount++
+		// Find the last non-static column. The expanded form of (a,b,c) <= (1,2,3)
+		// uses < for intermediate levels and <= only for the final level:
+		// (a < 1) OR (a = 1 AND b < 2) OR (a = 1 AND b = 2 AND c <= 3)
+		lastNonStaticIdx := -1
+		for i := len(columnsAndValues) - 1; i >= 0; i-- {
+			if !sqf.filteringColumnTracker.hasStaticValue(columnsAndValues[i].name) {
+				lastNonStaticIdx = i
+				break
 			}
 		}
 
-		currentNonStatic := 0
 		for index, cav := range columnsAndValues {
 			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
-				currentNonStatic++
 				andClause := sq.And{}
 				for _, previous := range columnsAndValues[0:index] {
 					if !sqf.filteringColumnTracker.hasStaticValue(previous.name) {
@@ -418,8 +420,7 @@ func (sqf SchemaQueryFilterer) Before(cursor options.Cursor, order options.SortO
 					}
 				}
 
-				// Use strict < for all levels except the last, which uses <=.
-				if currentNonStatic == nonStaticCount {
+				if index == lastNonStaticIdx {
 					andClause = append(andClause, sq.LtOrEq{cav.name: cav.value})
 				} else {
 					andClause = append(andClause, sq.Lt{cav.name: cav.value})
@@ -809,12 +810,12 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	}
 
 	// Add upper bound cursor.
-	if queryOpts.Before != nil {
+	if queryOpts.BeforeOrEqual != nil {
 		if sort == options.Unsorted {
 			return nil, datastore.ErrCursorsWithoutSorting
 		}
 
-		q, err := query.Before(queryOpts.Before, sort)
+		q, err := query.BeforeOrEqual(queryOpts.BeforeOrEqual, sort)
 		if err != nil {
 			return nil, err
 		}

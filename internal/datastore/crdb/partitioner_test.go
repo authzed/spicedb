@@ -104,7 +104,7 @@ func TestPlanPartitions(t *testing.T) {
 					opts = append(opts, dsoptions.WithAfter(p.LowerBound))
 				}
 				if p.UpperBound != nil {
-					opts = append(opts, dsoptions.WithBefore(p.UpperBound))
+					opts = append(opts, dsoptions.WithBeforeOrEqual(p.UpperBound))
 				}
 
 				iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{}, opts...)
@@ -214,7 +214,7 @@ func TestPlanPartitionsMultiNode(t *testing.T) {
 				opts = append(opts, dsoptions.WithAfter(p.LowerBound))
 			}
 			if p.UpperBound != nil {
-				opts = append(opts, dsoptions.WithBefore(p.UpperBound))
+				opts = append(opts, dsoptions.WithBeforeOrEqual(p.UpperBound))
 			}
 
 			iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{}, opts...)

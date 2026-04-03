@@ -11,7 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datastore"
-	bulkexportv1 "github.com/authzed/spicedb/pkg/proto/bulkexport/v1"
+	pev1 "github.com/authzed/spicedb/pkg/proto/partitionedexport/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -38,25 +38,24 @@ func writeTestRelationships(t *testing.T, ds datastore.Datastore, count int) dat
 	return rev
 }
 
-// mockStream implements grpc.ServerStreamingServer for testing.
 type mockStream struct {
 	grpc.ServerStream
 	ctx       context.Context
-	responses []*bulkexportv1.StreamBulkExportResponse
+	responses []*pev1.StreamPartitionedExportResponse
 }
 
 func (m *mockStream) Context() context.Context { return m.ctx }
-func (m *mockStream) Send(resp *bulkexportv1.StreamBulkExportResponse) error {
+func (m *mockStream) Send(resp *pev1.StreamPartitionedExportResponse) error {
 	m.responses = append(m.responses, resp)
 	return nil
 }
 
-func TestPlanBulkExport(t *testing.T) {
+func TestPlanPartitionedExport(t *testing.T) {
 	t.Run("returns single partition for non-partitioner datastore", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
-		resp, err := srv.PlanBulkExport(context.Background(), &bulkexportv1.PlanBulkExportRequest{
+		resp, err := srv.PlanPartitionedExport(context.Background(), &pev1.PlanPartitionedExportRequest{
 			DesiredPartitions: 4,
 		})
 		require.NoError(t, err)
@@ -68,9 +67,9 @@ func TestPlanBulkExport(t *testing.T) {
 
 	t.Run("desiredCount=0 defaults to 1", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
-		resp, err := srv.PlanBulkExport(context.Background(), &bulkexportv1.PlanBulkExportRequest{
+		resp, err := srv.PlanPartitionedExport(context.Background(), &pev1.PlanPartitionedExportRequest{
 			DesiredPartitions: 0,
 		})
 		require.NoError(t, err)
@@ -80,28 +79,27 @@ func TestPlanBulkExport(t *testing.T) {
 	t.Run("revision is valid and usable", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		writeTestRelationships(t, ds, 10)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
-		resp, err := srv.PlanBulkExport(context.Background(), &bulkexportv1.PlanBulkExportRequest{
+		resp, err := srv.PlanPartitionedExport(context.Background(), &pev1.PlanPartitionedExportRequest{
 			DesiredPartitions: 1,
 		})
 		require.NoError(t, err)
 
-		// The returned revision should be parseable and usable.
 		rev, err := ds.RevisionFromString(resp.Revision)
 		require.NoError(t, err)
 		require.NoError(t, ds.CheckRevision(context.Background(), rev))
 	})
 }
 
-func TestStreamBulkExport(t *testing.T) {
+func TestStreamPartitionedExport(t *testing.T) {
 	t.Run("streams all relationships with no partition", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 50)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 100,
 		}, stream)
@@ -113,10 +111,10 @@ func TestStreamBulkExport(t *testing.T) {
 	t.Run("batches correctly with small batch size", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 50)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 10,
 		}, stream)
@@ -131,10 +129,10 @@ func TestStreamBulkExport(t *testing.T) {
 	t.Run("batch_size=0 uses default", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 10)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 0,
 		}, stream)
@@ -146,10 +144,10 @@ func TestStreamBulkExport(t *testing.T) {
 	t.Run("batch_size=1 sends one per response", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 5)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 1,
 		}, stream)
@@ -160,10 +158,10 @@ func TestStreamBulkExport(t *testing.T) {
 	t.Run("batch larger than total rows", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 5)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 1000,
 		}, stream)
@@ -176,10 +174,10 @@ func TestStreamBulkExport(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev, err := ds.HeadRevision(context.Background())
 		require.NoError(t, err)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err = srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err = srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 100,
 		}, stream)
@@ -190,29 +188,26 @@ func TestStreamBulkExport(t *testing.T) {
 	t.Run("cursor resumability", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 30)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
-		// First stream: get 10 rows.
 		stream1 := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 10,
 		}, stream1)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(stream1.responses), 1)
 
-		// Resume from the first batch's cursor.
 		cursor := stream1.responses[0].AfterResultCursor
 
 		stream2 := &mockStream{ctx: context.Background()}
-		err = srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err = srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 100,
 			Cursor:    &cursor,
 		}, stream2)
 		require.NoError(t, err)
 
-		// Total should be 30: 10 from first batch + 20 from resumed stream.
 		totalFromResume := 0
 		for _, resp := range stream2.responses {
 			totalFromResume += len(resp.Relationships)
@@ -222,10 +217,10 @@ func TestStreamBulkExport(t *testing.T) {
 
 	t.Run("invalid revision returns error", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  "invalid-revision",
 			BatchSize: 100,
 		}, stream)
@@ -234,10 +229,10 @@ func TestStreamBulkExport(t *testing.T) {
 
 	t.Run("empty revision returns error", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  "",
 			BatchSize: 100,
 		}, stream)
@@ -247,11 +242,11 @@ func TestStreamBulkExport(t *testing.T) {
 	t.Run("invalid cursor returns error", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 10)
-		srv := NewBulkExportServer(ds)
+		srv := NewPartitionedExportServer(ds)
 
 		badCursor := "not-valid-base64!!!"
 		stream := &mockStream{ctx: context.Background()}
-		err := srv.StreamBulkExport(&bulkexportv1.StreamBulkExportRequest{
+		err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
 			Revision:  rev.String(),
 			BatchSize: 100,
 			Cursor:    &badCursor,

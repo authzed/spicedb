@@ -766,7 +766,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			name: "before with no filter",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustBefore(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				return filterer.MustBeforeOrEqual(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:  "SELECT * WHERE (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) <= (?,?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -784,7 +784,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					datastore.RelationshipsFilter{
 						OptionalResourceType: "someresourcetype",
 					},
-				).MustBefore(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+				).MustBeforeOrEqual(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			expectedForTuple: expected{
 				sql:        "SELECT * WHERE ns = ? AND (object_id,relation,subject_ns,subject_object_id,subject_relation) <= (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
@@ -802,7 +802,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustAfter(
 					toCursor(tuple.MustParse("someresourcetype:aaa#viewer@user:aaa")), options.ByResource,
-				).MustBefore(
+				).MustBeforeOrEqual(
 					toCursor(tuple.MustParse("someresourcetype:zzz#viewer@user:zzz")), options.ByResource,
 				)
 			},
