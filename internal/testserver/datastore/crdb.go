@@ -165,7 +165,7 @@ func RunCRDBClusterForTesting(t testing.TB, numNodes int, crdbVersion string) *c
 	}
 
 	// Start all nodes.
-	var resources []*dockertest.Resource
+	resources := make([]*dockertest.Resource, 0, numNodes)
 	for i := range numNodes {
 		resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 			Name:       nodeNames[i],
