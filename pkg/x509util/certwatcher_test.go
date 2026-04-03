@@ -50,7 +50,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 	require.NoError(t, writeCerts(certPath, keyPath, "127.0.0.1"))
 
 	// First watcher: start and stop.
-	ctx1, cancel1 := context.WithCancel(context.Background())
+	ctx1, cancel1 := context.WithCancel(t.Context())
 	watcher1, err := NewCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
@@ -63,7 +63,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 	<-done1
 
 	// Second watcher: should not fail due to duplicate metric registration.
-	ctx2, cancel2 := context.WithCancel(context.Background())
+	ctx2, cancel2 := context.WithCancel(t.Context())
 	watcher2, err := NewCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
