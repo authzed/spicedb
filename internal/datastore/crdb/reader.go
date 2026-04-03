@@ -378,6 +378,9 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 		return nil
 	}, sql, args...)
 	if err != nil {
+		if pgxcommon.IsMissingTableError(err) {
+			err = common.NewSchemaNotInitializedError(err)
+		}
 		return nil, err
 	}
 
@@ -418,6 +421,9 @@ func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuil
 		return nil
 	}, sql, args...)
 	if err != nil {
+		if pgxcommon.IsMissingTableError(err) {
+			err = common.NewSchemaNotInitializedError(err)
+		}
 		return nil, sql, err
 	}
 
