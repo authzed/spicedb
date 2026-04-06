@@ -42,7 +42,7 @@ func TestGate_BlocksWhenNotReady(t *testing.T) {
 	gate := NewGate(checker)
 
 	interceptor := gate.UnaryServerInterceptor()
-	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+	_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/authzed.api.v1.PermissionsService/CheckPermission",
 	}, func(ctx context.Context, req any) (any, error) {
 		t.Fatal("handler should not be called when not ready")
@@ -63,7 +63,7 @@ func TestGate_AllowsWhenReady(t *testing.T) {
 
 	handlerCalled := false
 	interceptor := gate.UnaryServerInterceptor()
-	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+	_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/authzed.api.v1.PermissionsService/CheckPermission",
 	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
@@ -83,7 +83,7 @@ func TestGate_BypassesHealthCheck(t *testing.T) {
 
 	handlerCalled := false
 	interceptor := gate.UnaryServerInterceptor()
-	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+	_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/grpc.health.v1.Health/Check",
 	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
@@ -105,7 +105,7 @@ func TestGate_BypassesHealthWatch(t *testing.T) {
 
 	handlerCalled := false
 	interceptor := gate.UnaryServerInterceptor()
-	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+	_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/grpc.health.v1.Health/Watch",
 	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
@@ -127,15 +127,15 @@ func TestGate_CachesReadyState(t *testing.T) {
 	}
 
 	// First call should check readiness
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, _ = interceptor(t.Context(), nil, info, handler)
 	require.Equal(t, int32(1), checker.callCount.Load())
 
 	// Second call should use cache
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, _ = interceptor(t.Context(), nil, info, handler)
 	require.Equal(t, int32(1), checker.callCount.Load())
 
 	// Third call should use cache
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, _ = interceptor(t.Context(), nil, info, handler)
 	require.Equal(t, int32(1), checker.callCount.Load())
 }
 
@@ -150,7 +150,7 @@ func TestGate_CacheExpires(t *testing.T) {
 	gate.mu.Unlock()
 
 	interceptor := gate.UnaryServerInterceptor()
-	_, _ = interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+	_, _ = interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/test/Method",
 	}, func(ctx context.Context, req any) (any, error) {
 		return nil, nil
@@ -177,7 +177,7 @@ func TestGate_SingleflightPreventsThunderingHerd(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = interceptor(context.Background(), nil, info, handler)
+			_, _ = interceptor(t.Context(), nil, info, handler)
 		}()
 	}
 	wg.Wait()
@@ -195,7 +195,7 @@ func TestGate_PassesThroughOnCheckerError(t *testing.T) {
 
 	handlerCalled := false
 	interceptor := gate.UnaryServerInterceptor()
-	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+	_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/test/Method",
 	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
@@ -265,7 +265,7 @@ func TestGate_NilCheckerPassesThrough(t *testing.T) {
 
 	handlerCalled := false
 	interceptor := gate.UnaryServerInterceptor()
-	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+	_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/authzed.api.v1.PermissionsService/CheckPermission",
 	}, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
@@ -285,7 +285,7 @@ func TestGate_ErrorDoesNotCache(t *testing.T) {
 
 	// First call: checker errors but request passes through
 	handlerCalled := false
-	_, err := interceptor(context.Background(), nil, info, func(ctx context.Context, req any) (any, error) {
+	_, err := interceptor(t.Context(), nil, info, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 		return "ok", nil
 	})
@@ -295,7 +295,7 @@ func TestGate_ErrorDoesNotCache(t *testing.T) {
 
 	// Second call should retry checker (errors are not cached)
 	handlerCalled = false
-	_, err = interceptor(context.Background(), nil, info, func(ctx context.Context, req any) (any, error) {
+	_, err = interceptor(t.Context(), nil, info, func(ctx context.Context, req any) (any, error) {
 		handlerCalled = true
 		return "ok", nil
 	})
@@ -318,15 +318,15 @@ func TestGate_NegativeCacheReducesChecks(t *testing.T) {
 	}
 
 	// First call checks readiness
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, _ = interceptor(t.Context(), nil, info, handler)
 	require.Equal(t, int32(1), checker.callCount.Load())
 
 	// Second call should use negative cache (within notReadyCacheTTL)
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, _ = interceptor(t.Context(), nil, info, handler)
 	require.Equal(t, int32(1), checker.callCount.Load())
 
 	// Third call should use negative cache
-	_, _ = interceptor(context.Background(), nil, info, handler)
+	_, _ = interceptor(t.Context(), nil, info, handler)
 	require.Equal(t, int32(1), checker.callCount.Load())
 }
 
@@ -339,7 +339,7 @@ func TestGate_ErrorMessageContextAware(t *testing.T) {
 		gate := NewGate(checker)
 
 		interceptor := gate.UnaryServerInterceptor()
-		_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+		_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 			FullMethod: "/test/Method",
 		}, func(ctx context.Context, req any) (any, error) {
 			t.Fatal("handler should not be called for migration issues")
@@ -360,7 +360,7 @@ func TestGate_ErrorMessageContextAware(t *testing.T) {
 
 		handlerCalled := false
 		interceptor := gate.UnaryServerInterceptor()
-		_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+		_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 			FullMethod: "/test/Method",
 		}, func(ctx context.Context, req any) (any, error) {
 			handlerCalled = true
@@ -380,7 +380,7 @@ func TestGate_ErrorMessageContextAware(t *testing.T) {
 
 		handlerCalled := false
 		interceptor := gate.UnaryServerInterceptor()
-		_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{
+		_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
 			FullMethod: "/test/Method",
 		}, func(ctx context.Context, req any) (any, error) {
 			handlerCalled = true
