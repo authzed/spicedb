@@ -1,7 +1,6 @@
 package tables
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -94,7 +93,7 @@ func TestParseDeleteStatement(t *testing.T) {
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			stmt, err := ParseDeleteStatement(ctx, parsed.Stmts[0].Stmt.GetDeleteStmt())
 
 			if tc.expectedError != "" {
@@ -144,7 +143,7 @@ func TestDeleteStatementReturningColumns(t *testing.T) {
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			stmt, err := ParseDeleteStatement(ctx, parsed.Stmts[0].Stmt.GetDeleteStmt())
 			require.NoError(t, err)
 			require.NotNil(t, stmt)

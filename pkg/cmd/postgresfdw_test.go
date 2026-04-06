@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -163,7 +162,7 @@ func TestPostgresFDWConfigPrecedence(t *testing.T) {
 }
 
 func TestPostgresFDWCompleteValidation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("missing SpiceDB endpoint", func(t *testing.T) {
 		config := &PostgresFDWConfig{ //nolint:gosec  // this is a test file and test logic

@@ -1,7 +1,6 @@
 package cursorediterator
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -510,7 +509,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		spanName := "test-span"
 		spanAttrs := []attribute.KeyValue{
@@ -576,7 +575,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "test-span")
 
@@ -617,7 +616,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "test-span")
 
@@ -660,7 +659,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "test-span")
 
@@ -696,7 +695,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "test-span")
 
@@ -725,7 +724,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "test-span")
 
@@ -760,7 +759,7 @@ func TestSpanned(t *testing.T) {
 			// Empty iterator
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "test-span")
 
@@ -799,7 +798,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "int-span")
 
@@ -826,7 +825,7 @@ func TestSpanned(t *testing.T) {
 
 		// Create a parent span context
 		tracer := otel.Tracer("test-tracer")
-		parentCtx, parentSpan := tracer.Start(context.Background(), "parent-span")
+		parentCtx, parentSpan := tracer.Start(t.Context(), "parent-span")
 		defer parentSpan.End()
 
 		result := Spanned(parentCtx, source, tracer, "child-span")
@@ -853,7 +852,7 @@ func TestSpanned(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		tracer := otel.Tracer("test-tracer")
 		result := Spanned(ctx, source, tracer, "no-attrs-span")
 

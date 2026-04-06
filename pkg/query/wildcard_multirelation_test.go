@@ -37,7 +37,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		}
 	`
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Compile the schema
 	compiled, err := compiler.Compile(compiler.InputSchema{

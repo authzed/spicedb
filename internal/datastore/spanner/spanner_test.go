@@ -25,7 +25,7 @@ var spannerFactory = test.NewTesterFactory(status.New(codes.Aborted, "retryable"
 func TestSpannerDatastore(t *testing.T) {
 	// t.Parallel() //nolint:tparallel, the test sets environment variables (the emulator)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	b := testdatastore.RunSpannerForTesting(t, "", "head")
 
 	// Transaction tests are excluded because, for reasons unknown, one cannot read its own write in one transaction in the Spanner emulator.
@@ -55,7 +55,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri, options...)
 			require.NoError(t, err)

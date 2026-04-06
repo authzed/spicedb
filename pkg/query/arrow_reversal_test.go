@@ -36,7 +36,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	schemaText := `
 		definition user {}
