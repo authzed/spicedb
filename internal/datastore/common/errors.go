@@ -129,12 +129,11 @@ type SchemaNotInitializedError struct {
 }
 
 func (err SchemaNotInitializedError) GRPCStatus() *status.Status {
-	// TODO: Update to use ERROR_REASON_DATASTORE_NOT_MIGRATED once authzed/api#159 is merged
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.FailedPrecondition,
 		spiceerrors.ForReason(
-			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			v1.ErrorReason_ERROR_REASON_DATASTORE_NOT_MIGRATED,
 			map[string]string{},
 		),
 	)
