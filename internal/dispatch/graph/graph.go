@@ -471,6 +471,14 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	)
 }
 
+// DispatchPlan implements dispatch.Plan interface
+func (ld *localDispatcher) DispatchPlan(
+	req *v1.DispatchPlanRequest,
+	stream dispatch.PlanStream,
+) error {
+	return fmt.Errorf("DispatchPlan not yet implemented")
+}
+
 func (ld *localDispatcher) Close() error {
 	if ld.lookupResourcesHandler3 != nil {
 		ld.lookupResourcesHandler3.Close()

@@ -69,6 +69,13 @@ func (ds *dispatchServer) DispatchLookupSubjects(
 	return ds.localDispatch.DispatchLookupSubjects(req, dispatch.WrapGRPCStream(resp))
 }
 
+func (ds *dispatchServer) DispatchPlan(
+	req *dispatchv1.DispatchPlanRequest,
+	resp dispatchv1.DispatchService_DispatchPlanServer,
+) error {
+	return ds.localDispatch.DispatchPlan(req, dispatch.WrapGRPCStream(resp))
+}
+
 func (ds *dispatchServer) Close() error {
 	return nil
 }
