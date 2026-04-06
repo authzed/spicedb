@@ -184,6 +184,7 @@ type Config struct {
 
 	// Experimental
 	ExperimentalColumnOptimization bool `debugmap:"visible"`
+	ExperimentalCancelDraining     bool `debugmap:"visible"`
 	EnableRevisionHeartbeat        bool `debugmap:"visible"`
 }
 
@@ -337,6 +338,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 
 	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), true, "enable experimental column optimization")
+	flagSet.BoolVar(&opts.ExperimentalCancelDraining, flagName("datastore-experimental-cancel-draining"), true, "enable sentinel-drain cancel handling for CockroachDB connection pools; disable to revert to pre-cancellation behavior (CockroachDB driver only)")
 
 	return nil
 }
@@ -385,8 +387,9 @@ func DefaultDatastoreConfig() *Config {
 		RelationshipIntegrityExpiredKeys: []string{},
 		AllowedMigrations:                []string{},
 		ExperimentalColumnOptimization:   true,
+		ExperimentalCancelDraining:       true,
 		IncludeQueryParametersInTraces:   false,
-		WriteAcquisitionTimeout:          30 * time.Millisecond,
+		WriteAcquisitionTimeout:          0,
 		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 	}
 }
@@ -585,6 +588,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
 		crdb.AllowedMigrations(opts.AllowedMigrations),
 		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),
+		crdb.WithExperimentalCancelDraining(opts.ExperimentalCancelDraining),
 		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 		crdb.WithWatchDisabled(opts.DisableWatchSupport),
 	)
