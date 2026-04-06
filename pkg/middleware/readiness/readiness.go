@@ -144,8 +144,8 @@ func (g *Gate) isReady(ctx context.Context) (bool, string) {
 }
 
 // formatNotReadyError creates a user-friendly error message based on the readiness failure reason.
-// TODO(authzed/api#159): Once ERROR_REASON_DATASTORE_NOT_MIGRATED is available in the API,
-// use spiceerrors.WithCodeAndReason to include the structured error reason.
+// TODO: use spiceerrors.WithCodeAndReason with ERROR_REASON_DATASTORE_NOT_MIGRATED
+// to include the structured error reason for migration-related failures.
 func formatNotReadyError(msg string) error {
 	// Check if this is a migration-related issue
 	if strings.Contains(msg, "not migrated") || strings.Contains(msg, "migration") {
