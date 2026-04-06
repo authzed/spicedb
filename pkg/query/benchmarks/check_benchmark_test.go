@@ -1,7 +1,6 @@
 package benchmarks
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -27,7 +26,7 @@ var advisorWarmUp = map[string]int{
 func BenchmarkCheck(b *testing.B) {
 	for _, benchmark := range bm.All() {
 		b.Run(benchmark.Name, func(b *testing.B) {
-			ctx := context.Background()
+			ctx := b.Context()
 
 			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(b, err)

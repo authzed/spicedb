@@ -243,7 +243,7 @@ func columnsAndValuesForSort(
 		columnNames = schema.sortBySubjectColumnOrderColumns()
 
 	default:
-		return nil, spiceerrors.MustBugf("invalid sort order %q", order)
+		return nil, spiceerrors.MustBugf("invalid sort order %v", order)
 	}
 
 	nameAndValues := make([]nameAndValue, 0, len(columnNames))

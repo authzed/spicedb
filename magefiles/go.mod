@@ -1,6 +1,6 @@
 module magefiles
 
-go 1.26
+go 1.26.1
 
 tool (
 	github.com/agnivade/wasmbrowsertest
