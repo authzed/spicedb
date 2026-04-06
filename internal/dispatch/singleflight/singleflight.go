@@ -146,5 +146,9 @@ func (d *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReques
 	return d.delegate.DispatchLookupSubjects(req, stream)
 }
 
+func (d *Dispatcher) DispatchPlan(req *v1.DispatchPlanRequest, stream dispatch.PlanStream) error {
+	return d.delegate.DispatchPlan(req, stream)
+}
+
 func (d *Dispatcher) Close() error                    { return d.delegate.Close() }
 func (d *Dispatcher) ReadyState() dispatch.ReadyState { return d.delegate.ReadyState() }

@@ -246,6 +246,10 @@ func (ddm delegateDispatchMock) DispatchLookupSubjects(_ *v1.DispatchLookupSubje
 	return nil
 }
 
+func (ddm delegateDispatchMock) DispatchPlan(_ *v1.DispatchPlanRequest, _ dispatch.PlanStream) error {
+	return nil
+}
+
 func (ddm delegateDispatchMock) Close() error {
 	return nil
 }
