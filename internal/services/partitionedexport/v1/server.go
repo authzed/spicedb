@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	pev1 "github.com/authzed/spicedb/pkg/proto/partitionedexport/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/rs/zerolog/log"
 )
 
 const defaultBatchSize = 1000
@@ -41,6 +42,7 @@ func (s *partitionedExportServer) PlanPartitionedExport(ctx context.Context, req
 
 	partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](s.ds)
 	if partitioner == nil {
+		log.Warn().Msg("datastore does not implement BulkExportPartitioner, returning single partition")
 		return &pev1.PlanPartitionedExportResponse{
 			Revision: revision.String(),
 			Partitions: []*pev1.ExportPartition{

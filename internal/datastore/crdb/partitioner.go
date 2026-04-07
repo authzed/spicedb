@@ -35,15 +35,27 @@ func (cds *crdbDatastore) PlanPartitions(ctx context.Context, revision datastore
 
 	boundaries, err := cds.rangeBoundaries(ctx)
 	if err != nil {
-		log.Warn().Err(err).Msg("SHOW RANGES failed, returning single partition")
+		log.Warn().Err(err).Uint32("desired_partitions", desiredCount).
+			Msg("SHOW RANGES failed, returning single partition")
 		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}, nil
 	}
 
 	if len(boundaries) == 0 {
+		log.Info().Uint32("desired_partitions", desiredCount).
+			Str("table", cds.schema.RelationshipTableName).
+			Msg("no parseable range boundaries found (table may be < 512MB), returning single partition")
 		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}, nil
 	}
 
-	return groupBoundaries(boundaries, desiredCount), nil
+	partitions := groupBoundaries(boundaries, desiredCount)
+	log.Info().
+		Uint32("desired_partitions", desiredCount).
+		Int("parseable_boundaries", len(boundaries)).
+		Int("actual_partitions", len(partitions)).
+		Str("table", cds.schema.RelationshipTableName).
+		Msg("planned partitioned export from SHOW RANGES")
+
+	return partitions, nil
 }
 
 // groupBoundaries takes N split-point boundaries and a desired partition count K,
@@ -83,19 +95,23 @@ func (cds *crdbDatastore) rangeBoundaries(ctx context.Context) ([]options.Cursor
 	query := fmt.Sprintf(queryShowRanges, cds.schema.RelationshipTableName)
 
 	var boundaries []options.Cursor
+	var totalRows, skippedRows int
 	if err := cds.readPool.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 		for rows.Next() {
+			totalRows++
 			var startKey string
 			if err := rows.Scan(&startKey); err != nil {
 				return fmt.Errorf("unable to scan range start_key: %w", err)
 			}
 
 			if startKey == "" {
+				skippedRows++
 				continue
 			}
 
 			cursor, err := parseRangeStartKey(startKey)
 			if err != nil {
+				skippedRows++
 				log.Debug().Err(err).Str("start_key", startKey).Msg("skipping unparseable range boundary")
 				continue
 			}
@@ -106,6 +122,12 @@ func (cds *crdbDatastore) rangeBoundaries(ctx context.Context) ([]options.Cursor
 	}, query); err != nil {
 		return nil, fmt.Errorf("range boundaries query failed: %w", err)
 	}
+
+	log.Debug().
+		Int("total_ranges", totalRows).
+		Int("parseable_boundaries", len(boundaries)).
+		Int("skipped", skippedRows).
+		Msg("SHOW RANGES results")
 
 	return boundaries, nil
 }
