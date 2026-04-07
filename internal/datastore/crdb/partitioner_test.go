@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
@@ -122,6 +123,29 @@ func TestPlanPartitions(t *testing.T) {
 			WithAcquireTimeout(30*time.Second),
 		))
 	}
+}
+
+func TestUnwrapAsBulkExportPartitioner(t *testing.T) {
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+
+	t.Run("bare datastore can be unwrapped", createDatastoreTest(b, func(t *testing.T, ds datastore.Datastore) {
+		partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](ds)
+		require.NotNil(t, partitioner, "expected datastore to be unwrappable as BulkExportPartitioner")
+	},
+		GCWindow(veryLargeGCWindow),
+		RevisionQuantization(0),
+		WithAcquireTimeout(30*time.Second),
+	))
+
+	t.Run("readonly-wrapped datastore can be unwrapped", createDatastoreTest(b, func(t *testing.T, ds datastore.Datastore) {
+		roDS := proxy.NewReadonlyDatastore(ds)
+		partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](roDS)
+		require.NotNil(t, partitioner, "expected readonly-wrapped datastore to be unwrappable as BulkExportPartitioner")
+	},
+		GCWindow(veryLargeGCWindow),
+		RevisionQuantization(0),
+		WithAcquireTimeout(30*time.Second),
+	))
 }
 
 func TestPlanPartitionsMultiNode(t *testing.T) {

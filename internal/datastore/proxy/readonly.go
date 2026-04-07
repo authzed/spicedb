@@ -13,6 +13,10 @@ type roDatastore struct {
 	datastore.Datastore
 }
 
+func (rd roDatastore) Unwrap() datastore.Datastore {
+	return rd.Datastore
+}
+
 // NewReadonlyDatastore creates a proxy which disables write operations to a downstream delegate
 // datastore.
 func NewReadonlyDatastore(delegate datastore.Datastore) datastore.Datastore {
