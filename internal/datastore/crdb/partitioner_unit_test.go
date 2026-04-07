@@ -12,15 +12,15 @@ import (
 
 func TestParseRangeStartKey(t *testing.T) {
 	tests := []struct {
-		name      string
-		key       string
-		wantErr   bool
-		wantNS    string
-		wantOID   string
-		wantRel   string
-		wantUNS   string
-		wantUOID  string
-		wantURel  string
+		name     string
+		key      string
+		wantErr  bool
+		wantNS   string
+		wantOID  string
+		wantRel  string
+		wantUNS  string
+		wantUOID string
+		wantURel string
 	}{
 		{
 			name:     "valid key with 6 PK columns",
@@ -41,6 +41,16 @@ func TestParseRangeStartKey(t *testing.T) {
 			wantUNS:  "uns",
 			wantUOID: "uoid",
 			wantURel: "urel",
+		},
+		{
+			name:     "valid key with slashes in PK values",
+			key:      `…/4/"dev_v1/my_organization"/"..."/"dev_v1/my_organization"/"is_enabled"/"ca7fd83c-a53a-4928-a0b1-79f22699cd05"/"ca7fd83c-a53a-4928-a0b1-79f22699cd05"`,
+			wantNS:   "dev_v1/my_organization",
+			wantOID:  "...",
+			wantRel:  "dev_v1/my_organization",
+			wantUNS:  "is_enabled",
+			wantUOID: "ca7fd83c-a53a-4928-a0b1-79f22699cd05",
+			wantURel: "ca7fd83c-a53a-4928-a0b1-79f22699cd05",
 		},
 		{
 			name:     "valid key with ellipsis relation",

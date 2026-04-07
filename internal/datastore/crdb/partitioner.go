@@ -140,17 +140,11 @@ func (cds *crdbDatastore) rangeBoundaries(ctx context.Context) ([]options.Cursor
 //
 //	…/1/"namespace"/"object_id"/"relation"/"userset_ns"/"userset_oid"/"userset_rel"
 //
-// into an options.Cursor.
+// PK values may contain "/" characters (e.g., "dev_v1/my_organization"), so we
+// extract quoted strings by scanning for matching quote pairs rather than
+// splitting on "/".
 func parseRangeStartKey(key string) (options.Cursor, error) {
-	// Split on "/" and find quoted string values — the PK columns.
-	parts := strings.Split(key, "/")
-
-	var values []string
-	for _, p := range parts {
-		if len(p) >= 2 && p[0] == '"' && p[len(p)-1] == '"' {
-			values = append(values, p[1:len(p)-1])
-		}
-	}
+	values := extractQuotedValues(key)
 
 	if len(values) < 6 {
 		return nil, fmt.Errorf("expected at least 6 PK columns in range key, got %d", len(values))
@@ -177,4 +171,25 @@ func parseRangeStartKey(key string) (options.Cursor, error) {
 			},
 		},
 	), nil
+}
+
+// extractQuotedValues scans a string for quoted substrings (e.g., "foo")
+// and returns their unquoted contents. This handles values that contain "/"
+// characters, which would be broken by a naive strings.Split("/") approach.
+func extractQuotedValues(s string) []string {
+	values := make([]string, 0, 6)
+	for {
+		open := strings.Index(s, `"`)
+		if open == -1 {
+			break
+		}
+		s = s[open+1:]
+		close := strings.Index(s, `"`)
+		if close == -1 {
+			break
+		}
+		values = append(values, s[:close])
+		s = s[close+1:]
+	}
+	return values
 }
