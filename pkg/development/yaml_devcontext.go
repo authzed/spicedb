@@ -2,6 +2,8 @@ package development
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -27,8 +29,8 @@ type YAMLDevContext struct {
 }
 
 // NewDevContextForYAML parses the given YAML validation file bytes and constructs
-// a DevContext. Error line/column positions in DeveloperErrors are absolute within
-// the YAML file.
+// a DevContext. Error line/column positions in DeveloperErrors are absolute and
+// 1-indexed within the YAML file.
 func NewDevContextForYAML(ctx context.Context, yamlBytes []byte, opts ...CompileOption) (*YAMLDevContext, *devinterface.DeveloperErrors, error) {
 	vf, err := validationfile.DecodeValidationFile(yamlBytes)
 	if err != nil {
@@ -40,7 +42,7 @@ func NewDevContextForYAML(ctx context.Context, yamlBytes []byte, opts ...Compile
 
 // NewDevContextForValidationFile constructs a DevContext from an already-parsed
 // ValidationFile. Error line/column positions in DeveloperErrors are absolute
-// within the original YAML file.
+// and 1-indexed within the original YAML file.
 func NewDevContextForValidationFile(ctx context.Context, vf *validationfile.ValidationFile, opts ...CompileOption) (*YAMLDevContext, *devinterface.DeveloperErrors, error) {
 	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
 	if err != nil {
@@ -66,20 +68,28 @@ func newYAMLDevContextWithDataLayer(
 	dl datalayer.DataLayer,
 	opts ...CompileOption,
 ) (*YAMLDevContext, *devinterface.DeveloperErrors, error) {
+	// Determine the schema text: either inline or from schemaFile.
+	schemaText, useSchemaFile, err := resolveSchemaText(vf, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Compile the schema.
-	compiled, devError, err := CompileSchema(vf.Schema.Schema, opts...)
+	compiled, devError, err := CompileSchema(schemaText, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if devError != nil {
-		adjustSchemaErrorPosition(devError, vf, opts)
+		if !useSchemaFile {
+			adjustSchemaErrorPosition(devError, vf, opts)
+		}
 		return nil, &devinterface.DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
 	}
 
 	var inputErrors []*devinterface.DeveloperError
 	currentRevision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-		inputErrors, err = loadCompiled(ctx, compiled, vf.Schema.Schema, rwt)
+		inputErrors, err = loadCompiled(ctx, compiled, schemaText, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
 		}
@@ -97,7 +107,9 @@ func newYAMLDevContextWithDataLayer(
 	for _, devErr := range inputErrors {
 		switch devErr.Source {
 		case devinterface.DeveloperError_SCHEMA:
-			adjustSchemaErrorPosition(devErr, vf, opts)
+			if !useSchemaFile {
+				adjustSchemaErrorPosition(devErr, vf, opts)
+			}
 		case devinterface.DeveloperError_RELATIONSHIP:
 			adjustRelationshipErrorPosition(devErr, vf)
 		}
@@ -130,6 +142,31 @@ func newYAMLDevContextWithDataLayer(
 		Assertions:        vf.Assertions,
 		ExpectedRelations: vf.ExpectedRelations,
 	}, nil, nil
+}
+
+// resolveSchemaText returns the schema text to compile. If schemaFile is set,
+// it reads the schema from the filesystem provided via WithSourceFS. Returns
+// the schema text, whether schemaFile was used, and any error.
+func resolveSchemaText(vf *validationfile.ValidationFile, opts []CompileOption) (string, bool, error) {
+	if vf.SchemaFile == "" {
+		return vf.Schema.Schema, false, nil
+	}
+
+	cfg := &compileConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
+
+	if cfg.fsys == nil {
+		return "", false, fmt.Errorf("schemaFile %q specified but no source filesystem provided (use WithSourceFS)", vf.SchemaFile)
+	}
+
+	data, err := fs.ReadFile(cfg.fsys, vf.SchemaFile)
+	if err != nil {
+		return "", false, fmt.Errorf("error reading schema file %q: %w", vf.SchemaFile, err)
+	}
+
+	return string(data), true, nil
 }
 
 // adjustSchemaErrorPosition adjusts a schema error's line number to be absolute

@@ -2,6 +2,7 @@ package development
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 
@@ -580,6 +581,182 @@ relationships: |
 	)
 	require.NoError(t, err)
 	require.Equal(t, v1.ResourceCheckResult_NOT_MEMBER, checkResult.Permissionship)
+}
+
+func TestYAMLDevContextSchemaFile(t *testing.T) {
+	schemaFS := fstest.MapFS{
+		"root.zed": &fstest.MapFile{
+			Data: []byte(`definition user {}
+definition document {
+  relation viewer: user
+  permission view = viewer
+}
+`),
+		},
+	}
+
+	yamlContent := `schemaFile: root.zed
+relationships: |
+  document:doc1#viewer@user:alice
+`
+
+	result, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent),
+		WithSourceFS(schemaFS), WithRootFileName("root.zed"))
+	require.NoError(t, err)
+	require.Nil(t, devErrs)
+	require.NotNil(t, result)
+	defer result.DevContext.Dispose()
+
+	// Verify data is loaded correctly via check
+	checkResult, err := RunCheck(
+		result.DevContext,
+		tuple.MustParseONR("document:doc1#view"),
+		tuple.MustParseSubjectONR("user:alice"),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, v1.ResourceCheckResult_MEMBER, checkResult.Permissionship)
+
+	checkResult, err = RunCheck(
+		result.DevContext,
+		tuple.MustParseONR("document:doc1#view"),
+		tuple.MustParseSubjectONR("user:bob"),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, v1.ResourceCheckResult_NOT_MEMBER, checkResult.Permissionship)
+}
+
+func TestYAMLDevContextSchemaFileInvalidSyntax(t *testing.T) {
+	schemaFS := fstest.MapFS{
+		"root.zed": &fstest.MapFile{
+			Data: []byte(`definition user {}
+definition document {
+  relation viewer: user
+  this is invalid syntax
+}
+`),
+		},
+	}
+
+	yamlContent := `schemaFile: root.zed
+relationships: ""
+`
+
+	_, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent),
+		WithSourceFS(schemaFS), WithRootFileName("root.zed"))
+	require.NoError(t, err)
+	require.NotNil(t, devErrs)
+	require.Len(t, devErrs.InputErrors, 1)
+
+	devErr := devErrs.InputErrors[0]
+	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
+	// Line should be relative to the schema file, NOT adjusted for YAML position
+	require.Equal(t, uint32(4), devErr.Line, "error should be on line 4 of the schema file")
+	require.Equal(t, []string{"root.zed"}, devErr.Path)
+}
+
+func TestYAMLDevContextSchemaFileWithImportError(t *testing.T) {
+	schemaFS := fstest.MapFS{
+		"root.zed": &fstest.MapFile{
+			Data: []byte(`use import
+
+definition user {}
+
+import "imported.zed"
+`),
+		},
+		"imported.zed": &fstest.MapFile{
+			Data: []byte(`definition document {
+	invalid syntax here
+}
+`),
+		},
+	}
+
+	yamlContent := `schemaFile: root.zed
+relationships: ""
+`
+
+	_, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent),
+		WithSourceFS(schemaFS), WithRootFileName("root.zed"))
+	require.NoError(t, err)
+	require.NotNil(t, devErrs)
+	require.Len(t, devErrs.InputErrors, 1)
+
+	devErr := devErrs.InputErrors[0]
+	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
+	// Path should point to the imported file, not root.zed
+	require.Equal(t, []string{"imported.zed"}, devErr.Path)
+	// Line should be relative to imported.zed (line 2 is the invalid line)
+	require.Equal(t, uint32(2), devErr.Line, "error should be on line 2 of imported.zed")
+}
+
+func TestYAMLDevContextAssertionWithInvalidRelation(t *testing.T) {
+	yamlContent := `schema: |
+  definition user {}
+  definition document {
+    relation viewer: user
+    permission view = viewer
+  }
+relationships: |
+  document:doc1#viewer@user:alice
+assertions:
+  assertTrue:
+    - document:doc1#nonexistent@user:alice
+`
+
+	result, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent))
+	require.NoError(t, err)
+	require.Nil(t, devErrs)
+	require.NotNil(t, result)
+	defer result.DevContext.Dispose()
+
+	// Run assertions — should fail because nonexistent is not a real relation
+	assertionErrors, err := RunAllAssertions(result.DevContext, &result.Assertions)
+	require.NoError(t, err)
+	require.NotEmpty(t, assertionErrors)
+
+	assertErr := assertionErrors[0]
+	require.Equal(t, devinterface.DeveloperError_ASSERTION, assertErr.Source)
+	require.Equal(t, devinterface.DeveloperError_UNKNOWN_RELATION, assertErr.Kind)
+	// Position should be the YAML line of the assertion (line 11)
+	require.Equal(t, uint32(11), assertErr.Line)
+	require.Contains(t, assertErr.Context, "document:doc1#nonexistent@user:alice")
+}
+
+func TestYAMLDevContextAssertionWithInvalidSubjectType(t *testing.T) {
+	yamlContent := `schema: |
+  definition user {}
+  definition document {
+    relation viewer: user
+    permission view = viewer
+  }
+relationships: |
+  document:doc1#viewer@user:alice
+assertions:
+  assertTrue:
+    - document:doc1#view@nonexistent:alice
+`
+
+	result, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent))
+	require.NoError(t, err)
+	require.Nil(t, devErrs)
+	require.NotNil(t, result)
+	defer result.DevContext.Dispose()
+
+	// Run assertions — should fail because nonexistent type means NOT_MEMBER
+	assertionErrors, err := RunAllAssertions(result.DevContext, &result.Assertions)
+	require.NoError(t, err)
+	require.NotEmpty(t, assertionErrors)
+
+	assertErr := assertionErrors[0]
+	require.Equal(t, devinterface.DeveloperError_ASSERTION, assertErr.Source)
+	require.Equal(t, devinterface.DeveloperError_ASSERTION_FAILED, assertErr.Kind)
+	require.Equal(t, uint32(11), assertErr.Line)
+	require.Contains(t, assertErr.Context, "document:doc1#view@nonexistent:alice")
 }
 
 func TestNewDevContextForValidationFile(t *testing.T) {
