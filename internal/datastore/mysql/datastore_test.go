@@ -105,6 +105,7 @@ func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiData
 			return ds
 		})
 		defer failOnError(t, ds.Close)
+		defer failOnError(t, secondDS.Close)
 
 		tf(t, ds, secondDS)
 	}
@@ -143,6 +144,7 @@ func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 		QuantizedRevisionTest(t, b)
 	})
 	t.Run("Locking", createMultiDatastoreTest(b, LockingTest, defaultOptions...))
+	t.Run("GCPreemption", createMultiDatastoreTest(b, GCPreemptionTest, defaultOptions...))
 }
 
 func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {
@@ -151,36 +153,83 @@ func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) 
 
 	// Acquire a lock.
 	ctx := t.Context()
-	acquired, err := mds.tryAcquireLock(ctx, "testing123")
+	lock, err := mds.tryAcquireLock(ctx, "testing123")
 	require.NoError(t, err)
-	require.True(t, acquired)
+	require.NotNil(t, lock)
 
-	// Try to acquire the lock again.
-	acquired, err = mds2.tryAcquireLock(ctx, "testing123")
+	// Try to acquire the lock from another session.
+	otherLock, err := mds2.tryAcquireLock(ctx, "testing123")
 	require.NoError(t, err)
-	require.False(t, acquired)
+	require.Nil(t, otherLock)
 
 	// Acquire another lock.
-	acquired, err = mds.tryAcquireLock(ctx, "testing456")
+	lock456, err := mds.tryAcquireLock(ctx, "testing456")
 	require.NoError(t, err)
-	require.True(t, acquired)
+	require.NotNil(t, lock456)
 
-	// Release the other lock.
-	err = mds.releaseLock(ctx, "testing123")
+	// Churn the pool so that, were the lock not pinned to its session, the
+	// release below would land on an arbitrary connection and silently no-op.
+	for range 10 {
+		_, err := mds.db.ExecContext(ctx, "SELECT 1")
+		require.NoError(t, err)
+	}
+
+	// Release the lock; it must release on the session that acquired it.
+	require.NoError(t, lock.Release(ctx))
+
+	// The other session can now acquire it.
+	otherLock, err = mds2.tryAcquireLock(ctx, "testing123")
+	require.NoError(t, err)
+	require.NotNil(t, otherLock)
+
+	// Releasing an already-released lock reports an error instead of
+	// silently succeeding.
+	require.Error(t, lock.Release(ctx))
+
+	// Release the remaining locks.
+	require.NoError(t, otherLock.Release(ctx))
+	require.NoError(t, lock456.Release(ctx))
+}
+
+// GCPreemptionTest verifies that when another session holds the GC lock,
+// the garbage collector returns ErrGCPreempted instead of doing work, and
+// that the GC lock is properly released after a GC run so that a subsequent
+// run (or another node) can proceed.
+func GCPreemptionTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {
+	mds2 := ds2.(*mysqlDatastore)
+	ctx := t.Context()
+
+	// Hold the GC lock from the second datastore's session.
+	holderLock, err := mds2.tryAcquireLock(ctx, gcRunLock)
+	require.NoError(t, err)
+	require.NotNil(t, holderLock, "holder should have acquired the GC lock")
+
+	gc, err := ds.(datastore.GarbageCollectableDatastore).BuildGarbageCollector(ctx)
+	require.NoError(t, err)
+	defer gc.Close()
+
+	// GC should observe the held lock and preempt.
+	_, err = gc.DeleteBeforeTx(ctx, revisions.NewForTransactionID(1))
+	require.ErrorIs(t, err, datastore.ErrGCPreempted)
+
+	_, err = gc.DeleteExpiredRels(ctx)
+	require.ErrorIs(t, err, datastore.ErrGCPreempted)
+
+	// Once the holder releases, GC proceeds — and must release the lock
+	// again afterward, so both a repeat run and a re-acquire by the second
+	// session succeed.
+	require.NoError(t, holderLock.Release(ctx))
+
+	_, err = gc.DeleteBeforeTx(ctx, revisions.NewForTransactionID(1))
 	require.NoError(t, err)
 
-	// Release the lock.
-	err = mds.releaseLock(ctx, "testing123")
+	_, err = gc.DeleteExpiredRels(ctx)
 	require.NoError(t, err)
 
-	// Try to acquire the lock again.
-	acquired, err = mds2.tryAcquireLock(ctx, "testing123")
+	holderLock, err = mds2.tryAcquireLock(ctx, gcRunLock)
 	require.NoError(t, err)
-	require.True(t, acquired)
-
-	// Release the lock.
-	err = mds2.releaseLock(ctx, "testing123")
-	require.NoError(t, err)
+	require.NotNil(t, holderLock, "GC run should have released the lock when finished")
+	require.NoError(t, holderLock.Release(ctx))
 }
 
 func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
