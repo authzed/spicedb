@@ -74,6 +74,12 @@ func newYAMLDevContextWithDataLayer(
 		return nil, nil, err
 	}
 
+	// If the YAML specifies a schemaFile, use it as the root file name for
+	// error reporting, overriding any caller-provided WithRootFileName.
+	if useSchemaFile {
+		opts = append(opts, WithRootFileName(vf.SchemaFile))
+	}
+
 	// Compile the schema.
 	compiled, devError, err := CompileSchema(schemaText, opts...)
 	if err != nil {

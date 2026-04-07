@@ -600,8 +600,7 @@ relationships: |
   document:doc1#viewer@user:alice
 `
 
-	result, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent),
-		WithSourceFS(schemaFS), WithRootFileName("root.zed"))
+	result, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent), WithSourceFS(schemaFS))
 	require.NoError(t, err)
 	require.Nil(t, devErrs)
 	require.NotNil(t, result)
@@ -657,6 +656,82 @@ relationships: ""
 	require.Equal(t, []string{"root.zed"}, devErr.Path)
 }
 
+func TestYAMLDevContextSchemaFileIgnoresWithRootFileName(t *testing.T) {
+	schemaFS := fstest.MapFS{
+		"root.zed": &fstest.MapFile{
+			Data: []byte(`definition user {}
+definition document {
+  relation viewer: user
+  permission view = viewer
+}
+`),
+		},
+	}
+
+	yamlContent := `schemaFile: root.zed
+relationships: |
+  document:doc1#viewer@user:alice
+`
+
+	// WithRootFileName should be ignored since the YAML itself references the root schema file via schemaFile.
+	result, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent),
+		WithSourceFS(schemaFS), WithRootFileName("nonexistent.zed"))
+	require.NoError(t, err)
+	require.Nil(t, devErrs)
+	require.NotNil(t, result)
+	defer result.DevContext.Dispose()
+
+	// Verify the schema from root.zed was loaded correctly
+	checkResult, err := RunCheck(
+		result.DevContext,
+		tuple.MustParseONR("document:doc1#view"),
+		tuple.MustParseSubjectONR("user:alice"),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, v1.ResourceCheckResult_MEMBER, checkResult.Permissionship)
+
+	checkResult, err = RunCheck(
+		result.DevContext,
+		tuple.MustParseONR("document:doc1#view"),
+		tuple.MustParseSubjectONR("user:bob"),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, v1.ResourceCheckResult_NOT_MEMBER, checkResult.Permissionship)
+}
+
+func TestYAMLDevContextSchemaFileIgnoresWithRootFileNameOnError(t *testing.T) {
+	schemaFS := fstest.MapFS{
+		"root.zed": &fstest.MapFile{
+			Data: []byte(`definition user {}
+definition document {
+  relation viewer: user
+  this is invalid syntax
+}
+`),
+		},
+	}
+
+	yamlContent := `schemaFile: root.zed
+relationships: ""
+`
+
+	// WithRootFileName points to a different name, but schemaFile in the YAML should take precedence.
+	// The error path should reference "root.zed", not "other.zed".
+	_, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent),
+		WithSourceFS(schemaFS), WithRootFileName("other.zed"))
+	require.NoError(t, err)
+	require.NotNil(t, devErrs)
+	require.Len(t, devErrs.InputErrors, 1)
+
+	devErr := devErrs.InputErrors[0]
+	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
+	require.Equal(t, devinterface.DeveloperError_SCHEMA_ISSUE, devErr.Kind)
+	require.Equal(t, uint32(4), devErr.Line, "error should be on line 4 of root.zed")
+	require.Equal(t, []string{"root.zed"}, devErr.Path, "error path should reference root.zed, not the WithRootFileName value")
+}
+
 func TestYAMLDevContextSchemaFileWithImportError(t *testing.T) {
 	schemaFS := fstest.MapFS{
 		"root.zed": &fstest.MapFile{
@@ -692,6 +767,37 @@ relationships: ""
 	require.Equal(t, []string{"imported.zed"}, devErr.Path)
 	// Line should be relative to imported.zed (line 2 is the invalid line)
 	require.Equal(t, uint32(2), devErr.Line, "error should be on line 2 of imported.zed")
+}
+
+func TestYAMLDevContextInlineSchemaWithImportError(t *testing.T) {
+	schemaFS := fstest.MapFS{
+		"imported.zed": &fstest.MapFile{
+			Data: []byte(`definition document {
+	invalid syntax here
+}
+`),
+		},
+	}
+
+	yamlContent := `schema: |
+  use import
+  definition user {}
+  import "imported.zed"
+relationships: ""
+`
+
+	_, devErrs, err := NewDevContextForYAML(t.Context(), []byte(yamlContent),
+		WithSourceFS(schemaFS))
+	require.NoError(t, err)
+	require.NotNil(t, devErrs)
+	require.Len(t, devErrs.InputErrors, 1)
+
+	devErr := devErrs.InputErrors[0]
+	require.Equal(t, devinterface.DeveloperError_SCHEMA, devErr.Source)
+	// Path should be the imported file
+	require.Equal(t, []string{"imported.zed"}, devErr.Path)
+	// Line should be relative to imported.zed, NOT adjusted by the YAML schema offset
+	require.Equal(t, uint32(2), devErr.Line, "error should be on line 2 of imported.zed, not adjusted for YAML position")
 }
 
 func TestYAMLDevContextAssertionWithInvalidRelation(t *testing.T) {
