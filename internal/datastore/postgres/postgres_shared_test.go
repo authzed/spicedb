@@ -107,6 +107,21 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			WriteConnsMinOpen(10),
 			WriteConnsMaxOpen(10),
 		))
+
+		t.Run("TestGCPreemption", createMultiDatastoreTest(
+			b,
+			GCPreemptionTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(50),
+			MigrationPhase(config.migrationPhase),
+			ReadConnsMinOpen(10),
+			ReadConnsMaxOpen(10),
+			WriteConnsMinOpen(10),
+			WriteConnsMaxOpen(10),
+			WithRevisionHeartbeat(false),
+		))
 	})
 
 	t.Run(fmt.Sprintf("%spostgres-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
@@ -1778,6 +1793,63 @@ func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) 
 	// Release the first lock.
 	err = pds.releaseLock(ctx, conn2, 42)
 	require.NoError(t, err)
+}
+
+// GCPreemptionTest verifies that when another session holds the GC advisory
+// lock, batchDelete returns ErrGCPreempted instead of blocking, and that GC
+// succeeds again once the holder releases the lock.
+func GCPreemptionTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {
+	require := require.New(t)
+
+	pds := ds.(*pgDatastore)
+	pds2 := ds2.(*pgDatastore)
+	ctx := t.Context()
+
+	// Seed two writes so there is something for GC to delete.
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.LegacyWriteNamespaces(ctx,
+			namespace.Namespace("resource", namespace.MustRelation("reader", nil)),
+			namespace.Namespace("user"))
+	})
+	require.NoError(err)
+
+	writeRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.LegacyWriteNamespaces(ctx,
+			namespace.Namespace("resource",
+				namespace.MustRelation("reader", nil),
+				namespace.MustRelation("unused", nil)),
+			namespace.Namespace("user"))
+	})
+	require.NoError(err)
+
+	// Hold the GC xact-lock from a second session via an uncommitted transaction.
+	holderConn, err := pds2.writePool.Acquire(ctx)
+	require.NoError(err)
+	defer holderConn.Release()
+
+	holderTx, err := holderConn.Begin(ctx)
+	require.NoError(err)
+	// Ensure the lock is released even if an assertion fails.
+	defer func() { _ = holderTx.Rollback(ctx) }()
+
+	acquired, err := pds2.tryAcquireXactLock(ctx, holderTx, gcRunLock)
+	require.NoError(err)
+	require.True(acquired, "holder should have acquired the GC lock")
+
+	// GC from the other datastore should observe the lock and preempt.
+	pgg, err := pds.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer pgg.Close()
+
+	_, err = pgg.DeleteBeforeTx(ctx, writeRev)
+	require.ErrorIs(err, datastore.ErrGCPreempted)
+
+	// Release the lock by rolling back the holder transaction, then GC should succeed.
+	require.NoError(holderTx.Rollback(ctx))
+
+	removed, err := pgg.DeleteBeforeTx(ctx, writeRev)
+	require.NoError(err)
+	require.GreaterOrEqual(removed.Transactions, int64(1))
 }
 
 func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unwrappedReplicaDS datastore.Datastore) {
