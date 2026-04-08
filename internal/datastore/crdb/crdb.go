@@ -202,12 +202,17 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
-	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
+
+	var poolOpts []pool.RetryPoolOption
+	if config.experimentalCancelDraining {
+		poolOpts = append(poolOpts, pool.WithCancelHandler())
+	}
+	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate, poolOpts...)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate, poolOpts...)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
@@ -242,18 +247,20 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		})
 	}
 
+	// When cancel draining is disabled, wrap with the context-severing proxy to
+	// restore the pre-cancellation behavior: read contexts are severed so
+	// cancellations never reach the pool (preventing connection closure).
+	if !config.experimentalCancelDraining {
+		return datastore.NewSeparatingContextDatastoreProxy(ds), nil
+	}
+
 	return ds, nil
 }
 
 // NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
 // database while leveraging its AOST functionality.
 func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datastore.Datastore, error) {
-	ds, err := newCRDBDatastore(ctx, url, options...)
-	if err != nil {
-		return nil, err
-	}
-
-	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
+	return newCRDBDatastore(ctx, url, options...)
 }
 
 type crdbDatastore struct {
