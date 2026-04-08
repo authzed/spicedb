@@ -127,7 +127,6 @@ func (cds *crdbDatastore) watch(
 		errs <- err
 		return
 	}
-	defer func() { _ = conn.Close(ctx) }()
 
 	tableNames := make([]string, 0, 4)
 	tableNames = append(tableNames, schema.TableTransactionMetadata)
@@ -211,7 +210,15 @@ func (cds *crdbDatastore) watch(
 
 	// We call Close async here because it can be slow and blocks closing the channels. There is
 	// no return value so we're not really losing anything.
-	defer func() { go changes.Close() }()
+	defer func() {
+		go func() {
+			changes.Close()
+			// NOTE: we also close the connection here rather than deferring above in order to prevent
+			// the connection from being closed before the query is closed. We ignore the error because
+			// there isn't really any cleanup to do in the event of an error.
+			_ = conn.Close(ctx)
+		}()
+	}()
 
 	cds.processChanges(ctx, changes, sendError, sendChange, opts, opts.EmissionStrategy == datastore.EmitImmediatelyStrategy)
 }
