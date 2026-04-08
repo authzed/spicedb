@@ -74,7 +74,7 @@ func TestObserveShapeLatency(t *testing.T) {
 		NativeHistogramBucketFactor:    1.1,
 		NativeHistogramMaxBucketNumber: 100,
 		Buckets: []float64{
-			.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 5,
+			.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 2, 3, 5, 7, 10,
 		},
 	}, append([]string{"api_kind"}, allLabels...))
 	require.NoError(t, reg.Register(metric))
@@ -104,9 +104,9 @@ func TestObserveShapeLatency(t *testing.T) {
 
 		// Verify classic buckets are populated (not just +Inf).
 		buckets := metric.GetMetric()[0].Histogram.GetBucket()
-		require.Len(t, buckets, 16)
+		require.Len(t, buckets, 20)
 		require.Equal(t, 0.001, buckets[0].GetUpperBound())
-		require.Equal(t, float64(5), buckets[len(buckets)-1].GetUpperBound())
+		require.Equal(t, float64(10), buckets[len(buckets)-1].GetUpperBound())
 
 		for _, label := range metric.GetMetric()[0].Label {
 			if label.GetName() == "api_kind" {

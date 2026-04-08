@@ -67,10 +67,11 @@ var APIShapeLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Help:                           "The latency of API calls, by shape",
 	NativeHistogramBucketFactor:    1.1,
 	NativeHistogramMaxBucketNumber: 100,
-	// Bucket boundaries match the gRPC server handling time histogram
-	// defined in pkg/cmd/server/defaults.go (createServerMetrics).
+	// Bucket boundaries: sub-second values match the gRPC server handling
+	// time histogram in pkg/cmd/server/defaults.go (createServerMetrics);
+	// 1–10s buckets added for slow query visibility in Perf Insights.
 	Buckets: []float64{
-		.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 5,
+		.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 2, 3, 5, 7, 10,
 	},
 }, append([]string{"api_kind"}, allLabels...))
 
