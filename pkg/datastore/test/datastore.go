@@ -105,13 +105,6 @@ func WithCategories(cats ...string) Categories {
 	return c
 }
 
-func parallel(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
-	return func(t *testing.T) {
-		t.Parallel()
-		tt(t, tester)
-	}
-}
-
 func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
 	return func(t *testing.T) {
 		tt(t, tester)
@@ -120,11 +113,8 @@ func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester
 
 // AllWithExceptions runs all generic datastore tests on a DatastoreTester, except
 // those specified test categories
-func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, concurrent bool) {
+func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
 	runner := serial
-	if concurrent {
-		runner = parallel
-	}
 
 	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
 	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
@@ -181,7 +171,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestCheckRevisions", runner(tester, CheckRevisionsTest))
 
 	if !except.GC() {
-		OnlyGCTests(t, tester, concurrent)
+		OnlyGCTests(t, tester)
 	}
 
 	t.Run("TestBulkUpload", runner(tester, BulkUploadTest))
@@ -236,11 +226,8 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestRelationshipCountersWithOddFilter", runner(tester, RelationshipCountersWithOddFilterTest))
 }
 
-func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
+func OnlyGCTests(t *testing.T, tester DatastoreTester) {
 	runner := serial
-	if concurrent {
-		runner = parallel
-	}
 
 	t.Run("TestRevisionGC", runner(tester, RevisionGCTest))
 	t.Run("TestInvalidReads", runner(tester, InvalidReadsTest))
@@ -248,8 +235,8 @@ func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
-func All(t *testing.T, tester DatastoreTester, concurrent bool) {
-	AllWithExceptions(t, tester, noException, concurrent)
+func All(t *testing.T, tester DatastoreTester) {
+	AllWithExceptions(t, tester, noException)
 }
 
 var testResourceNS = namespace.Namespace(
