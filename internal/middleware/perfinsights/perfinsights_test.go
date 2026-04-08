@@ -105,8 +105,8 @@ func TestObserveShapeLatency(t *testing.T) {
 		// Verify classic buckets are populated (not just +Inf).
 		buckets := metric.GetMetric()[0].Histogram.GetBucket()
 		require.Len(t, buckets, 20)
-		require.Equal(t, 0.001, buckets[0].GetUpperBound())
-		require.Equal(t, float64(10), buckets[len(buckets)-1].GetUpperBound())
+		require.InDelta(t, 0.001, buckets[0].GetUpperBound(), 1e-9)
+		require.InDelta(t, float64(10), buckets[len(buckets)-1].GetUpperBound(), 1e-9)
 
 		for _, label := range metric.GetMetric()[0].Label {
 			if label.GetName() == "api_kind" {
