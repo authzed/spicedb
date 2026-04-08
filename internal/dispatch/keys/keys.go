@@ -39,6 +39,24 @@ type Handler interface {
 
 	// ExpandDispatchKey computes the dispatch key for an Expand operation.
 	ExpandDispatchKey(ctx context.Context, req *v1.DispatchExpandRequest) ([]byte, error)
+
+	// PlanCheckCacheKey computes the caching key for a plan Check operation.
+	PlanCheckCacheKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error)
+
+	// PlanCheckDispatchKey computes the dispatch key for a plan Check operation.
+	PlanCheckDispatchKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error)
+
+	// PlanLookupResourcesCacheKey computes the caching key for a plan LookupResources operation.
+	PlanLookupResourcesCacheKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error)
+
+	// PlanLookupResourcesDispatchKey computes the dispatch key for a plan LookupResources operation.
+	PlanLookupResourcesDispatchKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error)
+
+	// PlanLookupSubjectsCacheKey computes the caching key for a plan LookupSubjects operation.
+	PlanLookupSubjectsCacheKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error)
+
+	// PlanLookupSubjectsDispatchKey computes the dispatch key for a plan LookupSubjects operation.
+	PlanLookupSubjectsDispatchKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error)
 }
 
 type baseKeyHandler struct{}
@@ -85,6 +103,30 @@ func (b baseKeyHandler) LookupSubjectsDispatchKey(_ context.Context, req *v1.Dis
 
 func (b baseKeyHandler) ExpandDispatchKey(_ context.Context, req *v1.DispatchExpandRequest) ([]byte, error) {
 	return expandRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+}
+
+func (b baseKeyHandler) PlanCheckCacheKey(_ context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error) {
+	return planCheckRequestToKey(req, computeBothHashes), nil
+}
+
+func (b baseKeyHandler) PlanCheckDispatchKey(_ context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error) {
+	return planCheckRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+}
+
+func (b baseKeyHandler) PlanLookupResourcesCacheKey(_ context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error) {
+	return planLookupResourcesRequestToKey(req, computeBothHashes), nil
+}
+
+func (b baseKeyHandler) PlanLookupResourcesDispatchKey(_ context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error) {
+	return planLookupResourcesRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+}
+
+func (b baseKeyHandler) PlanLookupSubjectsCacheKey(_ context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error) {
+	return planLookupSubjectsRequestToKey(req, computeBothHashes), nil
+}
+
+func (b baseKeyHandler) PlanLookupSubjectsDispatchKey(_ context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error) {
+	return planLookupSubjectsRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
 // DirectKeyHandler is a key handler that uses the relation name itself as the key.

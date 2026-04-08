@@ -405,8 +405,57 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 }
 
 func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
-	// TODO: add caching logic
-	return cd.d.DispatchQueryPlan(req, stream)
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		return cd.dispatchQueryPlanCheckCached(req, stream)
+	default:
+		// TODO: add caching for LookupResources and LookupSubjects
+		return cd.d.DispatchQueryPlan(req, stream)
+	}
+}
+
+func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	cd.checkTotalCounter.Inc()
+
+	requestKey, err := cd.keyHandler.PlanCheckCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		var response v1.DispatchQueryPlanResponse
+		if err := response.UnmarshalVT(cachedResultRaw.([]byte)); err != nil {
+			return err
+		}
+		cd.checkFromCacheCounter.Inc()
+		return stream.Publish(&response)
+	}
+
+	// Cache miss — collect the streamed results to cache them.
+	collecting := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](stream.Context())
+	if err := cd.d.DispatchQueryPlan(req, collecting); err != nil {
+		return err
+	}
+
+	// Forward collected results to the caller and cache the first response (Check produces at most one).
+	for _, resp := range collecting.Results() {
+		adjustedResp := resp.CloneVT()
+		if adjustedResp.Metadata != nil {
+			adjustedResp.Metadata.CachedDispatchCount = adjustedResp.Metadata.DispatchCount
+			adjustedResp.Metadata.DispatchCount = 0
+		}
+
+		adjustedBytes, err := adjustedResp.MarshalVT()
+		if err == nil {
+			cd.c.Set(requestKey, adjustedBytes, sliceSize(adjustedBytes))
+		}
+
+		if err := stream.Publish(resp); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (cd *Dispatcher) Close() error {

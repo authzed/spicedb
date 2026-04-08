@@ -39,6 +39,10 @@ func (fakeClusterClient) DispatchLookupSubjects(ctx context.Context, in *v1.Disp
 	return nil, nil
 }
 
+func (fakeClusterClient) DispatchQueryPlan(ctx context.Context, in *v1.DispatchQueryPlanRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchQueryPlanClient, error) {
+	return nil, nil
+}
+
 func BenchmarkSecondaryDispatching(b *testing.B) {
 	client := fakeClusterClient{false}
 	config := ClusterDispatcherConfig{

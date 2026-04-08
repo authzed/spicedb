@@ -522,6 +522,68 @@ var generatorFuncs = map[string]generatorFunc{
 			}
 	},
 
+	// Plan Check.
+	string(planCheckPrefix): func(
+		resourceIds []string,
+		subjectIds []string,
+		resourceRelation *core.RelationReference,
+		subjectRelation *core.RelationReference,
+		metadata *v1.ResolverMeta,
+	) (DispatchCacheKey, []string) {
+		return planCheckRequestToKey(&v1.DispatchQueryPlanRequest{
+				CanonicalKey: resourceRelation.Relation,
+				Resource:     ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+				Subject:      ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
+			}, computeBothHashes), []string{
+				resourceRelation.Relation,
+				resourceRelation.Namespace,
+				resourceIds[0],
+				subjectRelation.Namespace,
+				subjectIds[0],
+				subjectRelation.Relation,
+			}
+	},
+
+	// Plan Lookup Resources.
+	string(planLookupResourcesPrefix): func(
+		resourceIds []string,
+		subjectIds []string,
+		resourceRelation *core.RelationReference,
+		subjectRelation *core.RelationReference,
+		metadata *v1.ResolverMeta,
+	) (DispatchCacheKey, []string) {
+		return planLookupResourcesRequestToKey(&v1.DispatchQueryPlanRequest{
+				CanonicalKey: resourceRelation.Relation,
+				Subject:      ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
+			}, computeBothHashes), []string{
+				resourceRelation.Relation,
+				subjectRelation.Namespace,
+				subjectIds[0],
+				subjectRelation.Relation,
+			}
+	},
+
+	// Plan Lookup Subjects.
+	string(planLookupSubjectsPrefix): func(
+		resourceIds []string,
+		subjectIds []string,
+		resourceRelation *core.RelationReference,
+		subjectRelation *core.RelationReference,
+		metadata *v1.ResolverMeta,
+	) (DispatchCacheKey, []string) {
+		return planLookupSubjectsRequestToKey(&v1.DispatchQueryPlanRequest{
+				CanonicalKey: resourceRelation.Relation,
+				Resource:     ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
+			}, computeBothHashes), []string{
+				resourceRelation.Relation,
+				resourceRelation.Namespace,
+				resourceIds[0],
+			}
+	},
+
 	// Lookup Subjects.
 	string(lookupSubjectsPrefix): func(
 		resourceIds []string,

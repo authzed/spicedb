@@ -4,9 +4,11 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type hashableValue interface {
@@ -98,4 +100,19 @@ type hashableContextString string
 
 func (hc hashableContextString) AppendToHash(hasher hasherInterface) {
 	hasher.WriteString(string(hc))
+}
+
+type hashableContext struct {
+	*structpb.Struct
+}
+
+func (hc hashableContext) AppendToHash(hasher hasherInterface) {
+	if hc.Struct == nil {
+		return
+	}
+	stable, err := caveats.StableContextStringForHashing(hc.Struct)
+	if err != nil {
+		return
+	}
+	hasher.WriteString(stable)
 }

@@ -90,6 +90,7 @@ type ClusterClient interface {
 	DispatchLookupResources2(ctx context.Context, in *v1.DispatchLookupResources2Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources2Client, error)
 	DispatchLookupResources3(ctx context.Context, in *v1.DispatchLookupResources3Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources3Client, error)
 	DispatchLookupSubjects(ctx context.Context, in *v1.DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupSubjectsClient, error)
+	DispatchQueryPlan(ctx context.Context, in *v1.DispatchQueryPlanRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchQueryPlanClient, error)
 }
 
 type ClusterDispatcherConfig struct {
@@ -852,8 +853,46 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 }
 
 func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
-	// TODO: implement cluster dispatch for plan
-	return errors.New("DispatchQueryPlan not yet implemented for cluster dispatch")
+	var requestKey []byte
+	var err error
+
+	// Select dispatch key based on operation type.
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		requestKey, err = cr.keyHandler.PlanCheckDispatchKey(stream.Context(), req)
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		requestKey, err = cr.keyHandler.PlanLookupResourcesDispatchKey(stream.Context(), req)
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		requestKey, err = cr.keyHandler.PlanLookupSubjectsDispatchKey(stream.Context(), req)
+	default:
+		return fmt.Errorf("unknown plan operation: %v", req.Operation)
+	}
+	if err != nil {
+		return err
+	}
+
+	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
+
+	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	defer cancelFn()
+
+	client, err := cr.clusterClient.DispatchQueryPlan(withTimeout, req)
+	if err != nil {
+		return err
+	}
+
+	for {
+		resp, err := client.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if err := stream.Publish(resp); err != nil {
+			return err
+		}
+	}
 }
 
 func (cr *clusterDispatcher) Close() error {

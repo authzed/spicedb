@@ -20,11 +20,14 @@ type cachePrefix string
 // Define the various prefixes for the cache entries. These must *all* be unique and must *all*
 // also be placed into the cachePrefixes slice below.
 const (
-	checkViaRelationPrefix  cachePrefix = "cr"
-	checkViaCanonicalPrefix cachePrefix = "cc"
-	lookupPrefix            cachePrefix = "l"
-	expandPrefix            cachePrefix = "e"
-	lookupSubjectsPrefix    cachePrefix = "ls"
+	checkViaRelationPrefix    cachePrefix = "cr"
+	checkViaCanonicalPrefix   cachePrefix = "cc"
+	lookupPrefix              cachePrefix = "l"
+	expandPrefix              cachePrefix = "e"
+	lookupSubjectsPrefix      cachePrefix = "ls"
+	planCheckPrefix           cachePrefix = "pc"
+	planLookupResourcesPrefix cachePrefix = "pr"
+	planLookupSubjectsPrefix  cachePrefix = "ps"
 )
 
 var cachePrefixes = []cachePrefix{
@@ -33,6 +36,9 @@ var cachePrefixes = []cachePrefix{
 	lookupPrefix,
 	expandPrefix,
 	lookupSubjectsPrefix,
+	planCheckPrefix,
+	planLookupResourcesPrefix,
+	planLookupSubjectsPrefix,
 }
 
 // checkRequestToKey converts a check request into a cache key based on the relation
@@ -111,5 +117,33 @@ func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest, option di
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
 		hashableIds(req.ResourceIds),
+	)
+}
+
+// planCheckRequestToKey converts a plan check request into a cache key
+func planCheckRequestToKey(req *v1.DispatchQueryPlanRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+	return dispatchCacheKeyHash(planCheckPrefix, req.PlanContext.Revision, option,
+		hashableString(req.CanonicalKey),
+		hashableOnr{req.Resource},
+		hashableOnr{req.Subject},
+		hashableContext{Struct: req.PlanContext.CaveatContext},
+	)
+}
+
+// planLookupResourcesRequestToKey converts a plan lookup resources request into a cache key
+func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+	return dispatchCacheKeyHash(planLookupResourcesPrefix, req.PlanContext.Revision, option,
+		hashableString(req.CanonicalKey),
+		hashableOnr{req.Subject},
+		hashableContext{Struct: req.PlanContext.CaveatContext},
+	)
+}
+
+// planLookupSubjectsRequestToKey converts a plan lookup subjects request into a cache key
+func planLookupSubjectsRequestToKey(req *v1.DispatchQueryPlanRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+	return dispatchCacheKeyHash(planLookupSubjectsPrefix, req.PlanContext.Revision, option,
+		hashableString(req.CanonicalKey),
+		hashableOnr{req.Resource},
+		hashableContext{Struct: req.PlanContext.CaveatContext},
 	)
 }

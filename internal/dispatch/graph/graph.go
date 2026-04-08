@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -24,6 +25,8 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -471,12 +474,166 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	)
 }
 
-// DispatchQueryPlan implements dispatch.Plan interface
+// DispatchQueryPlan implements dispatch.Plan interface.
+// It loads the schema, compiles the plan, finds the subtree by canonical key,
+// and executes it locally. The Impl method is called directly on the found
+// iterator to avoid re-triggering the executor's dispatch decision on the
+// same alias boundary that was already dispatched by the caller.
 func (ld *localDispatcher) DispatchQueryPlan(
 	req *v1.DispatchQueryPlanRequest,
 	stream dispatch.PlanStream,
 ) error {
-	return errors.New("DispatchQueryPlan not yet implemented")
+	ctx := stream.Context()
+
+	planCtx := req.PlanContext
+	if planCtx == nil {
+		return fmt.Errorf("DispatchQueryPlan: missing plan_context")
+	}
+
+	revision, err := ld.parseRevision(ctx, planCtx.Revision)
+	if err != nil {
+		return err
+	}
+
+	// Load schema at the requested revision.
+	// TODO: use cached compiled plans (Phase 7) instead of recompiling each time.
+	it, err := ld.findIteratorByCanonicalKey(ctx, revision, query.CanonicalKey(req.CanonicalKey))
+	if err != nil {
+		return err
+	}
+
+	// Build execution context with DispatchExecutor so nested alias boundaries
+	// in the subtree can re-dispatch through the full dispatch chain.
+	dl := datalayer.MustFromContext(ctx)
+	executor := dispatch.NewDispatchExecutor(ld, planCtx)
+	qctx := &query.Context{
+		Context:       ctx,
+		Executor:      executor,
+		Reader:        query.NewQueryDatastoreReader(dl.SnapshotReader(revision)),
+		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
+		CaveatContext: dispatch.CaveatContextFromPlanContext(planCtx),
+	}
+
+	resource := query.Object{ObjectType: req.Resource.Namespace, ObjectID: req.Resource.ObjectId}
+	subject := query.ObjectAndRelation{
+		ObjectType: req.Subject.Namespace,
+		ObjectID:   req.Subject.ObjectId,
+		Relation:   req.Subject.Relation,
+	}
+
+	// Call Impl directly — the dispatch boundary has already been crossed.
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		path, err := it.CheckImpl(qctx, resource, subject)
+		if err != nil {
+			return err
+		}
+		if path != nil {
+			return stream.Publish(&v1.DispatchQueryPlanResponse{
+				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+			})
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		// TODO: implement caching for LookupResources results
+		pathSeq, err := it.IterResourcesImpl(qctx, subject, query.NoObjectFilter())
+		if err != nil {
+			return err
+		}
+		for path, err := range pathSeq {
+			if err != nil {
+				return err
+			}
+			if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		// TODO: implement caching for LookupSubjects results
+		pathSeq, err := it.IterSubjectsImpl(qctx, resource, query.NoObjectFilter())
+		if err != nil {
+			return err
+		}
+		for path, err := range pathSeq {
+			if err != nil {
+				return err
+			}
+			if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("DispatchQueryPlan: unknown operation %v", req.Operation)
+	}
+}
+
+// findIteratorByCanonicalKey loads the schema at the given revision, compiles
+// all permissions, and returns the iterator subtree matching the canonical key.
+func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revision datastore.Revision, targetKey query.CanonicalKey) (query.Iterator, error) {
+	dl := datalayer.MustFromContext(ctx)
+	reader := dl.SnapshotReader(revision)
+
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to read schema: %w", err)
+	}
+
+	nsDefs, err := sr.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to list type definitions: %w", err)
+	}
+
+	caveatDefs, err := sr.ListAllCaveatDefinitions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to list caveat definitions: %w", err)
+	}
+
+	fullSchema, err := schema.BuildSchemaFromDefinitions(
+		datastore.DefinitionsOf(nsDefs),
+		datastore.DefinitionsOf(caveatDefs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to build schema: %w", err)
+	}
+
+	for nsName, def := range fullSchema.Definitions() {
+		for permName := range def.Permissions() {
+			co, err := query.BuildOutlineFromSchema(fullSchema, nsName, permName)
+			if err != nil {
+				continue
+			}
+			it, err := co.Compile()
+			if err != nil {
+				continue
+			}
+			if found := findByCanonicalKey(it, targetKey); found != nil {
+				return found, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("DispatchQueryPlan: no iterator found for canonical key %q", targetKey)
+}
+
+// findByCanonicalKey recursively searches an iterator tree for a node matching the key.
+func findByCanonicalKey(it query.Iterator, key query.CanonicalKey) query.Iterator {
+	if it.CanonicalKey() == key {
+		return it
+	}
+	for _, sub := range it.Subiterators() {
+		if found := findByCanonicalKey(sub, key); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 func (ld *localDispatcher) Close() error {
