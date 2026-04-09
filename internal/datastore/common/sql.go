@@ -796,6 +796,14 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	}
 	query = query.TupleOrder(sort)
 
+	// Override pagination filter type if requested. This allows specific queries
+	// (e.g., partitioned export) to use tuple comparison even when the schema
+	// default is ExpandedLogicComparison, avoiding CRDB's union-all + distinct
+	// plan that causes temp storage exhaustion on large range-bounded queries.
+	if queryOpts.UseTupleComparison {
+		query.schema.PaginationFilterType = TupleComparison
+	}
+
 	// Add cursor.
 	if queryOpts.After != nil {
 		if sort == options.Unsorted {

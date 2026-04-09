@@ -93,6 +93,14 @@ func StreamPartitionedExportToSender(ctx context.Context, ds datastore.Datastore
 	opts := []dsoptions.QueryOptionsOption{
 		dsoptions.WithSort(dsoptions.ByResource),
 		dsoptions.WithQueryShape(queryshape.Varying),
+		// Force tuple comparison syntax (e.g., (a,b,c) > (1,2,3)) instead of
+		// the default ExpandedLogicComparison for CRDB. The expanded form with
+		// both After and BeforeOrEqual bounds generates OR clauses that CRDB
+		// wraps in a union-all + distinct plan, which buffers all rows for
+		// deduplication and exhausts temp disk storage on large exports.
+		// Tuple comparison produces a clean index scan with a bounded span
+		// and no buffering. See TestExplainPartitionedQuery for verification.
+		dsoptions.WithUseTupleComparison(true),
 	}
 
 	if req.Cursor != nil && *req.Cursor != "" {

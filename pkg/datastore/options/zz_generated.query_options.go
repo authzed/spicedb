@@ -40,6 +40,7 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.SQLCheckAssertionForTest = q.SQLCheckAssertionForTest
 		to.SQLExplainCallbackForTest = q.SQLExplainCallbackForTest
 		to.QueryShape = q.QueryShape
+		to.UseTupleComparison = q.UseTupleComparison
 	}
 }
 
@@ -99,6 +100,7 @@ func (q *QueryOptions) DebugMap() map[string]any {
 	} else {
 		debugMap["QueryShape"] = q.QueryShape
 	}
+	debugMap["UseTupleComparison"] = q.UseTupleComparison
 	return debugMap
 }
 
@@ -199,6 +201,13 @@ func WithSQLExplainCallbackForTest(sQLExplainCallbackForTest SQLExplainCallbackF
 func WithQueryShape(queryShape queryshape.Shape) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.QueryShape = queryShape
+	}
+}
+
+// WithUseTupleComparison returns an option that can set UseTupleComparison on a QueryOptions
+func WithUseTupleComparison(useTupleComparison bool) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.UseTupleComparison = useTupleComparison
 	}
 }
 
