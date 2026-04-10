@@ -102,5 +102,14 @@ func setupCheckWideGroups(ctx context.Context, ds datastore.Datastore) (*QuerySe
 				SubjectRelation: tuple.Ellipsis,
 			},
 		},
+		IterSubjects: []IterSubjectsQuery{
+			{
+				ResourceType:       "resource",
+				ResourceID:         "someresource",
+				Permission:         "view",
+				FilterSubjectType:  "user",
+				ExpectedSubjectIDs: []string{"tom"},
+			},
+		},
 	}, nil
 }

@@ -91,7 +91,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		})
 
 		return ds, nil
-	})), false)
+	})))
 
 	t.Run("TestWatchStreaming", createDatastoreTest(
 		b,
@@ -220,7 +220,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 		})
 
 		return ds, nil
-	})), false)
+	})))
 
 	unwrappedTester := test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()

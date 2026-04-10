@@ -117,5 +117,24 @@ func setupWideGroups(ctx context.Context, ds datastore.Datastore) (*QuerySets, e
 				SubjectRelation: tuple.Ellipsis,
 			},
 		},
+		IterResources: []IterResourcesQuery{
+			{
+				SubjectType:         "user",
+				SubjectID:           "tom",
+				SubjectRelation:     tuple.Ellipsis,
+				Permission:          "view",
+				FilterResourceType:  "resource",
+				ExpectedResourceIDs: []string{"someresource", "anotherresource"},
+			},
+		},
+		IterSubjects: []IterSubjectsQuery{
+			{
+				ResourceType:       "resource",
+				ResourceID:         "someresource",
+				Permission:         "view",
+				FilterSubjectType:  "user",
+				ExpectedSubjectIDs: []string{"tom"},
+			},
+		},
 	}, nil
 }

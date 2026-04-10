@@ -2,7 +2,6 @@ package benchmarks
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -12,35 +11,22 @@ import (
 	"github.com/authzed/spicedb/pkg/query"
 )
 
-// networkDelay is the simulated per-call round-trip latency used by the delay
-// sub-benchmarks. Adjust this to model different network environments.
-const networkDelay = 100 * time.Microsecond
-
-// advisorWarmUp holds per-benchmark overrides for the number of
-// warm-up iterations used to seed the CountAdvisor. Benchmarks not listed
-// here default to 1.
-var advisorWarmUp = map[string]int{
-	"DoubleWideArrow": 10,
-}
-
-const defaultWarmupIterations = 1
-
-func BenchmarkCheck(b *testing.B) {
+func BenchmarkLookupSubjects(b *testing.B) {
 	for _, benchmark := range bm.All() {
 		b.Run(benchmark.Name, func(b *testing.B) {
 			ctx := b.Context()
 
 			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(b, err)
-			b.Cleanup(func() {
-				require.NoError(b, rawDS.Close())
-			})
 
 			queries, err := benchmark.Setup(ctx, rawDS)
 			require.NoError(b, err)
-			require.NotEmpty(b, queries.Checks)
 
-			check := queries.Checks[0]
+			if len(queries.IterSubjects) == 0 {
+				b.Skip("no IterSubjects queries defined")
+			}
+
+			lsQuery := queries.IterSubjects[0]
 
 			revision, err := rawDS.HeadRevision(ctx)
 			require.NoError(b, err)
@@ -48,11 +34,11 @@ func BenchmarkCheck(b *testing.B) {
 			dsSchema, err := bm.ReadSchema(ctx, rawDS, revision)
 			require.NoError(b, err)
 
-			canonicalOutline, err := query.BuildOutlineFromSchema(dsSchema, check.ResourceType, check.Permission)
+			canonicalOutline, err := query.BuildOutlineFromSchema(dsSchema, lsQuery.ResourceType, lsQuery.Permission)
 			require.NoError(b, err)
 
-			resource := query.NewObject(check.ResourceType, check.ResourceID)
-			subject := query.NewObject(check.SubjectType, check.SubjectID).WithEllipses()
+			resource := query.NewObject(lsQuery.ResourceType, lsQuery.ResourceID)
+			filterSubjectType := query.NewType(lsQuery.FilterSubjectType)
 
 			qReader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
 			delayReader := query.NewDelayReader(networkDelay, qReader)
@@ -62,7 +48,7 @@ func BenchmarkCheck(b *testing.B) {
 				ctxOpts = append(ctxOpts, query.WithMaxRecursionDepth(queries.MaxRecursionDepth))
 			}
 
-			warmUpIterations := 1
+			warmUpIterations := defaultWarmupIterations
 			if n, ok := advisorWarmUp[benchmark.Name]; ok {
 				warmUpIterations = n
 			}
@@ -80,7 +66,7 @@ func BenchmarkCheck(b *testing.B) {
 				warmCtx := query.NewLocalContext(ctx, opts...)
 
 				for range warmUpIterations {
-					_, err = warmCtx.Check(warmIt, resource, subject)
+					_, err = warmCtx.IterSubjects(warmIt, resource, filterSubjectType)
 					require.NoError(b, err)
 				}
 
@@ -103,9 +89,11 @@ func BenchmarkCheck(b *testing.B) {
 
 				b.ResetTimer()
 				for b.Loop() {
-					path, err := queryCtx.Check(it, resource, subject)
+					paths, err := queryCtx.IterSubjects(it, resource, filterSubjectType)
 					require.NoError(b, err)
-					require.NotNil(b, path)
+					results, err := query.CollectAll(paths)
+					require.NoError(b, err)
+					require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
 				}
 			})
 
@@ -119,9 +107,11 @@ func BenchmarkCheck(b *testing.B) {
 
 				b.ResetTimer()
 				for b.Loop() {
-					path, err := queryCtx.Check(advisedIt, resource, subject)
+					paths, err := queryCtx.IterSubjects(advisedIt, resource, filterSubjectType)
 					require.NoError(b, err)
-					require.NotNil(b, path)
+					results, err := query.CollectAll(paths)
+					require.NoError(b, err)
+					require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
 				}
 			})
 
@@ -135,9 +125,11 @@ func BenchmarkCheck(b *testing.B) {
 
 					b.ResetTimer()
 					for b.Loop() {
-						path, err := queryCtx.Check(it, resource, subject)
+						paths, err := queryCtx.IterSubjects(it, resource, filterSubjectType)
 						require.NoError(b, err)
-						require.NotNil(b, path)
+						results, err := query.CollectAll(paths)
+						require.NoError(b, err)
+						require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
 					}
 				})
 
@@ -149,9 +141,11 @@ func BenchmarkCheck(b *testing.B) {
 
 					b.ResetTimer()
 					for b.Loop() {
-						path, err := queryCtx.Check(advisedIt, resource, subject)
+						paths, err := queryCtx.IterSubjects(advisedIt, resource, filterSubjectType)
 						require.NoError(b, err)
-						require.NotNil(b, path)
+						results, err := query.CollectAll(paths)
+						require.NoError(b, err)
+						require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
 					}
 				})
 			}

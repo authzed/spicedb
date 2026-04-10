@@ -149,7 +149,7 @@ func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *x509util.CertWatcher
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		return nil, nil, nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		watcher, err := x509util.NewCertWatcher(c.TLSCertPath, c.TLSKeyPath)
+		watcher, err := x509util.NewTLSCertWatcher(c.TLSCertPath, c.TLSKeyPath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -296,7 +296,7 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 		}
 
 	case c.HTTPTLSCertPath != "" && c.HTTPTLSKeyPath != "":
-		watcher, err := x509util.NewCertWatcher(c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
+		watcher, err := x509util.NewTLSCertWatcher(c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
 		if err != nil {
 			return nil, err
 		}
