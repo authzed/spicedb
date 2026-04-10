@@ -98,7 +98,7 @@ func setupWideArrow(ctx context.Context, ds datastore.Datastore) (*QuerySets, er
 				ResourceID:      "file0",
 				Permission:      "viewer",
 				SubjectType:     "user",
-				SubjectID:       "user15",
+				SubjectID:       "user570",
 				SubjectRelation: tuple.Ellipsis,
 			},
 		},
