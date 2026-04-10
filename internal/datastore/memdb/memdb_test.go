@@ -28,7 +28,7 @@ func (memDBTest) New(_ testing.TB, revisionQuantization, _, gcWindow time.Durati
 }
 
 func TestMemdbDatastore(t *testing.T) {
-	test.All(t, memdbFactory.NewTester(memDBTest{}), true)
+	test.All(t, memdbFactory.NewTester(memDBTest{}))
 }
 
 func TestConcurrentWritePanic(t *testing.T) {
