@@ -242,7 +242,7 @@ func (cw *CertWatcher) handleEvent(event fsnotify.Event) {
 	switch {
 	case event.Op.Has(fsnotify.Write):
 	case event.Op.Has(fsnotify.Create):
-	case event.Op.Has(fsnotify.Chmod), event.Op.Has(fsnotify.Remove):
+	case event.Op.Has(fsnotify.Chmod), event.Op.Has(fsnotify.Remove), event.Op.Has(fsnotify.Rename):
 		// If the file was removed or renamed, re-add the watch to the previous name
 		if err := cw.watcher.Add(event.Name); err != nil {
 			log.Err(err).Msg("error re-watching file")
