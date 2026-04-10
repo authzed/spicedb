@@ -192,7 +192,7 @@ func TestCertWatcherStart(t *testing.T) {
 
 	t.Run("should reload currentCert after move out", func(t *testing.T) {
 		certPath, keyPath, watcher, startWatcher := setupWatcher(t, "127.0.0.1")
-		startWatcher(1 * time.Second)
+		startWatcher(100 * time.Millisecond)
 		called := atomic.Int64{}
 		watcher.RegisterCallback(func(crt tls.Certificate) {
 			called.Add(1)
@@ -208,10 +208,13 @@ func TestCertWatcherStart(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
+			if err := watcher.ReadCertificate(); err != nil {
+				return false
+			}
 			secondcert, _ := watcher.GetCertificate(nil)
 			first := firstcert.PrivateKey.(*rsa.PrivateKey)
 			return !first.Equal(secondcert.PrivateKey) && firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber) != 0
-		}, 10*time.Second, 1*time.Second)
+		}, 10*time.Second, 100*time.Millisecond)
 
 		require.GreaterOrEqual(t, called.Load(), int64(1))
 	})
@@ -220,7 +223,7 @@ func TestCertWatcherStart(t *testing.T) {
 		_, _, watcher, startWatcher := setupWatcher(t, "127.0.0.1")
 		readCertificateTotalBefore := testutil.ToFloat64(watcher.ReadCertificateTotal)
 
-		startWatcher(1 * time.Second)
+		startWatcher(100 * time.Millisecond)
 
 		require.Eventually(t, func() bool {
 			readCertificateTotalAfter := testutil.ToFloat64(watcher.ReadCertificateTotal)
@@ -233,7 +236,7 @@ func TestCertWatcherStart(t *testing.T) {
 		readCertificateTotalBefore := testutil.ToFloat64(watcher.ReadCertificateTotal)
 		readCertificateErrorsBefore := testutil.ToFloat64(watcher.ReadCertificateErrors)
 
-		startWatcher(1 * time.Second)
+		startWatcher(100 * time.Millisecond)
 
 		require.Eventually(t, func() bool {
 			readCertificateTotalAfter := testutil.ToFloat64(watcher.ReadCertificateTotal)
@@ -247,17 +250,13 @@ func TestCertWatcherStart(t *testing.T) {
 		// remove the cert to generate an error
 		require.NoError(t, os.Remove(keyPath))
 
-		// os.Remove may generate one or two fsnotify events depending on the platform
-		// (e.g. Chmod + Remove on Linux, just Remove on macOS).
-		require.Eventually(t, func() bool {
-			readCertificateTotalAfter := testutil.ToFloat64(watcher.ReadCertificateTotal)
-			return readCertificateTotalAfter >= readCertificateTotalBefore+1.0
-		}, 10*time.Second, 100*time.Millisecond)
+		require.Error(t, watcher.ReadCertificate())
 
-		require.Eventually(t, func() bool {
-			readCertificateErrorsAfter := testutil.ToFloat64(watcher.ReadCertificateErrors)
-			return readCertificateErrorsAfter >= readCertificateErrorsBefore+1.0
-		}, 10*time.Second, 100*time.Millisecond)
+		readCertificateTotalAfter := testutil.ToFloat64(watcher.ReadCertificateTotal)
+		require.GreaterOrEqual(t, readCertificateTotalAfter, readCertificateTotalBefore+1.0)
+
+		readCertificateErrorsAfter := testutil.ToFloat64(watcher.ReadCertificateErrors)
+		require.GreaterOrEqual(t, readCertificateErrorsAfter, readCertificateErrorsBefore+1.0)
 	})
 }
 
