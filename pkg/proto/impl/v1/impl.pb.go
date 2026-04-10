@@ -7,6 +7,7 @@
 package implv1
 
 import (
+	v1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1alpha1 "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -571,8 +572,13 @@ type RelationMetadata struct {
 	state           protoimpl.MessageState        `protogen:"open.v1"`
 	Kind            RelationMetadata_RelationKind `protobuf:"varint,1,opt,name=kind,proto3,enum=impl.v1.RelationMetadata_RelationKind" json:"kind,omitempty"`
 	TypeAnnotations *TypeAnnotations              `protobuf:"bytes,2,opt,name=type_annotations,json=typeAnnotations,proto3" json:"type_annotations,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Indicates whether the permission expression contains mixed operators (union, intersection,
+	// exclusion) at the same scope level without explicit parentheses.
+	HasMixedOperatorsWithoutParentheses bool `protobuf:"varint,3,opt,name=has_mixed_operators_without_parentheses,json=hasMixedOperatorsWithoutParentheses,proto3" json:"has_mixed_operators_without_parentheses,omitempty"`
+	// The source position of the first mixed operator found, if any.
+	MixedOperatorsPosition *v1.SourcePosition `protobuf:"bytes,4,opt,name=mixed_operators_position,json=mixedOperatorsPosition,proto3" json:"mixed_operators_position,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *RelationMetadata) Reset() {
@@ -615,6 +621,20 @@ func (x *RelationMetadata) GetKind() RelationMetadata_RelationKind {
 func (x *RelationMetadata) GetTypeAnnotations() *TypeAnnotations {
 	if x != nil {
 		return x.TypeAnnotations
+	}
+	return nil
+}
+
+func (x *RelationMetadata) GetHasMixedOperatorsWithoutParentheses() bool {
+	if x != nil {
+		return x.HasMixedOperatorsWithoutParentheses
+	}
+	return false
+}
+
+func (x *RelationMetadata) GetMixedOperatorsPosition() *v1.SourcePosition {
+	if x != nil {
+		return x.MixedOperatorsPosition
 	}
 	return nil
 }
@@ -905,7 +925,7 @@ var File_impl_v1_impl_proto protoreflect.FileDescriptor
 
 const file_impl_v1_impl_proto_rawDesc = "" +
 	"\n" +
-	"\x12impl/v1/impl.proto\x12\aimpl.v1\x1a&google/api/expr/v1alpha1/checked.proto\"l\n" +
+	"\x12impl/v1/impl.proto\x12\aimpl.v1\x1a\x12core/v1/core.proto\x1a&google/api/expr/v1alpha1/checked.proto\"l\n" +
 	"\rDecodedCaveat\x129\n" +
 	"\x03cel\x18\x01 \x01(\v2%.google.api.expr.v1alpha1.CheckedExprH\x00R\x03cel\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04nameB\f\n" +
@@ -948,10 +968,12 @@ const file_impl_v1_impl_proto_rawDesc = "" +
 	"DocComment\x12\x18\n" +
 	"\acomment\x18\x01 \x01(\tR\acomment\"'\n" +
 	"\x0fTypeAnnotations\x12\x14\n" +
-	"\x05types\x18\x01 \x03(\tR\x05types\"\xd3\x01\n" +
+	"\x05types\x18\x01 \x03(\tR\x05types\"\xfc\x02\n" +
 	"\x10RelationMetadata\x12:\n" +
 	"\x04kind\x18\x01 \x01(\x0e2&.impl.v1.RelationMetadata.RelationKindR\x04kind\x12C\n" +
-	"\x10type_annotations\x18\x02 \x01(\v2\x18.impl.v1.TypeAnnotationsR\x0ftypeAnnotations\">\n" +
+	"\x10type_annotations\x18\x02 \x01(\v2\x18.impl.v1.TypeAnnotationsR\x0ftypeAnnotations\x12T\n" +
+	"'has_mixed_operators_without_parentheses\x18\x03 \x01(\bR#hasMixedOperatorsWithoutParentheses\x12Q\n" +
+	"\x18mixed_operators_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x16mixedOperatorsPosition\">\n" +
 	"\fRelationKind\x12\x10\n" +
 	"\fUNKNOWN_KIND\x10\x00\x12\f\n" +
 	"\bRELATION\x10\x01\x12\x0e\n" +
@@ -996,6 +1018,7 @@ var file_impl_v1_impl_proto_goTypes = []any{
 	(*DecodedZedToken_V1ZedToken)(nil), // 14: impl.v1.DecodedZedToken.V1ZedToken
 	nil,                                // 15: impl.v1.V1Cursor.FlagsEntry
 	(*v1alpha1.CheckedExpr)(nil),       // 16: google.api.expr.v1alpha1.CheckedExpr
+	(*v1.SourcePosition)(nil),          // 17: core.v1.SourcePosition
 }
 var file_impl_v1_impl_proto_depIdxs = []int32{
 	16, // 0: impl.v1.DecodedCaveat.cel:type_name -> google.api.expr.v1alpha1.CheckedExpr
@@ -1007,12 +1030,13 @@ var file_impl_v1_impl_proto_depIdxs = []int32{
 	15, // 6: impl.v1.V1Cursor.flags:type_name -> impl.v1.V1Cursor.FlagsEntry
 	0,  // 7: impl.v1.RelationMetadata.kind:type_name -> impl.v1.RelationMetadata.RelationKind
 	7,  // 8: impl.v1.RelationMetadata.type_annotations:type_name -> impl.v1.TypeAnnotations
-	9,  // 9: impl.v1.V1Alpha1Revision.ns_revisions:type_name -> impl.v1.NamespaceAndRevision
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	17, // 9: impl.v1.RelationMetadata.mixed_operators_position:type_name -> core.v1.SourcePosition
+	9,  // 10: impl.v1.V1Alpha1Revision.ns_revisions:type_name -> impl.v1.NamespaceAndRevision
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_impl_v1_impl_proto_init() }
