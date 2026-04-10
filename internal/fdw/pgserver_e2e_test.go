@@ -1,4 +1,4 @@
-//go:build ci && !skipintegrationtests
+//go:build !skipintegrationtests
 
 package fdw_test
 
@@ -6,10 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"path"
-	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -30,7 +26,6 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	spicedbserver "github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -551,130 +546,8 @@ definition document {
 	}
 }
 
-func runEndToEndTest(t *testing.T, tc e2eTestCase) {
-	// Start SpiceDB server.
-	t.Log("Starting SpiceDB")
-	client := runSpiceDB(t)
-	t.Log("SpiceDB started")
-
-	// Write initial schema and relationships.
-	t.Log("Writing initial schema and relationships")
-	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
-		Schema: tc.schema,
-	})
-	require.NoError(t, err)
-
-	updates := make([]*v1.RelationshipUpdate, 0, len(tc.relationships))
-	for _, rel := range tc.relationships {
-		updates = append(updates, &v1.RelationshipUpdate{
-			Relationship: tuple.MustParseV1Rel(rel),
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-		})
-	}
-
-	if len(updates) > 0 {
-		_, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
-			Updates: updates,
-		})
-		require.NoError(t, err)
-		t.Log("Initial schema and relationships written")
-
-		// Sanity check that rels can be read.
-		s, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
-			RelationshipFilter: &v1.RelationshipFilter{
-				ResourceType: "document",
-			},
-		})
-		require.NoError(t, err)
-
-		_, err = s.Recv()
-		require.NoError(t, err)
-	} else {
-		t.Log("Initial schema written (no relationships)")
-	}
-
-	// Start PGServer.
-	t.Log("Starting PGServer")
-	pgServerPort := runPGServer(t, client)
-	t.Log("PGServer started")
-
-	// Start Postgres.
-	t.Log("Starting Postgres")
-	pgconn := runPostgres(t)
-	t.Log("Postgres started")
-
-	// Read the commands from the configuration.sql file.
-	_, filename, _, _ := runtime.Caller(1) // 1 for the parent caller.
-	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
-	require.NoError(t, err)
-	createCommandsTemplate := string(dat)
-
-	// Replace the hardcoded port with the dynamically allocated port.
-	createCommands := strings.ReplaceAll(createCommandsTemplate, "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
-
-	// Invoke initial Postgres commands.
-	_, err = pgconn.Exec(t.Context(), createCommands)
-	require.NoError(t, err)
-	t.Log("Initial Postgres commands executed")
-
-	// Run queries.
-	var lastZedToken string
-	for _, q := range tc.queries {
-		t.Run(q.name, func(t *testing.T) {
-			// If this is an at_least_as_fresh test, inject the zedtoken into the query
-			queryToRun := q.query
-			argsToUse := q.args
-			if lastZedToken != "" && tc.name == "consistency at_least_as_fresh" && len(q.args) > 0 {
-				// Add consistency parameter to the WHERE clause
-				queryToRun = q.query + ` AND consistency = $` + fmt.Sprintf("%d", len(q.args)+1)
-				argsToUse = append(argsToUse, lastZedToken)
-			} else if lastZedToken != "" && tc.name == "consistency at_exact_snapshot" && len(q.args) > 0 {
-				// Add consistency parameter with @ prefix for at_exact_snapshot
-				queryToRun = q.query + ` AND consistency = $` + fmt.Sprintf("%d", len(q.args)+1)
-				argsToUse = append(argsToUse, "@"+lastZedToken)
-			}
-
-			rows, err := pgconn.Query(t.Context(), queryToRun, argsToUse...)
-			require.NoError(t, err)
-			defer rows.Close()
-
-			if q.expectedError != "" {
-				require.False(t, rows.Next())
-				require.Error(t, rows.Err())
-				require.ErrorContains(t, rows.Err(), q.expectedError)
-			} else {
-				// Read all rows.
-				foundRows := make([][]any, 0)
-				for rows.Next() {
-					require.NoError(t, rows.Err())
-
-					values, err := rows.Values()
-					require.NoError(t, err)
-					foundRows = append(foundRows, values)
-
-					// If this is a RETURNING consistency query, capture the zedtoken
-					if len(values) == 1 && rows.FieldDescriptions()[0].Name == "consistency" {
-						if token, ok := values[0].(string); ok && token != "" {
-							lastZedToken = token
-							t.Logf("Captured ZedToken: %s", lastZedToken)
-						}
-					}
-				}
-
-				require.NoError(t, rows.Err())
-
-				// For queries with expected rows, verify them
-				if len(q.expectedRows) > 0 {
-					require.Equal(t, q.expectedRows, foundRows)
-				} else if q.query != queryToRun {
-					// For consistency tests that inject parameters, we just verify we got results
-					require.NotEmpty(t, foundRows)
-				}
-				rows.Close()
-				require.Equal(t, q.expectedResponseTag, rows.CommandTag().String())
-			}
-		})
-	}
+func runEndToEndTest(t *testing.T, _ e2eTestCase) {
+	require.Fail(t, "fail on purpose")
 }
 
 func runPGServer(t *testing.T, client *authzed.Client) int {
