@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Granular datastore connection flags (`--datastore-host`, `--datastore-port`, `--datastore-user`, `--datastore-password`, `--datastore-name`) as an alternative to providing a full `--datastore-conn-uri` (https://github.com/authzed/spicedb/pull/2604)
 - Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
 
 ### Changed
