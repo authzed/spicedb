@@ -92,7 +92,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return ds
 			})
 			return ds, nil
-		}), false)
+		}))
 
 		t.Run("TestLocking", createMultiDatastoreTest(
 			b,
@@ -128,7 +128,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 			})
 			return ds, nil
-		})), test.WithCategories(test.GCCategory), false)
+		})), test.WithCategories(test.GCCategory))
 
 		t.Run("TransactionTimestamps", createDatastoreTest(
 			b,
@@ -324,7 +324,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		})), test.WithCategories(test.WatchCategory, test.GCCategory), false)
+		})), test.WithCategories(test.WatchCategory, test.GCCategory))
 	})
 
 	t.Run(fmt.Sprintf("postgres-%s-gc", pgVersion), func(t *testing.T) {
@@ -344,7 +344,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		}), false)
+		}))
 	})
 }
 

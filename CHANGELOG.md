@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Added
 - Allow underscore prefix for private identifiers in definitions, relations, and permissions (https://github.com/authzed/spicedb/pull/2733)
+- Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
 
 ### Changed
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)

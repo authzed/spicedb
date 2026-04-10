@@ -43,7 +43,7 @@ func TestSpannerDatastore(t *testing.T) {
 			return ds
 		})
 		return ds, nil
-	})), test.WithCategories(test.GCCategory, test.StatsCategory, test.TransactionCategory), false)
+	})), test.WithCategories(test.GCCategory, test.StatsCategory, test.TransactionCategory))
 
 	t.Run("TestFakeStats", createDatastoreTest(
 		b,

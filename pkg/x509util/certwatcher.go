@@ -66,10 +66,10 @@ type CertWatcher struct {
 	ReadCertificateErrors prometheus.Counter
 }
 
-// NewCertWatcher returns a new CertWatcher watching the given certificate and key.
+// NewTLSCertWatcher returns a new CertWatcher watching the given certificate and key.
 // It registers prometheus metrics for certificate read counts and errors.
 // The metrics are unregistered when Start returns.
-func NewCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
+func NewTLSCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
 	var err error
 
 	cw := &CertWatcher{
@@ -131,7 +131,7 @@ func (cw *CertWatcher) GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate,
 
 // Start starts the watch on the certificate and key files.
 // When Start returns, it unregisters the prometheus metrics that were registered
-// in NewCertWatcher.
+// in NewTLSCertWatcher.
 func (cw *CertWatcher) Start(ctx context.Context) error {
 	defer cw.unregisterMetrics()
 

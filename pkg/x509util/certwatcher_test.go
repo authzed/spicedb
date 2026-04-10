@@ -37,7 +37,7 @@ import (
 
 func TestCertWatcherNew(t *testing.T) {
 	t.Run("should error without cert/key", func(t *testing.T) {
-		_, err := NewCertWatcher("", "")
+		_, err := NewTLSCertWatcher("", "")
 		require.Error(t, err)
 	})
 }
@@ -51,7 +51,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 
 	// First watcher: start and stop.
 	ctx1, cancel1 := context.WithCancel(t.Context())
-	watcher1, err := NewCertWatcher(certPath, keyPath)
+	watcher1, err := NewTLSCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
 	done1 := make(chan struct{})
@@ -64,7 +64,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 
 	// Second watcher: should not fail due to duplicate metric registration.
 	ctx2, cancel2 := context.WithCancel(t.Context())
-	watcher2, err := NewCertWatcher(certPath, keyPath)
+	watcher2, err := NewTLSCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
 	done2 := make(chan struct{})
@@ -88,9 +88,11 @@ func setupWatcher(t *testing.T, ip string) (certPath, keyPath string, watcher *C
 	certPath = dir + "/tls.crt"
 	keyPath = dir + "/tls.key"
 
+	// write files
 	err := writeCerts(certPath, keyPath, ip)
 	require.NoError(t, err)
 
+	// wait until they exist on disk
 	require.Eventually(t, func() bool {
 		for _, file := range []string{certPath, keyPath} {
 			if _, err := os.ReadFile(file); err != nil {
@@ -100,7 +102,7 @@ func setupWatcher(t *testing.T, ip string) (certPath, keyPath string, watcher *C
 		return true
 	}, 10*time.Second, 100*time.Millisecond)
 
-	watcher, err = NewCertWatcher(certPath, keyPath)
+	watcher, err = NewTLSCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
 	startWatcher = func(interval time.Duration) (done <-chan struct{}) {
@@ -218,12 +220,12 @@ func TestCertWatcherStart(t *testing.T) {
 		_, _, watcher, startWatcher := setupWatcher(t, "127.0.0.1")
 		readCertificateTotalBefore := testutil.ToFloat64(watcher.ReadCertificateTotal)
 
-		startWatcher(10 * time.Second)
+		startWatcher(1 * time.Second)
 
 		require.Eventually(t, func() bool {
 			readCertificateTotalAfter := testutil.ToFloat64(watcher.ReadCertificateTotal)
 			return readCertificateTotalAfter >= readCertificateTotalBefore+1.0
-		}, 4*time.Second, 100*time.Millisecond)
+		}, 10*time.Second, 100*time.Millisecond)
 	})
 
 	t.Run("prometheus metric read_certificate_total on read errors", func(t *testing.T) {
@@ -231,7 +233,7 @@ func TestCertWatcherStart(t *testing.T) {
 		readCertificateTotalBefore := testutil.ToFloat64(watcher.ReadCertificateTotal)
 		readCertificateErrorsBefore := testutil.ToFloat64(watcher.ReadCertificateErrors)
 
-		startWatcher(10 * time.Second)
+		startWatcher(1 * time.Second)
 
 		require.Eventually(t, func() bool {
 			readCertificateTotalAfter := testutil.ToFloat64(watcher.ReadCertificateTotal)
@@ -240,8 +242,9 @@ func TestCertWatcherStart(t *testing.T) {
 				return true
 			}
 			return false
-		}, 4*time.Second, 100*time.Millisecond)
+		}, 10*time.Second, 100*time.Millisecond)
 
+		// remove the cert to generate an error
 		require.NoError(t, os.Remove(keyPath))
 
 		// os.Remove may generate one or two fsnotify events depending on the platform

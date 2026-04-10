@@ -21,6 +21,10 @@ type ParsedRelationships struct {
 
 	// Relationships are the fully parsed relationships.
 	Relationships []tuple.Relationship
+
+	// RelationshipPositions are the source positions for each relationship,
+	// corresponding by index to the Relationships slice.
+	RelationshipPositions []spiceerrors.SourcePosition
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -38,6 +42,7 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 	seenTuples := map[string]bool{}
 	lines := strings.Split(relationshipsString, "\n")
 	relationships := make([]tuple.Relationship, 0, len(lines))
+	positions := make([]spiceerrors.SourcePosition, 0, len(lines))
 	for index, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") {
@@ -75,9 +80,14 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 		}
 		seenTuples[tuple.StringWithoutCaveatOrExpiration(rel)] = true
 		relationships = append(relationships, rel)
+		positions = append(positions, spiceerrors.SourcePosition{
+			LineNumber:     node.Line + 1 + index,
+			ColumnPosition: node.Column,
+		})
 	}
 
 	pr.Relationships = relationships
+	pr.RelationshipPositions = positions
 	pr.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
