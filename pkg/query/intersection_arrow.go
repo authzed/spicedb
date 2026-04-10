@@ -4,6 +4,7 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // IntersectionArrowIterator is an iterator that represents the set of relations that
@@ -48,10 +49,29 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resource Object, su
 			return nil, err
 		}
 
-		// Check if this left subject connects within the right side iterator
-		checkPath, err := ctx.Check(ia.right, GetObject(path.Subject), subject)
-		if err != nil {
-			return nil, err
+		// If the left side returned a wildcard, use IterResources inversion on the right
+		// to check if the subject appears in any resource of the matching type.
+		var checkPath *Path
+		if path.Subject.ObjectID == tuple.PublicWildcard {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(ia, "left returned wildcard %s:*, using IterResources inversion", path.Subject.ObjectType)
+			}
+			rightSeq, err := ctx.IterResources(ia.right, subject, ObjectType{Type: path.Subject.ObjectType})
+			if err != nil {
+				return nil, err
+			}
+			for rp, err := range rightSeq {
+				if err != nil {
+					return nil, err
+				}
+				checkPath = rp
+				break // any match suffices
+			}
+		} else {
+			checkPath, err = ctx.Check(ia.right, GetObject(path.Subject), subject)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		if checkPath == nil {
@@ -160,6 +180,15 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 	unsatisfied := false
 
 	for _, leftPath := range leftPaths {
+		// If the left side returned a wildcard, we can't use it as a resource for the
+		// right side. Skip it — same reasoning as ArrowIterator.
+		if leftPath.Subject.ObjectID == tuple.PublicWildcard {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(ia, "left returned wildcard %s:*, skipping (cannot follow arrow through wildcard)", leftPath.Subject.ObjectType)
+			}
+			continue
+		}
+
 		leftSubjectAsResource := GetObject(leftPath.Subject)
 		if ctx.shouldTrace() {
 			ctx.TraceStep(ia, "checking right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)

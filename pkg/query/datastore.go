@@ -3,7 +3,6 @@ package query
 import (
 	"fmt"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -149,8 +148,8 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 			return nil, err
 		}
 
-		// Filter out wildcard subjects and eagerly collect
-		paths, err := CollectAll(FilterWildcardSubjects(pathSeq))
+		// Eagerly collect (wildcards propagate through the tree and are stripped at the top level)
+		paths, err := CollectAll(pathSeq)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +174,7 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 				return
 			}
 
-			paths, err := CollectAll(FilterWildcardSubjects(pathSeq))
+			paths, err := CollectAll(pathSeq)
 			if err != nil {
 				yield(nil, err)
 				return
@@ -206,21 +205,13 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 
 func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
 	// When a relation contains a wildcard (e.g., user:*[caveat]), it means "all subjects of that
-	// type are (conditionally) in this set". We enumerate concrete subjects by:
-	// 1. Fetching the wildcard relationship(s) for this resource to get the wildcard caveat.
-	// 2. Enumerating all known concrete subjects of the appropriate type.
-	// 3. Synthesizing a path for each subject that carries the wildcard's caveat.
+	// type are (conditionally) in this set". Rather than enumerating every concrete subject of
+	// that type across the entire store, we return the wildcard subject itself (user:*) as the
+	// found path. This matches the traditional LookupSubjects behavior and avoids a degenerate
+	// store-wide query with no resource filters.
 	//
-	// IMPORTANT: the enumerated subjects must carry the wildcard's caveat, not the caveats
-	// from their own individual relationship rows. For example, for
-	//   document:firstdoc#banned@user:*[some_caveat]
-	// every user is conditionally banned; a user visible via another relation (e.g. viewer)
-	// must still appear as caveated-banned, not as unconditionally-banned.
-
-	subjectType := ObjectType{
-		Type:        r.base.Type(),
-		Subrelation: r.base.Subrelation(),
-	}
+	// The IntersectionIterator and ExclusionIterator have wildcard-aware set operations that
+	// handle the expansion of wildcards when combined with concrete subjects from other branches.
 
 	wildcardSubject := ObjectAndRelation{
 		ObjectType: r.base.Type(),
@@ -229,138 +220,13 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	wildcardPathSeq, err := ctx.Reader.CheckRelationships(ctx,
+	return ctx.Reader.CheckRelationships(ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
 		wildcardSubject,
 		r.base.Caveat() != "", r.base.Expiration(),
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Collect the wildcard path(s) to obtain the caveat expression from the wildcard row.
-	// In practice there is at most one wildcard row per resource × relation.
-	var wildcardCaveat *core.CaveatExpression
-	hasWildcard := false
-	for wildcardPath, err := range wildcardPathSeq {
-		if err != nil {
-			return nil, err
-		}
-		hasWildcard = true
-		wildcardCaveat = wildcardPath.Caveat // may be nil for uncaveated wildcard
-		break
-	}
-
-	if !hasWildcard {
-		return EmptyPathSeq(), nil
-	}
-
-	// wildcardCaveat is the caveat expression that came from the wildcard row itself
-	// (e.g. some_caveat for user:*[some_caveat], or nil for an uncaveated user:*).
-	// All synthesized subject paths inherit this caveat.
-
-	// Enumerate all concrete subjects of the appropriate type across the whole store.
-	// We use an empty resource / empty relation so that the datastore returns every
-	// distinct (subjectType, subjectID) pair it knows about.
-	allSubjectsResource := Object{}
-	const noResourceRelation = ""
-
-	// synthesizeWildcardPaths takes a raw PathSeq from the datastore and replaces each
-	// path's caveat with the wildcard caveat so that callers see the correct conditionality.
-	synthesizeWildcardPaths := func(raw []*Path, wildcardCav *core.CaveatExpression) []*Path {
-		seen := make(map[string]struct{}, len(raw))
-		result := make([]*Path, 0, len(raw))
-		for _, p := range raw {
-			key := ObjectAndRelationKey(p.Subject)
-			if _, dup := seen[key]; dup {
-				continue
-			}
-			seen[key] = struct{}{}
-			// Synthesize a path: resource stays as-is from wildcard expansion, subject
-			// keeps its identity, but the caveat is the wildcard's caveat.
-			synthesized := &Path{
-				Resource: resource,
-				Relation: r.base.RelationName(),
-				Subject: ObjectAndRelation{
-					ObjectType: p.Subject.ObjectType,
-					ObjectID:   p.Subject.ObjectID,
-					Relation:   p.Subject.Relation,
-				},
-				Caveat: wildcardCav,
-			}
-			result = append(result, synthesized)
-		}
-		return result
-	}
-
-	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QuerySubjects(ctx,
-			allSubjectsResource,
-			noResourceRelation,
-			subjectType,
-			false, r.base.Expiration(),
-			QueryPage{},
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		raw, err := CollectAll(FilterWildcardSubjects(pathSeq))
-		if err != nil {
-			return nil, err
-		}
-		paths := synthesizeWildcardPaths(raw, wildcardCaveat)
-		return PathSeqFromSlice(paths), nil
-	}
-
-	// Pagination is configured
-	return func(yield func(*Path, error) bool) {
-		iteratorID := fmt.Sprintf("%016x:iter_subjects_wildcard", r.CanonicalKey().Hash())
-		cursor := ctx.GetPaginationCursor(iteratorID)
-
-		for {
-			pathSeq, err := ctx.Reader.QuerySubjects(ctx,
-				allSubjectsResource,
-				noResourceRelation,
-				subjectType,
-				false, r.base.Expiration(),
-				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
-			)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			raw, err := CollectAll(FilterWildcardSubjects(pathSeq))
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			if len(raw) == 0 {
-				return
-			}
-
-			lastRaw := raw[len(raw)-1]
-			if rel, err := lastRaw.ToRelationship(); err == nil {
-				cursor = &rel
-				ctx.SetPaginationCursor(iteratorID, cursor)
-			}
-
-			paths := synthesizeWildcardPaths(raw, wildcardCaveat)
-			for _, path := range paths {
-				if !yield(path, nil) {
-					return
-				}
-			}
-
-			if uint64(len(raw)) < *ctx.PaginationLimit {
-				return
-			}
-		}
-	}, nil
 }
 
 func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {

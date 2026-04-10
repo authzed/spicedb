@@ -300,7 +300,9 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	}
 
 	if isTopLevel {
-		pathSeq = DeduplicatePathSeq(pathSeq)
+		// Wildcards propagate through the iterator tree for correct intersection/exclusion
+		// semantics, but must be stripped before returning to the caller (service layer).
+		pathSeq = FilterWildcardSubjects(DeduplicatePathSeq(pathSeq))
 	}
 
 	pathSeq = ctx.wrapPathSeqForTracing(tracedIterator, pathSeq)
