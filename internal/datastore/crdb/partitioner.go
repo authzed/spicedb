@@ -14,7 +14,11 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const queryShowRanges = "SELECT start_key FROM [SHOW RANGES FROM TABLE %s] ORDER BY start_key"
+// queryShowRanges queries ranges from the primary index only. Using
+// SHOW RANGES FROM TABLE would include secondary index ranges whose start keys
+// have columns in a different order than the PK, producing partition bounds
+// that overlap when compared in PK tuple order.
+const queryShowRanges = "SELECT start_key FROM [SHOW RANGES FROM INDEX %s@primary] ORDER BY start_key"
 
 // Compile-time assertion that crdbDatastore implements BulkExportPartitioner.
 var _ datastore.BulkExportPartitioner = (*crdbDatastore)(nil)
