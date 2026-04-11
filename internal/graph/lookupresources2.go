@@ -682,6 +682,27 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				return nil
 			}
 
+			// Build cycle-tracking debug trace if requested.
+			var debugTrace *v1.LookupDebugTrace
+			if parentRequest.EnableDebugTrace {
+				for _, subjectID := range filteredSubjectIDs {
+					_, count := trackVisit(
+						parentStream.Context(),
+						newSubjectType.Namespace,
+						subjectID,
+						newSubjectType.Relation,
+					)
+					debugTrace = buildLookupDebugTrace(
+						newSubjectType.Namespace,
+						subjectID,
+						newSubjectType.Relation,
+						count,
+						nil,
+					)
+				}
+			}
+			_ = debugTrace // attached to dispatched responses below
+
 			// If the entrypoint is a direct result then we can simply dispatch directly and map
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
@@ -695,9 +716,10 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 					},
-					OptionalCursor: ci.currentCursor,
-					OptionalLimit:  parentRequest.OptionalLimit,
-					Context:        parentRequest.Context,
+					OptionalCursor:    ci.currentCursor,
+					OptionalLimit:     parentRequest.OptionalLimit,
+					Context:           parentRequest.Context,
+					EnableDebugTrace:  parentRequest.EnableDebugTrace,
 				}, stream)
 			}
 
