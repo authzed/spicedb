@@ -37,7 +37,7 @@ func TestNewLspRange(t *testing.T) {
 		TargetNamePositionOffset: len("relation "),
 	}
 
-	r := newLspRange(ref)
+	r := newLspRange(ref, schemaOffset{})
 	// Start character = ColumnPosition (1) + offset (9) = 10
 	require.Equal(t, lsp.Position{Line: 3, Character: 10}, r.Start)
 	// End character = Start (10) + len("viewer") (6) = 16
@@ -733,6 +733,368 @@ definition user {}`)
 	require.Contains(t, err.Message, "found name reused between multiple definitions and/or caveats: user")
 }
 
+func TestYAMLDiagnosticsInlineSchemaError(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	// The schema has an error on the 3rd line: "relation viewer: nonexistent".
+	// Schema line 3 + YAML node offset 1 = adjusted line 4 (1-indexed) → LSP line 3 (0-indexed).
+	tester.setFileContents("file:///testdir/test.yaml", `schema: |
+  definition user {}
+  definition resource {
+    relation viewer: nonexistent
+  }
+relationships: ""
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "object definition `nonexistent` not found")
+	// Schema line 3 + YAML offset 1 = line 4 (1-indexed) → LSP line 3 (0-indexed)
+	// Schema column 19 (0-indexed, after "  relation viewer: ") + YAML indent 2 = 21
+	require.Equal(t, 3, resp.Items[0].Range.Start.Line)
+	require.Equal(t, 21, resp.Items[0].Range.Start.Character)
+}
+
+func TestYAMLDiagnosticsSchemaFileRelationshipError(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/schema.zed", `definition user {}
+definition document {
+  relation viewer: user
+}
+`)
+	tester.setFileContents("file:///testdir/test.yaml", `schemaFile: schema.zed
+relationships: |
+  document:doc1#nonexistent@user:alice
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "nonexistent")
+	// Relationship is on YAML line 3 (1-indexed) → LSP line 2 (0-indexed)
+	// "nonexistent" is the relation name: document:doc1#nonexistent@user:alice
+	// 2-space indent + len("document:doc1#") = 2 + 14 = 16 (start)
+	// 16 + len("nonexistent") = 27 (end)
+	require.Equal(t, 2, resp.Items[0].Range.Start.Line)
+	require.Equal(t, 16, resp.Items[0].Range.Start.Character)
+	require.Equal(t, 27, resp.Items[0].Range.End.Character)
+}
+
+func TestYAMLDiagnosticsUnknownObjectType(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/test.yaml", `---
+schema: |-
+  definition platform {
+      relation administrator: user
+      permission super_admin = administrator
+  }
+
+  definition organization {
+    // The platform is generally a singleton pointing to the same
+    // platform object, on which the superuser is in turn granted
+    // access.
+      relation platform: platform
+      permission admin = platform->super_admin
+  }
+
+  definition resource {
+      relation owner: user | organization
+      permission admin = owner + owner->admin
+  }
+
+  definition user {}
+relationships: |-
+  platform:evilempire#administrator@user:drevil
+  organization:virtucon#platform@unknown:evilempire
+  resource:lasers#owner@organization:virtucon
+assertions:
+  assertTrue:
+    - "resource:lasers#admin@user:drevil"
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "unknown")
+	// Error is on YAML line 24 (1-indexed) → LSP line 23 (0-indexed)
+	require.Equal(t, 23, resp.Items[0].Range.Start.Line)
+	// "unknown" is the subject type: organization:virtucon#platform@unknown:evilempire
+	// 2-space indent + len("organization:virtucon#platform@") = 2 + 31 = 33 (start)
+	// 33 + len("unknown") = 40 (end)
+	require.Equal(t, 33, resp.Items[0].Range.Start.Character)
+	require.Equal(t, 40, resp.Items[0].Range.End.Character)
+}
+
+func TestYAMLDiagnosticsUnknownResourceType(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/test.yaml", `---
+schema: |-
+  definition platform {
+      relation administrator: user
+      permission super_admin = administrator
+  }
+
+  definition organization {
+      relation platform: platform
+      permission admin = platform->super_admin
+  }
+
+  definition resource {
+      relation owner: user | organization
+      permission admin = owner + owner->admin
+  }
+
+  definition user {}
+relationships: |-
+  platform:evilempire#administrator@user:drevil
+  aaaaa:virtucon#platform@platform:evilempire
+  resource:lasers#owner@organization:virtucon
+assertions:
+  assertTrue:
+    - "resource:lasers#admin@user:drevil"
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "aaaaa")
+	// Error is on YAML line 21 (1-indexed) → LSP line 20 (0-indexed)
+	require.Equal(t, 20, resp.Items[0].Range.Start.Line)
+	// "aaaaa" is the resource type: aaaaa:virtucon#platform@platform:evilempire
+	// 2-space indent + 0 = 2 (start), 2 + len("aaaaa") = 7 (end)
+	require.Equal(t, 2, resp.Items[0].Range.Start.Character)
+	require.Equal(t, 7, resp.Items[0].Range.End.Character)
+}
+
+func TestYAMLDiagnosticsInvalidSubjectType(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/test.yaml", `schema: |
+  definition user {}
+  definition organization {}
+  definition document {
+    relation viewer: user
+  }
+relationships: |
+  document:doc1#viewer@organization:foo
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "organization")
+	// Relationship is on YAML line 8 (1-indexed) → LSP line 7 (0-indexed)
+	require.Equal(t, 7, resp.Items[0].Range.Start.Line)
+	// "organization" is the subject type: document:doc1#viewer@organization:foo
+	// 2-space indent + len("document:doc1#viewer@") = 2 + 21 = 23 (start)
+	// 23 + len("organization") = 35 (end)
+	require.Equal(t, 23, resp.Items[0].Range.Start.Character)
+	require.Equal(t, 35, resp.Items[0].Range.End.Character)
+}
+
+func TestYAMLDiagnosticsUndefinedType(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/test.yaml", `---
+schema: |-
+  definition doc {
+    relation vieww: user
+  }
+relationships: |-
+  doc:1#vieww@user:maria
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.NotEmpty(t, resp.Items)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	t.Log(resp.Items[0].Message)
+	require.Contains(t, resp.Items[0].Message, "could not lookup definition `user` for relation `vieww`: object definition `user` not found")
+}
+
+func TestYAMLDiagnosticsSchemaFileNotFound(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/test.yaml", `---
+schemaFile: "witherror.zed"
+`)
+
+	lerr, serverState := sendAndExpectError(tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, serverStateInitialized, serverState)
+	require.Contains(t, lerr.Message, "open witherror.zed: no such file or directory")
+}
+
+func TestYAMLDiagnosticsAssertionFailure(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/test.yaml", `schema: |
+  definition user {}
+  definition document {
+    relation viewer: user
+    permission view = viewer
+  }
+relationships: |
+  document:doc1#viewer@user:alice
+assertions:
+  assertTrue:
+    - "document:doc1#view@user:bob"
+`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "Expected relation or permission document:doc1#view@user:bob to exist")
+	// Assertion is on YAML line 11 (1-indexed) → LSP line 10 (0-indexed)
+	require.Equal(t, 10, resp.Items[0].Range.Start.Line)
+	// Highlights the full line content: `    - "document:doc1#view@user:bob"`
+	// Start at character 4 (first non-whitespace), end at 35 (end of content)
+	require.Equal(t, 4, resp.Items[0].Range.Start.Character)
+	require.Equal(t, len(`    - "document:doc1#view@user:bob"`), resp.Items[0].Range.End.Character)
+}
+
+func TestYAMLHoverInlineSchema(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	sendAndReceive[any](tester, "textDocument/didOpen", lsp.DidOpenTextDocumentParams{
+		TextDocument: lsp.TextDocumentItem{
+			URI:        lsp.DocumentURI("file:///testdir/test.yaml"),
+			LanguageID: "yaml",
+			Version:    1,
+			Text: `schema: |
+  definition user {}
+  definition resource {
+    relation viewer: user
+  }
+relationships: ""
+`,
+		},
+	})
+
+	// Hover over "user" in "relation viewer: user" (YAML line 3, character 21)
+	resp, _ := sendAndReceive[Hover](tester, "textDocument/hover", lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: lsp.DocumentURI("file:///testdir/test.yaml"),
+		},
+		Position: lsp.Position{Line: 3, Character: 21},
+	})
+
+	require.Equal(t, "definition user {}", resp.Contents.Value)
+	require.Equal(t, "spicedb", resp.Contents.Language)
+}
+
+func TestYAMLHoverOutsideSchemaBlock(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	sendAndReceive[any](tester, "textDocument/didOpen", lsp.DidOpenTextDocumentParams{
+		TextDocument: lsp.TextDocumentItem{
+			URI:        lsp.DocumentURI("file:///testdir/test.yaml"),
+			LanguageID: "yaml",
+			Version:    1,
+			Text: `---
+schema: |-
+  definition user {}
+  definition doc {
+    relation view: user
+    }
+
+assertions:
+  assertTrue:
+    - "doc:1#admin@user:maria"
+
+relationships: |-
+  doc:1#view@user:maria
+`,
+		},
+	})
+
+	// Hover over the assertion line (line 9) — outside the schema block.
+	// Should return nil, not an error.
+	resp, _ := sendAndReceive[*Hover](tester, "textDocument/hover", lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: lsp.DocumentURI("file:///testdir/test.yaml"),
+		},
+		Position: lsp.Position{Line: 9, Character: 10},
+	})
+	require.Nil(t, resp)
+}
+
+func TestYAMLDiagnosticsSchemaFileSyntaxError(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/schema.zed", `definition user {}
+definition resource {
+  this is invalid syntax
+}
+`)
+	tester.setFileContents("file:///testdir/test.yaml", `schemaFile: schema.zed
+relationships: ""
+`)
+
+	// Schema errors from an external schemaFile should NOT appear on the YAML file.
+	yamlResp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", yamlResp.Kind)
+	require.Empty(t, yamlResp.Items)
+
+	// The error should appear on the .zed file instead.
+	zedResp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/schema.zed"},
+		})
+	require.Equal(t, "full", zedResp.Kind)
+	require.Len(t, zedResp.Items, 1)
+	require.Equal(t, lsp.Error, zedResp.Items[0].Severity)
+	// Syntax error on line 3 of schema.zed (1-indexed) → LSP line 2 (0-indexed)
+	require.Equal(t, 2, zedResp.Items[0].Range.Start.Line)
+}
+
 func TestGetCompiledContentsFileNotFound(t *testing.T) {
 	tester := newLSPTester(t)
 	tester.initialize()
@@ -746,4 +1108,46 @@ func TestGetCompiledContentsFileNotFound(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, int64(jsonrpc2.CodeInternalError), err.Code)
+}
+
+func TestYAMLDiagnosticsSchemaFileErrorNotShownOnYAML(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///testdir/witherror.zed", `definition document {
+  relation viewer: user
+}
+`)
+	tester.setFileContents("file:///testdir/test.yaml", `schemaFile: "witherror.zed"
+`)
+
+	// Schema errors from an external schemaFile should NOT appear as
+	// diagnostics on the YAML file — they belong to the .zed file.
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/test.yaml"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Empty(t, resp.Items)
+}
+
+func TestDidChangeWatchedFilesPushDiagnostics(t *testing.T) {
+	tester := newLSPTester(t)
+
+	// Initialize WITHOUT pull diagnostics so the push path is exercised.
+	sendAndReceive[lsp.InitializeResult](tester, "initialize", InitializeParams{
+		Capabilities: ClientCapabilities{},
+	})
+	require.False(t, tester.server.requestsDiagnostics)
+
+	tester.setFileContents("file:///test.zed", "definition user{}")
+
+	// sendAndReceive skips server notifications, so the publishDiagnostics
+	// notification sent by the push path is consumed transparently.
+	resp, serverState := sendAndReceive[any](tester, "workspace/didChangeWatchedFiles", lsp.DidChangeWatchedFilesParams{
+		Changes: []lsp.FileEvent{{URI: "file:///test.zed", Type: 2}},
+	})
+
+	require.Nil(t, resp)
+	require.Equal(t, serverStateInitialized, serverState)
 }
