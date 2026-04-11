@@ -58,6 +58,17 @@ func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Conte
 	})
 }
 
+// lookupDebugTraceEnabled returns true when the caller has requested debug
+// tracing via the same gRPC metadata header used by CheckPermission.
+// This is zero-cost when the header is absent.
+func lookupDebugTraceEnabled(ctx context.Context) bool {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		_, present := md[string(requestmeta.RequestDebugInformation)]
+		return present
+	}
+	return false
+}
+
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
@@ -625,9 +636,10 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			Context:        req.Context,
-			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			Context:          req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    req.OptionalLimit,
+			EnableDebugTrace: lookupDebugTraceEnabled(ctx),
 		},
 		stream)
 	if err != nil {
@@ -772,9 +784,10 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			Context:        req.Context,
-			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			Context:          req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    req.OptionalLimit,
+			EnableDebugTrace: lookupDebugTraceEnabled(ctx),
 		},
 		stream)
 	if err != nil {
@@ -924,6 +937,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				Namespace: req.SubjectObjectType,
 				Relation:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 			},
+			EnableDebugTrace: lookupDebugTraceEnabled(ctx),
 		},
 		stream)
 	if err != nil {
