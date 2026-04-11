@@ -110,6 +110,10 @@ message DispatchLookupResources2Request {
 
   Cursor optional_cursor = 7;
   uint32 optional_limit = 8;
+
+  // enable_debug_trace, when true, causes a LookupDebugTrace to be populated
+  // on the response. Has zero runtime cost when false.
+  bool enable_debug_trace = 9;
 }
 
 message PossibleResource {
@@ -122,6 +126,9 @@ message DispatchLookupResources2Response {
   PossibleResource resource = 1;
   ResponseMeta metadata = 2;
   Cursor after_response_cursor = 3;
+
+  // debug_trace is populated when enable_debug_trace was set on the request.
+  LookupDebugTrace debug_trace = 4;
 }
 
 message DispatchLookupResources3Request {
@@ -136,10 +143,17 @@ message DispatchLookupResources3Request {
 
   repeated string optional_cursor = 7;
   uint32 optional_limit = 8;
+
+  // enable_debug_trace, when true, causes a LookupDebugTrace to be populated
+  // on the response. Has zero runtime cost when false.
+  bool enable_debug_trace = 9;
 }
 
 message DispatchLookupResources3Response {
   repeated LR3Item items = 1;
+
+  // debug_trace is populated when enable_debug_trace was set on the request.
+  LookupDebugTrace debug_trace = 2;
 }
 
 message LR3Item {
@@ -156,6 +170,10 @@ message DispatchLookupSubjectsRequest {
   repeated string resource_ids = 3;
 
   core.v1.RelationReference subject_relation = 4 [(buf.validate.field).required = true];
+
+  // enable_debug_trace, when true, causes a LookupDebugTrace to be populated
+  // on the response. Has zero runtime cost when false.
+  bool enable_debug_trace = 5;
 }
 
 message FoundSubject {
@@ -171,6 +189,9 @@ message FoundSubjects {
 message DispatchLookupSubjectsResponse {
   map<string, FoundSubjects> found_subjects_by_resource_id = 1;
   ResponseMeta metadata = 2;
+
+  // debug_trace is populated when enable_debug_trace was set on the request.
+  LookupDebugTrace debug_trace = 3;
 }
 
 message ResolverMeta {
@@ -209,4 +230,28 @@ message CheckDebugTrace {
   google.protobuf.Duration duration = 6;
   string trace_id = 7;
   string source_id = 8;
+}
+
+// LookupDebugTrace records the traversal of a single node during a
+// LookupResources or LookupSubjects operation. It mirrors CheckDebugTrace
+// but is specialised for the Lookup graph walk.
+message LookupDebugTrace {
+  // The resource type being traversed.
+  string resource_type = 1;
+
+  // The resource ID being traversed.
+  string resource_id = 2;
+
+  // The relation or permission being traversed.
+  string relation = 3;
+
+  // How many times this exact node (type + id + relation) was visited during
+  // the full traversal of a single top-level Lookup request.
+  uint32 traversal_count = 4;
+
+  // True when traversal_count > 1, indicating a cycle in the relationship graph.
+  bool is_cyclic = 5;
+
+  // Sub-problems dispatched from this node.
+  repeated LookupDebugTrace sub_problems = 6;
 }
