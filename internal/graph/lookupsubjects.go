@@ -210,6 +210,17 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		return err
 	}
 
+	// Cycle detection for computed userset traversal.
+	if parentRequest.EnableDebugTrace {
+		for _, resourceID := range parentRequest.ResourceIds {
+			_, _ = trackVisit(ctx,
+				parentRequest.ResourceRelation.Namespace,
+				resourceID,
+				cu.Relation,
+			)
+		}
+	}
+
 	stream := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
 		Stream: parentStream,
 		Ctx:    ctx,
@@ -226,12 +237,13 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 			Namespace: parentRequest.ResourceRelation.Namespace,
 			Relation:  cu.Relation,
 		},
-		ResourceIds:     parentRequest.ResourceIds,
-		SubjectRelation: parentRequest.SubjectRelation,
+		ResourceIds:      parentRequest.ResourceIds,
+		SubjectRelation:  parentRequest.SubjectRelation,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     parentRequest.Revision.String(),
 			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 		},
+		EnableDebugTrace: parentRequest.EnableDebugTrace,
 	}, stream)
 }
 
@@ -697,6 +709,12 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		// Dispatch the found subjects as the resources of the next step.
 		slicez.ForEachChunk(resourceIds, cl.dispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
+				// Cycle detection: track visits per chunk when tracing is enabled.
+				if parentRequest.EnableDebugTrace {
+					for _, resID := range resourceIdChunk {
+						_, _ = trackVisit(subCtx, resourceType.Namespace, resID, resourceType.Relation)
+					}
+				}
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,
 					ResourceIds:      resourceIdChunk,
@@ -705,6 +723,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 					},
+					EnableDebugTrace: parentRequest.EnableDebugTrace,
 				}, stream)
 			})
 		})

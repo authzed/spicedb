@@ -955,6 +955,18 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
 	// yielding results for each resource found.
 	iter := func(yield func(result, error) bool) {
+		// Cycle detection: track visits when tracing is enabled (zero-cost otherwise).
+		if refs.req.EnableDebugTrace {
+			for _, subjectID := range subjectIDs {
+				_, _ = trackVisit(
+					ctx,
+					foundResourceType.Namespace,
+					subjectID,
+					foundResourceType.Relation,
+				)
+			}
+		}
+
 		stream := newYieldingStream(ctx, yield, rm)
 		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 			ResourceRelation: refs.req.ResourceRelation,
@@ -965,9 +977,10 @@ func (crr *CursoredLookupResources3) dispatchIter(
 				AtRevision:     refs.req.Revision.String(),
 				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
 			},
-			OptionalCursor: currentCursor,
-			OptionalLimit:  refs.req.OptionalLimit,
-			Context:        refs.req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    refs.req.OptionalLimit,
+			Context:          refs.req.Context,
+			EnableDebugTrace: refs.req.EnableDebugTrace,
 		}, stream)
 		if err != nil && !stream.canceled {
 			_ = yield(result{}, err)

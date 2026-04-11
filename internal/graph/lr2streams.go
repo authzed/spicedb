@@ -243,9 +243,10 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 			AtRevision:     rdc.parentRequest.Revision.String(),
 			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
 		},
-		OptionalCursor: updatedCi.currentCursor,
-		OptionalLimit:  rdc.ci.limits.currentLimit,
-		Context:        rdc.parentRequest.Context,
+		OptionalCursor:   updatedCi.currentCursor,
+		OptionalLimit:    rdc.ci.limits.currentLimit,
+		Context:          rdc.parentRequest.Context,
+		EnableDebugTrace: rdc.parentRequest.EnableDebugTrace,
 	}, wrappedStream)
 }
 
