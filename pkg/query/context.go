@@ -219,9 +219,10 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	if ctx.TopLevelOperation == OperationUnset {
+	ctx.topLevelOnce.Do(func() {
+		ctx.topLevelIterator = it
 		ctx.TopLevelOperation = OperationCheck
-	}
+	})
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
