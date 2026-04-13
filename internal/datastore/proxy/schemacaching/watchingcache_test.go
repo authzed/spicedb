@@ -18,6 +18,20 @@ import (
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
+func TestWatchingCachingProxyUnwrap(t *testing.T) {
+	fakeDS := &fakeDatastore{
+		headRevision: rev("0"),
+		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:   make(chan datastore.RevisionChanges, 1),
+		errChan:      make(chan error, 1),
+	}
+
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
+	unwrapped := wcache.Unwrap()
+	require.Equal(t, fakeDS, unwrapped)
+}
+
 func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)

@@ -34,11 +34,13 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.Limit = q.Limit
 		to.Sort = q.Sort
 		to.After = q.After
+		to.BeforeOrEqual = q.BeforeOrEqual
 		to.SkipCaveats = q.SkipCaveats
 		to.SkipExpiration = q.SkipExpiration
 		to.SQLCheckAssertionForTest = q.SQLCheckAssertionForTest
 		to.SQLExplainCallbackForTest = q.SQLExplainCallbackForTest
 		to.QueryShape = q.QueryShape
+		to.UseTupleComparison = q.UseTupleComparison
 	}
 }
 
@@ -68,6 +70,13 @@ func (q *QueryOptions) DebugMap() map[string]any {
 	} else {
 		debugMap["After"] = q.After
 	}
+	if dm, ok := any(&q.BeforeOrEqual).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["BeforeOrEqual"] = dm.DebugMap()
+	} else {
+		debugMap["BeforeOrEqual"] = q.BeforeOrEqual
+	}
 	debugMap["SkipCaveats"] = q.SkipCaveats
 	debugMap["SkipExpiration"] = q.SkipExpiration
 	if dm, ok := any(&q.SQLCheckAssertionForTest).(interface {
@@ -91,6 +100,7 @@ func (q *QueryOptions) DebugMap() map[string]any {
 	} else {
 		debugMap["QueryShape"] = q.QueryShape
 	}
+	debugMap["UseTupleComparison"] = q.UseTupleComparison
 	return debugMap
 }
 
@@ -152,6 +162,13 @@ func WithAfter(after Cursor) QueryOptionsOption {
 	}
 }
 
+// WithBeforeOrEqual returns an option that can set BeforeOrEqual on a QueryOptions
+func WithBeforeOrEqual(beforeOrEqual Cursor) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.BeforeOrEqual = beforeOrEqual
+	}
+}
+
 // WithSkipCaveats returns an option that can set SkipCaveats on a QueryOptions
 func WithSkipCaveats(skipCaveats bool) QueryOptionsOption {
 	return func(q *QueryOptions) {
@@ -184,6 +201,13 @@ func WithSQLExplainCallbackForTest(sQLExplainCallbackForTest SQLExplainCallbackF
 func WithQueryShape(queryShape queryshape.Shape) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.QueryShape = queryShape
+	}
+}
+
+// WithUseTupleComparison returns an option that can set UseTupleComparison on a QueryOptions
+func WithUseTupleComparison(useTupleComparison bool) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.UseTupleComparison = useTupleComparison
 	}
 }
 

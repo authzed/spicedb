@@ -50,6 +50,14 @@ func TestRWOperationErrors(t *testing.T) {
 	require.Equal(datastore.NoRevision, rev)
 }
 
+func TestReadonlyUnwrap(t *testing.T) {
+	delegate, _ := newReadOnlyMock()
+	ds := NewReadonlyDatastore(delegate)
+
+	unwrapped := ds.(datastore.UnwrappableDatastore).Unwrap()
+	require.Equal(t, delegate, unwrapped)
+}
+
 var expectedRevision = revisions.NewForTransactionID(123)
 
 func TestReadyStatePassthrough(t *testing.T) {
