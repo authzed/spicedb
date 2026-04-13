@@ -351,6 +351,87 @@ func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, r
 
 	reader := dl.SnapshotReader(atRevision)
 
+	limit := batchSize
+	if req.OptionalLimit > 0 {
+		limit = uint64(req.OptionalLimit)
+	}
+
+	// Pre-allocate all of the relationships that we might need in order to
+	// make export easier and faster for the garbage collector.
+	relsArray := make([]v1.Relationship, limit)
+	objArray := make([]v1.ObjectReference, limit)
+	subArray := make([]v1.SubjectReference, limit)
+	subObjArray := make([]v1.ObjectReference, limit)
+	caveatArray := make([]v1.ContextualizedCaveat, limit)
+	for i := range relsArray {
+		relsArray[i].Resource = &objArray[i]
+		relsArray[i].Subject = &subArray[i]
+		relsArray[i].Subject.Object = &subObjArray[i]
+	}
+
+	rels := make([]*v1.Relationship, limit)
+
+	relFn := func(rel tuple.Relationship) {
+		offset := len(rels)
+		rels = append(rels, &relsArray[offset]) // nozero
+
+		v1Rel := &relsArray[offset]
+		v1Rel.Resource.ObjectType = rel.Resource.ObjectType
+		v1Rel.Resource.ObjectId = rel.Resource.ObjectID
+		v1Rel.Relation = rel.Resource.Relation
+		v1Rel.Subject.Object.ObjectType = rel.Subject.ObjectType
+		v1Rel.Subject.Object.ObjectId = rel.Subject.ObjectID
+		v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.Subject.Relation)
+
+		if rel.OptionalCaveat != nil {
+			caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
+			caveatArray[offset].Context = rel.OptionalCaveat.Context
+			v1Rel.OptionalCaveat = &caveatArray[offset]
+		} else {
+			v1Rel.OptionalCaveat = nil
+		}
+
+		if rel.OptionalExpiration != nil {
+			v1Rel.OptionalExpiresAt = timestamppb.New(*rel.OptionalExpiration)
+		} else {
+			v1Rel.OptionalExpiresAt = nil
+		}
+	}
+
+	sendBatch := func(namespaceName string) error {
+		encoded, err := cursor.Encode(&implv1.DecodedCursor{
+			VersionOneof: &implv1.DecodedCursor_V1{
+				V1: &implv1.V1Cursor{
+					Revision: atRevision.String(),
+					Sections: []string{
+						namespaceName,
+						tuple.MustString(*dsoptions.ToRelationship(cur)),
+					},
+				},
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		return sender(&v1.BulkExportRelationshipsResponse{
+			AfterResultCursor: encoded,
+			Relationships:     rels,
+		})
+	}
+
+	// Fast path: when no filter is set, skip schema enumeration and issue a
+	// single unbounded query across all namespaces. Rows stream lazily from
+	// the DB driver; we chunk them into gRPC response batches inline.
+	hasFilter := req.OptionalRelationshipFilter != nil
+	if !hasFilter {
+		return streamRelationships(ctx, reader, datastore.RelationshipsFilter{}, cur, limit, relFn, func(last tuple.Relationship) error {
+			cur = dsoptions.ToCursor(last)
+			return sendBatch(rels[len(rels)-1].Resource.ObjectType)
+		}, func() { rels = rels[:0] })
+	}
+
+	// Filtered path: enumerate namespaces and query per-namespace.
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
@@ -374,86 +455,36 @@ func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, r
 		namespaces = namespaces[1:]
 	}
 
-	limit := batchSize
-	if req.OptionalLimit > 0 {
-		limit = uint64(req.OptionalLimit)
+	// Parse the filter once outside the loop.
+	var baseFilter datastore.RelationshipsFilter
+	if req.OptionalRelationshipFilter != nil {
+		baseFilter, err = datastore.RelationshipsFilterFromPublicFilter(req.OptionalRelationshipFilter)
+		if err != nil {
+			return shared.RewriteErrorWithoutConfig(ctx, err)
+		}
 	}
 
-	// Pre-allocate all of the relationships that we might need in order to
-	// make export easier and faster for the garbage collector.
-	relsArray := make([]v1.Relationship, limit)
-	objArray := make([]v1.ObjectReference, limit)
-	subArray := make([]v1.SubjectReference, limit)
-	subObjArray := make([]v1.ObjectReference, limit)
-	caveatArray := make([]v1.ContextualizedCaveat, limit)
-	for i := range relsArray {
-		relsArray[i].Resource = &objArray[i]
-		relsArray[i].Subject = &subArray[i]
-		relsArray[i].Subject.Object = &subObjArray[i]
-	}
-
-	emptyRels := make([]*v1.Relationship, limit)
 	for _, ns := range namespaces {
-		rels := emptyRels
-
 		// Reset the cursor between namespaces.
 		if ns.Definition.Name != curNamespace {
 			cur = nil
 		}
 
 		// Skip this namespace if a resource type filter was specified.
-		if req.OptionalRelationshipFilter != nil && req.OptionalRelationshipFilter.ResourceType != "" {
-			if ns.Definition.Name != req.OptionalRelationshipFilter.ResourceType {
-				continue
-			}
+		if req.OptionalRelationshipFilter.ResourceType != "" && ns.Definition.Name != req.OptionalRelationshipFilter.ResourceType {
+			continue
 		}
 
 		// Setup the filter to use for the relationships.
-		relationshipFilter := datastore.RelationshipsFilter{OptionalResourceType: ns.Definition.Name}
-		if req.OptionalRelationshipFilter != nil {
-			rf, err := datastore.RelationshipsFilterFromPublicFilter(req.OptionalRelationshipFilter)
-			if err != nil {
-				return shared.RewriteErrorWithoutConfig(ctx, err)
-			}
-
-			// Overload the namespace name with the one from the request, because each iteration is for a different namespace.
-			rf.OptionalResourceType = ns.Definition.Name
-			relationshipFilter = rf
-		}
+		relationshipFilter := baseFilter
+		relationshipFilter.OptionalResourceType = ns.Definition.Name
 
 		// We want to keep iterating as long as we're sending full batches.
 		// To bootstrap this loop, we enter the first time with a full rels
 		// slice of dummy rels that were never sent.
-		for uint64(len(rels)) == limit {
-			// Lop off any rels we've already sent
+		batchLen := limit
+		for batchLen == limit {
 			rels = rels[:0]
-
-			relFn := func(rel tuple.Relationship) {
-				offset := len(rels)
-				rels = append(rels, &relsArray[offset]) // nozero
-
-				v1Rel := &relsArray[offset]
-				v1Rel.Resource.ObjectType = rel.Resource.ObjectType
-				v1Rel.Resource.ObjectId = rel.Resource.ObjectID
-				v1Rel.Relation = rel.Resource.Relation
-				v1Rel.Subject.Object.ObjectType = rel.Subject.ObjectType
-				v1Rel.Subject.Object.ObjectId = rel.Subject.ObjectID
-				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.Subject.Relation)
-
-				if rel.OptionalCaveat != nil {
-					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
-					caveatArray[offset].Context = rel.OptionalCaveat.Context
-					v1Rel.OptionalCaveat = &caveatArray[offset]
-				} else {
-					v1Rel.OptionalCaveat = nil
-				}
-
-				if rel.OptionalExpiration != nil {
-					v1Rel.OptionalExpiresAt = timestamppb.New(*rel.OptionalExpiration)
-				} else {
-					v1Rel.OptionalExpiresAt = nil
-				}
-			}
 
 			cur, err = queryForEach(
 				ctx,
@@ -469,29 +500,12 @@ func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, r
 				return shared.RewriteErrorWithoutConfig(ctx, err)
 			}
 
-			if len(rels) == 0 {
+			batchLen = uint64(len(rels))
+			if batchLen == 0 {
 				continue
 			}
 
-			encoded, err := cursor.Encode(&implv1.DecodedCursor{
-				VersionOneof: &implv1.DecodedCursor_V1{
-					V1: &implv1.V1Cursor{
-						Revision: atRevision.String(),
-						Sections: []string{
-							ns.Definition.Name,
-							tuple.MustString(*dsoptions.ToRelationship(cur)),
-						},
-					},
-				},
-			})
-			if err != nil {
-				return shared.RewriteErrorWithoutConfig(ctx, err)
-			}
-
-			if err := sender(&v1.BulkExportRelationshipsResponse{
-				AfterResultCursor: encoded,
-				Relationships:     rels,
-			}); err != nil {
+			if err := sendBatch(ns.Definition.Name); err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)
 			}
 		}
@@ -848,6 +862,63 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 	}, nil
 }
 
+// streamRelationships issues a single unbounded query and streams rows from the DB,
+// chunking them into batches of batchSize. For each full or final partial batch,
+// it calls onBatch with the last relationship in that batch, then resetBatch to clear the slice.
+func streamRelationships(
+	ctx context.Context,
+	reader datalayer.RevisionedReader,
+	filter datastore.RelationshipsFilter,
+	cur dsoptions.Cursor,
+	batchSize uint64,
+	relFn func(rel tuple.Relationship),
+	onBatch func(last tuple.Relationship) error,
+	resetBatch func(),
+) error {
+	opts := []dsoptions.QueryOptionsOption{
+		dsoptions.WithSort(dsoptions.ByResource),
+		dsoptions.WithQueryShape(queryshape.Varying),
+	}
+	if cur != nil {
+		opts = append(opts, dsoptions.WithAfter(cur))
+	}
+
+	iter, err := reader.QueryRelationships(ctx, filter, opts...)
+	if err != nil {
+		return err
+	}
+
+	resetBatch()
+	var last tuple.Relationship
+	var count uint64
+	for rel, err := range iter {
+		if err != nil {
+			return err
+		}
+
+		relFn(rel)
+		last = rel
+		count++
+
+		if count == batchSize {
+			if err := onBatch(last); err != nil {
+				return err
+			}
+			resetBatch()
+			count = 0
+		}
+	}
+
+	// Send remaining partial batch.
+	if count > 0 {
+		if err := onBatch(last); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func queryForEach(
 	ctx context.Context,
 	reader datalayer.RevisionedReader,
@@ -860,16 +931,21 @@ func queryForEach(
 		return nil, err
 	}
 
-	var cursor dsoptions.Cursor
+	var last tuple.Relationship
+	var hasLast bool
 	for rel, err := range iter {
 		if err != nil {
 			return nil, err
 		}
 
 		fn(rel)
-		cursor = dsoptions.ToCursor(rel)
+		last = rel
+		hasLast = true
 	}
-	return cursor, nil
+	if !hasLast {
+		return nil, nil
+	}
+	return dsoptions.ToCursor(last), nil
 }
 
 func decodeCursor(dl datalayer.DataLayer, encoded *v1.Cursor) (datastore.Revision, string, dsoptions.Cursor, error) {

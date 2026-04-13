@@ -23,6 +23,10 @@ type definitionCachingProxy struct {
 	readGroup singleflight.Group[string, *cacheEntry]
 }
 
+func (p *definitionCachingProxy) Unwrap() datastore.Datastore {
+	return p.Datastore
+}
+
 func (p *definitionCachingProxy) Close() error {
 	p.c.Close()
 	return p.Datastore.Close()
