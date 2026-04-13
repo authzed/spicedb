@@ -13,7 +13,7 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
-	pev1 "github.com/authzed/spicedb/pkg/services/partitionedexport/v1"
+	v1 "github.com/authzed/spicedb/pkg/services/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -65,7 +65,7 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 		}
 
 		// Phase 1: Plan.
-		plan, err := pev1.PlanPartitionedExport(ctx, ds, 4)
+		plan, err := v1.PlanPartitionedExport(ctx, ds, 4)
 		require.NoError(t, err)
 		require.Greater(t, len(plan.Partitions), 1, "expected multiple partitions from forced splits")
 		require.NotNil(t, plan.Revision)
@@ -76,11 +76,11 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 		seen := make(map[string]int) // relationship key → partition index
 		for pi, partition := range plan.Partitions {
 			partitionCount := 0
-			err := pev1.StreamPartitionedExport(ctx, ds, pev1.StreamRequest{
+			err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 				Partition: partition,
 				Revision:  plan.Revision,
 				BatchSize: 1000,
-			}, func(batch pev1.ExportBatch) error {
+			}, func(batch v1.ExportBatch) error {
 				require.NotEmpty(t, batch.Cursor, "batch should have a cursor")
 				for _, rel := range batch.Relationships {
 					key := tuple.MustString(rel)
@@ -126,18 +126,18 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		plan, err := pev1.PlanPartitionedExport(ctx, ds, 1)
+		plan, err := v1.PlanPartitionedExport(ctx, ds, 1)
 		require.NoError(t, err)
 		require.Len(t, plan.Partitions, 1)
 
 		// Stream first batch of 10 rows and capture cursor.
 		var firstCursor string
 		var firstBatchCount int
-		err = pev1.StreamPartitionedExport(ctx, ds, pev1.StreamRequest{
+		err = v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 			Partition: plan.Partitions[0],
 			Revision:  plan.Revision,
 			BatchSize: 10,
-		}, func(batch pev1.ExportBatch) error {
+		}, func(batch v1.ExportBatch) error {
 			if firstCursor == "" {
 				firstCursor = batch.Cursor
 				firstBatchCount = len(batch.Relationships)
@@ -149,12 +149,12 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 
 		// Resume from cursor — should get the remaining 40.
 		var resumedCount int
-		err = pev1.StreamPartitionedExport(ctx, ds, pev1.StreamRequest{
+		err = v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 			Partition: plan.Partitions[0],
 			Revision:  plan.Revision,
 			BatchSize: 1000,
 			Cursor:    firstCursor,
-		}, func(batch pev1.ExportBatch) error {
+		}, func(batch v1.ExportBatch) error {
 			resumedCount += len(batch.Relationships)
 			return nil
 		})
