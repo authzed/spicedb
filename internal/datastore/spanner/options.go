@@ -39,13 +39,10 @@ type spannerOptions struct {
 	followerReadDelay            time.Duration
 	maxRevisionStalenessPercent  float64
 	credentialsFilePath          string
-	credentialsJSON              []byte
 	emulatorHost                 string
 	disableStats                 bool
 	readMaxOpen                  int
 	writeMaxOpen                 int
-	minSessions                  uint64
-	maxSessions                  uint64
 	migrationPhase               string
 	allowedMigrations            []string
 	filterMaximumIDCount         uint16
@@ -96,8 +93,6 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		disableStats:                defaultDisableStats,
 		readMaxOpen:                 int(defaultNumberConnections),
 		writeMaxOpen:                int(defaultNumberConnections),
-		minSessions:                 100,
-		maxSessions:                 400,
 		migrationPhase:              "", // no migration
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		columnOptimizationOption:    defaultColumnOptimizationOption,
@@ -189,14 +184,6 @@ func CredentialsFile(path string) Option {
 	}
 }
 
-// CredentialsJSON is the json containing credentials for a service
-// account that can access the cloud spanner instance
-func CredentialsJSON(json []byte) Option {
-	return func(so *spannerOptions) {
-		so.credentialsJSON = json
-	}
-}
-
 // EmulatorHost is the URI of a Spanner emulator to connect to for
 // development and testing use
 func EmulatorHost(uri string) Option {
@@ -231,22 +218,6 @@ func ReadConnsMaxOpen(conns int) Option {
 // This value defaults to having 10 connections.
 func WriteConnsMaxOpen(conns int) Option {
 	return func(po *spannerOptions) { po.writeMaxOpen = conns }
-}
-
-// MinSessionCount minimum number of session the Spanner client can have
-// at a given time.
-//
-// Defaults to 100.
-func MinSessionCount(minSessions uint64) Option {
-	return func(po *spannerOptions) { po.minSessions = minSessions }
-}
-
-// MaxSessionCount maximum number of session the Spanner client can have
-// at a given time.
-//
-// Defaults to 400 sessions.
-func MaxSessionCount(maxSessions uint64) Option {
-	return func(po *spannerOptions) { po.maxSessions = maxSessions }
 }
 
 // MigrationPhase configures the spanner driver to the proper state of a
