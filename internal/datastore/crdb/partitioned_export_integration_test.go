@@ -11,10 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	partitionedexportv1 "github.com/authzed/spicedb/internal/services/partitionedexport/v1"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
-	pev1 "github.com/authzed/spicedb/pkg/proto/partitionedexport/v1"
+	pev1 "github.com/authzed/spicedb/pkg/services/partitionedexport/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -65,42 +64,35 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Phase 1: Plan via the service API.
-		srv := partitionedexportv1.NewPartitionedExportServer(ds)
-		planResp, err := srv.PlanPartitionedExport(ctx, &pev1.PlanPartitionedExportRequest{
-			DesiredPartitions: 4,
-		})
+		// Phase 1: Plan.
+		plan, err := pev1.PlanPartitionedExport(ctx, ds, 4)
 		require.NoError(t, err)
-		require.Greater(t, len(planResp.Partitions), 1, "expected multiple partitions from forced splits")
-		require.NotEmpty(t, planResp.Revision)
+		require.Greater(t, len(plan.Partitions), 1, "expected multiple partitions from forced splits")
+		require.NotNil(t, plan.Revision)
 
-		t.Logf("Plan returned %d partitions at revision %s", len(planResp.Partitions), planResp.Revision)
+		t.Logf("Plan returned %d partitions at revision %s", len(plan.Partitions), plan.Revision)
 
-		// Phase 2: Stream each partition via the service API and collect all relationships.
+		// Phase 2: Stream each partition and collect all relationships.
 		seen := make(map[string]int) // relationship key → partition index
-		for pi, partition := range planResp.Partitions {
-			stream := &mockStreamCollector{ctx: ctx}
-			err := srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
-				Partition: partition,
-				Revision:  planResp.Revision,
-				BatchSize: 1000,
-			}, stream)
-			require.NoError(t, err)
-
+		for pi, partition := range plan.Partitions {
 			partitionCount := 0
-			for _, resp := range stream.responses {
-				require.NotEmpty(t, resp.AfterResultCursor, "response should have a cursor")
-				for _, rel := range resp.Relationships {
-					key := fmt.Sprintf("%s:%s#%s@%s:%s#%s",
-						rel.ResourceType, rel.ResourceId, rel.Relation,
-						rel.SubjectType, rel.SubjectId, rel.SubjectRelation)
+			err := pev1.StreamPartitionedExport(ctx, ds, pev1.StreamRequest{
+				Partition: partition,
+				Revision:  plan.Revision,
+				BatchSize: 1000,
+			}, func(batch pev1.ExportBatch) error {
+				require.NotEmpty(t, batch.Cursor, "batch should have a cursor")
+				for _, rel := range batch.Relationships {
+					key := tuple.MustString(rel)
 					prevPartition, duplicate := seen[key]
 					require.False(t, duplicate,
 						"relationship %s appeared in both partition %d and %d", key, prevPartition, pi)
 					seen[key] = pi
 					partitionCount++
 				}
-			}
+				return nil
+			})
+			require.NoError(t, err)
 			t.Logf("Partition %d: %d relationships", pi, partitionCount)
 		}
 
@@ -108,7 +100,7 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 			"all relationships should be covered across partitions (no gaps)")
 	})
 
-	t.Run("cursor resumability through service API", func(t *testing.T) {
+	t.Run("cursor resumability", func(t *testing.T) {
 		ctx := context.Background()
 
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -134,58 +126,40 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		srv := partitionedexportv1.NewPartitionedExportServer(ds)
-		planResp, err := srv.PlanPartitionedExport(ctx, &pev1.PlanPartitionedExportRequest{
-			DesiredPartitions: 1,
+		plan, err := pev1.PlanPartitionedExport(ctx, ds, 1)
+		require.NoError(t, err)
+		require.Len(t, plan.Partitions, 1)
+
+		// Stream first batch of 10 rows and capture cursor.
+		var firstCursor string
+		var firstBatchCount int
+		err = pev1.StreamPartitionedExport(ctx, ds, pev1.StreamRequest{
+			Partition: plan.Partitions[0],
+			Revision:  plan.Revision,
+			BatchSize: 10,
+		}, func(batch pev1.ExportBatch) error {
+			if firstCursor == "" {
+				firstCursor = batch.Cursor
+				firstBatchCount = len(batch.Relationships)
+			}
+			return nil
 		})
 		require.NoError(t, err)
-		require.Len(t, planResp.Partitions, 1)
-
-		// Stream first 10 rows.
-		stream1 := &mockStreamCollector{ctx: ctx}
-		err = srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
-			Partition: planResp.Partitions[0],
-			Revision:  planResp.Revision,
-			BatchSize: 10,
-		}, stream1)
-		require.NoError(t, err)
-		require.GreaterOrEqual(t, len(stream1.responses), 1)
-
-		// The first response contains batch_size (10) rows.
-		require.GreaterOrEqual(t, len(stream1.responses), 1)
-		firstBatchCount := len(stream1.responses[0].Relationships)
 		require.Equal(t, 10, firstBatchCount)
 
-		// Resume from the first batch's cursor — should get the remaining 40.
-		cursorToken := stream1.responses[0].AfterResultCursor
-		stream2 := &mockStreamCollector{ctx: ctx}
-		err = srv.StreamPartitionedExport(&pev1.StreamPartitionedExportRequest{
-			Partition: planResp.Partitions[0],
-			Revision:  planResp.Revision,
+		// Resume from cursor — should get the remaining 40.
+		var resumedCount int
+		err = pev1.StreamPartitionedExport(ctx, ds, pev1.StreamRequest{
+			Partition: plan.Partitions[0],
+			Revision:  plan.Revision,
 			BatchSize: 1000,
-			Cursor:    &cursorToken,
-		}, stream2)
+			Cursor:    firstCursor,
+		}, func(batch pev1.ExportBatch) error {
+			resumedCount += len(batch.Relationships)
+			return nil
+		})
 		require.NoError(t, err)
-
-		resumedCount := 0
-		for _, resp := range stream2.responses {
-			resumedCount += len(resp.Relationships)
-		}
-
 		require.Equal(t, 40, resumedCount)
 		require.Equal(t, 50, firstBatchCount+resumedCount, "resume should cover all remaining rows")
 	})
-}
-
-// mockStreamCollector implements grpc.ServerStreamingServer for testing.
-type mockStreamCollector struct {
-	pev1.PartitionedExportService_StreamPartitionedExportServer
-	ctx       context.Context
-	responses []*pev1.StreamPartitionedExportResponse
-}
-
-func (m *mockStreamCollector) Context() context.Context { return m.ctx }
-func (m *mockStreamCollector) Send(resp *pev1.StreamPartitionedExportResponse) error {
-	m.responses = append(m.responses, resp)
-	return nil
 }

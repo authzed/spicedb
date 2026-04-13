@@ -38,7 +38,6 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/services"
-	"github.com/authzed/spicedb/internal/services/partitionedexport"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
@@ -470,7 +469,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				permSysConfig,
 				c.WatchHeartbeat,
 			)
-			partitionedexport.RegisterGrpcServices(server, ds)
 		},
 		grpc.ChainUnaryInterceptor(unaryMiddleware...),
 		grpc.ChainStreamInterceptor(streamingMiddleware...),
