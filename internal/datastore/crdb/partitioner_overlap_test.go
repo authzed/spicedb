@@ -30,7 +30,7 @@ func TestPlanPartitionsOnlyUsesPrimaryIndex(t *testing.T) {
 	b := testdatastore.RunCRDBClusterForTesting(t, 3, crdbTestVersion())
 
 	t.Run("partitions are non-overlapping with secondary indexes present", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		var connectStr string
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -139,7 +139,7 @@ func TestPlanPartitionsOnlyUsesPrimaryIndex(t *testing.T) {
 			t.Logf("Partition %d: %d relationships", pi, partitionCount)
 		}
 
-		require.Equal(t, totalWritten, len(seen),
+		require.Len(t, seen, totalWritten,
 			"partitions should cover all %d relationships exactly once (got %d)", totalWritten, len(seen))
 	})
 }

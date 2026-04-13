@@ -3,13 +3,15 @@ package v1
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/rs/zerolog/log"
 )
 
 const defaultBatchSize = 1000
@@ -95,7 +97,7 @@ func PlanPartitionedExport(ctx context.Context, ds datastore.Datastore, desiredP
 // partitions and a revision.
 func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore, req StreamRequest, sender func(batch ExportBatch) error) error {
 	if req.Revision == nil {
-		return fmt.Errorf("revision is required")
+		return errors.New("revision is required")
 	}
 
 	if err := ds.CheckRevision(ctx, req.Revision); err != nil {

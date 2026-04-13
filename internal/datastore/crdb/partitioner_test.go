@@ -53,7 +53,7 @@ func TestPlanPartitions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, createDatastoreTest(b, func(t *testing.T, ds datastore.Datastore) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			totalWritten := tt.numNamespaces * tt.relsPerNamespace
 			if totalWritten > 0 {
@@ -152,7 +152,7 @@ func TestPlanPartitionsMultiNode(t *testing.T) {
 	b := testdatastore.RunCRDBClusterForTesting(t, 3, crdbTestVersion())
 
 	t.Run("forced splits produce real partitions", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		var connectStr string
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -256,6 +256,6 @@ func TestPlanPartitionsMultiNode(t *testing.T) {
 			t.Logf("Partition %d: %d relationships", pi, partitionCount)
 		}
 
-		require.Equal(t, totalWritten, len(seen), "partitions should cover all relationships with no gaps")
+		require.Len(t, seen, totalWritten, "partitions should cover all relationships with no gaps")
 	})
 }

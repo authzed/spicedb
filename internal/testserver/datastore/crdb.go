@@ -219,7 +219,7 @@ func RunCRDBClusterForTesting(t testing.TB, numNodes int, crdbVersion string) *c
 	}
 
 	require.NoError(t, pool.Retry(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancel()
 		uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, firstNodePort)
 		conn, err := pgx.Connect(ctx, uri)
@@ -237,7 +237,7 @@ func RunCRDBClusterForTesting(t testing.TB, numNodes int, crdbVersion string) *c
 		builder.connMutex.Lock()
 		defer builder.connMutex.Unlock()
 		if builder.conn != nil {
-			_ = builder.conn.Close(context.Background())
+			_ = builder.conn.Close(t.Context())
 		}
 	})
 

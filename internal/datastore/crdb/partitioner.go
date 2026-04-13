@@ -2,6 +2,7 @@ package crdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -156,7 +157,7 @@ func parseRangeStartKey(key string) (options.Cursor, error) {
 
 	// Reject boundaries with empty PK fields — they can't form valid cursors.
 	if slices.Contains(values[:6], "") {
-		return nil, fmt.Errorf("range key contains empty PK column")
+		return nil, errors.New("range key contains empty PK column")
 	}
 
 	return options.ToCursor(

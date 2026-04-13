@@ -21,7 +21,7 @@ func TestExplainPartitionedQuery(t *testing.T) {
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
 	t.Run("compare query plans", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(ctx, uri,

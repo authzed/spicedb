@@ -21,7 +21,7 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 	b := testdatastore.RunCRDBClusterForTesting(t, 3, crdbTestVersion())
 
 	t.Run("Plan + Stream covers all relationships", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		var connectStr string
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -96,12 +96,12 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 			t.Logf("Partition %d: %d relationships", pi, partitionCount)
 		}
 
-		require.Equal(t, totalWritten, len(seen),
+		require.Len(t, seen, totalWritten,
 			"all relationships should be covered across partitions (no gaps)")
 	})
 
 	t.Run("cursor resumability", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(ctx, uri,

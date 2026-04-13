@@ -16,7 +16,7 @@ import (
 func TestPlanPartitionedExport(t *testing.T) {
 	t.Run("returns single partition for non-partitioner datastore", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		plan, err := PlanPartitionedExport(context.Background(), ds, 4)
+		plan, err := PlanPartitionedExport(t.Context(), ds, 4)
 		require.NoError(t, err)
 		require.Len(t, plan.Partitions, 1)
 		require.Nil(t, plan.Partitions[0].LowerBound)
@@ -26,7 +26,7 @@ func TestPlanPartitionedExport(t *testing.T) {
 
 	t.Run("desiredCount=0 defaults to 1", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		plan, err := PlanPartitionedExport(context.Background(), ds, 0)
+		plan, err := PlanPartitionedExport(t.Context(), ds, 0)
 		require.NoError(t, err)
 		require.Len(t, plan.Partitions, 1)
 	})
@@ -34,9 +34,9 @@ func TestPlanPartitionedExport(t *testing.T) {
 	t.Run("revision is valid and usable", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		writeTestRelationships(t, ds, 10)
-		plan, err := PlanPartitionedExport(context.Background(), ds, 1)
+		plan, err := PlanPartitionedExport(t.Context(), ds, 1)
 		require.NoError(t, err)
-		require.NoError(t, ds.CheckRevision(context.Background(), plan.Revision))
+		require.NoError(t, ds.CheckRevision(t.Context(), plan.Revision))
 	})
 }
 
@@ -46,7 +46,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		rev := writeTestRelationships(t, ds, 50)
 
 		var batches []ExportBatch
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 100,
 		}, func(batch ExportBatch) error {
@@ -63,7 +63,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		rev := writeTestRelationships(t, ds, 50)
 
 		var batches []ExportBatch
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 10,
 		}, func(batch ExportBatch) error {
@@ -83,7 +83,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		rev := writeTestRelationships(t, ds, 10)
 
 		var batches []ExportBatch
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 0,
 		}, func(batch ExportBatch) error {
@@ -100,7 +100,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		rev := writeTestRelationships(t, ds, 5)
 
 		var batches []ExportBatch
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 1,
 		}, func(batch ExportBatch) error {
@@ -116,7 +116,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		rev := writeTestRelationships(t, ds, 5)
 
 		var batches []ExportBatch
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 1000,
 		}, func(batch ExportBatch) error {
@@ -130,11 +130,11 @@ func TestStreamPartitionedExport(t *testing.T) {
 
 	t.Run("empty table produces no batches", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		rev, err := ds.HeadRevision(context.Background())
+		rev, err := ds.HeadRevision(t.Context())
 		require.NoError(t, err)
 
 		var batches []ExportBatch
-		err = StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err = StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 100,
 		}, func(batch ExportBatch) error {
@@ -152,7 +152,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		// Stream and capture the first batch cursor.
 		var firstCursor string
 		var firstBatchCount int
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 10,
 		}, func(batch ExportBatch) error {
@@ -167,7 +167,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 
 		// Resume from cursor.
 		var resumedCount int
-		err = StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err = StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 100,
 			Cursor:    firstCursor,
@@ -181,7 +181,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 
 	t.Run("nil revision returns error", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			BatchSize: 100,
 		}, func(batch ExportBatch) error {
 			return nil
@@ -193,7 +193,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 10)
 
-		err := StreamPartitionedExport(context.Background(), ds, StreamRequest{
+		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
 			Revision:  rev,
 			BatchSize: 100,
 			Cursor:    "not-valid-base64!!!",
@@ -213,7 +213,7 @@ func newTestDatastore(t *testing.T) datastore.Datastore {
 
 func writeTestRelationships(t *testing.T, ds datastore.Datastore, count int) datastore.Revision {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		var updates []tuple.RelationshipUpdate
 		for i := 0; i < count; i++ {
