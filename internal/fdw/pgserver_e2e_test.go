@@ -559,7 +559,7 @@ func runEndToEndTest(t *testing.T, tc e2eTestCase) {
 
 	// Write initial schema and relationships.
 	t.Log("Writing initial schema and relationships")
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: tc.schema,
 	})
 	require.NoError(t, err)
@@ -573,14 +573,14 @@ func runEndToEndTest(t *testing.T, tc e2eTestCase) {
 	}
 
 	if len(updates) > 0 {
-		_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		_, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 			Updates: updates,
 		})
 		require.NoError(t, err)
 		t.Log("Initial schema and relationships written")
 
 		// Sanity check that rels can be read.
-		s, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		s, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 			RelationshipFilter: &v1.RelationshipFilter{
 				ResourceType: "document",
 			},
@@ -613,7 +613,7 @@ func runEndToEndTest(t *testing.T, tc e2eTestCase) {
 	createCommands := strings.ReplaceAll(createCommandsTemplate, "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
 
 	// Invoke initial Postgres commands.
-	_, err = pgconn.Exec(context.Background(), createCommands)
+	_, err = pgconn.Exec(t.Context(), createCommands)
 	require.NoError(t, err)
 	t.Log("Initial Postgres commands executed")
 
@@ -634,7 +634,7 @@ func runEndToEndTest(t *testing.T, tc e2eTestCase) {
 				argsToUse = append(argsToUse, "@"+lastZedToken)
 			}
 
-			rows, err := pgconn.Query(context.Background(), queryToRun, argsToUse...)
+			rows, err := pgconn.Query(t.Context(), queryToRun, argsToUse...)
 			require.NoError(t, err)
 			defer rows.Close()
 
@@ -683,7 +683,7 @@ func runPGServer(t *testing.T, client *authzed.Client) int {
 	port, err := GetFreePort()
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(func() {
 		cancel()
 		require.NoError(t, pgserver.Close())
@@ -733,7 +733,7 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	t.Cleanup(func() {
 		cancel()
@@ -765,7 +765,7 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		_, schemaErr := client.ReadSchema(ctx, &v1.ReadSchemaRequest{})
 
@@ -810,7 +810,7 @@ func runPostgres(t *testing.T) (conn *pgx.Conn) {
 	uri := fmt.Sprintf("postgresql://%s@%s:%s/?sslmode=disable", creds, hostname, port)
 	err = pool.Retry(func() error {
 		var err error
-		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancelConnect := context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancelConnect()
 		conn, err = pgx.Connect(ctx, uri)
 		if err != nil {

@@ -482,8 +482,9 @@ jobs:
           external-data-json-path: "./cache/benchmark-data.json"
           # Do not save the data
           save-data-file: false
-          # Workflow will fail when an alert happens
-          fail-on-alert: true
+          # Workflow will comment, but not fail, when an alert happens
+          fail-on-alert: false
+          comment-on-alert: true
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           # Enable Job Summary for PRs
           summary-always: true

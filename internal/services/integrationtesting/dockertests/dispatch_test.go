@@ -3,7 +3,6 @@
 package dockertests_test
 
 import (
-	"context"
 	"slices"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ func TestDispatchIntegration(t *testing.T) {
 				permission view = viewer + parent->view
 			}`,
 			func(t *testing.T, client v1.PermissionsServiceClient) {
-				resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				resp, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -61,7 +60,7 @@ func TestDispatchIntegration(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				cresp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+				cresp, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
 							AtLeastAsFresh: resp.WrittenAt,
@@ -82,7 +81,7 @@ func TestDispatchIntegration(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, cresp.Permissionship)
 
-				cresp2, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+				cresp2, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
 							AtLeastAsFresh: resp.WrittenAt,
@@ -116,7 +115,7 @@ func TestDispatchIntegration(t *testing.T) {
 				permission view = viewer + parent->unknown
 			}`,
 			func(t *testing.T, client v1.PermissionsServiceClient) {
-				resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				resp, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -126,7 +125,7 @@ func TestDispatchIntegration(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				cresp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+				cresp, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
 							AtLeastAsFresh: resp.WrittenAt,
@@ -157,7 +156,7 @@ func TestDispatchIntegration(t *testing.T) {
 				permission view = viewer
 			}`,
 			func(t *testing.T, client v1.PermissionsServiceClient) {
-				resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				resp, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -167,7 +166,7 @@ func TestDispatchIntegration(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, cerr := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+				_, cerr := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
 							AtLeastAsFresh: resp.WrittenAt,
@@ -198,7 +197,7 @@ func TestDispatchIntegration(t *testing.T) {
 			}`,
 			func(t *testing.T, client v1.PermissionsServiceClient) {
 				// Ensure the delete fails on the precondition.
-				_, derr := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+				_, derr := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					OptionalPreconditions: []*v1.Precondition{
 						{
 							Operation: v1.Precondition_OPERATION_MUST_MATCH,
@@ -221,7 +220,7 @@ func TestDispatchIntegration(t *testing.T) {
 				require.Contains(t, derr.Error(), "unable to satisfy write precondition")
 
 				// Write a relationship, but not the one we want.
-				_, werr := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				_, werr := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -232,7 +231,7 @@ func TestDispatchIntegration(t *testing.T) {
 				require.NoError(t, werr)
 
 				// Ensure the delete still fails on the precondition.
-				_, derr = client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+				_, derr = client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					OptionalPreconditions: []*v1.Precondition{
 						{
 							Operation: v1.Precondition_OPERATION_MUST_MATCH,
@@ -255,7 +254,7 @@ func TestDispatchIntegration(t *testing.T) {
 				require.Contains(t, derr.Error(), "unable to satisfy write precondition")
 
 				// Write the relationship needed.
-				_, werr = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				_, werr = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -266,7 +265,7 @@ func TestDispatchIntegration(t *testing.T) {
 				require.NoError(t, werr)
 
 				// Ensure a delete with an inverse precondition now fails.
-				_, derr = client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+				_, derr = client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					OptionalPreconditions: []*v1.Precondition{
 						{
 							Operation: v1.Precondition_OPERATION_MUST_NOT_MATCH,
@@ -289,7 +288,7 @@ func TestDispatchIntegration(t *testing.T) {
 				require.Contains(t, derr.Error(), "unable to satisfy write precondition")
 
 				// Ensure the delete with MUST_MATCH now works.
-				resp, derr := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+				resp, derr := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					OptionalPreconditions: []*v1.Precondition{
 						{
 							Operation: v1.Precondition_OPERATION_MUST_MATCH,
@@ -333,7 +332,7 @@ func TestDispatchIntegration(t *testing.T) {
 					t.Cleanup(cleanup)
 
 					schemaClient := v1.NewSchemaServiceClient(conns[0])
-					_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+					_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 						Schema: tc.schema,
 					})
 					require.NoError(t, err)

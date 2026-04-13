@@ -96,23 +96,29 @@ func sendAndExpectError(lt *lspTester, method string, params any) (*jsonrpc2.Err
 	lt.ts.toRead <- "\r\n"
 	lt.ts.toRead <- string(message)
 
-	select {
-	case received := <-lt.ts.received:
-		lines := strings.Split(received, "\r\n")
-		require.Greater(lt.t, len(lines), 2)
+	for {
+		select {
+		case received := <-lt.ts.received:
+			lines := strings.Split(received, "\r\n")
+			require.Greater(lt.t, len(lines), 2)
 
-		var resp jsonrpc2.Response
-		err := json.Unmarshal([]byte(lines[2]), &resp)
-		require.NoError(lt.t, err)
-		require.NotNil(lt.t, resp.Error)
+			var resp jsonrpc2.Response
+			err := json.Unmarshal([]byte(lines[2]), &resp)
+			require.NoError(lt.t, err)
 
-		return resp.Error, lt.server.state
+			// Skip server notifications.
+			if resp.Result == nil && resp.Error == nil {
+				continue
+			}
 
-	case <-time.After(1 * time.Second):
-		lt.t.Fatal("timed out waiting for response")
+			require.NotNil(lt.t, resp.Error)
+
+			return resp.Error, lt.server.state
+
+		case <-time.After(1 * time.Second):
+			lt.t.Fatal("timed out waiting for response")
+		}
 	}
-
-	return nil, serverStateNotInitialized
 }
 
 func sendAndReceive[T any](lt *lspTester, method string, params any) (T, serverState) {
@@ -133,28 +139,35 @@ func sendAndReceive[T any](lt *lspTester, method string, params any) (T, serverS
 	lt.ts.toRead <- "\r\n"
 	lt.ts.toRead <- string(message)
 
-	select {
-	case received := <-lt.ts.received:
-		lines := strings.Split(received, "\r\n")
-		require.Greater(lt.t, len(lines), 2)
+	// Read messages, skipping any server-initiated notifications (e.g.
+	// workspace/diagnostic/refresh) until we find the response.
+	for {
+		select {
+		case received := <-lt.ts.received:
+			lines := strings.Split(received, "\r\n")
+			require.Greater(lt.t, len(lines), 2)
 
-		var resp jsonrpc2.Response
-		err := json.Unmarshal([]byte(lines[2]), &resp)
-		require.NoError(lt.t, err)
-		require.Nil(lt.t, resp.Error)
+			var resp jsonrpc2.Response
+			err := json.Unmarshal([]byte(lines[2]), &resp)
+			require.NoError(lt.t, err)
 
-		var result T
-		err = json.Unmarshal(*resp.Result, &result)
-		require.NoError(lt.t, err)
+			// Server notifications have no Result and no Error; skip them.
+			if resp.Result == nil && resp.Error == nil {
+				continue
+			}
 
-		return result, lt.server.state
+			require.Nil(lt.t, resp.Error)
 
-	case <-time.After(1 * time.Second):
-		lt.t.Fatal("timed out waiting for response")
+			var result T
+			err = json.Unmarshal(*resp.Result, &result)
+			require.NoError(lt.t, err)
+
+			return result, lt.server.state
+
+		case <-time.After(1 * time.Second):
+			lt.t.Fatal("timed out waiting for response")
+		}
 	}
-
-	var empty T
-	return empty, serverStateNotInitialized
 }
 
 func newLSPTester(t *testing.T) *lspTester {

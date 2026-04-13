@@ -74,7 +74,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				_ = ds.Close()
 			})
 
-			ctx := context.Background()
+			ctx := b.Context()
 
 			// Write the standard schema
 			ds, _ = testfixtures.StandardDatastoreWithSchema(ds, require.New(b))

@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"fmt"
 	"testing"
 )
@@ -34,7 +33,7 @@ func BenchmarkRecursiveShallowGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ctx := NewLocalContext(context.Background(),
+	ctx := NewLocalContext(b.Context(),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -81,7 +80,7 @@ func BenchmarkRecursiveWideGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ctx := NewLocalContext(context.Background(),
+	ctx := NewLocalContext(b.Context(),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -123,7 +122,7 @@ func BenchmarkRecursiveDeepGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ctx := NewLocalContext(context.Background(),
+	ctx := NewLocalContext(b.Context(),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -147,7 +146,7 @@ func BenchmarkRecursiveEmptyGraph(b *testing.B) {
 	sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
 	recursive := NewRecursiveIterator(sentinel, "folder", "parent")
 
-	ctx := NewLocalContext(context.Background(),
+	ctx := NewLocalContext(b.Context(),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -200,7 +199,7 @@ func BenchmarkRecursiveSparseGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ctx := NewLocalContext(context.Background(),
+	ctx := NewLocalContext(b.Context(),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -242,7 +241,7 @@ func BenchmarkRecursiveCyclicGraph(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ctx := NewLocalContext(context.Background(),
+	ctx := NewLocalContext(b.Context(),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()
@@ -284,7 +283,7 @@ func BenchmarkRecursiveIterResources(b *testing.B) {
 	iter := NewFixedIterator(paths...)
 	recursive := NewRecursiveIterator(iter, "folder", "parent")
 
-	ctx := NewLocalContext(context.Background(),
+	ctx := NewLocalContext(b.Context(),
 		WithMaxRecursionDepth(50))
 
 	b.ResetTimer()

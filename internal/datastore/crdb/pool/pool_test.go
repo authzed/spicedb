@@ -165,7 +165,7 @@ func TestAcquireErrorWithConnectionReturned(t *testing.T) {
 		}
 
 		retryPool := createTestRetryPool(testPool)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		err := retryPool.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
 			t.Fatal("function should not be called when acquire fails")
@@ -220,7 +220,7 @@ func TestNoAcquireTimeoutUsesOriginalContext(t *testing.T) {
 	}
 
 	retryPool := createTestRetryPool(testPool)
-	originalCtx := context.Background()
+	originalCtx := t.Context()
 
 	err := retryPool.withRetries(originalCtx, 0, func(conn *pgxpool.Conn) error {
 		return nil
@@ -241,7 +241,7 @@ func TestAcquireTimeoutCreatesSeparateContext(t *testing.T) {
 		}
 
 		retryPool := createTestRetryPool(testPool)
-		originalCtx := context.Background()
+		originalCtx := t.Context()
 		acquireTimeout := 50 * time.Millisecond
 		startTime := time.Now()
 

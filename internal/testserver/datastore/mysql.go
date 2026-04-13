@@ -94,7 +94,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 
 	require.NoError(t, pool.Retry(func() error {
 		var err error
-		ctx, cancelPing := context.WithTimeout(context.Background(), dockerBootTimeout)
+		ctx, cancelPing := context.WithTimeout(t.Context(), dockerBootTimeout)
 		defer cancelPing()
 		err = builder.db.PingContext(ctx)
 		if err != nil {
@@ -125,7 +125,7 @@ func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) error {
 	}
 	defer driver.Close(t.Context())
 
-	err = migrations.Manager.Run(context.Background(), driver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(t.Context(), driver, migrate.Head, migrate.LiveRun)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}

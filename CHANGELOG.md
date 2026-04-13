@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
+- Added support for YAML-based validation files in the Language Server (https://github.com/authzed/spicedb/pull/3024)
+
 ### Changed
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)
 - Removed support for Spanner flag value `--datastore-spanner-metrics=deprecated-prometheus`; please use values `otel` or `native` (https://github.com/authzed/spicedb/pull/2980)

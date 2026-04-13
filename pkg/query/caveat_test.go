@@ -187,12 +187,12 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			require.NoError(t, err)
 
 			dl := datalayer.NewDataLayer(ds)
-			rev, err := dl.ReadWriteTx(context.Background(), func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
+			rev, err := dl.ReadWriteTx(t.Context(), func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
 				return nil
 			})
 			require.NoError(t, err)
 
-			queryCtx := NewLocalContext(context.Background(),
+			queryCtx := NewLocalContext(t.Context(),
 				WithRevisionedReader(dl.SnapshotReader(rev)),
 				WithCaveatContext(tc.caveatContext),
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
@@ -373,7 +373,7 @@ func TestCaveatIterator_SimplifyCaveat_ErrorHandling(t *testing.T) {
 		path := MustPathFromString("document:doc1#view@user:alice")
 		path.Caveat = createTestCaveatExpression("test_caveat", nil)
 
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// CaveatRunner is nil in the returned context
 
 		_, _, err := caveatIter.simplifyCaveat(ctx, path)
@@ -396,7 +396,7 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 		// No caveat filter - should pass through all paths
 		caveatIter := NewCaveatIterator(subIterator, nil)
 
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 
 		resource := NewObject("document", "doc1")
 		seq, err := caveatIter.IterSubjectsImpl(ctx, resource, NoObjectFilter())
@@ -415,7 +415,7 @@ func TestCaveatIterator_IterSubjectsImpl(t *testing.T) {
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIterator, testCaveat)
 
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 
 		resource := NewObject("document", "doc1")
 		seq, err := caveatIter.IterSubjectsImpl(ctx, resource, NoObjectFilter())
@@ -441,7 +441,7 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 		// No caveat filter - should pass through all paths
 		caveatIter := NewCaveatIterator(subIterator, nil)
 
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 
 		subject := NewObject("user", "alice").WithEllipses()
 		seq, err := caveatIter.IterResourcesImpl(ctx, subject, NoObjectFilter())
@@ -460,7 +460,7 @@ func TestCaveatIterator_IterResourcesImpl(t *testing.T) {
 		testCaveat := createTestCaveat("test_caveat", nil)
 		caveatIter := NewCaveatIterator(subIterator, testCaveat)
 
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 
 		subject := NewObject("user", "alice").WithEllipses()
 		seq, err := caveatIter.IterResourcesImpl(ctx, subject, NoObjectFilter())

@@ -68,7 +68,7 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datastore) {
 	req := require.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	clientConn, cleanup, _, _ := testserver.NewTestServerWithConfigAndDatastore(req, 0, 0, false,

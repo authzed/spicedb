@@ -3,7 +3,6 @@
 package memoryprotection
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -62,13 +61,13 @@ func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 
 	// Health requests bypass the memory middleware
 	require.Eventually(t, func() bool {
-		resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 		return err == nil && resp.GetStatus() == healthpb.HealthCheckResponse_SERVING
 	}, 5*time.Second, 1*time.Second, "server never became healthy")
 
 	// Other requests have the memory middleware
 	client := v1.NewSchemaServiceClient(conn)
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}`,
 	})
 	s, ok := status.FromError(err)

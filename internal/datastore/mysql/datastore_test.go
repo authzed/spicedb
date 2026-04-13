@@ -40,7 +40,7 @@ type datastoreTester struct {
 }
 
 func (dst *datastoreTester) createDatastore(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
-	ctx := context.Background()
+	ctx := tb.Context()
 	ds := dst.b.NewDatastore(tb, func(engine, uri string) datastore.Datastore {
 		ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID,
 			RevisionQuantization(revisionQuantization),
@@ -53,7 +53,7 @@ func (dst *datastoreTester) createDatastore(tb testing.TB, revisionQuantization,
 		require.NoError(tb, err)
 		return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 	})
-	_, err := ds.ReadyState(context.Background())
+	_, err := ds.ReadyState(tb.Context())
 	require.NoError(tb, err)
 	return ds, nil
 }
@@ -75,7 +75,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
 			require.NoError(t, err)
@@ -91,7 +91,7 @@ type multiDatastoreTestFunc func(t *testing.T, ds1 datastore.Datastore, ds2 data
 
 func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiDatastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		var secondDS datastore.Datastore
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -111,14 +111,14 @@ func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiData
 }
 
 func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
-	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql")
+	_, err := NewMySQLDatastore(t.Context(), "root:password@(localhost:1234)/mysql")
 	require.ErrorContains(t, err, sharederrors.MySQLParseErrorLink)
 }
 
 func TestMySQL8Datastore(t *testing.T) {
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
 	dst := datastoreTester{b: b}
-	test.AllWithExceptions(t, mysqlFactory.NewTester(test.DatastoreTesterFunc(dst.createDatastore)), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory), true)
+	test.AllWithExceptions(t, mysqlFactory.NewTester(test.DatastoreTesterFunc(dst.createDatastore)), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory))
 	additionalMySQLTests(t, b)
 }
 
@@ -150,7 +150,7 @@ func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) 
 	mds2 := ds2.(*mysqlDatastore)
 
 	// Acquire a lock.
-	ctx := context.Background()
+	ctx := t.Context()
 	acquired, err := mds.tryAcquireLock(ctx, "testing123")
 	require.NoError(t, err)
 	require.True(t, acquired)
@@ -187,7 +187,7 @@ func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	// ensure datastore is seeded right after initialization
-	ctx := context.Background()
+	ctx := t.Context()
 	isSeeded, err := ds.(*mysqlDatastore).isSeeded(ctx)
 	req.NoError(err)
 	req.True(isSeeded, "expected datastore to be seeded after initialization")
@@ -201,7 +201,7 @@ func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	// cause some use of the SQL connection pool to generate metrics
-	_, err := ds.ReadyState(context.Background())
+	_, err := ds.ReadyState(t.Context())
 	req.NoError(err)
 
 	metrics, err := prometheus.DefaultGatherer.Gather()
@@ -222,7 +222,7 @@ func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
 func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
 	req.True(r.IsReady)
@@ -367,7 +367,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
 	req.True(r.IsReady)
@@ -444,7 +444,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
 	req.True(r.IsReady)
@@ -472,7 +472,7 @@ func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
 	req.True(r.IsReady)
@@ -513,7 +513,7 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
 	req.True(r.IsReady)
@@ -658,7 +658,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			require := require.New(t)
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -726,7 +726,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	// Setting db default time zone to before UTC
-	ctx := context.Background()
+	ctx := t.Context()
 	db := ds.(*mysqlDatastore).db
 	_, err := db.ExecContext(ctx, "SET GLOBAL time_zone = 'America/New_York';")
 	req.NoError(err)
@@ -774,14 +774,14 @@ func TestMySQLMigrations(t *testing.T) {
 		migrationDriver.Close(t.Context())
 	})
 
-	version, err := migrationDriver.Version(context.Background())
+	version, err := migrationDriver.Version(t.Context())
 	req.NoError(err)
 	req.Empty(version)
 
-	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(t.Context(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)
 
-	version, err = migrationDriver.Version(context.Background())
+	version, err = migrationDriver.Version(t.Context())
 	req.NoError(err)
 
 	headVersion, err := migrations.Manager.HeadRevision()
@@ -796,14 +796,14 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	db := datastoreDB(t, false)
 	migrationDriver := migrations.NewMySQLDriverFromDB(db, prefix)
 
-	version, err := migrationDriver.Version(context.Background())
+	version, err := migrationDriver.Version(t.Context())
 	req.NoError(err)
 	req.Empty(version)
 
-	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(t.Context(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)
 
-	version, err = migrationDriver.Version(context.Background())
+	version, err = migrationDriver.Version(t.Context())
 	req.NoError(err)
 
 	headVersion, err := migrations.Manager.HeadRevision()
@@ -831,7 +831,7 @@ func TestMySQLWithAWSIAMCredentialsProvider(t *testing.T) {
 	t.Setenv("AWS_REGION", "us-east-1")
 
 	// initialize the datastore using the AWS IAM credentials provider, and point it to a database that does not exist
-	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql?parseTime=True&tls=skip-verify", CredentialsProviderName("aws-iam"))
+	_, err := NewMySQLDatastore(t.Context(), "root:password@(localhost:1234)/mysql?parseTime=True&tls=skip-verify", CredentialsProviderName("aws-iam"))
 
 	// we expect the connection attempt to fail
 	// which means that the credentials provider was wired and called successfully before making the connection attempt

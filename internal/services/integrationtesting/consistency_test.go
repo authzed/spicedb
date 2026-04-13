@@ -101,9 +101,7 @@ func TestConsistency(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		testers := consistencytestutil.ServiceTesters(cad.Conn)
-		tester := testers[0]
-		// Build an accessibility set.
+		tester := consistencytestutil.NewServiceTester(cad.Conn)
 		accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
 		dispatcher := consistencytestutil.CreateDispatcherForTesting(t, false)
@@ -267,12 +265,10 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	}
 
 	// Run consistency tests.
-	testers := consistencytestutil.ServiceTesters(cad.Conn)
-	for _, tester := range testers {
-		t.Run(tester.Name(), func(t *testing.T) {
-			runConsistencyTestsWithServiceTester(t, cad, tester, headRevision, useCachingDispatcher)
-		})
-	}
+	tester := consistencytestutil.NewServiceTester(cad.Conn)
+	t.Run(tester.Name(), func(t *testing.T) {
+		runConsistencyTestsWithServiceTester(t, cad, tester, headRevision, useCachingDispatcher)
+	})
 }
 
 type validationContext struct {

@@ -3,7 +3,6 @@
 package dockertests_test
 
 import (
-	"context"
 	"slices"
 	"sync"
 	"testing"
@@ -56,7 +55,7 @@ func TestBurst(t *testing.T) {
 				go func() {
 					<-run
 					defer wg.Done()
-					_, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+					_, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
 								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
