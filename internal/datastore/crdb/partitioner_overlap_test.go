@@ -87,20 +87,10 @@ func TestPlanPartitionsOnlyUsesPrimaryIndex(t *testing.T) {
 		// Verify that SHOW RANGES FROM TABLE includes secondary index ranges
 		// (confirming the table has ranges from multiple indexes).
 		var tableRangeCount int
-		rows, err := conn.Query(ctx, "SELECT count(*) FROM [SHOW RANGES FROM TABLE relation_tuple]")
-		require.NoError(t, err)
-		for rows.Next() {
-			require.NoError(t, rows.Scan(&tableRangeCount))
-		}
-		rows.Close()
+		require.NoError(t, conn.QueryRow(ctx, "SELECT count(*) FROM [SHOW RANGES FROM TABLE relation_tuple]").Scan(&tableRangeCount))
 
 		var primaryRangeCount int
-		rows, err = conn.Query(ctx, "SELECT count(*) FROM [SHOW RANGES FROM INDEX relation_tuple@primary]")
-		require.NoError(t, err)
-		for rows.Next() {
-			require.NoError(t, rows.Scan(&primaryRangeCount))
-		}
-		rows.Close()
+		require.NoError(t, conn.QueryRow(ctx, "SELECT count(*) FROM [SHOW RANGES FROM INDEX relation_tuple@primary]").Scan(&primaryRangeCount))
 
 		require.Greater(t, tableRangeCount, primaryRangeCount,
 			"SHOW RANGES FROM TABLE should return more ranges than FROM INDEX @primary (secondary indexes present)")

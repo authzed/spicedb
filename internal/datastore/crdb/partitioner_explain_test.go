@@ -96,7 +96,9 @@ func TestExplainPartitionedQuery(t *testing.T) {
 				var capturedSQL string
 				var capturedExplain string
 
-				explainOpts := append(tc.opts, options.WithSQLExplainCallbackForTest(
+				explainOpts := make([]options.QueryOptionsOption, 0, len(tc.opts)+1)
+				explainOpts = append(explainOpts, tc.opts...)
+				explainOpts = append(explainOpts, options.WithSQLExplainCallbackForTest(
 					func(_ context.Context, sql string, _ []any, _ queryshape.Shape, explain string, _ options.SQLIndexInformation) error {
 						capturedSQL = sql
 						capturedExplain = explain

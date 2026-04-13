@@ -188,12 +188,12 @@ func extractQuotedValues(s string) []string {
 			break
 		}
 		s = s[open+1:]
-		close := strings.Index(s, `"`)
-		if close == -1 {
+		end := strings.Index(s, `"`)
+		if end == -1 {
 			break
 		}
-		values = append(values, s[:close])
-		s = s[close+1:]
+		values = append(values, s[:end])
+		s = s[end+1:]
 	}
 	return values
 }
