@@ -683,25 +683,22 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			}
 
 			// Build cycle-tracking debug trace if requested.
-			var debugTrace *v1.LookupDebugTrace
+			// We track visits to the *resource* node about to be recursed into —
+			// cycles in LookupResources manifest as the same resource type+ID being
+			// visited more than once during traversal. The shared traversalTracker in ctx
+			// accumulates all visits across the request; no local variable is needed here.
 			if parentRequest.EnableDebugTrace {
-				for _, subjectID := range filteredSubjectIDs {
-					_, count := trackVisit(
-						parentStream.Context(),
-						newSubjectType.Namespace,
-						subjectID,
-						newSubjectType.Relation,
-					)
-					debugTrace = buildLookupDebugTrace(
-						newSubjectType.Namespace,
-						subjectID,
-						newSubjectType.Relation,
-						count,
-						nil,
+				for _, resourceID := range filteredSubjectIDs {
+					// filteredSubjectIDs are the found resources that become subjects
+					// of the next recursive dispatch — we track them as resource nodes.
+					ctx, _ = trackVisit(
+						ctx,
+						parentRequest.ResourceRelation.Namespace,
+						resourceID,
+						parentRequest.ResourceRelation.Relation,
 					)
 				}
 			}
-			_ = debugTrace // attached to dispatched responses below
 
 			// If the entrypoint is a direct result then we can simply dispatch directly and map
 			// all found results, as no further filtering will be needed.
@@ -716,10 +713,10 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 					},
-					OptionalCursor:    ci.currentCursor,
-					OptionalLimit:     parentRequest.OptionalLimit,
-					Context:           parentRequest.Context,
-					EnableDebugTrace:  parentRequest.EnableDebugTrace,
+					OptionalCursor:   ci.currentCursor,
+					OptionalLimit:    parentRequest.OptionalLimit,
+					Context:          parentRequest.Context,
+					EnableDebugTrace: parentRequest.EnableDebugTrace,
 				}, stream)
 			}
 

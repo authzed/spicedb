@@ -18,7 +18,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/rs/zerolog/log"
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
@@ -456,6 +458,13 @@ const (
 	lrv3CursorFlag = "lrv3"
 )
 
+// lookupDebugTraceTrailerKey is the gRPC response trailer key used to surface
+// the lookup debug trace back to the calling client. It is set only when
+// the requestmeta.RequestDebugInformation header is present on the request.
+// Clients read it with: responsemeta.GetResponseTrailerMetadata(trailer, lookupDebugTraceTrailerKey)
+// and then proto.Unmarshal(base64.StdDecoding.DecodeString(value)) into a LookupDebugTrace.
+const lookupDebugTraceTrailerKey responsemeta.ResponseMetadataTrailerKey = "x-spicedb-lookup-debug-trace"
+
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
@@ -539,6 +548,23 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		DebugInfo:           nil,
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
+
+	// Initialize the traversal tracker once at the top-level so that all goroutines
+	// spawned during dispatch share a single tracker via the inherited context.
+	debugEnabled := lookupDebugTraceEnabled(ctx)
+	if debugEnabled {
+		ctx = graph.NewTraversalTracker(ctx)
+		defer func() {
+			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
+				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+					lookupDebugTraceTrailerKey: encoded,
+				})
+				if err != nil {
+					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
+				}
+			}
+		}()
+	}
 
 	var currentCursor []string
 
@@ -639,7 +665,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 			Context:          req.Context,
 			OptionalCursor:   currentCursor,
 			OptionalLimit:    req.OptionalLimit,
-			EnableDebugTrace: lookupDebugTraceEnabled(ctx),
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {
@@ -691,6 +717,23 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		DebugInfo:           nil,
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
+
+	// Initialize the traversal tracker once at the top-level so that all goroutines
+	// spawned during dispatch share a single tracker via the inherited context.
+	debugEnabled := lookupDebugTraceEnabled(ctx)
+	if debugEnabled {
+		ctx = graph.NewTraversalTracker(ctx)
+		defer func() {
+			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
+				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+					lookupDebugTraceTrailerKey: encoded,
+				})
+				if err != nil {
+					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
+				}
+			}
+		}()
+	}
 
 	var currentCursor *dispatch.Cursor
 
@@ -787,7 +830,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 			Context:          req.Context,
 			OptionalCursor:   currentCursor,
 			OptionalLimit:    req.OptionalLimit,
-			EnableDebugTrace: lookupDebugTraceEnabled(ctx),
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {
@@ -857,6 +900,23 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		DebugInfo:           nil,
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
+
+	// Initialize the traversal tracker once at the top-level so that all goroutines
+	// spawned during dispatch share a single tracker via the inherited context.
+	debugEnabled := lookupDebugTraceEnabled(ctx)
+	if debugEnabled {
+		ctx = graph.NewTraversalTracker(ctx)
+		defer func() {
+			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
+				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+					lookupDebugTraceTrailerKey: encoded,
+				})
+				if err != nil {
+					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
+				}
+			}
+		}()
+	}
 
 	var totalCountPublished uint64
 	defer func() {
@@ -937,7 +997,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				Namespace: req.SubjectObjectType,
 				Relation:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 			},
-			EnableDebugTrace: lookupDebugTraceEnabled(ctx),
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {

@@ -1,6 +1,7 @@
 package v1_test
 
 import (
+	"encoding/base64"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
@@ -22,6 +24,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -920,4 +923,86 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLookupDebugTraceTrailer(t *testing.T) {
+	req := require.New(t)
+
+	// cyclicGroupSchema defines a group schema where two groups are mutual members.
+	schema := `
+	definition user {}
+
+	definition group {
+		relation member: user | group#member
+		permission can_access = member
+	}`
+	relationships := []tuple.Relationship{
+		tuple.MustParse("group:a#member@group:b#member"),
+		tuple.MustParse("group:b#member@group:a#member"),
+	}
+
+	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		})
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	ctx := t.Context()
+	// Add the header that enables the debug trace trailer.
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+			},
+		},
+		Resource: &v1.ObjectReference{
+			ObjectType: "group",
+			ObjectId:   "a",
+		},
+		Permission:        "can_access",
+		SubjectObjectType: "user",
+	})
+	req.NoError(err)
+
+	var streamErr error
+	for {
+		_, err := stream.Recv()
+		if err != nil {
+			streamErr = err
+			break
+		}
+	}
+
+	// The lookup may fail due to max depth exceeded, or complete cleanly if the bloom filter stops it.
+	// The trailer MUST BE PRESENT regardless.
+	if streamErr != nil {
+		req.Contains(streamErr.Error(), "max depth exceeded")
+	}
+
+	// Verify the client received the trailer.
+	trailerMD := stream.Trailer()
+	values := trailerMD.Get("x-spicedb-lookup-debug-trace")
+	req.NotEmpty(values, "expected traversal debug trailer to be present")
+
+	// Decode and parse it.
+	raw, decErr := base64.StdEncoding.DecodeString(values[0])
+	req.NoError(decErr)
+
+	var trace dispatch.LookupDebugTrace
+	req.NoError(proto.Unmarshal(raw, &trace))
+
+	// Assert that we captured the cycle.
+	req.NotEmpty(trace.SubProblems)
+	var foundCyclic bool
+	for _, sp := range trace.SubProblems {
+		if sp.IsCyclic {
+			foundCyclic = true
+			req.GreaterOrEqual(sp.TraversalCount, uint32(2))
+		}
+	}
+	req.True(foundCyclic, "expected at least one cyclic node marked in trace trailer")
 }
