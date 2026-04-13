@@ -956,9 +956,14 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	// yielding results for each resource found.
 	iter := func(yield func(result, error) bool) {
 		// Cycle detection: track visits when tracing is enabled (zero-cost otherwise).
+		// subjectIDs are the found resource IDs that become the subject IDs for the next
+		// recursive DispatchLookupResources3 call. We record them as resource-node visits
+		// so that any node visited more than once is flagged as cyclic in the snapshot.
 		if refs.req.EnableDebugTrace {
 			for _, subjectID := range subjectIDs {
-				_, _ = trackVisit(
+				// trackVisit returns the same ctx (tracker mutates via pointer).
+				// Assigning back is correct for the defensive no-tracker path.
+				ctx, _ = trackVisit(
 					ctx,
 					foundResourceType.Namespace,
 					subjectID,

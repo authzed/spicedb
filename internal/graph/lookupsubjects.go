@@ -210,10 +210,14 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		return err
 	}
 
-	// Cycle detection for computed userset traversal.
+	// Cycle detection: each resource ID about to be recursed into via the computed
+	// userset relation is tracked. The shared traversalTracker accumulates across the
+	// entire request; any node visited more than once is cyclic.
 	if parentRequest.EnableDebugTrace {
 		for _, resourceID := range parentRequest.ResourceIds {
-			_, _ = trackVisit(ctx,
+			// ctx returned here equals the input ctx (tracker mutates via pointer);
+			// assigning back is the contract for the defensive no-tracker path.
+			ctx, _ = trackVisit(ctx,
 				parentRequest.ResourceRelation.Namespace,
 				resourceID,
 				cu.Relation,
@@ -709,10 +713,11 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		// Dispatch the found subjects as the resources of the next step.
 		slicez.ForEachChunk(resourceIds, cl.dispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
-				// Cycle detection: track visits per chunk when tracing is enabled.
+				// Cycle detection: track resources about to be recursed into.
+				// subCtx inherits the shared tracker pointer from parentCtx.
 				if parentRequest.EnableDebugTrace {
 					for _, resID := range resourceIdChunk {
-						_, _ = trackVisit(subCtx, resourceType.Namespace, resID, resourceType.Relation)
+						subCtx, _ = trackVisit(subCtx, resourceType.Namespace, resID, resourceType.Relation)
 					}
 				}
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{

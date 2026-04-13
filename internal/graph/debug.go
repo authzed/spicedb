@@ -2,8 +2,10 @@ package graph
 
 import (
 	"context"
-	"fmt"
+	"encoding/base64"
 	"sync"
+
+	"google.golang.org/protobuf/proto"
 
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -12,52 +14,106 @@ import (
 // Using a private struct prevents collisions with keys from other packages.
 type lookupTraversalKey struct{}
 
+// nodeKey is used as a map key to uniquely identify a visited node.
+type nodeKey struct {
+	ns  string
+	id  string
+	rel string
+}
+
 // traversalTracker counts how many times each unique node (resourceType + resourceID + relation)
 // is visited during a single top-level Lookup request. It is stored in the request context and
 // shared across all recursive dispatch calls within that request.
 //
-// All public methods are thread-safe.
+// THREADING MODEL:
+// The tracker must be initialized explicitly at the top-level entry point (permissions.go) via
+// NewTraversalTracker before any goroutine fan-out, so that all goroutines share a single
+// instance via the inherited context. The mutex protects concurrent map writes from goroutine
+// fan-out in dispatchTo and LookupResources3's dispatchIter.
 type traversalTracker struct {
 	mu      sync.Mutex
-	visited map[string]int // nodeKey → visit count
+	visited map[nodeKey]int // nodeKey → visit count
 }
 
-// nodeKey produces a stable, unique string key for a resource+relation combination.
-func nodeKey(resourceType, resourceID, relation string) string {
-	return fmt.Sprintf("%s:%s#%s", resourceType, resourceID, relation)
+// NewTraversalTracker creates a new traversalTracker, stores it in ctx, and returns
+// the enriched context. Call this once per top-level Lookup handler (in permissions.go)
+// before the first DispatchLookup* call. All goroutines spawned inside that request
+// will inherit the same tracker instance via the context pointer.
+func NewTraversalTracker(ctx context.Context) context.Context {
+	t := &traversalTracker{visited: make(map[nodeKey]int)}
+	return context.WithValue(ctx, lookupTraversalKey{}, t)
 }
 
-// trackVisit records one visit to the node identified by (resourceType, resourceID, relation).
+// trackVisit records one visit to the node (resourceType, resourceID, relation).
+// Returns the same ctx and the updated visit count (≥ 1).
 //
-// If no tracker exists in ctx it is created and attached. The returned context always
-// contains a tracker. The returned int is the updated visit count for that node (≥ 1).
+// If no tracker is present in ctx (NewTraversalTracker was not called — defensive path),
+// the function is a no-op and returns count=1. Callers must call NewTraversalTracker at
+// the request root before enabling tracing.
 //
-// When a tracker is NOT present in the incoming ctx (i.e. debug tracing is disabled),
-// this function is never called — callers gate on EnableDebugTrace first, so this path
-// is zero-cost in the hot path.
+// Callers gate on req.EnableDebugTrace before calling this, so it is zero-cost in the
+// hot path when tracing is disabled.
 func trackVisit(ctx context.Context, resourceType, resourceID, relation string) (context.Context, int) {
 	tracker, ok := ctx.Value(lookupTraversalKey{}).(*traversalTracker)
 	if !ok {
-		tracker = &traversalTracker{visited: make(map[string]int)}
-		ctx = context.WithValue(ctx, lookupTraversalKey{}, tracker)
+		// Defensive: no tracker injected. Return count=1 (non-cyclic), don't mutate ctx.
+		return ctx, 1
 	}
 	tracker.mu.Lock()
 	defer tracker.mu.Unlock()
-	key := nodeKey(resourceType, resourceID, relation)
+	key := nodeKey{ns: resourceType, id: resourceID, rel: relation}
 	tracker.visited[key]++
 	return ctx, tracker.visited[key]
 }
 
-// buildLookupDebugTrace constructs a LookupDebugTrace proto for a single visited node.
-// isCyclic is set to true when count > 1 (the node was encountered more than once).
-func buildLookupDebugTrace(resourceType, resourceID, relation string, count int, subProblems []*v1.LookupDebugTrace) *v1.LookupDebugTrace {
-	//nolint:gosec // count is always ≥ 1, safe to cast
-	return &v1.LookupDebugTrace{
-		ResourceType:    resourceType,
-		ResourceId:      resourceID,
-		Relation:        relation,
-		TraversalCount:  uint32(count),
-		IsCyclic:        count > 1,
-		SubProblems:     subProblems,
+// SnapshotLookupDebugTrace reads the traversalTracker from ctx and returns a proto
+// message whose SubProblems list contains one entry per visited node, with
+// IsCyclic=true for nodes visited more than once.
+//
+// Returns nil if no tracker is present (debug tracing was not enabled).
+// Returns an empty trace (non-nil) if tracing was enabled but 0 visits occurred.
+// This ensures tests and callers don't panic on max-depth-exceeded errors before visits.
+func SnapshotLookupDebugTrace(ctx context.Context) *v1.LookupDebugTrace {
+	tracker, ok := ctx.Value(lookupTraversalKey{}).(*traversalTracker)
+	if !ok || tracker == nil {
+		return nil
 	}
+
+	tracker.mu.Lock()
+	defer tracker.mu.Unlock()
+
+	if len(tracker.visited) == 0 {
+		return &v1.LookupDebugTrace{}
+	}
+
+	nodes := make([]*v1.LookupDebugTrace, 0, len(tracker.visited))
+	for key, count := range tracker.visited {
+		nodes = append(nodes, &v1.LookupDebugTrace{
+			ResourceType:   key.ns,
+			ResourceId:     key.id,
+			Relation:       key.rel,
+			TraversalCount: uint32(count), //nolint:gosec // count always ≥ 1
+			IsCyclic:       count > 1,
+		})
+	}
+
+	// Return a root "envelope" trace whose sub-problems are the visited nodes.
+	return &v1.LookupDebugTrace{
+		SubProblems: nodes,
+	}
+}
+
+// SerializeLookupDebugTrace snapshots the tracker from ctx and serializes the result
+// to a base64-encoded protobuf wire format, ready to set as a gRPC trailer value.
+// Returns "" if no trace is present or serialization fails.
+func SerializeLookupDebugTrace(ctx context.Context) string {
+	trace := SnapshotLookupDebugTrace(ctx)
+	if trace == nil {
+		return ""
+	}
+	b, err := proto.Marshal(trace)
+	if err != nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }
