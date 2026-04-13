@@ -93,7 +93,7 @@ func PlanPartitionedExport(ctx context.Context, ds datastore.Datastore, desiredP
 // StreamPartitionedExport streams relationships for a single partition. The sender
 // callback is invoked for each batch. Use PlanPartitionedExport first to obtain
 // partitions and a revision.
-func StreamPartitionedExport(ctx context.Context, ds datastore.Datastore, req StreamRequest, sender func(batch ExportBatch) error) error {
+func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore, req StreamRequest, sender func(batch ExportBatch) error) error {
 	if req.Revision == nil {
 		return fmt.Errorf("revision is required")
 	}
