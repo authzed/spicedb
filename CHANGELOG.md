@@ -13,8 +13,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)
 - Removed support for Spanner flag value `--datastore-spanner-metrics=deprecated-prometheus`; please use values `otel` or `native` (https://github.com/authzed/spicedb/pull/2980)
 - Reduced binary size (https://github.com/authzed/spicedb/pull/3005)
-
-### Fixed
 - On a Postgres setup with read replicas, some requests may silently swallow errors of sort "revision not found in replica" (https://github.com/authzed/spicedb/pull/2979)
 - Use cgroup-aware memory detection for cache and watch buffer sizing in containerized environments (https://github.com/authzed/spicedb/pull/3000)
 
