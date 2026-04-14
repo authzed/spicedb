@@ -141,7 +141,7 @@ func (sd *spannerDatastore) watch(
 			StartTimestamp:    afterRevision.Time().Add(1 * time.Nanosecond), // records with commit_timestamp greater than or equal to start_timestamp will be returned
 			HeartbeatInterval: heartbeatInterval,
 			SpannerClientOptions: []option.ClientOption{
-				option.WithCredentialsFile(sd.config.credentialsFilePath),
+				option.WithCredentialsFile(sd.config.credentialsFilePath), //nolint:staticcheck  // The preferred approach is using Application Default Credentials
 			},
 			SpannerClientConfig: spanner.ClientConfig{
 				QueryOptions: spanner.QueryOptions{

@@ -42,12 +42,12 @@ func NewSpannerDriver(ctx context.Context, database, credentialsFilePath, emulat
 	}
 	log.Ctx(ctx).Info().Str("spanner-emulator-host", os.Getenv(emulatorSettingKey)).Msg("spanner emulator")
 	log.Ctx(ctx).Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
-	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath))
+	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath)) //nolint:staticcheck  // The preferred approach is using Application Default Credentials
 	if err != nil {
 		return nil, err
 	}
 
-	adminClient, err := admin.NewDatabaseAdminClient(ctx, option.WithCredentialsFile(credentialsFilePath))
+	adminClient, err := admin.NewDatabaseAdminClient(ctx, option.WithCredentialsFile(credentialsFilePath)) //nolint:staticcheck  // The preferred approach is using Application Default Credentials
 	if err != nil {
 		return nil, err
 	}
