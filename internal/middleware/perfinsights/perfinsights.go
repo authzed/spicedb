@@ -54,20 +54,25 @@ func NoLabels() APIShapeLabels {
 // of the API call that are not the specific object IDs, e.g. the resource type,
 // the relation, the subject type, etc.
 //
-// NOTE: This metric is a *native* histogram, which means that instead of predefined
-// the buckets, it uses a factor to determine the buckets. This is useful for latency-based
-// metrics, as the latency can vary widely and having a fixed set of buckets can lead to
-// imprecise results.
+// NOTE: This metric uses both classic and native histogram buckets. Classic buckets
+// ensure compatibility with standard PromQL queries (e.g. histogram_quantile), while
+// native histograms provide higher resolution when supported by the Prometheus server.
 //
-// To use make use of native histograms, a special flag must be set on Prometheus:
+// To make use of native histograms, a special flag must be set on Prometheus:
 // https://prometheus.io/docs/prometheus/latest/feature_flags/#native-histograms
 var APIShapeLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace:                   "spicedb",
-	Subsystem:                   "perf_insights",
-	Name:                        "api_shape_latency_seconds",
-	Help:                        "The latency of API calls, by shape",
-	Buckets:                     nil,
-	NativeHistogramBucketFactor: 1.1,
+	Namespace:                      "spicedb",
+	Subsystem:                      "perf_insights",
+	Name:                           "api_shape_latency_seconds",
+	Help:                           "The latency of API calls, by shape",
+	NativeHistogramBucketFactor:    1.1,
+	NativeHistogramMaxBucketNumber: 100,
+	// Bucket boundaries: sub-second values match the gRPC server handling
+	// time histogram in pkg/cmd/server/defaults.go (createServerMetrics);
+	// 1–10s buckets added for slow query visibility in Perf Insights.
+	Buckets: []float64{
+		.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 2, 3, 5, 7, 10,
+	},
 }, append([]string{"api_kind"}, allLabels...))
 
 var tracer = otel.Tracer("spicedb/internal/middleware")
