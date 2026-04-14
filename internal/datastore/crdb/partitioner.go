@@ -35,7 +35,7 @@ var _ datastore.BulkExportPartitioner = (*crdbDatastore)(nil)
 // returned.
 func (cds *crdbDatastore) PlanPartitions(ctx context.Context, revision datastore.Revision, desiredCount uint32) ([]datastore.PartitionRange, error) {
 	if desiredCount <= 1 {
-		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}, nil
+		return SinglePartitionRange, nil
 	}
 
 	boundaries, err := cds.rangeBoundaries(ctx)
