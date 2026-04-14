@@ -3,9 +3,12 @@
 ARG BASE=cgr.dev/chainguard/static@sha256:99a5f826e71115aef9f63368120a6aa518323e052297718e9bf084fb84def93c
 
 FROM $BASE
-# NOTE: this copies in the health probe binary from the official build of the container.
-COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.48 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
-COPY spicedb /usr/local/bin/spicedb
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETPLATFORM
+# NOTE: downloads the health probe binary directly from the official release.
+ADD --chmod=755 https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.48/grpc_health_probe-${TARGETOS}-${TARGETARCH} /usr/local/bin/grpc_health_probe
+COPY $TARGETPLATFORM/spicedb /usr/local/bin/spicedb
 ENV PATH="$PATH:/usr/local/bin"
 EXPOSE 50051
 ENTRYPOINT ["spicedb"]
