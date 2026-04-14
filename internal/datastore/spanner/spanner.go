@@ -145,6 +145,9 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	}
 
 	var spannerOpts []option.ClientOption
+	if config.credentialsJSON != nil {
+		spannerOpts = append(spannerOpts, option.WithCredentialsJSON(config.credentialsJSON)) //nolint:staticcheck  // The preferred approach is using Application Default Credentials
+	}
 
 	slogger := slog.New(slogzerolog.Option{Level: slog.LevelDebug, Logger: &log.Logger}.NewZerologHandler())
 	spannerOpts = append(spannerOpts,

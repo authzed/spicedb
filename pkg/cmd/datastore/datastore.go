@@ -156,7 +156,17 @@ type Config struct {
 	RelaxedIsolationLevel bool          `debugmap:"visible"`
 
 	// Spanner
-	SpannerCredentialsFile        string `debugmap:"visible"`
+	// SpannerCredentialsFile is a filename reference to a file containing
+	// spanner client credentials.
+	//
+	// Deprecated: Prefer Application Default Credentials for Spanner client credentials:
+	// https://docs.cloud.google.com/docs/authentication/client-libraries#adc
+	SpannerCredentialsFile string `debugmap:"visible"`
+	// SpannerCredentialsJSON is a mechanism for providing client configuration as JSON.
+	//
+	// Deprecated: Prefer Application Default Credentials for Spanner client credentials:
+	// https://docs.cloud.google.com/docs/authentication/client-libraries#adc
+	SpannerCredentialsJSON        []byte `debugmap:"sensitive"`
 	SpannerEmulatorHost           string `debugmap:"visible"`
 	SpannerMinSessions            uint64 `debugmap:"visible"`
 	SpannerMaxSessions            uint64 `debugmap:"visible"`
@@ -730,6 +740,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.RevisionQuantization(opts.RevisionQuantization),
 		spanner.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
+		spanner.CredentialsJSON(opts.SpannerCredentialsJSON),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 		spanner.WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),
 		spanner.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),

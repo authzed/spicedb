@@ -70,6 +70,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.RelaxedIsolationLevel = c.RelaxedIsolationLevel
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
+		to.SpannerCredentialsJSON = c.SpannerCredentialsJSON
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.SpannerMinSessions = c.SpannerMinSessions
 		to.SpannerMaxSessions = c.SpannerMaxSessions
@@ -250,6 +251,7 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["SpannerCredentialsFile"] = c.SpannerCredentialsFile
 	}
+	debugMap["SpannerCredentialsJSON"] = "(sensitive)"
 	if c.SpannerEmulatorHost == "" {
 		debugMap["SpannerEmulatorHost"] = "(empty)"
 	} else {
@@ -636,6 +638,20 @@ func WithRelaxedIsolationLevel(relaxedIsolationLevel bool) ConfigOption {
 func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 	return func(c *Config) {
 		c.SpannerCredentialsFile = spannerCredentialsFile
+	}
+}
+
+// WithSpannerCredentialsJSON returns an option that can append SpannerCredentialsJSONs to Config.SpannerCredentialsJSON
+func WithSpannerCredentialsJSON(spannerCredentialsJSON byte) ConfigOption {
+	return func(c *Config) {
+		c.SpannerCredentialsJSON = append(c.SpannerCredentialsJSON, spannerCredentialsJSON)
+	}
+}
+
+// SetSpannerCredentialsJSON returns an option that can set SpannerCredentialsJSON on a Config
+func SetSpannerCredentialsJSON(spannerCredentialsJSON []byte) ConfigOption {
+	return func(c *Config) {
+		c.SpannerCredentialsJSON = spannerCredentialsJSON
 	}
 }
 
