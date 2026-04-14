@@ -58,7 +58,7 @@ nfpms:
         dst: "/usr/share/man/man1/spicedb.1"
         file_info:
           mode: 0644
-furies:
+gemfury:
   - account: "authzed"
     secret_name: "GEMFURY_PUSH_TOKEN"
     disable: "{{ gt (len .Prerelease) 0 }}"
@@ -81,121 +81,57 @@ snapcrafts:
         plugs:
           - "network-bind"
           - "network"
-brews:
-  - name: "{{.ProjectName}}"
-    <<: &brew-shared
-      description: "Google Zanzibar-inspired permissions database for fine-grained access control"
-      homepage: "https://github.com/authzed/spicedb"
-      license: "Apache-2.0"
-      dependencies:
-        - name: "go"
-          type: "build"
-      custom_block: |
-        head "https://github.com/authzed/spicedb.git", :branch => "main"
-      url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-      install: |
-        if build.head?
-          versionVar = "github.com/jzelinskie/cobrautil/v2.Version"
-          versionCmd = "$(git describe --always --abbrev=7 --dirty --tags)"
-          system "go build -tags memoryprotection --ldflags '-s -w -checklinkname=0 -X #{versionVar}=#{versionCmd}' ./cmd/spicedb"
-        end
-        bin.install "spicedb"
-        generate_completions_from_executable(bin/"spicedb", "completion", shells: [:bash, :zsh, :fish])
-      test: |
-        system "#{bin}/spicedb version"
-      repository:
-        owner: "authzed"
-        name: "homebrew-tap"
-        token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-      commit_author:
-        name: "authzedbot"
-        email: "infrastructure@authzed.com"
-      commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-      directory: "Formula"
-      skip_upload: "auto"
-  - name: "{{.ProjectName}}@{{.Version}}"
-    <<: *brew-shared
-dockers:
-  # AMD64
-  - image_templates:
-      - &amd_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64"
-      - &amd_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64"
-      - &amd_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64"
-    dockerfile: &dockerfile "Dockerfile.release"
-    goos: "linux"
-    goarch: "amd64"
-    use: "buildx"
-    build_flag_templates:
-      - "--platform=linux/amd64"
-  # AMD64 (debug)
-  - image_templates:
-      - &amd_debug_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64-debug"
-      - &amd_debug_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64-debug"
-      - &amd_debug_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64-debug"
-    dockerfile: &dockerfile "Dockerfile.release"
-    goos: "linux"
-    goarch: "amd64"
-    use: "buildx"
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--build-arg=BASE=cgr.dev/chainguard/busybox"
-  # ARM64
-  - image_templates:
-      - &arm_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64"
-      - &arm_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64"
-      - &arm_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64"
-    dockerfile: *dockerfile
-    goos: "linux"
-    goarch: "arm64"
-    use: "buildx"
-    build_flag_templates:
-      - "--platform=linux/arm64"
-  # ARM64 (debug)
-  - image_templates:
-      - &arm_debug_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64-debug"
-      - &arm_debug_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64-debug"
-      - &arm_debug_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64-debug"
-    dockerfile: *dockerfile
-    goos: "linux"
-    goarch: "arm64"
-    use: "buildx"
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--build-arg=BASE=cgr.dev/chainguard/busybox"
-docker_manifests:
-  # Quay
-  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}"
-    image_templates: [*amd_image_quay, *arm_image_quay]
-  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest"
-    image_templates: [*amd_image_quay, *arm_image_quay]
-  # GitHub Registry
-  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}"
-    image_templates: [*amd_image_gh, *arm_image_gh]
-  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest"
-    image_templates: [*amd_image_gh, *arm_image_gh]
-  # Docker Hub
-  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}"
-    image_templates: [*amd_image_dh, *arm_image_dh]
-  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest"
-    image_templates: [*amd_image_dh, *arm_image_dh]
-
-  # Debug Images:
-
-  # Quay (debug)
-  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
-    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay]
-  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
-    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay]
-  # GitHub Registry
-  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
-    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh]
-  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
-    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh]
-  # Docker Hub
-  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
-    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh]
-  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
-    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh]
+homebrew_casks:
+  - alternative_names:
+      - "{{.ProjectName}}@{{.Version}}"
+    description: "Google Zanzibar-inspired permissions database for fine-grained access control"
+    homepage: "https://github.com/authzed/spicedb"
+    url:
+      template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    completions:
+      bash: "completions/spicedb.bash"
+      zsh: "completions/spicedb.zsh"
+      fish: "completions/spicedb.fish"
+    manpages:
+      - "manpages/spicedb.1"
+    repository:
+      owner: "authzed"
+      name: "homebrew-tap"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: "authzedbot"
+      email: "infrastructure@authzed.com"
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    skip_upload: "auto"
+dockers_v2:
+  # Standard images
+  - id: "standard"
+    dockerfile: "Dockerfile.release"
+    platforms:
+      - "linux/amd64"
+      - "linux/arm64"
+    images:
+      - "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}"
+      - "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}"
+      - "authzed/spicedb{{ if .IsNightly }}-git{{ end }}"
+    tags:
+      - "v{{ .Version }}"
+      - "latest"
+  # Debug images
+  - id: "debug"
+    dockerfile: "Dockerfile.release"
+    platforms:
+      - "linux/amd64"
+      - "linux/arm64"
+    images:
+      - "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}"
+      - "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}"
+      - "authzed/spicedb{{ if .IsNightly }}-git{{ end }}"
+    tags:
+      - "v{{ .Version }}-debug"
+      - "latest-debug"
+    build_args:
+      BASE: "cgr.dev/chainguard/busybox"
 checksum:
   name_template: "checksums.txt"
 snapshot:
