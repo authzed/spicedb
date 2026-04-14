@@ -1,0 +1,31 @@
+---
+# Tests wildcard propagation through combined intersection and exclusion:
+# permission view = (viewer & reader) - banned
+# where viewer is a wildcard, reader has concrete users, and banned excludes some.
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user | test/user:*
+    relation reader: test/user
+    relation banned: test/user
+    permission allowed_readers = reader - banned
+    permission view = viewer & allowed_readers
+  }
+relationships: |
+  test/resource:first#viewer@test/user:*
+  test/resource:first#reader@test/user:alice
+  test/resource:first#reader@test/user:bob
+  test/resource:first#reader@test/user:charlie
+  test/resource:first#banned@test/user:bob
+assertions:
+  assertTrue:
+    # alice is a reader, not banned, and viewer is * → has view
+    - "test/resource:first#view@test/user:alice"
+    # charlie is a reader, not banned, and viewer is * → has view
+    - "test/resource:first#view@test/user:charlie"
+  assertFalse:
+    # bob is a reader but is banned → no view
+    - "test/resource:first#view@test/user:bob"
+    # randomuser is not a reader → no view (even though viewer is *)
+    - "test/resource:first#view@test/user:randomuser"
