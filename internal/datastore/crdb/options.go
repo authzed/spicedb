@@ -416,7 +416,7 @@ func WithWatchDisabled(isDisabled bool) Option {
 	return func(po *crdbOptions) { po.watchDisabled = isDisabled }
 }
 
-// WithExperimentalCancelDraining enables sentinel-drain cancel handling on both
+// WithExperimentalCancelDraining enables cancel-and-drain handling on both
 // connection pools. When enabled, cancelled contexts send a PostgreSQL cancel
 // request to CRDB (stopping server-side work early) and drain the connection
 // with SELECT 1 before returning it to the pool, preventing pool depletion.
@@ -429,8 +429,7 @@ func WithExperimentalCancelDraining(enabled bool) Option {
 // WithAcquireTimeout configures the amount of time to wait to acquire a write
 // connection from the pool before returning ResourceExhausted to the caller.
 // Default is 0 (disabled — wait indefinitely). Set a non-zero value to enable
-// explicit load-shedding. This is no longer needed for connection-health reasons;
-// the cancel handler keeps the pool healthy after context cancellations.
+// explicit load-shedding.
 func WithAcquireTimeout(timeout time.Duration) Option {
 	return func(po *crdbOptions) { po.acquireTimeout = timeout }
 }

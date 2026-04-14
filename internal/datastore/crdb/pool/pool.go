@@ -4,15 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
-	"weak"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
@@ -29,74 +26,6 @@ type pgxPool interface {
 	Config() *pgxpool.Config
 	Close()
 	Stat() *pgxpool.Stat
-}
-
-// RetryPoolOption configures optional behavior on a RetryPool at construction time.
-// It receives the pool config to modify and a pointer to the RetryPool being
-// built so that options can set pool-level flags.
-type RetryPoolOption func(*pgxpool.Config, *RetryPool)
-
-// WithCancelHandler installs a cancelHandler on each connection in the pool.
-// When the context is cancelled, the handler sends a PostgreSQL cancel request
-// to CRDB so it stops executing the query early, without closing the connection.
-// The connection is drained synchronously in withRetries before pool release.
-//
-// To avoid a data race between CancelRequest (which reads pid/secretKey) and
-// pgconn's connectOne (which writes them), the handler only sends the cancel
-// request after the connection is fully established. The pgconn-level
-// AfterConnect hook (config.ConnConfig.AfterConnect) marks the handler ready
-// immediately after connectOne completes; until then the net.Conn deadline set
-// in HandleCancel is sufficient to unblock the caller.
-func WithCancelHandler() RetryPoolOption {
-	return func(config *pgxpool.Config, p *RetryPool) {
-		p.cancelHandlerInstalled = true
-		// handlers maps each connection's identity to its cancelHandler so that
-		// the pgconn AfterConnect hook can mark it ready.
-		//
-		// Both key and value are weak pointers so the map does not prevent the
-		// GC from collecting a failed connection's pgConn ↔ cancelHandler cycle.
-		// On success, AfterConnect removes the entry via LoadAndDelete. On
-		// failure (connectOne returns an error before AfterConnect fires), the
-		// pgConn and cancelHandler become unreachable — the GC collects the
-		// cycle, and AddCleanup then deletes the stale map entry.
-		var handlers sync.Map // weak.Pointer[pgconn.PgConn] → weak.Pointer[cancelHandler]
-
-		config.ConnConfig.BuildContextWatcherHandler = func(pgConn *pgconn.PgConn) ctxwatch.Handler {
-			h := &cancelHandler{
-				pgConn:        pgConn,
-				deadlineDelay: 1 * time.Second,
-			}
-			key := weak.Make(pgConn)
-			handlers.Store(key, weak.Make(h))
-			// When h is collected (connection failed; the pgConn ↔ cancelHandler
-			// cycle became unreachable), remove the stale map entry.
-			runtime.AddCleanup(h, func(key weak.Pointer[pgconn.PgConn]) {
-				handlers.Delete(key)
-			}, key)
-			return h
-		}
-
-		// Use the pgconn-level AfterConnect to mark the handler ready.
-		// This fires inside pgconn.ConnectConfig, immediately after connectOne
-		// writes pid/secretKey and before the connection is surfaced to pgxpool.
-		// Using the pgconn hook avoids interfering with pgxpool.Config.AfterConnect
-		// (which NewRetryPool wraps for pool housekeeping).
-		prevPgconn := config.ConnConfig.AfterConnect
-		config.ConnConfig.AfterConnect = func(ctx context.Context, pgConn *pgconn.PgConn) error {
-			// connectOne has completed; pid/secretKey are written.
-			// Mark the handler ready so HandleCancel may call CancelRequest.
-			key := weak.Make(pgConn)
-			if v, ok := handlers.LoadAndDelete(key); ok {
-				if h := v.(weak.Pointer[cancelHandler]).Value(); h != nil {
-					h.ready.Store(1)
-				}
-			}
-			if prevPgconn != nil {
-				return prevPgconn(ctx, pgConn)
-			}
-			return nil
-		}
-	}
 }
 
 var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -121,33 +50,20 @@ type RetryPool struct {
 	id            string
 	healthTracker *NodeHealthTracker
 
-	// cancelHandlerInstalled is true when WithCancelHandler was passed to
-	// NewRetryPool. Only when true does withRetries drain on cancellation;
-	// without a cancel handler there is no in-flight CancelRequest to absorb.
-	cancelHandlerInstalled bool
-
-	// drainCancelledConnFn drains a cancelled connection before pool release.
-	// Defaults to drainCancelledConn; overridable in tests.
-	drainCancelledConnFn func(conn *pgxpool.Conn) bool
-
 	sync.RWMutex
 	maxRetries  uint8
 	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
 	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
 }
 
-func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration, opts ...RetryPoolOption) (*RetryPool, error) {
+func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
 	config = config.Copy()
 	p := &RetryPool{
-		id:                   name,
-		maxRetries:           maxRetries,
-		healthTracker:        healthTracker,
-		nodeForConn:          make(map[*pgx.Conn]uint32, 0),
-		gc:                   make(map[*pgx.Conn]struct{}, 0),
-		drainCancelledConnFn: drainCancelledConn,
-	}
-	for _, opt := range opts {
-		opt(config, p)
+		id:            name,
+		maxRetries:    maxRetries,
+		healthTracker: healthTracker,
+		nodeForConn:   make(map[*pgx.Conn]uint32, 0),
+		gc:            make(map[*pgx.Conn]struct{}, 0),
 	}
 
 	limiter := rate.NewLimiter(rate.Every(connectRate), 1)
@@ -432,25 +348,16 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 			common.SleepOnErr(ctx, err, retries)
 			continue
 		}
-		// Drain the connection before release when the context was cancelled and
-		// the cancel handler is installed. The cancelHandler sends a PostgreSQL
-		// cancel request without sleeping; the cancel may still be in transit
-		// when fn returns. Polling SELECT 1 absorbs any stale 57014
-		// deterministically before pool release. Without the cancel handler
-		// there is no in-flight CancelRequest to absorb, so we skip the drain.
-		// If the connection is broken, GC it so the pool replaces it.
-		if p.cancelHandlerInstalled && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
-			if conn != nil && !p.drainCancelledConnFn(conn) {
-				p.GC(conn.Conn())
-			}
-		} else if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
-		}
-
 		if conn != nil {
 			conn.Release()
 			conn = nil // suppress the deferred release
 		}
+
+		// error is not resettable or retryable
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
+		}
+
 		return err
 	}
 	return &MaxRetryError{MaxRetries: maxRetries, LastErr: err}
@@ -558,67 +465,5 @@ func wrapRetryableError(ctx context.Context, err error) error {
 		return &RetryableError{Err: err}
 	}
 
-	// A query-canceled (57014) with a live context means a stale CancelRequest
-	// from a prior context cancellation reached the connection after drainConn
-	// had already confirmed it clean (the net.Conn deadline fired and SELECT 1
-	// succeeded before the in-flight cancel arrived at CRDB). The connection is
-	// clean once CRDB returns 57014; retry on the same connection.
-	if sqlErrorCode(err) == CrdbQueryCanceledCode {
-		return &RetryableError{Err: err}
-	}
-
 	return err
-}
-
-// connQueryer is the subset of pgx.Conn used by drainConn, enabling unit testing
-// without a real database connection.
-type connQueryer interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-}
-
-// drainCancelledConn polls SELECT 1 on conn until the connection is provably
-// clean or broken, then returns whether the connection is safe to return to
-// the pool.
-//
-// When a query is cancelled via the PostgreSQL cancel protocol, a cancel
-// request may still be in transit to CRDB after the calling goroutine receives
-// the context error. If that in-flight cancel arrives on the connection's next
-// query, CRDB returns SQLSTATE 57014. This function absorbs any such stragglers
-// deterministically.
-//
-// Returns false if the connection should be GC'd.
-func drainCancelledConn(conn *pgxpool.Conn) bool {
-	return drainConn(conn.Conn())
-}
-
-// drainConn is the testable core of drainCancelledConn. It uses a 5-second
-// timeout: generous enough to handle a briefly-unresponsive CRDB node, yet
-// bounded so a partitioned node doesn't hold a pool connection indefinitely.
-// In practice only 0–2 iterations occur (the cancel either already hit the
-// original query or arrives on the first SELECT 1).
-func drainConn(q connQueryer) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return drainConnWithContext(ctx, q)
-}
-
-// drainConnWithContext is the inner loop, exposed for testing with custom timeouts.
-// A 5ms sleep between 57014 iterations avoids tight-spinning if CRDB is slow to
-// process the cancel; in practice only 0–2 iterations occur.
-func drainConnWithContext(ctx context.Context, q connQueryer) bool {
-	for {
-		_, err := q.Exec(ctx, "SELECT 1")
-		if err == nil {
-			return true // clean — no cancel outstanding
-		}
-		if sqlErrorCode(err) == CrdbQueryCanceledCode {
-			select {
-			case <-ctx.Done():
-				return false
-			case <-time.After(5 * time.Millisecond):
-			}
-			continue // cancel absorbed, loop to confirm clean
-		}
-		return false // connection broken or timed out
-	}
 }
