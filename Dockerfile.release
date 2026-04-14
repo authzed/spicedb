@@ -1,16 +1,10 @@
 # vim: syntax=dockerfile
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
 ARG BASE=cgr.dev/chainguard/static@sha256:99a5f826e71115aef9f63368120a6aa518323e052297718e9bf084fb84def93c
-FROM golang:1.25.8-alpine@sha256:8e02eb337d9e0ea459e041f1ee5eece41cbb61f1d83e7d883a3e2fb4862063fa AS health-probe-builder
-WORKDIR /go/src/app
-RUN apk update && apk add --no-cache git
-RUN git clone https://github.com/authzed/grpc-health-probe.git
-WORKDIR /go/src/app/grpc-health-probe
-RUN git checkout main
-RUN CGO_ENABLED=0 go install -a -tags netgo -ldflags=-w
 
 FROM $BASE
-COPY --from=health-probe-builder /go/bin/grpc-health-probe /usr/local/bin/grpc_health_probe
+# NOTE: this copies in the health probe binary from the official build of the container.
+COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.48 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
 COPY spicedb /usr/local/bin/spicedb
 ENV PATH="$PATH:/usr/local/bin"
 EXPOSE 50051
