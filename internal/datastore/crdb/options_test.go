@@ -70,7 +70,7 @@ func TestDefaultAcquireTimeoutIsZero(t *testing.T) {
 	config, err := generateConfig(nil)
 	require.NoError(t, err)
 	require.Equal(t, time.Duration(0), config.acquireTimeout,
-		"default acquireTimeout should be 0 (disabled) since cancel handler keeps pool healthy")
+		"default acquireTimeout should be 0 (disabled) since cancel-and-drain handler keeps pool healthy")
 }
 
 func TestAcquireTimeoutWithCancelDraining(t *testing.T) {

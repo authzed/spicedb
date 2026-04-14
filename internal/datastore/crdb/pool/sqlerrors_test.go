@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -447,8 +446,4 @@ func Test_sqlErrorCode(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestCrdbQueryCanceledCode(t *testing.T) {
-	require.Equal(t, "57014", CrdbQueryCanceledCode)
 }

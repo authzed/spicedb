@@ -276,3 +276,5 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/jackc/pgx/v5 => github.com/ecordell/pgx/v5 v5.2.1-0.20260415134255-59a9eef9ce8c

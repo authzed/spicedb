@@ -18,11 +18,6 @@ const (
 	CrdbAmbiguousErrorCode = "40003"
 	// https://www.cockroachlabs.com/docs/stable/node-shutdown.html#connection-retry-loop
 	CrdbServerNotAcceptingClients = "57P01"
-	// CrdbQueryCanceledCode is the SQLSTATE returned by CRDB/PostgreSQL when a query
-	// is canceled via the PostgreSQL cancel protocol (e.g., pg_cancel_backend or
-	// the driver's CancelRequest). After absorbing this error, the connection is clean.
-	// https://www.postgresql.org/docs/current/errcodes-appendix.html
-	CrdbQueryCanceledCode = "57014"
 	// Error when SqlState is unknown
 	CrdbUnknownSQLState = "XXUUU"
 	// Error message encountered when crdb nodes have large clock skew

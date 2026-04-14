@@ -15,6 +15,7 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -203,16 +204,23 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
 
-	var poolOpts []pool.RetryPoolOption
 	if config.experimentalCancelDraining {
-		poolOpts = append(poolOpts, pool.WithCancelHandler())
+		// Install cancel-and-drain handler on both pools: on context cancellation,
+		// pgx sends a PostgreSQL cancel request and drains any in-flight 57014 via
+		// SELECT 1 before returning the connection to the pool.
+		cancelHandler := func(pgConn *pgconn.PgConn) ctxwatch.Handler {
+			return &pgconn.CancelAndDrainContextWatcherHandler{Conn: pgConn}
+		}
+		readPoolConfig.ConnConfig.BuildContextWatcherHandler = cancelHandler
+		writePoolConfig.ConnConfig.BuildContextWatcherHandler = cancelHandler
 	}
-	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate, poolOpts...)
+
+	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate, poolOpts...)
+	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
