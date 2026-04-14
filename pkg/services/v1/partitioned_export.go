@@ -104,7 +104,7 @@ func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore
 	reader := ds.SnapshotReader(req.Revision)
 
 	batchSize := uint64(req.BatchSize)
-	if batchSize == 0 {
+	if batchSize <= 0 {
 		batchSize = defaultBatchSize
 	}
 
