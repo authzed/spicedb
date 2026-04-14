@@ -5,8 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+<<<<<<< ours
 - Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
 - Added support for YAML-based validation files in the Language Server (https://github.com/authzed/spicedb/pull/3024)
+=======
+- CockroachDB: sentinel-drain cancel handling for connection pools. Cancelled contexts now send a PostgreSQL cancel request to CRDB (stopping server-side work early) and drain the connection deterministically before returning it to the pool, preventing pool depletion. The `SeparatingContextDatastoreProxy` (which previously severed read contexts to avoid this problem) has been removed. The `write-conn-acquisition-timeout` default is now 0 (disabled). Controlled by `--datastore-experimental-cancel-draining` (default: on).
+>>>>>>> theirs
 
 ### Changed
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)

@@ -90,6 +90,7 @@ spicedb datastore gc [flags]
       --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
       --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
+      --datastore-experimental-cancel-draining                                enable sentinel-drain cancel handling for CockroachDB connection pools; disable to revert to pre-cancellation behavior (CockroachDB driver only) (default true)
       --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
       --datastore-follower-read-delay-duration duration                       amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
       --datastore-gc-interval duration                                        amount of time between passes of garbage collection (Postgres driver only) (default 3m0s)
@@ -135,7 +136,7 @@ spicedb datastore gc [flags]
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string                                           local path to the termination log file, which contains a JSON payload to surface as reason for termination
-      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
+      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)
 ```
 
 ### Options Inherited From Parent Flags
@@ -256,6 +257,7 @@ spicedb datastore repair [flags]
       --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
       --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
+      --datastore-experimental-cancel-draining                                enable sentinel-drain cancel handling for CockroachDB connection pools; disable to revert to pre-cancellation behavior (CockroachDB driver only) (default true)
       --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
       --datastore-follower-read-delay-duration duration                       amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
       --datastore-gc-interval duration                                        amount of time between passes of garbage collection (Postgres driver only) (default 3m0s)
@@ -301,7 +303,7 @@ spicedb datastore repair [flags]
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string                                           local path to the termination log file, which contains a JSON payload to surface as reason for termination
-      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
+      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)
 ```
 
 ### Options Inherited From Parent Flags
@@ -443,6 +445,7 @@ spicedb serve [flags]
       --datastore-credentials-provider-name string                                      retrieve datastore credentials dynamically using ("aws-iam")
       --datastore-disable-watch-support                                                 disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                                         type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
+      --datastore-experimental-cancel-draining                                          enable sentinel-drain cancel handling for CockroachDB connection pools; disable to revert to pre-cancellation behavior (CockroachDB driver only) (default true)
       --datastore-experimental-column-optimization                                      enable experimental column optimization (default true)
       --datastore-follower-read-delay-duration duration                                 amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
       --datastore-gc-interval duration                                                  amount of time between passes of garbage collection (Postgres driver only) (default 3m0s)
@@ -568,7 +571,7 @@ spicedb serve [flags]
       --termination-log-path string                                                     local path to the termination log file, which contains a JSON payload to surface as reason for termination
       --update-relationships-max-preconditions-per-call uint16                          maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls (default 1000)
       --watch-api-heartbeat duration                                                    heartbeat time on the watch in the API. 0 means to default to the datastore's minimum. (default 1s)
-      --write-conn-acquisition-timeout duration                                         amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
+      --write-conn-acquisition-timeout duration                                         amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)
       --write-relationships-max-updates-per-call uint16                                 maximum number of updates allowed for WriteRelationships calls (default 1000)
 ```
 
