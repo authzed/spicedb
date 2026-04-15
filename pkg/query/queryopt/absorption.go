@@ -10,16 +10,23 @@ func init() {
 	MustRegisterOptimization(Optimizer{
 		Name: "absorption-idempotency",
 		Description: `
-		Removes subsumed branches from union expressions using two set-theoretic laws:
-		  - Idempotency: A ∪ A = A
-		  - Absorption:  A ∪ (A ∩ B) = A; generalizes to (A ∩ B) ∪ (A ∩ B ∩ C) = A ∩ B
+		Removes subsumed branches from union and intersection expressions, and
+		annihilates exclusions of identical operands, using five set-theoretic laws:
 
-		Caveats are treated as opaque structural units: A ∪ Caveat(A) is not simplified,
-		but A ∪ (A ∩ Caveat(B)) = A because A appears as a direct factor.
+		  Union laws (drop Y when Y ⊆ X for some sibling X):
+		    - Idempotency:           A ∪ A = A
+		    - Absorption:            A ∪ (A ∩ B) = A; generalizes to
+		                             (A ∩ B) ∪ (A ∩ B ∩ C) = A ∩ B
+		    - Complement-absorption: A ∪ (A − B) = A (since (A−B) ⊆ A)
 
-		Arrows are treated as opaque structural units: (A->B) ∪ (A->B ∩ C) = A->B,
-		but (A->B) ∪ (A->C) is not simplified.
+		  Intersection laws (drop Y when X ⊆ Y for some sibling X):
+		    - Idempotency:  A ∩ A = A
+		    - Absorption:   A ∩ (A ∪ B) = A (A is a stricter constraint than A ∪ B)
 
+		  Exclusion law:
+		    - Self-annihilation: A − A = ∅
+
+		Caveats and arrows are treated as opaque structural units throughout.
 		Runs after simple-caveat-pushdown (priority 20) so it sees the final caveat
 		shape, and before reachability-pruning (priority 0) so pruning works on a
 		smaller tree.
