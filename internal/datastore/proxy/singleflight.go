@@ -43,19 +43,29 @@ func (p *singleflightProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserF
 func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	// NOTE: Optimized revisions are singleflighted by the underlying datastore via the
 	// CachedOptimizedRevisions struct.
+	ctx, span := tracer.Start(ctx, "singleflightProxy.OptimizedRevision")
+	defer span.End()
 	return p.delegate.OptimizedRevision(ctx)
 }
 
 func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	_, _, err := p.checkRevGroup.Do(ctx, revision.String(), func(ctx context.Context) (string, error) {
-		return "", p.delegate.CheckRevision(ctx, revision)
+		// Sever the context so that a single caller's cancellation does not
+		// abort the query for all other singleflight waiters.
+		ctx, span := tracer.Start(ctx, "singleflightProxy.CheckRevision(sf)")
+		defer span.End()
+		return "", p.delegate.CheckRevision(context.WithoutCancel(ctx), revision)
 	})
 	return err
 }
 
 func (p *singleflightProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	rev, _, err := p.headRevGroup.Do(ctx, "", func(ctx context.Context) (datastore.Revision, error) {
-		return p.delegate.HeadRevision(ctx)
+		// Sever the context so that a single caller's cancellation does not
+		// abort the query for all other singleflight waiters.
+		ctx, span := tracer.Start(ctx, "singleflightProxy.HeadRevision(sf)")
+		defer span.End()
+		return p.delegate.HeadRevision(context.WithoutCancel(ctx))
 	})
 	return rev, err
 }
