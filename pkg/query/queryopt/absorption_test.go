@@ -8,10 +8,11 @@ import (
 	"github.com/authzed/spicedb/pkg/query"
 )
 
-// applyAbsorption runs the absorptionIdempotency mutation bottom-up over outline.
+// applyAbsorption runs all absorption-family mutations bottom-up over outline.
 func applyAbsorption(outline query.Outline) query.Outline {
 	return query.MutateOutline(outline, []query.OutlineMutation{
 		absorptionIdempotency,
+		intersectionIdempotencyAbsorption,
 		exclusionSelfAnnihilation,
 		query.NullPropagation,
 	})
@@ -268,5 +269,75 @@ func TestExclusionSelfAnnihilation(t *testing.T) {
 		// After A−A becomes Null, NullPropagation converts B ∩ Null to Null.
 		result := applyAbsorption(intersectionOutline(b, exclusionOutline(a, a)))
 		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("Union[A, (A − A)] leaves Union[A, Null] — null-in-union cleanup is out of scope", func(t *testing.T) {
+		// exclusionSelfAnnihilation turns (A−A) into Null bottom-up before the parent
+		// Union is visited. NullPropagation only collapses a Union to Null when ALL
+		// children are null, so Union[A, Null] remains. The runtime union iterator
+		// evaluates both branches and unions the results; the null branch contributes
+		// nothing, so A ∪ ∅ = A is semantically correct at runtime.
+		result := applyAbsorption(unionOutline(b, exclusionOutline(a, a)))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], b))
+		require.Equal(t, query.NullIteratorType, result.SubOutlines[1].Type)
+	})
+}
+
+func TestIntersectionIdempotencyAbsorption(t *testing.T) {
+	a := dsOutlineForType("document", "viewer", "user", "...")
+	b := dsOutlineForType("document", "editor", "user", "...")
+	c := dsOutlineForType("document", "owner", "user", "...")
+
+	t.Run("idempotency: A ∩ A = A", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(a, a))
+		require.Equal(t, query.DatastoreIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, a))
+	})
+
+	t.Run("idempotency: removes one duplicate in three-child intersection", func(t *testing.T) {
+		// A ∩ A ∩ B → A ∩ B
+		result := applyAbsorption(intersectionOutline(a, a, b))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], b))
+	})
+
+	t.Run("absorption: A ∩ (A ∪ B) = A", func(t *testing.T) {
+		// (A ∪ B) is a weaker constraint than A alone; drop the union.
+		result := applyAbsorption(intersectionOutline(a, unionOutline(a, b)))
+		require.Equal(t, query.DatastoreIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, a))
+	})
+
+	t.Run("absorption: (A ∪ B) ∩ A = A — union on left", func(t *testing.T) {
+		// Same law with operands swapped; order must not matter.
+		result := applyAbsorption(intersectionOutline(unionOutline(a, b), a))
+		require.Equal(t, query.DatastoreIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, a))
+	})
+
+	t.Run("multi-child: A ∩ B ∩ (A ∪ B) = A ∩ B", func(t *testing.T) {
+		// Both A and B subsume the union; drop the union, keep A and B.
+		result := applyAbsorption(intersectionOutline(a, b, unionOutline(a, b)))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], b))
+	})
+
+	t.Run("no-op: distinct children, nothing to remove", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(a, b, c))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 3)
+	})
+
+	t.Run("no-op: A ∩ (B ∪ C) — A does not appear in the union", func(t *testing.T) {
+		// A is not a child of (B ∪ C), so no simplification.
+		result := applyAbsorption(intersectionOutline(a, unionOutline(b, c)))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
 	})
 }
