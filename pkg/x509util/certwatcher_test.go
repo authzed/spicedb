@@ -169,16 +169,22 @@ func TestCertWatcherStart(t *testing.T) {
 			require.NotEmpty(t, crt.Certificate)
 		})
 
-		firstcert, _ := watcher.GetCertificate(nil)
+		firstcert, err := watcher.GetCertificate(nil)
+		require.NoError(t, err)
+		require.NotNil(t, firstcert)
 
 		require.NoError(t, os.Rename(certPath, certPath+".old"))
 		require.NoError(t, os.Rename(keyPath, keyPath+".old"))
 
-		err := writeCerts(certPath, keyPath, "192.168.0.3")
+		err = writeCerts(certPath, keyPath, "192.168.0.3")
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			secondcert, _ := watcher.GetCertificate(nil)
+			secondcert, err := watcher.GetCertificate(nil)
+			if !assert.NoError(collect, err) {
+				return
+			}
+			assert.NotNil(collect, secondcert)
 			first := firstcert.PrivateKey.(*rsa.PrivateKey)
 			assert.False(collect, first.Equal(secondcert.PrivateKey), "first and second privatekeys should not be equal")
 			assert.NotZero(collect, firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber), "the serial numbers should compare as different")
