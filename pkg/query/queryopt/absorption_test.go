@@ -10,7 +10,11 @@ import (
 
 // applyAbsorption runs the absorptionIdempotency mutation bottom-up over outline.
 func applyAbsorption(outline query.Outline) query.Outline {
-	return query.MutateOutline(outline, []query.OutlineMutation{absorptionIdempotency})
+	return query.MutateOutline(outline, []query.OutlineMutation{
+		absorptionIdempotency,
+		exclusionSelfAnnihilation,
+		query.NullPropagation,
+	})
 }
 
 func TestAbsorptionIdempotency(t *testing.T) {
@@ -235,5 +239,34 @@ func TestComplementAbsorption(t *testing.T) {
 		result := applyAbsorption(unionOutline(exclusionOutline(a, b), exclusionOutline(a, c)))
 		require.Equal(t, query.UnionIteratorType, result.Type)
 		require.Len(t, result.SubOutlines, 2)
+	})
+}
+
+func TestExclusionSelfAnnihilation(t *testing.T) {
+	a := dsOutlineForType("document", "viewer", "user", "...")
+	b := dsOutlineForType("document", "editor", "user", "...")
+
+	t.Run("A − A = ∅", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(a, a))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("(A ∩ B) − (A ∩ B) = ∅ — compound minuend and subtrahend", func(t *testing.T) {
+		ab := intersectionOutline(a, b)
+		result := applyAbsorption(exclusionOutline(ab, ab))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("A − B is not simplified — structurally distinct operands", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(a, b))
+		require.Equal(t, query.ExclusionIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], b))
+	})
+
+	t.Run("null propagates to parent intersection: B ∩ (A − A) = ∅", func(t *testing.T) {
+		// After A−A becomes Null, NullPropagation converts B ∩ Null to Null.
+		result := applyAbsorption(intersectionOutline(b, exclusionOutline(a, a)))
+		require.Equal(t, query.NullIteratorType, result.Type)
 	})
 }

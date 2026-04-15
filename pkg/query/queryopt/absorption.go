@@ -27,7 +27,11 @@ func init() {
 		Priority: 10,
 		NewTransform: func(_ RequestParams) OutlineTransform {
 			return func(outline query.Outline) query.Outline {
-				return query.MutateOutline(outline, []query.OutlineMutation{absorptionIdempotency})
+				return query.MutateOutline(outline, []query.OutlineMutation{
+					absorptionIdempotency,
+					exclusionSelfAnnihilation,
+					query.NullPropagation,
+				})
 			}
 		},
 	})
@@ -172,4 +176,22 @@ func intersectionFactors(x query.Outline) []query.Outline {
 		return x.SubOutlines
 	}
 	return []query.Outline{x}
+}
+
+// exclusionSelfAnnihilation is an OutlineMutation that replaces A − A with ∅.
+// If both operands of an ExclusionIteratorType are structurally equal, the node
+// is replaced with NullIteratorType. NullPropagation (run after this mutation in
+// the same MutateOutline call) then cascades the null through parent intersections
+// and caveats according to each node's semantics.
+func exclusionSelfAnnihilation(outline query.Outline) query.Outline {
+	if outline.Type != query.ExclusionIteratorType {
+		return outline
+	}
+	if len(outline.SubOutlines) != 2 {
+		return outline
+	}
+	if query.OutlineCompare(outline.SubOutlines[0], outline.SubOutlines[1]) == 0 {
+		return query.Outline{Type: query.NullIteratorType}
+	}
+	return outline
 }
