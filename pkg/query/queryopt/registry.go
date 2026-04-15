@@ -58,6 +58,7 @@ type RequestParams struct {
 func OptimizersForRequest(params RequestParams) []Optimizer {
 	base := []Optimizer{
 		optimizationRegistry["simple-caveat-pushdown"],
+		optimizationRegistry["absorption-idempotency"],
 		optimizationRegistry["reachability-pruning"],
 	}
 
