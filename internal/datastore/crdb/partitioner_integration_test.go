@@ -14,7 +14,6 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	v1 "github.com/authzed/spicedb/pkg/services/v1"
@@ -418,6 +417,7 @@ func TestCRDBExhaustiveEscapeScan(t *testing.T) {
 			}
 		}
 		rows.Close()
+		require.NoError(t, rows.Err(), "rows iteration error for byte 0x%02x", char)
 
 		require.NotEmpty(t, startKey, "start_key not found for byte 0x%02x", char)
 
@@ -469,35 +469,35 @@ func TestExplainPartitionedQuery(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		afterCursor := options.ToCursor(tuple.MustParse("resource:10#viewer@user:10"))
-		beforeCursor := options.ToCursor(tuple.MustParse("resource:90#viewer@user:90"))
+		afterCursor := dsoptions.ToCursor(tuple.MustParse("resource:10#viewer@user:10"))
+		beforeCursor := dsoptions.ToCursor(tuple.MustParse("resource:90#viewer@user:90"))
 		reader := ds.SnapshotReader(rev)
 
 		tests := []struct {
 			name           string
-			opts           []options.QueryOptionsOption
+			opts           []dsoptions.QueryOptionsOption
 			expectScan     bool
 			expectDistinct bool
 			expectUnion    bool
 		}{
 			{
 				name: "EXPANDED (After + BeforeOrEqual)",
-				opts: []options.QueryOptionsOption{
-					options.WithSort(options.ByResource),
-					options.WithQueryShape(queryshape.Varying),
-					options.WithAfter(afterCursor),
-					options.WithBeforeOrEqual(beforeCursor),
+				opts: []dsoptions.QueryOptionsOption{
+					dsoptions.WithSort(dsoptions.ByResource),
+					dsoptions.WithQueryShape(queryshape.Varying),
+					dsoptions.WithAfter(afterCursor),
+					dsoptions.WithBeforeOrEqual(beforeCursor),
 				},
 				expectScan: true,
 			},
 			{
 				name: "TUPLE COMPARISON (After + BeforeOrEqual)",
-				opts: []options.QueryOptionsOption{
-					options.WithSort(options.ByResource),
-					options.WithQueryShape(queryshape.Varying),
-					options.WithAfter(afterCursor),
-					options.WithBeforeOrEqual(beforeCursor),
-					options.WithUseTupleComparison(true),
+				opts: []dsoptions.QueryOptionsOption{
+					dsoptions.WithSort(dsoptions.ByResource),
+					dsoptions.WithQueryShape(queryshape.Varying),
+					dsoptions.WithAfter(afterCursor),
+					dsoptions.WithBeforeOrEqual(beforeCursor),
+					dsoptions.WithUseTupleComparison(true),
 				},
 				expectScan:     true,
 				expectDistinct: false,
@@ -505,10 +505,10 @@ func TestExplainPartitionedQuery(t *testing.T) {
 			},
 			{
 				name: "EXPANDED (After only - BulkExport style)",
-				opts: []options.QueryOptionsOption{
-					options.WithSort(options.ByResource),
-					options.WithQueryShape(queryshape.Varying),
-					options.WithAfter(afterCursor),
+				opts: []dsoptions.QueryOptionsOption{
+					dsoptions.WithSort(dsoptions.ByResource),
+					dsoptions.WithQueryShape(queryshape.Varying),
+					dsoptions.WithAfter(afterCursor),
 				},
 				expectScan: true,
 			},
@@ -519,10 +519,10 @@ func TestExplainPartitionedQuery(t *testing.T) {
 				var capturedSQL string
 				var capturedExplain string
 
-				explainOpts := make([]options.QueryOptionsOption, 0, len(tc.opts)+1)
+				explainOpts := make([]dsoptions.QueryOptionsOption, 0, len(tc.opts)+1)
 				explainOpts = append(explainOpts, tc.opts...)
-				explainOpts = append(explainOpts, options.WithSQLExplainCallbackForTest(
-					func(_ context.Context, sql string, _ []any, _ queryshape.Shape, explain string, _ options.SQLIndexInformation) error {
+				explainOpts = append(explainOpts, dsoptions.WithSQLExplainCallbackForTest(
+					func(_ context.Context, sql string, _ []any, _ queryshape.Shape, explain string, _ dsoptions.SQLIndexInformation) error {
 						capturedSQL = sql
 						capturedExplain = explain
 						return nil

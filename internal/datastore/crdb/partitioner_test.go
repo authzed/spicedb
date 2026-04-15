@@ -15,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/services/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -469,7 +468,7 @@ func TestParseRangeStartKey(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cursor)
 
-			rel := options.ToRelationship(cursor)
+			rel := dsoptions.ToRelationship(cursor)
 			require.Equal(t, tt.wantNS, rel.Resource.ObjectType)
 			require.Equal(t, tt.wantOID, rel.Resource.ObjectID)
 			require.Equal(t, tt.wantRel, rel.Resource.Relation)
@@ -498,7 +497,7 @@ func TestPlanPartitionsLogic(t *testing.T) {
 
 	t.Run("1 boundary produces 2 partitions", func(t *testing.T) {
 		b := makeBoundary("ns1", "oid1", "rel1", "uns1", "uoid1", "urel1")
-		partitions := groupBoundaries([]options.Cursor{b}, 4)
+		partitions := groupBoundaries([]dsoptions.Cursor{b}, 4)
 		require.Len(t, partitions, 2)
 
 		require.Nil(t, partitions[0].LowerBound)
@@ -508,13 +507,13 @@ func TestPlanPartitionsLogic(t *testing.T) {
 
 		// Shared boundary.
 		require.Equal(t,
-			*options.ToRelationship(partitions[0].UpperBound),
-			*options.ToRelationship(partitions[1].LowerBound),
+			*dsoptions.ToRelationship(partitions[0].UpperBound),
+			*dsoptions.ToRelationship(partitions[1].LowerBound),
 		)
 	})
 
 	t.Run("3 boundaries produce 4 partitions when K=4", func(t *testing.T) {
-		boundaries := []options.Cursor{
+		boundaries := []dsoptions.Cursor{
 			makeBoundary("a", "0", "r", "u", "0", "..."),
 			makeBoundary("b", "0", "r", "u", "0", "..."),
 			makeBoundary("c", "0", "r", "u", "0", "..."),
@@ -528,14 +527,14 @@ func TestPlanPartitionsLogic(t *testing.T) {
 		// All adjacent boundaries match.
 		for i := 1; i < len(partitions); i++ {
 			require.Equal(t,
-				*options.ToRelationship(partitions[i-1].UpperBound),
-				*options.ToRelationship(partitions[i].LowerBound),
+				*dsoptions.ToRelationship(partitions[i-1].UpperBound),
+				*dsoptions.ToRelationship(partitions[i].LowerBound),
 			)
 		}
 	})
 
 	t.Run("K larger than boundaries+1 is capped", func(t *testing.T) {
-		boundaries := []options.Cursor{
+		boundaries := []dsoptions.Cursor{
 			makeBoundary("a", "0", "r", "u", "0", "..."),
 		}
 		partitions := groupBoundaries(boundaries, 100)
@@ -543,7 +542,7 @@ func TestPlanPartitionsLogic(t *testing.T) {
 	})
 
 	t.Run("many boundaries with small K downsamples", func(t *testing.T) {
-		boundaries := make([]options.Cursor, 20)
+		boundaries := make([]dsoptions.Cursor, 20)
 		for i := range boundaries {
 			boundaries[i] = makeBoundary(
 				fmt.Sprintf("ns%02d", i), "0", "r", "u", "0", "...",
@@ -557,14 +556,14 @@ func TestPlanPartitionsLogic(t *testing.T) {
 
 		for i := 1; i < len(partitions); i++ {
 			require.Equal(t,
-				*options.ToRelationship(partitions[i-1].UpperBound),
-				*options.ToRelationship(partitions[i].LowerBound),
+				*dsoptions.ToRelationship(partitions[i-1].UpperBound),
+				*dsoptions.ToRelationship(partitions[i].LowerBound),
 			)
 		}
 	})
 
 	t.Run("empty boundaries returns single partition", func(t *testing.T) {
-		partitions := groupBoundaries([]options.Cursor{}, 4)
+		partitions := groupBoundaries([]dsoptions.Cursor{}, 4)
 		require.Len(t, partitions, 1)
 		require.Nil(t, partitions[0].LowerBound)
 		require.Nil(t, partitions[0].UpperBound)
@@ -583,8 +582,8 @@ func TestPartitionerPrimaryKeyAssumptions(t *testing.T) {
 			"If the primary key columns or their order changed, update parseRangeStartKey in partitioner.go.")
 }
 
-func makeBoundary(ns, oid, rel, uns, uoid, urel string) options.Cursor {
-	return options.ToCursor(tuple.Relationship{
+func makeBoundary(ns, oid, rel, uns, uoid, urel string) dsoptions.Cursor {
+	return dsoptions.ToCursor(tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
 			Resource: tuple.ObjectAndRelation{
 				ObjectType: ns,
