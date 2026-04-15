@@ -750,13 +750,10 @@ type PartitionRange struct {
 // BulkExportPartitioner is an optional interface that datastores can implement
 // to support parallel partitioned bulk export. PlanPartitions splits the
 // relationship table into non-overlapping ranges that can be exported in parallel.
-//
-// desiredCount is the target number of partitions. minCount is the minimum
-// acceptable number; if physical range boundaries yield fewer than minCount
-// partitions, the implementation should fall back to PK sampling to reach
-// the desired count. minCount must be <= desiredCount.
+// The implementation may return fewer partitions than desiredCount if the
+// underlying data distribution does not support the requested number.
 type BulkExportPartitioner interface {
-	PlanPartitions(ctx context.Context, revision Revision, desiredCount uint32) ([]PartitionRange, error)
+	PlanPartitions(ctx context.Context, desiredCount uint32) ([]PartitionRange, error)
 }
 
 // ParsedExplain represents the parsed output of an EXPLAIN statement.

@@ -14,29 +14,16 @@ import (
 )
 
 func TestPlanPartitionedExport(t *testing.T) {
-	t.Run("returns single partition for non-partitioner datastore", func(t *testing.T) {
+	t.Run("returns error for non-partitioner datastore", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		plan, err := PlanPartitionedExport(t.Context(), ds, 4)
-		require.NoError(t, err)
-		require.Len(t, plan.Partitions, 1)
-		require.Nil(t, plan.Partitions[0].LowerBound)
-		require.Nil(t, plan.Partitions[0].UpperBound)
-		require.NotNil(t, plan.Revision)
+		_, err := PlanPartitionedExport(t.Context(), ds, 4)
+		require.ErrorIs(t, err, ErrPartitioningNotSupported)
 	})
 
-	t.Run("desiredCount=0 defaults to 1", func(t *testing.T) {
+	t.Run("desiredCount=0 returns error for non-partitioner", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		plan, err := PlanPartitionedExport(t.Context(), ds, 0)
-		require.NoError(t, err)
-		require.Len(t, plan.Partitions, 1)
-	})
-
-	t.Run("revision is valid and usable", func(t *testing.T) {
-		ds := newTestDatastore(t)
-		writeTestRelationships(t, ds, 10)
-		plan, err := PlanPartitionedExport(t.Context(), ds, 1)
-		require.NoError(t, err)
-		require.NoError(t, ds.CheckRevision(t.Context(), plan.Revision))
+		_, err := PlanPartitionedExport(t.Context(), ds, 0)
+		require.ErrorIs(t, err, ErrPartitioningNotSupported)
 	})
 }
 

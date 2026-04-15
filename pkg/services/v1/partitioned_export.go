@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
@@ -15,6 +15,10 @@ import (
 
 const defaultBatchSize = 1000
 
+// ErrPartitioningNotSupported is returned by PlanPartitionedExport when the
+// underlying datastore does not implement BulkExportPartitioner.
+var ErrPartitioningNotSupported = errors.New("datastore does not implement BulkExportPartitioner")
+
 // ExportPartition represents a non-overlapping portion of the relationship table
 // that can be streamed independently.
 type ExportPartition struct {
@@ -23,9 +27,8 @@ type ExportPartition struct {
 	UpperBound dsoptions.Cursor // nil = end of table (inclusive)
 }
 
-// ExportPlan contains the partitions and revision for a partitioned export.
+// ExportPlan contains the partitions for a partitioned export.
 type ExportPlan struct {
-	Revision   datastore.Revision
 	Partitions []ExportPartition
 }
 
@@ -36,40 +39,39 @@ type StreamRequest struct {
 	BatchSize uint32
 }
 
-// ExportBatch is a batch of relationships returned by StreamPartitionedExport.
+// ExportBatch is a batch of relationships passed to an ExportBatchHandler.
+// The caller retains ownership of the Relationships slice — its backing array
+// is reused across batches for efficiency.
 type ExportBatch struct {
 	Relationships []tuple.Relationship
 }
 
+// ExportBatchHandler processes a batch of exported relationships.
+// The handler must NOT retain a reference to batch.Relationships after returning,
+// as the underlying slice is reused for subsequent batches. If the handler needs
+// to store the relationships, it must copy them before returning.
+type ExportBatchHandler func(batch ExportBatch) error
+
 // PlanPartitionedExport plans a partitioned export by splitting the relationship
 // table into non-overlapping key ranges for parallel streaming. The returned
-// ExportPlan contains partitions and a frozen revision that should be passed to
-// StreamPartitionedExport.
+// PlanPartitionedExport plans a partitioned export by splitting the relationship
+// table into non-overlapping key ranges for parallel streaming.
 func PlanPartitionedExport(ctx context.Context, ds datastore.Datastore, desiredPartitions uint32) (*ExportPlan, error) {
 	if desiredPartitions == 0 {
 		desiredPartitions = 1
 	}
 
-	revision, err := ds.OptimizedRevision(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get revision: %w", err)
-	}
-
 	partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](ds)
 	if partitioner == nil {
-		log.Warn().Msg("datastore does not implement BulkExportPartitioner, returning single partition")
-		return &ExportPlan{
-			Revision:   revision,
-			Partitions: []ExportPartition{{Index: 0}},
-		}, nil
+		return nil, ErrPartitioningNotSupported
 	}
 
-	ranges, err := partitioner.PlanPartitions(ctx, revision, desiredPartitions)
+	ranges, err := partitioner.PlanPartitions(ctx, desiredPartitions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to plan partitions: %w", err)
 	}
 
-	log.Info().
+	log.Ctx(ctx).Info().
 		Uint32("desired_partitions", desiredPartitions).
 		Int("actual_partitions", len(ranges)).
 		Msg("planned partitioned export")
@@ -84,15 +86,13 @@ func PlanPartitionedExport(ctx context.Context, ds datastore.Datastore, desiredP
 	}
 
 	return &ExportPlan{
-		Revision:   revision,
 		Partitions: partitions,
 	}, nil
 }
 
-// StreamPartitionedExport streams relationships for a single partition. The sender
-// callback is invoked for each batch. Use PlanPartitionedExport first to obtain
-// partitions and a revision.
-func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore, req StreamRequest, sender func(batch ExportBatch) error) error {
+// StreamPartitionedExport streams relationships for a single partition.
+// Use PlanPartitionedExport first to obtain partitions.
+func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore, req StreamRequest, sender ExportBatchHandler) error {
 	if req.Revision == nil {
 		return errors.New("revision is required")
 	}

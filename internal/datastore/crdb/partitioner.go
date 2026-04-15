@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -33,27 +33,27 @@ var _ datastore.BulkExportPartitioner = (*crdbDatastore)(nil)
 // rows will have hundreds or thousands of ranges even on a single node. For
 // very small tables (< 512MB) that haven't split yet, a single partition is
 // returned.
-func (cds *crdbDatastore) PlanPartitions(ctx context.Context, revision datastore.Revision, desiredCount uint32) ([]datastore.PartitionRange, error) {
+func (cds *crdbDatastore) PlanPartitions(ctx context.Context, desiredCount uint32) ([]datastore.PartitionRange, error) {
 	if desiredCount <= 1 {
 		return SinglePartitionRange, nil
 	}
 
 	boundaries, err := cds.rangeBoundaries(ctx)
 	if err != nil {
-		log.Warn().Err(err).Uint32("desired_partitions", desiredCount).
+		log.Ctx(ctx).Warn().Err(err).Uint32("desired_partitions", desiredCount).
 			Msg("SHOW RANGES failed, returning single partition")
 		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}, nil
 	}
 
 	if len(boundaries) == 0 {
-		log.Info().Uint32("desired_partitions", desiredCount).
+		log.Ctx(ctx).Info().Uint32("desired_partitions", desiredCount).
 			Str("table", cds.schema.RelationshipTableName).
 			Msg("no parseable range boundaries found (table may be < 512MB), returning single partition")
 		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}, nil
 	}
 
 	partitions := groupBoundaries(boundaries, desiredCount)
-	log.Info().
+	log.Ctx(ctx).Info().
 		Uint32("desired_partitions", desiredCount).
 		Int("parseable_boundaries", len(boundaries)).
 		Int("actual_partitions", len(partitions)).
@@ -112,7 +112,7 @@ func (cds *crdbDatastore) rangeBoundaries(ctx context.Context) ([]options.Cursor
 			cursor, err := parseRangeStartKey(startKey)
 			if err != nil {
 				skippedRows++
-				log.Debug().Err(err).Str("start_key", startKey).Msg("skipping unparseable range boundary")
+				log.Ctx(ctx).Debug().Err(err).Str("start_key", startKey).Msg("skipping unparseable range boundary")
 				continue
 			}
 
@@ -123,7 +123,7 @@ func (cds *crdbDatastore) rangeBoundaries(ctx context.Context) ([]options.Cursor
 		return nil, fmt.Errorf("range boundaries query failed: %w", err)
 	}
 
-	log.Debug().
+	log.Ctx(ctx).Debug().
 		Int("total_ranges", totalRows).
 		Int("parseable_boundaries", len(boundaries)).
 		Int("skipped", skippedRows).
