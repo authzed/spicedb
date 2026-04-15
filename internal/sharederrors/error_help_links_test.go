@@ -1,10 +1,12 @@
 package sharederrors
 
 import (
+	"io"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,18 +16,25 @@ func TestHelpLinks(t *testing.T) {
 
 	for _, helpURL := range allErrorHelpUrls {
 		t.Run(helpURL, func(t *testing.T) {
-			require.Eventually(t, func() bool {
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				get, err := c.Get(helpURL)
-				if err != nil {
-					t.Log("got error", err)
-					return false
+				if !assert.NoError(collect, err) {
+					return
 				}
-				_ = get.Body.Close()
-				if get.StatusCode != http.StatusOK {
-					t.Log("got status code", get.StatusCode)
-					return false
+				if !assert.NoError(collect, err) {
+					return
 				}
-				return true
+				t.Cleanup(func() {
+					get.Body.Close()
+				})
+				if !assert.Equal(collect, http.StatusOK, get.StatusCode) {
+					body, err := io.ReadAll(get.Body)
+					if err != nil {
+						t.Log("could not read body: %w", err)
+						return
+					}
+					t.Log("body: ", string(body))
+				}
 			}, 10*time.Second, 1*time.Second)
 		})
 	}
