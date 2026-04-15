@@ -1,7 +1,6 @@
 package v1_test
 
 import (
-	"encoding/base64"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,14 +8,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
-	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -502,7 +498,6 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				t.Run(stc.name, func(t *testing.T) {
 					req := require.New(t)
 
-					var trailer metadata.MD
 					caveatContext, err := structpb.NewStruct(stc.checkRequest.caveatContext)
 					req.NoError(err)
 
@@ -516,16 +511,10 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 						Permission: stc.checkRequest.permission,
 						Subject:    stc.checkRequest.subject,
 						Context:    caveatContext,
-					}, grpc.Trailer(&trailer))
+					})
 
 					req.NoError(err)
 					req.Equal(stc.expectedPermission, checkResp.Permissionship)
-
-					encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
-					req.NoError(err)
-
-					// DebugInfo No longer comes as part of the trailer
-					req.Nil(encodedDebugInfo)
 
 					debugInfo := checkResp.DebugTrace
 					req.NotEmpty(debugInfo.SchemaUsed)
@@ -925,10 +914,9 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 	}
 }
 
-func TestLookupDebugTraceTrailer(t *testing.T) {
+func TestLookupResourcesDebugTraceV2(t *testing.T) {
 	req := require.New(t)
 
-	// cyclicGroupSchema defines a group schema where two groups are mutual members.
 	schema := `
 	definition user {}
 
@@ -950,7 +938,76 @@ func TestLookupDebugTraceTrailer(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 
 	ctx := t.Context()
-	// Add the header that enables the debug trace trailer.
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+			},
+		},
+		ResourceObjectType: "group",
+		Permission:         "can_access",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "someuser",
+			},
+		},
+	})
+	req.NoError(err)
+
+	var lastResp *v1.LookupResourcesResponse
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			break
+		}
+		lastResp = resp
+	}
+
+	req.NotNil(lastResp)
+	req.NotNil(lastResp.DebugInfoV2)
+
+	scope := lastResp.DebugInfoV2.Scopes["lookup_cycles"]
+	req.NotNil(scope)
+
+	var foundCyclic bool
+	for _, annAny := range scope.Annotations {
+		var ann v1.LookupCycleAnnotation
+		req.NoError(annAny.UnmarshalTo(&ann))
+		if ann.IsCyclic {
+			foundCyclic = true
+			req.GreaterOrEqual(ann.TraversalCount, uint32(2))
+		}
+	}
+	req.True(foundCyclic, "expected at least one cyclic node marked in debug info")
+}
+
+func TestLookupSubjectsDebugTraceV2(t *testing.T) {
+	req := require.New(t)
+
+	schema := `
+	definition user {}
+
+	definition group {
+		relation member: user | group#member
+		permission can_access = member
+	}`
+	relationships := []tuple.Relationship{
+		tuple.MustParse("group:a#member@group:b#member"),
+		tuple.MustParse("group:b#member@group:a#member"),
+	}
+
+	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		})
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	ctx := t.Context()
 	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 	stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
@@ -968,41 +1025,29 @@ func TestLookupDebugTraceTrailer(t *testing.T) {
 	})
 	req.NoError(err)
 
-	var streamErr error
+	var lastResp *v1.LookupSubjectsResponse
 	for {
-		_, err := stream.Recv()
+		resp, err := stream.Recv()
 		if err != nil {
-			streamErr = err
 			break
 		}
+		lastResp = resp
 	}
 
-	// The lookup may fail due to max depth exceeded, or complete cleanly if the bloom filter stops it.
-	// The trailer MUST BE PRESENT regardless.
-	if streamErr != nil {
-		req.Contains(streamErr.Error(), "max depth exceeded")
-	}
+	req.NotNil(lastResp)
+	req.NotNil(lastResp.DebugInfoV2)
 
-	// Verify the client received the trailer.
-	trailerMD := stream.Trailer()
-	values := trailerMD.Get("x-spicedb-lookup-debug-trace")
-	req.NotEmpty(values, "expected traversal debug trailer to be present")
+	scope := lastResp.DebugInfoV2.Scopes["lookup_cycles"]
+	req.NotNil(scope)
 
-	// Decode and parse it.
-	raw, decErr := base64.StdEncoding.DecodeString(values[0])
-	req.NoError(decErr)
-
-	var trace dispatch.LookupDebugTrace
-	req.NoError(proto.Unmarshal(raw, &trace))
-
-	// Assert that we captured the cycle.
-	req.NotEmpty(trace.SubProblems)
 	var foundCyclic bool
-	for _, sp := range trace.SubProblems {
-		if sp.IsCyclic {
+	for _, annAny := range scope.Annotations {
+		var ann v1.LookupCycleAnnotation
+		req.NoError(annAny.UnmarshalTo(&ann))
+		if ann.IsCyclic {
 			foundCyclic = true
-			req.GreaterOrEqual(sp.TraversalCount, uint32(2))
+			req.GreaterOrEqual(ann.TraversalCount, uint32(2))
 		}
 	}
-	req.True(foundCyclic, "expected at least one cyclic node marked in trace trailer")
+	req.True(foundCyclic, "expected at least one cyclic node marked in debug info")
 }

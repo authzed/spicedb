@@ -14,13 +14,12 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
-	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/rs/zerolog/log"
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
@@ -199,6 +198,50 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 		}
 	}
 	return permissionship, partialCaveat
+}
+
+func convertLookupSnapshotToDebugV2(ctx context.Context) (*v1.DebugInformationV2, error) {
+	snapshot := graph.SnapshotLookupDebugTrace(ctx)
+	if snapshot == nil || len(snapshot.SubProblems) == 0 {
+		return nil, nil
+	}
+
+	annotations := make(map[string]*anypb.Any, len(snapshot.SubProblems))
+	subtrees := make([]*v1.DebugTree, 0, len(snapshot.SubProblems))
+
+	for i, sp := range snapshot.SubProblems {
+		nodeID := fmt.Sprintf("lookup-node-%d", i)
+
+		subtrees = append(subtrees, &v1.DebugTree{
+			Id: nodeID,
+		})
+
+		ann, err := anypb.New(&v1.LookupCycleAnnotation{
+			ResourceType:   sp.ResourceType,
+			ResourceId:     sp.ResourceId,
+			Relation:       sp.Relation,
+			TraversalCount: sp.TraversalCount,
+			IsCyclic:       sp.IsCyclic,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		annotations[nodeID] = ann
+	}
+
+	return &v1.DebugInformationV2{
+		Scopes: map[string]*v1.DebugScope{
+			"lookup_cycles": {
+				Name: "lookup_cycles",
+				Tree: &v1.DebugTree{
+					Id:       "lookup-root",
+					Subtrees: subtrees,
+				},
+				Annotations: annotations,
+			},
+		},
+	}, nil
 }
 
 func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
@@ -458,13 +501,6 @@ const (
 	lrv3CursorFlag = "lrv3"
 )
 
-// lookupDebugTraceTrailerKey is the gRPC response trailer key used to surface
-// the lookup debug trace back to the calling client. It is set only when
-// the requestmeta.RequestDebugInformation header is present on the request.
-// Clients read it with: responsemeta.GetResponseTrailerMetadata(trailer, lookupDebugTraceTrailerKey)
-// and then proto.Unmarshal(base64.StdDecoding.DecodeString(value)) into a LookupDebugTrace.
-const lookupDebugTraceTrailerKey responsemeta.ResponseMetadataTrailerKey = "x-spicedb-lookup-debug-trace"
-
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
@@ -554,16 +590,6 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	debugEnabled := lookupDebugTraceEnabled(ctx)
 	if debugEnabled {
 		ctx = graph.NewTraversalTracker(ctx)
-		defer func() {
-			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
-				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-					lookupDebugTraceTrailerKey: encoded,
-				})
-				if err != nil {
-					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
-				}
-			}
-		}()
 	}
 
 	var currentCursor []string
@@ -586,6 +612,8 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	defer func() {
 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
+
+	var lastResp *v1.LookupResourcesResponse
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
 		for _, item := range result.Items {
@@ -619,16 +647,20 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				encodedCursor = ec
 			}
 
-			err = resp.Send(&v1.LookupResourcesResponse{
+			currentResp := &v1.LookupResourcesResponse{
 				LookedUpAt:        revisionReadAt,
 				ResourceObjectId:  item.ResourceId,
 				Permissionship:    permissionship,
 				PartialCaveatInfo: partial,
 				AfterResultCursor: encodedCursor,
-			})
-			if err != nil {
-				return err
 			}
+
+			if lastResp != nil {
+				if err := resp.Send(lastResp); err != nil {
+					return err
+				}
+			}
+			lastResp = currentResp
 
 			totalCountPublished++
 		}
@@ -670,6 +702,18 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		stream)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
+	}
+
+	if debugEnabled {
+		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
+			if lastResp != nil {
+				lastResp.DebugInfoV2 = debugV2
+			}
+		}
+	}
+
+	if lastResp != nil {
+		return resp.Send(lastResp)
 	}
 
 	return nil
@@ -723,16 +767,6 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	debugEnabled := lookupDebugTraceEnabled(ctx)
 	if debugEnabled {
 		ctx = graph.NewTraversalTracker(ctx)
-		defer func() {
-			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
-				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-					lookupDebugTraceTrailerKey: encoded,
-				})
-				if err != nil {
-					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
-				}
-			}
-		}()
 	}
 
 	var currentCursor *dispatch.Cursor
@@ -755,6 +789,8 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	defer func() {
 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
+
+	var lastResp *v1.LookupResourcesResponse
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
 		found := result.Resource
@@ -786,16 +822,20 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 			return ps.rewriteError(ctx, err)
 		}
 
-		err = resp.Send(&v1.LookupResourcesResponse{
+		currentResp := &v1.LookupResourcesResponse{
 			LookedUpAt:        revisionReadAt,
 			ResourceObjectId:  found.ResourceId,
 			Permissionship:    permissionship,
 			PartialCaveatInfo: partial,
 			AfterResultCursor: encodedCursor,
-		})
-		if err != nil {
-			return err
 		}
+
+		if lastResp != nil {
+			if err := resp.Send(lastResp); err != nil {
+				return err
+			}
+		}
+		lastResp = currentResp
 
 		totalCountPublished++
 		return nil
@@ -835,6 +875,18 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		stream)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
+	}
+
+	if debugEnabled {
+		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
+			if lastResp != nil {
+				lastResp.DebugInfoV2 = debugV2
+			}
+		}
+	}
+
+	if lastResp != nil {
+		return resp.Send(lastResp)
 	}
 
 	return nil
@@ -906,22 +958,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	debugEnabled := lookupDebugTraceEnabled(ctx)
 	if debugEnabled {
 		ctx = graph.NewTraversalTracker(ctx)
-		defer func() {
-			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
-				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-					lookupDebugTraceTrailerKey: encoded,
-				})
-				if err != nil {
-					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
-				}
-			}
-		}()
 	}
 
 	var totalCountPublished uint64
 	defer func() {
 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
+
+	var lastResp *v1.LookupSubjectsResponse
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
 		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
@@ -957,7 +1001,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				continue
 			}
 
-			err = resp.Send(&v1.LookupSubjectsResponse{
+			currentResp := &v1.LookupSubjectsResponse{
 				Subject:            subject,
 				ExcludedSubjects:   excludedSubjects,
 				LookedUpAt:         revisionReadAt,
@@ -965,10 +1009,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				ExcludedSubjectIds: excludedSubjectIDs,        // Deprecated
 				Permissionship:     subject.Permissionship,    // Deprecated
 				PartialCaveatInfo:  subject.PartialCaveatInfo, // Deprecated
-			})
-			if err != nil {
-				return err
 			}
+
+			if lastResp != nil {
+				if err := resp.Send(lastResp); err != nil {
+					return err
+				}
+			}
+			lastResp = currentResp
 		}
 
 		totalCountPublished++
@@ -1002,6 +1050,18 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		stream)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
+	}
+
+	if debugEnabled {
+		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
+			if lastResp != nil {
+				lastResp.DebugInfoV2 = debugV2
+			}
+		}
+	}
+
+	if lastResp != nil {
+		return resp.Send(lastResp)
 	}
 
 	return nil

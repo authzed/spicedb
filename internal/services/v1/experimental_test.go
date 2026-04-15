@@ -14,9 +14,7 @@ import (
 	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -646,8 +644,7 @@ func TestBulkCheckPermission(t *testing.T) {
 				expected = append(expected, pair)
 			}
 
-			var trailer metadata.MD
-			actual, err := client.BulkCheckPermission(t.Context(), &req, grpc.Trailer(&trailer))
+			actual, err := client.BulkCheckPermission(t.Context(), &req)
 			require.NoError(t, err)
 
 			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, nil, "response bulk check pairs did not match")

@@ -1,11 +1,9 @@
 package graph
 
 import (
-	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -91,14 +89,6 @@ func TestLookupSubjectsCycleDetection(t *testing.T) {
 	}
 	require.True(t, hasCyclic, "expected at least one cyclic node in trace for mutually-recursive groups")
 
-	// Verify serialization round-trips cleanly (simulates the trailer write+read path).
-	encoded := graphpkg.SerializeLookupDebugTrace(ctx)
-	require.NotEmpty(t, encoded)
-	raw, decErr := base64.StdEncoding.DecodeString(encoded)
-	require.NoError(t, decErr)
-	var decoded v1.LookupDebugTrace
-	require.NoError(t, proto.Unmarshal(raw, &decoded))
-	require.NotEmpty(t, decoded.SubProblems)
 }
 
 // TestLookupResources3CycleDetection verifies termination and trace content for LR3.

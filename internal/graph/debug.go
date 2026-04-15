@@ -2,10 +2,7 @@ package graph
 
 import (
 	"context"
-	"encoding/base64"
 	"sync"
-
-	"google.golang.org/protobuf/proto"
 
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -103,17 +100,3 @@ func SnapshotLookupDebugTrace(ctx context.Context) *v1.LookupDebugTrace {
 	}
 }
 
-// SerializeLookupDebugTrace snapshots the tracker from ctx and serializes the result
-// to a base64-encoded protobuf wire format, ready to set as a gRPC trailer value.
-// Returns "" if no trace is present or serialization fails.
-func SerializeLookupDebugTrace(ctx context.Context) string {
-	trace := SnapshotLookupDebugTrace(ctx)
-	if trace == nil {
-		return ""
-	}
-	b, err := proto.Marshal(trace)
-	if err != nil {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString(b)
-}
