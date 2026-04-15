@@ -8,11 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
 - Added support for YAML-based validation files in the Language Server (https://github.com/authzed/spicedb/pull/3024)
 
-### Fixed
-- Perf insights not producing buckets when Prometheus native histograms is disabled (https://github.com/authzed/spicedb/pull/3027)
+### Changed
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)
 - Removed support for Spanner flag value `--datastore-spanner-metrics=deprecated-prometheus`; please use values `otel` or `native` (https://github.com/authzed/spicedb/pull/2980)
 - Reduced binary size (https://github.com/authzed/spicedb/pull/3005)
+
+### Fixed
 - On a Postgres setup with read replicas, some requests may silently swallow errors of sort "revision not found in replica" (https://github.com/authzed/spicedb/pull/2979)
 - Use cgroup-aware memory detection for cache and watch buffer sizing in containerized environments (https://github.com/authzed/spicedb/pull/3000)
 - Upgraded the spanner client, which changed the internal implementation to not use a session pool. This means that the `--datastore-spanner-max-sessions` and `--datastore-spanner-min-sessions` flags are now deprecated and no-op. We also strongly recommend using [Application Default Credentials](https://docs.cloud.google.com/docs/authentication/client-libraries#adc) in favor of a credentials file. (https://github.com/authzed/spicedb/pull/3038)
