@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/jackc/pgx/v5"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -219,9 +219,10 @@ func extractQuotedValues(s string) []string {
 // where s starts just after the opening quote.
 func findClosingQuote(s string) int {
 	for i := 0; i < len(s); i++ {
-		if s[i] == '\\' {
+		switch s[i] {
+		case '\\':
 			i++ // skip escaped character
-		} else if s[i] == '"' {
+		case '"':
 			return i
 		}
 	}

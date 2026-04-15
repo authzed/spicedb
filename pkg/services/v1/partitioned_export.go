@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	log "github.com/authzed/spicedb/internal/logging"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"

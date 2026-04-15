@@ -1114,18 +1114,18 @@ func (m *MockBulkExportPartitioner) EXPECT() *MockBulkExportPartitionerMockRecor
 }
 
 // PlanPartitions mocks base method.
-func (m *MockBulkExportPartitioner) PlanPartitions(ctx context.Context, revision datastore.Revision, desiredCount uint32) ([]datastore.PartitionRange, error) {
+func (m *MockBulkExportPartitioner) PlanPartitions(ctx context.Context, desiredCount uint32) ([]datastore.PartitionRange, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PlanPartitions", ctx, revision, desiredCount)
+	ret := m.ctrl.Call(m, "PlanPartitions", ctx, desiredCount)
 	ret0, _ := ret[0].([]datastore.PartitionRange)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PlanPartitions indicates an expected call of PlanPartitions.
-func (mr *MockBulkExportPartitionerMockRecorder) PlanPartitions(ctx, revision, desiredCount any) *gomock.Call {
+func (mr *MockBulkExportPartitionerMockRecorder) PlanPartitions(ctx, desiredCount any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlanPartitions", reflect.TypeOf((*MockBulkExportPartitioner)(nil).PlanPartitions), ctx, revision, desiredCount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlanPartitions", reflect.TypeOf((*MockBulkExportPartitioner)(nil).PlanPartitions), ctx, desiredCount)
 }
 
 // MockExplainable is a mock of Explainable interface.
