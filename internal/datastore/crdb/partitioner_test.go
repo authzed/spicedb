@@ -402,6 +402,16 @@ func TestParseRangeStartKey(t *testing.T) {
 			wantURel: "sub/rel",
 		},
 		{
+			name:     "valid key with backslash-escaped quotes in values",
+			key:      `…/"test"/"has\"quote"/"viewer"/"user"/"al\"ice"/"..."`,
+			wantNS:   "test",
+			wantOID:  `has"quote`,
+			wantRel:  "viewer",
+			wantUNS:  "user",
+			wantUOID: `al"ice`,
+			wantURel: "...",
+		},
+		{
 			name:     "valid key with ellipsis relation",
 			key:      `/Table/77/1/"resource3"/"0"/"viewer"/"user"/"0"/"..."`,
 			wantNS:   "resource3",

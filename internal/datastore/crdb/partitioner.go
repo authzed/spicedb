@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -146,15 +147,10 @@ func (cds *crdbDatastore) rangeBoundaries(ctx context.Context) ([]options.Cursor
 //
 //	…/1/"namespace"/"object_id"/"relation"/"userset_ns"/"userset_oid"/"userset_rel"
 //
-// PK values may contain "/" characters (e.g., "dev_v1/my_organization"), so we
-// extract quoted strings by scanning for matching quote pairs rather than
-// splitting on "/".
-//
-// This is safe because none of SpiceDB's allowed PK characters include the
-// double-quote character that would break quote-pair scanning:
-//   - namespace/relation: [a-z0-9_/]
-//   - object_id: [a-zA-Z0-9/_|\-=+]
-//   - userset_relation: [a-z0-9_.] (includes "..." ellipsis)
+// CRDB's pretty printer uses Go's strconv.Quote format for string values in
+// range keys. We use strconv.Unquote to decode them, matching CRDB's own
+// parsing logic.
+// Reference: https://github.com/cockroachdb/cockroach/blob/master/pkg/keys/printer.go
 func parseRangeStartKey(key string) (options.Cursor, error) {
 	values := extractQuotedValues(key)
 
@@ -186,22 +182,48 @@ func parseRangeStartKey(key string) (options.Cursor, error) {
 }
 
 // extractQuotedValues scans a string for quoted substrings (e.g., "foo")
-// and returns their unquoted contents. This handles values that contain "/"
-// characters, which would be broken by a naive strings.Split("/") approach.
+// and returns their unquoted contents using strconv.Unquote, which handles
+// all Go/CRDB string literal escape sequences (e.g., \", \\, \n, \t, \xNN,
+// \uNNNN).
 func extractQuotedValues(s string) []string {
 	values := make([]string, 0, 6)
 	for {
-		open := strings.Index(s, `"`)
-		if open == -1 {
+		// Find opening quote.
+		start := strings.Index(s, `"`)
+		if start == -1 {
 			break
 		}
-		s = s[open+1:]
-		end := strings.Index(s, `"`)
+
+		// Find closing unescaped quote.
+		end := findClosingQuote(s[start+1:])
 		if end == -1 {
 			break
 		}
-		values = append(values, s[:end])
-		s = s[end+1:]
+
+		// Extract the full quoted string including both quotes and unquote it.
+		quoted := s[start : start+1+end+1]
+		unquoted, err := strconv.Unquote(quoted)
+		if err != nil {
+			// Malformed — skip this segment and continue.
+			s = s[start+1+end+1:]
+			continue
+		}
+
+		values = append(values, unquoted)
+		s = s[start+1+end+1:]
 	}
 	return values
+}
+
+// findClosingQuote finds the index of the closing unescaped `"` in s,
+// where s starts just after the opening quote.
+func findClosingQuote(s string) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' {
+			i++ // skip escaped character
+		} else if s[i] == '"' {
+			return i
+		}
+	}
+	return -1
 }
