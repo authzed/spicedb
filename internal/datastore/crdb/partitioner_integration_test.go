@@ -65,22 +65,20 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 	seen := make(map[string]int) // relationship key → partition index
 	for pi, partition := range plan.Partitions {
 		partitionCount := 0
-		err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
+		iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 			Partition: partition,
 			Revision:  rev,
-			BatchSize: 1000,
-		}, func(batch v1.ExportBatch) error {
-			for _, rel := range batch.Relationships {
-				key := tuple.MustString(rel)
-				prevPartition, duplicate := seen[key]
-				require.False(t, duplicate,
-					"relationship %s appeared in both partition %d and %d", key, prevPartition, pi)
-				seen[key] = pi
-				partitionCount++
-			}
-			return nil
 		})
 		require.NoError(t, err)
+		for rel, err := range iter {
+			require.NoError(t, err)
+			key := tuple.MustString(rel)
+			prevPartition, duplicate := seen[key]
+			require.False(t, duplicate,
+				"relationship %s appeared in both partition %d and %d", key, prevPartition, pi)
+			seen[key] = pi
+			partitionCount++
+		}
 		t.Logf("Partition %d: %d relationships", pi, partitionCount)
 	}
 
@@ -154,19 +152,20 @@ func TestStreamPartitionedExportBoundCombinations(t *testing.T) {
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				var totalRels int
-				err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
+				iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 					Partition: v1.ExportPartition{
 						LowerBound: tc.lower,
 						UpperBound: tc.upper,
 					},
-					Revision:  rev,
-					BatchSize: 100,
-				}, func(batch v1.ExportBatch) error {
-					totalRels += len(batch.Relationships)
-					return nil
+					Revision: rev,
 				})
 				require.NoError(t, err)
+
+				var totalRels int
+				for _, err := range iter {
+					require.NoError(t, err)
+					totalRels++
+				}
 				require.Equal(t, tc.expectedResults, totalRels)
 			})
 		}
@@ -186,20 +185,18 @@ func TestStreamPartitionedExportBoundCombinations(t *testing.T) {
 				{Index: 0, LowerBound: nil, UpperBound: mid},
 				{Index: 1, LowerBound: mid, UpperBound: nil},
 			} {
-				err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
+				iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 					Partition: partition,
 					Revision:  rev,
-					BatchSize: 100,
-				}, func(batch v1.ExportBatch) error {
-					for _, rel := range batch.Relationships {
-						key := tuple.MustString(rel)
-						prevPI, dup := seen[key]
-						require.False(t, dup, "relationship %s in both partition %d and %d", key, prevPI, pi)
-						seen[key] = pi
-					}
-					return nil
 				})
 				require.NoError(t, err)
+				for rel, err := range iter {
+					require.NoError(t, err)
+					key := tuple.MustString(rel)
+					prevPI, dup := seen[key]
+					require.False(t, dup, "relationship %s in both partition %d and %d", key, prevPI, pi)
+					seen[key] = pi
+				}
 			}
 			require.Len(t, seen, totalWritten, "two adjacent partitions should cover all relationships")
 		})

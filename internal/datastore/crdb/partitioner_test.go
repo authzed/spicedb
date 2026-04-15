@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -159,15 +160,15 @@ func TestPlanPartitionedExport(t *testing.T) {
 			// All partitions together should cover all data.
 			totalRels := 0
 			for _, partition := range plan.Partitions {
-				err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
+				iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 					Partition: partition,
 					Revision:  rev,
-					BatchSize: 10000,
-				}, func(batch v1.ExportBatch) error {
-					totalRels += len(batch.Relationships)
-					return nil
 				})
 				require.NoError(t, err)
+				for _, err := range iter {
+					require.NoError(t, err)
+					totalRels++
+				}
 			}
 			require.Equal(t, 1000, totalRels, "all partitions should cover all 1000 relationships")
 		})

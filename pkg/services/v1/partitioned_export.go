@@ -10,10 +10,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-const defaultBatchSize = 1000
 
 // ErrPartitioningNotSupported is returned by PlanPartitionedExport when the
 // underlying datastore does not implement BulkExportPartitioner.
@@ -36,24 +33,8 @@ type ExportPlan struct {
 type StreamRequest struct {
 	Partition ExportPartition
 	Revision  datastore.Revision
-	BatchSize uint32
 }
 
-// ExportBatch is a batch of relationships passed to an ExportBatchHandler.
-// The caller retains ownership of the Relationships slice — its backing array
-// is reused across batches for efficiency.
-type ExportBatch struct {
-	Relationships []tuple.Relationship
-}
-
-// ExportBatchHandler processes a batch of exported relationships.
-// The handler must NOT retain a reference to batch.Relationships after returning,
-// as the underlying slice is reused for subsequent batches. If the handler needs
-// to store the relationships, it must copy them before returning.
-type ExportBatchHandler func(batch ExportBatch) error
-
-// PlanPartitionedExport plans a partitioned export by splitting the relationship
-// table into non-overlapping key ranges for parallel streaming. The returned
 // PlanPartitionedExport plans a partitioned export by splitting the relationship
 // table into non-overlapping key ranges for parallel streaming.
 func PlanPartitionedExport(ctx context.Context, ds datastore.Datastore, desiredPartitions uint32) (*ExportPlan, error) {
@@ -90,23 +71,28 @@ func PlanPartitionedExport(ctx context.Context, ds datastore.Datastore, desiredP
 	}, nil
 }
 
-// StreamPartitionedExport streams relationships for a single partition.
-// Use PlanPartitionedExport first to obtain partitions.
-func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore, req StreamRequest, sender ExportBatchHandler) error {
+// StreamPartitionedExport returns an iterator over relationships in a single
+// partition. Use PlanPartitionedExport first to obtain partitions.
+//
+// The returned iterator streams rows lazily from the datastore. The caller
+// is responsible for iterating and handling errors:
+//
+//	iter, err := v1.StreamPartitionedExport(ctx, ds, req)
+//	if err != nil { ... }
+//	for rel, err := range iter {
+//	    if err != nil { ... }
+//	    // process rel
+//	}
+func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore, req StreamRequest) (datastore.RelationshipIterator, error) {
 	if req.Revision == nil {
-		return errors.New("revision is required")
+		return nil, errors.New("revision is required")
 	}
 
 	if err := ds.CheckRevision(ctx, req.Revision); err != nil {
-		return fmt.Errorf("revision expired: %w", err)
+		return nil, fmt.Errorf("revision expired: %w", err)
 	}
 
 	reader := ds.SnapshotReader(req.Revision)
-
-	batchSize := uint64(req.BatchSize)
-	if batchSize <= 0 {
-		batchSize = defaultBatchSize
-	}
 
 	opts := []dsoptions.QueryOptionsOption{
 		dsoptions.WithSort(dsoptions.ByResource),
@@ -131,38 +117,5 @@ func StreamPartitionedExport(ctx context.Context, ds datastore.ReadOnlyDatastore
 		opts = append(opts, dsoptions.WithBeforeOrEqual(req.Partition.UpperBound))
 	}
 
-	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{}, opts...)
-	if err != nil {
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	batch := make([]tuple.Relationship, 0, batchSize)
-
-	for rel, err := range iter {
-		if err != nil {
-			return fmt.Errorf("iteration error: %w", err)
-		}
-
-		batch = append(batch, rel)
-
-		if uint64(len(batch)) == batchSize {
-			if err := sender(ExportBatch{
-				Relationships: batch,
-			}); err != nil {
-				return err
-			}
-			batch = batch[:0]
-		}
-	}
-
-	// Send remaining partial batch.
-	if len(batch) > 0 {
-		if err := sender(ExportBatch{
-			Relationships: batch,
-		}); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return reader.QueryRelationships(ctx, datastore.RelationshipsFilter{}, opts...)
 }

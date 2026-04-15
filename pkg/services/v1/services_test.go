@@ -28,140 +28,44 @@ func TestPlanPartitionedExport(t *testing.T) {
 }
 
 func TestStreamPartitionedExport(t *testing.T) {
-	t.Run("streams all relationships", func(t *testing.T) {
+	t.Run("iterates all relationships", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev := writeTestRelationships(t, ds, 50)
 
-		var batches []ExportBatch
-		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision:  rev,
-			BatchSize: 100,
-		}, func(batch ExportBatch) error {
-			batches = append(batches, batch)
-			return nil
+		iter, err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
+			Revision: rev,
 		})
 		require.NoError(t, err)
-		require.Len(t, batches, 1)
-		require.Len(t, batches[0].Relationships, 50)
-	})
 
-	t.Run("batches correctly with small batch size", func(t *testing.T) {
-		ds := newTestDatastore(t)
-		rev := writeTestRelationships(t, ds, 50)
-
-		var batches []ExportBatch
-		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision:  rev,
-			BatchSize: 10,
-		}, func(batch ExportBatch) error {
-			batches = append(batches, batch)
-			return nil
-		})
-		require.NoError(t, err)
-		require.Len(t, batches, 5)
-		for _, b := range batches {
-			require.Len(t, b.Relationships, 10)
+		count := 0
+		for _, err := range iter {
+			require.NoError(t, err)
+			count++
 		}
+		require.Equal(t, 50, count)
 	})
 
-	t.Run("no batch exceeds batch size", func(t *testing.T) {
-		ds := newTestDatastore(t)
-		rev := writeTestRelationships(t, ds, 37) // not divisible by 10
-
-		var batches []ExportBatch
-		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision:  rev,
-			BatchSize: 10,
-		}, func(batch ExportBatch) error {
-			batches = append(batches, batch)
-			return nil
-		})
-		require.NoError(t, err)
-		require.Len(t, batches, 4) // 10 + 10 + 10 + 7
-
-		total := 0
-		for _, b := range batches {
-			require.LessOrEqual(t, len(b.Relationships), 10, "batch should not exceed batch size")
-			total += len(b.Relationships)
-		}
-		require.Equal(t, 37, total)
-		require.Len(t, batches[3].Relationships, 7, "last batch should contain remainder")
-	})
-
-	t.Run("batch_size=0 uses default", func(t *testing.T) {
-		ds := newTestDatastore(t)
-		rev := writeTestRelationships(t, ds, 10)
-
-		var batches []ExportBatch
-		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision:  rev,
-			BatchSize: 0,
-		}, func(batch ExportBatch) error {
-			batches = append(batches, batch)
-			return nil
-		})
-		require.NoError(t, err)
-		require.Len(t, batches, 1)
-		require.Len(t, batches[0].Relationships, 10)
-	})
-
-	t.Run("batch_size=1 sends one per batch", func(t *testing.T) {
-		ds := newTestDatastore(t)
-		rev := writeTestRelationships(t, ds, 5)
-
-		var batches []ExportBatch
-		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision:  rev,
-			BatchSize: 1,
-		}, func(batch ExportBatch) error {
-			batches = append(batches, batch)
-			return nil
-		})
-		require.NoError(t, err)
-		require.Len(t, batches, 5)
-	})
-
-	t.Run("batch larger than total rows", func(t *testing.T) {
-		ds := newTestDatastore(t)
-		rev := writeTestRelationships(t, ds, 5)
-
-		var batches []ExportBatch
-		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision:  rev,
-			BatchSize: 1000,
-		}, func(batch ExportBatch) error {
-			batches = append(batches, batch)
-			return nil
-		})
-		require.NoError(t, err)
-		require.Len(t, batches, 1)
-		require.Len(t, batches[0].Relationships, 5)
-	})
-
-	t.Run("empty table produces no batches", func(t *testing.T) {
+	t.Run("empty table returns empty iterator", func(t *testing.T) {
 		ds := newTestDatastore(t)
 		rev, err := ds.HeadRevision(t.Context())
 		require.NoError(t, err)
 
-		var batches []ExportBatch
-		err = StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision:  rev,
-			BatchSize: 100,
-		}, func(batch ExportBatch) error {
-			batches = append(batches, batch)
-			return nil
+		iter, err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
+			Revision: rev,
 		})
 		require.NoError(t, err)
-		require.Empty(t, batches)
+
+		count := 0
+		for _, err := range iter {
+			require.NoError(t, err)
+			count++
+		}
+		require.Equal(t, 0, count)
 	})
 
 	t.Run("nil revision returns error", func(t *testing.T) {
 		ds := newTestDatastore(t)
-		err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			BatchSize: 100,
-		}, func(batch ExportBatch) error {
-			return nil
-		})
+		_, err := StreamPartitionedExport(t.Context(), ds, StreamRequest{})
 		require.Error(t, err)
 	})
 }
