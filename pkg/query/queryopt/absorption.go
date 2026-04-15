@@ -6,6 +6,33 @@ import (
 	"github.com/authzed/spicedb/pkg/query"
 )
 
+func init() {
+	MustRegisterOptimization(Optimizer{
+		Name: "absorption-idempotency",
+		Description: `
+		Removes subsumed branches from union expressions using two set-theoretic laws:
+		  - Idempotency: A ∪ A = A
+		  - Absorption:  A ∪ (A ∩ B) = A; generalizes to (A ∩ B) ∪ (A ∩ B ∩ C) = A ∩ B
+
+		Caveats are treated as opaque structural units: A ∪ Caveat(A) is not simplified,
+		but A ∪ (A ∩ Caveat(B)) = A because A appears as a direct factor.
+
+		Arrows are treated as opaque structural units: (A->B) ∪ (A->B ∩ C) = A->B,
+		but (A->B) ∪ (A->C) is not simplified.
+
+		Runs after simple-caveat-pushdown (priority 20) so it sees the final caveat
+		shape, and before reachability-pruning (priority 0) so pruning works on a
+		smaller tree.
+		`,
+		Priority: 10,
+		NewTransform: func(_ RequestParams) OutlineTransform {
+			return func(outline query.Outline) query.Outline {
+				return query.MutateOutline(outline, []query.OutlineMutation{absorptionIdempotency})
+			}
+		},
+	})
+}
+
 // absorptionIdempotency is an OutlineMutation that removes subsumed children
 // from UnionIteratorType nodes. It is called bottom-up by MutateOutline, so
 // by the time a Union node is visited its children have already been processed.
