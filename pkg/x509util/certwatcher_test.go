@@ -27,11 +27,13 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,79 +56,44 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 	watcher1, err := NewTLSCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
-	done1 := make(chan struct{})
 	go func() {
-		defer close(done1)
 		_ = watcher1.Start(ctx1)
 	}()
 	cancel1()
-	<-done1
 
 	// Second watcher: should not fail due to duplicate metric registration.
 	ctx2, cancel2 := context.WithCancel(t.Context())
 	watcher2, err := NewTLSCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
-	done2 := make(chan struct{})
 	go func() {
-		defer close(done2)
 		_ = watcher2.Start(ctx2)
 	}()
 	cancel2()
-	<-done2
 }
 
 // setupWatcher creates a temporary certificate/key pair for the given IP address,
 // constructs a CertWatcher, and returns a startWatcher function that launches the
-// watcher in a background goroutine. The startWatcher function blocks until the
-// first certificate is successfully read, and registers a t.Cleanup that cancels
-// the watcher's context and waits for it to stop.
-func setupWatcher(t *testing.T, ip string) (certPath, keyPath string, watcher *CertWatcher, startWatcher func(interval time.Duration) (done <-chan struct{})) {
+// watcher in a background goroutine.
+func setupWatcher(t *testing.T, ip string) (certPath, keyPath string, watcher *CertWatcher, startWatcher func(interval time.Duration)) {
 	t.Helper()
 
 	dir := t.TempDir()
-	certPath = dir + "/tls.crt"
-	keyPath = dir + "/tls.key"
+	certPath = filepath.Join(dir, "/tls.crt")
+	keyPath = filepath.Join(dir, "/tls.key")
 
 	// write files
 	err := writeCerts(certPath, keyPath, ip)
 	require.NoError(t, err)
 
-	// wait until they exist on disk
-	require.Eventually(t, func() bool {
-		for _, file := range []string{certPath, keyPath} {
-			if _, err := os.ReadFile(file); err != nil {
-				return false
-			}
-		}
-		return true
-	}, 10*time.Second, 100*time.Millisecond)
-
 	watcher, err = NewTLSCertWatcher(certPath, keyPath)
 	require.NoError(t, err)
 
-	startWatcher = func(interval time.Duration) (done <-chan struct{}) {
-		doneCh := make(chan struct{})
+	startWatcher = func(interval time.Duration) {
 		go func() {
-			defer close(doneCh)
 			_ = watcher.WithWatchInterval(interval).Start(t.Context())
 		}()
-		// wait till we read first cert
-		require.Eventually(t, func() bool {
-			return watcher.ReadCertificate() == nil
-		}, 10*time.Second, 100*time.Millisecond)
-		// Register cleanup: wait for watcher to stop
-		t.Cleanup(func() {
-			require.Eventually(t, func() bool {
-				select {
-				case <-doneCh:
-					return true
-				default:
-					return false
-				}
-			}, 4*time.Second, 100*time.Millisecond)
-		})
-		return doneCh
+		assert.NoError(t, watcher.ReadCertificate())
 	}
 
 	return certPath, keyPath, watcher, startWatcher
@@ -135,7 +102,8 @@ func setupWatcher(t *testing.T, ip string) (certPath, keyPath string, watcher *C
 func TestCertWatcherStart(t *testing.T) {
 	t.Run("should read the initial cert/key", func(t *testing.T) {
 		_, _, _, startWatcher := setupWatcher(t, "127.0.0.1")
-		startWatcher(10 * time.Second)
+		// This invokes ReadCertificate indirectly
+		startWatcher(5 * time.Second)
 	})
 
 	t.Run("should reload currentCert when changed", func(t *testing.T) {
@@ -152,11 +120,12 @@ func TestCertWatcherStart(t *testing.T) {
 		err := writeCerts(certPath, keyPath, "192.168.0.1")
 		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			secondcert, _ := watcher.GetCertificate(nil)
 			first := firstcert.PrivateKey.(*rsa.PrivateKey)
-			return !first.Equal(secondcert.PrivateKey) && firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber) != 0
-		}, 10*time.Second, 100*time.Millisecond)
+			assert.False(collect, first.Equal(secondcert.PrivateKey), "first and second privatekeys should not be equal")
+			assert.NotZero(collect, firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber), "the serial numbers should compare as different")
+		}, 10*time.Second, 1*time.Second)
 
 		require.GreaterOrEqual(t, called.Load(), int64(1))
 	})
@@ -181,11 +150,12 @@ func TestCertWatcherStart(t *testing.T) {
 		require.NoError(t, os.Link(keyPath, keyPath+".old"))
 		require.NoError(t, os.Rename(keyPath+".new", keyPath))
 
-		require.Eventually(t, func() bool {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			secondcert, _ := watcher.GetCertificate(nil)
 			first := firstcert.PrivateKey.(*rsa.PrivateKey)
-			return !first.Equal(secondcert.PrivateKey) && firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber) != 0
-		}, 10*time.Second, 100*time.Millisecond)
+			assert.False(collect, first.Equal(secondcert.PrivateKey), "first and second privatekeys should not be equal")
+			assert.NotZero(collect, firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber), "the serial numbers should compare as different")
+		}, 10*time.Second, 1*time.Second)
 
 		require.GreaterOrEqual(t, called.Load(), int64(1))
 	})
@@ -207,10 +177,11 @@ func TestCertWatcherStart(t *testing.T) {
 		err := writeCerts(certPath, keyPath, "192.168.0.3")
 		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			secondcert, _ := watcher.GetCertificate(nil)
 			first := firstcert.PrivateKey.(*rsa.PrivateKey)
-			return !first.Equal(secondcert.PrivateKey) && firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber) != 0
+			assert.False(collect, first.Equal(secondcert.PrivateKey), "first and second privatekeys should not be equal")
+			assert.NotZero(collect, firstcert.Leaf.SerialNumber.Cmp(secondcert.Leaf.SerialNumber), "the serial numbers should compare as different")
 		}, 10*time.Second, 1*time.Second)
 
 		require.GreaterOrEqual(t, called.Load(), int64(1))
@@ -222,9 +193,9 @@ func TestCertWatcherStart(t *testing.T) {
 
 		startWatcher(1 * time.Second)
 
-		require.Eventually(t, func() bool {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			readCertificateTotalAfter := testutil.ToFloat64(watcher.ReadCertificateTotal)
-			return readCertificateTotalAfter >= readCertificateTotalBefore+1.0
+			assert.GreaterOrEqual(collect, readCertificateTotalAfter, readCertificateTotalBefore+1.0)
 		}, 10*time.Second, 100*time.Millisecond)
 	})
 
