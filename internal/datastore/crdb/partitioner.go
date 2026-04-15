@@ -49,14 +49,14 @@ func (cds *crdbDatastore) PlanPartitions(ctx context.Context, desiredCount uint3
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Uint32("desired_partitions", desiredCount).
 			Msg("SHOW RANGES failed, returning single partition")
-		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}, nil
+		return SinglePartitionRange, nil
 	}
 
 	if len(boundaries) == 0 {
 		log.Ctx(ctx).Info().Uint32("desired_partitions", desiredCount).
 			Str("table", cds.schema.RelationshipTableName).
 			Msg("no parseable range boundaries found (table may be < 512MB), returning single partition")
-		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}, nil
+		return SinglePartitionRange, nil
 	}
 
 	partitions := groupBoundaries(boundaries, desiredCount)
@@ -76,7 +76,7 @@ func (cds *crdbDatastore) PlanPartitions(ctx context.Context, desiredCount uint3
 // Boundaries must be sorted in ascending key order.
 func groupBoundaries(boundaries []options.Cursor, desiredCount uint32) []datastore.PartitionRange {
 	if desiredCount <= 1 || len(boundaries) == 0 {
-		return []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}
+		return SinglePartitionRange
 	}
 
 	K := int(desiredCount)
