@@ -17,6 +17,12 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+// singleflightTimeout is the maximum time that a caller of a singleflighted method
+// will wait before giving up on the singleflight executor.
+// This prevents a possible deadlock when all datastore connections are held by goroutines waiting on the
+// singleflight while the singleflight executor is blocked waiting for a connection.
+const singleFlightTimeout = 1 * time.Second
+
 var tracer = otel.Tracer("spicedb/internal/datastore/common/revisions")
 
 // OptimizedRevisionFunction instructs the datastore to compute its own current
@@ -63,6 +69,9 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		}
 	}
 	cor.RUnlock()
+
+	ctx, cancel := context.WithTimeout(ctx, singleFlightTimeout)
+	defer cancel()
 
 	result, _, err := cor.updateGroup.Do(ctx, "", func(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
