@@ -764,6 +764,58 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 		},
 		{
+			name: "before with no filter",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustBeforeOrEqual(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+			},
+			expectedForTuple: expected{
+				sql:  "SELECT * WHERE (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) <= (?,?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
+				args: []any{"someresourcetype", "foo", "viewer", "user", "bar", "..."},
+			},
+			expectedForExpanded: expected{
+				sql:  "SELECT * WHERE ((ns < ?) OR (ns = ? AND object_id < ?) OR (ns = ? AND object_id = ? AND relation < ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns < ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id < ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation <= ?)) AND (expiration IS NULL OR expiration > NOW())",
+				args: []any{"someresourcetype", "someresourcetype", "foo", "someresourcetype", "foo", "viewer", "someresourcetype", "foo", "viewer", "user", "someresourcetype", "foo", "viewer", "user", "bar", "someresourcetype", "foo", "viewer", "user", "bar", "..."},
+			},
+		},
+		{
+			name: "before with namespace filter",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithRelationshipsFilter(
+					datastore.RelationshipsFilter{
+						OptionalResourceType: "someresourcetype",
+					},
+				).MustBeforeOrEqual(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
+			},
+			expectedForTuple: expected{
+				sql:        "SELECT * WHERE ns = ? AND (object_id,relation,subject_ns,subject_object_id,subject_relation) <= (?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"someresourcetype", "foo", "viewer", "user", "bar", "..."},
+				staticCols: []string{"ns"},
+			},
+			expectedForExpanded: expected{
+				sql:        "SELECT * WHERE ns = ? AND ((object_id < ?) OR (object_id = ? AND relation < ?) OR (object_id = ? AND relation = ? AND subject_ns < ?) OR (object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id < ?) OR (object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation <= ?)) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"someresourcetype", "foo", "foo", "viewer", "foo", "viewer", "user", "foo", "viewer", "user", "bar", "foo", "viewer", "user", "bar", "..."},
+				staticCols: []string{"ns"},
+			},
+		},
+		{
+			name: "after and before combined",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustAfter(
+					toCursor(tuple.MustParse("someresourcetype:aaa#viewer@user:aaa")), options.ByResource,
+				).MustBeforeOrEqual(
+					toCursor(tuple.MustParse("someresourcetype:zzz#viewer@user:zzz")), options.ByResource,
+				)
+			},
+			expectedForTuple: expected{
+				sql:  "SELECT * WHERE (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?) AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) <= (?,?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
+				args: []any{"someresourcetype", "aaa", "viewer", "user", "aaa", "...", "someresourcetype", "zzz", "viewer", "user", "zzz", "..."},
+			},
+			expectedForExpanded: expected{
+				sql:  "SELECT * WHERE ((ns > ?) OR (ns = ? AND object_id > ?) OR (ns = ? AND object_id = ? AND relation > ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns > ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id > ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation > ?)) AND ((ns < ?) OR (ns = ? AND object_id < ?) OR (ns = ? AND object_id = ? AND relation < ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns < ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id < ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation <= ?)) AND (expiration IS NULL OR expiration > NOW())",
+				args: []any{"someresourcetype", "someresourcetype", "aaa", "someresourcetype", "aaa", "viewer", "someresourcetype", "aaa", "viewer", "user", "someresourcetype", "aaa", "viewer", "user", "aaa", "someresourcetype", "aaa", "viewer", "user", "aaa", "...", "someresourcetype", "someresourcetype", "zzz", "someresourcetype", "zzz", "viewer", "someresourcetype", "zzz", "viewer", "user", "someresourcetype", "zzz", "viewer", "user", "zzz", "someresourcetype", "zzz", "viewer", "user", "zzz", "..."},
+			},
+		},
+		{
 			name: "relationships filter with required caveat name",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithRelationshipsFilter(datastore.RelationshipsFilter{

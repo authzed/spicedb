@@ -1089,6 +1089,45 @@ func (mr *MockDatastoreMockRecorder) Watch(ctx, afterRevision, arg2 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockDatastore)(nil).Watch), ctx, afterRevision, arg2)
 }
 
+// MockBulkExportPartitioner is a mock of BulkExportPartitioner interface.
+type MockBulkExportPartitioner struct {
+	ctrl     *gomock.Controller
+	recorder *MockBulkExportPartitionerMockRecorder
+	isgomock struct{}
+}
+
+// MockBulkExportPartitionerMockRecorder is the mock recorder for MockBulkExportPartitioner.
+type MockBulkExportPartitionerMockRecorder struct {
+	mock *MockBulkExportPartitioner
+}
+
+// NewMockBulkExportPartitioner creates a new mock instance.
+func NewMockBulkExportPartitioner(ctrl *gomock.Controller) *MockBulkExportPartitioner {
+	mock := &MockBulkExportPartitioner{ctrl: ctrl}
+	mock.recorder = &MockBulkExportPartitionerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockBulkExportPartitioner) EXPECT() *MockBulkExportPartitionerMockRecorder {
+	return m.recorder
+}
+
+// PlanPartitions mocks base method.
+func (m *MockBulkExportPartitioner) PlanPartitions(ctx context.Context, desiredCount uint32) ([]datastore.PartitionRange, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PlanPartitions", ctx, desiredCount)
+	ret0, _ := ret[0].([]datastore.PartitionRange)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PlanPartitions indicates an expected call of PlanPartitions.
+func (mr *MockBulkExportPartitionerMockRecorder) PlanPartitions(ctx, desiredCount any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlanPartitions", reflect.TypeOf((*MockBulkExportPartitioner)(nil).PlanPartitions), ctx, desiredCount)
+}
+
 // MockExplainable is a mock of Explainable interface.
 type MockExplainable struct {
 	ctrl     *gomock.Controller

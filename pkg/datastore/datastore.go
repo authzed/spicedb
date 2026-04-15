@@ -740,6 +740,22 @@ type Datastore interface {
 	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
 }
 
+// PartitionRange represents a non-overlapping portion of the relationship table
+// for parallel partitioned bulk export.
+type PartitionRange struct {
+	LowerBound options.Cursor // nil = start of table (exclusive)
+	UpperBound options.Cursor // nil = end of table (inclusive)
+}
+
+// BulkExportPartitioner is an optional interface that datastores can implement
+// to support parallel partitioned bulk export. PlanPartitions splits the
+// relationship table into non-overlapping ranges that can be exported in parallel.
+// The implementation may return fewer partitions than desiredCount if the
+// underlying data distribution does not support the requested number.
+type BulkExportPartitioner interface {
+	PlanPartitions(ctx context.Context, desiredCount uint32) ([]PartitionRange, error)
+}
+
 // ParsedExplain represents the parsed output of an EXPLAIN statement.
 type ParsedExplain struct {
 	// IndexesUsed is the list of indexes used in the query.

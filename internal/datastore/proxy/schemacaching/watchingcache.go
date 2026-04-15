@@ -76,6 +76,10 @@ type watchingCachingProxy struct {
 	caveatCache    *schemaWatchCache[*core.CaveatDefinition]
 }
 
+func (p *watchingCachingProxy) Unwrap() datastore.Datastore {
+	return p.Datastore
+}
+
 // createWatchingCacheProxy creates and returns a watching cache proxy.
 func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry], gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
 	fallbackCache := &definitionCachingProxy{
