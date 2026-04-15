@@ -183,3 +183,57 @@ func TestAbsorptionRegistered(t *testing.T) {
 		require.Equal(t, 0, query.OutlineCompare(result.Root, a))
 	})
 }
+
+func TestComplementAbsorption(t *testing.T) {
+	a := dsOutlineForType("document", "viewer", "user", "...")
+	b := dsOutlineForType("document", "editor", "user", "...")
+	c := dsOutlineForType("document", "owner", "user", "...")
+
+	t.Run("A ∪ (A − B) = A", func(t *testing.T) {
+		// (A−B) ⊆ A, so A already subsumes the exclusion.
+		result := applyAbsorption(unionOutline(a, exclusionOutline(a, b)))
+		require.Equal(t, query.DatastoreIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, a))
+	})
+
+	t.Run("(A − B) ∪ A = A — exclusion on left", func(t *testing.T) {
+		// Same law with operands reversed; order must not matter.
+		result := applyAbsorption(unionOutline(exclusionOutline(a, b), a))
+		require.Equal(t, query.DatastoreIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, a))
+	})
+
+	t.Run("(A ∩ B) ∪ ((A ∩ B) − C) = A ∩ B", func(t *testing.T) {
+		// Minuend is an intersection; works identically — (A∩B)−C ⊆ A∩B.
+		ab := intersectionOutline(a, b)
+		result := applyAbsorption(unionOutline(ab, exclusionOutline(ab, c)))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, ab))
+	})
+
+	t.Run("A ∪ B ∪ (A − C) = A ∪ B", func(t *testing.T) {
+		// A subsumes (A−C); B is unaffected; result is a 2-child union.
+		result := applyAbsorption(unionOutline(a, b, exclusionOutline(a, c)))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], b))
+	})
+
+	t.Run("A ∪ (B − C) is not simplified — B is not subsumed by A", func(t *testing.T) {
+		// B's minuend is B, not A; no subsumption.
+		result := applyAbsorption(unionOutline(a, exclusionOutline(b, c)))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+	})
+
+	t.Run("(A − B) ∪ (A − C) is not simplified — neither exclusion subsumes the other", func(t *testing.T) {
+		// Both (A−B) and (A−C) have minuend A; A−C ⊆ A−B is not generally true,
+		// but A subsumes both minuends, so if A also appears as a union sibling the
+		// rule fires. Without a bare A sibling, neither exclusion subsumes the other.
+		// This test confirms no simplification occurs when no bare A is present.
+		result := applyAbsorption(unionOutline(exclusionOutline(a, b), exclusionOutline(a, c)))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+	})
+}

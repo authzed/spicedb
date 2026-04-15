@@ -120,10 +120,23 @@ func absorptionIdempotency(outline query.Outline) query.Outline {
 // (see intersectionFactors) appears as a direct child of Y by structural equality.
 // If Y = X₁ ∩ … ∩ Xₙ ∩ B ∩ …  and {X₁, …, Xₙ} are all factors of X, then
 // anything satisfying Y must satisfy X, so Y ⊆ X.
+//
+// Case 3 — Complement-absorption: Y is an ExclusionIteratorType and its minuend
+// (first child) is itself subsumed by X. Since (A − B) ⊆ A for all B, if X
+// subsumes A then X subsumes (A − B).
 func isSubsumedBy(y, x query.Outline) bool {
 	// Case 1: structural equality
 	if query.OutlineCompare(x, y) == 0 {
 		return true
+	}
+
+	// Case 3: complement-absorption — (A − B) ⊆ A, so if X subsumes the minuend
+	// of Y then X subsumes all of Y.
+	// The len == 2 guard is defensive; the outline runtime enforces exactly two
+	// children for ExclusionIteratorType. A malformed node falls through safely
+	// to Case 2, which returns false for non-intersection types.
+	if y.Type == query.ExclusionIteratorType && len(y.SubOutlines) == 2 {
+		return isSubsumedBy(y.SubOutlines[0], x)
 	}
 
 	// Case 2: Y must be an intersection for absorption to apply
