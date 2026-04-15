@@ -147,34 +147,3 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	require.ErrorIs(err, ErrMemDBIsClosed)
 }
 
-func BenchmarkQueryRelationships(b *testing.B) {
-	require := require.New(b)
-
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
-	require.NoError(err)
-
-	// Write a bunch of relationships.
-	ctx := b.Context()
-	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		updates := []tuple.RelationshipUpdate{}
-		for i := range 1000 {
-			updates = append(updates, tuple.Touch(tuple.MustParse(fmt.Sprintf("document:doc-%d#viewer@user:tom", i))))
-		}
-
-		return rwt.WriteRelationships(ctx, updates)
-	})
-	require.NoError(err)
-
-	reader := ds.SnapshotReader(rev)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			OptionalResourceType: "document",
-		})
-		require.NoError(err)
-		for _, err := range iter {
-			require.NoError(err)
-		}
-	}
-}
