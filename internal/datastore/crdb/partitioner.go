@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -21,8 +21,14 @@ import (
 // that overlap when compared in PK tuple order.
 const queryShowRanges = "SELECT start_key FROM [SHOW RANGES FROM INDEX %s@primary] ORDER BY start_key"
 
-// Compile-time assertion that crdbDatastore implements BulkExportPartitioner.
-var _ datastore.BulkExportPartitioner = (*crdbDatastore)(nil)
+var (
+	// SinglePartitionRange is a single partition covering the entire table,
+	// used as a fallback when partitioning is not possible or not requested.
+	SinglePartitionRange = []datastore.PartitionRange{{LowerBound: nil, UpperBound: nil}}
+
+	// Compile-time assertion that crdbDatastore implements BulkExportPartitioner.
+	_ datastore.BulkExportPartitioner = (*crdbDatastore)(nil)
+)
 
 // PlanPartitions splits the relationship table into non-overlapping key ranges
 // for parallel bulk export. It uses CRDB's SHOW RANGES to align partitions

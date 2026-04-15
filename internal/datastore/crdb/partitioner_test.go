@@ -560,6 +560,18 @@ func TestPlanPartitionsLogic(t *testing.T) {
 	})
 }
 
+// TestPartitionerPrimaryKeyAssumptions verifies that the primary key of the
+// relationship table matches the column order assumed by parseRangeStartKey.
+// If the PK changes, this test will fail — update parseRangeStartKey's column
+// mapping (values[0..5]) accordingly.
+func TestPartitionerPrimaryKeyAssumptions(t *testing.T) {
+	expectedColumnsSQL := `PRIMARY KEY (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation)`
+	require.Equal(t, expectedColumnsSQL, schema.IndexPrimaryKey.ColumnsSQL,
+		"The partitioner assumes parseRangeStartKey maps quoted values positionally to "+
+			"(namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation). "+
+			"If the primary key columns or their order changed, update parseRangeStartKey in partitioner.go.")
+}
+
 func makeBoundary(ns, oid, rel, uns, uoid, urel string) options.Cursor {
 	return options.ToCursor(tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
