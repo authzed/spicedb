@@ -6,8 +6,10 @@ import (
 	bm "github.com/authzed/spicedb/pkg/benchmarks"
 )
 
-var includeDelay = flag.Bool("bench-delay", false, "include delay variants in query planner benchmarks")
-var includePlain = flag.Bool("bench-plain", false, "include plain (non-advised) benchmark variants")
+var (
+	includeDelay = flag.Bool("bench-delay", false, "include delay variants in query planner benchmarks")
+	includePlain = flag.Bool("bench-plain", false, "include plain (non-advised) benchmark variants")
+)
 
 // directBenchmarkNames is the curated subset of registry benchmarks run
 // directly against the query planner (without gRPC). The full registry is

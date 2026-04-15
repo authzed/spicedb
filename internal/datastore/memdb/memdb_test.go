@@ -146,4 +146,3 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	_, err = reader.CountRelationships(t.Context(), "blah")
 	require.ErrorIs(err, ErrMemDBIsClosed)
 }
-
