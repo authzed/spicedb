@@ -6,6 +6,268 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNullPropagation(t *testing.T) {
+	live := Outline{Type: FixedIteratorType}
+	null := Outline{Type: NullIteratorType}
+
+	// --- UnionIteratorType ---
+
+	t.Run("union: all null → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: UnionIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("union: all null (3 children) → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: UnionIteratorType, SubOutlines: []Outline{null, null, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("union: one live child → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: UnionIteratorType, SubOutlines: []Outline{live, null}})
+		require.Equal(t, UnionIteratorType, result.Type)
+	})
+
+	t.Run("union: mixed (3 children, 1 live) → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: UnionIteratorType, SubOutlines: []Outline{null, live, null}})
+		require.Equal(t, UnionIteratorType, result.Type)
+	})
+
+	t.Run("union: all live → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: UnionIteratorType, SubOutlines: []Outline{live, live}})
+		require.Equal(t, UnionIteratorType, result.Type)
+	})
+
+	t.Run("union: preserves ID when null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: UnionIteratorType, ID: 7, SubOutlines: []Outline{null, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+		require.Equal(t, OutlineNodeID(7), result.ID)
+	})
+
+	// --- IntersectionIteratorType ---
+
+	t.Run("intersection: any null child → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionIteratorType, SubOutlines: []Outline{live, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("intersection: null first child → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionIteratorType, SubOutlines: []Outline{null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("intersection: all null → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("intersection: one null in 3 children → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionIteratorType, SubOutlines: []Outline{live, null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("intersection: all live → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionIteratorType, SubOutlines: []Outline{live, live}})
+		require.Equal(t, IntersectionIteratorType, result.Type)
+	})
+
+	t.Run("intersection: preserves ID when null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionIteratorType, ID: 8, SubOutlines: []Outline{live, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+		require.Equal(t, OutlineNodeID(8), result.ID)
+	})
+
+	// --- ArrowIteratorType ---
+
+	t.Run("arrow: null left child → null", func(t *testing.T) {
+		// Null → B has no sources to traverse, so result is empty.
+		result := NullPropagation(Outline{Type: ArrowIteratorType, SubOutlines: []Outline{null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("arrow: null right child → null", func(t *testing.T) {
+		// A → Null has no target to reach.
+		result := NullPropagation(Outline{Type: ArrowIteratorType, SubOutlines: []Outline{live, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("arrow: both children null → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ArrowIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("arrow: neither child null → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ArrowIteratorType, SubOutlines: []Outline{live, live}})
+		require.Equal(t, ArrowIteratorType, result.Type)
+	})
+
+	t.Run("arrow: wrong child count (1) → unchanged (defensive guard)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ArrowIteratorType, SubOutlines: []Outline{null}})
+		require.Equal(t, ArrowIteratorType, result.Type)
+	})
+
+	t.Run("arrow: preserves ID when null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ArrowIteratorType, ID: 42, SubOutlines: []Outline{null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+		require.Equal(t, OutlineNodeID(42), result.ID)
+	})
+
+	// --- IntersectionArrowIteratorType ---
+
+	t.Run("intersection arrow: null left child → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionArrowIteratorType, SubOutlines: []Outline{null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("intersection arrow: null right child → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionArrowIteratorType, SubOutlines: []Outline{live, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("intersection arrow: both children null → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionArrowIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("intersection arrow: neither child null → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionArrowIteratorType, SubOutlines: []Outline{live, live}})
+		require.Equal(t, IntersectionArrowIteratorType, result.Type)
+	})
+
+	t.Run("intersection arrow: wrong child count (1) → unchanged (defensive guard)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionArrowIteratorType, SubOutlines: []Outline{null}})
+		require.Equal(t, IntersectionArrowIteratorType, result.Type)
+	})
+
+	t.Run("intersection arrow: wrong child count (3) with null child → unchanged (defensive guard)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionArrowIteratorType, SubOutlines: []Outline{null, live, live}})
+		require.Equal(t, IntersectionArrowIteratorType, result.Type)
+	})
+
+	t.Run("intersection arrow: preserves ID when null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: IntersectionArrowIteratorType, ID: 9, SubOutlines: []Outline{null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+		require.Equal(t, OutlineNodeID(9), result.ID)
+	})
+
+	// --- ExclusionIteratorType ---
+
+	t.Run("exclusion: null left child (main set) → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ExclusionIteratorType, SubOutlines: []Outline{null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("exclusion: null right child (excluded set) → unchanged (A − ∅ = A)", func(t *testing.T) {
+		// Subtracting the empty set is a no-op; the node stays for a later pass.
+		result := NullPropagation(Outline{Type: ExclusionIteratorType, SubOutlines: []Outline{live, null}})
+		require.Equal(t, ExclusionIteratorType, result.Type)
+	})
+
+	t.Run("exclusion: both null → null (left child triggers)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ExclusionIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("exclusion: neither null → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ExclusionIteratorType, SubOutlines: []Outline{live, live}})
+		require.Equal(t, ExclusionIteratorType, result.Type)
+	})
+
+	t.Run("exclusion: wrong child count (1) → unchanged (defensive guard)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ExclusionIteratorType, SubOutlines: []Outline{null}})
+		require.Equal(t, ExclusionIteratorType, result.Type)
+	})
+
+	t.Run("exclusion: preserves ID when null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: ExclusionIteratorType, ID: 5, SubOutlines: []Outline{null, live}})
+		require.Equal(t, NullIteratorType, result.Type)
+		require.Equal(t, OutlineNodeID(5), result.ID)
+	})
+
+	// --- CaveatIteratorType ---
+
+	t.Run("caveat: null child → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: CaveatIteratorType, SubOutlines: []Outline{null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("caveat: live child → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: CaveatIteratorType, SubOutlines: []Outline{live}})
+		require.Equal(t, CaveatIteratorType, result.Type)
+	})
+
+	t.Run("caveat: wrong child count (2) → unchanged (defensive guard)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: CaveatIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, CaveatIteratorType, result.Type)
+	})
+
+	t.Run("caveat: preserves ID when null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: CaveatIteratorType, ID: 3, SubOutlines: []Outline{null}})
+		require.Equal(t, NullIteratorType, result.Type)
+		require.Equal(t, OutlineNodeID(3), result.ID)
+	})
+
+	// --- AliasIteratorType ---
+
+	t.Run("alias: null child → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: AliasIteratorType, SubOutlines: []Outline{null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("alias: live child → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: AliasIteratorType, SubOutlines: []Outline{live}})
+		require.Equal(t, AliasIteratorType, result.Type)
+	})
+
+	t.Run("alias: wrong child count (2) → unchanged (defensive guard)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: AliasIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, AliasIteratorType, result.Type)
+	})
+
+	// --- RecursiveIteratorType ---
+
+	t.Run("recursive: null child → null", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: RecursiveIteratorType, SubOutlines: []Outline{null}})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("recursive: live child → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: RecursiveIteratorType, SubOutlines: []Outline{live}})
+		require.Equal(t, RecursiveIteratorType, result.Type)
+	})
+
+	t.Run("recursive: wrong child count (2) → unchanged (defensive guard)", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: RecursiveIteratorType, SubOutlines: []Outline{null, null}})
+		require.Equal(t, RecursiveIteratorType, result.Type)
+	})
+
+	// --- Leaf / unhandled types → always unchanged ---
+
+	t.Run("null node itself → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: NullIteratorType})
+		require.Equal(t, NullIteratorType, result.Type)
+	})
+
+	t.Run("datastore leaf → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: DatastoreIteratorType})
+		require.Equal(t, DatastoreIteratorType, result.Type)
+	})
+
+	t.Run("self leaf → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: SelfIteratorType})
+		require.Equal(t, SelfIteratorType, result.Type)
+	})
+
+	t.Run("fixed leaf → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: FixedIteratorType})
+		require.Equal(t, FixedIteratorType, result.Type)
+	})
+
+	t.Run("recursive sentinel leaf → unchanged", func(t *testing.T) {
+		result := NullPropagation(Outline{Type: RecursiveSentinelIteratorType})
+		require.Equal(t, RecursiveSentinelIteratorType, result.Type)
+	})
+}
+
 func TestReorderMutation(t *testing.T) {
 	t.Run("reorders children correctly", func(t *testing.T) {
 		child0 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc0#viewer@user:alice")}}}
