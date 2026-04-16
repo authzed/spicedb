@@ -60,14 +60,21 @@ func (m *QueryPlanMetadata) GetStats() map[query.CanonicalKey]query.CountStats {
 	return result
 }
 
+// ApplyAdvisor applies a CountAdvisor to the outline if accumulated stats are
+// available. If no stats have been collected yet, the outline is returned
+// unmodified.
+func (m *QueryPlanMetadata) ApplyAdvisor(co query.CanonicalOutline) (query.CanonicalOutline, error) {
+	stats := m.GetStats()
+	if len(stats) == 0 {
+		return co, nil
+	}
+	advisor := query.NewCountAdvisor(stats)
+	return query.ApplyAdvisor(co, advisor)
+}
+
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
 func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
-	// Lazy initialization of QueryPlanMetadata if nil
-	if ps.queryPlanMetadata == nil {
-		ps.queryPlanMetadata = NewQueryPlanMetadata()
-	}
-
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -113,6 +120,12 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: req.Subject.OptionalRelation,
 	})
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	// Apply count-based advisor if stats have been accumulated from prior requests.
+	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -192,10 +205,6 @@ func convertPathToPermissionship(path *query.Path) (v1.CheckPermissionResponse_P
 // lookupResourcesWithQueryPlan executes a LookupResources call using the query plan API.
 // It builds an iterator tree from the schema and calls IterResources to stream results.
 func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
-	if ps.queryPlanMetadata == nil {
-		ps.queryPlanMetadata = NewQueryPlanMetadata()
-	}
-
 	ctx := resp.Context()
 
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
@@ -240,6 +249,12 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: normalizeSubjectRelation(req.Subject),
 	})
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Apply count-based advisor if stats have been accumulated from prior requests.
+	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -312,10 +327,6 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 // lookupSubjectsWithQueryPlan executes a LookupSubjects call using the query plan API.
 // It builds an iterator tree from the schema and calls IterSubjects to stream results.
 func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
-	if ps.queryPlanMetadata == nil {
-		ps.queryPlanMetadata = NewQueryPlanMetadata()
-	}
-
 	ctx := resp.Context()
 
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
@@ -360,6 +371,12 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		SubjectType:     req.SubjectObjectType,
 		SubjectRelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 	})
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Apply count-based advisor if stats have been accumulated from prior requests.
+	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
