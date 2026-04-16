@@ -217,7 +217,6 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 		ctx, cancel := context.WithCancel(t.Context())
 		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
-		t.Log(cfg.FlatDebugMap())
 		srv, err := cfg.Complete(ctx)
 		require.NoError(t, err)
 
