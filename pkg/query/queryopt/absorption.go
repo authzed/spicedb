@@ -74,10 +74,43 @@ func init() {
 // Intersection[Arrow[A,B], C]. Arrow-internal structure is never examined;
 // two arrows are considered equal only when structurally identical.
 func absorptionIdempotency(outline query.Outline) query.Outline {
-	if outline.Type != query.UnionIteratorType {
-		return outline
-	}
-	if len(outline.SubOutlines) <= 1 {
+	return eliminateRedundantChildren(outline, query.UnionIteratorType, isSubsumedBy)
+}
+
+// intersectionIdempotencyAbsorption is an OutlineMutation that removes redundant
+// children from IntersectionIteratorType nodes using two set-theoretic laws:
+//
+//   - Idempotency: A ∩ A = A
+//   - Absorption:  A ∩ (A ∪ B) = A; anything satisfying A trivially satisfies any
+//     union containing A, so the union is a weaker constraint and is dropped.
+//
+// For each child Y, if any other child X satisfies X ⊆ Y (X is a stricter
+// constraint than Y), then Y is dropped. This uses isSubsumedBy(x, y) — the
+// same predicate as absorptionIdempotency but with arguments swapped — because
+// the intersection dual requires checking X ⊆ Y rather than Y ⊆ X.
+//
+// When all but one child are removed, the single surviving child is returned
+// directly (unwrapped from the Intersection) to keep the tree clean.
+func intersectionIdempotencyAbsorption(outline query.Outline) query.Outline {
+	return eliminateRedundantChildren(outline, query.IntersectionIteratorType, func(y, x query.Outline) bool {
+		return isSubsumedBy(x, y) // dual: drop Y when X ⊆ Y
+	})
+}
+
+// eliminateRedundantChildren is the shared loop logic for absorptionIdempotency
+// and intersectionIdempotencyAbsorption. It removes each child Y of a composite
+// node (union or intersection) for which shouldDrop(Y, X) returns true for some
+// other surviving sibling X.
+//
+// The keep-then-rebuild approach ensures a child already marked for removal
+// cannot become the reason another sibling is also removed. For example, in
+// A ∪ A, the first A marks the second for removal; without tracking removals,
+// the second A would also mark the first, yielding an empty union.
+//
+// A single surviving child is returned unwrapped to avoid a redundant composite
+// node wrapper.
+func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorType, shouldDrop func(y, x query.Outline) bool) query.Outline {
+	if outline.Type != nodeType || len(outline.SubOutlines) <= 1 {
 		return outline
 	}
 
@@ -92,33 +125,31 @@ func absorptionIdempotency(outline query.Outline) query.Outline {
 			if i == j || !keep[j] {
 				continue
 			}
-			if isSubsumedBy(y, x) {
+			if shouldDrop(y, x) {
 				keep[i] = false
 				break
 			}
 		}
 	}
 
-	// If everything was kept, return the original outline.
-	if slices.Index(keep, false) == -1 {
+	if !slices.Contains(keep, false) {
 		return outline
 	}
 
 	newSubs := make([]query.Outline, 0, len(children))
-	for i, k := range keep {
-		if k {
-			newSubs = append(newSubs, children[i])
+	for i, child := range children {
+		if keep[i] {
+			newSubs = append(newSubs, child)
 		}
 	}
 
-	// Collapse a single surviving child to avoid a redundant Union wrapper.
 	if len(newSubs) == 1 {
 		return newSubs[0]
 	}
 
-	// Leave ID=0 so FillMissingNodeIDs assigns a fresh canonical key.
 	return query.Outline{
-		Type:        query.UnionIteratorType,
+		ID:          0, // FillMissingNodeIDs assigns a fresh canonical key
+		Type:        nodeType,
 		Args:        outline.Args,
 		SubOutlines: newSubs,
 	}
@@ -141,50 +172,37 @@ func absorptionIdempotency(outline query.Outline) query.Outline {
 // (first child) is itself subsumed by X. Since (A − B) ⊆ A for all B, if X
 // subsumes A then X subsumes (A − B).
 func isSubsumedBy(y, x query.Outline) bool {
+	switch {
 	// Case 1: structural equality
-	if query.OutlineCompare(x, y) == 0 {
+	case query.OutlineCompare(x, y) == 0:
 		return true
-	}
 
 	// Case 2: union-absorption — if X is a union and Y is one of its direct
 	// children, then anything satisfying Y trivially satisfies X, so Y ⊆ X.
-	if x.Type == query.UnionIteratorType {
-		for _, xChild := range x.SubOutlines {
-			if query.OutlineCompare(y, xChild) == 0 {
-				return true
-			}
-		}
-		return false
-	}
+	case x.Type == query.UnionIteratorType:
+		return slices.ContainsFunc(x.SubOutlines, func(c query.Outline) bool {
+			return query.OutlineCompare(y, c) == 0
+		})
 
 	// Case 4: complement-absorption — (A − B) ⊆ A, so if X subsumes the minuend
 	// of Y then X subsumes all of Y.
-	// The len == 2 guard is defensive; the outline runtime enforces exactly two
-	// children for ExclusionIteratorType. A malformed node falls through safely
-	// to Case 3, which returns false for non-intersection types.
-	if y.Type == query.ExclusionIteratorType && len(y.SubOutlines) == 2 {
+	case y.Type == query.ExclusionIteratorType && len(y.SubOutlines) == 2:
 		return isSubsumedBy(y.SubOutlines[0], x)
-	}
 
 	// Case 3: Y must be an intersection for absorption to apply
-	if y.Type != query.IntersectionIteratorType {
-		return false
-	}
-
-	// Every factor of X must appear as a direct child of Y
-	for _, factor := range intersectionFactors(x) {
-		found := false
-		for _, yChild := range y.SubOutlines {
-			if query.OutlineCompare(factor, yChild) == 0 {
-				found = true
-				break
+	case y.Type == query.IntersectionIteratorType:
+		for _, factor := range intersectionFactors(x) {
+			if !slices.ContainsFunc(y.SubOutlines, func(c query.Outline) bool {
+				return query.OutlineCompare(factor, c) == 0
+			}) {
+				return false
 			}
 		}
-		if !found {
-			return false
-		}
+		return true
+
+	default:
+		return false
 	}
-	return true
 }
 
 // intersectionFactors returns the operands of X for the absorption check.
@@ -201,83 +219,17 @@ func intersectionFactors(x query.Outline) []query.Outline {
 	return []query.Outline{x}
 }
 
-// intersectionIdempotencyAbsorption is an OutlineMutation that removes redundant
-// children from IntersectionIteratorType nodes using two set-theoretic laws:
-//
-//   - Idempotency: A ∩ A = A
-//   - Absorption:  A ∩ (A ∪ B) = A; anything satisfying A trivially satisfies any
-//     union containing A, so the union is a weaker constraint and is dropped.
-//
-// For each child Y, if any other child X satisfies X ⊆ Y (X is a stricter
-// constraint than Y), then Y is dropped. This uses isSubsumedBy(x, y) — the
-// same predicate as absorptionIdempotency but with arguments swapped — because
-// the intersection dual requires checking X ⊆ Y rather than Y ⊆ X.
-//
-// When all but one child are removed, the single surviving child is returned
-// directly (unwrapped from the Intersection) to keep the tree clean.
-func intersectionIdempotencyAbsorption(outline query.Outline) query.Outline {
-	if outline.Type != query.IntersectionIteratorType {
-		return outline
-	}
-	if len(outline.SubOutlines) <= 1 {
-		return outline
-	}
-
-	children := outline.SubOutlines
-	keep := slices.Repeat([]bool{true}, len(children))
-
-	for i, y := range children {
-		if !keep[i] {
-			continue
-		}
-		for j, x := range children {
-			if i == j || !keep[j] {
-				continue
-			}
-			if isSubsumedBy(x, y) {
-				keep[i] = false
-				break
-			}
-		}
-	}
-
-	if slices.Index(keep, false) == -1 {
-		return outline
-	}
-
-	newSubs := make([]query.Outline, 0, len(children))
-	for i, k := range keep {
-		if k {
-			newSubs = append(newSubs, children[i])
-		}
-	}
-
-	if len(newSubs) == 1 {
-		return newSubs[0]
-	}
-
-	// Leave ID=0 so FillMissingNodeIDs assigns a fresh canonical key.
-	return query.Outline{
-		Type:        query.IntersectionIteratorType,
-		Args:        outline.Args,
-		SubOutlines: newSubs,
-	}
-}
-
 // exclusionSelfAnnihilation is an OutlineMutation that replaces A − A with ∅.
 // If both operands of an ExclusionIteratorType are structurally equal, the node
 // is replaced with NullIteratorType. NullPropagation (run after this mutation in
 // the same MutateOutline call) then cascades the null through parent intersections
 // and caveats according to each node's semantics.
 func exclusionSelfAnnihilation(outline query.Outline) query.Outline {
-	if outline.Type != query.ExclusionIteratorType {
-		return outline
-	}
-	if len(outline.SubOutlines) != 2 {
-		return outline
-	}
-	if query.OutlineCompare(outline.SubOutlines[0], outline.SubOutlines[1]) == 0 {
+	if outline.Type == query.ExclusionIteratorType &&
+		len(outline.SubOutlines) == 2 &&
+		query.OutlineCompare(outline.SubOutlines[0], outline.SubOutlines[1]) == 0 {
 		return query.Outline{Type: query.NullIteratorType}
 	}
+
 	return outline
 }
