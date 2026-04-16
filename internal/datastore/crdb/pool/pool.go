@@ -309,6 +309,7 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 		err = wrapRetryableError(ctx, fn(conn))
 		if err == nil {
 			conn.Release()
+			conn = nil // suppress the deferred release
 			if retries > 0 {
 				log.Ctx(ctx).Info().Uint8("retries", retries).Msg("resettable database error succeeded after retry")
 			}
@@ -319,12 +320,13 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 			resettable *ResettableError
 			retryable  *RetryableError
 		)
-		if errors.As(err, &resettable) || conn.Conn().IsClosed() {
+		if errors.As(err, &resettable) || (conn != nil && conn.Conn().IsClosed()) {
 			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("resettable error")
 
 			nodeID := p.Node(conn.Conn())
 			p.GC(conn.Conn())
 			conn.Release()
+			conn = nil // will be reassigned by acquireFromDifferentNode below
 
 			// After a resettable error, mark the node as unhealthy
 			// The health tracker enforces an error rate, so a single request
@@ -346,7 +348,10 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 			common.SleepOnErr(ctx, err, retries)
 			continue
 		}
-		conn.Release()
+		if conn != nil {
+			conn.Release()
+			conn = nil // suppress the deferred release
+		}
 
 		// error is not resettable or retryable
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -459,5 +464,6 @@ func wrapRetryableError(ctx context.Context, err error) error {
 	if IsRetryableError(ctx, err) {
 		return &RetryableError{Err: err}
 	}
+
 	return err
 }

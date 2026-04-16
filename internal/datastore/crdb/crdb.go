@@ -15,6 +15,7 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -202,6 +203,18 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
+
+	if config.experimentalCancelDraining {
+		// Install cancel-and-drain handler on both pools: on context cancellation,
+		// pgx sends a PostgreSQL cancel request and drains any in-flight 57014 via
+		// SELECT 1 before returning the connection to the pool.
+		cancelHandler := func(pgConn *pgconn.PgConn) ctxwatch.Handler {
+			return &pgconn.CancelAndDrainContextWatcherHandler{Conn: pgConn}
+		}
+		readPoolConfig.ConnConfig.BuildContextWatcherHandler = cancelHandler
+		writePoolConfig.ConnConfig.BuildContextWatcherHandler = cancelHandler
+	}
+
 	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
@@ -242,18 +255,20 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		})
 	}
 
+	// When cancel draining is disabled, wrap with the context-severing proxy to
+	// restore the pre-cancellation behavior: read contexts are severed so
+	// cancellations never reach the pool (preventing connection closure).
+	if !config.experimentalCancelDraining {
+		return datastore.NewSeparatingContextDatastoreProxy(ds), nil
+	}
+
 	return ds, nil
 }
 
 // NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
 // database while leveraging its AOST functionality.
 func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datastore.Datastore, error) {
-	ds, err := newCRDBDatastore(ctx, url, options...)
-	if err != nil {
-		return nil, err
-	}
-
-	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
+	return newCRDBDatastore(ctx, url, options...)
 }
 
 type crdbDatastore struct {

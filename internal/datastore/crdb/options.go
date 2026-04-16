@@ -36,6 +36,7 @@ type crdbOptions struct {
 	includeQueryParametersInTraces bool
 	watchDisabled                  bool
 	acquireTimeout                 time.Duration
+	experimentalCancelDraining     bool
 }
 
 const (
@@ -61,13 +62,20 @@ const (
 	defaultEnablePrometheusStats          = false
 	defaultEnableConnectionBalancing      = true
 	defaultConnectRate                    = 100 * time.Millisecond
-	defaultAcquireTimeout                 = 30 * time.Millisecond
 	defaultFilterMaximumIDCount           = 100
 	defaultWithIntegrity                  = false
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces = false
 	defaultWatchDisabled                  = false
 )
+
+// defaultAcquireTimeout is 0 (disabled). The write-conn-acquisition-timeout
+// previously existed as backpressure against pool depletion caused by
+// cancelled connections closing their DB connection. With the cancel handler
+// installed, cancelled connections are drained and returned to the pool instead
+// of closed, so pool depletion no longer occurs. Operators may set a non-zero
+// value to enable explicit load-shedding via ResourceExhausted.
+var defaultAcquireTimeout = time.Duration(0)
 
 // Option provides the facility to configure how clients within the CRDB
 // datastore interact with the running CockroachDB database.
@@ -94,6 +102,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		watchDisabled:                  defaultWatchDisabled,
 		acquireTimeout:                 defaultAcquireTimeout,
+		experimentalCancelDraining:     true,
 	}
 
 	for _, option := range options {
@@ -122,6 +131,14 @@ func generateConfig(options []Option) (crdbOptions, error) {
 
 	if computed.writePoolOpts.ConnMaxLifetimeJitter == nil || *computed.writePoolOpts.ConnMaxLifetimeJitter == 0 {
 		computed.writePoolOpts.ConnMaxLifetimeJitter = ptr.To(30 * time.Minute)
+	}
+
+	// When cancel draining is disabled, restore the 30ms acquisition timeout if
+	// the caller hasn't set an explicit non-zero value. The timeout exists as
+	// backpressure against pool depletion; without cancel draining the pool can
+	// be depleted by cancelled connections, so the timeout is load-bearing again.
+	if !computed.experimentalCancelDraining && computed.acquireTimeout == 0 {
+		computed.acquireTimeout = 30 * time.Millisecond
 	}
 
 	return computed, nil
@@ -399,8 +416,20 @@ func WithWatchDisabled(isDisabled bool) Option {
 	return func(po *crdbOptions) { po.watchDisabled = isDisabled }
 }
 
-// WithAcquireTimeout configures the amount of time to wait to acquire a connection
-// from the pool with Try* methods before applying backpressure.
+// WithExperimentalCancelDraining enables cancel-and-drain handling on both
+// connection pools. When enabled, cancelled contexts send a PostgreSQL cancel
+// request to CRDB (stopping server-side work early) and drain the connection
+// with SELECT 1 before returning it to the pool, preventing pool depletion.
+// The SeparatingContextDatastoreProxy is also removed when this is enabled.
+// Default: true. Disable to revert to pre-cancellation behavior if issues arise.
+func WithExperimentalCancelDraining(enabled bool) Option {
+	return func(po *crdbOptions) { po.experimentalCancelDraining = enabled }
+}
+
+// WithAcquireTimeout configures the amount of time to wait to acquire a write
+// connection from the pool before returning ResourceExhausted to the caller.
+// Default is 0 (disabled — wait indefinitely). Set a non-zero value to enable
+// explicit load-shedding.
 func WithAcquireTimeout(timeout time.Duration) Option {
 	return func(po *crdbOptions) { po.acquireTimeout = timeout }
 }

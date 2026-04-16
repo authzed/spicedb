@@ -87,6 +87,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MigrationPhase = c.MigrationPhase
 		to.AllowedMigrations = c.AllowedMigrations
 		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
+		to.ExperimentalCancelDraining = c.ExperimentalCancelDraining
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 	}
 }
@@ -313,6 +314,7 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["AllowedMigrations"] = fmt.Sprintf("(slice of size %d)", len(c.AllowedMigrations))
 	}
 	debugMap["ExperimentalColumnOptimization"] = c.ExperimentalColumnOptimization
+	debugMap["ExperimentalCancelDraining"] = c.ExperimentalCancelDraining
 	debugMap["EnableRevisionHeartbeat"] = c.EnableRevisionHeartbeat
 	return debugMap
 }
@@ -778,6 +780,13 @@ func SetAllowedMigrations(allowedMigrations []string) ConfigOption {
 func WithExperimentalColumnOptimization(experimentalColumnOptimization bool) ConfigOption {
 	return func(c *Config) {
 		c.ExperimentalColumnOptimization = experimentalColumnOptimization
+	}
+}
+
+// WithExperimentalCancelDraining returns an option that can set ExperimentalCancelDraining on a Config
+func WithExperimentalCancelDraining(experimentalCancelDraining bool) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalCancelDraining = experimentalCancelDraining
 	}
 }
 
