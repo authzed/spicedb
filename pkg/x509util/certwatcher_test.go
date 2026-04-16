@@ -112,7 +112,7 @@ func TestCertWatcherStart(t *testing.T) {
 		called := atomic.Int64{}
 		watcher.RegisterCallback(func(crt tls.Certificate) {
 			called.Add(1)
-			require.NotEmpty(t, crt.Certificate)
+			assert.NotEmpty(t, crt.Certificate)
 		})
 
 		firstcert, _ := watcher.GetCertificate(nil)
@@ -136,7 +136,7 @@ func TestCertWatcherStart(t *testing.T) {
 		called := atomic.Int64{}
 		watcher.RegisterCallback(func(crt tls.Certificate) {
 			called.Add(1)
-			require.NotEmpty(t, crt.Certificate)
+			assert.NotEmpty(t, crt.Certificate)
 		})
 
 		firstcert, _ := watcher.GetCertificate(nil)
@@ -166,7 +166,7 @@ func TestCertWatcherStart(t *testing.T) {
 		called := atomic.Int64{}
 		watcher.RegisterCallback(func(crt tls.Certificate) {
 			called.Add(1)
-			require.NotEmpty(t, crt.Certificate)
+			assert.NotEmpty(t, crt.Certificate)
 		})
 
 		firstcert, err := watcher.GetCertificate(nil)
