@@ -209,8 +209,8 @@ func convertLookupSnapshotToDebugV2(ctx context.Context) (*v1.DebugInformationV2
 	annotations := make(map[string]*anypb.Any, len(snapshot.SubProblems))
 	subtrees := make([]*v1.DebugTree, 0, len(snapshot.SubProblems))
 
-	for i, sp := range snapshot.SubProblems {
-		nodeID := fmt.Sprintf("lookup-node-%d", i)
+	for _, sp := range snapshot.SubProblems {
+		nodeID := fmt.Sprintf("%s:%s#%s", sp.ResourceType, sp.ResourceId, sp.Relation)
 
 		subtrees = append(subtrees, &v1.DebugTree{
 			Id: nodeID,
@@ -234,6 +234,7 @@ func convertLookupSnapshotToDebugV2(ctx context.Context) (*v1.DebugInformationV2
 		Scopes: map[string]*v1.DebugScope{
 			"lookup_cycles": {
 				Name: "lookup_cycles",
+				// Root node representing the lookup traversal entrypoint
 				Tree: &v1.DebugTree{
 					Id:       "lookup-root",
 					Subtrees: subtrees,
