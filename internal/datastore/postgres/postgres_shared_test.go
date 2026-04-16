@@ -24,14 +24,12 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
-	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -1458,45 +1456,6 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 	err := <-errChan
 	require.Error(err)
 	require.Contains(err.Error(), "track_commit_timestamp=on")
-}
-
-func BenchmarkPostgresQuery(b *testing.B) {
-	b.StopTimer()
-	req := require.New(b)
-
-	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head, pgversion.MinimumSupportedPostgresVersion, false).NewDatastore(b, func(engine, uri string) datastore.Datastore {
-		ctx := b.Context()
-		ds, err := newPostgresDatastore(ctx, uri,
-			primaryInstanceID,
-			RevisionQuantization(0),
-			GCWindow(time.Millisecond*1),
-			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
-		)
-		require.NoError(b, err)
-		return ds
-	})
-	ds, revision := testfixtures.StandardDatastoreWithData(ds, req)
-	b.Cleanup(func() {
-		_ = ds.Close()
-	})
-
-	b.StartTimer()
-
-	b.Run("benchmark checks", func(b *testing.B) {
-		require := require.New(b)
-
-		for i := 0; i < b.N; i++ {
-			iter, err := ds.SnapshotReader(revision).QueryRelationships(b.Context(), datastore.RelationshipsFilter{
-				OptionalResourceType: testfixtures.DocumentNS.Name,
-			}, options.WithQueryShape(queryshape.FindResourceOfType))
-			require.NoError(err)
-			for rel, err := range iter {
-				require.NoError(err)
-				require.Equal(testfixtures.DocumentNS.Name, rel.Resource.ObjectType)
-			}
-		}
-	})
 }
 
 func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.QueryInterceptor, pgVersion string) datastore.Datastore {

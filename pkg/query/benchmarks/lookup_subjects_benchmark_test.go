@@ -12,7 +12,7 @@ import (
 )
 
 func BenchmarkLookupSubjects(b *testing.B) {
-	for _, benchmark := range bm.All() {
+	for _, benchmark := range directBenchmarks() {
 		b.Run(benchmark.Name, func(b *testing.B) {
 			ctx := b.Context()
 
@@ -78,24 +78,26 @@ func BenchmarkLookupSubjects(b *testing.B) {
 				return advisedIt
 			}
 
-			b.Run("plain", func(b *testing.B) {
-				it, err := canonicalOutline.Compile()
-				require.NoError(b, err)
-
-				b.Log("plain explain:\n", it.Explain())
-
-				opts := append([]query.ContextOption{query.WithReader(qReader)}, ctxOpts...)
-				queryCtx := query.NewLocalContext(ctx, opts...)
-
-				b.ResetTimer()
-				for b.Loop() {
-					paths, err := queryCtx.IterSubjects(it, resource, filterSubjectType)
+			if *includePlain {
+				b.Run("plain", func(b *testing.B) {
+					it, err := canonicalOutline.Compile()
 					require.NoError(b, err)
-					results, err := query.CollectAll(paths)
-					require.NoError(b, err)
-					require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
-				}
-			})
+
+					b.Log("plain explain:\n", it.Explain())
+
+					opts := append([]query.ContextOption{query.WithReader(qReader)}, ctxOpts...)
+					queryCtx := query.NewLocalContext(ctx, opts...)
+
+					b.ResetTimer()
+					for b.Loop() {
+						paths, err := queryCtx.IterSubjects(it, resource, filterSubjectType)
+						require.NoError(b, err)
+						results, err := query.CollectAll(paths)
+						require.NoError(b, err)
+						require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
+					}
+				})
+			}
 
 			b.Run("advised", func(b *testing.B) {
 				advisedIt := buildAdvisedIterator(b, qReader)
@@ -116,22 +118,24 @@ func BenchmarkLookupSubjects(b *testing.B) {
 			})
 
 			if *includeDelay {
-				b.Run("plain_delay", func(b *testing.B) {
-					it, err := canonicalOutline.Compile()
-					require.NoError(b, err)
-
-					opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
-					queryCtx := query.NewLocalContext(ctx, opts...)
-
-					b.ResetTimer()
-					for b.Loop() {
-						paths, err := queryCtx.IterSubjects(it, resource, filterSubjectType)
+				if *includePlain {
+					b.Run("plain_delay", func(b *testing.B) {
+						it, err := canonicalOutline.Compile()
 						require.NoError(b, err)
-						results, err := query.CollectAll(paths)
-						require.NoError(b, err)
-						require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
-					}
-				})
+
+						opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
+						queryCtx := query.NewLocalContext(ctx, opts...)
+
+						b.ResetTimer()
+						for b.Loop() {
+							paths, err := queryCtx.IterSubjects(it, resource, filterSubjectType)
+							require.NoError(b, err)
+							results, err := query.CollectAll(paths)
+							require.NoError(b, err)
+							require.Len(b, results, len(lsQuery.ExpectedSubjectIDs))
+						}
+					})
+				}
 
 				b.Run("advised_delay", func(b *testing.B) {
 					advisedIt := buildAdvisedIterator(b, delayReader)

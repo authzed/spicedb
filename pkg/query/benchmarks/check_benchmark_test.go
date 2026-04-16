@@ -26,7 +26,7 @@ var advisorWarmUp = map[string]int{
 const defaultWarmupIterations = 1
 
 func BenchmarkCheck(b *testing.B) {
-	for _, benchmark := range bm.All() {
+	for _, benchmark := range directBenchmarks() {
 		b.Run(benchmark.Name, func(b *testing.B) {
 			ctx := b.Context()
 
@@ -92,22 +92,24 @@ func BenchmarkCheck(b *testing.B) {
 				return advisedIt
 			}
 
-			b.Run("plain", func(b *testing.B) {
-				it, err := canonicalOutline.Compile()
-				require.NoError(b, err)
-
-				b.Log("plain explain:\n", it.Explain())
-
-				opts := append([]query.ContextOption{query.WithReader(qReader)}, ctxOpts...)
-				queryCtx := query.NewLocalContext(ctx, opts...)
-
-				b.ResetTimer()
-				for b.Loop() {
-					path, err := queryCtx.Check(it, resource, subject)
+			if *includePlain {
+				b.Run("plain", func(b *testing.B) {
+					it, err := canonicalOutline.Compile()
 					require.NoError(b, err)
-					require.NotNil(b, path)
-				}
-			})
+
+					b.Log("plain explain:\n", it.Explain())
+
+					opts := append([]query.ContextOption{query.WithReader(qReader)}, ctxOpts...)
+					queryCtx := query.NewLocalContext(ctx, opts...)
+
+					b.ResetTimer()
+					for b.Loop() {
+						path, err := queryCtx.Check(it, resource, subject)
+						require.NoError(b, err)
+						require.NotNil(b, path)
+					}
+				})
+			}
 
 			b.Run("advised", func(b *testing.B) {
 				advisedIt := buildAdvisedIterator(b, qReader)
@@ -126,20 +128,22 @@ func BenchmarkCheck(b *testing.B) {
 			})
 
 			if *includeDelay {
-				b.Run("plain_delay", func(b *testing.B) {
-					it, err := canonicalOutline.Compile()
-					require.NoError(b, err)
-
-					opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
-					queryCtx := query.NewLocalContext(ctx, opts...)
-
-					b.ResetTimer()
-					for b.Loop() {
-						path, err := queryCtx.Check(it, resource, subject)
+				if *includePlain {
+					b.Run("plain_delay", func(b *testing.B) {
+						it, err := canonicalOutline.Compile()
 						require.NoError(b, err)
-						require.NotNil(b, path)
-					}
-				})
+
+						opts := append([]query.ContextOption{query.WithReader(delayReader)}, ctxOpts...)
+						queryCtx := query.NewLocalContext(ctx, opts...)
+
+						b.ResetTimer()
+						for b.Loop() {
+							path, err := queryCtx.Check(it, resource, subject)
+							require.NoError(b, err)
+							require.NotNil(b, path)
+						}
+					})
+				}
 
 				b.Run("advised_delay", func(b *testing.B) {
 					advisedIt := buildAdvisedIterator(b, delayReader)
