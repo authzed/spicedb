@@ -1,0 +1,523 @@
+﻿diff --git a/internal/dispatch/graph/cycle_detection_test.go b/internal/dispatch/graph/cycle_detection_test.go
+index 4e29f6e4..0ed42402 100644
+--- a/internal/dispatch/graph/cycle_detection_test.go
++++ b/internal/dispatch/graph/cycle_detection_test.go
+@@ -1,11 +1,9 @@
+ package graph
+ 
+ import (
+-	"encoding/base64"
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/require"
+-	"google.golang.org/protobuf/proto"
+ 
+ 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+ 	"github.com/authzed/spicedb/internal/datastore/memdb"
+@@ -91,14 +89,6 @@ func TestLookupSubjectsCycleDetection(t *testing.T) {
+ 	}
+ 	require.True(t, hasCyclic, "expected at least one cyclic node in trace for mutually-recursive groups")
+ 
+-	// Verify serialization round-trips cleanly (simulates the trailer write+read path).
+-	encoded := graphpkg.SerializeLookupDebugTrace(ctx)
+-	require.NotEmpty(t, encoded)
+-	raw, decErr := base64.StdEncoding.DecodeString(encoded)
+-	require.NoError(t, decErr)
+-	var decoded v1.LookupDebugTrace
+-	require.NoError(t, proto.Unmarshal(raw, &decoded))
+-	require.NotEmpty(t, decoded.SubProblems)
+ }
+ 
+ // TestLookupResources3CycleDetection verifies termination and trace content for LR3.
+diff --git a/internal/graph/debug.go b/internal/graph/debug.go
+index e8231777..31a350f9 100644
+--- a/internal/graph/debug.go
++++ b/internal/graph/debug.go
+@@ -2,11 +2,8 @@ package graph
+ 
+ import (
+ 	"context"
+-	"encoding/base64"
+ 	"sync"
+ 
+-	"google.golang.org/protobuf/proto"
+-
+ 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+ )
+ 
+@@ -103,17 +100,3 @@ func SnapshotLookupDebugTrace(ctx context.Context) *v1.LookupDebugTrace {
+ 	}
+ }
+ 
+-// SerializeLookupDebugTrace snapshots the tracker from ctx and serializes the result
+-// to a base64-encoded protobuf wire format, ready to set as a gRPC trailer value.
+-// Returns "" if no trace is present or serialization fails.
+-func SerializeLookupDebugTrace(ctx context.Context) string {
+-	trace := SnapshotLookupDebugTrace(ctx)
+-	if trace == nil {
+-		return ""
+-	}
+-	b, err := proto.Marshal(trace)
+-	if err != nil {
+-		return ""
+-	}
+-	return base64.StdEncoding.EncodeToString(b)
+-}
+diff --git a/internal/services/v1/debug_test.go b/internal/services/v1/debug_test.go
+index 1df26ba9..918330f6 100644
+--- a/internal/services/v1/debug_test.go
++++ b/internal/services/v1/debug_test.go
+@@ -1,7 +1,6 @@
+ package v1_test
+ 
+ import (
+-	"encoding/base64"
+ 	"fmt"
+ 	"sort"
+ 	"strings"
+@@ -13,6 +12,7 @@ import (
+ 	"google.golang.org/grpc/metadata"
+ 	"google.golang.org/protobuf/encoding/prototext"
+ 	"google.golang.org/protobuf/proto"
++	"google.golang.org/protobuf/types/known/anypb"
+ 	"google.golang.org/protobuf/types/known/structpb"
+ 
+ 	"github.com/authzed/authzed-go/pkg/requestmeta"
+@@ -925,10 +925,79 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
+ 	}
+ }
+ 
+-func TestLookupDebugTraceTrailer(t *testing.T) {
++func TestLookupResourcesDebugTraceV2(t *testing.T) {
++	req := require.New(t)
++
++	schema := `
++	definition user {}
++
++	definition group {
++		relation member: user | group#member
++		permission can_access = member
++	}`
++	relationships := []tuple.Relationship{
++		tuple.MustParse("group:a#member@group:b#member"),
++		tuple.MustParse("group:b#member@group:a#member"),
++	}
++
++	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
++		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
++			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
++		})
++	t.Cleanup(cleanup)
++
++	client := v1.NewPermissionsServiceClient(conn)
++
++	ctx := t.Context()
++	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
++
++	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
++		Consistency: &v1.Consistency{
++			Requirement: &v1.Consistency_AtLeastAsFresh{
++				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
++			},
++		},
++		ResourceObjectType: "group",
++		Permission:         "can_access",
++		Subject: &v1.SubjectReference{
++			Object: &v1.ObjectReference{
++				ObjectType: "user",
++				ObjectId:   "someuser",
++			},
++		},
++	})
++	req.NoError(err)
++
++	var lastResp *v1.LookupResourcesResponse
++	for {
++		resp, err := stream.Recv()
++		if err != nil {
++			break
++		}
++		lastResp = resp
++	}
++
++	req.NotNil(lastResp)
++	req.NotNil(lastResp.DebugInfoV2)
++
++	scope := lastResp.DebugInfoV2.Scopes["lookup_cycles"]
++	req.NotNil(scope)
++
++	var foundCyclic bool
++	for _, annAny := range scope.Annotations {
++		var ann v1.LookupCycleAnnotation
++		req.NoError(annAny.UnmarshalTo(&ann))
++		if ann.IsCyclic {
++			foundCyclic = true
++			req.GreaterOrEqual(ann.TraversalCount, uint32(2))
++		}
++	}
++	req.True(foundCyclic, "expected at least one cyclic node marked in trace trailer")
++}
++
++func TestLookupSubjectsDebugTraceV2(t *testing.T) {
+ 	req := require.New(t)
+ 
+-	// cyclicGroupSchema defines a group schema where two groups are mutual members.
+ 	schema := `
+ 	definition user {}
+ 
+@@ -950,7 +1019,6 @@ func TestLookupDebugTraceTrailer(t *testing.T) {
+ 	client := v1.NewPermissionsServiceClient(conn)
+ 
+ 	ctx := t.Context()
+-	// Add the header that enables the debug trace trailer.
+ 	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+ 
+ 	stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
+@@ -968,40 +1036,28 @@ func TestLookupDebugTraceTrailer(t *testing.T) {
+ 	})
+ 	req.NoError(err)
+ 
+-	var streamErr error
++	var lastResp *v1.LookupSubjectsResponse
+ 	for {
+-		_, err := stream.Recv()
++		resp, err := stream.Recv()
+ 		if err != nil {
+-			streamErr = err
+ 			break
+ 		}
++		lastResp = resp
+ 	}
+ 
+-	// The lookup may fail due to max depth exceeded, or complete cleanly if the bloom filter stops it.
+-	// The trailer MUST BE PRESENT regardless.
+-	if streamErr != nil {
+-		req.Contains(streamErr.Error(), "max depth exceeded")
+-	}
+-
+-	// Verify the client received the trailer.
+-	trailerMD := stream.Trailer()
+-	values := trailerMD.Get("x-spicedb-lookup-debug-trace")
+-	req.NotEmpty(values, "expected traversal debug trailer to be present")
+-
+-	// Decode and parse it.
+-	raw, decErr := base64.StdEncoding.DecodeString(values[0])
+-	req.NoError(decErr)
++	req.NotNil(lastResp)
++	req.NotNil(lastResp.DebugInfoV2)
+ 
+-	var trace dispatch.LookupDebugTrace
+-	req.NoError(proto.Unmarshal(raw, &trace))
++	scope := lastResp.DebugInfoV2.Scopes["lookup_cycles"]
++	req.NotNil(scope)
+ 
+-	// Assert that we captured the cycle.
+-	req.NotEmpty(trace.SubProblems)
+ 	var foundCyclic bool
+-	for _, sp := range trace.SubProblems {
+-		if sp.IsCyclic {
++	for _, annAny := range scope.Annotations {
++		var ann v1.LookupCycleAnnotation
++		req.NoError(annAny.UnmarshalTo(&ann))
++		if ann.IsCyclic {
+ 			foundCyclic = true
+-			req.GreaterOrEqual(sp.TraversalCount, uint32(2))
++			req.GreaterOrEqual(ann.TraversalCount, uint32(2))
+ 		}
+ 	}
+ 	req.True(foundCyclic, "expected at least one cyclic node marked in trace trailer")
+diff --git a/internal/services/v1/permissions.go b/internal/services/v1/permissions.go
+index 54fd8866..deb3f192 100644
+--- a/internal/services/v1/permissions.go
++++ b/internal/services/v1/permissions.go
+@@ -14,11 +14,11 @@ import (
+ 	"google.golang.org/grpc/metadata"
+ 	"google.golang.org/grpc/status"
+ 	"google.golang.org/protobuf/proto"
++	"google.golang.org/protobuf/types/known/anypb"
+ 	"google.golang.org/protobuf/types/known/structpb"
+ 	"google.golang.org/protobuf/types/known/timestamppb"
+ 
+ 	"github.com/authzed/authzed-go/pkg/requestmeta"
+-	"github.com/authzed/authzed-go/pkg/responsemeta"
+ 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+ 	"github.com/rs/zerolog/log"
+ 
+@@ -201,6 +201,49 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
+ 	return permissionship, partialCaveat
+ }
+ 
++func convertLookupSnapshotToDebugV2(ctx context.Context) (*v1.DebugInformationV2, error) {
++	snapshot := graph.SnapshotLookupDebugTrace(ctx)
++	if snapshot == nil || len(snapshot.SubProblems) == 0 {
++		return nil, nil
++	}
++
++	annotations := make(map[string]*anypb.Any, len(snapshot.SubProblems))
++	subtrees := make([]*v1.DebugTree, 0, len(snapshot.SubProblems))
++
++	for i, sp := range snapshot.SubProblems {
++		nodeID := fmt.Sprintf("lookup-node-%d", i)
++
++		subtrees = append(subtrees, &v1.DebugTree{
++			Id: nodeID,
++		})
++
++		ann, err := anypb.New(&v1.LookupCycleAnnotation{
++			ResourceType:   sp.ResourceType,
++			ResourceId:     sp.ResourceId,
++			Relation:       sp.Relation,
++			TraversalCount: sp.TraversalCount,
++			IsCyclic:       sp.IsCyclic,
++		})
++		if err != nil {
++			return nil, err
++		}
++
++		annotations[nodeID] = ann
++	}
++
++	return &v1.DebugInformationV2{
++		Scopes: map[string]*v1.DebugScope{
++			"lookup_cycles": {
++				Name: "lookup_cycles",
++				Tree: &v1.DebugTree{
++					Subtrees: subtrees,
++				},
++				Annotations: annotations,
++			},
++		},
++	}, nil
++}
++
+ func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
+ 	// NOTE: perfinsights are added for the individual check results as well, so there is no shape here.
+ 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
+@@ -458,13 +501,6 @@ const (
+ 	lrv3CursorFlag = "lrv3"
+ )
+ 
+-// lookupDebugTraceTrailerKey is the gRPC response trailer key used to surface
+-// the lookup debug trace back to the calling client. It is set only when
+-// the requestmeta.RequestDebugInformation header is present on the request.
+-// Clients read it with: responsemeta.GetResponseTrailerMetadata(trailer, lookupDebugTraceTrailerKey)
+-// and then proto.Unmarshal(base64.StdDecoding.DecodeString(value)) into a LookupDebugTrace.
+-const lookupDebugTraceTrailerKey responsemeta.ResponseMetadataTrailerKey = "x-spicedb-lookup-debug-trace"
+-
+ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+ 	perfinsights.SetInContext(resp.Context(), func() perfinsights.APIShapeLabels {
+ 		return perfinsights.APIShapeLabels{
+@@ -554,16 +590,6 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
+ 	debugEnabled := lookupDebugTraceEnabled(ctx)
+ 	if debugEnabled {
+ 		ctx = graph.NewTraversalTracker(ctx)
+-		defer func() {
+-			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
+-				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+-					lookupDebugTraceTrailerKey: encoded,
+-				})
+-				if err != nil {
+-					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
+-				}
+-			}
+-		}()
+ 	}
+ 
+ 	var currentCursor []string
+@@ -587,6 +613,8 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
+ 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
+ 	}()
+ 
++	var lastResp *v1.LookupResourcesResponse
++
+ 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
+ 		for _, item := range result.Items {
+ 			var partial *v1.PartialCaveatInfo
+@@ -619,17 +647,21 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
+ 				encodedCursor = ec
+ 			}
+ 
+-			err = resp.Send(&v1.LookupResourcesResponse{
++			currentResp := &v1.LookupResourcesResponse{
+ 				LookedUpAt:        revisionReadAt,
+ 				ResourceObjectId:  item.ResourceId,
+ 				Permissionship:    permissionship,
+ 				PartialCaveatInfo: partial,
+ 				AfterResultCursor: encodedCursor,
+-			})
+-			if err != nil {
+-				return err
+ 			}
+ 
++			if lastResp != nil {
++				if err := resp.Send(lastResp); err != nil {
++					return err
++				}
++			}
++			lastResp = currentResp
++
+ 			totalCountPublished++
+ 		}
+ 
+@@ -672,6 +704,18 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
+ 		return ps.rewriteError(ctx, err)
+ 	}
+ 
++	if debugEnabled {
++		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
++			if lastResp != nil {
++				lastResp.DebugInfoV2 = debugV2
++			}
++		}
++	}
++
++	if lastResp != nil {
++		return resp.Send(lastResp)
++	}
++
+ 	return nil
+ }
+ 
+@@ -723,16 +767,6 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
+ 	debugEnabled := lookupDebugTraceEnabled(ctx)
+ 	if debugEnabled {
+ 		ctx = graph.NewTraversalTracker(ctx)
+-		defer func() {
+-			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
+-				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+-					lookupDebugTraceTrailerKey: encoded,
+-				})
+-				if err != nil {
+-					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
+-				}
+-			}
+-		}()
+ 	}
+ 
+ 	var currentCursor *dispatch.Cursor
+@@ -756,6 +790,8 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
+ 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
+ 	}()
+ 
++	var lastResp *v1.LookupResourcesResponse
++
+ 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
+ 		found := result.Resource
+ 
+@@ -786,17 +822,21 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
+ 			return ps.rewriteError(ctx, err)
+ 		}
+ 
+-		err = resp.Send(&v1.LookupResourcesResponse{
++		currentResp := &v1.LookupResourcesResponse{
+ 			LookedUpAt:        revisionReadAt,
+ 			ResourceObjectId:  found.ResourceId,
+ 			Permissionship:    permissionship,
+ 			PartialCaveatInfo: partial,
+ 			AfterResultCursor: encodedCursor,
+-		})
+-		if err != nil {
+-			return err
+ 		}
+ 
++		if lastResp != nil {
++			if err := resp.Send(lastResp); err != nil {
++				return err
++			}
++		}
++		lastResp = currentResp
++
+ 		totalCountPublished++
+ 		return nil
+ 	})
+@@ -837,6 +877,18 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
+ 		return ps.rewriteError(ctx, err)
+ 	}
+ 
++	if debugEnabled {
++		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
++			if lastResp != nil {
++				lastResp.DebugInfoV2 = debugV2
++			}
++		}
++	}
++
++	if lastResp != nil {
++		return resp.Send(lastResp)
++	}
++
+ 	return nil
+ }
+ 
+@@ -906,16 +958,6 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
+ 	debugEnabled := lookupDebugTraceEnabled(ctx)
+ 	if debugEnabled {
+ 		ctx = graph.NewTraversalTracker(ctx)
+-		defer func() {
+-			if encoded := graph.SerializeLookupDebugTrace(ctx); encoded != "" {
+-				err := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+-					lookupDebugTraceTrailerKey: encoded,
+-				})
+-				if err != nil {
+-					log.Ctx(ctx).Warn().Err(err).Msg("failed to set lookup debug trace trailer")
+-				}
+-			}
+-		}()
+ 	}
+ 
+ 	var totalCountPublished uint64
+@@ -923,6 +965,8 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
+ 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
+ 	}()
+ 
++	var lastResp *v1.LookupSubjectsResponse
++
+ 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
+ 		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
+ 		if !ok {
+@@ -957,7 +1001,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
+ 				continue
+ 			}
+ 
+-			err = resp.Send(&v1.LookupSubjectsResponse{
++			currentResp := &v1.LookupSubjectsResponse{
+ 				Subject:            subject,
+ 				ExcludedSubjects:   excludedSubjects,
+ 				LookedUpAt:         revisionReadAt,
+@@ -965,10 +1009,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
+ 				ExcludedSubjectIds: excludedSubjectIDs,        // Deprecated
+ 				Permissionship:     subject.Permissionship,    // Deprecated
+ 				PartialCaveatInfo:  subject.PartialCaveatInfo, // Deprecated
+-			})
+-			if err != nil {
+-				return err
+ 			}
++
++			if lastResp != nil {
++				if err := resp.Send(lastResp); err != nil {
++					return err
++				}
++			}
++			lastResp = currentResp
+ 		}
+ 
+ 		totalCountPublished++
+@@ -1004,6 +1052,18 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
+ 		return ps.rewriteError(ctx, err)
+ 	}
+ 
++	if debugEnabled {
++		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
++			if lastResp != nil {
++				lastResp.DebugInfoV2 = debugV2
++			}
++		}
++	}
++
++	if lastResp != nil {
++		return resp.Send(lastResp)
++	}
++
+ 	return nil
+ }
+ 
