@@ -115,7 +115,7 @@ func (Test) IntegrationCover(ctx context.Context) error {
 	if len(dirs) == 0 {
 		return fmt.Errorf("no packages found with //go:build integration")
 	}
-	args := []string{"-tags", "ci,integration", "-timeout", "30m", "-count=1", "-v"}
+	args := []string{"-tags", "ci,integration", "-timeout", "30m", "-count=1"}
 	args = append(args, coverageFlags...)
 	return goDirTests(ctx, dirs, args...)
 }

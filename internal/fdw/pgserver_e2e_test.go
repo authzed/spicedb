@@ -690,11 +690,21 @@ func runPGServer(t *testing.T, client *authzed.Client) int {
 	})
 
 	go func() {
-		_ = pgserver.Run(ctx, fmt.Sprintf("localhost:%d", port))
+		// Bind to all interfaces so the Postgres container can reach us via
+		// host.docker.internal. "localhost" binds to 127.0.0.1 only, which the
+		// container cannot reach (its packets arrive from the docker bridge IP).
+		_ = pgserver.Run(ctx, fmt.Sprintf("0.0.0.0:%d", port))
 	}()
 
-	// Give PGServer time to start
-	time.Sleep(50 * time.Millisecond)
+	// Wait until the server is actually accepting connections.
+	require.Eventually(t, func() bool {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 100*time.Millisecond)
+		if err != nil {
+			return false
+		}
+		_ = conn.Close()
+		return true
+	}, 10*time.Second, 20*time.Millisecond, "PGServer did not start accepting connections")
 
 	return port
 }
@@ -796,6 +806,12 @@ func runPostgres(t *testing.T) (conn *pgx.Conn) {
 		// set AutoRemove to true so that stopped container goes away by itself
 		config.AutoRemove = true
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		// Unlike every other dockertest-based test in the repo (which only flows
+		// host → container), TestEndToEnd requires the reverse: the Postgres container
+		// connects back to the FDW PGServer running on the host via postgres_fdw.
+		// Docker Desktop auto-resolves host.docker.internal, but Linux (e.g. CI
+		// runners) does not without this extra host mapping.
+		config.ExtraHosts = append(config.ExtraHosts, "host.docker.internal:host-gateway")
 	})
 	require.NoError(t, err)
 
