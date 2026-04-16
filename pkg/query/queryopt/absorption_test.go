@@ -13,7 +13,7 @@ func applyAbsorption(outline query.Outline) query.Outline {
 	return query.MutateOutline(outline, []query.OutlineMutation{
 		absorptionIdempotency,
 		intersectionIdempotencyAbsorption,
-		exclusionSelfAnnihilation,
+		exclusionAnnihilation,
 		query.NullPropagation,
 	})
 }
@@ -243,11 +243,11 @@ func TestComplementAbsorption(t *testing.T) {
 	})
 }
 
-func TestExclusionSelfAnnihilation(t *testing.T) {
+func TestExclusionAnnihilation(t *testing.T) {
 	a := dsOutlineForType("document", "viewer", "user", "...")
 	b := dsOutlineForType("document", "editor", "user", "...")
 
-	t.Run("A − A = ∅", func(t *testing.T) {
+	t.Run("A − A = ∅ — self case (structural equality)", func(t *testing.T) {
 		result := applyAbsorption(exclusionOutline(a, a))
 		require.Equal(t, query.NullIteratorType, result.Type)
 	})
@@ -255,6 +255,24 @@ func TestExclusionSelfAnnihilation(t *testing.T) {
 	t.Run("(A ∩ B) − (A ∩ B) = ∅ — compound minuend and subtrahend", func(t *testing.T) {
 		ab := intersectionOutline(a, b)
 		result := applyAbsorption(exclusionOutline(ab, ab))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("(A ∩ B) − A = ∅ — minuend is a strict subset of subtrahend", func(t *testing.T) {
+		// A ∩ B ⊆ A, so subtracting A removes everything.
+		result := applyAbsorption(exclusionOutline(intersectionOutline(a, b), a))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("(A − B) − A = ∅ — complement-absorption: A−B ⊆ A", func(t *testing.T) {
+		// A−B ⊆ A for all B, so subtracting A removes everything.
+		result := applyAbsorption(exclusionOutline(exclusionOutline(a, b), a))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("A − (A ∪ B) = ∅ — minuend is a child of subtrahend union", func(t *testing.T) {
+		// A ⊆ (A ∪ B), so subtracting A ∪ B removes everything.
+		result := applyAbsorption(exclusionOutline(a, unionOutline(a, b)))
 		require.Equal(t, query.NullIteratorType, result.Type)
 	})
 
@@ -272,7 +290,7 @@ func TestExclusionSelfAnnihilation(t *testing.T) {
 	})
 
 	t.Run("Union[A, (A − A)] leaves Union[A, Null] — null-in-union cleanup is out of scope", func(t *testing.T) {
-		// exclusionSelfAnnihilation turns (A−A) into Null bottom-up before the parent
+		// exclusionAnnihilation turns (A−A) into Null bottom-up before the parent
 		// Union is visited. NullPropagation only collapses a Union to Null when ALL
 		// children are null, so Union[A, Null] remains. The runtime union iterator
 		// evaluates both branches and unions the results; the null branch contributes
