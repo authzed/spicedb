@@ -1,4 +1,4 @@
-//go:build ci && !skipintegrationtests
+//go:build integration
 
 package fdw_test
 

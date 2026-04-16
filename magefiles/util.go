@@ -22,6 +22,15 @@ func goTest(ctx context.Context, path string, args ...string) error {
 	return goDirTest(ctx, ".", path, args...)
 }
 
+// goDirTests runs go test against multiple package paths in a single invocation.
+func goDirTests(ctx context.Context, paths []string, args ...string) error {
+	testArgs, err := testWithArgs(ctx, args...)
+	if err != nil {
+		return err
+	}
+	return RunSh("go", WithV(), WithDir("."), WithArgs(testArgs...))(paths...)
+}
+
 // goDirTest runs go test in a directory with a timeout
 func goDirTest(ctx context.Context, dir string, path string, args ...string) error {
 	testArgs, err := testWithArgs(ctx, args...)

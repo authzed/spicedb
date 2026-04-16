@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/magefile/mage/mg"
@@ -41,7 +42,7 @@ func (t Test) Unit(ctx context.Context) error {
 }
 
 func (Test) unit(ctx context.Context, coverage bool) error {
-	args := []string{"-tags", "ci,skipintegrationtests,memoryprotection", "-race", "-timeout", "15m", "-count=1"}
+	args := []string{"-tags", "ci,memoryprotection", "-race", "-timeout", "15m", "-count=1"}
 	if coverage {
 		fmt.Println("running unit tests with coverage")
 		args = append(args, coverageFlags...)
@@ -54,18 +55,25 @@ func (Test) unit(ctx context.Context, coverage bool) error {
 // Image Run tests that run the built image
 func (Test) Image(ctx context.Context) error {
 	mg.Deps(Build{}.Testimage)
-	return goDirTest(ctx, "./cmd/spicedb", "./...", "-tags", "docker,image")
+	return goDirTest(ctx, "./cmd/spicedb", "./...", "-tags", "image")
 }
 
 // Integration Run integration tests
 func (Test) Integration(ctx context.Context) error {
 	mg.Deps(checkDocker)
-	if err := goTest(ctx, "./internal/services/integrationtesting/...", "-tags", "ci,docker", "-timeout", "30m"); err != nil {
+	dirs, err := findDirsWithBuildTag("integration")
+	if err != nil {
+		return err
+	}
+	if len(dirs) == 0 {
+		return fmt.Errorf("no packages found with //go:build integration")
+	}
+	if err := goDirTests(ctx, dirs, "-tags", "ci,integration", "-timeout", "30m"); err != nil {
 		return err
 	}
 
 	// This also requires SpiceDB docker image to be built, but we have it isolated because of the dependency with go-rtml
-	return goTest(ctx, "./cmd/spicedb/memoryprotection/...", "-tags", "ci,docker,memoryprotection", "-timeout", "15m")
+	return goTest(ctx, "./cmd/spicedb/memoryprotection/...", "-tags", "ci,image,memoryprotection", "-timeout", "15m")
 }
 
 // e2e Runs e2e tests (new enemy)
@@ -100,15 +108,22 @@ func (Test) E2e(ctx context.Context, crdbVersion string) error {
 // IntegrationCover Run integration tests with cover
 func (Test) IntegrationCover(ctx context.Context) error {
 	mg.Deps(checkDocker)
-	args := []string{"-tags", "ci,docker", "-timeout", "30m", "-count=1", "-v"}
+	dirs, err := findDirsWithBuildTag("integration")
+	if err != nil {
+		return err
+	}
+	if len(dirs) == 0 {
+		return fmt.Errorf("no packages found with //go:build integration")
+	}
+	args := []string{"-tags", "ci,integration", "-timeout", "30m", "-count=1", "-v"}
 	args = append(args, coverageFlags...)
-	return goTest(ctx, "./internal/services/integrationtesting/...", args...)
+	return goDirTests(ctx, dirs, args...)
 }
 
 // Steelthread Run steelthread tests
 func (Test) Steelthread(ctx context.Context) error {
 	fmt.Println("running steel thread tests")
-	return goTest(ctx, "./internal/services/steelthreadtesting/...", "-tags", "steelthread,docker,image,ci", "-timeout", "15m", "-v")
+	return goTest(ctx, "./internal/services/steelthreadtesting/...", "-tags", "ci,steelthread", "-timeout", "15m", "-v")
 }
 
 // RegenSteelthread Regenerate the steelthread tests
@@ -116,7 +131,7 @@ func (Test) RegenSteelthread() error {
 	fmt.Println("regenerating steel thread tests")
 	return RunSh("go", WithV(), WithDir("."), WithEnv(map[string]string{
 		"REGENERATE_STEEL_RESULTS": "true",
-	}), WithArgs("test", "./internal/services/steelthreadtesting/...", "-tags", "steelthread,docker,image,ci", "-timeout", "15m", "-v"))("go")
+	}), WithArgs("test", "./internal/services/steelthreadtesting/...", "-tags", "ci,steelthread", "-timeout", "15m", "-v"))("go")
 }
 
 // Analyzers Run the analyzer unit tests
@@ -195,7 +210,7 @@ func (Testds) Mysql(ctx context.Context) error {
 }
 
 func datastoreTest(ctx context.Context, datastore string, env map[string]string, tags ...string) error {
-	mergedTags := append([]string{"ci", "docker"}, tags...)
+	mergedTags := append([]string{"ci", "datastore"}, tags...)
 	tagString := strings.Join(mergedTags, ",")
 	mg.Deps(checkDocker)
 	args := []string{"-tags", tagString}
@@ -259,11 +274,39 @@ func (Testcons) Mysql(ctx context.Context) error {
 func consistencyTest(ctx context.Context, datastore string, env map[string]string) error {
 	mg.Deps(checkDocker)
 	args := []string{
-		"-tags", "ci,docker,datastoreconsistency",
+		"-tags", "ci,datastoreconsistency",
 		"-run", fmt.Sprintf("TestConsistencyPerDatastore/%s", datastore),
 	}
 	args = append(args, coverageFlags...)
 	return goDirTestWithEnv(ctx, ".", "./internal/services/integrationtesting/...",
 		env,
 		args...)
+}
+
+// findDirsWithBuildTag returns Go package paths (e.g. "./internal/fdw") containing at least
+// one _test.go file whose //go:build constraint references tag. Lets us target the right
+// packages without hard-coding folder paths that can drift.
+func findDirsWithBuildTag(tag string) ([]string, error) {
+	out, err := sh.Output("grep", "-rlE", fmt.Sprintf(`^//go:build.*\b%s\b`, tag), "--include=*_test.go", ".")
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	var result []string
+	for _, f := range strings.Split(strings.TrimSpace(out), "\n") {
+		if f == "" {
+			continue
+		}
+		dir := "./" + filepath.Dir(f)
+		if _, ok := seen[dir]; ok {
+			continue
+		}
+		seen[dir] = struct{}{}
+		result = append(result, dir)
+	}
+	fmt.Printf("found %d packages with //go:build %s:\n", len(result), tag)
+	for _, d := range result {
+		fmt.Println("  " + d)
+	}
+	return result, nil
 }

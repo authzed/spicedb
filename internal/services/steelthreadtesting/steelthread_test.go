@@ -1,4 +1,4 @@
-//go:build steelthread && docker && image
+//go:build steelthread
 
 package steelthreadtesting
 

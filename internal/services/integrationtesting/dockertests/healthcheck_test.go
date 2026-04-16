@@ -1,4 +1,4 @@
-//go:build ci && docker && !skipintegrationtests
+//go:build integration
 
 package dockertests_test
 
