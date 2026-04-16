@@ -11,7 +11,8 @@ func init() {
 		Name: "absorption-idempotency",
 		Description: `
 		Removes subsumed branches from union and intersection expressions, and
-		annihilates exclusions of identical operands, using five set-theoretic laws:
+		annihilates exclusions whose minuend is a subset of the subtrahend, using
+		six set-theoretic laws:
 
 		  Union laws (drop Y when Y ⊆ X for some sibling X):
 		    - Idempotency:           A ∪ A = A
@@ -24,7 +25,7 @@ func init() {
 		    - Absorption:   A ∩ (A ∪ B) = A (A is a stricter constraint than A ∪ B)
 
 		  Exclusion law:
-		    - Self-annihilation: A − A = ∅
+		    - Annihilation: X − A = ∅ when X ⊆ A (includes A − A = ∅ as the self case)
 
 		Caveats and arrows are treated as opaque structural units throughout.
 		Runs after simple-caveat-pushdown (priority 20) so it sees the final caveat
@@ -37,7 +38,7 @@ func init() {
 				return query.MutateOutline(outline, []query.OutlineMutation{
 					absorptionIdempotency,
 					intersectionIdempotencyAbsorption,
-					exclusionSelfAnnihilation,
+					exclusionAnnihilation,
 					query.NullPropagation,
 				})
 			}
@@ -219,17 +220,23 @@ func intersectionFactors(x query.Outline) []query.Outline {
 	return []query.Outline{x}
 }
 
-// exclusionSelfAnnihilation is an OutlineMutation that replaces A − A with ∅.
-// If both operands of an ExclusionIteratorType are structurally equal, the node
-// is replaced with NullIteratorType. NullPropagation (run after this mutation in
-// the same MutateOutline call) then cascades the null through parent intersections
-// and caveats according to each node's semantics.
-func exclusionSelfAnnihilation(outline query.Outline) query.Outline {
+// exclusionAnnihilation is an OutlineMutation that replaces X − A with ∅ when
+// X ⊆ A (i.e. when the minuend is subsumed by the subtrahend). If everything
+// satisfying X also satisfies A, then subtracting A removes everything.
+//
+// This generalizes the self case (A − A = ∅) to cover, for example:
+//
+//   - (A ∩ B) − A = ∅  (A ∩ B ⊆ A)
+//   - (A − B) − A = ∅  (A − B ⊆ A for all B)
+//   - A − (A ∪ B) = ∅  (A ⊆ A ∪ B)
+//
+// NullPropagation (run after this mutation in the same MutateOutline call) then
+// cascades the null through parent intersections and caveats.
+func exclusionAnnihilation(outline query.Outline) query.Outline {
 	if outline.Type == query.ExclusionIteratorType &&
 		len(outline.SubOutlines) == 2 &&
-		query.OutlineCompare(outline.SubOutlines[0], outline.SubOutlines[1]) == 0 {
+		isSubsumedBy(outline.SubOutlines[0], outline.SubOutlines[1]) {
 		return query.Outline{Type: query.NullIteratorType}
 	}
-
 	return outline
 }
