@@ -12,7 +12,10 @@ func init() {
 		Description: `
 		Removes subsumed branches from union and intersection expressions, and
 		annihilates exclusions whose minuend is a subset of the subtrahend, using
-		six set-theoretic laws:
+		ten set-theoretic laws:
+
+		  Normalization (pre-pass):
+		    - Associativity:         (A ∪ B) ∪ C = A ∪ B ∪ C  (and same for ∩)
 
 		  Union laws (drop Y when Y ⊆ X for some sibling X):
 		    - Idempotency:           A ∪ A = A
@@ -23,9 +26,12 @@ func init() {
 		  Intersection laws (drop Y when X ⊆ Y for some sibling X):
 		    - Idempotency:  A ∩ A = A
 		    - Absorption:   A ∩ (A ∪ B) = A (A is a stricter constraint than A ∪ B)
+		    - Complement:   Y ∩ (A − C) = ∅ when Y ⊆ C
 
-		  Exclusion law:
-		    - Annihilation: X − A = ∅ when X ⊆ A (includes A − A = ∅ as the self case)
+		  Exclusion laws:
+		    - Annihilation:    X − A = ∅ when X ⊆ A (includes A − A = ∅ as the self case)
+		    - Left-pruning:    (A ∪ B) − Y = B − Y when A ⊆ Y
+		    - Null identity:   A − ∅ = A
 
 		Caveats and arrows are treated as opaque structural units throughout.
 		Runs after simple-caveat-pushdown (priority 20) so it sees the final caveat
@@ -36,9 +42,13 @@ func init() {
 		NewTransform: func(_ RequestParams) OutlineTransform {
 			return func(outline query.Outline) query.Outline {
 				return query.MutateOutline(outline, []query.OutlineMutation{
+					flattenAssociativity,
 					absorptionIdempotency,
 					intersectionIdempotencyAbsorption,
 					exclusionAnnihilation,
+					exclusionNullIdentity,
+					exclusionLeftPruning,
+					intersectionComplementAnnihilation,
 					query.NullPropagation,
 				})
 			}
@@ -218,6 +228,158 @@ func intersectionFactors(x query.Outline) []query.Outline {
 		return x.SubOutlines
 	}
 	return []query.Outline{x}
+}
+
+// flattenAssociativity is an OutlineMutation that inlines nested same-type
+// union or intersection nodes into their parent, normalizing the tree to a
+// flat n-ary form before absorption rules run.
+//
+// This is a prerequisite for absorption: without flattening, children of a
+// nested union are not visible as peers to the outer union's other children,
+// so absorption rules cannot compare them.
+//
+// Example: Union[A, Union[A∩B, C]] → Union[A, A∩B, C]
+//
+//	→ (after absorptionIdempotency) Union[A, C]
+//
+// A single surviving child is unwrapped as with other composite-node mutations.
+func flattenAssociativity(outline query.Outline) query.Outline {
+	if outline.Type != query.UnionIteratorType && outline.Type != query.IntersectionIteratorType {
+		return outline
+	}
+
+	var newChildren []query.Outline
+	changed := false
+	for _, child := range outline.SubOutlines {
+		if child.Type == outline.Type {
+			newChildren = append(newChildren, child.SubOutlines...)
+			changed = true
+		} else {
+			newChildren = append(newChildren, child)
+		}
+	}
+
+	if !changed {
+		return outline
+	}
+
+	if len(newChildren) == 1 {
+		return newChildren[0]
+	}
+
+	return query.Outline{
+		Type:        outline.Type,
+		Args:        outline.Args,
+		SubOutlines: newChildren,
+	}
+}
+
+// exclusionNullIdentity is an OutlineMutation that simplifies A − ∅ = A.
+// When the subtrahend of an exclusion is NullIteratorType, subtracting nothing
+// leaves the minuend unchanged, so the exclusion wrapper is dropped entirely.
+//
+// NullPropagation already handles the left-null case (∅ − A = ∅); this handles
+// the right-null case. It lives here rather than in NullPropagation so that
+// reachability pruning, which also calls NullPropagation, is not affected.
+func exclusionNullIdentity(outline query.Outline) query.Outline {
+	if outline.Type == query.ExclusionIteratorType &&
+		len(outline.SubOutlines) == 2 &&
+		outline.SubOutlines[1].Type == query.NullIteratorType {
+		return outline.SubOutlines[0]
+	}
+	return outline
+}
+
+// exclusionLeftPruning is an OutlineMutation that removes union children from
+// the left side of an exclusion when those children are subsumed by the
+// subtrahend (right side). Elements of a subsumed child are entirely within
+// the subtrahend and would all be removed by the subtraction anyway.
+//
+// Law: (A ∪ B) − Y = B − Y  when A ⊆ Y
+//
+// If all union children are pruned the union is replaced with NullIteratorType;
+// NullPropagation then converts ∅ − Y = ∅ in the same MutateOutline pass.
+//
+// Reuses isSubsumedBy unchanged.
+func exclusionLeftPruning(outline query.Outline) query.Outline {
+	if outline.Type != query.ExclusionIteratorType || len(outline.SubOutlines) != 2 {
+		return outline
+	}
+
+	left, right := outline.SubOutlines[0], outline.SubOutlines[1]
+	if left.Type != query.UnionIteratorType {
+		return outline
+	}
+
+	keep := slices.Repeat([]bool{true}, len(left.SubOutlines))
+	anyPruned := false
+	for i, child := range left.SubOutlines {
+		if isSubsumedBy(child, right) {
+			keep[i] = false
+			anyPruned = true
+		}
+	}
+
+	if !anyPruned {
+		return outline
+	}
+
+	var survivors []query.Outline
+	for i, child := range left.SubOutlines {
+		if keep[i] {
+			survivors = append(survivors, child)
+		}
+	}
+
+	var newLeft query.Outline
+	switch len(survivors) {
+	case 0:
+		newLeft = query.Outline{Type: query.NullIteratorType}
+	case 1:
+		newLeft = survivors[0]
+	default:
+		newLeft = query.Outline{Type: query.UnionIteratorType, SubOutlines: survivors}
+	}
+
+	return query.Outline{
+		Type:        query.ExclusionIteratorType,
+		Args:        outline.Args,
+		SubOutlines: []query.Outline{newLeft, right},
+	}
+}
+
+// intersectionComplementAnnihilation is an OutlineMutation that replaces an
+// intersection with ∅ when it contains an ExclusionIteratorType child (A − C)
+// and a sibling Y where Y ⊆ C.
+//
+// Law: Y ∩ (A − C) = ∅  when Y ⊆ C
+//
+// Proof: elements of A − C are outside C by definition; elements of Y are
+// inside C (since Y ⊆ C); the two sets are disjoint so their intersection
+// is empty.
+//
+// Reuses isSubsumedBy unchanged.
+func intersectionComplementAnnihilation(outline query.Outline) query.Outline {
+	if outline.Type != query.IntersectionIteratorType {
+		return outline
+	}
+
+	for i, child := range outline.SubOutlines {
+		if child.Type != query.ExclusionIteratorType || len(child.SubOutlines) != 2 {
+			continue
+		}
+		subtrahend := child.SubOutlines[1]
+		for j, sibling := range outline.SubOutlines {
+			if i == j {
+				continue
+			}
+			if isSubsumedBy(sibling, subtrahend) {
+				return query.Outline{Type: query.NullIteratorType}
+			}
+		}
+	}
+
+	return outline
 }
 
 // exclusionAnnihilation is an OutlineMutation that replaces X − A with ∅ when
