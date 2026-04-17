@@ -51,7 +51,7 @@ jobs:
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v4" # v3.7.0
+      - uses: "docker/login-action@v4.1.0" # v3.7.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
