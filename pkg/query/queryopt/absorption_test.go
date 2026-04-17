@@ -12,12 +12,15 @@ import (
 func applyAbsorption(outline query.Outline) query.Outline {
 	return query.MutateOutline(outline, []query.OutlineMutation{
 		flattenAssociativity,
-		absorptionIdempotency,
-		intersectionIdempotencyAbsorption,
-		exclusionAnnihilation,
-		exclusionNullIdentity,
-		exclusionLeftPruning,
+		unionIdempotency,
+		unionAbsorption,
+		unionComplementAbsorption,
+		intersectionIdempotency,
+		intersectionAbsorption,
 		intersectionComplementAnnihilation,
+		exclusionAnnihilation,
+		exclusionLeftPruning,
+		exclusionNullIdentity,
 		query.NullPropagation,
 	})
 }
