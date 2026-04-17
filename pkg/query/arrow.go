@@ -89,6 +89,34 @@ func (a *ArrowIterator) checkLeftToRight(ctx *Context, resource Object, subject 
 		}
 		leftPathCount++
 
+		// If the left side returned a wildcard (e.g., folder:*), we can't use it as a
+		// resource for the right side. Instead, invert: call IterResources on the right
+		// with the target subject to find any intermediate of the matching type.
+		if leftPath.Subject.ObjectID == tuple.PublicWildcard {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(a, "left returned wildcard %s:*, using IterResources inversion", leftPath.Subject.ObjectType)
+			}
+			rightSeq, err := ctx.IterResources(a.right, subject, ObjectType{Type: leftPath.Subject.ObjectType})
+			if err != nil {
+				return nil, err
+			}
+			for rightPath, err := range rightSeq {
+				if err != nil {
+					return nil, err
+				}
+				// Any matching intermediate means the wildcard left is satisfied.
+				combined := combineArrowPaths(leftPath, rightPath)
+				if combined.Caveat == nil {
+					return combined, nil
+				}
+				result, err = result.MergeOr(combined)
+				if err != nil {
+					return nil, err
+				}
+			}
+			continue
+		}
+
 		if ctx.shouldTrace() {
 			ctx.TraceStep(a, "checking right side for left subject %s:%s", leftPath.Subject.ObjectType, leftPath.Subject.ObjectID)
 		}
@@ -289,6 +317,19 @@ func (a *ArrowIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 				return
 			}
 			leftPathCount++
+
+			// If the left side returned a wildcard (e.g., folder:*), we can't use it
+			// as a resource for the right side. Skip it — we can't enumerate all
+			// concrete subjects reachable through all intermediates of this type without
+			// a store-wide query. This matches the traditional dispatch path, which also
+			// doesn't expand wildcard tupleset entries through arrows.
+			// (The Check path handles this correctly via IterResources inversion.)
+			if leftPath.Subject.ObjectID == tuple.PublicWildcard {
+				if ctx.shouldTrace() {
+					ctx.TraceStep(a, "left returned wildcard %s:*, skipping (cannot follow arrow through wildcard)", leftPath.Subject.ObjectType)
+				}
+				continue
+			}
 
 			// For each left subject, get subjects from right side
 			leftSubjectAsResource := GetObject(leftPath.Subject)

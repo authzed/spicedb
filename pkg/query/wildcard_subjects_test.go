@@ -84,7 +84,8 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 
 	// Test the wildcard branch (user:*)
 	t.Run("WildcardBranch", func(t *testing.T) {
-		// The wildcard branch should enumerate concrete subjects when a wildcard exists
+		// The wildcard branch returns the wildcard path itself, which is stripped
+		// at the top level by FilterWildcardSubjects. So the caller sees no results.
 		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)))
@@ -94,10 +95,9 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		paths, err := CollectAll(subjects)
 		require.NoError(err)
 
-		// Should only get the concrete user, not the wildcard itself
-		require.Len(paths, 1)
-		require.Equal("user", paths[0].Subject.ObjectType)
-		require.Equal("concrete", paths[0].Subject.ObjectID)
+		// Wildcard paths are filtered at the top level — caller sees empty results.
+		// Internal iterators (intersection/exclusion) see the wildcard before filtering.
+		require.Empty(paths)
 	})
 
 	// Test the Union (combined behavior)

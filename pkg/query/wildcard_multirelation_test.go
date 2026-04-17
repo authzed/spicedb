@@ -11,7 +11,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -92,13 +91,11 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 			t.Logf("Trace:\n%s", queryCtx.TraceLogger.DumpTrace())
 		}
 
-		// Should get both tom and fred because they are both defined subjects in the datastore:
-		// - tom has a concrete relationship on viewer for this resource
-		// - fred has a concrete relationship on banned for this resource
-		// The wildcard means "all users", so we enumerate all defined users
-		require.Len(paths, 2, "Should return all defined subjects of the appropriate type")
-		subjectIDs := slicez.Map(paths, func(p *Path) string { return p.Subject.ObjectID })
-		require.ElementsMatch([]string{"tom", "fred"}, subjectIDs, "Should include both tom and fred")
+		// The wildcard branch now returns the wildcard path itself (user:*), which
+		// is stripped at the top level by FilterWildcardSubjects. The caller sees
+		// no concrete results — wildcards propagate internally for intersection/exclusion
+		// semantics and are removed before reaching the service layer.
+		require.Empty(paths, "Wildcard paths are filtered at the top level")
 	})
 
 	// Test the Union (combined behavior) - this is what happens in the actual query plan
@@ -123,12 +120,10 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 			t.Logf("Trace:\n%s", queryCtx.TraceLogger.DumpTrace())
 		}
 
-		// Should get both tom and fred:
-		// - tom from both branches (non-wildcard has concrete tom on viewer, wildcard enumerates tom)
-		// - fred from wildcard branch (has relationship on banned)
-		// The Union should deduplicate tom
-		require.Len(paths, 2, "Should return both subjects with deduplication")
-		subjectIDs := slicez.Map(paths, func(p *Path) string { return p.Subject.ObjectID })
-		require.ElementsMatch([]string{"tom", "fred"}, subjectIDs, "Should include both tom and fred")
+		// The non-wildcard branch returns concrete subjects (tom on viewer).
+		// The wildcard branch returns user:* which is filtered at the top level.
+		// Only concrete subjects from explicit relationships are returned.
+		require.Len(paths, 1, "Should return concrete subjects only; wildcard is filtered at top level")
+		require.Equal("tom", paths[0].Subject.ObjectID)
 	})
 }

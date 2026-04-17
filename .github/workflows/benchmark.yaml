@@ -7,10 +7,6 @@ on: # yamllint disable-line rule:truthy
     branches:
       - "main"
 
-concurrency:
-  group: "spicedb-benchmark-${{ github.event.pull_request.number }}"
-  cancel-in-progress: true
-
 permissions:
   # permission to update benchmark contents in gh-pages branch
   contents: "write"
@@ -29,28 +25,44 @@ jobs:
         with:
           go-version-file: "./go.mod"
           cache-dependency-path: "./go.sum"
-          check-latest: true
+
+      - name: "Get HEAD~1 SHA"
+        id: "prev-sha"
+        run: |
+          echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+
+      - name: "Restore benchmark from cache"
+        uses: "actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306" # v5.0.3
+        with:
+          path: "./cache/benchmark-data.json"
+          key: "${{ steps.prev-sha.outputs.sha }}-${{ runner.os }}-go-benchmark"
 
       - name: "Run benchmark on Main"
         run: |
           set -o pipefail
           go run mage.go benchmark:all | tee bench_output.txt
 
-      - name: "Get JSON for benchmark"
+      - name: "Compare benchmark against HEAD~1"
         uses: "benchmark-action/github-action-benchmark@a7bc2366eda11037936ea57d811a43b3418d3073" # v1.21.0
         with:
           # What benchmark tool the output.txt came from
           tool: "go"
           # Where the output from the benchmark tool is stored
           output-file-path: "bench_output.txt"
-          # Updates the file content instead of generating a Git commit in GitHub Pages branch
+          # Where the benchmarks in main are (to compare)
           external-data-json-path: "./cache/benchmark-data.json"
+          # Do not save the data
+          save-data-file: false
+          # Alert when current run is >= 2x worse than HEAD~1
+          alert-threshold: "200%"
           # Workflow will fail when an alert happens
           fail-on-alert: true
           github-token: "${{ secrets.GITHUB_TOKEN }}"
-          comment-on-alert: true
+          comment-on-alert: false
 
       - name: "Publish to gh-pages. See https://authzed.github.io/spicedb/dev/bench/"
+        # Run even if the compare step failed on a regression, so the dashboard reflects reality.
+        if: "${{ !cancelled() }}"
         uses: "benchmark-action/github-action-benchmark@a7bc2366eda11037936ea57d811a43b3418d3073" # v1.21.0
         with:
           # What benchmark tool the output.txt came from
@@ -63,8 +75,28 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: "Save benchmark JSON"
+        # Run even if the compare step failed on a regression, so the next run has a baseline.
+        if: "${{ !cancelled() }}"
         uses: "actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306" # v5.0.3
         with:
           path: "./cache/benchmark-data.json"
           # Save with commit hash to avoid "cache already exists"
           key: "${{ github.sha }}-${{ runner.os }}-go-benchmark"
+
+      - name: "Notify in Slack if benchmark job failed"
+        if: "${{ failure() }}"
+        uses: "slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a" # v2.1.1
+        with:
+          webhook: "${{ secrets.SLACK_BUILDS_WEBHOOK_URL }}"
+          webhook-type: "incoming-webhook"
+          payload: |
+            text: ":x: @eng-oss SpiceDB benchmark regressed (or something broke)"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: |
+                    :x: @eng-oss SpiceDB benchmark regressed (or something broke). Please take a look.
+                    *Repository:* <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>
+                    *Commit:* <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+                    *Job Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>

@@ -11,12 +11,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
+	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
 // TestQueryPlanConsistencyGRPC verifies that the experimental query plan engine
@@ -51,6 +54,7 @@ func TestQueryPlanConsistencyGRPC(t *testing.T) { // nolint:tparallel
 func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string) {
 	options := []server.ConfigOption{
 		server.WithDispatchChunkSize(10),
+		server.WithExperimentalQueryPlan("check"),
 		server.WithExperimentalQueryPlan("lr"),
 		server.WithExperimentalQueryPlan("ls"),
 	}
@@ -64,8 +68,60 @@ func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string) {
 
 	tester := consistencytestutil.NewServiceTester(cad.Conn)
 	t.Run(tester.Name(), func(t *testing.T) {
+		validateQueryPlanCheck(t, cad, tester, headRevision)
 		validateQueryPlanLookupResources(t, cad, tester, headRevision, accessibilitySet)
 		validateQueryPlanLookupSubjects(t, cad, tester, headRevision, accessibilitySet)
+	})
+}
+
+// validateQueryPlanCheck runs every assertion defined in the validation files
+// through the gRPC CheckPermission handler (which is routed to the query plan
+// engine via the "check" experimental flag) and verifies the returned
+// permissionship matches the asserted value.
+func validateQueryPlanCheck(
+	t *testing.T,
+	cad consistencytestutil.ConsistencyClusterAndData,
+	tester consistencytestutil.ServiceTester,
+	revision datastore.Revision,
+) {
+	t.Run("check", func(t *testing.T) {
+		for _, parsedFile := range cad.Populated.ParsedFiles {
+			for _, entry := range []struct {
+				name                   string
+				assertions             []blocks.Assertion
+				expectedPermissionship v1.CheckPermissionResponse_Permissionship
+			}{
+				{
+					"true",
+					parsedFile.Assertions.AssertTrue,
+					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+				{
+					"caveated",
+					parsedFile.Assertions.AssertCaveated,
+					v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+				},
+				{
+					"false",
+					parsedFile.Assertions.AssertFalse,
+					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+				},
+			} {
+				t.Run(entry.name, func(t *testing.T) {
+					for _, assertion := range entry.assertions {
+						assertion := assertion
+						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
+							rel := assertion.Relationship
+							permissionship, err := tester.Check(t.Context(), rel.Resource, rel.Subject, revision, assertion.CaveatContext)
+							require.NoError(t, err)
+							require.Equal(t, entry.expectedPermissionship, permissionship,
+								"query plan Check assertion `%s` returned %s; expected %s",
+								tuple.MustString(rel), permissionship, entry.expectedPermissionship)
+						})
+					}
+				})
+			}
+		}
 	})
 }
 
@@ -80,30 +136,32 @@ func validateQueryPlanLookupResources(
 	revision datastore.Revision,
 	accessibilitySet *consistencytestutil.AccessibilitySet,
 ) {
-	testForEachResourceTypeInPopulated(t, cad.Populated, "qp_lookup_resources",
-		func(t *testing.T, resourceRelation tuple.RelationReference) {
-			for _, subject := range accessibilitySet.AllSubjectsNoWildcards() {
-				t.Run(tuple.StringONR(subject), func(t *testing.T) {
-					accessibleResources := accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
+	t.Run("lookup_resources", func(t *testing.T) {
+		testForEachResourceTypeInPopulated(t, cad.Populated,
+			func(t *testing.T, resourceRelation tuple.RelationReference) {
+				for _, subject := range accessibilitySet.AllSubjectsNoWildcards() {
+					t.Run(tuple.StringONR(subject), func(t *testing.T) {
+						accessibleResources := accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
 
-					// Single unpaginated call (limit=0 means no limit).
-					foundResources, _, err := tester.LookupResources(t.Context(), resourceRelation, subject, revision, nil, 0, nil)
-					require.NoError(t, err)
+						// Single unpaginated call (limit=0 means no limit).
+						foundResources, _, err := tester.LookupResources(t.Context(), resourceRelation, subject, revision, nil, 0, nil)
+						require.NoError(t, err)
 
-					resolvedIDs := make([]string, 0, len(foundResources))
-					for _, r := range foundResources {
-						resolvedIDs = append(resolvedIDs, r.ResourceObjectId)
-					}
+						resolvedIDs := make([]string, 0, len(foundResources))
+						for _, r := range foundResources {
+							resolvedIDs = append(resolvedIDs, r.ResourceObjectId)
+						}
 
-					require.ElementsMatch(t,
-						slices.Collect(maps.Keys(accessibleResources)),
-						resolvedIDs,
-						"query plan LookupResources mismatch for %s#%s / subject %s",
-						resourceRelation.ObjectType, resourceRelation.Relation, tuple.StringONR(subject),
-					)
-				})
-			}
-		})
+						require.ElementsMatch(t,
+							slices.Collect(maps.Keys(accessibleResources)),
+							resolvedIDs,
+							"query plan LookupResources mismatch for %s#%s / subject %s",
+							resourceRelation.ObjectType, resourceRelation.Relation, tuple.StringONR(subject),
+						)
+					})
+				}
+			})
+	})
 }
 
 // validateQueryPlanLookupSubjects checks that for each resource × subject-type
@@ -117,38 +175,40 @@ func validateQueryPlanLookupSubjects(
 	revision datastore.Revision,
 	accessibilitySet *consistencytestutil.AccessibilitySet,
 ) {
-	testForEachResourceInPopulated(t, cad.Populated, accessibilitySet, "qp_lookup_subjects",
-		func(t *testing.T, resource tuple.ObjectAndRelation) {
-			for _, subjectType := range accessibilitySet.SubjectTypes() {
-				t.Run(fmt.Sprintf("%s#%s", subjectType.ObjectType, subjectType.Relation),
-					func(t *testing.T) {
-						resolvedSubjects, err := tester.LookupSubjects(t.Context(), resource, subjectType, revision, nil)
-						require.NoError(t, err)
+	t.Run("lookup_subjects", func(t *testing.T) {
+		testForEachResourceInPopulated(t, cad.Populated, accessibilitySet,
+			func(t *testing.T, resource tuple.ObjectAndRelation) {
+				for _, subjectType := range accessibilitySet.SubjectTypes() {
+					t.Run(fmt.Sprintf("%s#%s", subjectType.ObjectType, subjectType.Relation),
+						func(t *testing.T) {
+							resolvedSubjects, err := tester.LookupSubjects(t.Context(), resource, subjectType, revision, nil)
+							require.NoError(t, err)
 
-						// The accessibility set only covers directly-accessible defined subjects;
-						// it does not include inferred subjects or wildcards, so we check subset.
-						expectedDefinedSubjects := accessibilitySet.DirectlyAccessibleDefinedSubjectsOfType(resource, subjectType)
-						requireSubsetOf(t,
-							slices.Collect(maps.Keys(resolvedSubjects)),
-							slices.Collect(maps.Keys(expectedDefinedSubjects)),
-						)
-					})
-			}
-		})
+							// The accessibility set only covers directly-accessible defined subjects;
+							// it does not include inferred subjects or wildcards, so we check subset.
+							expectedDefinedSubjects := accessibilitySet.DirectlyAccessibleDefinedSubjectsOfType(resource, subjectType)
+							requireSubsetOf(t,
+								slices.Collect(maps.Keys(resolvedSubjects)),
+								slices.Collect(maps.Keys(expectedDefinedSubjects)),
+							)
+						})
+				}
+			})
+	})
 }
 
 // testForEachResourceTypeInPopulated runs a subtest for every relation on every
-// namespace defined in the populated validation file.
+// namespace defined in the populated validation file. Each resource type × relation
+// pair gets its own "<namespace>_<relation>" subtest.
 func testForEachResourceTypeInPopulated(
 	t *testing.T,
 	populated *validationfile.PopulatedValidationFile,
-	prefix string,
 	handler func(t *testing.T, resourceRelation tuple.RelationReference),
 ) {
 	t.Helper()
 	for _, resourceType := range populated.NamespaceDefinitions {
 		for _, relation := range resourceType.Relation {
-			t.Run(fmt.Sprintf("%s_%s_%s", prefix, resourceType.Name, relation.Name),
+			t.Run(fmt.Sprintf("%s_%s", resourceType.Name, relation.Name),
 				func(t *testing.T) {
 					handler(t, tuple.RelationReference{
 						ObjectType: resourceType.Name,
@@ -160,12 +220,12 @@ func testForEachResourceTypeInPopulated(
 }
 
 // testForEachResourceInPopulated runs a subtest for every resource instance
-// present in the accessibility set, filtered by namespace definitions.
+// present in the accessibility set, filtered by namespace definitions. Each
+// resource instance gets its own "<namespace>:<id>#<relation>" subtest.
 func testForEachResourceInPopulated(
 	t *testing.T,
 	populated *validationfile.PopulatedValidationFile,
 	accessibilitySet *consistencytestutil.AccessibilitySet,
-	prefix string,
 	handler func(t *testing.T, resource tuple.ObjectAndRelation),
 ) {
 	t.Helper()
@@ -176,7 +236,7 @@ func testForEachResourceInPopulated(
 		}
 		for _, relation := range resourceType.Relation {
 			for _, resource := range resources {
-				t.Run(fmt.Sprintf("%s_%s_%s_%s", prefix, resourceType.Name, resource.ObjectID, relation.Name),
+				t.Run(fmt.Sprintf("%s:%s#%s", resourceType.Name, resource.ObjectID, relation.Name),
 					func(t *testing.T) {
 						handler(t, tuple.ObjectAndRelation{
 							ObjectType: resourceType.Name,

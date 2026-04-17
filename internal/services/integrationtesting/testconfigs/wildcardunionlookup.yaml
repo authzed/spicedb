@@ -1,0 +1,30 @@
+---
+# Tests wildcard in union for LookupResources and LookupSubjects.
+# One resource has a wildcard viewer, another has concrete viewers,
+# a third has both.
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user | test/user:*
+  }
+relationships: |
+  test/resource:public#viewer@test/user:*
+  test/resource:public#viewer@test/user:alice
+  test/resource:private#viewer@test/user:bob
+  test/resource:mixed#viewer@test/user:*
+  test/resource:mixed#viewer@test/user:charlie
+assertions:
+  assertTrue:
+    # public: wildcard means any user can view
+    - "test/resource:public#viewer@test/user:alice"
+    - "test/resource:public#viewer@test/user:bob"
+    - "test/resource:public#viewer@test/user:randomuser"
+    # private: only bob
+    - "test/resource:private#viewer@test/user:bob"
+    # mixed: wildcard means any user can view
+    - "test/resource:mixed#viewer@test/user:charlie"
+    - "test/resource:mixed#viewer@test/user:randomuser"
+  assertFalse:
+    - "test/resource:private#viewer@test/user:alice"
+    - "test/resource:private#viewer@test/user:randomuser"

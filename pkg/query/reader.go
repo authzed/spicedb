@@ -174,10 +174,21 @@ func (r *datalayerQueryDatastoreReader) QuerySubjects(
 		filter.OptionalResourceRelation = resourceRelation
 	}
 
+	// Choose the query shape based on whether subject filters are present.
+	// When subject type/relation are in the SQL WHERE clause, the filter has a gap
+	// in the PK columns (subject_id is not filtered but subject_type and subject_relation
+	// are), which can cause CockroachDB to reject the forced pk_relation_tuple hint.
+	// In that case, use Varying so the datastore picks an index based on actual filter columns.
+	// When there are no subject filters, AllSubjectsForResources is correct and matches
+	// the traditional dispatch path.
+	shape := queryshape.AllSubjectsForResources
+	if subjectType.Type != "" {
+		shape = queryshape.Varying
+	}
 	queryOpts := []options.QueryOptionsOption{
 		options.WithSkipCaveats(!withCaveats),
 		options.WithSkipExpiration(!withExpiration),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
+		options.WithQueryShape(shape),
 	}
 	if page.Limit != nil {
 		queryOpts = append(queryOpts,

@@ -34,6 +34,11 @@ type Path struct {
 	Expiration *time.Time
 	Integrity  []*core.RelationshipIntegrity
 
+	// ExcludedSubjects tracks concrete subjects excluded from a wildcard subject.
+	// Only meaningful when Subject.ObjectID == "*". Used to preserve exclusion
+	// information through nested exclusion operations (e.g., view = viewer - (banned - unbanned)).
+	ExcludedSubjects []*Path
+
 	Metadata map[string]any
 }
 
