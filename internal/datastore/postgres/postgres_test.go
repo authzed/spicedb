@@ -1,4 +1,4 @@
-//go:build ci && docker && postgres
+//go:build datastore && postgres
 
 package postgres
 

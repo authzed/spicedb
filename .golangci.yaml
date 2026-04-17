@@ -3,16 +3,16 @@ version: "2"
 run:
   allow-parallel-runners: true
   build-tags:
-    - "ci"
-    - "datastoreconsistency"
-    - "docker"
-    - "image"
-    - "mage"
-    - "memoryprotection"
-    - "!skipintegrationtests"
-    - "steelthread"
-    - "pgbouncer"
-    - "postgres"
+    - "ci" # enables runtime debug assertions (swaps assert_off.go for assert_on.go); not a test category
+    - "datastore" # datastore tests that run against real databases (crdb, postgres, spanner, mysql); needs Docker
+    - "datastoreconsistency" # cross-datastore consistency tests; needs Docker
+    - "image" # tests that run against the built SpiceDB Docker image; needs the image to be built
+    - "integration" # integration tests; explicit opt-in so they don't run during unit tests
+    - "mage" # marks files as belonging to the mage build system (magefiles/)
+    - "memoryprotection" # feature flag: swaps no-op for go-rtml memory usage provider (needs -ldflags=-checklinkname=0)
+    - "steelthread" # steel thread / golden-file tests against a real SpiceDB instance
+    - "pgbouncer" # pgbouncer-specific postgres datastore tests (subset of datastore)
+    - "postgres" # postgres-specific datastore tests (subset of datastore, excludes pgbouncer)
 #    - wasm
 linters:
   enable:

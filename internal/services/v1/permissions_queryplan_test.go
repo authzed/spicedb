@@ -178,20 +178,11 @@ func TestQueryPlanMetadataMergeMultipleKeys(t *testing.T) {
 	require.Equal(t, counts[query.CanonicalKey("key3")], stats[query.CanonicalKey("key3")])
 }
 
-func TestPermissionServerQueryPlanMetadataInitialization(t *testing.T) {
-	// Test that permissionServer properly initializes queryPlanMetadata
-	ps := &permissionServer{
-		queryPlanMetadata: nil, // Explicitly set to nil to test lazy init
-	}
-
-	require.Nil(t, ps.queryPlanMetadata)
-
-	// The lazy initialization would happen in checkPermissionWithQueryPlan,
-	// but we can't easily test that without a full integration test.
-	// Instead, we verify that NewQueryPlanMetadata works correctly
-	ps.queryPlanMetadata = NewQueryPlanMetadata()
-	require.NotNil(t, ps.queryPlanMetadata)
-	require.Empty(t, ps.queryPlanMetadata.GetStats())
+func TestQueryPlanMetadataInitialization(t *testing.T) {
+	// Verify that NewQueryPlanMetadata returns a ready-to-use instance with empty stats.
+	m := NewQueryPlanMetadata()
+	require.NotNil(t, m)
+	require.Empty(t, m.GetStats())
 }
 
 func TestExperimentalQueryPlanConfigZeroValue(t *testing.T) {

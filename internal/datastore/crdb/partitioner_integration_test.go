@@ -1,4 +1,4 @@
-//go:build ci && docker
+//go:build datastore
 
 package crdb
 

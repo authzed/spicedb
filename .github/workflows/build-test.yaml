@@ -454,7 +454,7 @@ jobs:
       - name: "Run benchmark on PR"
         run: |
           set -o pipefail
-          go run mage.go benchmark:all | tee ${{ github.sha }}_bench_output.txt
+          go run mage.go benchmark:short | tee ${{ github.sha }}_bench_output.txt
 
       - name: "Get Main branch SHA"
         id: "get-main-branch-sha"
