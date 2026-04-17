@@ -11,9 +11,13 @@ import (
 // applyAbsorption runs all absorption-family mutations bottom-up over outline.
 func applyAbsorption(outline query.Outline) query.Outline {
 	return query.MutateOutline(outline, []query.OutlineMutation{
+		flattenAssociativity,
 		absorptionIdempotency,
 		intersectionIdempotencyAbsorption,
 		exclusionAnnihilation,
+		exclusionNullIdentity,
+		exclusionLeftPruning,
+		intersectionComplementAnnihilation,
 		query.NullPropagation,
 	})
 }
@@ -93,21 +97,17 @@ func TestAbsorptionIdempotency(t *testing.T) {
 		require.Len(t, result.SubOutlines, 2)
 	})
 
-	t.Run("nested: applies at all depths via MutateOutline", func(t *testing.T) {
-		// Union[C, Union[A, A, B]] → Union[C, Union[A, B]]
-		// (inner union is processed first since MutateOutline is bottom-up)
+	t.Run("nested: flattening + dedup yields flat union via MutateOutline", func(t *testing.T) {
+		// Union[C, Union[A, A, B]]: inner dedup fires bottom-up (A,A→A), then
+		// flattenAssociativity inlines the result → Union[C, A, B].
 		inner := unionOutline(a, a, b)
 		outer := unionOutline(c, inner)
 		result := applyAbsorption(outer)
 		require.Equal(t, query.UnionIteratorType, result.Type)
-		require.Len(t, result.SubOutlines, 2)
+		require.Len(t, result.SubOutlines, 3)
 		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], c))
-
-		innerResult := result.SubOutlines[1]
-		require.Equal(t, query.UnionIteratorType, innerResult.Type)
-		require.Len(t, innerResult.SubOutlines, 2)
-		require.Equal(t, 0, query.OutlineCompare(innerResult.SubOutlines[0], a))
-		require.Equal(t, 0, query.OutlineCompare(innerResult.SubOutlines[1], b))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[2], b))
 	})
 }
 
@@ -355,6 +355,168 @@ func TestIntersectionIdempotencyAbsorption(t *testing.T) {
 	t.Run("no-op: A ∩ (B ∪ C) — A does not appear in the union", func(t *testing.T) {
 		// A is not a child of (B ∪ C), so no simplification.
 		result := applyAbsorption(intersectionOutline(a, unionOutline(b, c)))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+	})
+}
+
+func TestFlattenAssociativity(t *testing.T) {
+	a := dsOutlineForType("document", "viewer", "user", "...")
+	b := dsOutlineForType("document", "editor", "user", "...")
+	c := dsOutlineForType("document", "owner", "user", "...")
+
+	t.Run("Union[A, Union[B, C]] flattens to Union[A, B, C]", func(t *testing.T) {
+		result := applyAbsorption(unionOutline(a, unionOutline(b, c)))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 3)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], b))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[2], c))
+	})
+
+	t.Run("Union[Union[A, B], C] flattens to Union[A, B, C]", func(t *testing.T) {
+		result := applyAbsorption(unionOutline(unionOutline(a, b), c))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 3)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], b))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[2], c))
+	})
+
+	t.Run("Intersection[A, Intersection[B, C]] flattens to Intersection[A, B, C]", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(a, intersectionOutline(b, c)))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 3)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], b))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[2], c))
+	})
+
+	t.Run("Union[A, Union[A∩B, C]] flattens then absorbs to Union[A, C]", func(t *testing.T) {
+		// Without flattening, A and A∩B are not peers so absorption cannot fire.
+		// After flattening to Union[A, A∩B, C], absorptionIdempotency drops A∩B.
+		result := applyAbsorption(unionOutline(a, unionOutline(intersectionOutline(a, b), c)))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], a))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], c))
+	})
+
+	t.Run("no-op: already-flat union is unchanged", func(t *testing.T) {
+		result := applyAbsorption(unionOutline(a, b, c))
+		require.Equal(t, query.UnionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 3)
+	})
+
+	t.Run("no-op: union nested inside intersection is not flattened into it", func(t *testing.T) {
+		// Union children are not inlined into a parent Intersection.
+		result := applyAbsorption(intersectionOutline(a, unionOutline(b, c)))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+	})
+}
+
+func TestExclusionNullIdentity(t *testing.T) {
+	a := dsOutlineForType("document", "viewer", "user", "...")
+	b := dsOutlineForType("document", "editor", "user", "...")
+	null := query.Outline{Type: query.NullIteratorType}
+
+	t.Run("A − ∅ = A — right-null exclusion reduces to left child", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(a, null))
+		require.Equal(t, query.DatastoreIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, a))
+	})
+
+	t.Run("(A ∩ B) − ∅ = A ∩ B — compound left child preserved", func(t *testing.T) {
+		ab := intersectionOutline(a, b)
+		result := applyAbsorption(exclusionOutline(ab, null))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result, ab))
+	})
+
+	t.Run("∅ − A = ∅ — left-null case is unchanged (already covered by NullPropagation)", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(null, a))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+}
+
+func TestExclusionLeftPruning(t *testing.T) {
+	a := dsOutlineForType("document", "viewer", "user", "...")
+	b := dsOutlineForType("document", "editor", "user", "...")
+	c := dsOutlineForType("document", "owner", "user", "...")
+
+	t.Run("(A ∪ B) − A = B − A — subsumed child pruned from union", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(unionOutline(a, b), a))
+		require.Equal(t, query.ExclusionIteratorType, result.Type)
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[0], b))
+		require.Equal(t, 0, query.OutlineCompare(result.SubOutlines[1], a))
+	})
+
+	t.Run("(A ∪ B ∪ C) − A = (B ∪ C) − A — one of three children pruned", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(unionOutline(a, b, c), a))
+		require.Equal(t, query.ExclusionIteratorType, result.Type)
+		left := result.SubOutlines[0]
+		require.Equal(t, query.UnionIteratorType, left.Type)
+		require.Len(t, left.SubOutlines, 2)
+		require.Equal(t, 0, query.OutlineCompare(left.SubOutlines[0], b))
+		require.Equal(t, 0, query.OutlineCompare(left.SubOutlines[1], c))
+	})
+
+	t.Run("(A ∪ B) − (A ∪ B) = ∅ — all children pruned annihilates", func(t *testing.T) {
+		y := unionOutline(a, b)
+		result := applyAbsorption(exclusionOutline(unionOutline(a, b), y))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("no-op: (A ∪ B) − C — neither A nor B is subsumed by C", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(unionOutline(a, b), c))
+		require.Equal(t, query.ExclusionIteratorType, result.Type)
+		require.Equal(t, query.UnionIteratorType, result.SubOutlines[0].Type)
+		require.Len(t, result.SubOutlines[0].SubOutlines, 2)
+	})
+
+	t.Run("no-op: non-union left child is untouched", func(t *testing.T) {
+		result := applyAbsorption(exclusionOutline(a, a))
+		// exclusionAnnihilation fires first (A − A = ∅), not exclusionLeftPruning
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+}
+
+func TestIntersectionComplementAnnihilation(t *testing.T) {
+	a := dsOutlineForType("document", "viewer", "user", "...")
+	b := dsOutlineForType("document", "editor", "user", "...")
+	c := dsOutlineForType("document", "owner", "user", "...")
+
+	t.Run("A ∩ (B − A) = ∅ — sibling equals subtrahend", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(a, exclusionOutline(b, a)))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("(B − A) ∩ A = ∅ — exclusion child first", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(exclusionOutline(b, a), a))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("A ∩ B ∩ (C − A) = ∅ — sibling A ⊆ A (subtrahend of exclusion)", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(a, b, exclusionOutline(c, a)))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("(A ∩ B) ∩ (C − (A ∪ D)) = ∅ — sibling A ⊆ A ∪ D", func(t *testing.T) {
+		d := dsOutlineForType("document", "banned", "user", "...")
+		subtrahend := unionOutline(a, d)
+		result := applyAbsorption(intersectionOutline(intersectionOutline(a, b), exclusionOutline(c, subtrahend)))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
+	t.Run("no-op: A ∩ (B − C) — A is not subsumed by C", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(a, exclusionOutline(b, c)))
+		require.Equal(t, query.IntersectionIteratorType, result.Type)
+		require.Len(t, result.SubOutlines, 2)
+	})
+
+	t.Run("no-op: intersection with no exclusion child", func(t *testing.T) {
+		result := applyAbsorption(intersectionOutline(a, b))
 		require.Equal(t, query.IntersectionIteratorType, result.Type)
 		require.Len(t, result.SubOutlines, 2)
 	})
