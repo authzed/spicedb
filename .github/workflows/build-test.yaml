@@ -440,6 +440,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true' &&
       github.event_name == 'pull_request' &&
       github.base_ref == 'main'
+    permissions:
+      pull-requests: "write"
     steps:
       - uses: "actions/checkout@v6"
         with:
@@ -449,7 +451,6 @@ jobs:
         with:
           go-version-file: "./go.mod"
           cache-dependency-path: "./go.sum"
-          check-latest: true
 
       - name: "Run benchmark on PR"
         run: |
