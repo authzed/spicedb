@@ -8,7 +8,7 @@ import (
 
 func init() {
 	MustRegisterOptimization(Optimizer{
-		Name: "absorption-idempotency",
+		Name: "set-simplification",
 		Description: `
 		Removes subsumed branches from union and intersection expressions, and
 		annihilates exclusions whose minuend is a subset of the subtrahend, using

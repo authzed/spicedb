@@ -185,7 +185,7 @@ func TestAbsorptionRegistered(t *testing.T) {
 		input := unionOutline(a, intersectionOutline(a, b))
 		co := canonicalize(input)
 
-		result, err := ApplyOptimizations(co, []string{"absorption-idempotency"}, RequestParams{})
+		result, err := ApplyOptimizations(co, []string{"set-simplification"}, RequestParams{})
 		require.NoError(t, err)
 		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
 		require.Equal(t, 0, query.OutlineCompare(result.Root, a))
