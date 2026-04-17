@@ -67,7 +67,7 @@ services:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
       - "SPICEDB_HTTP_ENABLED=true"
-      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_GRPC_PRESHARED_KEY=super-secret-key"
       - "SPICEDB_DATASTORE_ENGINE=spanner"
       - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
       - "SPANNER_EMULATOR_HOST=spanner:9010"
@@ -87,7 +87,7 @@ services:
       otel-collector:
         condition: "service_started"
     healthcheck:
-      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=localhost:50051"]
       interval: "5s"
       timeout: "30s"
       retries: 3
@@ -105,7 +105,7 @@ services:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
       - "SPICEDB_HTTP_ENABLED=true"
-      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_GRPC_PRESHARED_KEY=super-secret-key"
       - "SPICEDB_DATASTORE_ENGINE=spanner"
       - "SPICEDB_DATASTORE_CONN_URI=projects/test-project/instances/test-instance/databases/test-database"
       - "SPANNER_EMULATOR_HOST=spanner:9010"
@@ -125,7 +125,7 @@ services:
       otel-collector:
         condition: "service_started"
     healthcheck:
-      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=localhost:50051"]
       interval: "5s"
       timeout: "30s"
       retries: 3
