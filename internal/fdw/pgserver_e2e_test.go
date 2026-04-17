@@ -697,13 +697,12 @@ func runPGServer(t *testing.T, client *authzed.Client) int {
 	}()
 
 	// Wait until the server is actually accepting connections.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 100*time.Millisecond)
-		if err != nil {
-			return false
+		if !assert.NoError(collect, err) {
+			return
 		}
 		_ = conn.Close()
-		return true
 	}, 10*time.Second, 20*time.Millisecond, "PGServer did not start accepting connections")
 
 	return port

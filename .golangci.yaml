@@ -11,7 +11,7 @@ run:
     - "mage" # marks files as belonging to the mage build system (magefiles/)
     - "memoryprotection" # feature flag: swaps no-op for go-rtml memory usage provider (needs -ldflags=-checklinkname=0)
     - "steelthread" # steel thread / golden-file tests against a real SpiceDB instance
-    - "pgbouncer"  # pgbouncer-specific postgres datastore tests (subset of datastore)
+    - "pgbouncer" # pgbouncer-specific postgres datastore tests (subset of datastore)
     - "postgres" # postgres-specific datastore tests (subset of datastore, excludes pgbouncer)
 #    - wasm
 linters:
