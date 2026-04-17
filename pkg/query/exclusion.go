@@ -2,6 +2,7 @@ package query
 
 import (
 	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // ExclusionIterator represents the set of relations that are in the mainSet but not in the excluded set.
@@ -137,9 +138,16 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 		ctx.TraceStep(e, "excluded set returned %d paths", len(excludedPaths))
 	}
 
-	// Build a map for O(1) lookup: key is subject key
+	// Build a map for O(1) lookup: key is subject key.
+	// Extract the wildcard entry separately — it acts as a "default excluder"
+	// that applies to all concrete subjects in the main set.
+	var excludedWildcard *Path
 	excludedMap := make(map[string]*Path, len(excludedPaths))
 	for _, excludedPath := range excludedPaths {
+		if excludedPath.Subject.ObjectID == tuple.PublicWildcard {
+			excludedWildcard = excludedPath
+			continue
+		}
 		key := ObjectAndRelationKey(excludedPath.Subject)
 		excludedMap[key] = excludedPath
 	}
@@ -167,10 +175,49 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 			}
 			mainCount++
 
-			// Check if this subject exists in the excluded set
+			if mainPath.Subject.ObjectID == tuple.PublicWildcard {
+				if excludedWildcard != nil {
+					// Both sides have wildcards. The wildcards cancel, but subjects
+					// that were excluded from the excluded wildcard "escape" back into
+					// the result. For example: viewer:* - (banned:* except sarah) → sarah.
+					resultPath, shouldInclude := combineExclusionCaveats(mainPath, excludedWildcard)
+					if shouldInclude {
+						// Caveated wildcard survives — yield it with tracked exclusions.
+						resultPath.ExcludedSubjects = collectExcludedSubjects(excludedMap, mainPath.ExcludedSubjects)
+						yieldedCount++
+						if !yield(resultPath, nil) {
+							return
+						}
+					}
+
+					// Yield concrete subjects from the excluded wildcard's ExcludedSubjects —
+					// these subjects "escaped" the inner exclusion and appear in the result.
+					for _, escaped := range excludedWildcard.ExcludedSubjects {
+						// The escaped subject is in the main set (via wildcard) and NOT
+						// in the excluded set (it was excluded from the exclusion).
+						// Combine caveats: main wildcard's caveat AND escaped's caveat.
+						synth := *escaped
+						synth.Caveat = caveats.And(mainPath.Caveat, escaped.Caveat)
+						yieldedCount++
+						if !yield(&synth, nil) {
+							return
+						}
+					}
+				} else {
+					// Main has wildcard, excluded has only concrete subjects.
+					// The wildcard passes through; track which concrete subjects were excluded.
+					mainPath.ExcludedSubjects = collectExcludedSubjects(excludedMap, mainPath.ExcludedSubjects)
+					yieldedCount++
+					if !yield(mainPath, nil) {
+						return
+					}
+				}
+				continue
+			}
+
+			// Check if this concrete subject has a specific exclusion.
 			key := ObjectAndRelationKey(mainPath.Subject)
 			if excludedPath, found := excludedMap[key]; found {
-				// Found matching subject in excluded set - combine caveats
 				if ctx.shouldTrace() {
 					ctx.TraceStep(e, "found matching excluded subject, combining caveats")
 				}
@@ -183,12 +230,27 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 				} else if ctx.shouldTrace() {
 					ctx.TraceStep(e, "subject completely excluded")
 				}
-			} else {
-				// No exclusion, yield as-is
-				yieldedCount++
-				if !yield(mainPath, nil) {
-					return
+				continue
+			}
+
+			// If the excluded set has a wildcard, it excludes ALL concrete subjects too.
+			if excludedWildcard != nil {
+				resultPath, shouldInclude := combineExclusionCaveats(mainPath, excludedWildcard)
+				if shouldInclude {
+					yieldedCount++
+					if !yield(resultPath, nil) {
+						return
+					}
+				} else if ctx.shouldTrace() {
+					ctx.TraceStep(e, "subject excluded by wildcard")
 				}
+				continue
+			}
+
+			// No exclusion applies, yield as-is
+			yieldedCount++
+			if !yield(mainPath, nil) {
+				return
 			}
 		}
 
@@ -196,6 +258,20 @@ func (e *ExclusionIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 			ctx.TraceStep(e, "exclusion completed: %d main subjects, %d yielded", mainCount, yieldedCount)
 		}
 	}, nil
+}
+
+// collectExcludedSubjects builds the ExcludedSubjects list from the excluded map,
+// merging with any previously tracked exclusions.
+func collectExcludedSubjects(excludedMap map[string]*Path, existing []*Path) []*Path {
+	if len(excludedMap) == 0 && len(existing) == 0 {
+		return nil
+	}
+	result := make([]*Path, 0, len(excludedMap)+len(existing))
+	result = append(result, existing...)
+	for _, p := range excludedMap {
+		result = append(result, p)
+	}
+	return result
 }
 
 func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
