@@ -29,7 +29,7 @@ services:
       otel-collector:
         condition: "service_started"
     healthcheck:
-      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=localhost:50051"]
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
       interval: "5s"
       timeout: "30s"
       retries: 3
