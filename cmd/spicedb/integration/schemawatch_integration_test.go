@@ -1,4 +1,4 @@
-//go:build docker && image
+//go:build image
 
 package integration_test
 

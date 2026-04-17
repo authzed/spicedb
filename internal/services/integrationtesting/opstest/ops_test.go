@@ -1,4 +1,4 @@
-//go:build !skipintegrationtests
+//go:build integration
 
 package opstest_test
 

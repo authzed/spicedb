@@ -1,4 +1,4 @@
-//go:build ci && docker && pgbouncer
+//go:build datastore && pgbouncer
 
 package postgres
 

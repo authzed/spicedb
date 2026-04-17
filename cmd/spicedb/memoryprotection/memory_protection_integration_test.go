@@ -1,4 +1,4 @@
-//go:build docker && image && memoryprotection
+//go:build image && memoryprotection
 
 package memoryprotection
 

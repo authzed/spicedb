@@ -22,9 +22,9 @@ type PgBackend struct {
 	server   *wire.Server // GUARDED_BY(mu)
 	username string
 	password string
-	mu       sync.RWMutex
-	wg       sync.WaitGroup
-	closed   bool // GUARDED_BY(mu)
+
+	mu     sync.RWMutex
+	closed bool // GUARDED_BY(mu)
 }
 
 // NewPgBackend creates a new Postgres FDW backend server.
@@ -35,45 +35,31 @@ func NewPgBackend(client *authzed.Client, username, password string) *PgBackend 
 }
 
 // Run starts the Postgres wire protocol server on the specified endpoint.
-// It blocks until the context is cancelled or an error occurs.
+// It blocks until the context is cancelled, an error occurs, or Close is called.
 func (p *PgBackend) Run(ctx context.Context, endpoint string) error {
 	server, err := wire.NewServer(p.handler, wire.SessionMiddleware(sessionMiddleware))
 	if err != nil {
 		return err
 	}
-
 	server.Auth = wire.ClearTextPassword(p.validateAuth)
 
 	// NOTE: uncomment to enable debug logging of the actual Postgres protocol.
 	// slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return errors.New("PgBackend already closed")
+	}
 	p.server = server
 	p.mu.Unlock()
 
-	p.wg.Add(1)
-	defer p.wg.Done()
-
-	// Monitor context cancellation in a separate goroutine
 	go func() {
 		<-ctx.Done()
-		// Don't call p.Close() here to avoid deadlock (Close waits on wg)
-		// Just close the server directly, which will cause ListenAndServe to return
-		// Use the closed flag to ensure we only close once
-		p.mu.Lock()
-		if !p.closed {
-			p.closed = true
-			srv := p.server
-			p.mu.Unlock()
-			if srv != nil {
-				srv.Close()
-			}
-		} else {
-			p.mu.Unlock()
-		}
+		_ = p.Close()
 	}()
 
-	return p.server.ListenAndServe(endpoint)
+	return server.ListenAndServe(endpoint)
 }
 
 func (p *PgBackend) validateAuth(ctx context.Context, database, username, password string) (context.Context, bool, error) {
@@ -102,14 +88,7 @@ func (p *PgBackend) Close() error {
 	if server == nil {
 		return nil
 	}
-
-	// Close the server (this will cause ListenAndServe to return)
-	err := server.Close()
-
-	// Wait for the Run goroutine to complete
-	p.wg.Wait()
-
-	return err
+	return server.Close()
 }
 
 func (p *PgBackend) handler(ctx context.Context, query string) (wire.PreparedStatements, error) {
