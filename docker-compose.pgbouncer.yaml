@@ -1,6 +1,10 @@
 ---
 # FOR DEVELOPMENT ONLY. Run with
-# docker-compose -f docker-compose.postgres.yaml up --build
+# docker-compose -f docker-compose.pgbouncer.yaml up --build
+#
+# This is similar to docker-compose.postgres.yaml but puts pgbouncer in front
+# of the replica, which is the deployment model that strictReplicatedDatastore
+# was designed for.
 services:
   postgres-primary:
     image: "postgres:16"
@@ -28,16 +32,16 @@ services:
       retries: 5
     restart: "unless-stopped"
 
-  postgres-replica:
+  postgres-replica-1:
     image: "postgres:16"
-    container_name: "postgres-replica"
+    container_name: "postgres-replica-1"
     environment:
       - "PGPASSWORD=replicator"
-      - "REPLICA_APPLY_DELAY=100ms"
+      - "REPLICA_APPLY_DELAY=20ms"
     ports:
       - "5432"
     volumes:
-      - "postgres-replica-data:/var/lib/postgresql/data"
+      - "postgres-replica-1-data:/var/lib/postgresql/data"
       - "./development/postgres/replica-init.sh:/replica-init.sh"
     depends_on:
       postgres-primary:
@@ -45,6 +49,59 @@ services:
     entrypoint: ["/bin/bash", "/replica-init.sh"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U spicedb || exit 1"]
+      interval: "5s"
+      timeout: "3s"
+      retries: 10
+    restart: "unless-stopped"
+
+  postgres-replica-2:
+    image: "postgres:16"
+    container_name: "postgres-replica-2"
+    environment:
+      - "PGPASSWORD=replicator"
+      - "REPLICA_APPLY_DELAY=20ms"
+    ports:
+      - "5432"
+    volumes:
+      - "postgres-replica-2-data:/var/lib/postgresql/data"
+      - "./development/postgres/replica-init.sh:/replica-init.sh"
+    depends_on:
+      postgres-primary:
+        condition: "service_healthy"
+    entrypoint: ["/bin/bash", "/replica-init.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spicedb || exit 1"]
+      interval: "5s"
+      timeout: "3s"
+      retries: 10
+    restart: "unless-stopped"
+
+  # pgbouncer sits in front of both replicas and load-balances connections.
+  # This is the deployment model that strictReplicatedDatastore targets:
+  # SpiceDB sees a single replica URI but queries may hit different replicas.
+  pgbouncer:
+    image: "edoburu/pgbouncer:latest"
+    container_name: "pgbouncer"
+    environment:
+      - "DB_USER=spicedb"
+      - "DB_PASSWORD=spicedb"
+      - "DB_HOST=postgres-replica-1"
+      - "DB_PORT=5432"
+      - "DB_NAME=*"
+      - "LISTEN_PORT=6432"
+      - "AUTH_TYPE=scram-sha-256"
+      - "MAX_CLIENT_CONN=200"
+      - "POOL_MODE=transaction"
+    ports:
+      - "6432"
+    depends_on:
+      postgres-replica-1:
+        condition: "service_healthy"
+      postgres-replica-2:
+        condition: "service_healthy"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -h localhost -p 6432 -U spicedb || exit 1"]
       interval: "5s"
       timeout: "3s"
       retries: 10
@@ -58,21 +115,16 @@ services:
     container_name: "migrate"
     environment:
       - "SPICEDB_DATASTORE_ENGINE=postgres"
-      # Run migrations on primary
       - "SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres-primary:5432/spicedb?sslmode=disable"
     command: "datastore migrate head"
     networks:
       - "default"
 
-  # Envoy is used instead of nginx for gRPC load balancing. nginx balances at the
-  # connection level: once a client opens an HTTP/2 connection, all RPCs on that
-  # connection go to the same backend. Envoy speaks HTTP/2 to the backends and
-  # balances individual RPCs across pods, which is required for even cache warming.
   envoy:
     image: "envoyproxy/envoy:v1.33-latest"
     ports:
-      - "50051:50051" # grpc
-      - "8443:8443" # http
+      - "50051:50051"
+      - "8443:8443"
     volumes:
       - "./development/envoy.yaml:/etc/envoy/envoy.yaml"
     command: "-c /etc/envoy/envoy.yaml"
@@ -88,10 +140,10 @@ services:
     command: "serve"
     restart: "no"
     ports:
-      - "9090" # prometheus metrics
-      - "50051" # grpc endpoint
-      - "8443" # http endpoint
-      - "50053" # dispatch endpoint
+      - "9090"
+      - "50051"
+      - "8443"
+      - "50053"
     environment:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
@@ -99,7 +151,8 @@ services:
       - "SPICEDB_GRPC_PRESHARED_KEY=super-secret-key"
       - "SPICEDB_DATASTORE_ENGINE=postgres"
       - "SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres-primary:5432/spicedb?sslmode=disable"
-      - "SPICEDB_DATASTORE_READ_REPLICA_CONN_URI=postgres://spicedb:spicedb@postgres-replica:5432/spicedb?sslmode=disable"
+      # Reads go through pgbouncer, which load-balances across replicas
+      - "SPICEDB_DATASTORE_READ_REPLICA_CONN_URI=postgres://spicedb:spicedb@pgbouncer:6432/spicedb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
       - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-2:50053"
       - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
@@ -111,10 +164,11 @@ services:
       - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
       - "SPICEDB_DATASTORE_FOLLOWER_READ_DELAY_DURATION=2000ms"
       - "SPICEDB_ENABLE_PERFORMANCE_INSIGHT_METRICS=true"
+      - "SPICEDB_DATASTORE_INCLUDE_QUERY_PARAMETERS_IN_TRACES=true"
     depends_on:
       migrate:
         condition: "service_completed_successfully"
-      postgres-replica:
+      pgbouncer:
         condition: "service_healthy"
       otel-collector:
         condition: "service_started"
@@ -130,10 +184,10 @@ services:
     command: "serve"
     restart: "no"
     ports:
-      - "9090" # prometheus metrics
-      - "50051" # grpc endpoint
-      - "8443" # http endpoint
-      - "50053" # dispatch endpoint
+      - "9090"
+      - "50051"
+      - "8443"
+      - "50053"
     environment:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
@@ -141,7 +195,7 @@ services:
       - "SPICEDB_GRPC_PRESHARED_KEY=super-secret-key"
       - "SPICEDB_DATASTORE_ENGINE=postgres"
       - "SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres-primary:5432/spicedb?sslmode=disable"
-      - "SPICEDB_DATASTORE_READ_REPLICA_CONN_URI=postgres://spicedb:spicedb@postgres-replica:5432/spicedb?sslmode=disable"
+      - "SPICEDB_DATASTORE_READ_REPLICA_CONN_URI=postgres://spicedb:spicedb@pgbouncer:6432/spicedb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
       - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-1:50053"
       - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
@@ -153,10 +207,11 @@ services:
       - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
       - "SPICEDB_DATASTORE_FOLLOWER_READ_DELAY_DURATION=2000ms"
       - "SPICEDB_ENABLE_PERFORMANCE_INSIGHT_METRICS=true"
+      - "SPICEDB_DATASTORE_INCLUDE_QUERY_PARAMETERS_IN_TRACES=true"
     depends_on:
       migrate:
         condition: "service_completed_successfully"
-      postgres-replica:
+      pgbouncer:
         condition: "service_healthy"
       otel-collector:
         condition: "service_started"
@@ -175,7 +230,7 @@ services:
     volumes:
       - "./development/prometheus.yaml:/etc/prometheus/prometheus.yaml"
     ports:
-      - "9091:9090" # Prometheus UI
+      - "9091:9090"
     restart: "unless-stopped"
 
   otel-collector:
@@ -184,8 +239,8 @@ services:
     volumes:
       - "./development/otel-config.yaml:/etc/otel-config.yaml"
     ports:
-      - "4317:4317" # OTLP gRPC
-      - "8888" # Prometheus metrics for collector
+      - "4317:4317"
+      - "8888"
     depends_on:
       - "tempo"
     restart: "unless-stopped"
@@ -196,7 +251,7 @@ services:
     volumes:
       - "./development/loki.yaml:/etc/loki/loki.yaml"
     ports:
-      - "3100" # Loki API
+      - "3100"
     restart: "unless-stopped"
 
   tempo:
@@ -206,8 +261,8 @@ services:
       - "./development/tempo.yaml:/etc/tempo.yaml"
     restart: "unless-stopped"
     ports:
-      - "4317" # OTLP gRPC
-      - "3100" # tempo
+      - "4317"
+      - "3100"
 
   grafana:
     image: "grafana/grafana:9.1.5-ubuntu"
@@ -220,7 +275,7 @@ services:
       - "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin"
       - "GF_AUTH_DISABLE_LOGIN_FORM=true"
     ports:
-      - "3000:3000" # UI
+      - "3000:3000"
     depends_on:
       - "tempo"
       - "prometheus"
@@ -229,4 +284,5 @@ services:
 
 volumes:
   postgres-primary-data:
-  postgres-replica-data:
+  postgres-replica-1-data:
+  postgres-replica-2-data:
