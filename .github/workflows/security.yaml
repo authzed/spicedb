@@ -51,7 +51,7 @@ jobs:
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v4" # v3.7.0
+      - uses: "docker/login-action@v4.1.0" # v3.7.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -71,7 +71,7 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db"
           TRIVY_JAVA_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-java-db"
-      - uses: "goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29" # v7.0.0
+      - uses: "goreleaser/goreleaser-action@e24998b8b67b290c2fa8b7c14fcfa7de2c5c9b8c" # v7.1.0
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"
