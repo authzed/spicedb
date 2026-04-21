@@ -21,3 +21,15 @@ func TestDisabledHTTP(t *testing.T) {
 	require.NoError(t, s.ListenAndServe())
 	s.Close()
 }
+
+func TestValidateTLSConfig(t *testing.T) {
+	t.Run("both options present is fine", func(t *testing.T) {
+		require.NoError(t, (&GRPCServerConfig{TLSCertPath: "some path", TLSKeyPath: "some other path"}).validateTLSConfig())
+	})
+	t.Run("neither option present is fine", func(t *testing.T) {
+		require.NoError(t, (&GRPCServerConfig{}).validateTLSConfig())
+	})
+	t.Run("one present but not the other returns an error", func(t *testing.T) {
+		require.ErrorContains(t, (&GRPCServerConfig{TLSCertPath: "some path"}).validateTLSConfig(), "must provide both")
+	})
+}

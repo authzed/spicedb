@@ -177,23 +177,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		}
 	}()
 
-	if len(c.PresharedSecureKey) < 1 && c.GRPCAuthFunc == nil {
-		return nil, errors.New("a preshared key must be provided to authenticate API requests")
-	}
-
-	if c.GRPCAuthFunc == nil {
-		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedSecureKey)).Msg("using gRPC auth with preshared key(s)")
-		for index, presharedKey := range c.PresharedSecureKey {
-			if len(presharedKey) == 0 {
-				return nil, fmt.Errorf("preshared key #%d is empty", index+1)
-			}
-
-			log.Ctx(ctx).Trace().Int("preshared-key-"+strconv.Itoa(index+1)+"-length", len(presharedKey)).Msg("preshared key configured")
-		}
-
-		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedSecureKey)
-	} else {
-		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
+	err = c.handleGrpcAuthn(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
@@ -206,7 +192,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if ds == nil {
 		var err error
 		c.supportOldAndNewReadReplicaConnectionPoolFlags()
-		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption(),
+		ds, err = datastorecfg.NewDatastore(ctx, c.DatastoreConfig.ToOption(),
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
@@ -254,6 +240,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		closeables.AddWithoutError(cc.Close)
 		log.Ctx(ctx).Info().EmbedObject(cc).Msg("configured dispatch cache")
 
+		// TODO: is there a circumstance under which this could be empty?
 		dispatchPresharedKey := ""
 		if len(c.PresharedSecureKey) > 0 {
 			dispatchPresharedKey = c.PresharedSecureKey[0]
@@ -352,22 +339,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		serverName = "spicedb"
 	}
 
-	var mismatchZedTokenOption consistency.MismatchingTokenOption
-	switch c.MismatchZedTokenBehavior {
-	case "":
-		fallthrough
-
-	case "full-consistency":
-		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsFullConsistency
-
-	case "min-latency":
-		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsMinLatency
-
-	case "error":
-		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsError
-
-	default:
-		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
+	mismatchZedTokenOption, err := c.handleMismatchZedTokenOption()
+	if err != nil {
+		return nil, err
 	}
 
 	memoryUsageProvider := c.BuildMemoryUsageProvider()
@@ -540,6 +514,48 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		healthManager:      healthManager,
 		closeFunc:          closeables.Close,
 	}, nil
+}
+
+func (c *Config) handleGrpcAuthn(ctx context.Context) error {
+	if len(c.PresharedSecureKey) < 1 && c.GRPCAuthFunc == nil {
+		return errors.New("a preshared key must be provided to authenticate API requests")
+	}
+
+	if c.GRPCAuthFunc == nil {
+		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedSecureKey)).Msg("using gRPC auth with preshared key(s)")
+		for index, presharedKey := range c.PresharedSecureKey {
+			if len(presharedKey) == 0 {
+				return fmt.Errorf("preshared key #%d is empty", index+1)
+			}
+
+			log.Ctx(ctx).Trace().Int("preshared-key-"+strconv.Itoa(index+1)+"-length", len(presharedKey)).Msg("preshared key configured")
+		}
+
+		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedSecureKey)
+	} else {
+		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
+	}
+	return nil
+}
+
+func (c *Config) handleMismatchZedTokenOption() (consistency.MismatchingTokenOption, error) {
+	switch c.MismatchZedTokenBehavior {
+	case "":
+		fallthrough
+
+	case "full-consistency":
+		return consistency.TreatMismatchingTokensAsFullConsistency, nil
+
+	case "min-latency":
+		return consistency.TreatMismatchingTokensAsMinLatency, nil
+
+	case "error":
+		return consistency.TreatMismatchingTokensAsError, nil
+
+	default:
+		var zero consistency.MismatchingTokenOption
+		return zero, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
+	}
 }
 
 func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
