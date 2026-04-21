@@ -706,11 +706,13 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				colTimestamp,
 				tc.quantization.Nanoseconds(),
 				tc.followerReadDelay.Nanoseconds(),
+				mds.driver.SchemaRevision(),
 			)
 
 			var revision uint64
 			var validFor time.Duration
-			err = tx.QueryRowContext(ctx, queryRevision).Scan(&revision, &validFor)
+			var schemaHash []byte
+			err = tx.QueryRowContext(ctx, queryRevision).Scan(&revision, &validFor, &schemaHash)
 			require.NoError(err)
 			require.Greater(validFor, time.Duration(0))
 			require.LessOrEqual(validFor, tc.quantization.Nanoseconds())

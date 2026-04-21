@@ -20,9 +20,9 @@ type trackingRevisionFunction struct {
 	mock.Mock
 }
 
-func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, error) {
+func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, string, error) {
 	args := m.Called()
-	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.Error(2)
+	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.String(2), args.Error(3)
 }
 
 var (
@@ -114,7 +114,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			or.SetOptimizedRevisionFunc(mock.optimizedRevisionFunc)
 
 			for _, callSpec := range tc.expectedCallResponses {
-				mock.On("optimizedRevisionFunc").Return(callSpec.rev, callSpec.validFor, nil).Once()
+				mock.On("optimizedRevisionFunc").Return(callSpec.rev, callSpec.validFor, "", nil).Once()
 			}
 
 			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
@@ -156,7 +156,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 
 	mock.
 		On("optimizedRevisionFunc").
-		Return(one, time.Duration(0), nil).
+		Return(one, time.Duration(0), "", nil).
 		After(50 * time.Millisecond).
 		Once()
 
@@ -188,14 +188,14 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 	quantization := 1 * time.Millisecond
 	or := NewCachedOptimizedRevisions(quantization)
 
-	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, error) {
+	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 		nowNS := time.Now().UnixNano()
 		validForNS := nowNS % quantization.Nanoseconds()
 		roundedNS := nowNS - validForNS
 		// This should be non-negative.
 		uintRoundedNs := safecast.RequireConvert[uint64](b, roundedNS)
 		rev := NewForTransactionID(uintRoundedNs)
-		return rev, time.Duration(validForNS) * time.Nanosecond, nil
+		return rev, time.Duration(validForNS) * time.Nanosecond, "", nil
 	})
 
 	ctx := b.Context()
@@ -217,7 +217,7 @@ func TestSingleFlightError(t *testing.T) {
 
 	mock.
 		On("optimizedRevisionFunc").
-		Return(one, time.Duration(0), errors.New("fail")).
+		Return(one, time.Duration(0), "", errors.New("fail")).
 		Once()
 
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)

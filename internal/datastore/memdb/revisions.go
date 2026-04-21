@@ -76,8 +76,25 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 	}
 
 	now := nowRevision()
-	optimized := revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod)
-	return datastore.RevisionWithSchemaHash{Revision: optimized, SchemaHash: ""}, nil
+	var optimized revisions.TimestampRevision
+	if mdb.quantizationPeriod > 0 {
+		optimized = revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod)
+	} else {
+		optimized = now
+	}
+
+	// Find the schema hash visible at the optimized revision: walk the
+	// revisions list backward for the most recent snapshot whose revision
+	// is at or before `optimized`.
+	var hash string
+	for i := len(mdb.revisions) - 1; i >= 0; i-- {
+		if !mdb.revisions[i].revision.GreaterThan(optimized) {
+			hash = mdb.revisions[i].schemaHash
+			break
+		}
+	}
+
+	return datastore.RevisionWithSchemaHash{Revision: optimized, SchemaHash: hash}, nil
 }
 
 func (mdb *memdbDatastore) CheckRevision(_ context.Context, dr datastore.Revision) error {

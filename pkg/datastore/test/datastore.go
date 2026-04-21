@@ -237,6 +237,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestStoredSchemaLarge", runner(tester, StoredSchemaLargeTest))
 	t.Run("TestStoredSchemaPhaseMigration", runner(tester, StoredSchemaPhaseMigrationTest))
 	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
+	t.Run("TestOptimizedRevisionSchemaHash", runner(tester, OptimizedRevisionSchemaHashTest))
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester) {

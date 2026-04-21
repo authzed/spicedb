@@ -217,6 +217,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		colTimestamp,
 		quantizationPeriodNanos,
 		followerReadDelayNanos,
+		driver.SchemaRevision(),
 	)
 
 	validTransactionQuery := fmt.Sprintf(

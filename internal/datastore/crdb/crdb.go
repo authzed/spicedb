@@ -499,9 +499,8 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.RevisionW
 	return datastore.RevisionWithSchemaHash{Revision: rev, SchemaHash: schemaHash}, nil
 }
 
-func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, error) {
-	rev, _, err := cds.headRevisionWithSchemaHash(ctx)
-	return rev, err
+func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, string, error) {
+	return cds.headRevisionWithSchemaHash(ctx)
 }
 
 const querySelectNowWithSchemaHash = "SELECT cluster_logical_timestamp(), COALESCE((SELECT hash FROM schema_revision WHERE name = 'current' LIMIT 1), ''::bytea)"
