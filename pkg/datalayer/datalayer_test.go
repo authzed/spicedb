@@ -36,7 +36,7 @@ func newTestDatastore(t *testing.T) datastore.Datastore {
 
 func testSchemaDefinitions(t *testing.T) ([]datastore.SchemaDefinition, string) {
 	t.Helper()
-	schemaText, _, err := generator.GenerateSchema(context.Background(), testDefinitions)
+	schemaText, _, err := generator.GenerateSchema(t.Context(), testDefinitions)
 	require.NoError(t, err)
 
 	defs := make([]datastore.SchemaDefinition, 0, len(testDefinitions))
@@ -792,7 +792,7 @@ func TestWriteSchemaDeletesRemovedDefinitions(t *testing.T) {
 
 			// Write schema with only one definition.
 			smallerDefs := []datastore.SchemaDefinition{ns.Namespace("user")}
-			smallSchemaText, _, err := generator.GenerateSchema(context.Background(), []compiler.SchemaDefinition{ns.Namespace("user")})
+			smallSchemaText, _, err := generator.GenerateSchema(t.Context(), []compiler.SchemaDefinition{ns.Namespace("user")})
 			require.NoError(err)
 
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
@@ -959,7 +959,7 @@ func TestHashCacheIntegration_WriteUpdatesCache(t *testing.T) {
 
 	// Write different schema.
 	defs2 := []datastore.SchemaDefinition{ns.Namespace("newtype")}
-	schemaText2, _, err := generator.GenerateSchema(context.Background(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
+	schemaText2, _, err := generator.GenerateSchema(t.Context(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
 	require.NoError(err)
 
 	rev2, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
@@ -1041,7 +1041,7 @@ func TestHashCacheIntegration_CacheAcrossPhaseTransitions(t *testing.T) {
 
 	// Write a different schema in phase 2.
 	defs2 := []datastore.SchemaDefinition{ns.Namespace("newtype")}
-	schemaText2, _, err := generator.GenerateSchema(context.Background(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
+	schemaText2, _, err := generator.GenerateSchema(t.Context(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
 	require.NoError(t, err)
 
 	rev2, err := dl2.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
@@ -1166,7 +1166,7 @@ func TestHeadRevisionSchemaHashChangesWithSchema(t *testing.T) {
 
 	// Write a different schema.
 	defs2 := []datastore.SchemaDefinition{ns.Namespace("newtype")}
-	schemaText2, _, err := generator.GenerateSchema(context.Background(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
+	schemaText2, _, err := generator.GenerateSchema(t.Context(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
 	require.NoError(err)
 
 	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
@@ -1215,7 +1215,7 @@ func TestHeadRevisionSchemaHashMatchesRevision(t *testing.T) {
 
 	// Write second schema.
 	defs2 := []datastore.SchemaDefinition{ns.Namespace("newtype")}
-	schemaText2, _, err := generator.GenerateSchema(context.Background(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
+	schemaText2, _, err := generator.GenerateSchema(t.Context(), []compiler.SchemaDefinition{ns.Namespace("newtype")})
 	require.NoError(err)
 
 	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {

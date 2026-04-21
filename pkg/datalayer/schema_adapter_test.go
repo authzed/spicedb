@@ -666,7 +666,7 @@ func TestNewStoredSchemaReaderAdapter_Success(t *testing.T) {
 	})
 
 	reader := &fakeStoredSchemaReader{schema: schema}
-	adapter, err := newStoredSchemaReaderAdapter(context.Background(), reader, "somehash", testRevision, noopSchemaCache{})
+	adapter, err := newStoredSchemaReaderAdapter(t.Context(), reader, "somehash", testRevision, noopSchemaCache{})
 	require.NoError(t, err)
 
 	text, err := adapter.SchemaText(t.Context())
@@ -677,7 +677,7 @@ func TestNewStoredSchemaReaderAdapter_Success(t *testing.T) {
 func TestNewStoredSchemaReaderAdapter_SchemaNotFound(t *testing.T) {
 	t.Parallel()
 	reader := &fakeStoredSchemaReader{err: datastore.ErrSchemaNotFound}
-	adapter, err := newStoredSchemaReaderAdapter(context.Background(), reader, "somehash", testRevision, noopSchemaCache{})
+	adapter, err := newStoredSchemaReaderAdapter(t.Context(), reader, "somehash", testRevision, noopSchemaCache{})
 	require.NoError(t, err)
 
 	// Should return empty adapter
@@ -692,7 +692,7 @@ func TestNewStoredSchemaReaderAdapter_SchemaNotFound(t *testing.T) {
 func TestNewStoredSchemaReaderAdapter_OtherError(t *testing.T) {
 	t.Parallel()
 	reader := &fakeStoredSchemaReader{err: errors.New("connection refused")}
-	_, err := newStoredSchemaReaderAdapter(context.Background(), reader, "somehash", testRevision, noopSchemaCache{})
+	_, err := newStoredSchemaReaderAdapter(t.Context(), reader, "somehash", testRevision, noopSchemaCache{})
 	require.ErrorContains(t, err, "connection refused")
 }
 
@@ -909,7 +909,7 @@ func TestNewStoredSchemaReaderAdapter_UsesCache(t *testing.T) {
 	cache := &fakeSchemaCache{cachedValue: schema}
 	reader := &fakeStoredSchemaReader{err: errors.New("should not be called")}
 
-	adapter, err := newStoredSchemaReaderAdapter(context.Background(), reader, "hash1", testRevision, cache)
+	adapter, err := newStoredSchemaReaderAdapter(t.Context(), reader, "hash1", testRevision, cache)
 	require.NoError(t, err)
 	require.Equal(t, 1, cache.loaded)
 

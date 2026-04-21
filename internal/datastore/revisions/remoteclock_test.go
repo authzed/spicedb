@@ -78,9 +78,9 @@ func TestRemoteClockOptimizedRevisions(t *testing.T) {
 
 			remoteClock := clock.NewMock()
 			rcr.clockFn = remoteClock
-			rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, error) {
+			rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, string, error) {
 				log.Debug().Stringer("now", remoteClock.Now()).Msg("current remote time")
-				return NewForTime(remoteClock.Now()), nil
+				return NewForTime(remoteClock.Now()), "", nil
 			})
 
 			for _, timeAndExpected := range tc.times {
@@ -125,9 +125,9 @@ func TestRemoteClockCheckRevisions(t *testing.T) {
 
 			remoteClock := clock.NewMock()
 			rcr.clockFn = remoteClock
-			rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, error) {
+			rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, string, error) {
 				log.Debug().Stringer("now", remoteClock.Now()).Msg("current remote time")
-				return NewForTime(remoteClock.Now()), nil
+				return NewForTime(remoteClock.Now()), "", nil
 			})
 
 			remoteClock.Set(time.Unix(tc.currentTime, 0))
@@ -154,9 +154,9 @@ func TestRemoteClockStalenessBeyondGC(t *testing.T) {
 
 	remoteClock := clock.NewMock()
 	rcr.clockFn = remoteClock
-	rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, error) {
+	rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, string, error) {
 		log.Debug().Stringer("now", remoteClock.Now()).Msg("current remote time")
-		return NewForTime(remoteClock.Now()), nil
+		return NewForTime(remoteClock.Now()), "", nil
 	})
 
 	// Set the current time to 1.

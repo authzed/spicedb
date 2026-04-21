@@ -68,14 +68,14 @@ func TestSchemaHashCache_GetOrLoad(t *testing.T) {
 	}
 
 	// First call should load
-	schema, err := shc.GetOrLoad(context.Background(), datastore.NoRevision, SchemaHash("hash1"), loader)
+	schema, err := shc.GetOrLoad(t.Context(), datastore.NoRevision, SchemaHash("hash1"), loader)
 	require.NoError(t, err)
 	require.NotNil(t, schema)
 	require.Equal(t, "loaded definition", schema.Get().GetV1().SchemaText)
 	require.Equal(t, 1, loadCalls)
 
 	// Second call should hit cache
-	schema, err = shc.GetOrLoad(context.Background(), datastore.NoRevision, SchemaHash("hash1"), loader)
+	schema, err = shc.GetOrLoad(t.Context(), datastore.NoRevision, SchemaHash("hash1"), loader)
 	require.NoError(t, err)
 	require.NotNil(t, schema)
 	require.Equal(t, 1, loadCalls)
@@ -85,7 +85,7 @@ func TestSchemaHashCache_GetOrLoadEmptyHash(t *testing.T) {
 	shc := newSchemaHashCache(newTestSchemaCache())
 
 	require.Panics(t, func() {
-		_, _ = shc.GetOrLoad(context.Background(), datastore.NoRevision, SchemaHash(""), func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+		_, _ = shc.GetOrLoad(t.Context(), datastore.NoRevision, SchemaHash(""), func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
 			return makeTestSchema("loaded definition"), nil
 		})
 	}, "empty hash should panic")
@@ -113,7 +113,7 @@ func TestSchemaHashCache_Singleflight(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
-			schema, err := shc.GetOrLoad(context.Background(), datastore.NoRevision, SchemaHash("hash1"), loader)
+			schema, err := shc.GetOrLoad(t.Context(), datastore.NoRevision, SchemaHash("hash1"), loader)
 			if err != nil {
 				results <- err
 				return
@@ -142,7 +142,7 @@ func TestSchemaHashCache_LoadError(t *testing.T) {
 	shc := newSchemaHashCache(newTestSchemaCache())
 
 	expectedErr := fmt.Errorf("load failed")
-	schema, err := shc.GetOrLoad(context.Background(), datastore.NoRevision, SchemaHash("hash1"), func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	schema, err := shc.GetOrLoad(t.Context(), datastore.NoRevision, SchemaHash("hash1"), func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
 		return nil, expectedErr
 	})
 	require.Error(t, err)
@@ -187,7 +187,7 @@ func TestSchemaHashCache_SentinelBypass(t *testing.T) {
 
 		// GetOrLoad should always call loader
 		loadCalled := false
-		result, err := shc.GetOrLoad(context.Background(), datastore.NoRevision, sentinel, func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+		result, err := shc.GetOrLoad(t.Context(), datastore.NoRevision, sentinel, func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
 			loadCalled = true
 			return schema, nil
 		})
@@ -225,13 +225,13 @@ func TestSchemaHashCache_SingleflightTimeoutFallback(t *testing.T) {
 	leaderWg.Add(1)
 	go func() {
 		defer leaderWg.Done()
-		_, leaderErr = shc.GetOrLoad(context.Background(), datastore.NoRevision, hash, slowLoader)
+		_, leaderErr = shc.GetOrLoad(t.Context(), datastore.NoRevision, hash, slowLoader)
 	}()
 
 	<-leaderStarted
 
 	// Waiter should fall back after timeout
-	schema, err := shc.GetOrLoad(context.Background(), datastore.NoRevision, hash, slowLoader)
+	schema, err := shc.GetOrLoad(t.Context(), datastore.NoRevision, hash, slowLoader)
 	require.NoError(t, err)
 	require.NotNil(t, schema)
 
@@ -251,7 +251,7 @@ func TestNoopSchemaCache(t *testing.T) {
 
 	// GetOrLoad always calls loader
 	loadCalled := false
-	schema, err := noop.GetOrLoad(context.Background(), datastore.NoRevision, SchemaHash("hash"), func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	schema, err := noop.GetOrLoad(t.Context(), datastore.NoRevision, SchemaHash("hash"), func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
 		loadCalled = true
 		return makeTestSchema("loaded"), nil
 	})

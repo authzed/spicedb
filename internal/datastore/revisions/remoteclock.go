@@ -9,8 +9,10 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// RemoteNowFunction queries the datastore to get a current revision.
-type RemoteNowFunction func(context.Context) (datastore.Revision, error)
+// RemoteNowFunction queries the datastore to get a current revision and the
+// schema hash visible at that revision. Implementations that do not have a
+// schema hash on this code path may return "".
+type RemoteNowFunction func(context.Context) (datastore.Revision, string, error)
 
 // RemoteClockRevisions handles revision calculation for datastores that provide
 // their own clocks.
@@ -48,19 +50,19 @@ func NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, followerReadDelay, 
 	return revisions
 }
 
-func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
-	nowRev, err := rcr.nowFunc(ctx)
+func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+	nowRev, schemaHash, err := rcr.nowFunc(ctx)
 	if err != nil {
-		return datastore.NoRevision, 0, err
+		return datastore.NoRevision, 0, "", err
 	}
 
 	if nowRev == datastore.NoRevision {
-		return datastore.NoRevision, 0, datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
+		return datastore.NoRevision, 0, "", datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
 	}
 
 	nowTS, ok := nowRev.(WithTimestampRevision)
 	if !ok {
-		return datastore.NoRevision, 0, spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
+		return datastore.NoRevision, 0, "", spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
 	}
 
 	delayedNow := nowTS.TimestampNanoSec() - rcr.followerReadDelayNanos
@@ -77,7 +79,7 @@ func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (dat
 		Int64("totalSkew", nowTS.TimestampNanoSec()-quantized).
 		Msg("revision skews")
 
-	return nowTS.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond, nil
+	return nowTS.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond, schemaHash, nil
 }
 
 // SetNowFunc sets the function used to determine the head revision
@@ -96,7 +98,7 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision d
 	defer span.End()
 
 	// Make sure the system time indicated is within the software GC window
-	now, err := rcr.nowFunc(ctx)
+	now, _, err := rcr.nowFunc(ctx)
 	if err != nil {
 		return err
 	}

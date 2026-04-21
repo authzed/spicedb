@@ -789,7 +789,7 @@ func TestWriteChunkedBytes_BeginTransactionError(t *testing.T) {
 		WriteMode: WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", []byte("hello"), 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), 0)
 	require.ErrorContains(t, err, "failed to begin transaction")
 }
 
@@ -807,7 +807,7 @@ func TestWriteChunkedBytes_DeleteError(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", []byte("hello"), 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), 0)
 	require.ErrorContains(t, err, "failed to delete existing chunks")
 }
 
@@ -828,7 +828,7 @@ func TestWriteChunkedBytes_TombstoneError(t *testing.T) {
 		AliveValue:        ^uint64(0),
 	})
 
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", []byte("hello"), uint64(1))
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), uint64(1))
 	require.ErrorContains(t, err, "failed to tombstone existing chunks")
 }
 
@@ -846,7 +846,7 @@ func TestWriteChunkedBytes_InsertError(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", []byte("hello"), 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), 0)
 	require.ErrorContains(t, err, "failed to insert chunks")
 }
 
@@ -864,7 +864,7 @@ func TestDeleteChunkedBytes_BeginTransactionError(t *testing.T) {
 		WriteMode: WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.DeleteChunkedBytes(context.Background(), "test-key", 0)
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", 0)
 	require.ErrorContains(t, err, "failed to begin transaction")
 }
 
@@ -882,7 +882,7 @@ func TestDeleteChunkedBytes_DeleteError(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.DeleteChunkedBytes(context.Background(), "test-key", 0)
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", 0)
 	require.ErrorContains(t, err, "failed to delete chunks")
 }
 
@@ -903,7 +903,7 @@ func TestDeleteChunkedBytes_TombstoneError(t *testing.T) {
 		AliveValue:        ^uint64(0),
 	})
 
-	err := chunker.DeleteChunkedBytes(context.Background(), "test-key", uint64(1))
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", uint64(1))
 	require.ErrorContains(t, err, "failed to tombstone chunks")
 }
 

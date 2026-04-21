@@ -161,7 +161,7 @@ func TestPlanPartitionedExport(t *testing.T) {
 			for _, partition := range plan.Partitions {
 				iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 					Partition: partition,
-					Revision:  rev,
+					Revision:  rev.Revision,
 				})
 				require.NoError(t, err)
 				for _, err := range iter {
@@ -273,7 +273,7 @@ func TestPlanPartitionsOnlyUsesPrimaryIndex(t *testing.T) {
 		// Verify partitions are non-overlapping and cover all data exactly once.
 		rev, err := ds.HeadRevision(ctx)
 		require.NoError(t, err)
-		reader := ds.SnapshotReader(rev)
+		reader := ds.SnapshotReader(rev.Revision)
 		seen := make(map[string]int) // relationship key → partition index
 		for pi, p := range partitions {
 			opts := []dsoptions.QueryOptionsOption{

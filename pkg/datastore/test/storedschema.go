@@ -721,6 +721,60 @@ func HeadRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 		"schema hashes should differ after writing a different schema")
 }
 
+// OptimizedRevisionSchemaHashTest verifies that OptimizedRevision returns the
+// correct schema hash after a schema has been written, and that the hash
+// updates when the schema changes. This is critical for the stored-schema
+// cache to be hit on the common consistency paths (MinimizeLatency /
+// AtLeastAsFresh), which route through OptimizedRevision rather than
+// HeadRevision.
+func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ctx := t.Context()
+
+	// Write a schema.
+	firstDefs := []compiler.SchemaDefinition{
+		ns.Namespace("user"),
+		ns.Namespace("document",
+			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
+		),
+	}
+	firstSchemaText, _, err := generator.GenerateSchema(ctx, firstDefs)
+	require.NoError(err)
+
+	writeSchema(ctx, t, ds, firstDefs, firstSchemaText)
+
+	expectedFirstHash, err := generator.ComputeSchemaHash(firstDefs)
+	require.NoError(err)
+
+	resultAfterFirst, err := ds.OptimizedRevision(ctx)
+	require.NoError(err)
+	require.Equal(expectedFirstHash, resultAfterFirst.SchemaHash,
+		"OptimizedRevision should return the schema hash matching the written schema")
+
+	// Write a different schema.
+	secondDefs := []compiler.SchemaDefinition{
+		ns.Namespace("team"),
+	}
+	secondSchemaText, _, err := generator.GenerateSchema(ctx, secondDefs)
+	require.NoError(err)
+
+	writeSchema(ctx, t, ds, secondDefs, secondSchemaText)
+
+	expectedSecondHash, err := generator.ComputeSchemaHash(secondDefs)
+	require.NoError(err)
+
+	resultAfterSecond, err := ds.OptimizedRevision(ctx)
+	require.NoError(err)
+	require.Equal(expectedSecondHash, resultAfterSecond.SchemaHash,
+		"OptimizedRevision should return the updated schema hash after a schema change")
+	require.NotEqual(resultAfterFirst.SchemaHash, resultAfterSecond.SchemaHash,
+		"OptimizedRevision schema hashes should differ after writing a different schema")
+}
+
 // verifySchemaTypes reads schema through the datalayer at the given revision
 // and verifies the expected type definition and caveat definition names are present.
 func verifySchemaTypes(t *testing.T, ctx context.Context, dl datalayer.DataLayer, rev datastore.Revision, expectedTypes []string, expectedCaveats []string) {

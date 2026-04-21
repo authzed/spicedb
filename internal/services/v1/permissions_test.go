@@ -342,7 +342,7 @@ func TestCheckPermissionSchemaLoadedOnce(t *testing.T) {
 		},
 		func(ds datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
 			wrapped := counter.wrap(ds)
-			rev, err := wrapped.HeadRevision(context.Background())
+			rev, err := wrapped.HeadRevision(t.Context())
 			require.NoError(t, err)
 			return wrapped, rev.Revision
 		},
@@ -405,6 +405,84 @@ func TestCheckPermissionSchemaLoadedOnce(t *testing.T) {
 	}
 
 	require.Equal(t, 0, counter.count(), "ReadStoredSchema should not be called across multiple CheckPermission calls")
+
+	// Sanity-check the counter: call ReadStoredSchema directly on the wrapped
+	// datastore (bypassing the DataLayer's schema cache entirely) and confirm
+	// the counter increments. This ensures the zero counts above reflect cache
+	// hits, not a broken counter.
+	counter.reset()
+	headRev, err := counter.HeadRevision(t.Context())
+	require.NoError(t, err)
+	_, err = counter.SnapshotReader(headRev.Revision).ReadStoredSchema(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, counter.count(), "counter should increment when ReadStoredSchema is called directly")
+}
+
+func TestCheckPermissionSchemaLoadedOnceMinLatency(t *testing.T) {
+	counter := &readStoredSchemaCounter{}
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require.New(t),
+		time.Nanosecond, // effectively no quantization, but non-zero to avoid memdb divide-by-zero
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxUpdatesPerWrite:    1000,
+			MaxPreconditionsCount: 1000,
+			StreamingAPITimeout:   30 * time.Second,
+			DataLayerOpts: []datalayer.DataLayerOption{
+				datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
+				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}),
+			},
+		},
+		func(ds datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			wrapped := counter.wrap(ds)
+			rev, err := wrapped.HeadRevision(t.Context())
+			require.NoError(t, err)
+			return wrapped, rev.Revision
+		},
+	)
+	t.Cleanup(cleanup)
+
+	schemaClient := v1.NewSchemaServiceClient(conn)
+	permClient := v1.NewPermissionsServiceClient(conn)
+
+	_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+		definition document {
+			relation viewer: user
+			permission view = viewer
+		}`,
+	})
+	require.NoError(t, err)
+
+	_, err = permClient.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
+			tuple.MustParse("document:doc1#viewer@user:tom#..."),
+		))},
+	})
+	require.NoError(t, err)
+
+	// Reset the counter after setup. The cache was warmed by WriteSchema.
+	counter.reset()
+
+	// CheckPermission with MinimizeLatency exercises the OptimizedRevision
+	// path in the consistency middleware. For the cache to be hit, the
+	// datastore's OptimizedRevision must return the current schema hash.
+	for i := range 5 {
+		checkResp, err := permClient.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_MinimizeLatency{MinimizeLatency: true},
+			},
+			Resource:   obj("document", fmt.Sprintf("doc-min-%d", i)),
+			Permission: "view",
+			Subject:    sub("user", "tom", ""),
+		})
+		require.NoError(t, err)
+		require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, checkResp.Permissionship)
+	}
+
+	require.Equal(t, 0, counter.count(), "ReadStoredSchema should not be called with MinimizeLatency when schema is cached")
 }
 
 // readStoredSchemaCounter wraps a datastore and counts ReadStoredSchema calls.

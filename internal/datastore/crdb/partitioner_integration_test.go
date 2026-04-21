@@ -67,7 +67,7 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 		partitionCount := 0
 		iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 			Partition: partition,
-			Revision:  rev,
+			Revision:  rev.Revision,
 		})
 		require.NoError(t, err)
 		for rel, err := range iter {
@@ -157,7 +157,7 @@ func TestStreamPartitionedExportBoundCombinations(t *testing.T) {
 						LowerBound: tc.lower,
 						UpperBound: tc.upper,
 					},
-					Revision: rev,
+					Revision: rev.Revision,
 				})
 				require.NoError(t, err)
 
@@ -187,7 +187,7 @@ func TestStreamPartitionedExportBoundCombinations(t *testing.T) {
 			} {
 				iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 					Partition: partition,
-					Revision:  rev,
+					Revision:  rev.Revision,
 				})
 				require.NoError(t, err)
 				for rel, err := range iter {

@@ -99,7 +99,7 @@ func TestSQLSingleStoreSchemaReaderWriter_WriteAndRead(t *testing.T) {
 			readerWriter := NewSQLSingleStoreSchemaReaderWriter(chunker, transactionIDProvider)
 
 			// Write schema
-			ctx := context.Background()
+			ctx := t.Context()
 			err = readerWriter.WriteStoredSchema(ctx, storedSchema)
 			require.NoError(t, err)
 
@@ -141,7 +141,7 @@ func TestSQLSingleStoreSchemaReaderWriter_ReadNotFound(t *testing.T) {
 	readerWriter := NewSQLSingleStoreSchemaReaderWriter(chunker, StaticTransactionID[uint64](0))
 
 	// Try to read non-existent schema
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := readerWriter.ReadStoredSchema(ctx)
 	require.Error(t, err)
 	require.ErrorIs(t, err, datastore.ErrSchemaNotFound)
@@ -184,7 +184,7 @@ func TestSQLSingleStoreSchemaReaderWriter_WithBuiltInMVCC(t *testing.T) {
 	readerWriter := NewSQLSingleStoreSchemaReaderWriterWithBuiltInMVCC(chunker)
 
 	// Write schema
-	ctx := context.Background()
+	ctx := t.Context()
 	err = readerWriter.WriteStoredSchema(ctx, storedSchema)
 	require.NoError(t, err)
 
@@ -325,7 +325,7 @@ func TestBuildAndMarshal(t *testing.T) {
 
 func TestHelperFunctions(t *testing.T) {
 	// Test NoTransactionID
-	ctx := context.Background()
+	ctx := t.Context()
 	result := NoTransactionID[uint64](ctx)
 	require.Equal(t, uint64(0), result)
 
@@ -376,7 +376,7 @@ func TestNewSQLSingleStoreSchemaReaderWriterForTransactionIDs(t *testing.T) {
 
 	readerWriter := NewSQLSingleStoreSchemaReaderWriterForTransactionIDs(chunker, StaticTransactionID[uint64](42))
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err = readerWriter.WriteStoredSchema(ctx, storedSchema)
 	require.NoError(t, err)
 
