@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -78,7 +79,11 @@ func TestPreconditionFailedError_Minimal(t *testing.T) {
 			ResourceType: "document",
 		},
 	}
-	err := NewPreconditionFailedErr(precondition).(PreconditionFailedError)
+	err := func() PreconditionFailedError {
+		var target PreconditionFailedError
+		_ = errors.As(NewPreconditionFailedErr(precondition), &target)
+		return target
+	}()
 
 	require.Contains(t, err.Error(), "precondition")
 
@@ -108,7 +113,11 @@ func TestPreconditionFailedError_FullFilter(t *testing.T) {
 			},
 		},
 	}
-	err := NewPreconditionFailedErr(precondition).(PreconditionFailedError)
+	err := func() PreconditionFailedError {
+		var target PreconditionFailedError
+		_ = errors.As(NewPreconditionFailedErr(precondition), &target)
+		return target
+	}()
 
 	status := err.GRPCStatus()
 	require.Equal(t, codes.FailedPrecondition, status.Code())

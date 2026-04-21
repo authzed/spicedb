@@ -120,7 +120,7 @@ func TestCheckFailureErrorUnwrap(t *testing.T) {
 
 	var cfe CheckFailureError
 	require.ErrorAs(t, err, &cfe)
-	require.NotNil(t, cfe.Unwrap())
+	require.Error(t, cfe.Unwrap())
 	require.ErrorIs(t, cfe.Unwrap(), base)
 }
 
@@ -130,7 +130,7 @@ func TestExpansionFailureErrorUnwrap(t *testing.T) {
 
 	var efe ExpansionFailureError
 	require.ErrorAs(t, err, &efe)
-	require.NotNil(t, efe.Unwrap())
+	require.Error(t, efe.Unwrap())
 	require.ErrorIs(t, efe.Unwrap(), base)
 }
 

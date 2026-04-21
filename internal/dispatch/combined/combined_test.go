@@ -8,10 +8,10 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
