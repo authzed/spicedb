@@ -682,59 +682,72 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				return nil
 			}
 
-			// Build cycle-tracking debug trace if requested.
-			// We track visits to the *resource* node about to be recursed into —
-			// cycles in LookupResources manifest as the same resource type+ID being
-			// visited more than once during traversal. The shared traversalTracker in ctx
-			// accumulates all visits across the request; no local variable is needed here.
-			if parentRequest.EnableDebugTrace {
-				for _, resourceID := range filteredSubjectIDs {
-					// filteredSubjectIDs are the found resources that become subjects
-					// of the next recursive dispatch — we track them as resource nodes.
-					ctx, _ = trackVisit(
-						ctx,
-						parentRequest.ResourceRelation.Namespace,
-						resourceID,
-						parentRequest.ResourceRelation.Relation,
-					)
-				}
-			}
-
 			// If the entrypoint is a direct result then we can simply dispatch directly and map
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
 				stream := unfilteredLookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, ci)
-				return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-					ResourceRelation: parentRequest.ResourceRelation,
-					SubjectRelation:  newSubjectType,
-					SubjectIds:       filteredSubjectIDs,
-					TerminalSubject:  parentRequest.TerminalSubject,
-					Metadata: &v1.ResolverMeta{
-						AtRevision:     parentRequest.Revision.String(),
-						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-					},
-					OptionalCursor:   ci.currentCursor,
-					OptionalLimit:    parentRequest.OptionalLimit,
-					Context:          parentRequest.Context,
-					EnableDebugTrace: parentRequest.EnableDebugTrace,
-				}, stream)
+				// Dispatch once per subject ID so each frame corresponds to exactly
+				// one traversal edge. Stack depth matches recursion depth.
+				for _, subjectID := range filteredSubjectIDs {
+					if err := func(sid string) error {
+						PushTraversalFrame(ctx,
+							newSubjectType.Namespace,
+							sid,
+							newSubjectType.Relation,
+							parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
+						)
+						defer PopTraversalFrame(ctx)
+						return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+							ResourceRelation: parentRequest.ResourceRelation,
+							SubjectRelation:  newSubjectType,
+							SubjectIds:       []string{sid},
+							TerminalSubject:  parentRequest.TerminalSubject,
+							Metadata: &v1.ResolverMeta{
+								AtRevision:     parentRequest.Revision.String(),
+								DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+							},
+							OptionalCursor:   ci.currentCursor,
+							OptionalLimit:    parentRequest.OptionalLimit,
+							Context:          parentRequest.Context,
+							EnableDebugTrace: parentRequest.EnableDebugTrace,
+						}, stream)
+					}(subjectID); err != nil {
+						return err
+					}
+				}
+				return nil
 			}
 
 			// Otherwise, we need to filter results by batch checking along the way before dispatching.
-			return runCheckerAndDispatch(
-				ctx,
-				parentRequest,
-				foundResources,
-				ci,
-				parentStream,
-				newSubjectType,
-				filteredSubjectIDs,
-				entrypoint,
-				crr.dl,
-				crr.dc,
-				crr.caveatTypeSet,
-				crr.concurrencyLimit,
-				crr.dispatchChunkSize,
-			)
+			// Dispatch once per subject ID so each frame corresponds to exactly one traversal edge.
+			for _, subjectID := range filteredSubjectIDs {
+				if err := func(sid string) error {
+					PushTraversalFrame(ctx,
+						newSubjectType.Namespace,
+						sid,
+						newSubjectType.Relation,
+						parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
+					)
+					defer PopTraversalFrame(ctx)
+					return runCheckerAndDispatch(
+						ctx,
+						parentRequest,
+						foundResources,
+						ci,
+						parentStream,
+						newSubjectType,
+						[]string{sid},
+						entrypoint,
+						crr.dl,
+						crr.dc,
+						crr.caveatTypeSet,
+						crr.concurrencyLimit,
+						crr.dispatchChunkSize,
+					)
+				}(subjectID); err != nil {
+					return err
+				}
+			}
+			return nil
 		})
 }

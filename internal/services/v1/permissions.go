@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -200,49 +199,31 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 	return permissionship, partialCaveat
 }
 
-func convertLookupSnapshotToDebugV2(ctx context.Context) (*v1.DebugInformationV2, error) {
-	snapshot := graph.SnapshotLookupDebugTrace(ctx)
-	if snapshot == nil || len(snapshot.SubProblems) == 0 {
-		return nil, nil
+// convertTraversalStackToDispatchTrace converts the traversal stack captured in ctx
+// into a dispatch.LookupDebugTrace. The trace is a linear chain: each frame becomes
+// one node whose SubProblems contains the next frame. Returns nil if no stack is present.
+func convertTraversalStackToDispatchTrace(ctx context.Context) *dispatch.LookupDebugTrace {
+	frames := graph.SnapshotTraversalStack(ctx)
+	if len(frames) == 0 {
+		return nil
 	}
 
-	annotations := make(map[string]*anypb.Any, len(snapshot.SubProblems))
-	subtrees := make([]*v1.DebugTree, 0, len(snapshot.SubProblems))
-
-	for _, sp := range snapshot.SubProblems {
-		nodeID := fmt.Sprintf("%s:%s#%s", sp.ResourceType, sp.ResourceId, sp.Relation)
-
-		subtrees = append(subtrees, &v1.DebugTree{
-			Id: nodeID,
-		})
-
-		ann, err := anypb.New(&v1.LookupCycleAnnotation{
-			ResourceType:   sp.ResourceType,
-			ResourceId:     sp.ResourceId,
-			Relation:       sp.Relation,
-			TraversalCount: sp.TraversalCount,
-			IsCyclic:       sp.IsCyclic,
-		})
-		if err != nil {
-			return nil, err
+	// Build chain from the last frame backwards so we can link them.
+	// result: frames[0] → frames[1] → ... → frames[n-1]
+	var tail *dispatch.LookupDebugTrace
+	for i := len(frames) - 1; i >= 0; i-- {
+		f := frames[i]
+		node := &dispatch.LookupDebugTrace{
+			ResourceType: f.ResourceType(),
+			ResourceId:   f.ResourceID(),
+			Relation:     f.Permission(), // permission being evaluated
 		}
-
-		annotations[nodeID] = ann
+		if tail != nil {
+			node.SubProblems = []*dispatch.LookupDebugTrace{tail}
+		}
+		tail = node
 	}
-
-	return &v1.DebugInformationV2{
-		Scopes: map[string]*v1.DebugScope{
-			"lookup_cycles": {
-				Name: "lookup_cycles",
-				// Root node representing the lookup traversal entrypoint
-				Tree: &v1.DebugTree{
-					Id:       "lookup-root",
-					Subtrees: subtrees,
-				},
-				Annotations: annotations,
-			},
-		},
-	}, nil
+	return tail
 }
 
 func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
@@ -586,11 +567,11 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	// Initialize the traversal tracker once at the top-level so that all goroutines
+	// Initialize the traversal stack once at the top-level so that all goroutines
 	// spawned during dispatch share a single tracker via the inherited context.
 	debugEnabled := lookupDebugTraceEnabled(ctx)
 	if debugEnabled {
-		ctx = graph.NewTraversalTracker(ctx)
+		ctx = graph.NewTraversalStack(ctx)
 	}
 
 	var currentCursor []string
@@ -702,15 +683,17 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		},
 		stream)
 	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	if debugEnabled {
-		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
-			if lastResp != nil {
-				lastResp.DebugInfoV2 = debugV2
+		// If debug is enabled and this is a depth exceeded error, serialize the
+		// traversal stack trace into the error details for the caller to inspect.
+		if debugEnabled {
+			var maxDepthErr dispatchpkg.MaxDepthExceededError
+			if errors.As(err, &maxDepthErr) {
+				if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
+					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, trace.String())
+				}
 			}
 		}
+		return ps.rewriteError(ctx, err)
 	}
 
 	if lastResp != nil {
@@ -763,11 +746,11 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	// Initialize the traversal tracker once at the top-level so that all goroutines
+	// Initialize the traversal stack once at the top-level so that all goroutines
 	// spawned during dispatch share a single tracker via the inherited context.
 	debugEnabled := lookupDebugTraceEnabled(ctx)
 	if debugEnabled {
-		ctx = graph.NewTraversalTracker(ctx)
+		ctx = graph.NewTraversalStack(ctx)
 	}
 
 	var currentCursor *dispatch.Cursor
@@ -875,15 +858,17 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		},
 		stream)
 	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	if debugEnabled {
-		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
-			if lastResp != nil {
-				lastResp.DebugInfoV2 = debugV2
+		// If debug is enabled and this is a depth exceeded error, serialize the
+		// traversal stack trace into the error details for the caller to inspect.
+		if debugEnabled {
+			var maxDepthErr dispatchpkg.MaxDepthExceededError
+			if errors.As(err, &maxDepthErr) {
+				if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
+					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, trace.String())
+				}
 			}
 		}
+		return ps.rewriteError(ctx, err)
 	}
 
 	if lastResp != nil {
@@ -954,11 +939,11 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	// Initialize the traversal tracker once at the top-level so that all goroutines
+	// Initialize the traversal stack once at the top-level so that all goroutines
 	// spawned during dispatch share a single tracker via the inherited context.
 	debugEnabled := lookupDebugTraceEnabled(ctx)
 	if debugEnabled {
-		ctx = graph.NewTraversalTracker(ctx)
+		ctx = graph.NewTraversalStack(ctx)
 	}
 
 	var totalCountPublished uint64
@@ -1050,15 +1035,17 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		},
 		stream)
 	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	if debugEnabled {
-		if debugV2, err := convertLookupSnapshotToDebugV2(ctx); err == nil && debugV2 != nil {
-			if lastResp != nil {
-				lastResp.DebugInfoV2 = debugV2
+		// If debug is enabled and this is a depth exceeded error, serialize the
+		// traversal stack trace into the error details for the caller to inspect.
+		if debugEnabled {
+			var maxDepthErr dispatchpkg.MaxDepthExceededError
+			if errors.As(err, &maxDepthErr) {
+				if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
+					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, trace.String())
+				}
 			}
 		}
+		return ps.rewriteError(ctx, err)
 	}
 
 	if lastResp != nil {
