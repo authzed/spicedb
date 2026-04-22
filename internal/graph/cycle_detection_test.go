@@ -9,85 +9,137 @@ import (
 	graphpkg "github.com/authzed/spicedb/internal/graph"
 )
 
-func TestTraversalTrackerNodeKey(t *testing.T) {
-	got := graphpkg.ExportedNodeKey("group", "a", "member")
-	require.Equal(t, "group:a#member", got)
+// TestTraversalStackNoOpWithoutInit verifies that Push/Pop/Snapshot are all
+// no-ops (and don't panic) when the stack has not been initialized.
+func TestTraversalStackNoOpWithoutInit(t *testing.T) {
+	ctx := context.Background() // no NewTraversalStack called
+
+	// Should not panic.
+	graphpkg.ExportedPushFrame(ctx, "group", "a", "member", "group#member")
+	graphpkg.ExportedPopFrame(ctx)
+
+	snap := graphpkg.ExportedSnapshotStack(ctx)
+	require.Nil(t, snap, "snapshot of uninitialised stack must be nil")
 }
 
-func TestTraversalTrackerFirstVisit(t *testing.T) {
-	ctx := graphpkg.ExportedNewTraversalTracker(context.Background())
-	ctx2, count := graphpkg.ExportedTrackVisit(ctx, "group", "a", "member")
-	require.Equal(t, 1, count)
-	require.NotNil(t, ctx2)
+// TestTraversalStackPushPop verifies basic LIFO semantics.
+func TestTraversalStackPushPop(t *testing.T) {
+	ctx := graphpkg.ExportedNewTraversalStack(context.Background())
+
+	graphpkg.ExportedPushFrame(ctx, "group", "a", "member", "group#member")
+	graphpkg.ExportedPushFrame(ctx, "group", "b", "member", "group#member")
+
+	snap := graphpkg.ExportedSnapshotStack(ctx)
+	require.Len(t, snap, 2)
+	require.Equal(t, "a", snap[0].ResourceID())
+	require.Equal(t, "b", snap[1].ResourceID())
+
+	graphpkg.ExportedPopFrame(ctx) // removes "b"
+
+	snap2 := graphpkg.ExportedSnapshotStack(ctx)
+	require.Len(t, snap2, 1)
+	require.Equal(t, "a", snap2[0].ResourceID())
 }
 
-func TestTraversalTrackerSecondVisitIsCyclic(t *testing.T) {
-	ctx := graphpkg.ExportedNewTraversalTracker(context.Background())
-	ctx, _ = graphpkg.ExportedTrackVisit(ctx, "group", "a", "member")
-	_, count := graphpkg.ExportedTrackVisit(ctx, "group", "a", "member")
-	require.Equal(t, 2, count)
+// TestTraversalStackSnapshotIsCopy verifies that mutating the original stack
+// after a snapshot does not affect the snapshot.
+func TestTraversalStackSnapshotIsCopy(t *testing.T) {
+	ctx := graphpkg.ExportedNewTraversalStack(context.Background())
+
+	graphpkg.ExportedPushFrame(ctx, "group", "a", "member", "group#member")
+	snap := graphpkg.ExportedSnapshotStack(ctx)
+	require.Len(t, snap, 1)
+
+	// Push another frame AFTER taking the snapshot.
+	graphpkg.ExportedPushFrame(ctx, "group", "b", "member", "group#member")
+
+	// The old snapshot must still have only one frame.
+	require.Len(t, snap, 1, "snapshot must be a copy, not a reference")
 }
 
-func TestTraversalTrackerDifferentNodesAreIndependent(t *testing.T) {
-	ctx := graphpkg.ExportedNewTraversalTracker(context.Background())
-	ctx, countA := graphpkg.ExportedTrackVisit(ctx, "group", "a", "member")
-	_, countB := graphpkg.ExportedTrackVisit(ctx, "group", "b", "member")
-	require.Equal(t, 1, countA)
-	require.Equal(t, 1, countB)
+// TestTraversalStackOrdering verifies that frames are returned in push order.
+func TestTraversalStackOrdering(t *testing.T) {
+	ctx := graphpkg.ExportedNewTraversalStack(context.Background())
+
+	graphpkg.ExportedPushFrame(ctx, "res", "1", "rel", "perm")
+	graphpkg.ExportedPushFrame(ctx, "res", "2", "rel", "perm")
+	graphpkg.ExportedPushFrame(ctx, "res", "3", "rel", "perm")
+
+	snap := graphpkg.ExportedSnapshotStack(ctx)
+	require.Len(t, snap, 3)
+	require.Equal(t, "1", snap[0].ResourceID())
+	require.Equal(t, "2", snap[1].ResourceID())
+	require.Equal(t, "3", snap[2].ResourceID())
 }
 
-// TestTraversalTrackerSnapshotNoCycles verifies a snapshot with no repeated visits
-// contains only non-cyclic entries.
-func TestTraversalTrackerSnapshotNoCycles(t *testing.T) {
-	ctx := graphpkg.ExportedNewTraversalTracker(context.Background())
-	ctx, _ = graphpkg.ExportedTrackVisit(ctx, "group", "a", "member")
-	ctx, _ = graphpkg.ExportedTrackVisit(ctx, "group", "b", "member")
+// TestTraversalStackEmptySnapshotAfterAllPops verifies that popping all frames
+// results in a nil snapshot (not an empty slice).
+func TestTraversalStackEmptySnapshotAfterAllPops(t *testing.T) {
+	ctx := graphpkg.ExportedNewTraversalStack(context.Background())
 
-	trace := graphpkg.ExportedSnapshot(ctx)
-	require.NotNil(t, trace)
-	require.Len(t, trace.SubProblems, 2)
-	for _, sp := range trace.SubProblems {
-		require.False(t, sp.IsCyclic, "node %s:%s#%s should not be cyclic", sp.ResourceType, sp.ResourceId, sp.Relation)
-		require.Equal(t, uint32(1), sp.TraversalCount)
-	}
+	graphpkg.ExportedPushFrame(ctx, "group", "a", "member", "group#member")
+	graphpkg.ExportedPopFrame(ctx)
+
+	snap := graphpkg.ExportedSnapshotStack(ctx)
+	require.Nil(t, snap)
 }
 
-// TestTraversalTrackerSnapshotWithCycle verifies that a repeated visit is reflected
-// in the snapshot with IsCyclic=true and TraversalCount>1.
-func TestTraversalTrackerSnapshotWithCycle(t *testing.T) {
-	ctx := graphpkg.ExportedNewTraversalTracker(context.Background())
-	ctx, _ = graphpkg.ExportedTrackVisit(ctx, "group", "a", "member")
-	ctx, _ = graphpkg.ExportedTrackVisit(ctx, "group", "b", "member")
-	ctx, _ = graphpkg.ExportedTrackVisit(ctx, "group", "a", "member") // second visit — cyclic
+// TestTraversalStackNonEmptyFields verifies that all fields are preserved.
+func TestTraversalStackNonEmptyFields(t *testing.T) {
+	ctx := graphpkg.ExportedNewTraversalStack(context.Background())
 
-	trace := graphpkg.ExportedSnapshot(ctx)
-	require.NotNil(t, trace)
-	require.Len(t, trace.SubProblems, 2)
+	graphpkg.ExportedPushFrame(ctx, "mytype", "myid", "myrelation", "mypermission")
 
-	found := map[string]bool{}
-	for _, sp := range trace.SubProblems {
-		key := sp.ResourceType + ":" + sp.ResourceId + "#" + sp.Relation
-		found[key] = sp.IsCyclic
-		if sp.ResourceId == "a" {
-			require.True(t, sp.IsCyclic, "group:a#member should be flagged cyclic")
-			require.GreaterOrEqual(t, sp.TraversalCount, uint32(2))
-		} else {
-			require.False(t, sp.IsCyclic, "group:b#member should not be flagged cyclic")
-			require.Equal(t, uint32(1), sp.TraversalCount)
-		}
-	}
-	require.True(t, found["group:a#member"], "expected group:a#member in trace")
-	require.True(t, found["group:b#member"] || true) // b is present but order is map-nondeterministic
+	snap := graphpkg.ExportedSnapshotStack(ctx)
+	require.Len(t, snap, 1)
+	f := snap[0]
+	require.NotEmpty(t, f.ResourceType())
+	require.NotEmpty(t, f.ResourceID())
+	require.NotEmpty(t, f.Relation())
+	require.NotEmpty(t, f.Permission())
+	require.Equal(t, "mytype", f.ResourceType())
+	require.Equal(t, "myid", f.ResourceID())
+	require.Equal(t, "myrelation", f.Relation())
+	require.Equal(t, "mypermission", f.Permission())
 }
 
-// TestTraversalTrackerNoTrackerIsNoOp verifies that calling trackVisit without
-// initializing a tracker (defensive path) returns count=1 and doesn't panic.
-func TestTraversalTrackerNoTrackerIsNoOp(t *testing.T) {
-	ctx := context.Background() // no NewTraversalTracker called
-	_, count := graphpkg.ExportedTrackVisit(ctx, "group", "a", "member")
-	require.Equal(t, 1, count)
+// TestCloneTraversalStackInheritsParentPath verifies that a cloned stack starts
+// with a copy of the parent's frames so the full ancestry is preserved.
+func TestCloneTraversalStackInheritsParentPath(t *testing.T) {
+	parent := graphpkg.ExportedNewTraversalStack(context.Background())
+	graphpkg.ExportedPushFrame(parent, "res", "1", "rel", "perm")
+	graphpkg.ExportedPushFrame(parent, "res", "2", "rel", "perm")
 
-	// Snapshot on uninitialized context returns nil.
-	trace := graphpkg.ExportedSnapshot(ctx)
-	require.Nil(t, trace)
+	child := graphpkg.ExportedCloneStack(parent)
+
+	// Child must inherit both parent frames.
+	snap := graphpkg.ExportedSnapshotStack(child)
+	require.Len(t, snap, 2)
+	require.Equal(t, "1", snap[0].ResourceID())
+	require.Equal(t, "2", snap[1].ResourceID())
+}
+
+// TestCloneTraversalStackIsolation verifies that mutations in the cloned stack
+// do not affect the parent stack and vice-versa.
+func TestCloneTraversalStackIsolation(t *testing.T) {
+	parent := graphpkg.ExportedNewTraversalStack(context.Background())
+	graphpkg.ExportedPushFrame(parent, "res", "1", "rel", "perm")
+
+	child := graphpkg.ExportedCloneStack(parent)
+
+	// Push a new frame into the child.
+	graphpkg.ExportedPushFrame(child, "res", "2", "rel", "perm")
+
+	// Parent must still have exactly 1 frame.
+	parentSnap := graphpkg.ExportedSnapshotStack(parent)
+	require.Len(t, parentSnap, 1, "parent stack must not be affected by child push")
+
+	// Child must have 2 frames.
+	childSnap := graphpkg.ExportedSnapshotStack(child)
+	require.Len(t, childSnap, 2)
+
+	// Popping in parent must not affect child.
+	graphpkg.ExportedPopFrame(parent)
+	childSnap2 := graphpkg.ExportedSnapshotStack(child)
+	require.Len(t, childSnap2, 2, "child stack must not be affected by parent pop")
 }

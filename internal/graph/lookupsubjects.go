@@ -210,45 +210,47 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		return err
 	}
 
-	// Cycle detection: each resource ID about to be recursed into via the computed
-	// userset relation is tracked. The shared traversalTracker accumulates across the
-	// entire request; any node visited more than once is cyclic.
-	if parentRequest.EnableDebugTrace {
-		for _, resourceID := range parentRequest.ResourceIds {
-			// ctx returned here equals the input ctx (tracker mutates via pointer);
-			// assigning back is the contract for the defensive no-tracker path.
-			ctx, _ = trackVisit(ctx,
+	// Dispatch once per resource ID so each frame corresponds to exactly one
+	// traversal edge. Stack depth matches recursion depth.
+	for _, resourceID := range parentRequest.ResourceIds {
+		if err := func(rid string) error {
+			PushTraversalFrame(ctx,
 				parentRequest.ResourceRelation.Namespace,
-				resourceID,
+				rid,
 				cu.Relation,
+				parentRequest.ResourceRelation.Namespace+"#"+cu.Relation,
 			)
+			defer PopTraversalFrame(ctx)
+
+			stream := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
+				Stream: parentStream,
+				Ctx:    ctx,
+				Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
+					return &v1.DispatchLookupSubjectsResponse{
+						FoundSubjectsByResourceId: result.FoundSubjectsByResourceId,
+						Metadata:                  addCallToResponseMetadata(result.Metadata),
+					}, true, nil
+				},
+			}
+
+			return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+				ResourceRelation: &core.RelationReference{
+					Namespace: parentRequest.ResourceRelation.Namespace,
+					Relation:  cu.Relation,
+				},
+				ResourceIds:      []string{rid},
+				SubjectRelation:  parentRequest.SubjectRelation,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     parentRequest.Revision.String(),
+					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+				},
+				EnableDebugTrace: parentRequest.EnableDebugTrace,
+			}, stream)
+		}(resourceID); err != nil {
+			return err
 		}
 	}
-
-	stream := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
-		Stream: parentStream,
-		Ctx:    ctx,
-		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
-			return &v1.DispatchLookupSubjectsResponse{
-				FoundSubjectsByResourceId: result.FoundSubjectsByResourceId,
-				Metadata:                  addCallToResponseMetadata(result.Metadata),
-			}, true, nil
-		},
-	}
-
-	return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-		ResourceRelation: &core.RelationReference{
-			Namespace: parentRequest.ResourceRelation.Namespace,
-			Relation:  cu.Relation,
-		},
-		ResourceIds:      parentRequest.ResourceIds,
-		SubjectRelation:  parentRequest.SubjectRelation,
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     parentRequest.Revision.String(),
-			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-		},
-		EnableDebugTrace: parentRequest.EnableDebugTrace,
-	}, stream)
+	return nil
 }
 
 type resourceDispatchTracker struct {
@@ -713,23 +715,36 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		// Dispatch the found subjects as the resources of the next step.
 		slicez.ForEachChunk(resourceIds, cl.dispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
-				// Cycle detection: track resources about to be recursed into.
-				// subCtx inherits the shared tracker pointer from parentCtx.
-				if parentRequest.EnableDebugTrace {
-					for _, resID := range resourceIdChunk {
-						subCtx, _ = trackVisit(subCtx, resourceType.Namespace, resID, resourceType.Relation)
+				// Each goroutine gets a cloned traversal stack preserving the parent
+				// path, so the full ancestry is visible in the snapshot if depth is
+				// exceeded. Cloning prevents concurrent mutation between siblings.
+				goroutineCtx := CloneTraversalStack(subCtx)
+				// Dispatch once per resource ID so each frame corresponds to exactly
+				// one traversal edge. Stack depth matches recursion depth.
+				for _, resourceID := range resourceIdChunk {
+					if err := func(rid string) error {
+						PushTraversalFrame(goroutineCtx,
+							resourceType.Namespace,
+							rid,
+							resourceType.Relation,
+							parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
+						)
+						defer PopTraversalFrame(goroutineCtx)
+						return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+							ResourceRelation: resourceType,
+							ResourceIds:      []string{rid},
+							SubjectRelation:  parentRequest.SubjectRelation,
+							Metadata: &v1.ResolverMeta{
+								AtRevision:     parentRequest.Revision.String(),
+								DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+							},
+							EnableDebugTrace: parentRequest.EnableDebugTrace,
+						}, stream)
+					}(resourceID); err != nil {
+						return err
 					}
 				}
-				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-					ResourceRelation: resourceType,
-					ResourceIds:      resourceIdChunk,
-					SubjectRelation:  parentRequest.SubjectRelation,
-					Metadata: &v1.ResolverMeta{
-						AtRevision:     parentRequest.Revision.String(),
-						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-					},
-					EnableDebugTrace: parentRequest.EnableDebugTrace,
-				}, stream)
+				return nil
 			})
 		})
 	})
