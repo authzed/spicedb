@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Use cgroup-aware memory detection for cache and watch buffer sizing in containerized environments (https://github.com/authzed/spicedb/pull/3000)
 - Upgraded the spanner client, which changed the internal implementation to not use a session pool. This means that the `--datastore-spanner-max-sessions` and `--datastore-spanner-min-sessions` flags are now deprecated and no-op. We also strongly recommend using [Application Default Credentials](https://docs.cloud.google.com/docs/authentication/client-libraries#adc) in favor of a credentials file. (https://github.com/authzed/spicedb/pull/3038)
 - Query Planner: error `"ERROR: index \"pk_relation_tuple\" cannot be used for this query (SQLSTATE 42809)"` returned when using wildcards (https://github.com/authzed/spicedb/pull/3039)
+- Providing one of (`--grpc-tls-cert-path`, `--grpc-tls-key-path`) but not the other is now considered an error state, as both are necessary if you want to use TLS.
 
 ## [1.51.1] - 2026-04-14
 ### Fixed

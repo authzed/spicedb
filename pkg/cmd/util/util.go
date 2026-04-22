@@ -145,22 +145,38 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 }
 
 func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *x509util.CertWatcher, error) {
-	switch {
-	case c.TLSCertPath == "" && c.TLSKeyPath == "":
-		return nil, nil, nil
-	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		watcher, err := x509util.NewTLSCertWatcher(c.TLSCertPath, c.TLSKeyPath)
-		if err != nil {
-			return nil, nil, err
-		}
-		creds := credentials.NewTLS(&tls.Config{
-			GetCertificate: watcher.GetCertificate,
-			MinVersion:     tls.VersionTLS12,
-		})
-		return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil
-	default:
+	// Ensure that we've either got both TLS config options or neither
+	if err := c.validateTLSConfig(); err != nil {
+		return nil, nil, err
+	}
+
+	// If no TLS configuration is provided, we're in plaintext mode
+	if c.TLSCertPath == "" {
 		return nil, nil, nil
 	}
+
+	// Else we've got TLS configuration and we'll construct the server options
+	watcher, err := x509util.NewTLSCertWatcher(c.TLSCertPath, c.TLSKeyPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	creds := credentials.NewTLS(&tls.Config{
+		GetCertificate: watcher.GetCertificate,
+		MinVersion:     tls.VersionTLS12,
+	})
+	return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil
+}
+
+func (c *GRPCServerConfig) validateTLSConfig() error {
+	if (c.TLSCertPath == "") != (c.TLSKeyPath == "") {
+		return fmt.Errorf(
+			"failed to start %s gRPC server: must provide both --%s-tls-cert-path and --%s-tls-key-path",
+			c.flagPrefix,
+			c.flagPrefix,
+			c.flagPrefix,
+		)
+	}
+	return nil
 }
 
 func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, error) {

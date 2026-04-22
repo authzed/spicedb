@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -717,4 +718,31 @@ func TestDebugMapRedactsURI(t *testing.T) {
 	}
 	out := fmt.Sprintln(c.FlatDebugMap())
 	require.NotContains(t, out, "postgresql://root@localhost:26257/defaultdb")
+}
+
+func TestHandleGRPCAuthn(t *testing.T) {
+	t.Run("empty configuration errors", func(t *testing.T) {
+		require.ErrorContains(t, (&Config{}).handleGrpcAuthn(t.Context()), "a preshared key must be provided")
+	})
+	t.Run("preshared key list with empty key errors", func(t *testing.T) {
+		require.ErrorContains(t, (&Config{PresharedSecureKey: []string{"foo", ""}}).handleGrpcAuthn(t.Context()), "is empty")
+	})
+	t.Run("if auth fn is provided it is used", func(t *testing.T) {
+		authFn := func(ctx context.Context) (context.Context, error) {
+			return ctx, nil
+		}
+		config := &Config{GRPCAuthFunc: authFn}
+		require.NoError(t, config.handleGrpcAuthn(t.Context()))
+		// Assert that the function objects are the same. this hackaround is necessary
+		// because of the way that golang treats function values.
+		require.Equal(t,
+			reflect.ValueOf(authFn).Pointer(),
+			reflect.ValueOf(config.GRPCAuthFunc).Pointer(),
+		)
+	})
+	t.Run("if auth fn is not provided, one is created", func(t *testing.T) {
+		config := &Config{PresharedSecureKey: []string{"foo"}}
+		require.NoError(t, config.handleGrpcAuthn(t.Context()))
+		require.NotNil(t, config.GRPCAuthFunc)
+	})
 }
