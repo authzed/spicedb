@@ -2472,26 +2472,26 @@ func TestBulkCheckCaveatContextCollision(t *testing.T) {
 	goodStruct, err := structpb.NewStruct(map[string]any{"x": []any{[]any{"a"}, "b"}})
 	require.NoError(t, err)
 	good := &v1.CheckBulkPermissionsRequestItem{
-		Resource: &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
+		Resource:   &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
 		Permission: "view",
-		Subject: &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
-		Context: goodStruct,
+		Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
+		Context:    goodStruct,
 	}
 
 	badStruct, err := structpb.NewStruct(map[string]any{"x": []any{"a", []any{}, "b"}})
 	require.NoError(t, err)
 	bad := &v1.CheckBulkPermissionsRequestItem{
-		Resource: &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
+		Resource:   &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
 		Permission: "view",
-		Subject: &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
-		Context: badStruct,
+		Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
+		Context:    badStruct,
 	}
 
 	singleBad, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
-		Resource: bad.Resource,
-		Permission: bad.Permission,
-		Subject: bad.Subject,
-		Context: bad.Context,
+		Resource:    bad.Resource,
+		Permission:  bad.Permission,
+		Subject:     bad.Subject,
+		Context:     bad.Context,
 		Consistency: &v1.Consistency{Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true}},
 	})
 	require.NoError(t, err)
@@ -2499,13 +2499,13 @@ func TestBulkCheckCaveatContextCollision(t *testing.T) {
 
 	bulk, err := client.CheckBulkPermissions(t.Context(), &v1.CheckBulkPermissionsRequest{
 		Consistency: &v1.Consistency{Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true}},
-		Items: []*v1.CheckBulkPermissionsRequestItem{good, bad},
+		Items:       []*v1.CheckBulkPermissionsRequestItem{good, bad},
 	})
 	require.NoError(t, err)
 
 	require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, bulk.Pairs[0].GetItem().Permissionship)
 	require.Equal(
-		t, 
+		t,
 		v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 		bulk.Pairs[1].GetItem().Permissionship,
 		"the bad request should have a no permission result",
