@@ -2,34 +2,32 @@ package graph
 
 import (
 	"context"
-
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // Export internal symbols for use by graph_test package unit tests.
-// This file is compiled only during testing (the _test.go suffix is on the callers;
-// this file itself uses the non-test package so callers in graph_test can reach it).
+// This file is compiled only during testing (callers are in graph_test package).
 
-// ExportedNodeKey exposes the internal nodeKey map structure logic for testing.
-// Since nodeKey is now a struct, we provide a helper to format it for assertions.
-func ExportedNodeKey(resourceType, resourceID, relation string) string {
-	k := nodeKey{ns: resourceType, id: resourceID, rel: relation}
-	// Return the string format the tests originally expected
-	return k.ns + ":" + k.id + "#" + k.rel
+// ExportedNewTraversalStack exposes NewTraversalStack for whitebox testing.
+func ExportedNewTraversalStack(ctx context.Context) context.Context {
+	return NewTraversalStack(ctx)
 }
 
-// ExportedTrackVisit exposes trackVisit for whitebox testing.
-// Use with a context returned by ExportedNewTraversalTracker to test accumulation.
-func ExportedTrackVisit(ctx context.Context, resourceType, resourceID, relation string) (context.Context, int) {
-	return trackVisit(ctx, resourceType, resourceID, relation)
+// ExportedCloneStack exposes CloneTraversalStack for whitebox testing.
+func ExportedCloneStack(ctx context.Context) context.Context {
+	return CloneTraversalStack(ctx)
 }
 
-// ExportedNewTraversalTracker exposes NewTraversalTracker for whitebox testing.
-func ExportedNewTraversalTracker(ctx context.Context) context.Context {
-	return NewTraversalTracker(ctx)
+// ExportedPushFrame exposes PushTraversalFrame for whitebox testing.
+func ExportedPushFrame(ctx context.Context, resourceType, resourceID, relation, permission string) {
+	PushTraversalFrame(ctx, resourceType, resourceID, relation, permission)
 }
 
-// ExportedSnapshot exposes SnapshotLookupDebugTrace for whitebox testing.
-func ExportedSnapshot(ctx context.Context) *v1.LookupDebugTrace {
-	return SnapshotLookupDebugTrace(ctx)
+// ExportedPopFrame exposes PopTraversalFrame for whitebox testing.
+func ExportedPopFrame(ctx context.Context) {
+	PopTraversalFrame(ctx)
+}
+
+// ExportedSnapshotStack exposes SnapshotTraversalStack for whitebox testing.
+func ExportedSnapshotStack(ctx context.Context) []traversalFrame {
+	return SnapshotTraversalStack(ctx)
 }

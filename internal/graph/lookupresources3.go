@@ -955,41 +955,38 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
 	// yielding results for each resource found.
 	iter := func(yield func(result, error) bool) {
-		// Cycle detection: track visits when tracing is enabled (zero-cost otherwise).
-		// subjectIDs are the found resource IDs that become the subject IDs for the next
-		// recursive DispatchLookupResources3 call. We record them as resource-node visits
-		// so that any node visited more than once is flagged as cyclic in the snapshot.
-		if refs.req.EnableDebugTrace {
-			for _, subjectID := range subjectIDs {
-				// trackVisit returns the same ctx (tracker mutates via pointer).
-				// Assigning back is correct for the defensive no-tracker path.
-				ctx, _ = trackVisit(
-					ctx,
+		// Dispatch once per subject ID — each frame corresponds to exactly one
+		// traversal edge so stack depth equals recursion depth.
+		for _, subjectID := range subjectIDs {
+			func(sid string) {
+				PushTraversalFrame(ctx,
 					foundResourceType.Namespace,
-					subjectID,
+					sid,
 					foundResourceType.Relation,
+					refs.req.ResourceRelation.Namespace+"#"+refs.req.ResourceRelation.Relation,
 				)
-			}
-		}
+				defer PopTraversalFrame(ctx)
 
-		stream := newYieldingStream(ctx, yield, rm)
-		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
-			ResourceRelation: refs.req.ResourceRelation,
-			SubjectRelation:  foundResourceType,
-			SubjectIds:       subjectIDs,
-			TerminalSubject:  refs.req.TerminalSubject,
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     refs.req.Revision.String(),
-				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
-			},
-			OptionalCursor:   currentCursor,
-			OptionalLimit:    refs.req.OptionalLimit,
-			Context:          refs.req.Context,
-			EnableDebugTrace: refs.req.EnableDebugTrace,
-		}, stream)
-		if err != nil && !stream.canceled {
-			_ = yield(result{}, err)
-			return
+				stream := newYieldingStream(ctx, yield, rm)
+				err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
+					ResourceRelation: refs.req.ResourceRelation,
+					SubjectRelation:  foundResourceType,
+					SubjectIds:       []string{sid},
+					TerminalSubject:  refs.req.TerminalSubject,
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     refs.req.Revision.String(),
+						DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
+					},
+					OptionalCursor:   currentCursor,
+					OptionalLimit:    refs.req.OptionalLimit,
+					Context:          refs.req.Context,
+					EnableDebugTrace: refs.req.EnableDebugTrace,
+				}, stream)
+				if err != nil && !stream.canceled {
+					_ = yield(result{}, err)
+					return
+				}
+			}(subjectID)
 		}
 	}
 	return cter.Spanned(
