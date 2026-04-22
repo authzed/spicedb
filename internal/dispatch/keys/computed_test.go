@@ -145,7 +145,7 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources 2",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -154,13 +154,14 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 					},
 				}, computeBothHashes)
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with zero limit",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -170,13 +171,14 @@ func TestStableCacheKeys(t *testing.T) {
 					},
 					OptionalLimit: 0,
 				}, computeBothHashes)
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with non-zero limit",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -186,13 +188,14 @@ func TestStableCacheKeys(t *testing.T) {
 					},
 					OptionalLimit: 42,
 				}, computeBothHashes)
+				return key
 			},
-			"ea88adb1c1dfa6ebab01",
+			"dba285cdd9caeef36e",
 		},
 		{
 			"lookup resources 2 with nil context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -202,13 +205,14 @@ func TestStableCacheKeys(t *testing.T) {
 					},
 					Context: nil,
 				}, computeBothHashes)
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with empty context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -221,13 +225,14 @@ func TestStableCacheKeys(t *testing.T) {
 						return v
 					}(),
 				}, computeBothHashes)
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -243,13 +248,14 @@ func TestStableCacheKeys(t *testing.T) {
 						return v
 					}(),
 				}, computeBothHashes)
+				return key
 			},
-			"bbd78884eff9edbebd01",
+			"a3dad09ce9d690b78401",
 		},
 		{
 			"lookup resources 2 with different context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -265,13 +271,14 @@ func TestStableCacheKeys(t *testing.T) {
 						return v
 					}(),
 				}, computeBothHashes)
+				return key
 			},
-			"94d0faa5feaaa4dc17",
+			"f6d4bc92bae9e9d64b",
 		},
 		{
 			"lookup resources 2 with escaped string",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -286,13 +293,14 @@ func TestStableCacheKeys(t *testing.T) {
 						return v
 					}(),
 				}, computeBothHashes)
+				return key
 			},
-			"cdffc895cb9299b9da01",
+			"a0aebfb9a8abd1b802",
 		},
 		{
 			"lookup resources 2 with nested context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -311,13 +319,14 @@ func TestStableCacheKeys(t *testing.T) {
 						return v
 					}(),
 				}, computeBothHashes)
+				return key
 			},
-			"84d8d38ff9fadbb36d",
+			"8e8ddfd8affeecc918",
 		},
 		{
 			"lookup resources 2 with empty cursor",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -327,13 +336,14 @@ func TestStableCacheKeys(t *testing.T) {
 					},
 					OptionalCursor: &v1.Cursor{},
 				}, computeBothHashes)
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with non-empty cursor",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -345,13 +355,14 @@ func TestStableCacheKeys(t *testing.T) {
 						Sections: []string{"foo"},
 					},
 				}, computeBothHashes)
+				return key
 			},
-			"f09894c0d9a0b8ff7f",
+			"9e82ddefb6ccbfd6aa01",
 		},
 		{
 			"lookup resources 2 with different cursor",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -363,13 +374,14 @@ func TestStableCacheKeys(t *testing.T) {
 						Sections: []string{"foo", "bar"},
 					},
 				}, computeBothHashes)
+				return key
 			},
-			"badfd7c59cdbcef671",
+			"e593e789a89a9acd13",
 		},
 		{
 			"lookup resources 2 with different terminal subject",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
@@ -381,13 +393,14 @@ func TestStableCacheKeys(t *testing.T) {
 						Sections: []string{"foo", "bar"},
 					},
 				}, computeBothHashes)
+				return key
 			},
-			"8787b685e9cea993a901",
+			"f6cf8df7bdc7959520",
 		},
 		{
 			"lookup resources 2 with different subject IDs",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah", "tom"},
@@ -399,8 +412,9 @@ func TestStableCacheKeys(t *testing.T) {
 						Sections: []string{"foo", "bar"},
 					},
 				}, computeBothHashes)
+				return key
 			},
-			"f4d6d884eaa5e4b4ed01",
+			"de839ec8eea2f7bf19",
 		},
 	}
 
@@ -474,19 +488,20 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
-				ResourceRelation: resourceRelation,
-				SubjectRelation:  subjectRelation,
-				SubjectIds:       subjectIds,
-				TerminalSubject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				Metadata:         metadata,
-			}, computeBothHashes), []string{
-				resourceRelation.Namespace,
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
-				subjectIds[0],
-				subjectRelation.Relation,
-			}
+		key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+			ResourceRelation: resourceRelation,
+			SubjectRelation:  subjectRelation,
+			SubjectIds:       subjectIds,
+			TerminalSubject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+			Metadata:         metadata,
+		}, computeBothHashes)
+		return key, []string{
+			resourceRelation.Namespace,
+			resourceRelation.Relation,
+			subjectRelation.Namespace,
+			subjectIds[0],
+			subjectRelation.Relation,
+		}
 	},
 
 	// Expand.
@@ -616,7 +631,7 @@ func TestComputeOnlyStableHash(t *testing.T) {
 }
 
 func TestComputeContextHash(t *testing.T) {
-	result := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+	result, err := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 		ResourceRelation: RR("document", "view"),
 		SubjectRelation:  RR("user", "..."),
 		SubjectIds:       []string{"mariah"},
@@ -640,5 +655,6 @@ func TestComputeContextHash(t *testing.T) {
 		}(),
 	}, computeBothHashes)
 
-	require.Equal(t, "81aab1c790f0be947d", hex.EncodeToString(result.StableSumAsBytes()))
+	require.NoError(t, err)
+	require.Equal(t, "e49efdc8e1d99daca601", hex.EncodeToString(result.StableSumAsBytes()))
 }

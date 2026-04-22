@@ -72,29 +72,37 @@ func expandRequestToKey(req *v1.DispatchExpandRequest, option dispatchCacheKeyHa
 }
 
 // lookupResourcesRequest2ToKey converts a lookup request into a cache key
-func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request, option dispatchCacheKeyHashComputeOption) (DispatchCacheKey, error) {
+	stableContextString, err := caveats.StableContextStringForHashing(req.Context)
+	if err != nil {
+		return DispatchCacheKey{}, err
+	}
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
 		hashableIds(req.SubjectIds),
 		hashableOnr{req.TerminalSubject},
-		hashableContext{HashableContext: caveats.HashableContext{Struct: req.Context}}, // NOTE: context is included here because lookup does a single dispatch
+		hashableContextString(stableContextString),
 		hashableCursor{req.OptionalCursor},
 		hashableLimit(req.OptionalLimit),
-	)
+	), nil
 }
 
 // lookupResourcesRequest3ToKey converts a lookup request into a cache key
-func lookupResourcesRequest3ToKey(req *v1.DispatchLookupResources3Request, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+func lookupResourcesRequest3ToKey(req *v1.DispatchLookupResources3Request, option dispatchCacheKeyHashComputeOption) (DispatchCacheKey, error) {
+	stableContextString, err := caveats.StableContextStringForHashing(req.Context)
+	if err != nil {
+		return DispatchCacheKey{}, err
+	}
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
 		hashableIds(req.SubjectIds),
 		hashableOnr{req.TerminalSubject},
-		hashableContext{HashableContext: caveats.HashableContext{Struct: req.Context}}, // NOTE: context is included here because lookup does a single dispatch
+		hashableContextString(stableContextString), // NOTE: context is included here because lookup does a single dispatch
 		hashableCursorSections{req.OptionalCursor},
 		hashableLimit(req.OptionalLimit),
-	)
+	), nil
 }
 
 // lookupSubjectsRequestToKey converts a lookup subjects request into a cache key

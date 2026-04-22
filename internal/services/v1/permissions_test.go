@@ -2446,3 +2446,68 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 		})
 	}
 }
+
+// TestBulkCheckCaveatContextCollision is a regression test for an issue with
+// caveat hash collision.
+func TestBulkCheckCaveatContextCollision(t *testing.T) {
+	dsInit := func(ds datastore.Datastore, r *require.Assertions) (datastore.Datastore, datastore.Revision) {
+		schema := `
+		definition user {}
+		caveat shape(x list<any>) {
+			x == [["a"], "b"]
+		}
+		definition document {
+			relation viewer: user with shape
+			permission view = viewer
+		}`
+		rels := []tuple.Relationship{
+			tuple.MustParse(`document:doc#viewer@user:alice[shape]`),
+		}
+		return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, rels, r)
+	}
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, dsInit)
+	t.Cleanup(cleanup)
+	client := v1.NewPermissionsServiceClient(conn)
+
+	goodStruct, err := structpb.NewStruct(map[string]any{"x": []any{[]any{"a"}, "b"}})
+	require.NoError(t, err)
+	good := &v1.CheckBulkPermissionsRequestItem{
+		Resource:   &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
+		Permission: "view",
+		Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
+		Context:    goodStruct,
+	}
+
+	badStruct, err := structpb.NewStruct(map[string]any{"x": []any{"a", []any{}, "b"}})
+	require.NoError(t, err)
+	bad := &v1.CheckBulkPermissionsRequestItem{
+		Resource:   &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
+		Permission: "view",
+		Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
+		Context:    badStruct,
+	}
+
+	singleBad, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
+		Resource:    bad.Resource,
+		Permission:  bad.Permission,
+		Subject:     bad.Subject,
+		Context:     bad.Context,
+		Consistency: &v1.Consistency{Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, singleBad.Permissionship)
+
+	bulk, err := client.CheckBulkPermissions(t.Context(), &v1.CheckBulkPermissionsRequest{
+		Consistency: &v1.Consistency{Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true}},
+		Items:       []*v1.CheckBulkPermissionsRequestItem{good, bad},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, bulk.Pairs[0].GetItem().Permissionship)
+	require.Equal(
+		t,
+		v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+		bulk.Pairs[1].GetItem().Permissionship,
+		"the bad request should have a no permission result",
+	)
+}

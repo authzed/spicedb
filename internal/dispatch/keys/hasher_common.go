@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -95,8 +94,8 @@ func (hc hashableCursorSections) AppendToHash(hasher hasherInterface) {
 	}
 }
 
-type hashableContext struct{ caveats.HashableContext }
+type hashableContextString string
 
-func (hc hashableContext) AppendToHash(hasher hasherInterface) {
-	hc.HashableContext.AppendToHash(hasher)
+func (hc hashableContextString) AppendToHash(hasher hasherInterface) {
+	hasher.WriteString(string(hc))
 }
