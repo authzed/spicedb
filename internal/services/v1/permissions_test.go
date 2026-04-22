@@ -2447,6 +2447,8 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 	}
 }
 
+// TestBulkCheckCaveatContextCollision is a regression test for an issue with
+// caveat hash collision.
 func TestBulkCheckCaveatContextCollision(t *testing.T) {
 	dsInit := func(ds datastore.Datastore, r *require.Assertions) (datastore.Datastore, datastore.Revision) {
 		schema := `
