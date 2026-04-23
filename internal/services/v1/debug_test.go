@@ -1,20 +1,25 @@
 package v1_test
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
-	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
@@ -500,6 +505,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				t.Run(stc.name, func(t *testing.T) {
 					req := require.New(t)
 
+					var trailer metadata.MD
 					caveatContext, err := structpb.NewStruct(stc.checkRequest.caveatContext)
 					req.NoError(err)
 
@@ -513,10 +519,16 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 						Permission: stc.checkRequest.permission,
 						Subject:    stc.checkRequest.subject,
 						Context:    caveatContext,
-					})
+					}, grpc.Trailer(&trailer))
 
 					req.NoError(err)
 					req.Equal(stc.expectedPermission, checkResp.Permissionship)
+
+					encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
+					req.NoError(err)
+
+					// DebugInfo No longer comes as part of the trailer
+					req.Nil(encodedDebugInfo)
 
 					debugInfo := checkResp.DebugTrace
 					req.NotEmpty(debugInfo.SchemaUsed)
@@ -922,13 +934,21 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 	schema := `
 	definition user {}
 
-	definition group {
-		relation member: user | group#member
-		permission can_access = member
-	}`
+	definition folder {
+		relation viewer: user
+		relation parent: folder
+		permission view = parent->view + viewer
+	}
+
+	definition resource {
+		relation folder: folder
+		permission view = folder->view
+	}
+	`
 	relationships := []tuple.Relationship{
-		tuple.MustParse("group:a#member@group:b#member"),
-		tuple.MustParse("group:b#member@group:a#member"),
+		tuple.MustParse("folder:a#parent@folder:b"),
+		tuple.MustParse("folder:b#parent@folder:a"),
+		tuple.MustParse("folder:a#viewer@user:someuser"),
 	}
 
 	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
@@ -948,8 +968,8 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
-		ResourceObjectType: "group",
-		Permission:         "can_access",
+		ResourceObjectType: "resource",
+		Permission:         "view",
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
 				ObjectType: "user",
@@ -965,16 +985,16 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 	for {
 		_, recvErr := stream.Recv()
 		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
 			streamErr = recvErr
 			break
 		}
 	}
 
-	// The circular graph must have resulted in an error.
-	if streamErr == nil {
-		t.Skip("expected MaxDepthExceeded error from circular schema; none received")
-		return
-	}
+	fmt.Println("streamErr")
+	fmt.Println(streamErr)
 
 	// Check for the traversal trace in the gRPC error details metadata.
 	var traceStr string
@@ -985,16 +1005,97 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 			}
 		}
 	}
-	if traceStr == "" {
-		// No trace attached — depth may not have been reached deep enough yet.
-		// This is acceptable since the stack trace requires MaxDepth to fire.
-		t.Skip("no traversal trace in error details; depth may not have been exceeded")
-		return
-	}
+
+	fmt.Println("traceStr")
+	fmt.Println(traceStr)
 
 	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
 
 	// Deserialize and validate the trace.
+	trace := &dispatch.LookupDebugTrace{}
+	req.NoError(prototext.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
+	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
+	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
+}
+
+func TestLookupResourcesDebugTraceV2_LR2(t *testing.T) {
+	req := require.New(t)
+
+	schema := `
+	definition user {}
+
+	definition folder {
+		relation viewer: user
+		relation parent: folder
+		permission view = parent->view + viewer
+	}
+
+	definition resource {
+		relation folder: folder
+		permission view = folder->view
+	}
+	`
+	relationships := []tuple.Relationship{
+		tuple.MustParse("folder:a#parent@folder:b"),
+		tuple.MustParse("folder:b#parent@folder:a"),
+		tuple.MustParse("folder:a#viewer@user:someuser"),
+	}
+
+	lr2Config := testserver.DefaultTestServerConfig
+	lr2Config.EnableExperimentalLookupResources3 = false
+
+	conn, cleanup, _, revision := testserver.NewTestServerWithConfig(req, 5*time.Second, memdb.DisableGC, true,
+		lr2Config,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		})
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	ctx := t.Context()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+			},
+		},
+		ResourceObjectType: "resource",
+		Permission:         "view",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "someuser",
+			},
+		},
+	})
+	req.NoError(err)
+
+	var streamErr error
+	for {
+		_, recvErr := stream.Recv()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			streamErr = recvErr
+			break
+		}
+	}
+
+	var traceStr string
+	if s, ok := status.FromError(streamErr); ok {
+		for _, d := range s.Details() {
+			if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
+				traceStr = errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]
+			}
+		}
+	}
+
+	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
+
 	trace := &dispatch.LookupDebugTrace{}
 	req.NoError(prototext.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
 	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")

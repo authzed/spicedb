@@ -955,18 +955,14 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
 	// yielding results for each resource found.
 	iter := func(yield func(result, error) bool) {
-		// Dispatch once per subject ID — each frame corresponds to exactly one
-		// traversal edge so stack depth equals recursion depth.
-		for _, subjectID := range subjectIDs {
-			func(sid string) {
-				PushTraversalFrame(ctx,
-					foundResourceType.Namespace,
-					sid,
-					foundResourceType.Relation,
-					refs.req.ResourceRelation.Namespace+"#"+refs.req.ResourceRelation.Relation,
-				)
-				defer PopTraversalFrame(ctx)
-
+		if refs.req.EnableDebugTrace {
+			// Debug path:
+			// This behavior allows for the tracing of MaxRecursionDepthExceeded errors.
+			// We dispatch one subject at a time so each traversal frame
+			// carries a specific resource ID. Cursor semantics are best-effort in
+			// debug mode; the trade-off is acceptable for investigative use.
+			for _, subjectID := range subjectIDs {
+				sid := subjectID
 				stream := newYieldingStream(ctx, yield, rm)
 				err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
 					ResourceRelation: refs.req.ResourceRelation,
@@ -980,13 +976,41 @@ func (crr *CursoredLookupResources3) dispatchIter(
 					OptionalCursor:   currentCursor,
 					OptionalLimit:    refs.req.OptionalLimit,
 					Context:          refs.req.Context,
-					EnableDebugTrace: refs.req.EnableDebugTrace,
+					EnableDebugTrace: true,
 				}, stream)
-				if err != nil && !stream.canceled {
-					_ = yield(result{}, err)
+				if stream.canceled {
 					return
 				}
-			}(subjectID)
+				if err != nil {
+					err = dispatch.PrependTraversalFrame(err, foundResourceType.Namespace, sid, foundResourceType.Relation)
+					if trace := dispatch.ExtractTraversalTrace(err); trace != nil {
+						dispatch.SaveTraceToContext(ctx, trace)
+					}
+					if !yield(result{}, err) {
+						return
+					}
+				}
+			}
+		}
+
+		// Non-debug: batch all subject IDs in one call to preserve cursor semantics.
+		stream := newYieldingStream(ctx, yield, rm)
+		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
+			ResourceRelation: refs.req.ResourceRelation,
+			SubjectRelation:  foundResourceType,
+			SubjectIds:       subjectIDs,
+			TerminalSubject:  refs.req.TerminalSubject,
+			Metadata: &v1.ResolverMeta{
+				AtRevision:     refs.req.Revision.String(),
+				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
+			},
+			OptionalCursor: currentCursor,
+			OptionalLimit:  refs.req.OptionalLimit,
+			Context:        refs.req.Context,
+		}, stream)
+		if err != nil && !stream.canceled {
+			_ = yield(result{}, err)
+			return
 		}
 	}
 	return cter.Spanned(

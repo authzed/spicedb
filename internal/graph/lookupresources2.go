@@ -686,18 +686,11 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
 				stream := unfilteredLookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, ci)
-				// Dispatch once per subject ID so each frame corresponds to exactly
-				// one traversal edge. Stack depth matches recursion depth.
-				for _, subjectID := range filteredSubjectIDs {
-					if err := func(sid string) error {
-						PushTraversalFrame(ctx,
-							newSubjectType.Namespace,
-							sid,
-							newSubjectType.Relation,
-							parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
-						)
-						defer PopTraversalFrame(ctx)
-						return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+				if parentRequest.EnableDebugTrace{
+					// Debug path: per-subject dispatch so each recursive frame is annotated.
+					for _, subjectID := range filteredSubjectIDs {
+						sid := subjectID
+						if err := crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 							ResourceRelation: parentRequest.ResourceRelation,
 							SubjectRelation:  newSubjectType,
 							SubjectIds:       []string{sid},
@@ -709,27 +702,38 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							OptionalCursor:   ci.currentCursor,
 							OptionalLimit:    parentRequest.OptionalLimit,
 							Context:          parentRequest.Context,
-							EnableDebugTrace: parentRequest.EnableDebugTrace,
-						}, stream)
-					}(subjectID); err != nil {
-						return err
+							EnableDebugTrace: true,
+						}, stream); err != nil {
+							err = dispatch.PrependTraversalFrame(err, newSubjectType.Namespace, sid, newSubjectType.Relation)
+							if trace := dispatch.ExtractTraversalTrace(err); trace != nil {
+								dispatch.SaveTraceToContext(ctx, trace)
+							}
+							return err
+						}
 					}
+					return nil
 				}
-				return nil
+				return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+					ResourceRelation: parentRequest.ResourceRelation,
+					SubjectRelation:  newSubjectType,
+					SubjectIds:       filteredSubjectIDs,
+					TerminalSubject:  parentRequest.TerminalSubject,
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     parentRequest.Revision.String(),
+						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+					},
+					OptionalCursor: ci.currentCursor,
+					OptionalLimit:  parentRequest.OptionalLimit,
+					Context:        parentRequest.Context,
+				}, stream)
 			}
 
 			// Otherwise, we need to filter results by batch checking along the way before dispatching.
-			// Dispatch once per subject ID so each frame corresponds to exactly one traversal edge.
-			for _, subjectID := range filteredSubjectIDs {
-				if err := func(sid string) error {
-					PushTraversalFrame(ctx,
-						newSubjectType.Namespace,
-						sid,
-						newSubjectType.Relation,
-						parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
-					)
-					defer PopTraversalFrame(ctx)
-					return runCheckerAndDispatch(
+			if parentRequest.EnableDebugTrace {
+				// Debug path: per-subject dispatch so each recursive frame is annotated.
+				for _, subjectID := range filteredSubjectIDs {
+					sid := subjectID
+					if err := runCheckerAndDispatch(
 						ctx,
 						parentRequest,
 						foundResources,
@@ -743,11 +747,30 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 						crr.caveatTypeSet,
 						crr.concurrencyLimit,
 						crr.dispatchChunkSize,
-					)
-				}(subjectID); err != nil {
-					return err
+					); err != nil {
+						err = dispatch.PrependTraversalFrame(err, newSubjectType.Namespace, sid, newSubjectType.Relation)
+						if trace := dispatch.ExtractTraversalTrace(err); trace != nil {
+							dispatch.SaveTraceToContext(ctx, trace)
+						}
+						return err
+					}
 				}
+				return nil
 			}
-			return nil
+			return runCheckerAndDispatch(
+				ctx,
+				parentRequest,
+				foundResources,
+				ci,
+				parentStream,
+				newSubjectType,
+				filteredSubjectIDs,
+				entrypoint,
+				crr.dl,
+				crr.dc,
+				crr.caveatTypeSet,
+				crr.concurrencyLimit,
+				crr.dispatchChunkSize,
+			)
 		})
 }
