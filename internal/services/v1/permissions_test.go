@@ -18,12 +18,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 
@@ -270,6 +273,7 @@ func TestCheckPermissions(t *testing.T) {
 								ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 							}
 
+							var trailer metadata.MD
 							checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 								Consistency: &v1.Consistency{
 									Requirement: &v1.Consistency_AtLeastAsFresh{
@@ -279,13 +283,22 @@ func TestCheckPermissions(t *testing.T) {
 								Resource:   tc.resource,
 								Permission: tc.permission,
 								Subject:    tc.subject,
-							})
+							}, grpc.Trailer(&trailer))
 
 							if tc.expectedStatus == codes.OK {
 								require.NoError(err)
 								require.Equal(tc.expected, checkResp.Permissionship)
 
+								dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+								require.NoError(err)
+								require.GreaterOrEqual(dispatchCount, 0)
+
+								encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
+								require.NoError(err)
+
 								if debug {
+									require.Nil(encodedDebugInfo)
+
 									debugInfo := checkResp.DebugTrace
 									require.NotNil(debugInfo.Check)
 									require.NotNil(debugInfo.Check.Duration)
@@ -293,6 +306,8 @@ func TestCheckPermissions(t *testing.T) {
 									require.Equal(tc.permission, debugInfo.Check.Permission)
 									require.Equal(tuple.V1StringSubjectRef(tc.subject), tuple.V1StringSubjectRef(debugInfo.Check.Subject))
 									require.NotEmpty(debugInfo.Check.Source, "source in debug trace is empty")
+								} else {
+									require.Nil(encodedDebugInfo)
 								}
 							} else {
 								grpcutil.RequireStatus(t, tc.expectedStatus, err)
@@ -339,6 +354,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	ctx := t.Context()
 	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
+	var trailer metadata.MD
 	checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
@@ -348,10 +364,16 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 		Resource:   obj("document", "masterplan"),
 		Permission: "view",
 		Subject:    sub("user", "auditor", ""),
-	})
+	}, grpc.Trailer(&trailer))
 
 	require.NoError(err)
 	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.Permissionship)
+
+	encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
+	require.NoError(err)
+
+	// debug info is returned empty to make sure clients are not broken with backward incompatible payloads
+	require.Nil(encodedDebugInfo)
 
 	debugInfo := checkResp.DebugTrace
 	require.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), 1)
@@ -621,6 +643,7 @@ func TestLookupResources(t *testing.T) {
 							defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 							defer cleanup()
 
+							var trailer metadata.MD
 							lookupClient, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
 								ResourceObjectType: tc.objectType,
 								Permission:         tc.permission,
@@ -630,7 +653,7 @@ func TestLookupResources(t *testing.T) {
 										AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 									},
 								},
-							})
+							}, grpc.Trailer(&trailer))
 
 							require.NoError(err)
 							if tc.expectedErrorCode == codes.OK {
@@ -651,6 +674,11 @@ func TestLookupResources(t *testing.T) {
 
 								require.Equal(tc.expectedObjectIds, resolvedObjectIds)
 
+								dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+								require.NoError(err)
+								require.GreaterOrEqual(dispatchCount, 0)
+								require.LessOrEqual(dispatchCount, tc.maximumDispatchCount)
+								require.GreaterOrEqual(dispatchCount, tc.minimumDispatchCount)
 							} else {
 								_, err := lookupClient.Recv()
 								grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
@@ -688,6 +716,7 @@ func TestExpand(t *testing.T) {
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
+					var trailer metadata.MD
 					expanded, err := client.ExpandPermissionTree(t.Context(), &v1.ExpandPermissionTreeRequest{
 						Resource: &v1.ObjectReference{
 							ObjectType: tc.startObjectType,
@@ -699,10 +728,14 @@ func TestExpand(t *testing.T) {
 								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 							},
 						},
-					})
+					}, grpc.Trailer(&trailer))
 					if tc.expectedErrorCode == codes.OK {
 						require.NoError(err)
 						require.Equal(tc.expandRelatedCount, countLeafs(expanded.TreeRoot))
+
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
 					} else {
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
 					}
@@ -951,6 +984,7 @@ func TestLookupSubjects(t *testing.T) {
 					defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 					defer cleanup()
 
+					var trailer metadata.MD
 					lookupClient, err := client.LookupSubjects(t.Context(), &v1.LookupSubjectsRequest{
 						Resource:                tc.resource,
 						Permission:              tc.permission,
@@ -961,7 +995,7 @@ func TestLookupSubjects(t *testing.T) {
 								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 							},
 						},
-					})
+					}, grpc.Trailer(&trailer))
 
 					require.NoError(err)
 					if tc.expectedErrorCode == codes.OK {
@@ -982,6 +1016,9 @@ func TestLookupSubjects(t *testing.T) {
 
 						require.Equal(tc.expectedSubjectIds, resolvedObjectIds)
 
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
 					} else {
 						_, err := lookupClient.Recv()
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
@@ -1621,6 +1658,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 							foundObjectIds := mapz.NewSet[string]()
 
 							for range 5 {
+								var trailer metadata.MD
 								uintLimit, err := safecast.Convert[uint32](limit)
 								require.NoError(err)
 								lookupClient, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
@@ -1634,7 +1672,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 									},
 									OptionalLimit:  uintLimit,
 									OptionalCursor: currentCursor,
-								})
+								}, grpc.Trailer(&trailer))
 
 								require.NoError(err)
 
@@ -1980,7 +2018,8 @@ func TestCheckBulkPermissions(t *testing.T) {
 						expected = append(expected, pair)
 					}
 
-					actual, err := client.CheckBulkPermissions(t.Context(), &req)
+					var trailer metadata.MD
+					actual, err := client.CheckBulkPermissions(t.Context(), &req, grpc.Trailer(&trailer))
 					require.NoError(t, err)
 
 					if withTracing {
