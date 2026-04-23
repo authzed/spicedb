@@ -853,7 +853,7 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 
 func (cr *clusterDispatcher) DispatchPlan(req *v1.DispatchPlanRequest, stream dispatch.PlanStream) error {
 	// TODO: implement cluster dispatch for plan
-	return fmt.Errorf("DispatchPlan not yet implemented for cluster dispatch")
+	return errors.New("DispatchPlan not yet implemented for cluster dispatch")
 }
 
 func (cr *clusterDispatcher) Close() error {
