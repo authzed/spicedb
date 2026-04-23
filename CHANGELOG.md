@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reduce memory consumption of Watch API (https://github.com/authzed/spicedb/pull/2578)
 
 ### Fixed
+- Improved error message when expiration is written before caveat in a relationship (https://github.com/authzed/spicedb/pull/3071)
 - On a Postgres setup with read replicas, some requests may silently swallow errors of sort "revision not found in replica" (https://github.com/authzed/spicedb/pull/2979)
 - Use cgroup-aware memory detection for cache and watch buffer sizing in containerized environments (https://github.com/authzed/spicedb/pull/3000)
 - Upgraded the spanner client, which changed the internal implementation to not use a session pool. This means that the `--datastore-spanner-max-sessions` and `--datastore-spanner-min-sessions` flags are now deprecated and no-op. We also strongly recommend using [Application Default Credentials](https://docs.cloud.google.com/docs/authentication/client-libraries#adc) in favor of a credentials file. (https://github.com/authzed/spicedb/pull/3038)
