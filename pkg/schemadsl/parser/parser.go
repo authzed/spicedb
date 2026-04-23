@@ -451,6 +451,12 @@ func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
 
 		// Decorate with the expiration trait.
 		specificNode.Connect(dslshape.NodeSpecificReferencePredicateTrait, traitNode)
+
+		// If `and` follows expiration, the user likely wrote the caveat and
+		// expiration in the wrong order.
+		if p.isKeyword("and") {
+			p.emitErrorf("Unexpected keyword after expiration: the caveat must come before expiration, e.g. `with <caveat_name> and expiration`")
+		}
 	}
 
 	return specificNode
