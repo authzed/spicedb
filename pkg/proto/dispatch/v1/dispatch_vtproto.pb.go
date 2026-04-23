@@ -309,7 +309,6 @@ func (m *DispatchLookupResources2Response) CloneVT() *DispatchLookupResources2Re
 	r.Resource = m.Resource.CloneVT()
 	r.Metadata = m.Metadata.CloneVT()
 	r.AfterResponseCursor = m.AfterResponseCursor.CloneVT()
-	r.DebugTrace = m.DebugTrace.CloneVT()
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -377,7 +376,6 @@ func (m *DispatchLookupResources3Response) CloneVT() *DispatchLookupResources3Re
 		return (*DispatchLookupResources3Response)(nil)
 	}
 	r := new(DispatchLookupResources3Response)
-	r.DebugTrace = m.DebugTrace.CloneVT()
 	if rhs := m.Items; rhs != nil {
 		tmpContainer := make([]*LR3Item, len(rhs))
 		for k, v := range rhs {
@@ -434,7 +432,6 @@ func (m *DispatchLookupSubjectsRequest) CloneVT() *DispatchLookupSubjectsRequest
 	}
 	r := new(DispatchLookupSubjectsRequest)
 	r.Metadata = m.Metadata.CloneVT()
-	r.EnableDebugTrace = m.EnableDebugTrace
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
 			r.ResourceRelation = vtpb.CloneVT()
@@ -525,7 +522,6 @@ func (m *DispatchLookupSubjectsResponse) CloneVT() *DispatchLookupSubjectsRespon
 	}
 	r := new(DispatchLookupSubjectsResponse)
 	r.Metadata = m.Metadata.CloneVT()
-	r.DebugTrace = m.DebugTrace.CloneVT()
 	if rhs := m.FoundSubjectsByResourceId; rhs != nil {
 		tmpContainer := make(map[string]*FoundSubjects, len(rhs))
 		for k, v := range rhs {
@@ -641,22 +637,36 @@ func (m *CheckDebugTrace) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (m *LookupDebugFrame) CloneVT() *LookupDebugFrame {
+	if m == nil {
+		return (*LookupDebugFrame)(nil)
+	}
+	r := new(LookupDebugFrame)
+	r.ResourceType = m.ResourceType
+	r.ResourceId = m.ResourceId
+	r.Relation = m.Relation
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *LookupDebugFrame) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
 func (m *LookupDebugTrace) CloneVT() *LookupDebugTrace {
 	if m == nil {
 		return (*LookupDebugTrace)(nil)
 	}
 	r := new(LookupDebugTrace)
-	r.ResourceType = m.ResourceType
-	r.ResourceId = m.ResourceId
-	r.Relation = m.Relation
-	r.TraversalCount = m.TraversalCount
-	r.IsCyclic = m.IsCyclic
-	if rhs := m.SubProblems; rhs != nil {
-		tmpContainer := make([]*LookupDebugTrace, len(rhs))
+	if rhs := m.Frames; rhs != nil {
+		tmpContainer := make([]*LookupDebugFrame, len(rhs))
 		for k, v := range rhs {
 			tmpContainer[k] = v.CloneVT()
 		}
-		r.SubProblems = tmpContainer
+		r.Frames = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -1060,9 +1070,6 @@ func (this *DispatchLookupResources2Response) EqualVT(that *DispatchLookupResour
 	if !this.AfterResponseCursor.EqualVT(that.AfterResponseCursor) {
 		return false
 	}
-	if !this.DebugTrace.EqualVT(that.DebugTrace) {
-		return false
-	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -1169,9 +1176,6 @@ func (this *DispatchLookupResources3Response) EqualVT(that *DispatchLookupResour
 			}
 		}
 	}
-	if !this.DebugTrace.EqualVT(that.DebugTrace) {
-		return false
-	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -1262,9 +1266,6 @@ func (this *DispatchLookupSubjectsRequest) EqualVT(that *DispatchLookupSubjectsR
 			return false
 		}
 	} else if !proto.Equal(this.SubjectRelation, that.SubjectRelation) {
-		return false
-	}
-	if this.EnableDebugTrace != that.EnableDebugTrace {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1382,9 +1383,6 @@ func (this *DispatchLookupSubjectsResponse) EqualVT(that *DispatchLookupSubjects
 		}
 	}
 	if !this.Metadata.EqualVT(that.Metadata) {
-		return false
-	}
-	if !this.DebugTrace.EqualVT(that.DebugTrace) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1543,7 +1541,7 @@ func (this *CheckDebugTrace) EqualMessageVT(thatMsg proto.Message) bool {
 	}
 	return this.EqualVT(that)
 }
-func (this *LookupDebugTrace) EqualVT(that *LookupDebugTrace) bool {
+func (this *LookupDebugFrame) EqualVT(that *LookupDebugFrame) bool {
 	if this == that {
 		return true
 	} else if this == nil || that == nil {
@@ -1558,23 +1556,33 @@ func (this *LookupDebugTrace) EqualVT(that *LookupDebugTrace) bool {
 	if this.Relation != that.Relation {
 		return false
 	}
-	if this.TraversalCount != that.TraversalCount {
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *LookupDebugFrame) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*LookupDebugFrame)
+	if !ok {
 		return false
 	}
-	if this.IsCyclic != that.IsCyclic {
+	return this.EqualVT(that)
+}
+func (this *LookupDebugTrace) EqualVT(that *LookupDebugTrace) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
 		return false
 	}
-	if len(this.SubProblems) != len(that.SubProblems) {
+	if len(this.Frames) != len(that.Frames) {
 		return false
 	}
-	for i, vx := range this.SubProblems {
-		vy := that.SubProblems[i]
+	for i, vx := range this.Frames {
+		vy := that.Frames[i]
 		if p, q := vx, vy; p != q {
 			if p == nil {
-				p = &LookupDebugTrace{}
+				p = &LookupDebugFrame{}
 			}
 			if q == nil {
-				q = &LookupDebugTrace{}
+				q = &LookupDebugFrame{}
 			}
 			if !p.EqualVT(q) {
 				return false
@@ -2360,16 +2368,6 @@ func (m *DispatchLookupResources2Response) MarshalToSizedBufferVT(dAtA []byte) (
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.DebugTrace != nil {
-		size, err := m.DebugTrace.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x22
-	}
 	if m.AfterResponseCursor != nil {
 		size, err := m.AfterResponseCursor.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -2585,16 +2583,6 @@ func (m *DispatchLookupResources3Response) MarshalToSizedBufferVT(dAtA []byte) (
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.DebugTrace != nil {
-		size, err := m.DebugTrace.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
-	}
 	if len(m.Items) > 0 {
 		for iNdEx := len(m.Items) - 1; iNdEx >= 0; iNdEx-- {
 			size, err := m.Items[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
@@ -2706,16 +2694,6 @@ func (m *DispatchLookupSubjectsRequest) MarshalToSizedBufferVT(dAtA []byte) (int
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.EnableDebugTrace {
-		i--
-		if m.EnableDebugTrace {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x28
 	}
 	if m.SubjectRelation != nil {
 		if vtmsg, ok := interface{}(m.SubjectRelation).(interface {
@@ -2931,16 +2909,6 @@ func (m *DispatchLookupSubjectsResponse) MarshalToSizedBufferVT(dAtA []byte) (in
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.DebugTrace != nil {
-		size, err := m.DebugTrace.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x1a
 	}
 	if m.Metadata != nil {
 		size, err := m.Metadata.MarshalToSizedBufferVT(dAtA[:i])
@@ -3253,6 +3221,60 @@ func (m *CheckDebugTrace) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *LookupDebugFrame) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LookupDebugFrame) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *LookupDebugFrame) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Relation) > 0 {
+		i -= len(m.Relation)
+		copy(dAtA[i:], m.Relation)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Relation)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.ResourceId) > 0 {
+		i -= len(m.ResourceId)
+		copy(dAtA[i:], m.ResourceId)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResourceId)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ResourceType) > 0 {
+		i -= len(m.ResourceType)
+		copy(dAtA[i:], m.ResourceType)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResourceType)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *LookupDebugTrace) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -3283,53 +3305,17 @@ func (m *LookupDebugTrace) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.SubProblems) > 0 {
-		for iNdEx := len(m.SubProblems) - 1; iNdEx >= 0; iNdEx-- {
-			size, err := m.SubProblems[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+	if len(m.Frames) > 0 {
+		for iNdEx := len(m.Frames) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Frames[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
 			i -= size
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 			i--
-			dAtA[i] = 0x32
+			dAtA[i] = 0xa
 		}
-	}
-	if m.IsCyclic {
-		i--
-		if m.IsCyclic {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x28
-	}
-	if m.TraversalCount != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TraversalCount))
-		i--
-		dAtA[i] = 0x20
-	}
-	if len(m.Relation) > 0 {
-		i -= len(m.Relation)
-		copy(dAtA[i:], m.Relation)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Relation)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.ResourceId) > 0 {
-		i -= len(m.ResourceId)
-		copy(dAtA[i:], m.ResourceId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResourceId)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.ResourceType) > 0 {
-		i -= len(m.ResourceType)
-		copy(dAtA[i:], m.ResourceType)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResourceType)))
-		i--
-		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -3658,10 +3644,6 @@ func (m *DispatchLookupResources2Response) SizeVT() (n int) {
 		l = m.AfterResponseCursor.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.DebugTrace != nil {
-		l = m.DebugTrace.SizeVT()
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3744,10 +3726,6 @@ func (m *DispatchLookupResources3Response) SizeVT() (n int) {
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
 	}
-	if m.DebugTrace != nil {
-		l = m.DebugTrace.SizeVT()
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3820,9 +3798,6 @@ func (m *DispatchLookupSubjectsRequest) SizeVT() (n int) {
 		}
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.EnableDebugTrace {
-		n += 2
-	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3894,10 +3869,6 @@ func (m *DispatchLookupSubjectsResponse) SizeVT() (n int) {
 	}
 	if m.Metadata != nil {
 		l = m.Metadata.SizeVT()
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.DebugTrace != nil {
-		l = m.DebugTrace.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -4017,7 +3988,7 @@ func (m *CheckDebugTrace) SizeVT() (n int) {
 	return n
 }
 
-func (m *LookupDebugTrace) SizeVT() (n int) {
+func (m *LookupDebugFrame) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -4035,14 +4006,18 @@ func (m *LookupDebugTrace) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.TraversalCount != 0 {
-		n += 1 + protohelpers.SizeOfVarint(uint64(m.TraversalCount))
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *LookupDebugTrace) SizeVT() (n int) {
+	if m == nil {
+		return 0
 	}
-	if m.IsCyclic {
-		n += 2
-	}
-	if len(m.SubProblems) > 0 {
-		for _, e := range m.SubProblems {
+	var l int
+	_ = l
+	if len(m.Frames) > 0 {
+		for _, e := range m.Frames {
 			l = e.SizeVT()
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
@@ -5928,42 +5903,6 @@ func (m *DispatchLookupResources2Response) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DebugTrace", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.DebugTrace == nil {
-				m.DebugTrace = &LookupDebugTrace{}
-			}
-			if err := m.DebugTrace.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -6407,42 +6346,6 @@ func (m *DispatchLookupResources3Response) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DebugTrace", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.DebugTrace == nil {
-				m.DebugTrace = &LookupDebugTrace{}
-			}
-			if err := m.DebugTrace.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -6829,26 +6732,6 @@ func (m *DispatchLookupSubjectsRequest) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			iNdEx = postIndex
-		case 5:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field EnableDebugTrace", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.EnableDebugTrace = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -7308,42 +7191,6 @@ func (m *DispatchLookupSubjectsResponse) UnmarshalVT(dAtA []byte) error {
 				m.Metadata = &ResponseMeta{}
 			}
 			if err := m.Metadata.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DebugTrace", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.DebugTrace == nil {
-				m.DebugTrace = &LookupDebugTrace{}
-			}
-			if err := m.DebugTrace.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -8157,7 +8004,7 @@ func (m *CheckDebugTrace) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *LookupDebugTrace) UnmarshalVT(dAtA []byte) error {
+func (m *LookupDebugFrame) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -8180,10 +8027,10 @@ func (m *LookupDebugTrace) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: LookupDebugTrace: wiretype end group for non-group")
+			return fmt.Errorf("proto: LookupDebugFrame: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: LookupDebugTrace: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: LookupDebugFrame: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -8282,48 +8129,60 @@ func (m *LookupDebugTrace) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Relation = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TraversalCount", wireType)
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
 			}
-			m.TraversalCount = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.TraversalCount |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
 			}
-		case 5:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field IsCyclic", wireType)
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
 			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LookupDebugTrace) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
 			}
-			m.IsCyclic = bool(v != 0)
-		case 6:
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LookupDebugTrace: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LookupDebugTrace: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SubProblems", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Frames", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -8350,8 +8209,8 @@ func (m *LookupDebugTrace) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.SubProblems = append(m.SubProblems, &LookupDebugTrace{})
-			if err := m.SubProblems[len(m.SubProblems)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			m.Frames = append(m.Frames, &LookupDebugFrame{})
+			if err := m.Frames[len(m.Frames)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

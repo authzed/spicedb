@@ -275,7 +275,7 @@ type DispatchCheckRequest struct {
 	Subject          *v1.ObjectAndRelation               `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
 	ResultsSetting   DispatchCheckRequest_ResultsSetting `protobuf:"varint,5,opt,name=results_setting,json=resultsSetting,proto3,enum=dispatch.v1.DispatchCheckRequest_ResultsSetting" json:"results_setting,omitempty"`
 	Debug            DispatchCheckRequest_DebugSetting   `protobuf:"varint,6,opt,name=debug,proto3,enum=dispatch.v1.DispatchCheckRequest_DebugSetting" json:"debug,omitempty"`
-	//*
+	// *
 	// check_hints are hints provided to the check call to help the resolver optimize the check
 	// by skipping calculations for the provided checks. The string key is the fully qualified
 	// "relationtuple"-string for the problem, e.g. `document:example#relation@user:someuser`.
@@ -884,10 +884,8 @@ type DispatchLookupResources2Response struct {
 	Resource            *PossibleResource      `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
 	Metadata            *ResponseMeta          `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	AfterResponseCursor *Cursor                `protobuf:"bytes,3,opt,name=after_response_cursor,json=afterResponseCursor,proto3" json:"after_response_cursor,omitempty"`
-	// debug_trace is populated when enable_debug_trace was set on the request.
-	DebugTrace    *LookupDebugTrace `protobuf:"bytes,4,opt,name=debug_trace,json=debugTrace,proto3" json:"debug_trace,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *DispatchLookupResources2Response) Reset() {
@@ -937,13 +935,6 @@ func (x *DispatchLookupResources2Response) GetMetadata() *ResponseMeta {
 func (x *DispatchLookupResources2Response) GetAfterResponseCursor() *Cursor {
 	if x != nil {
 		return x.AfterResponseCursor
-	}
-	return nil
-}
-
-func (x *DispatchLookupResources2Response) GetDebugTrace() *LookupDebugTrace {
-	if x != nil {
-		return x.DebugTrace
 	}
 	return nil
 }
@@ -1059,10 +1050,8 @@ func (x *DispatchLookupResources3Request) GetEnableDebugTrace() bool {
 }
 
 type DispatchLookupResources3Response struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Items []*LR3Item             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
-	// debug_trace is populated when enable_debug_trace was set on the request.
-	DebugTrace    *LookupDebugTrace `protobuf:"bytes,2,opt,name=debug_trace,json=debugTrace,proto3" json:"debug_trace,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*LR3Item             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1100,13 +1089,6 @@ func (*DispatchLookupResources3Response) Descriptor() ([]byte, []int) {
 func (x *DispatchLookupResources3Response) GetItems() []*LR3Item {
 	if x != nil {
 		return x.Items
-	}
-	return nil
-}
-
-func (x *DispatchLookupResources3Response) GetDebugTrace() *LookupDebugTrace {
-	if x != nil {
-		return x.DebugTrace
 	}
 	return nil
 }
@@ -1185,9 +1167,6 @@ type DispatchLookupSubjectsRequest struct {
 	ResourceRelation *v1.RelationReference  `protobuf:"bytes,2,opt,name=resource_relation,json=resourceRelation,proto3" json:"resource_relation,omitempty"`
 	ResourceIds      []string               `protobuf:"bytes,3,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
 	SubjectRelation  *v1.RelationReference  `protobuf:"bytes,4,opt,name=subject_relation,json=subjectRelation,proto3" json:"subject_relation,omitempty"`
-	// enable_debug_trace, when true, causes a LookupDebugTrace to be populated
-	// on the response. Has zero runtime cost when false.
-	EnableDebugTrace bool `protobuf:"varint,5,opt,name=enable_debug_trace,json=enableDebugTrace,proto3" json:"enable_debug_trace,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1248,13 +1227,6 @@ func (x *DispatchLookupSubjectsRequest) GetSubjectRelation() *v1.RelationReferen
 		return x.SubjectRelation
 	}
 	return nil
-}
-
-func (x *DispatchLookupSubjectsRequest) GetEnableDebugTrace() bool {
-	if x != nil {
-		return x.EnableDebugTrace
-	}
-	return false
 }
 
 type FoundSubject struct {
@@ -1365,10 +1337,8 @@ type DispatchLookupSubjectsResponse struct {
 	state                     protoimpl.MessageState    `protogen:"open.v1"`
 	FoundSubjectsByResourceId map[string]*FoundSubjects `protobuf:"bytes,1,rep,name=found_subjects_by_resource_id,json=foundSubjectsByResourceId,proto3" json:"found_subjects_by_resource_id,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Metadata                  *ResponseMeta             `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// debug_trace is populated when enable_debug_trace was set on the request.
-	DebugTrace    *LookupDebugTrace `protobuf:"bytes,3,opt,name=debug_trace,json=debugTrace,proto3" json:"debug_trace,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *DispatchLookupSubjectsResponse) Reset() {
@@ -1411,13 +1381,6 @@ func (x *DispatchLookupSubjectsResponse) GetFoundSubjectsByResourceId() map[stri
 func (x *DispatchLookupSubjectsResponse) GetMetadata() *ResponseMeta {
 	if x != nil {
 		return x.Metadata
-	}
-	return nil
-}
-
-func (x *DispatchLookupSubjectsResponse) GetDebugTrace() *LookupDebugTrace {
-	if x != nil {
-		return x.DebugTrace
 	}
 	return nil
 }
@@ -1704,31 +1667,80 @@ func (x *CheckDebugTrace) GetSourceId() string {
 	return ""
 }
 
-// LookupDebugTrace records the traversal of a single node during a
-// LookupResources or LookupSubjects operation. It mirrors CheckDebugTrace
-// but is specialised for the Lookup graph walk.
-type LookupDebugTrace struct {
+type LookupDebugFrame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The resource type being traversed.
+	// The concrete resource associated with the frame
 	ResourceType string `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
-	// The resource ID being traversed.
+	// The concrete subject associated with the frame
 	ResourceId string `protobuf:"bytes,2,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
 	// The relation or permission being traversed.
-	Relation string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
-	// How many times this exact node (type + id + relation) was visited during
-	// the full traversal of a single top-level Lookup request.
-	TraversalCount uint32 `protobuf:"varint,4,opt,name=traversal_count,json=traversalCount,proto3" json:"traversal_count,omitempty"`
-	// True when traversal_count > 1, indicating a cycle in the relationship graph.
-	IsCyclic bool `protobuf:"varint,5,opt,name=is_cyclic,json=isCyclic,proto3" json:"is_cyclic,omitempty"`
+	Relation      string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LookupDebugFrame) Reset() {
+	*x = LookupDebugFrame{}
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LookupDebugFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LookupDebugFrame) ProtoMessage() {}
+
+func (x *LookupDebugFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LookupDebugFrame.ProtoReflect.Descriptor instead.
+func (*LookupDebugFrame) Descriptor() ([]byte, []int) {
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *LookupDebugFrame) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
+	}
+	return ""
+}
+
+func (x *LookupDebugFrame) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
+}
+
+func (x *LookupDebugFrame) GetRelation() string {
+	if x != nil {
+		return x.Relation
+	}
+	return ""
+}
+
+type LookupDebugTrace struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Sub-problems dispatched from this node.
-	SubProblems   []*LookupDebugTrace `protobuf:"bytes,6,rep,name=sub_problems,json=subProblems,proto3" json:"sub_problems,omitempty"`
+	Frames        []*LookupDebugFrame `protobuf:"bytes,1,rep,name=frames,proto3" json:"frames,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LookupDebugTrace) Reset() {
 	*x = LookupDebugTrace{}
-	mi := &file_dispatch_v1_dispatch_proto_msgTypes[21]
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1740,7 +1752,7 @@ func (x *LookupDebugTrace) String() string {
 func (*LookupDebugTrace) ProtoMessage() {}
 
 func (x *LookupDebugTrace) ProtoReflect() protoreflect.Message {
-	mi := &file_dispatch_v1_dispatch_proto_msgTypes[21]
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1753,47 +1765,12 @@ func (x *LookupDebugTrace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LookupDebugTrace.ProtoReflect.Descriptor instead.
 func (*LookupDebugTrace) Descriptor() ([]byte, []int) {
-	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{21}
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *LookupDebugTrace) GetResourceType() string {
+func (x *LookupDebugTrace) GetFrames() []*LookupDebugFrame {
 	if x != nil {
-		return x.ResourceType
-	}
-	return ""
-}
-
-func (x *LookupDebugTrace) GetResourceId() string {
-	if x != nil {
-		return x.ResourceId
-	}
-	return ""
-}
-
-func (x *LookupDebugTrace) GetRelation() string {
-	if x != nil {
-		return x.Relation
-	}
-	return ""
-}
-
-func (x *LookupDebugTrace) GetTraversalCount() uint32 {
-	if x != nil {
-		return x.TraversalCount
-	}
-	return 0
-}
-
-func (x *LookupDebugTrace) GetIsCyclic() bool {
-	if x != nil {
-		return x.IsCyclic
-	}
-	return false
-}
-
-func (x *LookupDebugTrace) GetSubProblems() []*LookupDebugTrace {
-	if x != nil {
-		return x.SubProblems
+		return x.Frames
 	}
 	return nil
 }
@@ -1874,13 +1851,11 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x12&\n" +
 	"\x0ffor_subject_ids\x18\x02 \x03(\tR\rforSubjectIds\x124\n" +
-	"\x16missing_context_params\x18\x03 \x03(\tR\x14missingContextParams\"\x9d\x02\n" +
+	"\x16missing_context_params\x18\x03 \x03(\tR\x14missingContextParams\"\xdd\x01\n" +
 	" DispatchLookupResources2Response\x129\n" +
 	"\bresource\x18\x01 \x01(\v2\x1d.dispatch.v1.PossibleResourceR\bresource\x125\n" +
 	"\bmetadata\x18\x02 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x12G\n" +
-	"\x15after_response_cursor\x18\x03 \x01(\v2\x13.dispatch.v1.CursorR\x13afterResponseCursor\x12>\n" +
-	"\vdebug_trace\x18\x04 \x01(\v2\x1d.dispatch.v1.LookupDebugTraceR\n" +
-	"debugTrace\"\xa1\x04\n" +
+	"\x15after_response_cursor\x18\x03 \x01(\v2\x13.dispatch.v1.CursorR\x13afterResponseCursor\"\xa1\x04\n" +
 	"\x1fDispatchLookupResources3Request\x12=\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12O\n" +
 	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x10resourceRelation\x12M\n" +
@@ -1891,35 +1866,30 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\acontext\x18\x06 \x01(\v2\x17.google.protobuf.StructR\acontext\x12'\n" +
 	"\x0foptional_cursor\x18\a \x03(\tR\x0eoptionalCursor\x12%\n" +
 	"\x0eoptional_limit\x18\b \x01(\rR\roptionalLimit\x12,\n" +
-	"\x12enable_debug_trace\x18\t \x01(\bR\x10enableDebugTrace\"\x8e\x01\n" +
+	"\x12enable_debug_trace\x18\t \x01(\bR\x10enableDebugTrace\"N\n" +
 	" DispatchLookupResources3Response\x12*\n" +
-	"\x05items\x18\x01 \x03(\v2\x14.dispatch.v1.LR3ItemR\x05items\x12>\n" +
-	"\vdebug_trace\x18\x02 \x01(\v2\x1d.dispatch.v1.LookupDebugTraceR\n" +
-	"debugTrace\"\xcd\x01\n" +
+	"\x05items\x18\x01 \x03(\v2\x14.dispatch.v1.LR3ItemR\x05items\"\xcd\x01\n" +
 	"\aLR3Item\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x12&\n" +
 	"\x0ffor_subject_ids\x18\x02 \x03(\tR\rforSubjectIds\x124\n" +
 	"\x16missing_context_params\x18\x03 \x03(\tR\x14missingContextParams\x12C\n" +
-	"\x1eafter_response_cursor_sections\x18\x04 \x03(\tR\x1bafterResponseCursorSections\"\xcf\x02\n" +
+	"\x1eafter_response_cursor_sections\x18\x04 \x03(\tR\x1bafterResponseCursorSections\"\xa1\x02\n" +
 	"\x1dDispatchLookupSubjectsRequest\x12=\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResolverMetaB\x06\xbaH\x03\xc8\x01\x01R\bmetadata\x12O\n" +
 	"\x11resource_relation\x18\x02 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x10resourceRelation\x12!\n" +
 	"\fresource_ids\x18\x03 \x03(\tR\vresourceIds\x12M\n" +
-	"\x10subject_relation\x18\x04 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x0fsubjectRelation\x12,\n" +
-	"\x12enable_debug_trace\x18\x05 \x01(\bR\x10enableDebugTrace\"\xbd\x01\n" +
+	"\x10subject_relation\x18\x04 \x01(\v2\x1a.core.v1.RelationReferenceB\x06\xbaH\x03\xc8\x01\x01R\x0fsubjectRelation\"\xbd\x01\n" +
 	"\fFoundSubject\x12\x1d\n" +
 	"\n" +
 	"subject_id\x18\x01 \x01(\tR\tsubjectId\x12F\n" +
 	"\x11caveat_expression\x18\x02 \x01(\v2\x19.core.v1.CaveatExpressionR\x10caveatExpression\x12F\n" +
 	"\x11excluded_subjects\x18\x03 \x03(\v2\x19.dispatch.v1.FoundSubjectR\x10excludedSubjects\"Q\n" +
 	"\rFoundSubjects\x12@\n" +
-	"\x0efound_subjects\x18\x01 \x03(\v2\x19.dispatch.v1.FoundSubjectR\rfoundSubjects\"\x90\x03\n" +
+	"\x0efound_subjects\x18\x01 \x03(\v2\x19.dispatch.v1.FoundSubjectR\rfoundSubjects\"\xd0\x02\n" +
 	"\x1eDispatchLookupSubjectsResponse\x12\x8c\x01\n" +
 	"\x1dfound_subjects_by_resource_id\x18\x01 \x03(\v2J.dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntryR\x19foundSubjectsByResourceId\x125\n" +
-	"\bmetadata\x18\x02 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x12>\n" +
-	"\vdebug_trace\x18\x03 \x01(\v2\x1d.dispatch.v1.LookupDebugTraceR\n" +
-	"debugTrace\x1ah\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x1ah\n" +
 	"\x1eFoundSubjectsByResourceIdEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x120\n" +
 	"\x05value\x18\x02 \x01(\v2\x1a.dispatch.v1.FoundSubjectsR\x05value:\x028\x01\"\xb7\x01\n" +
@@ -1954,15 +1924,14 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\f\n" +
 	"\bRELATION\x10\x01\x12\x0e\n" +
 	"\n" +
-	"PERMISSION\x10\x02\"\xfc\x01\n" +
-	"\x10LookupDebugTrace\x12#\n" +
+	"PERMISSION\x10\x02\"t\n" +
+	"\x10LookupDebugFrame\x12#\n" +
 	"\rresource_type\x18\x01 \x01(\tR\fresourceType\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
 	"resourceId\x12\x1a\n" +
-	"\brelation\x18\x03 \x01(\tR\brelation\x12'\n" +
-	"\x0ftraversal_count\x18\x04 \x01(\rR\x0etraversalCount\x12\x1b\n" +
-	"\tis_cyclic\x18\x05 \x01(\bR\bisCyclic\x12@\n" +
-	"\fsub_problems\x18\x06 \x03(\v2\x1d.dispatch.v1.LookupDebugTraceR\vsubProblems2\xb9\x04\n" +
+	"\brelation\x18\x03 \x01(\tR\brelation\"I\n" +
+	"\x10LookupDebugTrace\x125\n" +
+	"\x06frames\x18\x01 \x03(\v2\x1d.dispatch.v1.LookupDebugFrameR\x06frames2\xb9\x04\n" +
 	"\x0fDispatchService\x12X\n" +
 	"\rDispatchCheck\x12!.dispatch.v1.DispatchCheckRequest\x1a\".dispatch.v1.DispatchCheckResponse\"\x00\x12[\n" +
 	"\x0eDispatchExpand\x12\".dispatch.v1.DispatchExpandRequest\x1a#.dispatch.v1.DispatchExpandResponse\"\x00\x12u\n" +
@@ -1984,7 +1953,7 @@ func file_dispatch_v1_dispatch_proto_rawDescGZIP() []byte {
 }
 
 var file_dispatch_v1_dispatch_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_dispatch_v1_dispatch_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_dispatch_v1_dispatch_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_dispatch_v1_dispatch_proto_goTypes = []any{
 	(DispatchCheckRequest_DebugSetting)(0),   // 0: dispatch.v1.DispatchCheckRequest.DebugSetting
 	(DispatchCheckRequest_ResultsSetting)(0), // 1: dispatch.v1.DispatchCheckRequest.ResultsSetting
@@ -2012,88 +1981,86 @@ var file_dispatch_v1_dispatch_proto_goTypes = []any{
 	(*ResponseMeta)(nil),                     // 23: dispatch.v1.ResponseMeta
 	(*DebugInformation)(nil),                 // 24: dispatch.v1.DebugInformation
 	(*CheckDebugTrace)(nil),                  // 25: dispatch.v1.CheckDebugTrace
-	(*LookupDebugTrace)(nil),                 // 26: dispatch.v1.LookupDebugTrace
-	nil,                                      // 27: dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry
-	nil,                                      // 28: dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry
-	nil,                                      // 29: dispatch.v1.CheckDebugTrace.ResultsEntry
-	(*v1.RelationReference)(nil),             // 30: core.v1.RelationReference
-	(*v1.ObjectAndRelation)(nil),             // 31: core.v1.ObjectAndRelation
-	(*v1.CaveatExpression)(nil),              // 32: core.v1.CaveatExpression
-	(*v1.RelationTupleTreeNode)(nil),         // 33: core.v1.RelationTupleTreeNode
-	(*structpb.Struct)(nil),                  // 34: google.protobuf.Struct
-	(*durationpb.Duration)(nil),              // 35: google.protobuf.Duration
+	(*LookupDebugFrame)(nil),                 // 26: dispatch.v1.LookupDebugFrame
+	(*LookupDebugTrace)(nil),                 // 27: dispatch.v1.LookupDebugTrace
+	nil,                                      // 28: dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry
+	nil,                                      // 29: dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry
+	nil,                                      // 30: dispatch.v1.CheckDebugTrace.ResultsEntry
+	(*v1.RelationReference)(nil),             // 31: core.v1.RelationReference
+	(*v1.ObjectAndRelation)(nil),             // 32: core.v1.ObjectAndRelation
+	(*v1.CaveatExpression)(nil),              // 33: core.v1.CaveatExpression
+	(*v1.RelationTupleTreeNode)(nil),         // 34: core.v1.RelationTupleTreeNode
+	(*structpb.Struct)(nil),                  // 35: google.protobuf.Struct
+	(*durationpb.Duration)(nil),              // 36: google.protobuf.Duration
 }
 var file_dispatch_v1_dispatch_proto_depIdxs = []int32{
 	22, // 0: dispatch.v1.DispatchCheckRequest.metadata:type_name -> dispatch.v1.ResolverMeta
-	30, // 1: dispatch.v1.DispatchCheckRequest.resource_relation:type_name -> core.v1.RelationReference
-	31, // 2: dispatch.v1.DispatchCheckRequest.subject:type_name -> core.v1.ObjectAndRelation
+	31, // 1: dispatch.v1.DispatchCheckRequest.resource_relation:type_name -> core.v1.RelationReference
+	32, // 2: dispatch.v1.DispatchCheckRequest.subject:type_name -> core.v1.ObjectAndRelation
 	1,  // 3: dispatch.v1.DispatchCheckRequest.results_setting:type_name -> dispatch.v1.DispatchCheckRequest.ResultsSetting
 	0,  // 4: dispatch.v1.DispatchCheckRequest.debug:type_name -> dispatch.v1.DispatchCheckRequest.DebugSetting
 	6,  // 5: dispatch.v1.DispatchCheckRequest.check_hints:type_name -> dispatch.v1.CheckHint
-	31, // 6: dispatch.v1.CheckHint.resource:type_name -> core.v1.ObjectAndRelation
-	31, // 7: dispatch.v1.CheckHint.subject:type_name -> core.v1.ObjectAndRelation
+	32, // 6: dispatch.v1.CheckHint.resource:type_name -> core.v1.ObjectAndRelation
+	32, // 7: dispatch.v1.CheckHint.subject:type_name -> core.v1.ObjectAndRelation
 	8,  // 8: dispatch.v1.CheckHint.result:type_name -> dispatch.v1.ResourceCheckResult
 	23, // 9: dispatch.v1.DispatchCheckResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	27, // 10: dispatch.v1.DispatchCheckResponse.results_by_resource_id:type_name -> dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry
+	28, // 10: dispatch.v1.DispatchCheckResponse.results_by_resource_id:type_name -> dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry
 	2,  // 11: dispatch.v1.ResourceCheckResult.membership:type_name -> dispatch.v1.ResourceCheckResult.Membership
-	32, // 12: dispatch.v1.ResourceCheckResult.expression:type_name -> core.v1.CaveatExpression
+	33, // 12: dispatch.v1.ResourceCheckResult.expression:type_name -> core.v1.CaveatExpression
 	22, // 13: dispatch.v1.DispatchExpandRequest.metadata:type_name -> dispatch.v1.ResolverMeta
-	31, // 14: dispatch.v1.DispatchExpandRequest.resource_and_relation:type_name -> core.v1.ObjectAndRelation
+	32, // 14: dispatch.v1.DispatchExpandRequest.resource_and_relation:type_name -> core.v1.ObjectAndRelation
 	3,  // 15: dispatch.v1.DispatchExpandRequest.expansion_mode:type_name -> dispatch.v1.DispatchExpandRequest.ExpansionMode
 	23, // 16: dispatch.v1.DispatchExpandResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	33, // 17: dispatch.v1.DispatchExpandResponse.tree_node:type_name -> core.v1.RelationTupleTreeNode
+	34, // 17: dispatch.v1.DispatchExpandResponse.tree_node:type_name -> core.v1.RelationTupleTreeNode
 	22, // 18: dispatch.v1.DispatchLookupResources2Request.metadata:type_name -> dispatch.v1.ResolverMeta
-	30, // 19: dispatch.v1.DispatchLookupResources2Request.resource_relation:type_name -> core.v1.RelationReference
-	30, // 20: dispatch.v1.DispatchLookupResources2Request.subject_relation:type_name -> core.v1.RelationReference
-	31, // 21: dispatch.v1.DispatchLookupResources2Request.terminal_subject:type_name -> core.v1.ObjectAndRelation
-	34, // 22: dispatch.v1.DispatchLookupResources2Request.context:type_name -> google.protobuf.Struct
+	31, // 19: dispatch.v1.DispatchLookupResources2Request.resource_relation:type_name -> core.v1.RelationReference
+	31, // 20: dispatch.v1.DispatchLookupResources2Request.subject_relation:type_name -> core.v1.RelationReference
+	32, // 21: dispatch.v1.DispatchLookupResources2Request.terminal_subject:type_name -> core.v1.ObjectAndRelation
+	35, // 22: dispatch.v1.DispatchLookupResources2Request.context:type_name -> google.protobuf.Struct
 	11, // 23: dispatch.v1.DispatchLookupResources2Request.optional_cursor:type_name -> dispatch.v1.Cursor
 	13, // 24: dispatch.v1.DispatchLookupResources2Response.resource:type_name -> dispatch.v1.PossibleResource
 	23, // 25: dispatch.v1.DispatchLookupResources2Response.metadata:type_name -> dispatch.v1.ResponseMeta
 	11, // 26: dispatch.v1.DispatchLookupResources2Response.after_response_cursor:type_name -> dispatch.v1.Cursor
-	26, // 27: dispatch.v1.DispatchLookupResources2Response.debug_trace:type_name -> dispatch.v1.LookupDebugTrace
-	22, // 28: dispatch.v1.DispatchLookupResources3Request.metadata:type_name -> dispatch.v1.ResolverMeta
-	30, // 29: dispatch.v1.DispatchLookupResources3Request.resource_relation:type_name -> core.v1.RelationReference
-	30, // 30: dispatch.v1.DispatchLookupResources3Request.subject_relation:type_name -> core.v1.RelationReference
-	31, // 31: dispatch.v1.DispatchLookupResources3Request.terminal_subject:type_name -> core.v1.ObjectAndRelation
-	34, // 32: dispatch.v1.DispatchLookupResources3Request.context:type_name -> google.protobuf.Struct
-	17, // 33: dispatch.v1.DispatchLookupResources3Response.items:type_name -> dispatch.v1.LR3Item
-	26, // 34: dispatch.v1.DispatchLookupResources3Response.debug_trace:type_name -> dispatch.v1.LookupDebugTrace
-	22, // 35: dispatch.v1.DispatchLookupSubjectsRequest.metadata:type_name -> dispatch.v1.ResolverMeta
-	30, // 36: dispatch.v1.DispatchLookupSubjectsRequest.resource_relation:type_name -> core.v1.RelationReference
-	30, // 37: dispatch.v1.DispatchLookupSubjectsRequest.subject_relation:type_name -> core.v1.RelationReference
-	32, // 38: dispatch.v1.FoundSubject.caveat_expression:type_name -> core.v1.CaveatExpression
-	19, // 39: dispatch.v1.FoundSubject.excluded_subjects:type_name -> dispatch.v1.FoundSubject
-	19, // 40: dispatch.v1.FoundSubjects.found_subjects:type_name -> dispatch.v1.FoundSubject
-	28, // 41: dispatch.v1.DispatchLookupSubjectsResponse.found_subjects_by_resource_id:type_name -> dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry
-	23, // 42: dispatch.v1.DispatchLookupSubjectsResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	26, // 43: dispatch.v1.DispatchLookupSubjectsResponse.debug_trace:type_name -> dispatch.v1.LookupDebugTrace
-	24, // 44: dispatch.v1.ResponseMeta.debug_info:type_name -> dispatch.v1.DebugInformation
-	25, // 45: dispatch.v1.DebugInformation.check:type_name -> dispatch.v1.CheckDebugTrace
-	5,  // 46: dispatch.v1.CheckDebugTrace.request:type_name -> dispatch.v1.DispatchCheckRequest
-	4,  // 47: dispatch.v1.CheckDebugTrace.resource_relation_type:type_name -> dispatch.v1.CheckDebugTrace.RelationType
-	29, // 48: dispatch.v1.CheckDebugTrace.results:type_name -> dispatch.v1.CheckDebugTrace.ResultsEntry
-	25, // 49: dispatch.v1.CheckDebugTrace.sub_problems:type_name -> dispatch.v1.CheckDebugTrace
-	35, // 50: dispatch.v1.CheckDebugTrace.duration:type_name -> google.protobuf.Duration
-	26, // 51: dispatch.v1.LookupDebugTrace.sub_problems:type_name -> dispatch.v1.LookupDebugTrace
-	8,  // 52: dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry.value:type_name -> dispatch.v1.ResourceCheckResult
-	20, // 53: dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry.value:type_name -> dispatch.v1.FoundSubjects
-	8,  // 54: dispatch.v1.CheckDebugTrace.ResultsEntry.value:type_name -> dispatch.v1.ResourceCheckResult
-	5,  // 55: dispatch.v1.DispatchService.DispatchCheck:input_type -> dispatch.v1.DispatchCheckRequest
-	9,  // 56: dispatch.v1.DispatchService.DispatchExpand:input_type -> dispatch.v1.DispatchExpandRequest
-	18, // 57: dispatch.v1.DispatchService.DispatchLookupSubjects:input_type -> dispatch.v1.DispatchLookupSubjectsRequest
-	12, // 58: dispatch.v1.DispatchService.DispatchLookupResources2:input_type -> dispatch.v1.DispatchLookupResources2Request
-	15, // 59: dispatch.v1.DispatchService.DispatchLookupResources3:input_type -> dispatch.v1.DispatchLookupResources3Request
-	7,  // 60: dispatch.v1.DispatchService.DispatchCheck:output_type -> dispatch.v1.DispatchCheckResponse
-	10, // 61: dispatch.v1.DispatchService.DispatchExpand:output_type -> dispatch.v1.DispatchExpandResponse
-	21, // 62: dispatch.v1.DispatchService.DispatchLookupSubjects:output_type -> dispatch.v1.DispatchLookupSubjectsResponse
-	14, // 63: dispatch.v1.DispatchService.DispatchLookupResources2:output_type -> dispatch.v1.DispatchLookupResources2Response
-	16, // 64: dispatch.v1.DispatchService.DispatchLookupResources3:output_type -> dispatch.v1.DispatchLookupResources3Response
-	60, // [60:65] is the sub-list for method output_type
-	55, // [55:60] is the sub-list for method input_type
-	55, // [55:55] is the sub-list for extension type_name
-	55, // [55:55] is the sub-list for extension extendee
-	0,  // [0:55] is the sub-list for field type_name
+	22, // 27: dispatch.v1.DispatchLookupResources3Request.metadata:type_name -> dispatch.v1.ResolverMeta
+	31, // 28: dispatch.v1.DispatchLookupResources3Request.resource_relation:type_name -> core.v1.RelationReference
+	31, // 29: dispatch.v1.DispatchLookupResources3Request.subject_relation:type_name -> core.v1.RelationReference
+	32, // 30: dispatch.v1.DispatchLookupResources3Request.terminal_subject:type_name -> core.v1.ObjectAndRelation
+	35, // 31: dispatch.v1.DispatchLookupResources3Request.context:type_name -> google.protobuf.Struct
+	17, // 32: dispatch.v1.DispatchLookupResources3Response.items:type_name -> dispatch.v1.LR3Item
+	22, // 33: dispatch.v1.DispatchLookupSubjectsRequest.metadata:type_name -> dispatch.v1.ResolverMeta
+	31, // 34: dispatch.v1.DispatchLookupSubjectsRequest.resource_relation:type_name -> core.v1.RelationReference
+	31, // 35: dispatch.v1.DispatchLookupSubjectsRequest.subject_relation:type_name -> core.v1.RelationReference
+	33, // 36: dispatch.v1.FoundSubject.caveat_expression:type_name -> core.v1.CaveatExpression
+	19, // 37: dispatch.v1.FoundSubject.excluded_subjects:type_name -> dispatch.v1.FoundSubject
+	19, // 38: dispatch.v1.FoundSubjects.found_subjects:type_name -> dispatch.v1.FoundSubject
+	29, // 39: dispatch.v1.DispatchLookupSubjectsResponse.found_subjects_by_resource_id:type_name -> dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry
+	23, // 40: dispatch.v1.DispatchLookupSubjectsResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	24, // 41: dispatch.v1.ResponseMeta.debug_info:type_name -> dispatch.v1.DebugInformation
+	25, // 42: dispatch.v1.DebugInformation.check:type_name -> dispatch.v1.CheckDebugTrace
+	5,  // 43: dispatch.v1.CheckDebugTrace.request:type_name -> dispatch.v1.DispatchCheckRequest
+	4,  // 44: dispatch.v1.CheckDebugTrace.resource_relation_type:type_name -> dispatch.v1.CheckDebugTrace.RelationType
+	30, // 45: dispatch.v1.CheckDebugTrace.results:type_name -> dispatch.v1.CheckDebugTrace.ResultsEntry
+	25, // 46: dispatch.v1.CheckDebugTrace.sub_problems:type_name -> dispatch.v1.CheckDebugTrace
+	36, // 47: dispatch.v1.CheckDebugTrace.duration:type_name -> google.protobuf.Duration
+	26, // 48: dispatch.v1.LookupDebugTrace.frames:type_name -> dispatch.v1.LookupDebugFrame
+	8,  // 49: dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry.value:type_name -> dispatch.v1.ResourceCheckResult
+	20, // 50: dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry.value:type_name -> dispatch.v1.FoundSubjects
+	8,  // 51: dispatch.v1.CheckDebugTrace.ResultsEntry.value:type_name -> dispatch.v1.ResourceCheckResult
+	5,  // 52: dispatch.v1.DispatchService.DispatchCheck:input_type -> dispatch.v1.DispatchCheckRequest
+	9,  // 53: dispatch.v1.DispatchService.DispatchExpand:input_type -> dispatch.v1.DispatchExpandRequest
+	18, // 54: dispatch.v1.DispatchService.DispatchLookupSubjects:input_type -> dispatch.v1.DispatchLookupSubjectsRequest
+	12, // 55: dispatch.v1.DispatchService.DispatchLookupResources2:input_type -> dispatch.v1.DispatchLookupResources2Request
+	15, // 56: dispatch.v1.DispatchService.DispatchLookupResources3:input_type -> dispatch.v1.DispatchLookupResources3Request
+	7,  // 57: dispatch.v1.DispatchService.DispatchCheck:output_type -> dispatch.v1.DispatchCheckResponse
+	10, // 58: dispatch.v1.DispatchService.DispatchExpand:output_type -> dispatch.v1.DispatchExpandResponse
+	21, // 59: dispatch.v1.DispatchService.DispatchLookupSubjects:output_type -> dispatch.v1.DispatchLookupSubjectsResponse
+	14, // 60: dispatch.v1.DispatchService.DispatchLookupResources2:output_type -> dispatch.v1.DispatchLookupResources2Response
+	16, // 61: dispatch.v1.DispatchService.DispatchLookupResources3:output_type -> dispatch.v1.DispatchLookupResources3Response
+	57, // [57:62] is the sub-list for method output_type
+	52, // [52:57] is the sub-list for method input_type
+	52, // [52:52] is the sub-list for extension type_name
+	52, // [52:52] is the sub-list for extension extendee
+	0,  // [0:52] is the sub-list for field type_name
 }
 
 func init() { file_dispatch_v1_dispatch_proto_init() }
@@ -2107,7 +2074,7 @@ func file_dispatch_v1_dispatch_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dispatch_v1_dispatch_proto_rawDesc), len(file_dispatch_v1_dispatch_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   25,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
