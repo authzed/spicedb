@@ -153,6 +153,7 @@ func TestParser(t *testing.T) {
 		{"partials with malformed partial reference", "partials_with_malformed_partial_reference"},
 		{"partials with malformed reference splat", "partials_with_malformed_reference_splat"},
 		{"partials with malformed partial block", "partials_with_malformed_partial_block"},
+		{"expiration before caveat test", "expirationbeforecaveat"},
 	}
 
 	for _, test := range parserTests {
