@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -579,7 +580,7 @@ func expectFrames(req *require.Assertions, frames []frameInfo, check *v1.CheckDe
 	req.Equal(frame.resourceType, check.Resource.ObjectType)
 	req.Equal(frame.resourceIDs, strings.Split(check.Resource.ObjectId, ","))
 	req.Equal(frame.permission, check.Permission)
-	req.Equal(frame.permissionship, check.Result, "frame: %s", prototext.Format(check))
+	req.Equal(frame.permissionship, check.Result, "frame: %s", protojson.Format(check))
 
 	remainingFrames := frames[1:]
 	if len(remainingFrames) > 0 {
@@ -993,9 +994,6 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 		}
 	}
 
-	fmt.Println("streamErr")
-	fmt.Println(streamErr)
-
 	// Check for the traversal trace in the gRPC error details metadata.
 	var traceStr string
 	if s, ok := status.FromError(streamErr); ok {
@@ -1006,16 +1004,21 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 		}
 	}
 
-	fmt.Println("traceStr")
-	fmt.Println(traceStr)
-
 	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
 
-	// Deserialize and validate the trace.
 	trace := &dispatch.LookupDebugTrace{}
-	req.NoError(prototext.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
-	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
-	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
+	req.NoError(protojson.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
+	req.NotEmpty(trace.Frames, "trace must have at least one frame")
+
+	// Should have the user as the first frame
+	req.Equal("user", trace.Frames[0].GetResourceType())
+	req.Equal("someuser", trace.Frames[0].GetResourceId())
+	req.Equal("...", trace.Frames[0].GetRelation())
+
+	// Should have folder a as the third frame
+	req.Equal("folder", trace.Frames[2].GetResourceType())
+	req.Equal("a", trace.Frames[2].GetResourceId())
+	req.Equal("view", trace.Frames[2].GetRelation())
 }
 
 func TestLookupResourcesDebugTraceV2_LR2(t *testing.T) {
@@ -1097,88 +1100,16 @@ func TestLookupResourcesDebugTraceV2_LR2(t *testing.T) {
 	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
 
 	trace := &dispatch.LookupDebugTrace{}
-	req.NoError(prototext.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
-	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
-	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
-}
+	req.NoError(protojson.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
+	req.NotEmpty(trace.Frames, "trace must have at least one frame")
 
-func TestLookupSubjectsDebugTraceV2(t *testing.T) {
-	req := require.New(t)
+	// Should have the user as the first frame
+	req.Equal("user", trace.Frames[0].GetResourceType())
+	req.Equal("someuser", trace.Frames[0].GetResourceId())
+	req.Equal("...", trace.Frames[0].GetRelation())
 
-	schema := `
-	definition user {}
-
-	definition group {
-		relation member: user | group#member
-		permission can_access = member
-	}`
-	relationships := []tuple.Relationship{
-		tuple.MustParse("group:a#member@group:b#member"),
-		tuple.MustParse("group:b#member@group:a#member"),
-	}
-
-	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
-		})
-	t.Cleanup(cleanup)
-
-	client := v1.NewPermissionsServiceClient(conn)
-
-	ctx := t.Context()
-	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
-
-	stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
-			},
-		},
-		Resource: &v1.ObjectReference{
-			ObjectType: "group",
-			ObjectId:   "a",
-		},
-		Permission:        "can_access",
-		SubjectObjectType: "user",
-	})
-	req.NoError(err)
-
-	// Drain the stream — the circular schema will eventually hit MaxDepthExceeded.
-	// The traversal stack trace (if any) will be in the error details.
-	var streamErr error
-	for {
-		_, recvErr := stream.Recv()
-		if recvErr != nil {
-			streamErr = recvErr
-			break
-		}
-	}
-
-	// The circular graph must have resulted in an error.
-	if streamErr == nil {
-		t.Skip("expected MaxDepthExceeded error from circular schema; none received")
-		return
-	}
-
-	// Check for the traversal trace in the gRPC error details metadata.
-	var traceStr string
-	if s, ok := status.FromError(streamErr); ok {
-		for _, d := range s.Details() {
-			if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
-				traceStr = errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]
-			}
-		}
-	}
-	if traceStr == "" {
-		t.Skip("no traversal trace in error details; depth may not have been exceeded")
-		return
-	}
-
-	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
-
-	// Deserialize and validate the trace.
-	trace := &dispatch.LookupDebugTrace{}
-	req.NoError(prototext.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
-	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
-	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
+	// Should have folder a as the third frame
+	req.Equal("folder", trace.Frames[2].GetResourceType())
+	req.Equal("a", trace.Frames[2].GetResourceId())
+	req.Equal("view", trace.Frames[2].GetRelation())
 }

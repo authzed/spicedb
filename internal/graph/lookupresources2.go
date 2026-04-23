@@ -686,7 +686,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
 				stream := unfilteredLookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, ci)
-				if parentRequest.EnableDebugTrace{
+				if parentRequest.EnableDebugTrace {
 					// Debug path: per-subject dispatch so each recursive frame is annotated.
 					for _, subjectID := range filteredSubjectIDs {
 						sid := subjectID

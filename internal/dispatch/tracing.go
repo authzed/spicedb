@@ -71,21 +71,25 @@ const traversalTraceKey spiceerrors.MetadataKey = "dispatch_traversal_trace"
 // Designed to be called once per dispatchIter level as the error unwinds: each level
 // prepends its frame so the outermost caller sees the full path from root to leaf.
 // Because the trace is stored in the gRPC ErrorInfo metadata it survives a network hop.
-func PrependTraversalFrame(err error, resourceType, resourceID, relation string) error {
-	if !IsMaxDepthExceeded(err) {
-		return err
+func PrependTraversalFrame(originalErr error, resourceType, resourceID, relation string) error {
+	if !IsMaxDepthExceeded(originalErr) {
+		return originalErr
 	}
 
-	node := &dispatchv1.LookupDebugTrace{
+	frame := &dispatchv1.LookupDebugFrame{
 		ResourceType: resourceType,
 		ResourceId:   resourceID,
 		Relation:     relation,
 	}
-	if existing := ExtractTraversalTrace(err); existing != nil {
-		node.SubProblems = []*dispatchv1.LookupDebugTrace{existing}
+
+	var frames []*dispatchv1.LookupDebugFrame
+	if existing := ExtractTraversalTrace(originalErr); existing != nil {
+		frames = append([]*dispatchv1.LookupDebugFrame{frame}, existing.Frames...)
+	} else {
+		frames = []*dispatchv1.LookupDebugFrame{frame}
 	}
 
-	return spiceerrors.AppendDetailsMetadata(err, traversalTraceKey, prototext.Format(node))
+	return spiceerrors.AppendDetailsMetadata(originalErr, traversalTraceKey, prototext.Format(&dispatchv1.LookupDebugTrace{Frames: frames}))
 }
 
 // ExtractTraversalTrace reads the accumulated traversal trace from a MaxDepthExceeded
