@@ -251,4 +251,5 @@ message ResultPath {
   google.protobuf.Timestamp expiration = 8;
   repeated core.v1.RelationshipIntegrity integrity = 9;
   google.protobuf.Struct metadata = 10;
+  repeated ResultPath excluded_subjects = 11;
 }

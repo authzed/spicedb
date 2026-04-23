@@ -476,7 +476,7 @@ func (ld *localDispatcher) DispatchPlan(
 	req *v1.DispatchPlanRequest,
 	stream dispatch.PlanStream,
 ) error {
-	return fmt.Errorf("DispatchPlan not yet implemented")
+	return errors.New("DispatchPlan not yet implemented")
 }
 
 func (ld *localDispatcher) Close() error {

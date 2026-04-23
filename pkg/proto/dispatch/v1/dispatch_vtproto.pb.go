@@ -747,6 +747,13 @@ func (m *ResultPath) CloneVT() *ResultPath {
 		}
 		r.Integrity = tmpContainer
 	}
+	if rhs := m.ExcludedSubjects; rhs != nil {
+		tmpContainer := make([]*ResultPath, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.ExcludedSubjects = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -1782,6 +1789,23 @@ func (this *ResultPath) EqualVT(that *ResultPath) bool {
 	}
 	if !(*structpb1.Struct)(this.Metadata).EqualVT((*structpb1.Struct)(that.Metadata)) {
 		return false
+	}
+	if len(this.ExcludedSubjects) != len(that.ExcludedSubjects) {
+		return false
+	}
+	for i, vx := range this.ExcludedSubjects {
+		vy := that.ExcludedSubjects[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ResultPath{}
+			}
+			if q == nil {
+				q = &ResultPath{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -3639,6 +3663,18 @@ func (m *ResultPath) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.ExcludedSubjects) > 0 {
+		for iNdEx := len(m.ExcludedSubjects) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.ExcludedSubjects[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x5a
+		}
+	}
 	if m.Metadata != nil {
 		size, err := (*structpb1.Struct)(m.Metadata).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -4556,6 +4592,12 @@ func (m *ResultPath) SizeVT() (n int) {
 	if m.Metadata != nil {
 		l = (*structpb1.Struct)(m.Metadata).SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.ExcludedSubjects) > 0 {
+		for _, e := range m.ExcludedSubjects {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -9379,6 +9421,40 @@ func (m *ResultPath) UnmarshalVT(dAtA []byte) error {
 				m.Metadata = &structpb.Struct{}
 			}
 			if err := (*structpb1.Struct)(m.Metadata).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExcludedSubjects", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ExcludedSubjects = append(m.ExcludedSubjects, &ResultPath{})
+			if err := m.ExcludedSubjects[len(m.ExcludedSubjects)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
