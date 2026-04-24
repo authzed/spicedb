@@ -199,32 +199,7 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 	return permissionship, partialCaveat
 }
 
-// convertTraversalStackToDispatchTrace converts the traversal stack captured in ctx
-// into a dispatch.LookupDebugTrace. The trace is a linear chain: each frame becomes
-// one node whose SubProblems contains the next frame. Returns nil if no stack is present.
-func convertTraversalStackToDispatchTrace(ctx context.Context) *dispatch.LookupDebugTrace {
-	frames := graph.SnapshotTraversalStack(ctx)
-	if len(frames) == 0 {
-		return nil
-	}
 
-	// Build chain from the last frame backwards so we can link them.
-	// result: frames[0] → frames[1] → ... → frames[n-1]
-	var tail *dispatch.LookupDebugTrace
-	for i := len(frames) - 1; i >= 0; i-- {
-		f := frames[i]
-		node := &dispatch.LookupDebugTrace{
-			ResourceType: f.ResourceType(),
-			ResourceId:   f.ResourceID(),
-			Relation:     f.Permission(), // permission being evaluated
-		}
-		if tail != nil {
-			node.SubProblems = []*dispatch.LookupDebugTrace{tail}
-		}
-		tail = node
-	}
-	return tail
-}
 
 func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
 	// NOTE: perfinsights are added for the individual check results as well, so there is no shape here.
@@ -686,10 +661,12 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		// If debug is enabled and this is a depth exceeded error, serialize the
 		// traversal stack trace into the error details for the caller to inspect.
 		if debugEnabled {
-			var maxDepthErr dispatchpkg.MaxDepthExceededError
-			if errors.As(err, &maxDepthErr) {
-				if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
-					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, trace.String())
+			var traceErr dispatchpkg.MaxDepthWithTraceError
+			if errors.As(err, &traceErr) {
+				st := status.Convert(traceErr.Unwrap())
+				stWithDetails, err2 := st.WithDetails(traceErr.Trace)
+				if err2 == nil {
+					return stWithDetails.Err()
 				}
 			}
 		}
@@ -861,10 +838,12 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		// If debug is enabled and this is a depth exceeded error, serialize the
 		// traversal stack trace into the error details for the caller to inspect.
 		if debugEnabled {
-			var maxDepthErr dispatchpkg.MaxDepthExceededError
-			if errors.As(err, &maxDepthErr) {
-				if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
-					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, trace.String())
+			var traceErr dispatchpkg.MaxDepthWithTraceError
+			if errors.As(err, &traceErr) {
+				st := status.Convert(traceErr.Unwrap())
+				stWithDetails, err2 := st.WithDetails(traceErr.Trace)
+				if err2 == nil {
+					return stWithDetails.Err()
 				}
 			}
 		}
@@ -1038,10 +1017,12 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		// If debug is enabled and this is a depth exceeded error, serialize the
 		// traversal stack trace into the error details for the caller to inspect.
 		if debugEnabled {
-			var maxDepthErr dispatchpkg.MaxDepthExceededError
-			if errors.As(err, &maxDepthErr) {
-				if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
-					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, trace.String())
+			var traceErr dispatchpkg.MaxDepthWithTraceError
+			if errors.As(err, &traceErr) {
+				st := status.Convert(traceErr.Unwrap())
+				stWithDetails, err2 := st.WithDetails(traceErr.Trace)
+				if err2 == nil {
+					return stWithDetails.Err()
 				}
 			}
 		}

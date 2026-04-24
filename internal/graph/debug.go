@@ -193,3 +193,21 @@ func SnapshotLookupDebugTrace(ctx context.Context) *LookupDebugTraceSummary {
 
 	return &LookupDebugTraceSummary{SubProblems: nodes}
 }
+
+// MaxDepthWithTraceError wraps a MaxDepthExceededError with the traversal
+// stack captured at the exact moment of failure.
+type MaxDepthWithTraceError struct {
+	Err   error
+	Trace *LookupDebugTraceSummary
+}
+
+// Error implements the error interface.
+func (m MaxDepthWithTraceError) Error() string {
+	return m.Err.Error()
+}
+
+// Unwrap returns the underlying error.
+func (m MaxDepthWithTraceError) Unwrap() error {
+	return m.Err
+}
+

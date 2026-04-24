@@ -56,16 +56,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 		return errors.New("no resources ids given to lookupsubjects dispatch")
 	}
 
-	// Record this traversal step. The frame is intentionally NOT popped:
-	// the traversal stack is a history log, not a call stack. All visited
-	// nodes accumulate so SnapshotLookupDebugTrace returns the full trace
-	// even when called after dispatch has fully returned.
-	PushTraversalFrame(ctx,
-		req.ResourceRelation.Namespace,
-		"", // batch step
-		req.ResourceRelation.Relation,
-		req.ResourceRelation.Namespace+"#"+req.ResourceRelation.Relation,
-	)
+
 
 	// If the resource type matches the subject type, yield directly.
 	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
@@ -222,15 +213,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		return err
 	}
 
-	// Push ONE frame for this batch traversal step (not one per resource ID).
-	// The traversal stack is an append-only history log — frames are never
-	// popped so SnapshotLookupDebugTrace shows the full traversal after dispatch.
-	PushTraversalFrame(ctx,
-		parentRequest.ResourceRelation.Namespace,
-		"", // batch step
-		cu.Relation,
-		parentRequest.ResourceRelation.Namespace+"#"+cu.Relation,
-	)
+
 
 	stream := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
 		Stream: parentStream,
@@ -725,14 +708,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 				// path, so the full ancestry is visible in the snapshot if depth is
 				// exceeded. Cloning prevents concurrent mutation between siblings.
 				goroutineCtx := CloneTraversalStack(subCtx)
-				// Push ONE frame for this batch traversal step. The traversal stack
-				// is an append-only history log — frames are never popped.
-				PushTraversalFrame(goroutineCtx,
-					resourceType.Namespace,
-					"", // batch step
-					resourceType.Relation,
-					parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
-				)
+
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,
 					ResourceIds:      resourceIdChunk, // ← batch: whole chunk at once
@@ -742,7 +718,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 					},
 					EnableDebugTrace: parentRequest.EnableDebugTrace,
-				}, stream)
+				}, dispatch.StreamWithContext(goroutineCtx, stream))
 			})
 		})
 	})

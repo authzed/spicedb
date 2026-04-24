@@ -13,7 +13,6 @@ import (
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -22,7 +21,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -976,28 +974,38 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 		return
 	}
 
-	// Check for the traversal trace in the gRPC error details metadata.
-	var traceStr string
+	// Check for the traversal trace in the gRPC error details.
+	var trace *dispatch.LookupDebugTrace
 	if s, ok := status.FromError(streamErr); ok {
 		for _, d := range s.Details() {
-			if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
-				traceStr = errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]
+			if t, ok := d.(*dispatch.LookupDebugTrace); ok {
+				trace = t
 			}
 		}
 	}
-	if traceStr == "" {
+
+	if trace == nil {
 		// No trace attached — depth may not have been reached deep enough yet.
 		// This is acceptable since the stack trace requires MaxDepth to fire.
 		t.Skip("no traversal trace in error details; depth may not have been exceeded")
 		return
 	}
 
-	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
-
-	// Deserialize and validate the trace.
-	trace := &dispatch.LookupDebugTrace{}
-	req.NoError(prototext.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
 	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
+	
+	// Count path length and ensure no "*batch*" artifacts are present
+	pathLength := 0
+	currentNode := trace
+	for currentNode != nil {
+		pathLength++
+		req.NotContains(currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+		if len(currentNode.SubProblems) > 0 {
+			currentNode = currentNode.SubProblems[0]
+		} else {
+			currentNode = nil
+		}
+	}
+	req.GreaterOrEqual(pathLength, 2, "path length must be at least 2 for recursion")
 	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
 }
 
@@ -1059,25 +1067,35 @@ func TestLookupSubjectsDebugTraceV2(t *testing.T) {
 		return
 	}
 
-	// Check for the traversal trace in the gRPC error details metadata.
-	var traceStr string
+	// Check for the traversal trace in the gRPC error details.
+	var trace *dispatch.LookupDebugTrace
 	if s, ok := status.FromError(streamErr); ok {
 		for _, d := range s.Details() {
-			if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
-				traceStr = errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]
+			if t, ok := d.(*dispatch.LookupDebugTrace); ok {
+				trace = t
 			}
 		}
 	}
-	if traceStr == "" {
+
+	if trace == nil {
 		t.Skip("no traversal trace in error details; depth may not have been exceeded")
 		return
 	}
 
-	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
-
-	// Deserialize and validate the trace.
-	trace := &dispatch.LookupDebugTrace{}
-	req.NoError(prototext.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
 	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
+	
+	// Count path length and ensure no "*batch*" artifacts are present
+	pathLength := 0
+	currentNode := trace
+	for currentNode != nil {
+		pathLength++
+		req.NotContains(currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+		if len(currentNode.SubProblems) > 0 {
+			currentNode = currentNode.SubProblems[0]
+		} else {
+			currentNode = nil
+		}
+	}
+	req.GreaterOrEqual(pathLength, 2, "path length must be at least 2 for recursion")
 	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
 }

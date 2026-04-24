@@ -686,14 +686,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
 				stream := unfilteredLookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, ci)
-				// Push ONE frame for this batch traversal step. The traversal stack
-				// is an append-only history log — frames are never popped.
-				PushTraversalFrame(ctx,
-					newSubjectType.Namespace,
-					"", // batch step
-					newSubjectType.Relation,
-					parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
-				)
+
 				return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 					ResourceRelation: parentRequest.ResourceRelation,
 					SubjectRelation:  newSubjectType,
@@ -711,13 +704,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			}
 
 			// Otherwise, we need to filter results by batch checking along the way before dispatching.
-			// Push ONE frame for this batch traversal step.
-			PushTraversalFrame(ctx,
-				newSubjectType.Namespace,
-				"", // batch step
-				newSubjectType.Relation,
-				parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
-			)
+
 			return runCheckerAndDispatch(
 				ctx,
 				parentRequest,

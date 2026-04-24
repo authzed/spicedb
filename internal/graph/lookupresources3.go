@@ -958,15 +958,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 	subjectIDs := rm.subjectIDsToDispatch()
 
 	// Return an iterator that invokes ONE batched dispatch for all subject IDs.
-	// Push ONE frame representing this traversal step (not one per ID). The frame
-	// is intentionally NOT popped — the stack is a history log, not a call stack.
 	iter := func(yield func(result, error) bool) {
-		PushTraversalFrame(ctx,
-			foundResourceType.Namespace,
-			"", // batch step — not tied to a single resource ID
-			foundResourceType.Relation,
-			refs.req.ResourceRelation.Namespace+"#"+refs.req.ResourceRelation.Relation,
-		)
 
 		stream := newYieldingStream(ctx, yield, rm)
 		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
