@@ -580,7 +580,7 @@ func expectFrames(req *require.Assertions, frames []frameInfo, check *v1.CheckDe
 	req.Equal(frame.resourceType, check.Resource.ObjectType)
 	req.Equal(frame.resourceIDs, strings.Split(check.Resource.ObjectId, ","))
 	req.Equal(frame.permission, check.Permission)
-	req.Equal(frame.permissionship, check.Result, "frame: %s", protojson.Format(check))
+	req.Equal(frame.permissionship, check.Result, "frame: %s", prototext.Format(check))
 
 	remainingFrames := frames[1:]
 	if len(remainingFrames) > 0 {
@@ -929,7 +929,7 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 	}
 }
 
-func TestLookupResourcesDebugTraceV2(t *testing.T) {
+func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 	req := require.New(t)
 
 	schema := `
@@ -952,6 +952,7 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 		tuple.MustParse("folder:a#viewer@user:someuser"),
 	}
 
+	// NOTE: the default test server configuration selects LR3
 	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
 		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
@@ -1021,7 +1022,7 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 	req.Equal("view", trace.Frames[2].GetRelation())
 }
 
-func TestLookupResourcesDebugTraceV2_LR2(t *testing.T) {
+func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
 	req := require.New(t)
 
 	schema := `
@@ -1044,6 +1045,7 @@ func TestLookupResourcesDebugTraceV2_LR2(t *testing.T) {
 		tuple.MustParse("folder:a#viewer@user:someuser"),
 	}
 
+	// NOTE: this makes LR2 the active implementation in the test server.
 	lr2Config := testserver.DefaultTestServerConfig
 	lr2Config.EnableExperimentalLookupResources3 = false
 
