@@ -938,6 +938,11 @@ func (crr *CursoredLookupResources3) checkedDispatchIter(
 // dispatchIter is a helper function that dispatches the resources found in the relationships chunk,
 // yielding results for each resource found. This performs the recursive LookupResources operation
 // over the resources found in the `rm` chunk.
+//
+// BATCHING CONTRACT: dispatch is performed as a SINGLE call with ALL subjectIDs so that
+// performance characteristics match the original implementation. A single traversal frame
+// is pushed at the start of iterator execution and popped on exit (via defer) so that
+// stack depth == recursion depth, never sibling fanout.
 func (crr *CursoredLookupResources3) dispatchIter(
 	ctx context.Context,
 	refs lr3refs,
@@ -952,41 +957,34 @@ func (crr *CursoredLookupResources3) dispatchIter(
 
 	subjectIDs := rm.subjectIDsToDispatch()
 
-	// Return an iterator that invokes the dispatch operation for the given resource relation and subject IDs,
-	// yielding results for each resource found.
+	// Return an iterator that invokes ONE batched dispatch for all subject IDs.
+	// Push ONE frame representing this traversal step (not one per ID). The frame
+	// is intentionally NOT popped — the stack is a history log, not a call stack.
 	iter := func(yield func(result, error) bool) {
-		// Dispatch once per subject ID — each frame corresponds to exactly one
-		// traversal edge so stack depth equals recursion depth.
-		for _, subjectID := range subjectIDs {
-			func(sid string) {
-				PushTraversalFrame(ctx,
-					foundResourceType.Namespace,
-					sid,
-					foundResourceType.Relation,
-					refs.req.ResourceRelation.Namespace+"#"+refs.req.ResourceRelation.Relation,
-				)
-				defer PopTraversalFrame(ctx)
+		PushTraversalFrame(ctx,
+			foundResourceType.Namespace,
+			"", // batch step — not tied to a single resource ID
+			foundResourceType.Relation,
+			refs.req.ResourceRelation.Namespace+"#"+refs.req.ResourceRelation.Relation,
+		)
 
-				stream := newYieldingStream(ctx, yield, rm)
-				err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
-					ResourceRelation: refs.req.ResourceRelation,
-					SubjectRelation:  foundResourceType,
-					SubjectIds:       []string{sid},
-					TerminalSubject:  refs.req.TerminalSubject,
-					Metadata: &v1.ResolverMeta{
-						AtRevision:     refs.req.Revision.String(),
-						DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
-					},
-					OptionalCursor:   currentCursor,
-					OptionalLimit:    refs.req.OptionalLimit,
-					Context:          refs.req.Context,
-					EnableDebugTrace: refs.req.EnableDebugTrace,
-				}, stream)
-				if err != nil && !stream.canceled {
-					_ = yield(result{}, err)
-					return
-				}
-			}(subjectID)
+		stream := newYieldingStream(ctx, yield, rm)
+		err := crr.dl.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
+			ResourceRelation: refs.req.ResourceRelation,
+			SubjectRelation:  foundResourceType,
+			SubjectIds:       subjectIDs, // ← ALL IDs in one batched call
+			TerminalSubject:  refs.req.TerminalSubject,
+			Metadata: &v1.ResolverMeta{
+				AtRevision:     refs.req.Revision.String(),
+				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
+			},
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    refs.req.OptionalLimit,
+			Context:          refs.req.Context,
+			EnableDebugTrace: refs.req.EnableDebugTrace,
+		}, stream)
+		if err != nil && !stream.canceled {
+			_ = yield(result{}, err)
 		}
 	}
 	return cter.Spanned(

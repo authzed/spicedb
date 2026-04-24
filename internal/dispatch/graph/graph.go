@@ -453,6 +453,18 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	))
 	defer span.End()
 
+	// Push a traversal frame BEFORE the depth check so that the stack is
+	// non-empty even when MaxDepthExceeded fires. The frame is intentionally
+	// NOT popped — the traversal stack is a history log, not a call stack.
+	// SnapshotLookupDebugTrace is expected to be called AFTER dispatch returns,
+	// at which point the accumulated frames represent the full traversal history.
+	graph.PushTraversalFrame(ctx,
+		req.ResourceRelation.Namespace,
+		"", // batch step — multiple resource IDs may be dispatched
+		req.ResourceRelation.Relation,
+		req.ResourceRelation.Namespace+"#"+req.ResourceRelation.Relation,
+	)
+
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return err
 	}
@@ -470,6 +482,7 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 		dispatch.StreamWithContext(ctx, stream),
 	)
 }
+
 
 func (ld *localDispatcher) Close() error {
 	if ld.lookupResourcesHandler3 != nil {

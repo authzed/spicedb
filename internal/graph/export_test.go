@@ -12,6 +12,11 @@ func ExportedNewTraversalStack(ctx context.Context) context.Context {
 	return NewTraversalStack(ctx)
 }
 
+// ExportedNewTraversalTracker exposes NewTraversalTracker for whitebox testing.
+func ExportedNewTraversalTracker(ctx context.Context) context.Context {
+	return NewTraversalTracker(ctx)
+}
+
 // ExportedCloneStack exposes CloneTraversalStack for whitebox testing.
 func ExportedCloneStack(ctx context.Context) context.Context {
 	return CloneTraversalStack(ctx)
@@ -30,4 +35,9 @@ func ExportedPopFrame(ctx context.Context) {
 // ExportedSnapshotStack exposes SnapshotTraversalStack for whitebox testing.
 func ExportedSnapshotStack(ctx context.Context) []traversalFrame {
 	return SnapshotTraversalStack(ctx)
+}
+
+// ExportedSnapshotLookupDebugTrace exposes SnapshotLookupDebugTrace for whitebox testing.
+func ExportedSnapshotLookupDebugTrace(ctx context.Context) *LookupDebugTraceSummary {
+	return SnapshotLookupDebugTrace(ctx)
 }

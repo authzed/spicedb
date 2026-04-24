@@ -56,6 +56,17 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 		return errors.New("no resources ids given to lookupsubjects dispatch")
 	}
 
+	// Record this traversal step. The frame is intentionally NOT popped:
+	// the traversal stack is a history log, not a call stack. All visited
+	// nodes accumulate so SnapshotLookupDebugTrace returns the full trace
+	// even when called after dispatch has fully returned.
+	PushTraversalFrame(ctx,
+		req.ResourceRelation.Namespace,
+		"", // batch step
+		req.ResourceRelation.Relation,
+		req.ResourceRelation.Namespace+"#"+req.ResourceRelation.Relation,
+	)
+
 	// If the resource type matches the subject type, yield directly.
 	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
 		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
@@ -91,6 +102,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 
 	return cl.lookupViaRewrite(ctx, req, stream, ts, relation.UsersetRewrite)
 }
+
 
 func subjectsForConcreteIds(subjectIds []string) map[string]*v1.FoundSubjects {
 	foundSubjects := make(map[string]*v1.FoundSubjects, len(subjectIds))
@@ -210,48 +222,42 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		return err
 	}
 
-	// Dispatch once per resource ID so each frame corresponds to exactly one
-	// traversal edge. Stack depth matches recursion depth.
-	for _, resourceID := range parentRequest.ResourceIds {
-		if err := func(rid string) error {
-			PushTraversalFrame(ctx,
-				parentRequest.ResourceRelation.Namespace,
-				rid,
-				cu.Relation,
-				parentRequest.ResourceRelation.Namespace+"#"+cu.Relation,
-			)
-			defer PopTraversalFrame(ctx)
+	// Push ONE frame for this batch traversal step (not one per resource ID).
+	// The traversal stack is an append-only history log — frames are never
+	// popped so SnapshotLookupDebugTrace shows the full traversal after dispatch.
+	PushTraversalFrame(ctx,
+		parentRequest.ResourceRelation.Namespace,
+		"", // batch step
+		cu.Relation,
+		parentRequest.ResourceRelation.Namespace+"#"+cu.Relation,
+	)
 
-			stream := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
-				Stream: parentStream,
-				Ctx:    ctx,
-				Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
-					return &v1.DispatchLookupSubjectsResponse{
-						FoundSubjectsByResourceId: result.FoundSubjectsByResourceId,
-						Metadata:                  addCallToResponseMetadata(result.Metadata),
-					}, true, nil
-				},
-			}
-
-			return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-				ResourceRelation: &core.RelationReference{
-					Namespace: parentRequest.ResourceRelation.Namespace,
-					Relation:  cu.Relation,
-				},
-				ResourceIds:      []string{rid},
-				SubjectRelation:  parentRequest.SubjectRelation,
-				Metadata: &v1.ResolverMeta{
-					AtRevision:     parentRequest.Revision.String(),
-					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-				},
-				EnableDebugTrace: parentRequest.EnableDebugTrace,
-			}, stream)
-		}(resourceID); err != nil {
-			return err
-		}
+	stream := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
+		Stream: parentStream,
+		Ctx:    ctx,
+		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
+			return &v1.DispatchLookupSubjectsResponse{
+				FoundSubjectsByResourceId: result.FoundSubjectsByResourceId,
+				Metadata:                  addCallToResponseMetadata(result.Metadata),
+			}, true, nil
+		},
 	}
-	return nil
+
+	return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+		ResourceRelation: &core.RelationReference{
+			Namespace: parentRequest.ResourceRelation.Namespace,
+			Relation:  cu.Relation,
+		},
+		ResourceIds:      parentRequest.ResourceIds, // ← batch: all IDs in one call
+		SubjectRelation:  parentRequest.SubjectRelation,
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     parentRequest.Revision.String(),
+			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+		},
+		EnableDebugTrace: parentRequest.EnableDebugTrace,
+	}, stream)
 }
+
 
 type resourceDispatchTracker struct {
 	ctx            context.Context
@@ -719,32 +725,24 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 				// path, so the full ancestry is visible in the snapshot if depth is
 				// exceeded. Cloning prevents concurrent mutation between siblings.
 				goroutineCtx := CloneTraversalStack(subCtx)
-				// Dispatch once per resource ID so each frame corresponds to exactly
-				// one traversal edge. Stack depth matches recursion depth.
-				for _, resourceID := range resourceIdChunk {
-					if err := func(rid string) error {
-						PushTraversalFrame(goroutineCtx,
-							resourceType.Namespace,
-							rid,
-							resourceType.Relation,
-							parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
-						)
-						defer PopTraversalFrame(goroutineCtx)
-						return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-							ResourceRelation: resourceType,
-							ResourceIds:      []string{rid},
-							SubjectRelation:  parentRequest.SubjectRelation,
-							Metadata: &v1.ResolverMeta{
-								AtRevision:     parentRequest.Revision.String(),
-								DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-							},
-							EnableDebugTrace: parentRequest.EnableDebugTrace,
-						}, stream)
-					}(resourceID); err != nil {
-						return err
-					}
-				}
-				return nil
+				// Push ONE frame for this batch traversal step. The traversal stack
+				// is an append-only history log — frames are never popped.
+				PushTraversalFrame(goroutineCtx,
+					resourceType.Namespace,
+					"", // batch step
+					resourceType.Relation,
+					parentRequest.ResourceRelation.Namespace+"#"+parentRequest.ResourceRelation.Relation,
+				)
+				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+					ResourceRelation: resourceType,
+					ResourceIds:      resourceIdChunk, // ← batch: whole chunk at once
+					SubjectRelation:  parentRequest.SubjectRelation,
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     parentRequest.Revision.String(),
+						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+					},
+					EnableDebugTrace: parentRequest.EnableDebugTrace,
+				}, stream)
 			})
 		})
 	})

@@ -53,6 +53,13 @@ func NewTraversalStack(ctx context.Context) context.Context {
 	})
 }
 
+// NewTraversalTracker is a friendlier alias for NewTraversalStack, provided so
+// that integration-test and dispatch-layer callers do not need to know about the
+// "stack" naming convention. It installs a fresh traversal stack into ctx.
+func NewTraversalTracker(ctx context.Context) context.Context {
+	return NewTraversalStack(ctx)
+}
+
 // CloneTraversalStack creates a new traversalStack that is a copy of the one
 // currently in ctx, installs it into a new context, and returns that context.
 // Use this at every goroutine fan-out boundary so that:
@@ -127,4 +134,62 @@ func SnapshotTraversalStack(ctx context.Context) []traversalFrame {
 	cp := make([]traversalFrame, len(stack.frames))
 	copy(cp, stack.frames)
 	return cp
+}
+
+// ─── Lookup debug-trace summary ──────────────────────────────────────────────
+
+// LookupDebugTraceNode is a lightweight summary of a single traversal node.
+// It mirrors the fields of dispatch.v1.LookupDebugTrace but lives in the graph
+// package so it can be produced without a proto import cycle.
+type LookupDebugTraceNode struct {
+	ResourceType   string
+	ResourceId     string
+	Relation       string
+	TraversalCount uint32
+	IsCyclic       bool
+}
+
+// LookupDebugTraceSummary collects the unique traversal nodes observed during a
+// lookup, in first-visit (root → leaf) order.
+type LookupDebugTraceSummary struct {
+	SubProblems []*LookupDebugTraceNode
+}
+
+// SnapshotLookupDebugTrace converts the current traversal stack into a
+// *LookupDebugTraceSummary. Each unique (resourceType, resourceId, permission)
+// triple is represented as a node; TraversalCount records how often it was
+// visited, and IsCyclic is set when that count is ≥ 2.
+//
+// Returns nil if the stack is empty or not initialised in ctx.
+func SnapshotLookupDebugTrace(ctx context.Context) *LookupDebugTraceSummary {
+	frames := SnapshotTraversalStack(ctx)
+	if len(frames) == 0 {
+		return nil
+	}
+
+	type nodeKey struct{ resourceType, resourceID, permission string }
+	counts := make(map[nodeKey]uint32, len(frames))
+	var order []nodeKey
+
+	for _, f := range frames {
+		k := nodeKey{f.ResourceType(), f.ResourceID(), f.Permission()}
+		if counts[k] == 0 {
+			order = append(order, k)
+		}
+		counts[k]++
+	}
+
+	nodes := make([]*LookupDebugTraceNode, 0, len(order))
+	for _, k := range order {
+		cnt := counts[k]
+		nodes = append(nodes, &LookupDebugTraceNode{
+			ResourceType:   k.resourceType,
+			ResourceId:     k.resourceID,
+			Relation:       k.permission, // permission field doubles as the relation label
+			TraversalCount: cnt,
+			IsCyclic:       cnt >= 2,
+		})
+	}
+
+	return &LookupDebugTraceSummary{SubProblems: nodes}
 }
