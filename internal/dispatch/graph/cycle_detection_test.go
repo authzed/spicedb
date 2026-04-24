@@ -68,6 +68,26 @@ func TestLookupSubjectsCycleDetection(t *testing.T) {
 		require.ErrorAs(t, err, &traceErr)
 		trace := traceErr.Trace
 		require.NotNil(t, trace, "debug trace should be non-nil even on max depth error")
+		
+		pathLength := 0
+		currentNode := trace
+		var prevDepth uint32 = 0
+		for currentNode != nil {
+			pathLength++
+			require.NotContains(t, currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+			require.NotContains(t, currentNode.ResourceId, "...", "trace must not fake resource ID with ellipses")
+			if pathLength > 1 {
+				require.True(t, currentNode.Depth > prevDepth, "depth must increase monotonically")
+			}
+			prevDepth = currentNode.Depth
+
+			if len(currentNode.SubProblems) > 0 {
+				currentNode = currentNode.SubProblems[0]
+			} else {
+				currentNode = nil
+			}
+		}
+		require.GreaterOrEqual(t, pathLength, 2, "path length must be at least 2 for recursion")
 		return
 	}
 
@@ -118,6 +138,26 @@ func TestLookupResources3CycleDetection(t *testing.T) {
 		require.ErrorAs(t, err, &traceErr)
 		trace := traceErr.Trace
 		require.NotNil(t, trace)
+
+		pathLength := 0
+		currentNode := trace
+		var prevDepth uint32 = 0
+		for currentNode != nil {
+			pathLength++
+			require.NotContains(t, currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+			require.NotContains(t, currentNode.ResourceId, "...", "trace must not fake resource ID with ellipses")
+			if pathLength > 1 {
+				require.True(t, currentNode.Depth > prevDepth, "depth must increase monotonically")
+			}
+			prevDepth = currentNode.Depth
+
+			if len(currentNode.SubProblems) > 0 {
+				currentNode = currentNode.SubProblems[0]
+			} else {
+				currentNode = nil
+			}
+		}
+		require.GreaterOrEqual(t, pathLength, 2, "path length must be at least 2 for recursion")
 		return
 	}
 

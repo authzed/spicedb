@@ -651,6 +651,7 @@ func (m *LookupDebugTrace) CloneVT() *LookupDebugTrace {
 	r.Relation = m.Relation
 	r.TraversalCount = m.TraversalCount
 	r.IsCyclic = m.IsCyclic
+	r.Depth = m.Depth
 	if rhs := m.SubProblems; rhs != nil {
 		tmpContainer := make([]*LookupDebugTrace, len(rhs))
 		for k, v := range rhs {
@@ -1580,6 +1581,9 @@ func (this *LookupDebugTrace) EqualVT(that *LookupDebugTrace) bool {
 				return false
 			}
 		}
+	}
+	if this.Depth != that.Depth {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -3283,6 +3287,11 @@ func (m *LookupDebugTrace) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.Depth != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Depth))
+		i--
+		dAtA[i] = 0x38
+	}
 	if len(m.SubProblems) > 0 {
 		for iNdEx := len(m.SubProblems) - 1; iNdEx >= 0; iNdEx-- {
 			size, err := m.SubProblems[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
@@ -4046,6 +4055,9 @@ func (m *LookupDebugTrace) SizeVT() (n int) {
 			l = e.SizeVT()
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
+	}
+	if m.Depth != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.Depth))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -8355,6 +8367,25 @@ func (m *LookupDebugTrace) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Depth", wireType)
+			}
+			m.Depth = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Depth |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

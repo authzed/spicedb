@@ -254,4 +254,7 @@ message LookupDebugTrace {
 
   // Sub-problems dispatched from this node.
   repeated LookupDebugTrace sub_problems = 6;
+
+  // The recursion depth of this frame in the traversal stack.
+  uint32 depth = 7;
 }

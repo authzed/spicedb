@@ -992,13 +992,21 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 	}
 
 	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
+	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
 	
-	// Count path length and ensure no "*batch*" artifacts are present
+	// Count path length and ensure no "*batch*" artifacts or faked IDs are present
 	pathLength := 0
 	currentNode := trace
+	var prevDepth uint32 = 0
 	for currentNode != nil {
 		pathLength++
 		req.NotContains(currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+		req.NotContains(currentNode.ResourceId, "...", "trace must not fake resource ID with ellipses")
+		if pathLength > 1 {
+			req.True(currentNode.Depth > prevDepth, "depth must increase monotonically")
+		}
+		prevDepth = currentNode.Depth
+
 		if len(currentNode.SubProblems) > 0 {
 			currentNode = currentNode.SubProblems[0]
 		} else {
@@ -1006,7 +1014,6 @@ func TestLookupResourcesDebugTraceV2(t *testing.T) {
 		}
 	}
 	req.GreaterOrEqual(pathLength, 2, "path length must be at least 2 for recursion")
-	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
 }
 
 func TestLookupSubjectsDebugTraceV2(t *testing.T) {
@@ -1083,13 +1090,21 @@ func TestLookupSubjectsDebugTraceV2(t *testing.T) {
 	}
 
 	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
+	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
 	
-	// Count path length and ensure no "*batch*" artifacts are present
+	// Count path length and ensure no "*batch*" artifacts or faked IDs are present
 	pathLength := 0
 	currentNode := trace
+	var prevDepth uint32 = 0
 	for currentNode != nil {
 		pathLength++
 		req.NotContains(currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+		req.NotContains(currentNode.ResourceId, "...", "trace must not fake resource ID with ellipses")
+		if pathLength > 1 {
+			req.True(currentNode.Depth > prevDepth, "depth must increase monotonically")
+		}
+		prevDepth = currentNode.Depth
+
 		if len(currentNode.SubProblems) > 0 {
 			currentNode = currentNode.SubProblems[0]
 		} else {
@@ -1097,5 +1112,27 @@ func TestLookupSubjectsDebugTraceV2(t *testing.T) {
 		}
 	}
 	req.GreaterOrEqual(pathLength, 2, "path length must be at least 2 for recursion")
-	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
+}
+
+// FormatTrace formats a LookupDebugTrace into a readable arrow chain:
+// doc:1#viewer -> group:eng#member -> user:alice
+func FormatTrace(trace *dispatch.LookupDebugTrace) string {
+	if trace == nil {
+		return ""
+	}
+	parts := []string{}
+	curr := trace
+	for curr != nil {
+		id := curr.ResourceId
+		if id == "" {
+			id = "*"
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s#%s", curr.ResourceType, id, curr.Relation))
+		if len(curr.SubProblems) > 0 {
+			curr = curr.SubProblems[0]
+		} else {
+			curr = nil
+		}
+	}
+	return strings.Join(parts, " -> ")
 }

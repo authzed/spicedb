@@ -1721,7 +1721,9 @@ type LookupDebugTrace struct {
 	// True when traversal_count > 1, indicating a cycle in the relationship graph.
 	IsCyclic bool `protobuf:"varint,5,opt,name=is_cyclic,json=isCyclic,proto3" json:"is_cyclic,omitempty"`
 	// Sub-problems dispatched from this node.
-	SubProblems   []*LookupDebugTrace `protobuf:"bytes,6,rep,name=sub_problems,json=subProblems,proto3" json:"sub_problems,omitempty"`
+	SubProblems []*LookupDebugTrace `protobuf:"bytes,6,rep,name=sub_problems,json=subProblems,proto3" json:"sub_problems,omitempty"`
+	// The recursion depth of this frame in the traversal stack.
+	Depth         uint32 `protobuf:"varint,7,opt,name=depth,proto3" json:"depth,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1796,6 +1798,13 @@ func (x *LookupDebugTrace) GetSubProblems() []*LookupDebugTrace {
 		return x.SubProblems
 	}
 	return nil
+}
+
+func (x *LookupDebugTrace) GetDepth() uint32 {
+	if x != nil {
+		return x.Depth
+	}
+	return 0
 }
 
 var File_dispatch_v1_dispatch_proto protoreflect.FileDescriptor
@@ -1954,7 +1963,7 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\f\n" +
 	"\bRELATION\x10\x01\x12\x0e\n" +
 	"\n" +
-	"PERMISSION\x10\x02\"\xfc\x01\n" +
+	"PERMISSION\x10\x02\"\x92\x02\n" +
 	"\x10LookupDebugTrace\x12#\n" +
 	"\rresource_type\x18\x01 \x01(\tR\fresourceType\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
@@ -1962,7 +1971,8 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\brelation\x18\x03 \x01(\tR\brelation\x12'\n" +
 	"\x0ftraversal_count\x18\x04 \x01(\rR\x0etraversalCount\x12\x1b\n" +
 	"\tis_cyclic\x18\x05 \x01(\bR\bisCyclic\x12@\n" +
-	"\fsub_problems\x18\x06 \x03(\v2\x1d.dispatch.v1.LookupDebugTraceR\vsubProblems2\xb9\x04\n" +
+	"\fsub_problems\x18\x06 \x03(\v2\x1d.dispatch.v1.LookupDebugTraceR\vsubProblems\x12\x14\n" +
+	"\x05depth\x18\a \x01(\rR\x05depth2\xb9\x04\n" +
 	"\x0fDispatchService\x12X\n" +
 	"\rDispatchCheck\x12!.dispatch.v1.DispatchCheckRequest\x1a\".dispatch.v1.DispatchCheckResponse\"\x00\x12[\n" +
 	"\x0eDispatchExpand\x12\".dispatch.v1.DispatchExpandRequest\x1a#.dispatch.v1.DispatchExpandResponse\"\x00\x12u\n" +

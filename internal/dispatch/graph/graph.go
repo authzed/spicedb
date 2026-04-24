@@ -45,6 +45,7 @@ func convertTraversalStackToDispatchTrace(ctx context.Context) *v1.LookupDebugTr
 			ResourceType: f.ResourceType(),
 			ResourceId:   f.ResourceID(),
 			Relation:     f.Permission(), // permission being evaluated
+			Depth:        uint32(i),
 		}
 		if tail != nil {
 			node.SubProblems = []*v1.LookupDebugTrace{tail}
@@ -413,8 +414,6 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	resourceID := ""
 	if len(req.SubjectIds) == 1 {
 		resourceID = req.SubjectIds[0]
-	} else if len(req.SubjectIds) > 1 {
-		resourceID = req.SubjectIds[0] + ",..."
 	}
 
 	graph.PushTraversalFrame(ctx,
@@ -467,8 +466,6 @@ func (ld *localDispatcher) DispatchLookupResources3(
 	resourceID := ""
 	if len(req.SubjectIds) == 1 {
 		resourceID = req.SubjectIds[0]
-	} else if len(req.SubjectIds) > 1 {
-		resourceID = req.SubjectIds[0] + ",..."
 	}
 
 	graph.PushTraversalFrame(ctx,
@@ -526,8 +523,6 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	resourceID := ""
 	if len(req.ResourceIds) == 1 {
 		resourceID = req.ResourceIds[0]
-	} else if len(req.ResourceIds) > 1 {
-		resourceID = req.ResourceIds[0] + ",..."
 	}
 
 	graph.PushTraversalFrame(ctx,
