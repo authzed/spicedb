@@ -686,34 +686,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
 				stream := unfilteredLookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, ci)
-				if parentRequest.EnableDebugTrace {
-					// Debug path: per-subject dispatch so each recursive frame is annotated.
-					for _, subjectID := range filteredSubjectIDs {
-						sid := subjectID
-						if err := crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-							ResourceRelation: parentRequest.ResourceRelation,
-							SubjectRelation:  newSubjectType,
-							SubjectIds:       []string{sid},
-							TerminalSubject:  parentRequest.TerminalSubject,
-							Metadata: &v1.ResolverMeta{
-								AtRevision:     parentRequest.Revision.String(),
-								DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-							},
-							OptionalCursor:   ci.currentCursor,
-							OptionalLimit:    parentRequest.OptionalLimit,
-							Context:          parentRequest.Context,
-							EnableDebugTrace: true,
-						}, stream); err != nil {
-							err = dispatch.PrependTraversalFrame(err, newSubjectType.Namespace, sid, newSubjectType.Relation)
-							if trace := dispatch.ExtractTraversalTrace(err); trace != nil {
-								dispatch.SaveTraceToContext(ctx, trace)
-							}
-							return err
-						}
-					}
-					return nil
-				}
-				return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+				err := crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 					ResourceRelation: parentRequest.ResourceRelation,
 					SubjectRelation:  newSubjectType,
 					SubjectIds:       filteredSubjectIDs,
@@ -725,39 +698,16 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					OptionalCursor: ci.currentCursor,
 					OptionalLimit:  parentRequest.OptionalLimit,
 					Context:        parentRequest.Context,
+					EnableDebugTrace: parentRequest.EnableDebugTrace,
 				}, stream)
+				if parentRequest.EnableDebugTrace {
+					return dispatch.HandleTraversalTrace(err, newSubjectType.Namespace, newSubjectType.Relation, filteredSubjectIDs)
+				}
+				return err
 			}
 
 			// Otherwise, we need to filter results by batch checking along the way before dispatching.
-			if parentRequest.EnableDebugTrace {
-				// Debug path: per-subject dispatch so each recursive frame is annotated.
-				for _, subjectID := range filteredSubjectIDs {
-					sid := subjectID
-					if err := runCheckerAndDispatch(
-						ctx,
-						parentRequest,
-						foundResources,
-						ci,
-						parentStream,
-						newSubjectType,
-						[]string{sid},
-						entrypoint,
-						crr.dl,
-						crr.dc,
-						crr.caveatTypeSet,
-						crr.concurrencyLimit,
-						crr.dispatchChunkSize,
-					); err != nil {
-						err = dispatch.PrependTraversalFrame(err, newSubjectType.Namespace, sid, newSubjectType.Relation)
-						if trace := dispatch.ExtractTraversalTrace(err); trace != nil {
-							dispatch.SaveTraceToContext(ctx, trace)
-						}
-						return err
-					}
-				}
-				return nil
-			}
-			return runCheckerAndDispatch(
+			err := runCheckerAndDispatch(
 				ctx,
 				parentRequest,
 				foundResources,
@@ -772,5 +722,9 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				crr.concurrencyLimit,
 				crr.dispatchChunkSize,
 			)
+			if parentRequest.EnableDebugTrace {
+				return dispatch.HandleTraversalTrace(err, newSubjectType.Namespace, newSubjectType.Relation, filteredSubjectIDs)
+			}
+			return err
 		})
 }
