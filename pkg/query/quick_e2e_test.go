@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,8 +10,10 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestCheck(t *testing.T) {
@@ -95,4 +98,186 @@ func TestCheckArrow(t *testing.T) {
 
 	_, err = ctx.Check(it, NewObject("document", "companyplan"), NewObject("user", "legal").WithEllipses())
 	require.NoError(err)
+}
+
+// cyclicSchema is a simple schema with a recursive structure
+// that is relatively easy to make cyclic.
+var cyclicSchema = `
+definition user {}
+
+definition folder {
+	relation viewer: user
+	relation parent: folder
+	permission view = parent->view + viewer
+}
+
+definition resource {
+	relation folder: folder
+	permission view = folder->view
+}`
+
+// TestCyclicLookupResources verifies that the Query Planner
+// can handle an LR that would have caused the old logic to
+// return a MaxDepthExceeded error.
+func TestCyclicLookupResources(t *testing.T) {
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ctx := t.Context()
+
+	// The folders are connected to each other and to a user,
+	// but there are no resources connected to either.
+	relationships := []tuple.Relationship{
+		tuple.MustParse("folder:a#viewer@user:tom"),
+		tuple.MustParse("folder:a#parent@folder:b"),
+		tuple.MustParse("folder:b#parent@folder:a"),
+	}
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, cyclicSchema, relationships, require)
+
+	dsSchema, err := ReadSchema(ctx, ds, revision)
+	require.NoError(err)
+
+	canonicalOutline, err := BuildOutlineFromSchema(dsSchema, "resource", "view")
+	require.NoError(err)
+	it, err := canonicalOutline.Compile()
+	require.NoError(err)
+
+	subject := NewObject("user", "tom").WithEllipses()
+	filterResourceType := NoObjectFilter()
+
+	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision))
+
+	opts := []ContextOption{
+		WithReader(reader),
+		WithMaxRecursionDepth(defaultMaxRecursionDepth),
+	}
+
+	queryCtx := NewLocalContext(ctx, opts...)
+	paths, err := queryCtx.IterResources(it, subject, filterResourceType)
+	require.NoError(err, "should not reach max depth")
+	results, err := CollectAll(paths)
+	require.NoError(err)
+	require.Empty(results, "no results expected for query")
+}
+
+// TestCyclicLookupResources verifies that the Query Planner
+// can handle an LS that would have caused the old logic to
+// return a MaxDepthExceeded error.
+func TestCyclicLookupSubjects(t *testing.T) {
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ctx := t.Context()
+
+	// The folders are connected to each other, and a resource
+	// is connected to a folder, but there are no connections to
+	// a user.
+	relationships := []tuple.Relationship{
+		tuple.MustParse("folder:a#parent@folder:b"),
+		tuple.MustParse("folder:b#parent@folder:a"),
+		tuple.MustParse("resource:foo#parent@folder:a"),
+	}
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, cyclicSchema, relationships, require)
+
+	dsSchema, err := ReadSchema(ctx, ds, revision)
+	require.NoError(err)
+
+	canonicalOutline, err := BuildOutlineFromSchema(dsSchema, "resource", "view")
+	require.NoError(err)
+	it, err := canonicalOutline.Compile()
+	require.NoError(err)
+
+	object := NewObject("resource", "foo")
+	filterSubjectType := NewType("user")
+
+	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision))
+
+	opts := []ContextOption{
+		WithReader(reader),
+		WithMaxRecursionDepth(defaultMaxRecursionDepth),
+	}
+	queryCtx := NewLocalContext(ctx, opts...)
+
+	paths, err := queryCtx.IterSubjects(it, object, filterSubjectType)
+	require.NoError(err, "should not reach max depth")
+	results, err := CollectAll(paths)
+	require.NoError(err)
+	require.Empty(results, "no results expected for query")
+}
+
+// TestCyclicCheck verifies that the Query Planner
+// can handle an Check that would have caused the old logic to
+// return a MaxDepthExceeded error.
+// NOTE: This is basically the same setup as the LookupSubjects
+// test, because the old LS implementation was using the check
+// path.
+func TestCyclicCheck(t *testing.T) {
+	require := require.New(t)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ctx := t.Context()
+
+	// The folders are connected to each other, and a resource
+	// is connected to a folder, but there are no connections to
+	// a user.
+	relationships := []tuple.Relationship{
+		tuple.MustParse("folder:a#parent@folder:b"),
+		tuple.MustParse("folder:b#parent@folder:a"),
+		tuple.MustParse("resource:foo#parent@folder:a"),
+	}
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, cyclicSchema, relationships, require)
+
+	dsSchema, err := ReadSchema(ctx, ds, revision)
+	require.NoError(err)
+
+	canonicalOutline, err := BuildOutlineFromSchema(dsSchema, "resource", "view")
+	require.NoError(err)
+	it, err := canonicalOutline.Compile()
+	require.NoError(err)
+
+	object := NewObject("resource", "foo")
+	subject := NewObject("user", "tom").WithEllipses()
+
+	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision))
+
+	opts := []ContextOption{
+		WithReader(reader),
+		WithMaxRecursionDepth(defaultMaxRecursionDepth),
+	}
+	queryCtx := NewLocalContext(ctx, opts...)
+
+	path, err := queryCtx.Check(it, object, subject)
+	require.NoError(err, "should not reach max depth")
+	require.Nil(path, "no results expected for query")
+}
+
+// ReadSchema reads all namespace and caveat definitions from the datastore at
+// the given revision and returns the compiled schema.
+func ReadSchema(ctx context.Context, ds datastore.Datastore, rev datastore.Revision) (*schema.Schema, error) {
+	reader := ds.SnapshotReader(rev)
+
+	nsDefs, err := reader.LegacyListAllNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	caveatDefs, err := reader.LegacyListAllCaveats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	objectDefs := make([]*corev1.NamespaceDefinition, len(nsDefs))
+	for i, ns := range nsDefs {
+		objectDefs[i] = ns.Definition
+	}
+
+	caveatProtos := make([]*corev1.CaveatDefinition, len(caveatDefs))
+	for i, c := range caveatDefs {
+		caveatProtos[i] = c.Definition
+	}
+
+	return schema.BuildSchemaFromDefinitions(objectDefs, caveatProtos)
 }
