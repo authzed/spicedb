@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - uses: "nowsprinting/check-version-format-action@bb1181a02ee5d9ae4feead2842236183c85152c6" # v4.0.7
+      - uses: "nowsprinting/check-version-format-action@976544c127ab571b88419766cc9d3b459f8d7b82" # v5.0.1
         id: "version"
         with:
           prefix: "v"
@@ -27,7 +27,7 @@ jobs:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29" # v7.0.0
+      - uses: "goreleaser/goreleaser-action@e24998b8b67b290c2fa8b7c14fcfa7de2c5c9b8c" # v7.1.0
         with:
           distribution: "goreleaser-pro"
           # NOTE: keep in sync with goreleaser version in other job.
@@ -40,7 +40,7 @@ jobs:
           CHOCOLATEY_API_KEY: "${{ secrets.CHOCOLATEY_API_KEY }}"
       - name: "Notify Slack if failure"
         if: "failure()"
-        uses: "slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a" # v2.1.1
+        uses: "slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95" # v3.0.1
         with:
           webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
           webhook-type: "incoming-webhook"
