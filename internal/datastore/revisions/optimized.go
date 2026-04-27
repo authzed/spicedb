@@ -64,9 +64,14 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	cor.RUnlock()
 
 	newQuantizedRevision, _, err := cor.updateGroup.Do(ctx, "", func(ctx context.Context) (datastore.Revision, error) {
+		ctx, span := tracer.Start(ctx, "CachedOptimizedRevisions.OptimizedRevision(sf)")
+		defer span.End()
 		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
 
-		optimized, validFor, err := cor.optimizedFunc(ctx)
+		// Sever the context so that a single caller's cancellation does not
+		// abort the query for all other singleflight waiters. This is safe
+		// because optimizedFunc is a cheap read-only query (SELECT now()).
+		optimized, validFor, err := cor.optimizedFunc(context.WithoutCancel(ctx))
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf("unable to compute optimized revision: %w", err)
 		}

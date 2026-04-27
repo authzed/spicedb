@@ -3,9 +3,13 @@ package datastore
 import (
 	"context"
 
+	"go.opentelemetry.io/otel"
+
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
+
+var tracer = otel.Tracer("spicedb/pkg/datastore/context")
 
 // NewSeparatingContextDatastoreProxy severs any timeouts in the context being
 // passed to the datastore and only retains tracing metadata.
@@ -49,14 +53,25 @@ func (p *ctxProxy) IsStrictReadModeEnabled() bool {
 }
 
 func (p *ctxProxy) OptimizedRevision(ctx context.Context) (Revision, error) {
-	return p.delegate.OptimizedRevision(context.WithoutCancel(ctx))
+	// NOTE: do NOT strip cancellation here. OptimizedRevision is singleflighted
+	// internally by CachedOptimizedRevisions, and stripping cancel before the
+	// singleflight makes it impossible for callers to escape the wait when the
+	// underlying query is slow. context.WithoutCancel is applied inside the
+	// singleflight function instead (see optimized.go).
+	ctx, span := tracer.Start(ctx, "ctxProxy.OptimizedRevision")
+	defer span.End()
+	return p.delegate.OptimizedRevision(ctx)
 }
 
 func (p *ctxProxy) CheckRevision(ctx context.Context, revision Revision) error {
+	ctx, span := tracer.Start(ctx, "ctxProxy.CheckRevision")
+	defer span.End()
 	return p.delegate.CheckRevision(context.WithoutCancel(ctx), revision)
 }
 
 func (p *ctxProxy) HeadRevision(ctx context.Context) (Revision, error) {
+	ctx, span := tracer.Start(ctx, "ctxProxy.HeadRevision")
+	defer span.End()
 	return p.delegate.HeadRevision(context.WithoutCancel(ctx))
 }
 
