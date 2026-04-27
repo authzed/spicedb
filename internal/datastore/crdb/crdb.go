@@ -572,6 +572,9 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 
 	head, err := cds.HeadRevision(ctx)
 	if err != nil {
+		if pgxcommon.IsMissingTableError(err) {
+			return nil, common.NewSchemaNotInitializedError(err)
+		}
 		return nil, err
 	}
 
