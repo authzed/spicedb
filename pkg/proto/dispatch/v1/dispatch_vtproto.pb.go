@@ -657,11 +657,11 @@ func (m *PlanContext) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (m *DispatchPlanRequest) CloneVT() *DispatchPlanRequest {
+func (m *DispatchQueryPlanRequest) CloneVT() *DispatchQueryPlanRequest {
 	if m == nil {
-		return (*DispatchPlanRequest)(nil)
+		return (*DispatchQueryPlanRequest)(nil)
 	}
-	r := new(DispatchPlanRequest)
+	r := new(DispatchQueryPlanRequest)
 	r.Operation = m.Operation
 	r.CanonicalKey = m.CanonicalKey
 	r.PlanContext = m.PlanContext.CloneVT()
@@ -686,15 +686,15 @@ func (m *DispatchPlanRequest) CloneVT() *DispatchPlanRequest {
 	return r
 }
 
-func (m *DispatchPlanRequest) CloneMessageVT() proto.Message {
+func (m *DispatchQueryPlanRequest) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (m *DispatchPlanResponse) CloneVT() *DispatchPlanResponse {
+func (m *DispatchQueryPlanResponse) CloneVT() *DispatchQueryPlanResponse {
 	if m == nil {
-		return (*DispatchPlanResponse)(nil)
+		return (*DispatchQueryPlanResponse)(nil)
 	}
-	r := new(DispatchPlanResponse)
+	r := new(DispatchQueryPlanResponse)
 	r.Metadata = m.Metadata.CloneVT()
 	if rhs := m.Paths; rhs != nil {
 		tmpContainer := make([]*ResultPath, len(rhs))
@@ -710,7 +710,7 @@ func (m *DispatchPlanResponse) CloneVT() *DispatchPlanResponse {
 	return r
 }
 
-func (m *DispatchPlanResponse) CloneMessageVT() proto.Message {
+func (m *DispatchQueryPlanResponse) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -1649,7 +1649,7 @@ func (this *PlanContext) EqualMessageVT(thatMsg proto.Message) bool {
 	}
 	return this.EqualVT(that)
 }
-func (this *DispatchPlanRequest) EqualVT(that *DispatchPlanRequest) bool {
+func (this *DispatchQueryPlanRequest) EqualVT(that *DispatchQueryPlanRequest) bool {
 	if this == that {
 		return true
 	} else if this == nil || that == nil {
@@ -1685,14 +1685,14 @@ func (this *DispatchPlanRequest) EqualVT(that *DispatchPlanRequest) bool {
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
-func (this *DispatchPlanRequest) EqualMessageVT(thatMsg proto.Message) bool {
-	that, ok := thatMsg.(*DispatchPlanRequest)
+func (this *DispatchQueryPlanRequest) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*DispatchQueryPlanRequest)
 	if !ok {
 		return false
 	}
 	return this.EqualVT(that)
 }
-func (this *DispatchPlanResponse) EqualVT(that *DispatchPlanResponse) bool {
+func (this *DispatchQueryPlanResponse) EqualVT(that *DispatchQueryPlanResponse) bool {
 	if this == that {
 		return true
 	} else if this == nil || that == nil {
@@ -1721,8 +1721,8 @@ func (this *DispatchPlanResponse) EqualVT(that *DispatchPlanResponse) bool {
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
-func (this *DispatchPlanResponse) EqualMessageVT(thatMsg proto.Message) bool {
-	that, ok := thatMsg.(*DispatchPlanResponse)
+func (this *DispatchQueryPlanResponse) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*DispatchQueryPlanResponse)
 	if !ok {
 		return false
 	}
@@ -3479,7 +3479,7 @@ func (m *PlanContext) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *DispatchPlanRequest) MarshalVT() (dAtA []byte, err error) {
+func (m *DispatchQueryPlanRequest) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -3492,12 +3492,12 @@ func (m *DispatchPlanRequest) MarshalVT() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *DispatchPlanRequest) MarshalToVT(dAtA []byte) (int, error) {
+func (m *DispatchQueryPlanRequest) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
 }
 
-func (m *DispatchPlanRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+func (m *DispatchQueryPlanRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
@@ -3578,7 +3578,7 @@ func (m *DispatchPlanRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *DispatchPlanResponse) MarshalVT() (dAtA []byte, err error) {
+func (m *DispatchQueryPlanResponse) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -3591,12 +3591,12 @@ func (m *DispatchPlanResponse) MarshalVT() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *DispatchPlanResponse) MarshalToVT(dAtA []byte) (int, error) {
+func (m *DispatchQueryPlanResponse) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
 }
 
-func (m *DispatchPlanResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+func (m *DispatchQueryPlanResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
@@ -4472,7 +4472,7 @@ func (m *PlanContext) SizeVT() (n int) {
 	return n
 }
 
-func (m *DispatchPlanRequest) SizeVT() (n int) {
+func (m *DispatchQueryPlanRequest) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -4513,7 +4513,7 @@ func (m *DispatchPlanRequest) SizeVT() (n int) {
 	return n
 }
 
-func (m *DispatchPlanResponse) SizeVT() (n int) {
+func (m *DispatchQueryPlanResponse) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -8698,7 +8698,7 @@ func (m *PlanContext) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *DispatchPlanRequest) UnmarshalVT(dAtA []byte) error {
+func (m *DispatchQueryPlanRequest) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -8721,10 +8721,10 @@ func (m *DispatchPlanRequest) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: DispatchPlanRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: DispatchQueryPlanRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DispatchPlanRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: DispatchQueryPlanRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -8924,7 +8924,7 @@ func (m *DispatchPlanRequest) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *DispatchPlanResponse) UnmarshalVT(dAtA []byte) error {
+func (m *DispatchQueryPlanResponse) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -8947,10 +8947,10 @@ func (m *DispatchPlanResponse) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: DispatchPlanResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: DispatchQueryPlanResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DispatchPlanResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: DispatchQueryPlanResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

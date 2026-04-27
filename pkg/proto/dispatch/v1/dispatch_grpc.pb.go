@@ -24,7 +24,7 @@ const (
 	DispatchService_DispatchLookupSubjects_FullMethodName   = "/dispatch.v1.DispatchService/DispatchLookupSubjects"
 	DispatchService_DispatchLookupResources2_FullMethodName = "/dispatch.v1.DispatchService/DispatchLookupResources2"
 	DispatchService_DispatchLookupResources3_FullMethodName = "/dispatch.v1.DispatchService/DispatchLookupResources3"
-	DispatchService_DispatchPlan_FullMethodName             = "/dispatch.v1.DispatchService/DispatchPlan"
+	DispatchService_DispatchQueryPlan_FullMethodName        = "/dispatch.v1.DispatchService/DispatchQueryPlan"
 )
 
 // DispatchServiceClient is the client API for DispatchService service.
@@ -36,7 +36,7 @@ type DispatchServiceClient interface {
 	DispatchLookupSubjects(ctx context.Context, in *DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DispatchLookupSubjectsResponse], error)
 	DispatchLookupResources2(ctx context.Context, in *DispatchLookupResources2Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DispatchLookupResources2Response], error)
 	DispatchLookupResources3(ctx context.Context, in *DispatchLookupResources3Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DispatchLookupResources3Response], error)
-	DispatchPlan(ctx context.Context, in *DispatchPlanRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DispatchPlanResponse], error)
+	DispatchQueryPlan(ctx context.Context, in *DispatchQueryPlanRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DispatchQueryPlanResponse], error)
 }
 
 type dispatchServiceClient struct {
@@ -124,13 +124,13 @@ func (c *dispatchServiceClient) DispatchLookupResources3(ctx context.Context, in
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DispatchService_DispatchLookupResources3Client = grpc.ServerStreamingClient[DispatchLookupResources3Response]
 
-func (c *dispatchServiceClient) DispatchPlan(ctx context.Context, in *DispatchPlanRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DispatchPlanResponse], error) {
+func (c *dispatchServiceClient) DispatchQueryPlan(ctx context.Context, in *DispatchQueryPlanRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DispatchQueryPlanResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[3], DispatchService_DispatchPlan_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[3], DispatchService_DispatchQueryPlan_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[DispatchPlanRequest, DispatchPlanResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[DispatchQueryPlanRequest, DispatchQueryPlanResponse]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (c *dispatchServiceClient) DispatchPlan(ctx context.Context, in *DispatchPl
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type DispatchService_DispatchPlanClient = grpc.ServerStreamingClient[DispatchPlanResponse]
+type DispatchService_DispatchQueryPlanClient = grpc.ServerStreamingClient[DispatchQueryPlanResponse]
 
 // DispatchServiceServer is the server API for DispatchService service.
 // All implementations must embed UnimplementedDispatchServiceServer
@@ -152,7 +152,7 @@ type DispatchServiceServer interface {
 	DispatchLookupSubjects(*DispatchLookupSubjectsRequest, grpc.ServerStreamingServer[DispatchLookupSubjectsResponse]) error
 	DispatchLookupResources2(*DispatchLookupResources2Request, grpc.ServerStreamingServer[DispatchLookupResources2Response]) error
 	DispatchLookupResources3(*DispatchLookupResources3Request, grpc.ServerStreamingServer[DispatchLookupResources3Response]) error
-	DispatchPlan(*DispatchPlanRequest, grpc.ServerStreamingServer[DispatchPlanResponse]) error
+	DispatchQueryPlan(*DispatchQueryPlanRequest, grpc.ServerStreamingServer[DispatchQueryPlanResponse]) error
 	mustEmbedUnimplementedDispatchServiceServer()
 }
 
@@ -178,8 +178,8 @@ func (UnimplementedDispatchServiceServer) DispatchLookupResources2(*DispatchLook
 func (UnimplementedDispatchServiceServer) DispatchLookupResources3(*DispatchLookupResources3Request, grpc.ServerStreamingServer[DispatchLookupResources3Response]) error {
 	return status.Errorf(codes.Unimplemented, "method DispatchLookupResources3 not implemented")
 }
-func (UnimplementedDispatchServiceServer) DispatchPlan(*DispatchPlanRequest, grpc.ServerStreamingServer[DispatchPlanResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method DispatchPlan not implemented")
+func (UnimplementedDispatchServiceServer) DispatchQueryPlan(*DispatchQueryPlanRequest, grpc.ServerStreamingServer[DispatchQueryPlanResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method DispatchQueryPlan not implemented")
 }
 func (UnimplementedDispatchServiceServer) mustEmbedUnimplementedDispatchServiceServer() {}
 func (UnimplementedDispatchServiceServer) testEmbeddedByValue()                         {}
@@ -271,16 +271,16 @@ func _DispatchService_DispatchLookupResources3_Handler(srv interface{}, stream g
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DispatchService_DispatchLookupResources3Server = grpc.ServerStreamingServer[DispatchLookupResources3Response]
 
-func _DispatchService_DispatchPlan_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(DispatchPlanRequest)
+func _DispatchService_DispatchQueryPlan_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DispatchQueryPlanRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(DispatchServiceServer).DispatchPlan(m, &grpc.GenericServerStream[DispatchPlanRequest, DispatchPlanResponse]{ServerStream: stream})
+	return srv.(DispatchServiceServer).DispatchQueryPlan(m, &grpc.GenericServerStream[DispatchQueryPlanRequest, DispatchQueryPlanResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type DispatchService_DispatchPlanServer = grpc.ServerStreamingServer[DispatchPlanResponse]
+type DispatchService_DispatchQueryPlanServer = grpc.ServerStreamingServer[DispatchQueryPlanResponse]
 
 // DispatchService_ServiceDesc is the grpc.ServiceDesc for DispatchService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -315,8 +315,8 @@ var DispatchService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "DispatchPlan",
-			Handler:       _DispatchService_DispatchPlan_Handler,
+			StreamName:    "DispatchQueryPlan",
+			Handler:       _DispatchService_DispatchQueryPlan_Handler,
 			ServerStreams: true,
 		},
 	},
