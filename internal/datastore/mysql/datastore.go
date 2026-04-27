@@ -217,6 +217,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		colTimestamp,
 		quantizationPeriodNanos,
 		followerReadDelayNanos,
+		driver.SchemaRevision(),
 	)
 
 	validTransactionQuery := fmt.Sprintf(
@@ -381,6 +382,7 @@ func (mds *mysqlDatastore) ReadWriteTx(
 					mds.schema,
 				},
 				mds.driver.RelationTuple(),
+				mds.driver.SchemaRevision(),
 				tx,
 				newTxnID,
 			}
@@ -589,7 +591,7 @@ func (mds *mysqlDatastore) isSeeded(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if headRevision == datastore.NoRevision {
+	if headRevision.Revision == nil {
 		return false, nil
 	}
 

@@ -515,10 +515,35 @@ func (rd RevisionedDefinition[T]) GetLastWrittenRevision() Revision {
 // RevisionedNamespace is a revisioned version of a namespace definition.
 type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 
+// ReadOnlyStoredSchema wraps a *core.StoredSchema to indicate it is read-only
+// and must not be modified, as it may be shared across multiple callers via caching.
+type ReadOnlyStoredSchema struct {
+	schema *core.StoredSchema
+}
+
+// NewReadOnlyStoredSchema wraps a StoredSchema as read-only.
+// Returns nil if the provided schema is nil.
+func NewReadOnlyStoredSchema(schema *core.StoredSchema) *ReadOnlyStoredSchema {
+	if schema == nil {
+		return nil
+	}
+	return &ReadOnlyStoredSchema{schema: schema}
+}
+
+// Get returns the underlying StoredSchema. Callers must not modify the returned value.
+func (r *ReadOnlyStoredSchema) Get() *core.StoredSchema {
+	return r.schema
+}
+
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	LegacySchemaReader
 	CounterReader
+
+	// ReadStoredSchema reads the unified stored schema from the datastore.
+	// The returned ReadOnlyStoredSchema must not be modified, as it may be shared
+	// across callers via caching.
+	ReadStoredSchema(ctx context.Context) (*ReadOnlyStoredSchema, error)
 
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
@@ -551,6 +576,9 @@ type ReadWriteTransaction interface {
 	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
 		options ...options.DeleteOptionsOption,
 	) (uint64, bool, error)
+
+	// WriteStoredSchema writes the unified stored schema to the datastore.
+	WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error
 
 	// BulkLoad takes a relationship source iterator, and writes all of the
 	// relationships to the backing datastore in an optimized fashion. This
@@ -680,11 +708,11 @@ type ReadOnlyDatastore interface {
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.
-	OptimizedRevision(ctx context.Context) (Revision, error)
+	OptimizedRevision(ctx context.Context) (RevisionWithSchemaHash, error)
 
 	// HeadRevision gets a revision that is guaranteed to be at least as fresh as
 	// right now.
-	HeadRevision(ctx context.Context) (Revision, error)
+	HeadRevision(ctx context.Context) (RevisionWithSchemaHash, error)
 
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.
@@ -993,6 +1021,14 @@ func (nilRevision) LessThan(_ Revision) bool {
 
 func (nilRevision) String() string {
 	return "nil"
+}
+
+// RevisionWithSchemaHash is a revision paired with the schema hash that was
+// active at that revision. The schema hash is returned as a raw string from
+// the datastore layer; the datalayer converts it to a typed SchemaHash.
+type RevisionWithSchemaHash struct {
+	Revision   Revision
+	SchemaHash string
 }
 
 // NoRevision is a zero type for the revision that will make changing the

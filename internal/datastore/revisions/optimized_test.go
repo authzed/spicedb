@@ -20,9 +20,9 @@ type trackingRevisionFunction struct {
 	mock.Mock
 }
 
-func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, error) {
+func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, string, error) {
 	args := m.Called()
-	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.Error(2)
+	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.String(2), args.Error(3)
 }
 
 var (
@@ -114,7 +114,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			or.SetOptimizedRevisionFunc(mock.optimizedRevisionFunc)
 
 			for _, callSpec := range tc.expectedCallResponses {
-				mock.On("optimizedRevisionFunc").Return(callSpec.rev, callSpec.validFor, nil).Once()
+				mock.On("optimizedRevisionFunc").Return(callSpec.rev, callSpec.validFor, "", nil).Once()
 			}
 
 			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
@@ -127,8 +127,9 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				}
 
 				require.Eventually(func() bool {
-					revision, err := or.OptimizedRevision(ctx)
+					revisionResult, err := or.OptimizedRevision(ctx)
 					require.NoError(err)
+					revision := revisionResult.Revision
 					printableRevSet := slicez.Map(expectedRevSet, func(val datastore.Revision) string {
 						return val.String()
 					})
@@ -155,7 +156,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 
 	mock.
 		On("optimizedRevisionFunc").
-		Return(one, time.Duration(0), nil).
+		Return(one, time.Duration(0), "", nil).
 		After(50 * time.Millisecond).
 		Once()
 
@@ -165,11 +166,11 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	g := errgroup.Group{}
 	for range 10 {
 		g.Go(func() error {
-			revision, err := or.OptimizedRevision(ctx)
+			revisionResult, err := or.OptimizedRevision(ctx)
 			if err != nil {
 				return err
 			}
-			require.True(one.Equal(revision), "must return the proper revision %s != %s", one, revision)
+			require.True(one.Equal(revisionResult.Revision), "must return the proper revision %s != %s", one, revisionResult.Revision)
 			return nil
 		})
 		time.Sleep(1 * time.Millisecond)
@@ -187,14 +188,14 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 	quantization := 1 * time.Millisecond
 	or := NewCachedOptimizedRevisions(quantization)
 
-	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, error) {
+	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 		nowNS := time.Now().UnixNano()
 		validForNS := nowNS % quantization.Nanoseconds()
 		roundedNS := nowNS - validForNS
 		// This should be non-negative.
 		uintRoundedNs := safecast.RequireConvert[uint64](b, roundedNS)
 		rev := NewForTransactionID(uintRoundedNs)
-		return rev, time.Duration(validForNS) * time.Nanosecond, nil
+		return rev, time.Duration(validForNS) * time.Nanosecond, "", nil
 	})
 
 	ctx := b.Context()
@@ -216,7 +217,7 @@ func TestSingleFlightError(t *testing.T) {
 
 	mock.
 		On("optimizedRevisionFunc").
-		Return(one, time.Duration(0), errors.New("fail")).
+		Return(one, time.Duration(0), "", errors.New("fail")).
 		Once()
 
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)

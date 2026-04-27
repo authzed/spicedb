@@ -56,7 +56,7 @@ func (p *indexcheckingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 
@@ -64,7 +64,7 @@ func (p *indexcheckingProxy) CheckRevision(ctx context.Context, revision datasto
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
-func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	return p.delegate.HeadRevision(ctx)
 }
 
@@ -133,6 +133,10 @@ func (r *indexcheckingReader) LegacyLookupNamespacesWithNames(ctx context.Contex
 
 func (r *indexcheckingReader) LegacyReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	return r.delegate.LegacyReadNamespaceByName(ctx, nsName)
+}
+
+func (r *indexcheckingReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return r.delegate.ReadStoredSchema(ctx)
 }
 
 func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) error {
@@ -224,6 +228,10 @@ func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1
 
 func (rwt *indexcheckingRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return rwt.delegate.BulkLoad(ctx, iter)
+}
+
+func (rwt *indexcheckingRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	return rwt.delegate.WriteStoredSchema(ctx, schema)
 }
 
 var (

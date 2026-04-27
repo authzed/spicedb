@@ -51,7 +51,7 @@ func TestStreamPartitionedExport(t *testing.T) {
 		require.NoError(t, err)
 
 		iter, err := StreamPartitionedExport(t.Context(), ds, StreamRequest{
-			Revision: rev,
+			Revision: rev.Revision,
 		})
 		require.NoError(t, err)
 

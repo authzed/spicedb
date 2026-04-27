@@ -69,8 +69,9 @@ func NewMemdbDatastore(
 		db: db,
 		revisions: []snapshot{
 			{
-				revision: nowRevision(),
-				db:       db,
+				revision:   nowRevision(),
+				schemaHash: "",
+				db:         db,
 			},
 		},
 
@@ -99,8 +100,9 @@ type memdbDatastore struct {
 }
 
 type snapshot struct {
-	revision revisions.TimestampRevision
-	db       *memdb.MemDB
+	revision   revisions.TimestampRevision
+	schemaHash string
+	db         *memdb.MemDB
 }
 
 func (mdb *memdbDatastore) MetricsID() (string, error) {
@@ -147,6 +149,23 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 	}
 
 	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now()}
+}
+
+func (mdb *memdbDatastore) getCurrentSchemaHashNoLock() string {
+	txn := mdb.db.Txn(false)
+	defer txn.Abort()
+
+	raw, err := txn.First(tableSchemaRevision, indexID, "current")
+	if err != nil || raw == nil {
+		return ""
+	}
+
+	srd, ok := raw.(*schemaRevisionData)
+	if !ok {
+		return ""
+	}
+
+	return string(srd.hash)
 }
 
 func (mdb *memdbDatastore) SupportsIntegrity() bool {
@@ -324,8 +343,9 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		// Create a snapshot and add it to the revisions slice
+		schemaHash := mdb.getCurrentSchemaHashNoLock()
 		snap := mdb.db.Snapshot()
-		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
+		mdb.revisions = append(mdb.revisions, snapshot{newRevision, schemaHash, snap})
 		return newRevision, nil
 	}
 
@@ -370,8 +390,9 @@ func (mdb *memdbDatastore) Close() error {
 	if db := mdb.db; db != nil {
 		mdb.revisions = []snapshot{
 			{
-				revision: nowRevision(),
-				db:       db,
+				revision:   nowRevision(),
+				schemaHash: "",
+				db:         db,
 			},
 		}
 	} else {

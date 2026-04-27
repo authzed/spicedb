@@ -54,7 +54,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 				t.Cleanup(func() { dispatcher.Close() })
 				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
-				headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+				headRevisionResult, err := cad.DataStore.HeadRevision(cad.Ctx)
 				require.NoError(t, err)
 
 				// Run the assertions within each file.
@@ -63,7 +63,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 					clusterAndData:   cad,
 					accessibilitySet: accessibilitySet,
 					serviceTester:    tester,
-					revision:         headRevision,
+					revision:         headRevisionResult.Revision,
 					dispatcher:       dispatcher,
 				}
 

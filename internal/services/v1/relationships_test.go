@@ -1355,10 +1355,10 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 			for i := range 10 {
 				iterations++
 
-				headRev, err := ds.HeadRevision(t.Context())
+				headRevResult, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
-				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
+				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult.Revision))
 
 				resp, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					RelationshipFilter: &v1.RelationshipFilter{
@@ -1369,10 +1369,10 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				})
 				require.NoError(err)
 
-				headRev, err = ds.HeadRevision(t.Context())
+				headRevResult2, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
-				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
+				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult2.Revision))
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
 				bs := safecast.RequireConvert[uint64](t, batchSize)

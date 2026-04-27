@@ -619,8 +619,9 @@ func TestOldSnapshotCachingRealDatastore(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRevResult, err := ds.HeadRevision(ctx)
 			require.NoError(t, err)
+			headRev := headRevResult.Revision
 
 			reader := ds.SnapshotReader(headRev)
 			ns, _, _ := reader.LegacyReadNamespaceByName(ctx, tc.namespaceName)
@@ -695,8 +696,9 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRevResult, err := ds.HeadRevision(ctx)
 			require.NoError(t, err)
+			headRev := headRevResult.Revision
 
 			reader := ds.SnapshotReader(headRev)
 			nsDef, _, _ := reader.LegacyReadNamespaceByName(ctx, tc.namespaceName)
@@ -998,8 +1000,9 @@ func TestOldInvalidNamespaceInCache(t *testing.T) {
 		ds.Close()
 	})
 
-	headRevision, err := ds.HeadRevision(ctx)
+	headRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRevision := headRevisionResult.Revision
 	dsReader := ds.SnapshotReader(headRevision)
 
 	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)
@@ -1033,8 +1036,9 @@ func TestInvalidNamespaceInCache(t *testing.T) {
 		ds.Close()
 	})
 
-	headRevision, err := ds.HeadRevision(ctx)
+	headRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRevision := headRevisionResult.Revision
 	dsReader := ds.SnapshotReader(headRevision)
 
 	namespace, _, err := dsReader.LegacyReadNamespaceByName(ctx, invalidNamespace)

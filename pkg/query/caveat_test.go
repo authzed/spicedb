@@ -193,7 +193,7 @@ func TestCaveatIteratorWithCaveat(t *testing.T) {
 			require.NoError(t, err)
 
 			queryCtx := NewLocalContext(t.Context(),
-				WithRevisionedReader(dl.SnapshotReader(rev)),
+				WithRevisionedReader(dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 				WithCaveatContext(tc.caveatContext),
 				WithCaveatRunner(caveats.NewCaveatRunner(types.NewTypeSet())))
 

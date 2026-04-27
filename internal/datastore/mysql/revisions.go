@@ -27,22 +27,29 @@ const (
 	// quantization period, and then find the first transaction after that. If there
 	// are no transactions newer than the quantization period, it just picks the latest
 	// transaction. It will also return the amount of nanoseconds until the next
-	// optimized revision would be selected server-side, for use with caching.
+	// optimized revision would be selected server-side, for use with caching, and
+	// the schema hash visible at the selected revision (for the stored-schema cache).
 	//
 	//   %[1] Name of id column
 	//   %[2] Relationship tuple transaction table
 	//   %[3] Name of timestamp column
 	//   %[4] Quantization period (in nanoseconds)
 	//   %[5] Follower read delay (in nanoseconds)
-	querySelectRevision = `SELECT COALESCE((
-			SELECT MIN(%[1]s)
-			FROM   %[2]s
-			WHERE  %[3]s >= FROM_UNIXTIME(FLOOR((UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 - %[5]d) / %[4]d) * %[4]d / 1000000000)
-		), (
-			SELECT MAX(%[1]s)
-			FROM   %[2]s
-		)) as revision,
-		%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos;`
+	//   %[6] Schema revision table
+	querySelectRevision = `WITH selected AS (
+			SELECT COALESCE((
+				SELECT MIN(%[1]s)
+				FROM   %[2]s
+				WHERE  %[3]s >= FROM_UNIXTIME(FLOOR((UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 - %[5]d) / %[4]d) * %[4]d / 1000000000)
+			), (
+				SELECT MAX(%[1]s)
+				FROM   %[2]s
+			)) as xid
+		)
+		SELECT selected.xid as revision,
+			%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos,
+			COALESCE((SELECT hash FROM %[6]s WHERE created_transaction <= selected.xid AND deleted_transaction > selected.xid ORDER BY created_transaction DESC LIMIT 1), '') as schema_hash
+		FROM selected;`
 
 	// queryValidTransaction will return a single row with two values, one boolean
 	// for whether the specified transaction ID is newer than the garbage collection
@@ -70,26 +77,53 @@ const (
 		) as unknown;`
 )
 
-func (mds *mysqlDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
+func (mds *mysqlDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 	var rev uint64
 	var validForNanos time.Duration
+	var schemaHash []byte
 	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQuery).
-		Scan(&rev, &validForNanos); err != nil {
-		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+		Scan(&rev, &validForNanos, &schemaHash); err != nil {
+		return datastore.NoRevision, 0, "", fmt.Errorf(errRevision, err)
 	}
-	return revisions.NewForTransactionID(rev), validForNanos, nil
+	return revisions.NewForTransactionID(rev), validForNanos, string(schemaHash), nil
 }
 
-func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.RevisionWithSchemaHash{}, err
 	}
 	if revision == 0 {
-		return datastore.NoRevision, nil
+		return datastore.RevisionWithSchemaHash{}, nil
 	}
 
-	return revisions.NewForTransactionID(revision), nil
+	schemaHash, err := mds.loadSchemaHash(ctx, revision)
+	if err != nil {
+		return datastore.RevisionWithSchemaHash{}, err
+	}
+
+	return datastore.RevisionWithSchemaHash{Revision: revisions.NewForTransactionID(revision), SchemaHash: schemaHash}, nil
+}
+
+func (mds *mysqlDatastore) loadSchemaHash(ctx context.Context, revisionID uint64) (string, error) {
+	ctx, span := tracer.Start(ctx, "loadSchemaHash")
+	defer span.End()
+
+	query := fmt.Sprintf( //nolint:gosec // table name is from trusted internal config
+		"SELECT hash FROM %s WHERE created_transaction <= ? AND deleted_transaction > ? ORDER BY created_transaction DESC LIMIT 1",
+		mds.driver.SchemaRevision(),
+	)
+
+	var hash []byte
+	err := mds.db.QueryRowContext(ctx, query, revisionID, revisionID).Scan(&hash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("unable to load schema hash: %w", err)
+	}
+
+	return string(hash), nil
 }
 
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

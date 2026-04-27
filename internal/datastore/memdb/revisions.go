@@ -38,38 +38,63 @@ func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
 	return created
 }
 
-func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
+func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 	if err := mdb.checkNotClosed(); err != nil {
-		return nil, err
+		return datastore.RevisionWithSchemaHash{}, err
 	}
 
-	return mdb.headRevisionNoLock(), nil
+	rev, hash := mdb.headRevisionWithHashNoLock()
+	return datastore.RevisionWithSchemaHash{Revision: rev, SchemaHash: hash}, nil
 }
 
 func (mdb *memdbDatastore) SquashRevisionsForTesting() {
 	mdb.revisions = []snapshot{
 		{
-			revision: nowRevision(),
-			db:       mdb.db,
+			revision:   nowRevision(),
+			schemaHash: "",
+			db:         mdb.db,
 		},
 	}
+}
+
+func (mdb *memdbDatastore) headRevisionWithHashNoLock() (revisions.TimestampRevision, string) {
+	head := mdb.revisions[len(mdb.revisions)-1]
+	return head.revision, head.schemaHash
 }
 
 func (mdb *memdbDatastore) headRevisionNoLock() revisions.TimestampRevision {
 	return mdb.revisions[len(mdb.revisions)-1].revision
 }
 
-func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
+func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 	if err := mdb.checkNotClosed(); err != nil {
-		return nil, err
+		return datastore.RevisionWithSchemaHash{}, err
 	}
 
 	now := nowRevision()
-	return revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod), nil
+	var optimized revisions.TimestampRevision
+	if mdb.quantizationPeriod > 0 {
+		optimized = revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod)
+	} else {
+		optimized = now
+	}
+
+	// Find the schema hash visible at the optimized revision: walk the
+	// revisions list backward for the most recent snapshot whose revision
+	// is at or before `optimized`.
+	var hash string
+	for i := len(mdb.revisions) - 1; i >= 0; i-- {
+		if !mdb.revisions[i].revision.GreaterThan(optimized) {
+			hash = mdb.revisions[i].schemaHash
+			break
+		}
+	}
+
+	return datastore.RevisionWithSchemaHash{Revision: optimized, SchemaHash: hash}, nil
 }
 
 func (mdb *memdbDatastore) CheckRevision(_ context.Context, dr datastore.Revision) error {

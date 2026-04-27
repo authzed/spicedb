@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/development"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -85,8 +86,9 @@ func TestConsistency(t *testing.T) {
 		cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, "testconfigs/self.yaml.skip", testTimedelta, options...)
 
 		// Validate the type system for each namespace.
-		headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+		headRevisionResult, err := cad.DataStore.HeadRevision(cad.Ctx)
 		require.NoError(t, err)
+		headRevision := headRevisionResult.Revision
 
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
 
@@ -248,8 +250,9 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
 
 	// Validate the type system for each namespace.
-	headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+	headRevisionResult, err := cad.DataStore.HeadRevision(cad.Ctx)
 	require.NoError(t, err)
+	headRevision := headRevisionResult.Revision
 
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
 
@@ -458,6 +461,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 						AtRevision:     vctx.revision.String(),
 						DepthRemaining: 100,
 						TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
+						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 					ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 				})
@@ -1082,8 +1086,9 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 // validateReachableSubjectTypes validates that the reachable subject types are those expected.
 func validateReachableSubjectTypes(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_reachable_subject_types", func(t *testing.T, resource tuple.ObjectAndRelation) {
-		headRev, err := vctx.clusterAndData.DataStore.HeadRevision(t.Context())
+		headRevResult, err := vctx.clusterAndData.DataStore.HeadRevision(t.Context())
 		require.NoError(t, err)
+		headRev := headRevResult.Revision
 
 		reader := vctx.clusterAndData.DataStore.SnapshotReader(headRev)
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
