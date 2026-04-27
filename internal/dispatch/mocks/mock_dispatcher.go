@@ -129,18 +129,18 @@ func (mr *MockDispatcherMockRecorder) DispatchLookupSubjects(req, stream any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchLookupSubjects", reflect.TypeOf((*MockDispatcher)(nil).DispatchLookupSubjects), req, stream)
 }
 
-// DispatchPlan mocks base method.
-func (m *MockDispatcher) DispatchPlan(req *dispatchv1.DispatchPlanRequest, stream dispatch.PlanStream) error {
+// DispatchQueryPlan mocks base method.
+func (m *MockDispatcher) DispatchQueryPlan(req *dispatchv1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DispatchPlan", req, stream)
+	ret := m.ctrl.Call(m, "DispatchQueryPlan", req, stream)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DispatchPlan indicates an expected call of DispatchPlan.
-func (mr *MockDispatcherMockRecorder) DispatchPlan(req, stream any) *gomock.Call {
+// DispatchQueryPlan indicates an expected call of DispatchQueryPlan.
+func (mr *MockDispatcherMockRecorder) DispatchQueryPlan(req, stream any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchPlan", reflect.TypeOf((*MockDispatcher)(nil).DispatchPlan), req, stream)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchQueryPlan", reflect.TypeOf((*MockDispatcher)(nil).DispatchQueryPlan), req, stream)
 }
 
 // ReadyState mocks base method.
@@ -373,18 +373,18 @@ func (m *MockPlan) EXPECT() *MockPlanMockRecorder {
 	return m.recorder
 }
 
-// DispatchPlan mocks base method.
-func (m *MockPlan) DispatchPlan(req *dispatchv1.DispatchPlanRequest, stream dispatch.PlanStream) error {
+// DispatchQueryPlan mocks base method.
+func (m *MockPlan) DispatchQueryPlan(req *dispatchv1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DispatchPlan", req, stream)
+	ret := m.ctrl.Call(m, "DispatchQueryPlan", req, stream)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DispatchPlan indicates an expected call of DispatchPlan.
-func (mr *MockPlanMockRecorder) DispatchPlan(req, stream any) *gomock.Call {
+// DispatchQueryPlan indicates an expected call of DispatchQueryPlan.
+func (mr *MockPlanMockRecorder) DispatchQueryPlan(req, stream any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchPlan", reflect.TypeOf((*MockPlan)(nil).DispatchPlan), req, stream)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchQueryPlan", reflect.TypeOf((*MockPlan)(nil).DispatchQueryPlan), req, stream)
 }
 
 // MockDispatchableRequest is a mock of DispatchableRequest interface.

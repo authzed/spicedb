@@ -81,13 +81,13 @@ type LookupSubjects interface {
 }
 
 // PlanStream is an alias for the stream to which plan results will be written.
-type PlanStream = Stream[*v1.DispatchPlanResponse]
+type PlanStream = Stream[*v1.DispatchQueryPlanResponse]
 
 // Plan interface describes the methods required to dispatch plan-based query planner requests.
 type Plan interface {
-	// DispatchPlan submits a plan-based query request, writing its results to the specified stream.
-	DispatchPlan(
-		req *v1.DispatchPlanRequest,
+	// DispatchQueryPlan submits a plan-based query request, writing its results to the specified stream.
+	DispatchQueryPlan(
+		req *v1.DispatchQueryPlanRequest,
 		stream PlanStream,
 	) error
 }

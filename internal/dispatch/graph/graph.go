@@ -471,12 +471,12 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	)
 }
 
-// DispatchPlan implements dispatch.Plan interface
-func (ld *localDispatcher) DispatchPlan(
-	req *v1.DispatchPlanRequest,
+// DispatchQueryPlan implements dispatch.Plan interface
+func (ld *localDispatcher) DispatchQueryPlan(
+	req *v1.DispatchQueryPlanRequest,
 	stream dispatch.PlanStream,
 ) error {
-	return errors.New("DispatchPlan not yet implemented")
+	return errors.New("DispatchQueryPlan not yet implemented")
 }
 
 func (ld *localDispatcher) Close() error {

@@ -50,7 +50,7 @@ func (m *fakeDispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRe
 	return nil
 }
 
-func (m *fakeDispatcher) DispatchPlan(_ *v1.DispatchPlanRequest, _ dispatch.PlanStream) error {
+func (m *fakeDispatcher) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, _ dispatch.PlanStream) error {
 	return nil
 }
 

@@ -17,7 +17,7 @@ service DispatchService {
   rpc DispatchLookupResources2(DispatchLookupResources2Request) returns (stream DispatchLookupResources2Response) {}
   rpc DispatchLookupResources3(DispatchLookupResources3Request) returns (stream DispatchLookupResources3Response) {}
 
-  rpc DispatchPlan(DispatchPlanRequest) returns (stream DispatchPlanResponse) {}
+  rpc DispatchQueryPlan(DispatchQueryPlanRequest) returns (stream DispatchQueryPlanResponse) {}
 }
 
 message DispatchCheckRequest {
@@ -227,7 +227,7 @@ message PlanContext {
   uint64 optional_datastore_limit = 4;
 }
 
-message DispatchPlanRequest {
+message DispatchQueryPlanRequest {
   PlanOperation operation = 1;
   string canonical_key = 2;
   core.v1.ObjectAndRelation resource = 3;
@@ -235,7 +235,7 @@ message DispatchPlanRequest {
   PlanContext plan_context = 5;
 }
 
-message DispatchPlanResponse {
+message DispatchQueryPlanResponse {
   ResponseMeta metadata = 1;
   repeated ResultPath paths = 2;
 }

@@ -69,11 +69,11 @@ func (ds *dispatchServer) DispatchLookupSubjects(
 	return ds.localDispatch.DispatchLookupSubjects(req, dispatch.WrapGRPCStream(resp))
 }
 
-func (ds *dispatchServer) DispatchPlan(
-	req *dispatchv1.DispatchPlanRequest,
-	resp dispatchv1.DispatchService_DispatchPlanServer,
+func (ds *dispatchServer) DispatchQueryPlan(
+	req *dispatchv1.DispatchQueryPlanRequest,
+	resp dispatchv1.DispatchService_DispatchQueryPlanServer,
 ) error {
-	return ds.localDispatch.DispatchPlan(req, dispatch.WrapGRPCStream(resp))
+	return ds.localDispatch.DispatchQueryPlan(req, dispatch.WrapGRPCStream(resp))
 }
 
 func (ds *dispatchServer) Close() error {

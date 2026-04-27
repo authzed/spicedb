@@ -1765,7 +1765,7 @@ func (x *PlanContext) GetOptionalDatastoreLimit() uint64 {
 	return 0
 }
 
-type DispatchPlanRequest struct {
+type DispatchQueryPlanRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Operation     PlanOperation          `protobuf:"varint,1,opt,name=operation,proto3,enum=dispatch.v1.PlanOperation" json:"operation,omitempty"`
 	CanonicalKey  string                 `protobuf:"bytes,2,opt,name=canonical_key,json=canonicalKey,proto3" json:"canonical_key,omitempty"`
@@ -1776,20 +1776,20 @@ type DispatchPlanRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DispatchPlanRequest) Reset() {
-	*x = DispatchPlanRequest{}
+func (x *DispatchQueryPlanRequest) Reset() {
+	*x = DispatchQueryPlanRequest{}
 	mi := &file_dispatch_v1_dispatch_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DispatchPlanRequest) String() string {
+func (x *DispatchQueryPlanRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DispatchPlanRequest) ProtoMessage() {}
+func (*DispatchQueryPlanRequest) ProtoMessage() {}
 
-func (x *DispatchPlanRequest) ProtoReflect() protoreflect.Message {
+func (x *DispatchQueryPlanRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_dispatch_v1_dispatch_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1801,47 +1801,47 @@ func (x *DispatchPlanRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DispatchPlanRequest.ProtoReflect.Descriptor instead.
-func (*DispatchPlanRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use DispatchQueryPlanRequest.ProtoReflect.Descriptor instead.
+func (*DispatchQueryPlanRequest) Descriptor() ([]byte, []int) {
 	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *DispatchPlanRequest) GetOperation() PlanOperation {
+func (x *DispatchQueryPlanRequest) GetOperation() PlanOperation {
 	if x != nil {
 		return x.Operation
 	}
 	return PlanOperation_PLAN_OPERATION_CHECK
 }
 
-func (x *DispatchPlanRequest) GetCanonicalKey() string {
+func (x *DispatchQueryPlanRequest) GetCanonicalKey() string {
 	if x != nil {
 		return x.CanonicalKey
 	}
 	return ""
 }
 
-func (x *DispatchPlanRequest) GetResource() *v1.ObjectAndRelation {
+func (x *DispatchQueryPlanRequest) GetResource() *v1.ObjectAndRelation {
 	if x != nil {
 		return x.Resource
 	}
 	return nil
 }
 
-func (x *DispatchPlanRequest) GetSubject() *v1.ObjectAndRelation {
+func (x *DispatchQueryPlanRequest) GetSubject() *v1.ObjectAndRelation {
 	if x != nil {
 		return x.Subject
 	}
 	return nil
 }
 
-func (x *DispatchPlanRequest) GetPlanContext() *PlanContext {
+func (x *DispatchQueryPlanRequest) GetPlanContext() *PlanContext {
 	if x != nil {
 		return x.PlanContext
 	}
 	return nil
 }
 
-type DispatchPlanResponse struct {
+type DispatchQueryPlanResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *ResponseMeta          `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Paths         []*ResultPath          `protobuf:"bytes,2,rep,name=paths,proto3" json:"paths,omitempty"`
@@ -1849,20 +1849,20 @@ type DispatchPlanResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DispatchPlanResponse) Reset() {
-	*x = DispatchPlanResponse{}
+func (x *DispatchQueryPlanResponse) Reset() {
+	*x = DispatchQueryPlanResponse{}
 	mi := &file_dispatch_v1_dispatch_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DispatchPlanResponse) String() string {
+func (x *DispatchQueryPlanResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DispatchPlanResponse) ProtoMessage() {}
+func (*DispatchQueryPlanResponse) ProtoMessage() {}
 
-func (x *DispatchPlanResponse) ProtoReflect() protoreflect.Message {
+func (x *DispatchQueryPlanResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_dispatch_v1_dispatch_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1874,19 +1874,19 @@ func (x *DispatchPlanResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DispatchPlanResponse.ProtoReflect.Descriptor instead.
-func (*DispatchPlanResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use DispatchQueryPlanResponse.ProtoReflect.Descriptor instead.
+func (*DispatchQueryPlanResponse) Descriptor() ([]byte, []int) {
 	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{23}
 }
 
-func (x *DispatchPlanResponse) GetMetadata() *ResponseMeta {
+func (x *DispatchQueryPlanResponse) GetMetadata() *ResponseMeta {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *DispatchPlanResponse) GetPaths() []*ResultPath {
+func (x *DispatchQueryPlanResponse) GetPaths() []*ResultPath {
 	if x != nil {
 		return x.Paths
 	}
@@ -2169,14 +2169,14 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\brevision\x18\x01 \x01(\tR\brevision\x12>\n" +
 	"\x0ecaveat_context\x18\x02 \x01(\v2\x17.google.protobuf.StructR\rcaveatContext\x12.\n" +
 	"\x13max_recursion_depth\x18\x03 \x01(\x05R\x11maxRecursionDepth\x128\n" +
-	"\x18optional_datastore_limit\x18\x04 \x01(\x04R\x16optionalDatastoreLimit\"\x9f\x02\n" +
-	"\x13DispatchPlanRequest\x128\n" +
+	"\x18optional_datastore_limit\x18\x04 \x01(\x04R\x16optionalDatastoreLimit\"\xa4\x02\n" +
+	"\x18DispatchQueryPlanRequest\x128\n" +
 	"\toperation\x18\x01 \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\toperation\x12#\n" +
 	"\rcanonical_key\x18\x02 \x01(\tR\fcanonicalKey\x126\n" +
 	"\bresource\x18\x03 \x01(\v2\x1a.core.v1.ObjectAndRelationR\bresource\x124\n" +
 	"\asubject\x18\x04 \x01(\v2\x1a.core.v1.ObjectAndRelationR\asubject\x12;\n" +
-	"\fplan_context\x18\x05 \x01(\v2\x18.dispatch.v1.PlanContextR\vplanContext\"|\n" +
-	"\x14DispatchPlanResponse\x125\n" +
+	"\fplan_context\x18\x05 \x01(\v2\x18.dispatch.v1.PlanContextR\vplanContext\"\x81\x01\n" +
+	"\x19DispatchQueryPlanResponse\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x12-\n" +
 	"\x05paths\x18\x02 \x03(\v2\x17.dispatch.v1.ResultPathR\x05paths\"\x83\x04\n" +
 	"\n" +
@@ -2200,14 +2200,14 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\rPlanOperation\x12\x18\n" +
 	"\x14PLAN_OPERATION_CHECK\x10\x00\x12#\n" +
 	"\x1fPLAN_OPERATION_LOOKUP_RESOURCES\x10\x01\x12\"\n" +
-	"\x1ePLAN_OPERATION_LOOKUP_SUBJECTS\x10\x022\x92\x05\n" +
+	"\x1ePLAN_OPERATION_LOOKUP_SUBJECTS\x10\x022\xa1\x05\n" +
 	"\x0fDispatchService\x12X\n" +
 	"\rDispatchCheck\x12!.dispatch.v1.DispatchCheckRequest\x1a\".dispatch.v1.DispatchCheckResponse\"\x00\x12[\n" +
 	"\x0eDispatchExpand\x12\".dispatch.v1.DispatchExpandRequest\x1a#.dispatch.v1.DispatchExpandResponse\"\x00\x12u\n" +
 	"\x16DispatchLookupSubjects\x12*.dispatch.v1.DispatchLookupSubjectsRequest\x1a+.dispatch.v1.DispatchLookupSubjectsResponse\"\x000\x01\x12{\n" +
 	"\x18DispatchLookupResources2\x12,.dispatch.v1.DispatchLookupResources2Request\x1a-.dispatch.v1.DispatchLookupResources2Response\"\x000\x01\x12{\n" +
-	"\x18DispatchLookupResources3\x12,.dispatch.v1.DispatchLookupResources3Request\x1a-.dispatch.v1.DispatchLookupResources3Response\"\x000\x01\x12W\n" +
-	"\fDispatchPlan\x12 .dispatch.v1.DispatchPlanRequest\x1a!.dispatch.v1.DispatchPlanResponse\"\x000\x01B\xaa\x01\n" +
+	"\x18DispatchLookupResources3\x12,.dispatch.v1.DispatchLookupResources3Request\x1a-.dispatch.v1.DispatchLookupResources3Response\"\x000\x01\x12f\n" +
+	"\x11DispatchQueryPlan\x12%.dispatch.v1.DispatchQueryPlanRequest\x1a&.dispatch.v1.DispatchQueryPlanResponse\"\x000\x01B\xaa\x01\n" +
 	"\x0fcom.dispatch.v1B\rDispatchProtoP\x01Z;github.com/authzed/spicedb/pkg/proto/dispatch/v1;dispatchv1\xa2\x02\x03DXX\xaa\x02\vDispatch.V1\xca\x02\vDispatch\\V1\xe2\x02\x17Dispatch\\V1\\GPBMetadata\xea\x02\fDispatch::V1b\x06proto3"
 
 var (
@@ -2253,8 +2253,8 @@ var file_dispatch_v1_dispatch_proto_goTypes = []any{
 	(*DebugInformation)(nil),                 // 25: dispatch.v1.DebugInformation
 	(*CheckDebugTrace)(nil),                  // 26: dispatch.v1.CheckDebugTrace
 	(*PlanContext)(nil),                      // 27: dispatch.v1.PlanContext
-	(*DispatchPlanRequest)(nil),              // 28: dispatch.v1.DispatchPlanRequest
-	(*DispatchPlanResponse)(nil),             // 29: dispatch.v1.DispatchPlanResponse
+	(*DispatchQueryPlanRequest)(nil),         // 28: dispatch.v1.DispatchQueryPlanRequest
+	(*DispatchQueryPlanResponse)(nil),        // 29: dispatch.v1.DispatchQueryPlanResponse
 	(*ResultPath)(nil),                       // 30: dispatch.v1.ResultPath
 	nil,                                      // 31: dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry
 	nil,                                      // 32: dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry
@@ -2318,12 +2318,12 @@ var file_dispatch_v1_dispatch_proto_depIdxs = []int32{
 	26, // 46: dispatch.v1.CheckDebugTrace.sub_problems:type_name -> dispatch.v1.CheckDebugTrace
 	39, // 47: dispatch.v1.CheckDebugTrace.duration:type_name -> google.protobuf.Duration
 	38, // 48: dispatch.v1.PlanContext.caveat_context:type_name -> google.protobuf.Struct
-	0,  // 49: dispatch.v1.DispatchPlanRequest.operation:type_name -> dispatch.v1.PlanOperation
-	35, // 50: dispatch.v1.DispatchPlanRequest.resource:type_name -> core.v1.ObjectAndRelation
-	35, // 51: dispatch.v1.DispatchPlanRequest.subject:type_name -> core.v1.ObjectAndRelation
-	27, // 52: dispatch.v1.DispatchPlanRequest.plan_context:type_name -> dispatch.v1.PlanContext
-	24, // 53: dispatch.v1.DispatchPlanResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	30, // 54: dispatch.v1.DispatchPlanResponse.paths:type_name -> dispatch.v1.ResultPath
+	0,  // 49: dispatch.v1.DispatchQueryPlanRequest.operation:type_name -> dispatch.v1.PlanOperation
+	35, // 50: dispatch.v1.DispatchQueryPlanRequest.resource:type_name -> core.v1.ObjectAndRelation
+	35, // 51: dispatch.v1.DispatchQueryPlanRequest.subject:type_name -> core.v1.ObjectAndRelation
+	27, // 52: dispatch.v1.DispatchQueryPlanRequest.plan_context:type_name -> dispatch.v1.PlanContext
+	24, // 53: dispatch.v1.DispatchQueryPlanResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	30, // 54: dispatch.v1.DispatchQueryPlanResponse.paths:type_name -> dispatch.v1.ResultPath
 	36, // 55: dispatch.v1.ResultPath.caveat:type_name -> core.v1.CaveatExpression
 	40, // 56: dispatch.v1.ResultPath.expiration:type_name -> google.protobuf.Timestamp
 	41, // 57: dispatch.v1.ResultPath.integrity:type_name -> core.v1.RelationshipIntegrity
@@ -2337,13 +2337,13 @@ var file_dispatch_v1_dispatch_proto_depIdxs = []int32{
 	19, // 65: dispatch.v1.DispatchService.DispatchLookupSubjects:input_type -> dispatch.v1.DispatchLookupSubjectsRequest
 	13, // 66: dispatch.v1.DispatchService.DispatchLookupResources2:input_type -> dispatch.v1.DispatchLookupResources2Request
 	16, // 67: dispatch.v1.DispatchService.DispatchLookupResources3:input_type -> dispatch.v1.DispatchLookupResources3Request
-	28, // 68: dispatch.v1.DispatchService.DispatchPlan:input_type -> dispatch.v1.DispatchPlanRequest
+	28, // 68: dispatch.v1.DispatchService.DispatchQueryPlan:input_type -> dispatch.v1.DispatchQueryPlanRequest
 	8,  // 69: dispatch.v1.DispatchService.DispatchCheck:output_type -> dispatch.v1.DispatchCheckResponse
 	11, // 70: dispatch.v1.DispatchService.DispatchExpand:output_type -> dispatch.v1.DispatchExpandResponse
 	22, // 71: dispatch.v1.DispatchService.DispatchLookupSubjects:output_type -> dispatch.v1.DispatchLookupSubjectsResponse
 	15, // 72: dispatch.v1.DispatchService.DispatchLookupResources2:output_type -> dispatch.v1.DispatchLookupResources2Response
 	17, // 73: dispatch.v1.DispatchService.DispatchLookupResources3:output_type -> dispatch.v1.DispatchLookupResources3Response
-	29, // 74: dispatch.v1.DispatchService.DispatchPlan:output_type -> dispatch.v1.DispatchPlanResponse
+	29, // 74: dispatch.v1.DispatchService.DispatchQueryPlan:output_type -> dispatch.v1.DispatchQueryPlanResponse
 	69, // [69:75] is the sub-list for method output_type
 	63, // [63:69] is the sub-list for method input_type
 	63, // [63:63] is the sub-list for extension type_name

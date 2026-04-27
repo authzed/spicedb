@@ -40,7 +40,7 @@ func (fd fakeDelegate) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsReques
 	return spiceerrors.MustBugf(errMessage)
 }
 
-func (fd fakeDelegate) DispatchPlan(_ *v1.DispatchPlanRequest, _ dispatch.PlanStream) error {
+func (fd fakeDelegate) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, _ dispatch.PlanStream) error {
 	return spiceerrors.MustBugf(errMessage)
 }
 

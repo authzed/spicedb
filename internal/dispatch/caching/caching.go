@@ -404,9 +404,9 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 	return nil
 }
 
-func (cd *Dispatcher) DispatchPlan(req *v1.DispatchPlanRequest, stream dispatch.PlanStream) error {
+func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	// TODO: add caching logic
-	return cd.d.DispatchPlan(req, stream)
+	return cd.d.DispatchQueryPlan(req, stream)
 }
 
 func (cd *Dispatcher) Close() error {
