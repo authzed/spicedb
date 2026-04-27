@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -1007,19 +1006,12 @@ func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 
 	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
 
-	trace := &dispatch.LookupDebugTrace{}
-	req.NoError(protojson.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
-	req.NotEmpty(trace.Frames, "trace must have at least one frame")
-
-	// Should have the user as the first frame
-	req.Equal("user", trace.Frames[0].GetResourceType())
-	req.Equal("someuser", trace.Frames[0].GetResourceId())
-	req.Equal("...", trace.Frames[0].GetRelation())
-
-	// Should have folder a as the third frame
-	req.Equal("folder", trace.Frames[2].GetResourceType())
-	req.Equal("a", trace.Frames[2].GetResourceId())
-	req.Equal("view", trace.Frames[2].GetRelation())
+	debugInfo := &dispatch.LookupDebugInfo{}
+	req.NoError(prototext.Unmarshal([]byte(traceStr), debugInfo), "trace must parse as LookupDebugTrace")
+	req.Len(debugInfo.CycleMembers, 1, "there should be one cycle member found at the final depth")
+	// NOTE: this value will change if the max recursion depth changes, since that determines
+	// how many times and how far the request will walk around the cycle.
+	req.Equal("folder:a#view", debugInfo.CycleMembers[0])
 }
 
 func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
@@ -1101,17 +1093,10 @@ func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
 
 	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
 
-	trace := &dispatch.LookupDebugTrace{}
-	req.NoError(protojson.Unmarshal([]byte(traceStr), trace), "trace must parse as LookupDebugTrace")
-	req.NotEmpty(trace.Frames, "trace must have at least one frame")
-
-	// Should have the user as the first frame
-	req.Equal("user", trace.Frames[0].GetResourceType())
-	req.Equal("someuser", trace.Frames[0].GetResourceId())
-	req.Equal("...", trace.Frames[0].GetRelation())
-
-	// Should have folder a as the third frame
-	req.Equal("folder", trace.Frames[2].GetResourceType())
-	req.Equal("a", trace.Frames[2].GetResourceId())
-	req.Equal("view", trace.Frames[2].GetRelation())
+	debugInfo := &dispatch.LookupDebugInfo{}
+	req.NoError(prototext.Unmarshal([]byte(traceStr), debugInfo), "trace must parse as LookupDebugTrace")
+	req.Len(debugInfo.CycleMembers, 1, "there should be one cycle member found at the final depth")
+	// NOTE: this value will change if the max recursion depth changes, since that determines
+	// how many times and how far the request will walk around the cycle.
+	req.Equal("folder:a#view", debugInfo.CycleMembers[0])
 }

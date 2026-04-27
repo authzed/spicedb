@@ -219,18 +219,12 @@ message CheckDebugTrace {
   string source_id = 8;
 }
 
-message LookupDebugFrame {
-  // The concrete resource associated with the frame
-  string resource_type = 1;
+message LookupDebugInfo {
+  // The resource/relation pairs that have been positively identified as being
+  // members of a cycle.
+  repeated string cycle_members = 1;
 
-  // The concrete subject associated with the frame
-  string resource_id = 2;
-
-  // The relation or permission being traversed.
-  string relation = 3;
-}
-
-message LookupDebugTrace {
-  // Sub-problems dispatched from this node.
-  repeated LookupDebugFrame frames = 1;
+  // The resource/relation pairs that may be members of a cycle.
+  // TODO: split into a separate message? Avoid using proto altogether?
+  repeated string cycle_candidates = 2;
 }

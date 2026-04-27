@@ -13,7 +13,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -542,9 +541,6 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	usagemetrics.SetInContext(ctx, respMetadata)
 
 	debugEnabled := lookupDebugTraceEnabled(ctx)
-	if debugEnabled {
-		ctx = dispatchpkg.NewTraversalTracker(ctx)
-	}
 
 	var currentCursor []string
 
@@ -650,18 +646,12 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		stream)
 	if err != nil {
 		if debugEnabled && dispatchpkg.IsMaxDepthExceeded(err) {
-			if trace := dispatchpkg.ExtractTraversalTrace(err); trace != nil {
-				terminalFrame := &dispatch.LookupDebugFrame{
-					ResourceType: req.Subject.Object.ObjectType,
-					ResourceId:   req.Subject.Object.ObjectId,
-					Relation:     normalizeSubjectRelation(req.Subject),
+			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
+				// We'll only attach debug info if cyclemembers is non-empty. Otherwise we're
+				// in a normal recursion-too-deep scenario and the debuginfo doesn't help.
+				if len(debugInfo.CycleMembers) > 0 {
+					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, debugInfo.String())
 				}
-				trace.Frames = append([]*dispatch.LookupDebugFrame{terminalFrame}, trace.Frames...)
-				jsonBytes, marshalErr := protojson.Marshal(trace)
-				if marshalErr != nil {
-					return ps.rewriteError(ctx, marshalErr)
-				}
-				err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, string(jsonBytes))
 			}
 		}
 		return ps.rewriteError(ctx, err)
@@ -714,9 +704,6 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	usagemetrics.SetInContext(ctx, respMetadata)
 
 	debugEnabled := lookupDebugTraceEnabled(ctx)
-	if debugEnabled {
-		ctx = dispatchpkg.NewTraversalTracker(ctx)
-	}
 
 	var currentCursor *dispatch.Cursor
 
@@ -818,18 +805,12 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		stream)
 	if err != nil {
 		if debugEnabled && dispatchpkg.IsMaxDepthExceeded(err) {
-			if trace := dispatchpkg.ExtractTraversalTrace(err); trace != nil {
-				terminalFrame := &dispatch.LookupDebugFrame{
-					ResourceType: req.Subject.Object.ObjectType,
-					ResourceId:   req.Subject.Object.ObjectId,
-					Relation:     normalizeSubjectRelation(req.Subject),
+			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
+				// We'll only attach debug info if cyclemembers is non-empty. Otherwise we're
+				// in a normal recursion-too-deep scenario and the debuginfo doesn't help.
+				if len(debugInfo.CycleMembers) > 0 {
+					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, debugInfo.String())
 				}
-				trace.Frames = append([]*dispatch.LookupDebugFrame{terminalFrame}, trace.Frames...)
-				traceBytes, marshallErr := protojson.Marshal(trace)
-				if marshallErr != nil {
-					return ps.rewriteError(ctx, marshallErr)
-				}
-				err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, string(traceBytes))
 			}
 		}
 		return ps.rewriteError(ctx, err)
