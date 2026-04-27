@@ -64,6 +64,8 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			return spiceerrors.NewWithSourceError(
 				fmt.Errorf("error parsing relationship `%s`: %w", trimmed, err),
 				trimmed,
+				// TODO: this should point at the filename. is there a way to get that context here?
+				"",
 				errorLine,
 				column,
 			)
@@ -74,6 +76,8 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			return spiceerrors.NewWithSourceError(
 				fmt.Errorf("found repeated relationship `%s`", trimmed),
 				trimmed,
+				// TODO: this should point at the filename. is there a way to get that context here?
+				"",
 				errorLine,
 				column,
 			)
