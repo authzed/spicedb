@@ -22,7 +22,7 @@ func MutateOutline(outline Outline, fns []OutlineMutation) Outline {
 // upward through the tree according to each node type's semantics:
 //   - Union: null if ALL children are null
 //   - Intersection: null if ANY child is null
-//   - Arrow/IntersectionArrow: null if the right child is null
+//   - Arrow/IntersectionArrow: null if either child is null
 //   - Exclusion: null if the left child is null
 //   - Caveat/Alias/Recursive: null if the only child is null
 //
@@ -47,7 +47,7 @@ func NullPropagation(outline Outline) Outline {
 		}
 
 	case ArrowIteratorType, IntersectionArrowIteratorType:
-		if len(outline.SubOutlines) == 2 && outline.SubOutlines[1].Type == NullIteratorType {
+		if len(outline.SubOutlines) == 2 && (outline.SubOutlines[0].Type == NullIteratorType || outline.SubOutlines[1].Type == NullIteratorType) {
 			return Outline{Type: NullIteratorType, ID: outline.ID}
 		}
 

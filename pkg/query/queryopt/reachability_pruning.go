@@ -11,6 +11,7 @@ func init() {
 		Replaces subtrees with NullIteratorType nodes when they can never
 		produce the target subject type of the request.
 		`,
+		Priority: 0,
 		NewTransform: func(params RequestParams) OutlineTransform {
 			return reachabilityPruning(params)
 		},

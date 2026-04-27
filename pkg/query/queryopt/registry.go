@@ -29,6 +29,7 @@ func GetOptimization(name string) (Optimizer, error) {
 // no custom selection is required.
 var StandardOptimzations = []string{
 	"simple-caveat-pushdown",
+	"set-simplification",
 	"reachability-pruning",
 }
 
