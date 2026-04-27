@@ -16,6 +16,84 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func TestCheckingReplicatedWithNoReplicasReturnsPrimary(t *testing.T) {
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+
+	ds, err := NewCheckingReplicatedDatastore(primary)
+	require.NoError(t, err)
+	require.Equal(t, primary, ds)
+}
+
+func TestCheckingReplicatedRoundRobinsAcrossReplicas(t *testing.T) {
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	replicaA := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("2"), nil}
+	replicaB := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("2"), nil}
+
+	replicated, err := NewCheckingReplicatedDatastore(primary, replicaA, replicaB)
+	require.NoError(t, err)
+
+	crd, ok := replicated.(*checkingReplicatedDatastore)
+	require.True(t, ok)
+
+	// Two replicas produce two distinct cached wrappers, selected alternately.
+	first := selectReplica(crd.replicas, &crd.lastReplica)
+	second := selectReplica(crd.replicas, &crd.lastReplica)
+	third := selectReplica(crd.replicas, &crd.lastReplica)
+	fourth := selectReplica(crd.replicas, &crd.lastReplica)
+
+	require.NotSame(t, first, second)
+	require.Same(t, first, third)
+	require.Same(t, second, fourth)
+}
+
+func TestCheckingReplicatedReaderWrapsAllReadMethods(t *testing.T) {
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("2"), nil}
+
+	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
+	require.NoError(t, err)
+
+	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+
+	// fakeSnapshotReader returns "not implemented" for caveats and counters;
+	// the wrapper just needs to invoke them via the chosen reader.
+	_, _, err = reader.LegacyReadCaveatByName(t.Context(), "is_weekend")
+	require.ErrorContains(t, err, "not implemented")
+
+	_, err = reader.LegacyListAllCaveats(t.Context())
+	require.ErrorContains(t, err, "not implemented")
+
+	_, err = reader.LegacyLookupCaveatsWithNames(t.Context(), []string{"is_weekend"})
+	require.ErrorContains(t, err, "not implemented")
+
+	_, err = reader.CountRelationships(t.Context(), "filter")
+	require.ErrorContains(t, err, "not implemented")
+
+	_, err = reader.LookupCounters(t.Context())
+	require.ErrorContains(t, err, "not implemented")
+
+	// QueryRelationships should succeed (replica has revision 1).
+	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
+		OptionalResourceType: "resource",
+	})
+	require.NoError(t, err)
+	rels, err := datastore.IteratorToSlice(iter)
+	require.NoError(t, err)
+	require.Len(t, rels, 2)
+
+	// ReverseQueryRelationships should also succeed.
+	riter, err := reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
+		SubjectType: "user",
+	})
+	require.NoError(t, err)
+	rrels, err := datastore.IteratorToSlice(riter)
+	require.NoError(t, err)
+	require.Len(t, rrels, 2)
+
+	// The replica was selected, not the primary.
+	require.False(t, reader.(*checkingStableReader).chosePrimaryForTest)
+}
+
 func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *testing.T) {
 	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
 	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
