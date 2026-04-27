@@ -56,6 +56,8 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 		return errors.New("no resources ids given to lookupsubjects dispatch")
 	}
 
+
+
 	// If the resource type matches the subject type, yield directly.
 	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
 		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
@@ -91,6 +93,7 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 
 	return cl.lookupViaRewrite(ctx, req, stream, ts, relation.UsersetRewrite)
 }
+
 
 func subjectsForConcreteIds(subjectIds []string) map[string]*v1.FoundSubjects {
 	foundSubjects := make(map[string]*v1.FoundSubjects, len(subjectIds))
@@ -210,6 +213,8 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		return err
 	}
 
+
+
 	stream := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
 		Stream: parentStream,
 		Ctx:    ctx,
@@ -226,14 +231,16 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 			Namespace: parentRequest.ResourceRelation.Namespace,
 			Relation:  cu.Relation,
 		},
-		ResourceIds:     parentRequest.ResourceIds,
-		SubjectRelation: parentRequest.SubjectRelation,
+		ResourceIds:      parentRequest.ResourceIds, // ← batch: all IDs in one call
+		SubjectRelation:  parentRequest.SubjectRelation,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     parentRequest.Revision.String(),
 			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 		},
+		EnableDebugTrace: parentRequest.EnableDebugTrace,
 	}, stream)
 }
+
 
 type resourceDispatchTracker struct {
 	ctx            context.Context
@@ -697,15 +704,21 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		// Dispatch the found subjects as the resources of the next step.
 		slicez.ForEachChunk(resourceIds, cl.dispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
+				// Each goroutine gets a cloned traversal stack preserving the parent
+				// path, so the full ancestry is visible in the snapshot if depth is
+				// exceeded. Cloning prevents concurrent mutation between siblings.
+				goroutineCtx := CloneTraversalStack(subCtx)
+
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,
-					ResourceIds:      resourceIdChunk,
+					ResourceIds:      resourceIdChunk, // ← batch: whole chunk at once
 					SubjectRelation:  parentRequest.SubjectRelation,
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 					},
-				}, stream)
+					EnableDebugTrace: parentRequest.EnableDebugTrace,
+				}, dispatch.StreamWithContext(goroutineCtx, stream))
 			})
 		})
 	})

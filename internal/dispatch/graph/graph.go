@@ -27,6 +27,34 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// convertTraversalStackToDispatchTrace converts the traversal stack captured in ctx
+// into a dispatch.LookupDebugTrace. The trace is a linear chain: each frame becomes
+// one node whose SubProblems contains the next frame. Returns nil if no stack is present.
+func convertTraversalStackToDispatchTrace(ctx context.Context) *v1.LookupDebugTrace {
+	frames := graph.SnapshotTraversalStack(ctx)
+	if len(frames) == 0 {
+		return nil
+	}
+
+	// Build chain from the last frame backwards so we can link them.
+	// result: frames[0] → frames[1] → ... → frames[n-1]
+	var tail *v1.LookupDebugTrace
+	for i := len(frames) - 1; i >= 0; i-- {
+		f := frames[i]
+		node := &v1.LookupDebugTrace{
+			ResourceType: f.ResourceType(),
+			ResourceId:   f.ResourceID(),
+			Relation:     f.Permission(), // permission being evaluated
+			Depth:        uint32(i),
+		}
+		if tail != nil {
+			node.SubProblems = []*v1.LookupDebugTrace{tail}
+		}
+		tail = node
+	}
+	return tail
+}
+
 const errDispatch = "error dispatching request: %w"
 
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
@@ -383,7 +411,26 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	))
 	defer span.End()
 
+	resourceID := ""
+	if len(req.SubjectIds) == 1 {
+		resourceID = req.SubjectIds[0]
+	}
+
+	graph.PushTraversalFrame(ctx,
+		req.SubjectRelation.Namespace,
+		resourceID,
+		req.SubjectRelation.Relation,
+		req.ResourceRelation.Namespace+"#"+req.ResourceRelation.Relation,
+	)
+	defer graph.PopTraversalFrame(ctx)
+
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
+			return dispatch.MaxDepthWithTraceError{
+				Err:   err,
+				Trace: trace,
+			}
+		}
 		return err
 	}
 
@@ -416,7 +463,26 @@ func (ld *localDispatcher) DispatchLookupResources3(
 	))
 	defer span.End()
 
+	resourceID := ""
+	if len(req.SubjectIds) == 1 {
+		resourceID = req.SubjectIds[0]
+	}
+
+	graph.PushTraversalFrame(ctx,
+		req.SubjectRelation.Namespace,
+		resourceID,
+		req.SubjectRelation.Relation,
+		req.ResourceRelation.Namespace+"#"+req.ResourceRelation.Relation,
+	)
+	defer graph.PopTraversalFrame(ctx)
+
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
+			return dispatch.MaxDepthWithTraceError{
+				Err:   err,
+				Trace: trace,
+			}
+		}
 		return err
 	}
 
@@ -453,7 +519,27 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	))
 	defer span.End()
 
+	// represents the true failure point. We defer pop to maintain strict stack semantics.
+	resourceID := ""
+	if len(req.ResourceIds) == 1 {
+		resourceID = req.ResourceIds[0]
+	}
+
+	graph.PushTraversalFrame(ctx,
+		req.ResourceRelation.Namespace,
+		resourceID,
+		req.ResourceRelation.Relation,
+		req.ResourceRelation.Namespace+"#"+req.ResourceRelation.Relation,
+	)
+	defer graph.PopTraversalFrame(ctx)
+
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		if trace := convertTraversalStackToDispatchTrace(ctx); trace != nil {
+			return dispatch.MaxDepthWithTraceError{
+				Err:   err,
+				Trace: trace,
+			}
+		}
 		return err
 	}
 
@@ -470,6 +556,7 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 		dispatch.StreamWithContext(ctx, stream),
 	)
 }
+
 
 func (ld *localDispatcher) Close() error {
 	if ld.lookupResourcesHandler3 != nil {

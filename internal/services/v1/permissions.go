@@ -58,6 +58,17 @@ func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Conte
 	})
 }
 
+// lookupDebugTraceEnabled returns true when the caller has requested debug
+// tracing via the same gRPC metadata header used by CheckPermission.
+// This is zero-cost when the header is absent.
+func lookupDebugTraceEnabled(ctx context.Context) bool {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		_, present := md[string(requestmeta.RequestDebugInformation)]
+		return present
+	}
+	return false
+}
+
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
@@ -187,6 +198,8 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 	}
 	return permissionship, partialCaveat
 }
+
+
 
 func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
 	// NOTE: perfinsights are added for the individual check results as well, so there is no shape here.
@@ -529,6 +542,13 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
+	// Initialize the traversal stack once at the top-level so that all goroutines
+	// spawned during dispatch share a single tracker via the inherited context.
+	debugEnabled := lookupDebugTraceEnabled(ctx)
+	if debugEnabled {
+		ctx = graph.NewTraversalStack(ctx)
+	}
+
 	var currentCursor []string
 
 	lrRequestHash, err := computeLRRequestHash(req)
@@ -549,6 +569,8 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	defer func() {
 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
+
+	var lastResp *v1.LookupResourcesResponse
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
 		for _, item := range result.Items {
@@ -582,16 +604,20 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				encodedCursor = ec
 			}
 
-			err = resp.Send(&v1.LookupResourcesResponse{
+			currentResp := &v1.LookupResourcesResponse{
 				LookedUpAt:        revisionReadAt,
 				ResourceObjectId:  item.ResourceId,
 				Permissionship:    permissionship,
 				PartialCaveatInfo: partial,
 				AfterResultCursor: encodedCursor,
-			})
-			if err != nil {
-				return err
 			}
+
+			if lastResp != nil {
+				if err := resp.Send(lastResp); err != nil {
+					return err
+				}
+			}
+			lastResp = currentResp
 
 			totalCountPublished++
 		}
@@ -625,13 +651,30 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			Context:        req.Context,
-			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			Context:          req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    req.OptionalLimit,
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {
+		// If debug is enabled and this is a depth exceeded error, serialize the
+		// traversal stack trace into the error details for the caller to inspect.
+		if debugEnabled {
+			var traceErr dispatchpkg.MaxDepthWithTraceError
+			if errors.As(err, &traceErr) {
+				st := status.Convert(traceErr.Unwrap())
+				stWithDetails, err2 := st.WithDetails(traceErr.Trace)
+				if err2 == nil {
+					return stWithDetails.Err()
+				}
+			}
+		}
 		return ps.rewriteError(ctx, err)
+	}
+
+	if lastResp != nil {
+		return resp.Send(lastResp)
 	}
 
 	return nil
@@ -680,6 +723,13 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
+	// Initialize the traversal stack once at the top-level so that all goroutines
+	// spawned during dispatch share a single tracker via the inherited context.
+	debugEnabled := lookupDebugTraceEnabled(ctx)
+	if debugEnabled {
+		ctx = graph.NewTraversalStack(ctx)
+	}
+
 	var currentCursor *dispatch.Cursor
 
 	lrRequestHash, err := computeLRRequestHash(req)
@@ -700,6 +750,8 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	defer func() {
 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
+
+	var lastResp *v1.LookupResourcesResponse
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
 		found := result.Resource
@@ -731,16 +783,20 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 			return ps.rewriteError(ctx, err)
 		}
 
-		err = resp.Send(&v1.LookupResourcesResponse{
+		currentResp := &v1.LookupResourcesResponse{
 			LookedUpAt:        revisionReadAt,
 			ResourceObjectId:  found.ResourceId,
 			Permissionship:    permissionship,
 			PartialCaveatInfo: partial,
 			AfterResultCursor: encodedCursor,
-		})
-		if err != nil {
-			return err
 		}
+
+		if lastResp != nil {
+			if err := resp.Send(lastResp); err != nil {
+				return err
+			}
+		}
+		lastResp = currentResp
 
 		totalCountPublished++
 		return nil
@@ -772,13 +828,30 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			Context:        req.Context,
-			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			Context:          req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    req.OptionalLimit,
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {
+		// If debug is enabled and this is a depth exceeded error, serialize the
+		// traversal stack trace into the error details for the caller to inspect.
+		if debugEnabled {
+			var traceErr dispatchpkg.MaxDepthWithTraceError
+			if errors.As(err, &traceErr) {
+				st := status.Convert(traceErr.Unwrap())
+				stWithDetails, err2 := st.WithDetails(traceErr.Trace)
+				if err2 == nil {
+					return stWithDetails.Err()
+				}
+			}
+		}
 		return ps.rewriteError(ctx, err)
+	}
+
+	if lastResp != nil {
+		return resp.Send(lastResp)
 	}
 
 	return nil
@@ -845,10 +918,19 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
+	// Initialize the traversal stack once at the top-level so that all goroutines
+	// spawned during dispatch share a single tracker via the inherited context.
+	debugEnabled := lookupDebugTraceEnabled(ctx)
+	if debugEnabled {
+		ctx = graph.NewTraversalStack(ctx)
+	}
+
 	var totalCountPublished uint64
 	defer func() {
 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
+
+	var lastResp *v1.LookupSubjectsResponse
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
 		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
@@ -884,7 +966,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				continue
 			}
 
-			err = resp.Send(&v1.LookupSubjectsResponse{
+			currentResp := &v1.LookupSubjectsResponse{
 				Subject:            subject,
 				ExcludedSubjects:   excludedSubjects,
 				LookedUpAt:         revisionReadAt,
@@ -892,10 +974,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				ExcludedSubjectIds: excludedSubjectIDs,        // Deprecated
 				Permissionship:     subject.Permissionship,    // Deprecated
 				PartialCaveatInfo:  subject.PartialCaveatInfo, // Deprecated
-			})
-			if err != nil {
-				return err
 			}
+
+			if lastResp != nil {
+				if err := resp.Send(lastResp); err != nil {
+					return err
+				}
+			}
+			lastResp = currentResp
 		}
 
 		totalCountPublished++
@@ -924,10 +1010,27 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				Namespace: req.SubjectObjectType,
 				Relation:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 			},
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {
+		// If debug is enabled and this is a depth exceeded error, serialize the
+		// traversal stack trace into the error details for the caller to inspect.
+		if debugEnabled {
+			var traceErr dispatchpkg.MaxDepthWithTraceError
+			if errors.As(err, &traceErr) {
+				st := status.Convert(traceErr.Unwrap())
+				stWithDetails, err2 := st.WithDetails(traceErr.Trace)
+				if err2 == nil {
+					return stWithDetails.Err()
+				}
+			}
+		}
 		return ps.rewriteError(ctx, err)
+	}
+
+	if lastResp != nil {
+		return resp.Send(lastResp)
 	}
 
 	return nil

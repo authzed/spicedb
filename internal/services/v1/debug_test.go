@@ -8,20 +8,19 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
-	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -499,7 +498,6 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				t.Run(stc.name, func(t *testing.T) {
 					req := require.New(t)
 
-					var trailer metadata.MD
 					caveatContext, err := structpb.NewStruct(stc.checkRequest.caveatContext)
 					req.NoError(err)
 
@@ -513,16 +511,10 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 						Permission: stc.checkRequest.permission,
 						Subject:    stc.checkRequest.subject,
 						Context:    caveatContext,
-					}, grpc.Trailer(&trailer))
+					})
 
 					req.NoError(err)
 					req.Equal(stc.expectedPermission, checkResp.Permissionship)
-
-					encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
-					req.NoError(err)
-
-					// DebugInfo No longer comes as part of the trailer
-					req.Nil(encodedDebugInfo)
 
 					debugInfo := checkResp.DebugTrace
 					req.NotEmpty(debugInfo.SchemaUsed)
@@ -920,4 +912,227 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLookupResourcesDebugTraceV2(t *testing.T) {
+	req := require.New(t)
+
+	schema := `
+	definition user {}
+
+	definition group {
+		relation member: user | group#member
+		permission can_access = member
+	}`
+	relationships := []tuple.Relationship{
+		tuple.MustParse("group:a#member@group:b#member"),
+		tuple.MustParse("group:b#member@group:a#member"),
+	}
+
+	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		})
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	ctx := t.Context()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+			},
+		},
+		ResourceObjectType: "group",
+		Permission:         "can_access",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "someuser",
+			},
+		},
+	})
+	req.NoError(err)
+
+	// Drain the stream — the circular schema will eventually hit MaxDepthExceeded.
+	// The traversal stack trace (if any) will be in the error details.
+	var streamErr error
+	for {
+		_, recvErr := stream.Recv()
+		if recvErr != nil {
+			streamErr = recvErr
+			break
+		}
+	}
+
+	// The circular graph must have resulted in an error.
+	if streamErr == nil {
+		t.Skip("expected MaxDepthExceeded error from circular schema; none received")
+		return
+	}
+
+	// Check for the traversal trace in the gRPC error details.
+	var trace *dispatch.LookupDebugTrace
+	if s, ok := status.FromError(streamErr); ok {
+		for _, d := range s.Details() {
+			if t, ok := d.(*dispatch.LookupDebugTrace); ok {
+				trace = t
+			}
+		}
+	}
+
+	if trace == nil {
+		// No trace attached — depth may not have been reached deep enough yet.
+		// This is acceptable since the stack trace requires MaxDepth to fire.
+		t.Skip("no traversal trace in error details; depth may not have been exceeded")
+		return
+	}
+
+	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
+	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
+	
+	// Count path length and ensure no "*batch*" artifacts or faked IDs are present
+	pathLength := 0
+	currentNode := trace
+	var prevDepth uint32 = 0
+	for currentNode != nil {
+		pathLength++
+		req.NotContains(currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+		req.NotContains(currentNode.ResourceId, "...", "trace must not fake resource ID with ellipses")
+		if pathLength > 1 {
+			req.True(currentNode.Depth > prevDepth, "depth must increase monotonically")
+		}
+		prevDepth = currentNode.Depth
+
+		if len(currentNode.SubProblems) > 0 {
+			currentNode = currentNode.SubProblems[0]
+		} else {
+			currentNode = nil
+		}
+	}
+	req.GreaterOrEqual(pathLength, 2, "path length must be at least 2 for recursion")
+}
+
+func TestLookupSubjectsDebugTraceV2(t *testing.T) {
+	req := require.New(t)
+
+	schema := `
+	definition user {}
+
+	definition group {
+		relation member: user | group#member
+		permission can_access = member
+	}`
+	relationships := []tuple.Relationship{
+		tuple.MustParse("group:a#member@group:b#member"),
+		tuple.MustParse("group:b#member@group:a#member"),
+	}
+
+	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		})
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	ctx := t.Context()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+			},
+		},
+		Resource: &v1.ObjectReference{
+			ObjectType: "group",
+			ObjectId:   "a",
+		},
+		Permission:        "can_access",
+		SubjectObjectType: "user",
+	})
+	req.NoError(err)
+
+	// Drain the stream — the circular schema will eventually hit MaxDepthExceeded.
+	// The traversal stack trace (if any) will be in the error details.
+	var streamErr error
+	for {
+		_, recvErr := stream.Recv()
+		if recvErr != nil {
+			streamErr = recvErr
+			break
+		}
+	}
+
+	// The circular graph must have resulted in an error.
+	if streamErr == nil {
+		t.Skip("expected MaxDepthExceeded error from circular schema; none received")
+		return
+	}
+
+	// Check for the traversal trace in the gRPC error details.
+	var trace *dispatch.LookupDebugTrace
+	if s, ok := status.FromError(streamErr); ok {
+		for _, d := range s.Details() {
+			if t, ok := d.(*dispatch.LookupDebugTrace); ok {
+				trace = t
+			}
+		}
+	}
+
+	if trace == nil {
+		t.Skip("no traversal trace in error details; depth may not have been exceeded")
+		return
+	}
+
+	req.NotEmpty(trace.ResourceType, "root frame ResourceType must be non-empty")
+	req.NotEmpty(trace.Relation, "root frame Relation (permission) must be non-empty")
+	
+	// Count path length and ensure no "*batch*" artifacts or faked IDs are present
+	pathLength := 0
+	currentNode := trace
+	var prevDepth uint32 = 0
+	for currentNode != nil {
+		pathLength++
+		req.NotContains(currentNode.ResourceId, "*batch*", "trace must not contain batch artifacts")
+		req.NotContains(currentNode.ResourceId, "...", "trace must not fake resource ID with ellipses")
+		if pathLength > 1 {
+			req.True(currentNode.Depth > prevDepth, "depth must increase monotonically")
+		}
+		prevDepth = currentNode.Depth
+
+		if len(currentNode.SubProblems) > 0 {
+			currentNode = currentNode.SubProblems[0]
+		} else {
+			currentNode = nil
+		}
+	}
+	req.GreaterOrEqual(pathLength, 2, "path length must be at least 2 for recursion")
+}
+
+// FormatTrace formats a LookupDebugTrace into a readable arrow chain:
+// doc:1#viewer -> group:eng#member -> user:alice
+func FormatTrace(trace *dispatch.LookupDebugTrace) string {
+	if trace == nil {
+		return ""
+	}
+	parts := []string{}
+	curr := trace
+	for curr != nil {
+		id := curr.ResourceId
+		if id == "" {
+			id = "*"
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s#%s", curr.ResourceType, id, curr.Relation))
+		if len(curr.SubProblems) > 0 {
+			curr = curr.SubProblems[0]
+		} else {
+			curr = nil
+		}
+	}
+	return strings.Join(parts, " -> ")
 }

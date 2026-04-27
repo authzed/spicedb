@@ -9,6 +9,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/sharederrors"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -38,4 +39,19 @@ func (err MaxDepthExceededError) GRPCStatus() *status.Status {
 			map[string]string{},
 		),
 	)
+}
+
+// MaxDepthWithTraceError wraps the original max depth error with a snapshot
+// of the traversal trace at the exact point of failure.
+type MaxDepthWithTraceError struct {
+	Err   error
+	Trace *dispatchv1.LookupDebugTrace
+}
+
+func (m MaxDepthWithTraceError) Error() string {
+	return m.Err.Error()
+}
+
+func (m MaxDepthWithTraceError) Unwrap() error {
+	return m.Err
 }
