@@ -404,6 +404,11 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 	return nil
 }
 
+func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	// TODO: add caching logic
+	return cd.d.DispatchQueryPlan(req, stream)
+}
+
 func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.checkTotalCounter)
 	prometheus.Unregister(cd.checkFromCacheCounter)

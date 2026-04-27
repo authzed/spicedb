@@ -851,6 +851,11 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 		})
 }
 
+func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	// TODO: implement cluster dispatch for plan
+	return errors.New("DispatchQueryPlan not yet implemented for cluster dispatch")
+}
+
 func (cr *clusterDispatcher) Close() error {
 	if cr.conn != nil {
 		return cr.conn.Close()

@@ -27,6 +27,7 @@ type Dispatcher interface {
 	LookupSubjects
 	LookupResources2
 	LookupResources3
+	Plan
 
 	// Close closes the dispatcher.
 	Close() error
@@ -76,6 +77,18 @@ type LookupSubjects interface {
 	DispatchLookupSubjects(
 		req *v1.DispatchLookupSubjectsRequest,
 		stream LookupSubjectsStream,
+	) error
+}
+
+// PlanStream is an alias for the stream to which plan results will be written.
+type PlanStream = Stream[*v1.DispatchQueryPlanResponse]
+
+// Plan interface describes the methods required to dispatch plan-based query planner requests.
+type Plan interface {
+	// DispatchQueryPlan submits a plan-based query request, writing its results to the specified stream.
+	DispatchQueryPlan(
+		req *v1.DispatchQueryPlanRequest,
+		stream PlanStream,
 	) error
 }
 

@@ -393,6 +393,10 @@ func (m mockDispatcher) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsReque
 	return nil
 }
 
+func (m mockDispatcher) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, _ dispatch.PlanStream) error {
+	return nil
+}
+
 func (m mockDispatcher) Close() error {
 	return nil
 }
