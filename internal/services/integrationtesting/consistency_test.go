@@ -94,7 +94,7 @@ func TestConsistency(t *testing.T) {
 			_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
 			require.NoError(t, err)
 
-			_, err = development.AddDefinitionWarnings(cad.Ctx, nsDef, ts)
+			_, err = development.AddDefinitionWarnings(cad.Ctx, nsDef, ts, nil)
 			// We would normally check to see if there were any warnings; however, some of the integration tests are
 			// here to intentionally test things that are warnings-but-not-errors in a schema (like arrow-references-relation).
 			// So instead, just validate that warning validation succeeds.
@@ -257,7 +257,7 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 		_, err := ts.GetValidatedDefinition(cad.Ctx, nsDef.Name)
 		require.NoError(t, err)
 
-		_, err = development.AddDefinitionWarnings(cad.Ctx, nsDef, ts)
+		_, err = development.AddDefinitionWarnings(cad.Ctx, nsDef, ts, nil)
 		// We would normally check to see if there were any warnings; however, some of the integration tests are
 		// here to intentionally test things that are warnings-but-not-errors in a schema (like arrow-references-relation).
 		// So instead, just validate that warning validation succeeds.

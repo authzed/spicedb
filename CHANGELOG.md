@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Lint warning for permission expressions that mix operators (union, intersection, exclusion) at the same scope level without explicit parentheses (https://github.com/authzed/spicedb/pull/2786)
 - Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
 - Added support for YAML-based validation files in the Language Server (https://github.com/authzed/spicedb/pull/3024)
 - Enable statistics-based optimizations when `--experimental-query-plan` is enabled. (https://github.com/authzed/spicedb/pull/3052)
