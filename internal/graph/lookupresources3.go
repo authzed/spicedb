@@ -968,8 +968,12 @@ func (crr *CursoredLookupResources3) dispatchIter(
 			OptionalCursor: currentCursor,
 			OptionalLimit:  refs.req.OptionalLimit,
 			Context:        refs.req.Context,
+			EnableDebugTrace: refs.req.EnableDebugTrace,
 		}, stream)
 		if err != nil && !stream.canceled {
+			if refs.req.EnableDebugTrace {
+				err = dispatch.HandleTraversalTrace(err, foundResourceType.Namespace, foundResourceType.Relation, subjectIDs)
+			}
 			_ = yield(result{}, err)
 			return
 		}

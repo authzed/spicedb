@@ -110,6 +110,10 @@ message DispatchLookupResources2Request {
 
   Cursor optional_cursor = 7;
   uint32 optional_limit = 8;
+
+  // enable_debug_trace, when true, causes a LookupDebugTrace to be populated
+  // on the response. Has zero runtime cost when false.
+  bool enable_debug_trace = 9;
 }
 
 message PossibleResource {
@@ -136,6 +140,10 @@ message DispatchLookupResources3Request {
 
   repeated string optional_cursor = 7;
   uint32 optional_limit = 8;
+
+  // enable_debug_trace, when true, causes a LookupDebugTrace to be populated
+  // on the response. Has zero runtime cost when false.
+  bool enable_debug_trace = 9;
 }
 
 message DispatchLookupResources3Response {
@@ -209,4 +217,14 @@ message CheckDebugTrace {
   google.protobuf.Duration duration = 6;
   string trace_id = 7;
   string source_id = 8;
+}
+
+message LookupDebugInfo {
+  // The resource/relation pairs that have been positively identified as being
+  // members of a cycle.
+  repeated string cycle_members = 1;
+
+  // The resource/relation pairs that may be members of a cycle.
+  // TODO: split into a separate message? Avoid using proto altogether?
+  repeated string cycle_candidates = 2;
 }

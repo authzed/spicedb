@@ -58,6 +58,17 @@ func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Conte
 	})
 }
 
+// lookupDebugTraceEnabled returns true when the caller has requested debug
+// tracing via the same gRPC metadata header used by CheckPermission.
+// This is zero-cost when the header is absent.
+func lookupDebugTraceEnabled(ctx context.Context) bool {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		_, present := md[string(requestmeta.RequestDebugInformation)]
+		return present
+	}
+	return false
+}
+
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
@@ -529,6 +540,8 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
+	debugEnabled := lookupDebugTraceEnabled(ctx)
+
 	var currentCursor []string
 
 	lrRequestHash, err := computeLRRequestHash(req)
@@ -625,12 +638,22 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			Context:        req.Context,
-			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			Context:          req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    req.OptionalLimit,
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {
+		if debugEnabled && dispatchpkg.IsMaxDepthExceeded(err) {
+			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
+				// We'll only attach debug info if cyclemembers is non-empty. Otherwise we're
+				// in a normal recursion-too-deep scenario and the debuginfo doesn't help.
+				if len(debugInfo.CycleMembers) > 0 {
+					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, debugInfo.String())
+				}
+			}
+		}
 		return ps.rewriteError(ctx, err)
 	}
 
@@ -679,6 +702,8 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 		DebugInfo:           nil,
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
+
+	debugEnabled := lookupDebugTraceEnabled(ctx)
 
 	var currentCursor *dispatch.Cursor
 
@@ -772,12 +797,22 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			Context:        req.Context,
-			OptionalCursor: currentCursor,
-			OptionalLimit:  req.OptionalLimit,
+			Context:          req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    req.OptionalLimit,
+			EnableDebugTrace: debugEnabled,
 		},
 		stream)
 	if err != nil {
+		if debugEnabled && dispatchpkg.IsMaxDepthExceeded(err) {
+			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
+				// We'll only attach debug info if cyclemembers is non-empty. Otherwise we're
+				// in a normal recursion-too-deep scenario and the debuginfo doesn't help.
+				if len(debugInfo.CycleMembers) > 0 {
+					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, debugInfo.String())
+				}
+			}
+		}
 		return ps.rewriteError(ctx, err)
 	}
 

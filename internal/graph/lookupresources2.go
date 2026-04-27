@@ -686,7 +686,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
 				stream := unfilteredLookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, ci)
-				return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+				err := crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 					ResourceRelation: parentRequest.ResourceRelation,
 					SubjectRelation:  newSubjectType,
 					SubjectIds:       filteredSubjectIDs,
@@ -698,11 +698,16 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					OptionalCursor: ci.currentCursor,
 					OptionalLimit:  parentRequest.OptionalLimit,
 					Context:        parentRequest.Context,
+					EnableDebugTrace: parentRequest.EnableDebugTrace,
 				}, stream)
+				if parentRequest.EnableDebugTrace {
+					return dispatch.HandleTraversalTrace(err, newSubjectType.Namespace, newSubjectType.Relation, filteredSubjectIDs)
+				}
+				return err
 			}
 
 			// Otherwise, we need to filter results by batch checking along the way before dispatching.
-			return runCheckerAndDispatch(
+			err := runCheckerAndDispatch(
 				ctx,
 				parentRequest,
 				foundResources,
@@ -717,5 +722,9 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				crr.concurrencyLimit,
 				crr.dispatchChunkSize,
 			)
+			if parentRequest.EnableDebugTrace {
+				return dispatch.HandleTraversalTrace(err, newSubjectType.Namespace, newSubjectType.Relation, filteredSubjectIDs)
+			}
+			return err
 		})
 }

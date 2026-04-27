@@ -1,15 +1,19 @@
 package v1_test
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -22,6 +26,8 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -920,4 +926,177 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
+	req := require.New(t)
+
+	schema := `
+	definition user {}
+
+	definition folder {
+		relation viewer: user
+		relation parent: folder
+		permission view = parent->view + viewer
+	}
+
+	definition resource {
+		relation folder: folder
+		permission view = folder->view
+	}
+	`
+	relationships := []tuple.Relationship{
+		tuple.MustParse("folder:a#parent@folder:b"),
+		tuple.MustParse("folder:b#parent@folder:a"),
+		tuple.MustParse("folder:a#viewer@user:someuser"),
+	}
+
+	// NOTE: the default test server configuration selects LR3
+	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		})
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	ctx := t.Context()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+			},
+		},
+		ResourceObjectType: "resource",
+		Permission:         "view",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "someuser",
+			},
+		},
+	})
+	req.NoError(err)
+
+	// Drain the stream — the circular schema will eventually hit MaxDepthExceeded.
+	// The traversal stack trace (if any) will be in the error details.
+	var streamErr error
+	for {
+		_, recvErr := stream.Recv()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			streamErr = recvErr
+			break
+		}
+	}
+
+	// Check for the traversal trace in the gRPC error details metadata.
+	var traceStr string
+	if s, ok := status.FromError(streamErr); ok {
+		for _, d := range s.Details() {
+			if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
+				traceStr = errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]
+			}
+		}
+	}
+
+	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
+
+	debugInfo := &dispatch.LookupDebugInfo{}
+	req.NoError(prototext.Unmarshal([]byte(traceStr), debugInfo), "trace must parse as LookupDebugTrace")
+	req.Len(debugInfo.CycleMembers, 1, "there should be one cycle member found at the final depth")
+	// NOTE: this value will change if the max recursion depth changes, since that determines
+	// how many times and how far the request will walk around the cycle.
+	req.Equal("folder:a#view", debugInfo.CycleMembers[0])
+}
+
+func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
+	req := require.New(t)
+
+	schema := `
+	definition user {}
+
+	definition folder {
+		relation viewer: user
+		relation parent: folder
+		permission view = parent->view + viewer
+	}
+
+	definition resource {
+		relation folder: folder
+		permission view = folder->view
+	}
+	`
+	relationships := []tuple.Relationship{
+		tuple.MustParse("folder:a#parent@folder:b"),
+		tuple.MustParse("folder:b#parent@folder:a"),
+		tuple.MustParse("folder:a#viewer@user:someuser"),
+	}
+
+	// NOTE: this makes LR2 the active implementation in the test server.
+	lr2Config := testserver.DefaultTestServerConfig
+	lr2Config.EnableExperimentalLookupResources3 = false
+
+	conn, cleanup, _, revision := testserver.NewTestServerWithConfig(req, 5*time.Second, memdb.DisableGC, true,
+		lr2Config,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		})
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	ctx := t.Context()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+			},
+		},
+		ResourceObjectType: "resource",
+		Permission:         "view",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "someuser",
+			},
+		},
+	})
+	req.NoError(err)
+
+	var streamErr error
+	for {
+		_, recvErr := stream.Recv()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			streamErr = recvErr
+			break
+		}
+	}
+
+	var traceStr string
+	if s, ok := status.FromError(streamErr); ok {
+		for _, d := range s.Details() {
+			if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
+				traceStr = errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]
+			}
+		}
+	}
+
+	req.NotEmpty(traceStr, "expected non-empty traversal trace in error details")
+
+	debugInfo := &dispatch.LookupDebugInfo{}
+	req.NoError(prototext.Unmarshal([]byte(traceStr), debugInfo), "trace must parse as LookupDebugTrace")
+	req.Len(debugInfo.CycleMembers, 1, "there should be one cycle member found at the final depth")
+	// NOTE: this value will change if the max recursion depth changes, since that determines
+	// how many times and how far the request will walk around the cycle.
+	req.Equal("folder:a#view", debugInfo.CycleMembers[0])
 }
