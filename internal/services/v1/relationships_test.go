@@ -764,14 +764,14 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			[]*v1.RelationshipFilter{precondFilter("document", "newdoc", "parent", "folder", "afolder", nil)},
 			[]*v1.Relationship{rel("document", "🍣", "parent", "folder", "afolder", "")},
 			codes.InvalidArgument,
-			"validation error: updates[0].relationship.resource.object_id: value does not match regex pattern",
+			"validation error: updates[0].relationship.resource.object_id: does not match regex pattern",
 		},
 		{
 			"invalid precondition, good write",
 			[]*v1.RelationshipFilter{precondFilter("document", "🍣", "parent", "folder", "afolder", nil)},
 			[]*v1.Relationship{rel("document", "newdoc", "parent", "folder", "afolder", "")},
 			codes.InvalidArgument,
-			"validation error: optional_preconditions[0].filter.optional_resource_id: value does not match regex pattern",
+			"validation error: optional_preconditions[0].filter.optional_resource_id: does not match regex pattern",
 		},
 		{
 			"write permission",
