@@ -695,9 +695,9 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 					},
-					OptionalCursor: ci.currentCursor,
-					OptionalLimit:  parentRequest.OptionalLimit,
-					Context:        parentRequest.Context,
+					OptionalCursor:   ci.currentCursor,
+					OptionalLimit:    parentRequest.OptionalLimit,
+					Context:          parentRequest.Context,
 					EnableDebugTrace: parentRequest.EnableDebugTrace,
 				}, stream)
 				if parentRequest.EnableDebugTrace {

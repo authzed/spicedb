@@ -961,7 +961,6 @@ func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 
 	ctx := t.Context()
-	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
@@ -977,6 +976,7 @@ func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 				ObjectId:   "someuser",
 			},
 		},
+		WithDebug: true,
 	})
 	req.NoError(err)
 
@@ -1051,7 +1051,6 @@ func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 
 	ctx := t.Context()
-	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
@@ -1067,6 +1066,7 @@ func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
 				ObjectId:   "someuser",
 			},
 		},
+		WithDebug: true,
 	})
 	req.NoError(err)
 

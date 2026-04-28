@@ -965,9 +965,9 @@ func (crr *CursoredLookupResources3) dispatchIter(
 				AtRevision:     refs.req.Revision.String(),
 				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
 			},
-			OptionalCursor: currentCursor,
-			OptionalLimit:  refs.req.OptionalLimit,
-			Context:        refs.req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    refs.req.OptionalLimit,
+			Context:          refs.req.Context,
 			EnableDebugTrace: refs.req.EnableDebugTrace,
 		}, stream)
 		if err != nil && !stream.canceled {

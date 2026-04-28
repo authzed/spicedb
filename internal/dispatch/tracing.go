@@ -42,20 +42,22 @@ func HandleTraversalTrace(originalErr error, resourceType, relation string, reso
 	case len(existingInfo.CycleMembers) > 0:
 		// If there are already positively identified cycle members, we pass them along.
 		debugInfo = existingInfo
-	case len(existingInfo.CycleCandidates) > 0: {
-		// If the intersection of the existing onrStrings with the current onrStrings is nonzero,
-		// those are cycle members and we construct a new debugInfo.
-		if intersection := mapz.NewSet(onrStrings...).Intersect(mapz.NewSet(existingInfo.CycleCandidates...)); intersection.Len() > 0 {
-			debugInfo = &dispatchv1.LookupDebugInfo{CycleMembers: intersection.AsSlice()}
-		} else {
-			// We can't determine anything at this step, so we pass along the existing.
-			debugInfo = existingInfo
+	case len(existingInfo.CycleCandidates) > 0:
+		{
+			// If the intersection of the existing onrStrings with the current onrStrings is nonzero,
+			// those are cycle members and we construct a new debugInfo.
+			if intersection := mapz.NewSet(onrStrings...).Intersect(mapz.NewSet(existingInfo.CycleCandidates...)); intersection.Len() > 0 {
+				debugInfo = &dispatchv1.LookupDebugInfo{CycleMembers: intersection.AsSlice()}
+			} else {
+				// We can't determine anything at this step, so we pass along the existing.
+				debugInfo = existingInfo
+			}
 		}
-	}
-	default: {
-		// The above cases should cover all of the states we can hit, so if we get here it's a bug.
-		return spiceerrors.MustBugf("we have a max depth error but cannot determine the cycle members")
-	}
+	default:
+		{
+			// The above cases should cover all of the states we can hit, so if we get here it's a bug.
+			return spiceerrors.MustBugf("we have a max depth error but cannot determine the cycle members")
+		}
 	}
 
 	return spiceerrors.AppendDetailsMetadata(originalErr, traversalTraceKey, prototext.Format(debugInfo))
