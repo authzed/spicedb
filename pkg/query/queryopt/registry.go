@@ -32,6 +32,37 @@ var StandardOptimzations = []string{
 	"reachability-pruning",
 }
 
+// CheckOptimizations is the set of optimizations applied for Check operations
+// routed through the query planner. Includes alias-chain-collapse, which is safe
+// because Check's self-edge logic in AliasIterator.CheckImpl is a fallback
+// identity check that is redundant in a chain of aliases (the inner alias would
+// catch the same self-edge first).
+var CheckOptimizations = []string{
+	"simple-caveat-pushdown",
+	"reachability-pruning",
+	"alias-chain-collapse",
+}
+
+// LookupResourcesOptimizations is the set of optimizations applied for
+// LookupResources operations routed through the query planner. Does NOT include
+// alias-chain-collapse: AliasIterator.IterResourcesImpl adds a self-edge when
+// the alias relation matches the input subject's relation, which differs between
+// the outer and inner aliases in a chain.
+var LookupResourcesOptimizations = []string{
+	"simple-caveat-pushdown",
+	"reachability-pruning",
+}
+
+// LookupSubjectsOptimizations is the set of optimizations applied for
+// LookupSubjects operations routed through the query planner. Does NOT include
+// alias-chain-collapse: AliasIterator.IterSubjectsImpl checks whether the
+// resource exists as a subject in the datastore and may prepend a self-edge,
+// which differs between the outer and inner aliases in a chain.
+var LookupSubjectsOptimizations = []string{
+	"simple-caveat-pushdown",
+	"reachability-pruning",
+}
+
 // RequestParams holds request-specific values available to optimizations.
 // Static (schema-level) optimizations ignore these; request-parameterized
 // optimizations (e.g. reachability pruning) use them to tailor their behavior.

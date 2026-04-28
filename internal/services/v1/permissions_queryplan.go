@@ -116,7 +116,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.CheckOptimizations, queryopt.RequestParams{
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: req.Subject.OptionalRelation,
 	})
@@ -245,7 +245,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.LookupResourcesOptimizations, queryopt.RequestParams{
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: normalizeSubjectRelation(req.Subject),
 	})
@@ -367,7 +367,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.LookupSubjectsOptimizations, queryopt.RequestParams{
 		SubjectType:     req.SubjectObjectType,
 		SubjectRelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 	})
