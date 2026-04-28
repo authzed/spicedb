@@ -40,6 +40,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	consistencymw "github.com/authzed/spicedb/pkg/middleware/consistency"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
+	"github.com/authzed/spicedb/pkg/middleware/readiness"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/middleware/serverversion"
 	"github.com/authzed/spicedb/pkg/releases"
@@ -175,6 +176,7 @@ const (
 	DefaultMiddlewareGRPCProm         = "grpcprom"
 	DefaultMiddlewareServerVersion    = "serverversion"
 	DefaultMiddlewareMemoryProtection = "memoryprotection"
+	DefaultMiddlewareReadiness        = "readiness"
 
 	DefaultInternalMiddlewareDispatch          = "dispatch"
 	DefaultInternalMiddlewareDatastore         = "datastore"
@@ -196,6 +198,7 @@ type MiddlewareOption struct {
 	MismatchingZedTokenOption consistencymw.MismatchingTokenOption `debugmap:"visible"`
 
 	MemoryUsageProvider memoryprotection.MemoryUsageProvider `debugmap:"hidden"`
+	ReadinessChecker    readiness.ReadinessChecker           `debugmap:"hidden"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -311,6 +314,12 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareReadiness).
+			WithInterceptor(readiness.NewGate(opts.ReadinessChecker).UnaryServerInterceptor()).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports blocked requests
+			Done(),
+
+		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareMemoryProtection).
 			WithInterceptor(selector.UnaryServerInterceptor(
 										memoryProtectionUnaryInterceptor.UnaryServerInterceptor(),
@@ -389,6 +398,12 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCProm).
 			WithInterceptor(grpcMetricsStreamingInterceptor).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareReadiness).
+			WithInterceptor(readiness.NewGate(opts.ReadinessChecker).StreamServerInterceptor()).
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports blocked requests
 			Done(),
 
 		NewStreamMiddleware().

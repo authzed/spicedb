@@ -357,6 +357,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MiddlewareServiceLabel:    serverName,
 		MismatchingZedTokenOption: mismatchZedTokenOption,
 		MemoryUsageProvider:       memoryUsageProvider,
+		ReadinessChecker:          ds,
 	}
 	opts = opts.WithDatastore(ds)
 
