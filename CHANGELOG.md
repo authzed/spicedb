@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added support for YAML-based validation files in the Language Server (https://github.com/authzed/spicedb/pull/3024)
 - Enable statistics-based optimizations when `--experimental-query-plan` is enabled. (https://github.com/authzed/spicedb/pull/3052)
 - Added missing implementations of cursoring for LookupResource, LookupSubjects and ReadRelationships calls in FDW (https://github.com/authzed/spicedb/pull/3016)
+- Add new gRPC Dispatch API and messages for dispatching query plans (https://github.com/authzed/spicedb/pull/3072)
 
 ### Changed
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)
