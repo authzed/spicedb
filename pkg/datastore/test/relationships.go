@@ -707,7 +707,7 @@ func DeleteWithInvalidPrefixTest(t *testing.T, tester DatastoreTester) {
 		return err
 	})
 	require.Error(err)
-	require.ErrorContains(err, "value does not match regex")
+	require.ErrorContains(err, "does not match regex")
 }
 
 // DeleteWithPrefixTest tests deleting relationships with a prefix.
