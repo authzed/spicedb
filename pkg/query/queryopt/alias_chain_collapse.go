@@ -11,11 +11,12 @@ func init() {
 		Collapses a chain of AliasIteratorType nodes into a single alias iterator,
 		using the relation name from the innermost (most-leaf) alias iterator.
 
-		This optimization is safe for Check and LookupResources operations, where
-		alias iterators do not need to emit self-edges for each intermediate alias.
-		It is NOT safe for LookupSubjects, where each alias iterator may need to
-		check for and prepend a self-edge based on whether the resource exists as
-		a subject in the datastore.
+		Safety is determined by the selection function (OptimizersForRequest),
+		not by this optimizer. The optimizer is included in the returned list
+		only when the request parameters guarantee that collapsing does not
+		change self-edge behavior:
+		  - Always safe for Check (self-edge is a redundant fallback)
+		  - Safe for IterResources/IterSubjects when SubjectRelation is "..."
 		`,
 		NewTransform: func(_ RequestParams) OutlineTransform {
 			return func(outline query.Outline) query.Outline {

@@ -64,10 +64,12 @@ func (h *dispatchPlanHandle) compileIterator(b *testing.B, resourceType, permiss
 	co, err := query.BuildOutlineFromSchema(h.schema, resourceType, permission)
 	require.NoError(b, err)
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+	queryParams := queryopt.RequestParams{
+		Operation:       query.OperationCheck,
 		SubjectType:     subjectType,
 		SubjectRelation: subjectRelation,
-	})
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	require.NoError(b, err)
 
 	it, err := optimized.Compile()

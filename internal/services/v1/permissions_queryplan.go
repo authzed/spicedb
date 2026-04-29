@@ -116,10 +116,12 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.CheckOptimizations, queryopt.RequestParams{
+	queryParams := queryopt.RequestParams{
+		Operation:       query.OperationCheck,
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: req.Subject.OptionalRelation,
-	})
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -245,10 +247,12 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.LookupResourcesOptimizations, queryopt.RequestParams{
+	queryParams := queryopt.RequestParams{
+		Operation:       query.OperationIterResources,
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: normalizeSubjectRelation(req.Subject),
-	})
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -367,10 +371,12 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.LookupSubjectsOptimizations, queryopt.RequestParams{
+	queryParams := queryopt.RequestParams{
+		Operation:       query.OperationIterSubjects,
 		SubjectType:     req.SubjectObjectType,
 		SubjectRelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
-	})
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
