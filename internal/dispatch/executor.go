@@ -21,6 +21,27 @@ type DispatchExecutor struct {
 
 var _ query.Executor = &DispatchExecutor{}
 
+// containsRecursiveSentinel checks if the iterator tree contains a RecursiveSentinelIterator
+// that is NOT already managed by a RecursiveIterator boundary.
+// A sentinel inside a RecursiveIterator is safe to dispatch — the RecursiveIterator
+// manages its own collection context. We only block dispatch when a sentinel is exposed
+// at the top level (outside any RecursiveIterator).
+func containsRecursiveSentinel(it query.Iterator) bool {
+	if _, ok := it.(*query.RecursiveSentinelIterator); ok {
+		return true
+	}
+	// A RecursiveIterator is a boundary — sentinels inside are managed by its context.
+	if _, ok := it.(*query.RecursiveIterator); ok {
+		return false
+	}
+	for _, sub := range it.Subiterators() {
+		if containsRecursiveSentinel(sub) {
+			return true
+		}
+	}
+	return false
+}
+
 // NewDispatchExecutor creates a new DispatchExecutor that dispatches alias
 // iterator operations through the given Dispatcher chain.
 func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext) *DispatchExecutor {
@@ -31,14 +52,14 @@ func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext) *Di
 }
 
 func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*query.Path, error) {
-	if _, ok := it.(*query.AliasIterator); ok {
+	if _, ok := it.(*query.AliasIterator); ok && !containsRecursiveSentinel(it) {
 		return e.dispatchCheck(ctx, it, resource, subject)
 	}
 	return it.CheckImpl(ctx, resource, subject)
 }
 
 func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := it.(*query.AliasIterator); ok {
+	if _, ok := it.(*query.AliasIterator); ok && !containsRecursiveSentinel(it) {
 		return e.dispatchIterSubjects(ctx, it, resource, filterSubjectType)
 	}
 	pathSeq, err := it.IterSubjectsImpl(ctx, resource, filterSubjectType)
@@ -49,7 +70,7 @@ func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, r
 }
 
 func (e *DispatchExecutor) IterResources(ctx *query.Context, it query.Iterator, subject query.ObjectAndRelation, filterResourceType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := it.(*query.AliasIterator); ok {
+	if _, ok := it.(*query.AliasIterator); ok && !containsRecursiveSentinel(it) {
 		return e.dispatchIterResources(ctx, it, subject, filterResourceType)
 	}
 	pathSeq, err := it.IterResourcesImpl(ctx, subject, filterResourceType)

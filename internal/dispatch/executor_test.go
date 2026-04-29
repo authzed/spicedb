@@ -243,6 +243,157 @@ func TestDispatchExecutor_IterResources_NonAliasLocal(t *testing.T) {
 	require.Empty(t, td.planCalls)
 }
 
+func TestDispatchExecutor_Check_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
+	td := &testDispatcher{}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	// AliasIterator wrapping a RecursiveSentinel — should NOT dispatch
+	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
+	alias := query.NewAliasIterator("viewer", sentinel)
+
+	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	require.NoError(t, err)
+	// RecursiveSentinel.CheckImpl returns nil
+	require.Nil(t, path)
+
+	// Verify NO dispatch was called
+	require.Empty(t, td.planCalls)
+}
+
+func TestDispatchExecutor_IterSubjects_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
+	td := &testDispatcher{}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
+	alias := query.NewAliasIterator("viewer", sentinel)
+
+	pathSeq, err := exec.IterSubjects(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
+	require.NoError(t, err)
+
+	paths, err := query.CollectAll(pathSeq)
+	require.NoError(t, err)
+	require.Empty(t, paths)
+	require.Empty(t, td.planCalls)
+}
+
+func TestDispatchExecutor_IterResources_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
+	td := &testDispatcher{}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
+	alias := query.NewAliasIterator("viewer", sentinel)
+
+	pathSeq, err := exec.IterResources(ctx, alias, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
+	require.NoError(t, err)
+
+	paths, err := query.CollectAll(pathSeq)
+	require.NoError(t, err)
+	require.Empty(t, paths)
+	require.Empty(t, td.planCalls)
+}
+
+func TestDispatchExecutor_Check_AliasWithSentinelInsideRecursiveDispatches(t *testing.T) {
+	td := &testDispatcher{
+		planResponses: []*v1.DispatchQueryPlanResponse{{
+			Paths: []*v1.ResultPath{{
+				ResourceType:    "document",
+				ResourceId:      "doc1",
+				Relation:        "viewer",
+				SubjectType:     "user",
+				SubjectId:       "alice",
+				SubjectRelation: "...",
+			}},
+		}},
+	}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	// AliasIterator wrapping a RecursiveIterator that contains a RecursiveSentinel.
+	// The sentinel is managed by the RecursiveIterator's context, so dispatch is allowed.
+	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
+	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
+	alias := query.NewAliasIterator("viewer", recursive)
+
+	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	require.NoError(t, err)
+	require.NotNil(t, path)
+	require.Equal(t, "alice", path.Subject.ObjectID)
+
+	// Verify dispatch WAS called — the RecursiveIterator boundary makes it safe
+	require.Len(t, td.planCalls, 1)
+}
+
+func TestDispatchExecutor_IterSubjects_AliasWithSentinelInsideRecursiveDispatches(t *testing.T) {
+	td := &testDispatcher{
+		planResponses: []*v1.DispatchQueryPlanResponse{{
+			Paths: []*v1.ResultPath{{
+				ResourceType:    "document",
+				ResourceId:      "doc1",
+				Relation:        "viewer",
+				SubjectType:     "user",
+				SubjectId:       "alice",
+				SubjectRelation: "...",
+			}},
+		}},
+	}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
+	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
+	alias := query.NewAliasIterator("viewer", recursive)
+
+	pathSeq, err := exec.IterSubjects(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
+	require.NoError(t, err)
+
+	paths, err := query.CollectAll(pathSeq)
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	require.Equal(t, "alice", paths[0].Subject.ObjectID)
+
+	require.Len(t, td.planCalls, 1)
+}
+
+func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatches(t *testing.T) {
+	td := &testDispatcher{
+		planResponses: []*v1.DispatchQueryPlanResponse{{
+			Paths: []*v1.ResultPath{{
+				ResourceType:    "document",
+				ResourceId:      "doc1",
+				Relation:        "viewer",
+				SubjectType:     "user",
+				SubjectId:       "alice",
+				SubjectRelation: "...",
+			}},
+		}},
+	}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
+	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
+	alias := query.NewAliasIterator("viewer", recursive)
+
+	pathSeq, err := exec.IterResources(ctx, alias, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
+	require.NoError(t, err)
+
+	paths, err := query.CollectAll(pathSeq)
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	require.Equal(t, "doc1", paths[0].Resource.ObjectID)
+
+	require.Len(t, td.planCalls, 1)
+}
+
 func TestDispatchExecutor_StreamBatching(t *testing.T) {
 	// Multiple streamed responses should be collected correctly
 	td := &testDispatcher{
