@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Changed
+- Updated the `kuberesolver` dependency to v6. This changes the behavior of `kuberesolver` to use `EndpointSlice`s instead of `Endpoint`s; you may need to update your k8s RBAC to enable `kuberesolver` to read those resources. (https://github.com/authzed/spicedb/pull/3081)
 
 ## [1.52.0] - 2026-04-30
 ### Added

@@ -89,7 +89,7 @@ require (
 	github.com/samber/slog-zerolog/v2 v2.9.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/sean-/sysexits v1.0.0
-	github.com/sercand/kuberesolver/v5 v5.1.1
+	github.com/sercand/kuberesolver/v6 v6.0.1
 	github.com/shopspring/decimal v1.4.0
 	github.com/sourcegraph/go-lsp v0.0.0-20240223163137-f80c5dd31dfd
 	github.com/sourcegraph/jsonrpc2 v0.2.1

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/sercand/kuberesolver/v5"
+	"github.com/sercand/kuberesolver/v6"
 	"google.golang.org/grpc/balancer"
 	_ "google.golang.org/grpc/xds"
 
