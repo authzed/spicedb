@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [1.52.0] - 2026-04-30
 ### Added
 - Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
 - Added support for YAML-based validation files in the Language Server (https://github.com/authzed/spicedb/pull/3024)
@@ -3589,7 +3591,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.51.1...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.52.0...HEAD
+[1.52.0]: https://github.com/authzed/spicedb/compare/v1.51.1...v1.52.0
 [1.51.1]: https://github.com/authzed/spicedb/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/authzed/spicedb/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/authzed/spicedb/compare/v1.49.2...v1.50.0
