@@ -103,6 +103,15 @@ homebrew_casks:
       email: "infrastructure@authzed.com"
     commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
     skip_upload: "auto"
+    # Our release binaries are not notarized, so macOS Gatekeeper quarantines
+    # them on download and refuses to run them ("Apple could not verify spicedb
+    # is free of malware"). Strip the quarantine attribute on install.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/spicedb"]
+          end
 dockers_v2:
   # Standard images
   - id: "standard"
