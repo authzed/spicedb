@@ -394,6 +394,64 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 	require.Len(t, td.planCalls, 1)
 }
 
+func TestDispatchExecutor_Check_DoubleRecursionUnmatchedSentinelDoesNotDispatch(t *testing.T) {
+	td := &testDispatcher{}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	// Double recursion: RecursiveIterator for "folder#viewer" contains a
+	// RecursiveSentinelIterator for "document#reader" in its subtree.
+	// The document#reader sentinel is unmatched (no RecursiveIterator for it),
+	// so dispatch should be blocked.
+	documentSentinel := query.NewRecursiveSentinelIterator("document", "reader", false)
+	folderRecursive := query.NewRecursiveIterator(documentSentinel, "folder", "viewer",
+	)
+	alias := query.NewAliasIterator("viewer", folderRecursive)
+
+	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	require.NoError(t, err)
+	require.Nil(t, path)
+
+	// Verify NO dispatch was called — unmatched sentinel blocks dispatch
+	require.Empty(t, td.planCalls)
+}
+
+func TestDispatchExecutor_Check_DoubleRecursionBothMatchedDispatches(t *testing.T) {
+	td := &testDispatcher{
+		planResponses: []*v1.DispatchQueryPlanResponse{{
+			Paths: []*v1.ResultPath{{
+				ResourceType:    "folder",
+				ResourceId:      "f1",
+				Relation:        "viewer",
+				SubjectType:     "user",
+				SubjectId:       "alice",
+				SubjectRelation: "...",
+			}},
+		}},
+	}
+
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	ctx := newTestContext()
+
+	// Double recursion with both pairs matched:
+	// RecursiveIterator(folder#viewer) contains RecursiveIterator(document#reader)
+	// which contains RecursiveSentinelIterator(document#reader).
+	// All sentinels have a matching iterator, so dispatch is allowed.
+	documentSentinel := query.NewRecursiveSentinelIterator("document", "reader", false)
+	documentRecursive := query.NewRecursiveIterator(documentSentinel, "document", "reader")
+	folderRecursive := query.NewRecursiveIterator(documentRecursive, "folder", "viewer")
+	alias := query.NewAliasIterator("viewer", folderRecursive)
+
+	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	require.NoError(t, err)
+	require.NotNil(t, path)
+	require.Equal(t, "alice", path.Subject.ObjectID)
+
+	// Verify dispatch WAS called — all sentinels are matched
+	require.Len(t, td.planCalls, 1)
+}
+
 func TestDispatchExecutor_StreamBatching(t *testing.T) {
 	// Multiple streamed responses should be collected correctly
 	td := &testDispatcher{

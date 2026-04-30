@@ -21,21 +21,47 @@ type DispatchExecutor struct {
 
 var _ query.Executor = &DispatchExecutor{}
 
-// containsRecursiveSentinel checks if the iterator tree contains a RecursiveSentinelIterator
-// that is NOT already managed by a RecursiveIterator boundary.
-// A sentinel inside a RecursiveIterator is safe to dispatch — the RecursiveIterator
-// manages its own collection context. We only block dispatch when a sentinel is exposed
-// at the top level (outside any RecursiveIterator).
-func containsRecursiveSentinel(it query.Iterator) bool {
-	if _, ok := it.(*query.RecursiveSentinelIterator); ok {
-		return true
+// recursiveKey uniquely identifies a recursion pair by definition and relation name.
+type recursiveKey struct {
+	definitionName string
+	relationName   string
+}
+
+// containsUnmatchedRecursiveSentinel walks the entire iterator tree and checks whether
+// there is a RecursiveSentinelIterator whose (definitionName, relationName) pair has no
+// matching RecursiveIterator anywhere in the tree. A sentinel is "managed" (safe to
+// dispatch) only when a RecursiveIterator with the same key exists to handle its
+// collection context. This handles the double-recursion case where a RecursiveIterator
+// for one recursion pair contains a sentinel for a different pair in its subtree.
+func containsUnmatchedRecursiveSentinel(it query.Iterator) bool {
+	// Collect all keys from RecursiveIterator and RecursiveSentinelIterator nodes.
+	var iteratorKeys map[recursiveKey]struct{}
+	var sentinelKeys map[recursiveKey]struct{}
+
+	var walk func(query.Iterator)
+	walk = func(sub query.Iterator) {
+		if ri, ok := sub.(*query.RecursiveIterator); ok {
+			if iteratorKeys == nil {
+				iteratorKeys = make(map[recursiveKey]struct{})
+			}
+			iteratorKeys[recursiveKey{ri.DefinitionName(), ri.RelationName()}] = struct{}{}
+		}
+		if si, ok := sub.(*query.RecursiveSentinelIterator); ok {
+			if sentinelKeys == nil {
+				sentinelKeys = make(map[recursiveKey]struct{})
+			}
+			sentinelKeys[recursiveKey{si.DefinitionName(), si.RelationName()}] = struct{}{}
+		}
+		for _, child := range sub.Subiterators() {
+			walk(child)
+		}
 	}
-	// A RecursiveIterator is a boundary — sentinels inside are managed by its context.
-	if _, ok := it.(*query.RecursiveIterator); ok {
-		return false
-	}
-	for _, sub := range it.Subiterators() {
-		if containsRecursiveSentinel(sub) {
+	walk(it)
+
+	// Every sentinel must have a matching iterator; an unmatched sentinel means
+	// its collection context won't be established and dispatch would break.
+	for key := range sentinelKeys {
+		if _, managed := iteratorKeys[key]; !managed {
 			return true
 		}
 	}
@@ -52,14 +78,14 @@ func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext) *Di
 }
 
 func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*query.Path, error) {
-	if _, ok := it.(*query.AliasIterator); ok && !containsRecursiveSentinel(it) {
+	if _, ok := it.(*query.AliasIterator); ok && !containsUnmatchedRecursiveSentinel(it) {
 		return e.dispatchCheck(ctx, it, resource, subject)
 	}
 	return it.CheckImpl(ctx, resource, subject)
 }
 
 func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := it.(*query.AliasIterator); ok && !containsRecursiveSentinel(it) {
+	if _, ok := it.(*query.AliasIterator); ok && !containsUnmatchedRecursiveSentinel(it) {
 		return e.dispatchIterSubjects(ctx, it, resource, filterSubjectType)
 	}
 	pathSeq, err := it.IterSubjectsImpl(ctx, resource, filterSubjectType)
@@ -70,7 +96,7 @@ func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, r
 }
 
 func (e *DispatchExecutor) IterResources(ctx *query.Context, it query.Iterator, subject query.ObjectAndRelation, filterResourceType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := it.(*query.AliasIterator); ok && !containsRecursiveSentinel(it) {
+	if _, ok := it.(*query.AliasIterator); ok && !containsUnmatchedRecursiveSentinel(it) {
 		return e.dispatchIterResources(ctx, it, subject, filterResourceType)
 	}
 	pathSeq, err := it.IterResourcesImpl(ctx, subject, filterResourceType)

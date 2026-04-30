@@ -56,6 +56,16 @@ func NewRecursiveIterator(templateTree Iterator, definitionName, relationName st
 	}
 }
 
+// DefinitionName returns the definition name this iterator is recursing on
+func (r *RecursiveIterator) DefinitionName() string {
+	return r.definitionName
+}
+
+// RelationName returns the relation name this iterator is recursing on
+func (r *RecursiveIterator) RelationName() string {
+	return r.relationName
+}
+
 // findMatchingSentinels walks the template tree and returns canonical key hashes of sentinels that match
 // this RecursiveIterator's definition and relation (but stops at nested RecursiveIterators).
 func (r *RecursiveIterator) findMatchingSentinels() []uint64 {
