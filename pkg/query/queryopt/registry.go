@@ -93,9 +93,7 @@ type Optimizer struct {
 // The returned CanonicalOutline is ready to compile.
 func ApplyOptimizations(co query.CanonicalOutline, opts []Optimizer, params RequestParams) (query.CanonicalOutline, error) {
 	// Sort by descending priority so higher-priority mutations run first.
-	sorted := make([]Optimizer, len(opts))
-	copy(sorted, opts)
-	slices.SortFunc(sorted, func(a, b Optimizer) int {
+	sorted := slices.SortedFunc(slices.Values(opts), func(a, b Optimizer) int {
 		return cmp.Compare(b.Priority, a.Priority)
 	})
 

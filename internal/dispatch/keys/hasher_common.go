@@ -1,14 +1,15 @@
 package keys
 
 import (
-	"sort"
+	"slices"
 	"strconv"
+
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type hashableValue interface {
@@ -40,7 +41,7 @@ func (hid hashableIds) AppendToHash(hasher hasherInterface) {
 	// with others accessing the slice.
 	c := make([]string, len(hid))
 	copy(c, hid)
-	sort.Strings(c)
+	slices.Sort(c)
 
 	for _, id := range c {
 		hasher.WriteString(id)

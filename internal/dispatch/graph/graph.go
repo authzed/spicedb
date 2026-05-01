@@ -487,7 +487,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 
 	planCtx := req.PlanContext
 	if planCtx == nil {
-		return fmt.Errorf("DispatchQueryPlan: missing plan_context")
+		return errors.New("DispatchQueryPlan: missing plan_context")
 	}
 
 	revision, err := ld.parseRevision(ctx, planCtx.Revision)
