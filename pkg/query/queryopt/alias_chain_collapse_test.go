@@ -187,59 +187,62 @@ func hasOptimizer(opts []Optimizer, name string) bool {
 	return false
 }
 
-func TestOptimizersForRequest_Check_AlwaysIncludesCollapse(t *testing.T) {
-	// Check always includes alias-chain-collapse regardless of subject relation.
-	for _, rel := range []string{"", "viewer", "..."} {
-		opts := OptimizersForRequest(RequestParams{
-			Operation:       query.OperationCheck,
-			SubjectRelation: rel,
-		})
-		require.True(t, hasOptimizer(opts, "alias-chain-collapse"),
-			"Check with SubjectRelation=%q should include alias-chain-collapse", rel)
+func TestOptimizersForRequest(t *testing.T) {
+	tests := []struct {
+		name            string
+		params          RequestParams
+		includeCollapse bool
+	}{
+		{
+			name:            "Check with empty subject relation includes collapse",
+			params:          RequestParams{Operation: query.OperationCheck, SubjectRelation: ""},
+			includeCollapse: true,
+		},
+		{
+			name:            "Check with specific subject relation includes collapse",
+			params:          RequestParams{Operation: query.OperationCheck, SubjectRelation: "viewer"},
+			includeCollapse: true,
+		},
+		{
+			name:            "Check with ellipsis subject relation includes collapse",
+			params:          RequestParams{Operation: query.OperationCheck, SubjectRelation: "..."},
+			includeCollapse: true,
+		},
+		{
+			name:            "IterResources with ellipsis subject relation includes collapse",
+			params:          RequestParams{Operation: query.OperationIterResources, SubjectRelation: "..."},
+			includeCollapse: true,
+		},
+		{
+			name:            "IterResources with specific subject relation excludes collapse",
+			params:          RequestParams{Operation: query.OperationIterResources, SubjectRelation: "viewer"},
+			includeCollapse: false,
+		},
+		{
+			name:            "IterResources with empty subject relation excludes collapse",
+			params:          RequestParams{Operation: query.OperationIterResources, SubjectRelation: ""},
+			includeCollapse: false,
+		},
+		{
+			name:            "IterSubjects with ellipsis subject relation includes collapse",
+			params:          RequestParams{Operation: query.OperationIterSubjects, SubjectRelation: "..."},
+			includeCollapse: true,
+		},
+		{
+			name:            "IterSubjects with specific subject relation excludes collapse",
+			params:          RequestParams{Operation: query.OperationIterSubjects, SubjectRelation: "owner"},
+			includeCollapse: false,
+		},
 	}
-}
 
-func TestOptimizersForRequest_IterResources_EllipsisIncludesCollapse(t *testing.T) {
-	// IterResources with "..." subject relation includes alias-chain-collapse.
-	opts := OptimizersForRequest(RequestParams{
-		Operation:       query.OperationIterResources,
-		SubjectRelation: "...",
-	})
-	require.True(t, hasOptimizer(opts, "alias-chain-collapse"))
-}
-
-func TestOptimizersForRequest_IterResources_SpecificRelationExcludesCollapse(t *testing.T) {
-	// IterResources with a specific subject relation excludes alias-chain-collapse.
-	opts := OptimizersForRequest(RequestParams{
-		Operation:       query.OperationIterResources,
-		SubjectRelation: "viewer",
-	})
-	require.False(t, hasOptimizer(opts, "alias-chain-collapse"))
-}
-
-func TestOptimizersForRequest_IterResources_EmptyRelationExcludesCollapse(t *testing.T) {
-	// IterResources with empty subject relation (bare subject) excludes alias-chain-collapse.
-	opts := OptimizersForRequest(RequestParams{
-		Operation:       query.OperationIterResources,
-		SubjectRelation: "",
-	})
-	require.False(t, hasOptimizer(opts, "alias-chain-collapse"))
-}
-
-func TestOptimizersForRequest_IterSubjects_EllipsisIncludesCollapse(t *testing.T) {
-	// IterSubjects with "..." subject relation includes alias-chain-collapse.
-	opts := OptimizersForRequest(RequestParams{
-		Operation:       query.OperationIterSubjects,
-		SubjectRelation: "...",
-	})
-	require.True(t, hasOptimizer(opts, "alias-chain-collapse"))
-}
-
-func TestOptimizersForRequest_IterSubjects_SpecificRelationExcludesCollapse(t *testing.T) {
-	// IterSubjects with a specific subject relation excludes alias-chain-collapse.
-	opts := OptimizersForRequest(RequestParams{
-		Operation:       query.OperationIterSubjects,
-		SubjectRelation: "owner",
-	})
-	require.False(t, hasOptimizer(opts, "alias-chain-collapse"))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := OptimizersForRequest(tc.params)
+			if tc.includeCollapse {
+				require.True(t, hasOptimizer(opts, "alias-chain-collapse"))
+			} else {
+				require.False(t, hasOptimizer(opts, "alias-chain-collapse"))
+			}
+		})
+	}
 }
