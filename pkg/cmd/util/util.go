@@ -225,10 +225,12 @@ type completedGRPCServer struct {
 func (c *completedGRPCServer) Listen(ctx context.Context) error {
 	if c.certWatcher != nil {
 		go func() {
-			if err := c.certWatcher.Start(ctx); err != nil {
-				log.Ctx(ctx).Error().Err(err).Msg("error watching tls certs")
-			}
+			c.certWatcher.Start(ctx)
 		}()
+		err := <-c.certWatcher.Started()
+		if err != nil {
+			return err
+		}
 	}
 	return c.srv.Serve(c.listener)
 }

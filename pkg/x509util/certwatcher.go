@@ -58,6 +58,11 @@ type CertWatcher struct {
 	keyPath           string
 	cachedKeyPEMBlock []byte
 
+	// started is closed once Start() has registered fsnotify watches for
+	// both files. Callers can block on Started() before mutating the watched
+	// paths to avoid racing the Start goroutine.
+	started chan error
+
 	// callback is a function to be invoked when the certificate changes.
 	callback func(tls.Certificate)
 
@@ -76,6 +81,7 @@ func NewTLSCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
 		certPath:              certPath,
 		keyPath:               keyPath,
 		interval:              defaultWatchInterval,
+		started:               make(chan error),
 		ReadCertificateTotal:  ReadTotal,
 		ReadCertificateErrors: ReadErrors,
 	}
@@ -129,17 +135,29 @@ func (cw *CertWatcher) GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate,
 	return cw.currentCert, nil
 }
 
+// Started returns a channel that is closed when Start() has finished
+// registering the fsnotify watches for the certificate and key files.
+// Callers that need to mutate the watched files should block on this
+// channel after calling Start() in a goroutine to avoid races.
+func (cw *CertWatcher) Started() <-chan error {
+	return cw.started
+}
+
 // Start starts the watch on the certificate and key files.
+// Any startup errors will be sent through the Started() channel.
 // When Start returns, it unregisters the prometheus metrics that were registered
 // in NewTLSCertWatcher.
-func (cw *CertWatcher) Start(ctx context.Context) error {
+func (cw *CertWatcher) Start(ctx context.Context) {
 	defer cw.unregisterMetrics()
 
 	for _, f := range []string{cw.certPath, cw.keyPath} {
 		if err := cw.watcher.Add(f); err != nil {
-			return fmt.Errorf("failed to add watch for %s: %w", f, err)
+			cw.started <- fmt.Errorf("failed to add watch for %s: %w", f, err)
+			close(cw.started)
+			return
 		}
 	}
+	close(cw.started)
 
 	go cw.Watch()
 
@@ -150,7 +168,8 @@ func (cw *CertWatcher) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return cw.watcher.Close()
+			_ = cw.watcher.Close()
+			return
 		case <-ticker.C:
 			if err := cw.ReadCertificate(); err != nil {
 				log.Err(err).Msg("failed to read certificate")
