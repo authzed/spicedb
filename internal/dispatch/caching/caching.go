@@ -422,32 +422,30 @@ func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequ
 		return err
 	}
 
-	if cachedResultRaw, found := cd.c.Get(requestKey); found {
-		var response v1.DispatchQueryPlanResponse
-		if err := response.UnmarshalVT(cachedResultRaw.([]byte)); err != nil {
+	if cachedPathRaw, found := cd.c.Get(requestKey); found {
+		var cachedPath v1.ResultPath
+		if err := cachedPath.UnmarshalVT(cachedPathRaw.([]byte)); err != nil {
 			return err
 		}
 		cd.checkFromCacheCounter.Inc()
-		return stream.Publish(&response)
+		return stream.Publish(&v1.DispatchQueryPlanResponse{
+			Paths: []*v1.ResultPath{&cachedPath},
+		})
 	}
 
-	// Cache miss — collect the streamed results to cache them.
+	// Cache miss — collect the streamed result to cache the path.
+	// Check produces at most one response containing a single ResultPath.
 	collecting := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](stream.Context())
 	if err := cd.d.DispatchQueryPlan(req, collecting); err != nil {
 		return err
 	}
 
-	// Forward collected results to the caller and cache the first response (Check produces at most one).
 	for _, resp := range collecting.Results() {
-		adjustedResp := resp.CloneVT()
-		if adjustedResp.Metadata != nil {
-			adjustedResp.Metadata.CachedDispatchCount = adjustedResp.Metadata.DispatchCount
-			adjustedResp.Metadata.DispatchCount = 0
-		}
-
-		adjustedBytes, err := adjustedResp.MarshalVT()
-		if err == nil {
-			cd.c.Set(requestKey, adjustedBytes, sliceSize(adjustedBytes))
+		if len(resp.Paths) > 0 {
+			pathBytes, err := resp.Paths[0].MarshalVT()
+			if err == nil {
+				cd.c.Set(requestKey, pathBytes, sliceSize(pathBytes))
+			}
 		}
 
 		if err := stream.Publish(resp); err != nil {
