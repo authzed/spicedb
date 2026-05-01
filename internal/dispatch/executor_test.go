@@ -405,8 +405,7 @@ func TestDispatchExecutor_Check_DoubleRecursionUnmatchedSentinelDoesNotDispatch(
 	// The document#reader sentinel is unmatched (no RecursiveIterator for it),
 	// so dispatch should be blocked.
 	documentSentinel := query.NewRecursiveSentinelIterator("document", "reader", false)
-	folderRecursive := query.NewRecursiveIterator(documentSentinel, "folder", "viewer",
-	)
+	folderRecursive := query.NewRecursiveIterator(documentSentinel, "folder", "viewer")
 	alias := query.NewAliasIterator("viewer", folderRecursive)
 
 	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
