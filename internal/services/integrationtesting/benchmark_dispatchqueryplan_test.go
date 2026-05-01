@@ -14,6 +14,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/caching"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -96,6 +99,40 @@ func (h *dispatchQueryPlanHandle) newDispatchContext(ctx context.Context) *query
 		CaveatContext: nil,
 	}
 	return qctx
+}
+
+// newCachedDispatchContext creates a query context using a DispatchExecutor backed by
+// a caching layer wrapping the localQueryPlanDispatcher. This exercises the Check cache path.
+func (h *dispatchQueryPlanHandle) newCachedDispatchContext(b *testing.B, cachingDispatcher *caching.Dispatcher) *query.Context {
+	planCtx := dispatch.NewPlanContext(h.revision.String(), nil, 0, 0)
+	executor := dispatch.NewDispatchExecutor(cachingDispatcher, planCtx)
+
+	qctx := &query.Context{
+		Context:       b.Context(),
+		Executor:      executor,
+		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision)),
+		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
+		CaveatContext: nil,
+	}
+	return qctx
+}
+
+// newCachingDispatcher creates a caching dispatcher wrapping a localQueryPlanDispatcher.
+func (h *dispatchQueryPlanHandle) newCachingDispatcher(b *testing.B) *caching.Dispatcher {
+	b.Helper()
+	cacheConfig := &cache.Config{
+		NumCounters: 1e4,
+		MaxCost:     1 << 20,
+	}
+	c, err := cache.NewStandardCache[keys.DispatchCacheKey, any](cacheConfig)
+	require.NoError(b, err)
+
+	cd, err := caching.NewCachingDispatcher(c, false, "bench", &keys.DirectKeyHandler{})
+	require.NoError(b, err)
+
+	lpd := &localQueryPlanDispatcher{handle: h}
+	cd.SetDelegate(lpd)
+	return cd
 }
 
 // localQueryPlanDispatcher is a minimal dispatcher that handles DispatchQueryPlan by compiling
@@ -297,6 +334,16 @@ func BenchmarkDispatchQueryPlanCheck(b *testing.B) {
 			b.Run("dispatch_executor", func(b *testing.B) {
 				for b.Loop() {
 					qctx := handle.newDispatchContext(b.Context())
+					path, err := qctx.Check(it.Clone(), resource, subject)
+					require.NoError(b, err)
+					require.NotNil(b, path)
+				}
+			})
+
+			b.Run("cached_dispatch_executor", func(b *testing.B) {
+				cd := handle.newCachingDispatcher(b)
+				for b.Loop() {
+					qctx := handle.newCachedDispatchContext(b, cd)
 					path, err := qctx.Check(it.Clone(), resource, subject)
 					require.NoError(b, err)
 					require.NotNil(b, path)
