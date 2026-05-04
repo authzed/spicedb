@@ -6,6 +6,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -242,6 +243,36 @@ func toProtoStruct(m map[string]any) (*structpb.Struct, error) {
 		return nil, nil
 	}
 	return structpb.NewStruct(m)
+}
+
+// NewQueryContext builds a query.Context whose Executor is a DispatchExecutor
+// driven by the given PlanContext, so that dispatched sub-requests carry the
+// same plan state. Plan-derived options (caveat context, recursion depth,
+// datastore limit) are applied first; extra opts are appended after.
+func NewQueryContext(
+	stdContext context.Context,
+	dispatcher Dispatcher,
+	planContext *v1.PlanContext,
+	reader query.QueryDatastoreReader,
+	caveatRunner *caveats.CaveatRunner,
+	opts ...query.ContextOption,
+) *query.Context {
+	executor := NewDispatchExecutor(dispatcher, planContext)
+
+	baseOpts := []query.ContextOption{
+		query.WithReader(reader),
+		query.WithCaveatContext(CaveatContextFromPlanContext(planContext)),
+		query.WithCaveatRunner(caveatRunner),
+	}
+	if d := planContext.GetMaxRecursionDepth(); d > 0 {
+		baseOpts = append(baseOpts, query.WithMaxRecursionDepth(int(d)))
+	}
+	if l := planContext.GetOptionalDatastoreLimit(); l > 0 {
+		baseOpts = append(baseOpts, query.WithPaginationLimit(l))
+	}
+	baseOpts = append(baseOpts, opts...)
+
+	return query.NewQueryContext(stdContext, executor, baseOpts...)
 }
 
 // NewPlanContext builds a PlanContext proto from query.Context fields.

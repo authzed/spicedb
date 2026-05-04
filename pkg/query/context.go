@@ -48,17 +48,22 @@ type Context struct {
 	topLevelOnce     sync.Once
 }
 
-// NewLocalContext creates a new query execution context with a LocalExecutor.
-// This is a convenience constructor for tests and local execution scenarios.
-func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context {
+// NewQueryContext builds a query plan exection context with the given executor implementation.
+func NewQueryContext(stdContext context.Context, executor Executor, opts ...ContextOption) *Context {
 	ctx := &Context{
 		Context:  stdContext,
-		Executor: LocalExecutor{},
+		Executor: executor,
 	}
 	for _, opt := range opts {
 		opt(ctx)
 	}
 	return ctx
+}
+
+// NewLocalContext creates a new query execution context with a LocalExecutor.
+// This is a convenience constructor for tests and local execution scenarios.
+func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context {
+	return NewQueryContext(stdContext, LocalExecutor{}, opts...)
 }
 
 // ContextOption is a function that configures a Context.
