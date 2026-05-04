@@ -1731,6 +1731,7 @@ type PlanContext struct {
 	CaveatContext          *structpb.Struct       `protobuf:"bytes,2,opt,name=caveat_context,json=caveatContext,proto3" json:"caveat_context,omitempty"`
 	MaxRecursionDepth      int32                  `protobuf:"varint,3,opt,name=max_recursion_depth,json=maxRecursionDepth,proto3" json:"max_recursion_depth,omitempty"`
 	OptionalDatastoreLimit uint64                 `protobuf:"varint,4,opt,name=optional_datastore_limit,json=optionalDatastoreLimit,proto3" json:"optional_datastore_limit,omitempty"`
+	SchemaHash             []byte                 `protobuf:"bytes,5,opt,name=schema_hash,json=schemaHash,proto3" json:"schema_hash,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -1791,6 +1792,13 @@ func (x *PlanContext) GetOptionalDatastoreLimit() uint64 {
 		return x.OptionalDatastoreLimit
 	}
 	return 0
+}
+
+func (x *PlanContext) GetSchemaHash() []byte {
+	if x != nil {
+		return x.SchemaHash
+	}
+	return nil
 }
 
 type DispatchQueryPlanRequest struct {
@@ -2252,12 +2260,14 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\f\n" +
 	"\bRELATION\x10\x01\x12\x0e\n" +
 	"\n" +
-	"PERMISSION\x10\x02\"\xd3\x01\n" +
+	"PERMISSION\x10\x02\"\xf4\x01\n" +
 	"\vPlanContext\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\tR\brevision\x12>\n" +
 	"\x0ecaveat_context\x18\x02 \x01(\v2\x17.google.protobuf.StructR\rcaveatContext\x12.\n" +
 	"\x13max_recursion_depth\x18\x03 \x01(\x05R\x11maxRecursionDepth\x128\n" +
-	"\x18optional_datastore_limit\x18\x04 \x01(\x04R\x16optionalDatastoreLimit\"\xa4\x02\n" +
+	"\x18optional_datastore_limit\x18\x04 \x01(\x04R\x16optionalDatastoreLimit\x12\x1f\n" +
+	"\vschema_hash\x18\x05 \x01(\fR\n" +
+	"schemaHash\"\xa4\x02\n" +
 	"\x18DispatchQueryPlanRequest\x128\n" +
 	"\toperation\x18\x01 \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\toperation\x12#\n" +
 	"\rcanonical_key\x18\x02 \x01(\tR\fcanonicalKey\x126\n" +

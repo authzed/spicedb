@@ -6,6 +6,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
@@ -244,11 +245,12 @@ func toProtoStruct(m map[string]any) (*structpb.Struct, error) {
 }
 
 // NewPlanContext builds a PlanContext proto from query.Context fields.
-func NewPlanContext(revision string, caveatContext map[string]any, maxRecursionDepth int, datastoreLimit uint64) *v1.PlanContext {
+func NewPlanContext(revision string, schemaHash datalayer.SchemaHash, caveatContext map[string]any, maxRecursionDepth int, datastoreLimit uint64) *v1.PlanContext {
 	pc := &v1.PlanContext{
 		Revision:               revision,
 		MaxRecursionDepth:      int32(maxRecursionDepth),
 		OptionalDatastoreLimit: datastoreLimit,
+		SchemaHash:             []byte(schemaHash),
 	}
 	if caveatContext != nil {
 		cc, err := structpb.NewStruct(caveatContext)

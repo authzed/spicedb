@@ -76,7 +76,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(t, emptyDS)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
 	lrver := ""

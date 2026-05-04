@@ -792,7 +792,7 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 
 	ds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat somecaveat(somecondition int) {
-			somecondition == 4t, 2
+			somecondition == 42
 		}
 
 		caveat somecaveat2(somecondition int) {

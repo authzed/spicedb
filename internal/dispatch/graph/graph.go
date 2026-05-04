@@ -495,9 +495,11 @@ func (ld *localDispatcher) DispatchQueryPlan(
 		return err
 	}
 
+	schemaHash := datalayer.SchemaHash(planCtx.GetSchemaHash())
+
 	// Load schema at the requested revision.
 	// TODO: use cached compiled plans (Phase 7) instead of recompiling each time.
-	it, err := ld.findIteratorByCanonicalKey(ctx, revision, query.CanonicalKey(req.CanonicalKey))
+	it, err := ld.findIteratorByCanonicalKey(ctx, revision, schemaHash, query.CanonicalKey(req.CanonicalKey))
 	if err != nil {
 		return err
 	}
@@ -509,7 +511,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	qctx := &query.Context{
 		Context:       ctx,
 		Executor:      executor,
-		Reader:        query.NewQueryDatastoreReader(dl.SnapshotReader(revision)),
+		Reader:        query.NewQueryDatastoreReader(dl.SnapshotReader(revision, datalayer.SchemaHash(req.GetPlanContext().GetSchemaHash()))),
 		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		CaveatContext: dispatch.CaveatContextFromPlanContext(planCtx),
 	}
@@ -578,9 +580,9 @@ func (ld *localDispatcher) DispatchQueryPlan(
 
 // findIteratorByCanonicalKey loads the schema at the given revision, compiles
 // all permissions, and returns the iterator subtree matching the canonical key.
-func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revision datastore.Revision, targetKey query.CanonicalKey) (query.Iterator, error) {
+func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, targetKey query.CanonicalKey) (query.Iterator, error) {
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(revision)
+	reader := dl.SnapshotReader(revision, schemaHash)
 
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {

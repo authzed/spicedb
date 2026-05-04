@@ -234,6 +234,7 @@ message PlanContext {
   google.protobuf.Struct caveat_context = 2;
   int32 max_recursion_depth = 3;
   uint64 optional_datastore_limit = 4;
+  bytes schema_hash = 5;
 }
 
 message DispatchQueryPlanRequest {

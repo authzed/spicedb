@@ -238,6 +238,7 @@ func createTestCaveat(t testing.TB) []*core.CaveatDefinition {
 // DatastoreFromSchemaAndTestRelationships returns a validating datastore wrapping that specified,
 // loaded with the given schema and relationships.
 func DatastoreFromSchemaAndTestRelationships(t testing.TB, ds datastore.Datastore, schema string, relationships []tuple.Relationship) (datastore.Datastore, datastore.Revision) {
+	t.Helper()
 	ctx := t.Context()
 	validating := NewValidatingDatastore(ds)
 
@@ -265,7 +266,8 @@ func DatastoreFromSchemaAndTestRelationships(t testing.TB, ds datastore.Datastor
 }
 
 func writeDefinitions(t testing.TB, ds datastore.Datastore, objectDefs []*core.NamespaceDefinition, caveatDefs []*core.CaveatDefinition) datastore.Revision {
-	ctx := context.Background()
+	t.Helper()
+	ctx := t.Context()
 	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if len(caveatDefs) > 0 {
 			err := rwt.LegacyWriteCaveats(ctx, caveatDefs)

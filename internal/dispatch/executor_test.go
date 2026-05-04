@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
@@ -603,15 +604,16 @@ func TestResultPathRoundTrip_WithMetadata(t *testing.T) {
 // --- PlanContext helper tests ---
 
 func TestNewPlanContext(t *testing.T) {
-	pc := NewPlanContext("rev1", map[string]any{"ip": "1.2.3.4"}, 10, 500)
+	pc := NewPlanContext("rev1", datalayer.SchemaHash([]byte("hash")), map[string]any{"ip": "1.2.3.4"}, 10, 500)
 	require.Equal(t, "rev1", pc.Revision)
+	require.Equal(t, []byte("hash"), pc.SchemaHash)
 	require.Equal(t, int32(10), pc.MaxRecursionDepth)
 	require.Equal(t, uint64(500), pc.OptionalDatastoreLimit)
 	require.NotNil(t, pc.CaveatContext)
 }
 
 func TestCaveatContextFromPlanContext(t *testing.T) {
-	pc := NewPlanContext("rev1", map[string]any{"ip": "1.2.3.4"}, 0, 0)
+	pc := NewPlanContext("rev1", datalayer.NoSchemaHashForTesting, map[string]any{"ip": "1.2.3.4"}, 0, 0)
 	cc := CaveatContextFromPlanContext(pc)
 	require.Equal(t, "1.2.3.4", cc["ip"])
 }
@@ -622,13 +624,13 @@ func TestCaveatContextFromPlanContext_Nil(t *testing.T) {
 }
 
 func TestPaginationLimitFromPlanContext(t *testing.T) {
-	pc := NewPlanContext("rev1", nil, 0, 100)
+	pc := NewPlanContext("rev1", datalayer.NoSchemaHashForTesting, nil, 0, 100)
 	limit := PaginationLimitFromPlanContext(pc)
 	require.NotNil(t, limit)
 	require.Equal(t, uint64(100), *limit)
 }
 
 func TestPaginationLimitFromPlanContext_Zero(t *testing.T) {
-	pc := NewPlanContext("rev1", nil, 0, 0)
+	pc := NewPlanContext("rev1", datalayer.NoSchemaHashForTesting, nil, 0, 0)
 	require.Nil(t, PaginationLimitFromPlanContext(pc))
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -258,13 +259,38 @@ func TestCyclicCheck(t *testing.T) {
 // the given revision and returns the compiled schema.
 // NOTE: This is a duplicate of the logic in the benchmark package. Find a common
 // place to put them and dedupe
+// TODO: It seems like there ought to be a better way to construct this schema object
+// after reading from the datastore.
 func ReadSchema(ctx context.Context, ds datastore.Datastore, rev datastore.Revision) (*schema.Schema, error) {
-	reader := ds.SnapshotReader(rev)
+	dl := datalayer.NewDataLayer(ds)
 
-	storedSchema, err := reader.ReadStoredSchema(ctx)
+	revision, hash, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return schema.BuildSchemaFromStoredSchema(storedSchema.Get())
+	reader := dl.SnapshotReader(revision, hash)
+	schemaReader, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	caveats, err := schemaReader.ListAllCaveatDefinitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defs, err := schemaReader.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return schema.BuildSchemaFromDefinitions(
+		slicez.Map(defs, func(def datastore.RevisionedTypeDefinition) *corev1.NamespaceDefinition {
+			return def.Definition
+		}),
+		slicez.Map(caveats, func(caveat datastore.RevisionedCaveat) *corev1.CaveatDefinition {
+			return caveat.Definition
+		}),
+	)
 }

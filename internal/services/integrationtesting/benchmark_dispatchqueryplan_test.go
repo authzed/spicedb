@@ -32,9 +32,10 @@ const benchTimedelta = 1 * time.Second
 
 // dispatchQueryPlanHandle holds the precompiled state needed to run dispatch query plan benchmarks.
 type dispatchQueryPlanHandle struct {
-	ds       datastore.Datastore
-	revision datastore.Revision
-	schema   *schema.Schema
+	ds         datastore.Datastore
+	revision   datastore.Revision
+	schemaHash datalayer.SchemaHash
+	schema     *schema.Schema
 }
 
 func newDispatchQueryPlanHandle(b *testing.B, fileName string) *dispatchQueryPlanHandle {
@@ -45,16 +46,21 @@ func newDispatchQueryPlanHandle(b *testing.B, fileName string) *dispatchQueryPla
 	contents, err := testFiles.ReadFile(fileName)
 	require.NoError(b, err)
 
+	dl := datalayer.NewDataLayer(ds)
+
 	populated, rev, err := validationfile.PopulateFromFilesContents(
-		b.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet,
+		b.Context(), dl, caveattypes.Default.TypeSet,
 		map[string][]byte{"testfile": contents},
 	)
+	require.NoError(b, err)
+
+	_, schemaHash, err := dl.HeadRevision(b.Context())
 	require.NoError(b, err)
 
 	fullSchema, err := schema.BuildSchemaFromDefinitions(populated.NamespaceDefinitions, populated.CaveatDefinitions)
 	require.NoError(b, err)
 
-	return &dispatchQueryPlanHandle{ds: ds, revision: rev, schema: fullSchema}
+	return &dispatchQueryPlanHandle{ds: ds, revision: rev, schema: fullSchema, schemaHash: schemaHash}
 }
 
 // compileIterator builds and compiles an iterator for the given resource type and permission.
@@ -79,7 +85,7 @@ func (h *dispatchQueryPlanHandle) compileIterator(b *testing.B, resourceType, pe
 // newLocalContext creates a query context using LocalExecutor for baseline comparison.
 func (h *dispatchQueryPlanHandle) newLocalContext(ctx context.Context) *query.Context {
 	return query.NewLocalContext(ctx,
-		query.WithRevisionedReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, datalayer.NoSchemaHashForTesting)),
+		query.WithRevisionedReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, h.schemaHash)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 	)
 }
@@ -87,14 +93,14 @@ func (h *dispatchQueryPlanHandle) newLocalContext(ctx context.Context) *query.Co
 // newDispatchContext creates a query context using a DispatchExecutor backed by a
 // localQueryPlanDispatcher that handles DispatchQueryPlan by compiling and executing the plan locally.
 func (h *dispatchQueryPlanHandle) newDispatchContext(ctx context.Context) *query.Context {
-	planCtx := dispatch.NewPlanContext(h.revision.String(), nil, 0, 0)
+	planCtx := dispatch.NewPlanContext(h.revision.String(), h.schemaHash, nil, 0, 0)
 	lpd := &localQueryPlanDispatcher{handle: h}
 	executor := dispatch.NewDispatchExecutor(lpd, planCtx)
 
 	qctx := &query.Context{
 		Context:       ctx,
 		Executor:      executor,
-		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, datalayer.NoSchemaHashForTesting)),
+		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, h.schemaHash)),
 		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		CaveatContext: nil,
 	}
@@ -104,13 +110,13 @@ func (h *dispatchQueryPlanHandle) newDispatchContext(ctx context.Context) *query
 // newCachedDispatchContext creates a query context using a DispatchExecutor backed by
 // a caching layer wrapping the localQueryPlanDispatcher. This exercises the Check cache path.
 func (h *dispatchQueryPlanHandle) newCachedDispatchContext(b *testing.B, cachingDispatcher *caching.Dispatcher) *query.Context {
-	planCtx := dispatch.NewPlanContext(h.revision.String(), nil, 0, 0)
+	planCtx := dispatch.NewPlanContext(h.revision.String(), h.schemaHash, nil, 0, 0)
 	executor := dispatch.NewDispatchExecutor(cachingDispatcher, planCtx)
 
 	qctx := &query.Context{
 		Context:       b.Context(),
 		Executor:      executor,
-		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision)),
+		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, h.schemaHash)),
 		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		CaveatContext: nil,
 	}
