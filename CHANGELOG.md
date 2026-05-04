@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Added
 - Add DispatchExecutor, a query plan executor that is Dispatch-aware and sends subproblems on Alias boundaries (https://github.com/authzed/spicedb/pull/3074)
+- Implement Dispatch caching for query plan execution (https://github.com/authzed/spicedb/pull/3079)
 
 ### Changed
 - Build: strip quarantine attribute for MacOS (https://github.com/authzed/spicedb/pull/3082)
