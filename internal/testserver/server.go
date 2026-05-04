@@ -37,7 +37,6 @@ var DefaultTestServerConfig = ServerConfig{
 	StreamingAPITimeout:                30 * time.Second,
 	MaxRelationshipContextSize:         25000,
 	EnableExperimentalLookupResources3: true,
-	DataLayerOpts: []datalayer.DataLayerOption{datalayer.WithSchemaMode(datalayer.SchemaModeReadLegacyWriteBoth)},
 }
 
 type DatastoreInitFunc func(testing.TB, datastore.Datastore) (datastore.Datastore, datastore.Revision)

@@ -316,8 +316,6 @@ func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQueri
 		return nil, time.Time{}, err
 	}
 	cr.assertHasExpectedAsOfSystemTime(sql)
-	fmt.Println("args")
-	fmt.Println(args)
 
 	var config []byte
 	var timestamp time.Time

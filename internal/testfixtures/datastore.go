@@ -7,18 +7,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -156,21 +156,10 @@ func EmptyDatastore(t testing.TB, ds datastore.Datastore) (datastore.Datastore, 
 // StandardDatastoreWithSchema returns a datastore populated with the standard test definitions.
 func StandardDatastoreWithSchema(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 	t.Helper()
-	ctx := t.Context()
 	validating := NewValidatingDatastore(ds)
-	schemaDefinitions := []datastore.SchemaDefinition{UserNS.CloneVT(), FolderNS.CloneVT(), DocumentNS.CloneVT()}
-	compilerDefinitions := slicez.Map(schemaDefinitions, func(def datastore.SchemaDefinition) compiler.SchemaDefinition {
-		return def.(compiler.SchemaDefinition)
-	})
-	schemaText, _, err := generator.GenerateSchema(ctx, compilerDefinitions)
-	require.NoError(t, err)
-	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		// TODO: add cache to this?
-		return datalayer.WriteSchemaViaStoredSchema(ctx, rwt, schemaDefinitions, schemaText, nil)
-	})
-	require.NoError(t, err)
 
-	return validating, rev
+	objectDefs := []*core.NamespaceDefinition{UserNS.CloneVT(), FolderNS.CloneVT(), DocumentNS.CloneVT()}
+	return validating, writeDefinitions(t, validating, objectDefs, []*core.CaveatDefinition{CaveatDef})
 }
 
 // StandardDatastoreWithData returns a datastore populated with both the standard test definitions
@@ -201,7 +190,6 @@ func StandardDatastoreWithCaveatedData(t testing.TB, ds datastore.Datastore) (da
 	ctx := t.Context()
 
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		// TODO: replace with non-legacy write
 		return tx.LegacyWriteCaveats(ctx, createTestCaveat(t))
 	})
 	require.NoError(t, err)
@@ -253,8 +241,13 @@ func DatastoreFromSchemaAndTestRelationships(t testing.TB, ds datastore.Datastor
 	ctx := t.Context()
 	validating := NewValidatingDatastore(ds)
 
-	_, err := datalayer.WriteStoredSchemaForTest(ctx, validating, schema)
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schema,
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(t, err)
+
+	_ = writeDefinitions(t, validating, compiled.ObjectDefinitions, compiled.CaveatDefinitions)
 
 	newRevision, err := validating.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		mutations := make([]tuple.RelationshipUpdate, 0, len(relationships))
@@ -269,6 +262,35 @@ func DatastoreFromSchemaAndTestRelationships(t testing.TB, ds datastore.Datastor
 	require.NoError(t, err)
 
 	return validating, newRevision
+}
+
+func writeDefinitions(t testing.TB, ds datastore.Datastore, objectDefs []*core.NamespaceDefinition, caveatDefs []*core.CaveatDefinition) datastore.Revision {
+	ctx := context.Background()
+	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		if len(caveatDefs) > 0 {
+			err := rwt.LegacyWriteCaveats(ctx, caveatDefs)
+			require.NoError(t, err)
+		}
+
+		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(rwt).WithPredefinedElements(schema.PredefinedElements{
+			Definitions: objectDefs,
+			Caveats:     caveatDefs,
+		}))
+		for _, nsDef := range objectDefs {
+			vdef, err := ts.GetValidatedDefinition(ctx, nsDef.GetName())
+			require.NoError(t, err)
+
+			aerr := namespace.AnnotateNamespace(vdef)
+			require.NoError(t, aerr)
+
+			err = rwt.LegacyWriteNamespaces(ctx, nsDef)
+			require.NoError(t, err)
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+	return newRevision
 }
 
 // RelationshipChecker is a helper type which provides an easy way for collecting relationships from

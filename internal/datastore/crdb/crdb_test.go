@@ -73,9 +73,6 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			// TODO: It feels like this is the issue - there's some proxy that should be here
-			// and isn't
-			// Is the datalayer involved at all here? Where? How?
 			ds, err := NewCRDBDatastore(
 				ctx,
 				uri,
