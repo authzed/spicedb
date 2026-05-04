@@ -146,7 +146,7 @@ func TestCyclicLookupResources(t *testing.T) {
 	subject := NewObject("user", "tom").WithEllipses()
 	filterResourceType := NoObjectFilter()
 
-	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision))
+	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting))
 
 	opts := []ContextOption{
 		WithReader(reader),
@@ -192,7 +192,7 @@ func TestCyclicLookupSubjects(t *testing.T) {
 	object := NewObject("resource", "foo")
 	filterSubjectType := NewType("user")
 
-	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision))
+	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting))
 
 	opts := []ContextOption{
 		WithReader(reader),
@@ -241,7 +241,7 @@ func TestCyclicCheck(t *testing.T) {
 	object := NewObject("resource", "foo")
 	subject := NewObject("user", "tom").WithEllipses()
 
-	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision))
+	reader := NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting))
 
 	opts := []ContextOption{
 		WithReader(reader),
@@ -256,28 +256,15 @@ func TestCyclicCheck(t *testing.T) {
 
 // ReadSchema reads all namespace and caveat definitions from the datastore at
 // the given revision and returns the compiled schema.
+// NOTE: This is a duplicate of the logic in the benchmark package. Find a common
+// place to put them and dedupe
 func ReadSchema(ctx context.Context, ds datastore.Datastore, rev datastore.Revision) (*schema.Schema, error) {
 	reader := ds.SnapshotReader(rev)
 
-	nsDefs, err := reader.LegacyListAllNamespaces(ctx)
+	storedSchema, err := reader.ReadStoredSchema(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	caveatDefs, err := reader.LegacyListAllCaveats(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	objectDefs := make([]*corev1.NamespaceDefinition, len(nsDefs))
-	for i, ns := range nsDefs {
-		objectDefs[i] = ns.Definition
-	}
-
-	caveatProtos := make([]*corev1.CaveatDefinition, len(caveatDefs))
-	for i, c := range caveatDefs {
-		caveatProtos[i] = c.Definition
-	}
-
-	return schema.BuildSchemaFromDefinitions(objectDefs, caveatProtos)
+	return schema.BuildSchemaFromStoredSchema(storedSchema.Get())
 }

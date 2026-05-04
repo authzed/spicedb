@@ -3,6 +3,7 @@ package spanner
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
@@ -116,8 +117,10 @@ func (t *spannerChunkedBytesTransaction) convertInsertToMutations(args []any) ([
 
 	cols := []string{colSchemaName, colSchemaChunkIndex, colSchemaChunkData, colTimestamp}
 	mutations := make([]*spanner.Mutation, 0, len(args)/argsPerRow)
-	for i := 0; i < len(args); i += argsPerRow {
-		vals := []any{args[i], args[i+1], args[i+2], spanner.CommitTimestamp}
+	for row := range slices.Chunk(args, argsPerRow) {
+		vals := make([]any, 0, 4)
+		vals = append(vals, row...)
+		vals = append(vals, spanner.CommitTimestamp)
 		mutations = append(mutations, spanner.Insert(tableSchema, cols, vals))
 	}
 

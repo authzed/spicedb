@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,7 +9,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -46,9 +44,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 	require.NoError(err)
 
 	// Write the schema
-	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
-	})
+	_, err = datalayer.WriteStoredSchemaForTest(ctx, rawDS, schemaText)
 	require.NoError(err)
 
 	// Write test data:

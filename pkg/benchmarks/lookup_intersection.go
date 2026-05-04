@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -55,17 +54,7 @@ func setupLookupIntersection(ctx context.Context, ds datastore.Datastore) (*Quer
 		}
 	`
 
-	compiled, err := compiler.Compile(compiler.InputSchema{
-		Source:       input.Source("benchmark"),
-		SchemaString: schemaText,
-	}, compiler.AllowUnprefixedObjectType())
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
-	})
+	_, err := datalayer.WriteStoredSchemaForTest(ctx, ds, schemaText)
 	if err != nil {
 		return nil, err
 	}

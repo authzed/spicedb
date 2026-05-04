@@ -1,6 +1,9 @@
 package schema
 
 import (
+	"maps"
+	"slices"
+
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
@@ -605,4 +608,15 @@ func BuildSchemaFromDefinitions(objectDefs []*corev1.NamespaceDefinition, caveat
 	}
 
 	return out, nil
+}
+
+// BuildSchemaFromStoredSchema generates a Schema view from a StoredSchema.
+// TODO: is this the right abstraction?
+func BuildSchemaFromStoredSchema(storedSchema *corev1.StoredSchema) (*Schema, error) {
+	v1 := storedSchema.GetV1()
+
+	namespaceDefintions := slices.Collect(maps.Values(v1.GetNamespaceDefinitions()))
+	caveatDefintions := slices.Collect(maps.Values(v1.GetCaveatDefinitions()))
+
+	return BuildSchemaFromDefinitions(namespaceDefintions, caveatDefintions)
 }

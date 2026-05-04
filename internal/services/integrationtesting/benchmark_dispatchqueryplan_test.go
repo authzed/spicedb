@@ -79,7 +79,7 @@ func (h *dispatchQueryPlanHandle) compileIterator(b *testing.B, resourceType, pe
 // newLocalContext creates a query context using LocalExecutor for baseline comparison.
 func (h *dispatchQueryPlanHandle) newLocalContext(ctx context.Context) *query.Context {
 	return query.NewLocalContext(ctx,
-		query.WithRevisionedReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision)),
+		query.WithRevisionedReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, datalayer.NoSchemaHashForTesting)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 	)
 }
@@ -94,7 +94,7 @@ func (h *dispatchQueryPlanHandle) newDispatchContext(ctx context.Context) *query
 	qctx := &query.Context{
 		Context:       ctx,
 		Executor:      executor,
-		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision)),
+		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, datalayer.NoSchemaHashForTesting)),
 		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		CaveatContext: nil,
 	}
@@ -192,7 +192,7 @@ func (d *localQueryPlanDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRe
 	qctx := &query.Context{
 		Context:       ctx,
 		Executor:      executor,
-		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(d.handle.ds).SnapshotReader(d.handle.revision)),
+		Reader:        query.NewQueryDatastoreReader(datalayer.NewDataLayer(d.handle.ds).SnapshotReader(d.handle.revision, datalayer.NoSchemaHashForTesting)),
 		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		CaveatContext: dispatch.CaveatContextFromPlanContext(planCtx),
 	}

@@ -32,9 +32,8 @@ func setupTestDB(t *testing.T, schemaText string, rels ...string) (datastore.Dat
 	require.NoError(t, err)
 
 	ctx := t.Context()
-	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
-	})
+	// Write the schema
+	_, err = datalayer.WriteStoredSchemaForTest(ctx, rawDS, schemaText)
 	require.NoError(t, err)
 
 	parsedRels := make([]tuple.Relationship, 0, len(rels))
