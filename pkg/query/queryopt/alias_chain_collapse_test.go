@@ -41,9 +41,12 @@ func TestAliasChainCollapse(t *testing.T) {
 
 		result := applyCollapse(input)
 
-		// → Alias("owner")(DS)
+		// → Alias{RelationName:"owner", AliasedAs:["viewer"]}(DS)
+		// Inner identity preserved for caching; outer name appended to the
+		// alias chain so the user-facing relation and self-edge can use "viewer".
 		require.Equal(t, query.AliasIteratorType, result.Type)
 		require.Equal(t, "owner", result.Args.RelationName)
+		require.Equal(t, []string{"viewer"}, result.Args.AliasedAs)
 		require.Len(t, result.SubOutlines, 1)
 		require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[0].Type)
 	})
@@ -58,9 +61,11 @@ func TestAliasChainCollapse(t *testing.T) {
 
 		result := applyCollapse(input)
 
-		// → Alias("owner")(DS)
+		// → Alias{RelationName:"owner", AliasedAs:["viewer","perm"]}(DS)
+		// Inner-to-outer order; outermost name is last and is the user-facing relation.
 		require.Equal(t, query.AliasIteratorType, result.Type)
 		require.Equal(t, "owner", result.Args.RelationName)
+		require.Equal(t, []string{"viewer", "perm"}, result.Args.AliasedAs)
 		require.Len(t, result.SubOutlines, 1)
 		require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[0].Type)
 	})
@@ -71,9 +76,10 @@ func TestAliasChainCollapse(t *testing.T) {
 
 		result := applyCollapse(input)
 
-		// → Alias("viewer")(DS) — unchanged
+		// → Alias("viewer")(DS) — unchanged, no chain extension
 		require.Equal(t, query.AliasIteratorType, result.Type)
 		require.Equal(t, "viewer", result.Args.RelationName)
+		require.Empty(t, result.Args.AliasedAs)
 		require.Len(t, result.SubOutlines, 1)
 		require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[0].Type)
 	})
@@ -99,9 +105,10 @@ func TestAliasChainCollapse(t *testing.T) {
 
 		require.Equal(t, query.UnionIteratorType, result.Type)
 		require.Len(t, result.SubOutlines, 2)
-		// Left branch: collapsed to Alias("owner")(DS)
+		// Left branch: collapsed to Alias{RelationName:"owner", AliasedAs:["viewer"]}(DS)
 		require.Equal(t, query.AliasIteratorType, result.SubOutlines[0].Type)
 		require.Equal(t, "owner", result.SubOutlines[0].Args.RelationName)
+		require.Equal(t, []string{"viewer"}, result.SubOutlines[0].Args.AliasedAs)
 		require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[0].SubOutlines[0].Type)
 		// Right branch: unchanged DS
 		require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[1].Type)
@@ -119,15 +126,16 @@ func TestAliasChainCollapse(t *testing.T) {
 
 		require.Equal(t, query.ArrowIteratorType, result.Type)
 		require.Len(t, result.SubOutlines, 2)
-		// Left child: collapsed to Alias("owner")(DS)
+		// Left child: collapsed to Alias{RelationName:"owner", AliasedAs:["viewer"]}(DS)
 		require.Equal(t, query.AliasIteratorType, result.SubOutlines[0].Type)
 		require.Equal(t, "owner", result.SubOutlines[0].Args.RelationName)
+		require.Equal(t, []string{"viewer"}, result.SubOutlines[0].Args.AliasedAs)
 		require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[0].SubOutlines[0].Type)
 		// Right child: unchanged DS
 		require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[1].Type)
 	})
 
-	t.Run("preserves outer node ID after collapse", func(t *testing.T) {
+	t.Run("clears outer node ID so canonical key gets recomputed", func(t *testing.T) {
 		outer := aliasOutline("viewer",
 			aliasOutline("owner", dsOutlineNoCaveat()),
 		)
@@ -136,10 +144,13 @@ func TestAliasChainCollapse(t *testing.T) {
 
 		result := applyCollapse(outer)
 
-		// The collapsed node should carry the outer node's ID.
-		require.Equal(t, query.OutlineNodeID(100), result.ID)
-		// And the inner alias's relation name.
+		// The collapsed node's structure differs from the pre-collapse outline
+		// (now has AliasedAs set), so the old canonical key would be stale.
+		// The optimizer drops the ID; FillMissingNodeIDs reassigns it after
+		// the optimizer pass.
+		require.Equal(t, query.OutlineNodeID(0), result.ID)
 		require.Equal(t, "owner", result.Args.RelationName)
+		require.Equal(t, []string{"viewer"}, result.Args.AliasedAs)
 	})
 
 	t.Run("does not collapse alias over non-alias child", func(t *testing.T) {
@@ -174,6 +185,7 @@ func TestAliasChainCollapseViaRegister(t *testing.T) {
 
 	require.Equal(t, query.AliasIteratorType, result.Type)
 	require.Equal(t, "inner", result.Args.RelationName)
+	require.Equal(t, []string{"outer"}, result.Args.AliasedAs)
 	require.Len(t, result.SubOutlines, 1)
 	require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[0].Type)
 }

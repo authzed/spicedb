@@ -224,7 +224,7 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 		if outline.Args == nil || outline.Args.RelationName == "" {
 			return nil, errors.New("AliasIterator requires RelationName in Args")
 		}
-		alias := NewAliasIterator(outline.Args.RelationName, compiledSubs[0])
+		alias := NewAliasIteratorWithChain(outline.Args.RelationName, outline.Args.AliasedAs, compiledSubs[0])
 		alias.canonicalKey = key
 		it = alias
 
@@ -286,8 +286,15 @@ type IteratorArgs struct {
 	Relation       *schema.BaseRelation
 	DefinitionName string
 	RelationName   string
-	Caveat         *core.ContextualizedCaveat
-	FixedPaths     []Path
+	// AliasedAs, when non-empty on an AliasIteratorType outline, lists the names
+	// of additional outer aliases that were collapsed into this node, in
+	// inner-to-outer order. The outermost name (last entry) is what emitted paths
+	// are rewritten to; the self-edge fires for any subject relation in the chain
+	// (RelationName ∪ AliasedAs). RelationName remains the alias's underlying
+	// identity for caching. Set by the alias-chain-collapse optimizer.
+	AliasedAs  []string
+	Caveat     *core.ContextualizedCaveat
+	FixedPaths []Path
 }
 
 // Decompile converts an Iterator back to its Outline representation
@@ -372,6 +379,7 @@ func Decompile(it Iterator) (Outline, error) {
 			Type: AliasIteratorType,
 			Args: &IteratorArgs{
 				RelationName: typed.relation,
+				AliasedAs:    append([]string(nil), typed.aliasedAs...),
 			},
 			SubOutlines: decompSubs,
 		}, nil
@@ -484,6 +492,22 @@ func argsCompare(a, b *IteratorArgs) int {
 			return -1
 		}
 		return 1
+	}
+
+	// Compare AliasedAs
+	if len(a.AliasedAs) != len(b.AliasedAs) {
+		if len(a.AliasedAs) < len(b.AliasedAs) {
+			return -1
+		}
+		return 1
+	}
+	for i := range a.AliasedAs {
+		if a.AliasedAs[i] != b.AliasedAs[i] {
+			if a.AliasedAs[i] < b.AliasedAs[i] {
+				return -1
+			}
+			return 1
+		}
 	}
 
 	// Compare Relation (BaseRelation)
@@ -630,6 +654,20 @@ func serializeArgs(args *IteratorArgs) string {
 		}
 		sb.WriteString("rel:")
 		sb.WriteString(args.RelationName)
+	}
+
+	// AliasedAs (chain of outer alias names from inner-to-outer)
+	if len(args.AliasedAs) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString("aas:")
+		for i, n := range args.AliasedAs {
+			if i > 0 {
+				sb.WriteByte('|')
+			}
+			sb.WriteString(n)
+		}
 	}
 
 	// Relation (BaseRelation)
