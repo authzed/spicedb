@@ -1449,7 +1449,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 	})
 	defer ds.Close()
 
-	ds, revision := testfixtures.StandardDatastoreWithData(ds, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, ds)
 	_, errChan := ds.Watch(
 		t.Context(),
 		revision,
@@ -1480,7 +1480,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 		ds.Close()
 	})
 
-	ds, _ = testfixtures.StandardDatastoreWithData(ds, require)
+	ds, _ = testfixtures.StandardDatastoreWithData(t, ds)
 
 	// Write namespaces and a few thousand relationships.
 	ctx := t.Context()

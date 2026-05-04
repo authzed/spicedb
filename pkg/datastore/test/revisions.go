@@ -43,7 +43,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 			veryFirstRevision := veryFirstRevisionResult.Revision
 
-			postSetupRevision := setupDatastore(ds, require)
+			postSetupRevision := setupDatastore(t, ds)
 			require.True(postSetupRevision.GreaterThan(veryFirstRevision), "post-setup revision should be greater than the first revision")
 
 			// Create some revisions

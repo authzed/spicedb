@@ -2,6 +2,7 @@ package datalayer
 
 import (
 	"context"
+	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 

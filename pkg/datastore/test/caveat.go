@@ -135,7 +135,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	skipIfNotCaveatStorer(t, ds)
 
 	req.NoError(err)
-	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
+	sds, _ := testfixtures.StandardDatastoreWithSchema(t, ds)
 
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
@@ -211,7 +211,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	skipIfNotCaveatStorer(t, ds)
 
 	req.NoError(err)
-	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
+	sds, _ := testfixtures.StandardDatastoreWithSchema(t, ds)
 
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)

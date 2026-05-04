@@ -21,8 +21,7 @@ import (
 )
 
 func TestAllMethodsReturnMetadata(t *testing.T) {
-	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 
 	ctx := t.Context()

@@ -512,6 +512,7 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames
 	if len(nsNames) == 0 {
 		return nil
 	}
+	fmt.Println("calling LegacyDeleteNamespaces")
 
 	rwt.hasNonExpiredDeletionChange = true
 

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -18,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -149,14 +147,14 @@ var StandardCaveatedRelationships = []string{
 }
 
 // EmptyDatastore returns an empty datastore for testing.
-func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-	rev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
+func EmptyDatastore(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+	rev, err := ds.HeadRevision(t.Context())
+	require.NoError(t, err)
 	return ds, rev.Revision
 }
 
 // StandardDatastoreWithSchema returns a datastore populated with the standard test definitions.
-func StandardDatastoreWithSchema(t *testing.T, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+func StandardDatastoreWithSchema(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 	t.Helper()
 	ctx := t.Context()
 	validating := NewValidatingDatastore(ds)
@@ -177,7 +175,7 @@ func StandardDatastoreWithSchema(t *testing.T, ds datastore.Datastore) (datastor
 
 // StandardDatastoreWithData returns a datastore populated with both the standard test definitions
 // and relationships.
-func StandardDatastoreWithData(t *testing.T, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+func StandardDatastoreWithData(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 	t.Helper()
 	ds, _ = StandardDatastoreWithSchema(t, ds)
 	ctx := t.Context()
@@ -197,7 +195,7 @@ func StandardDatastoreWithData(t *testing.T, ds datastore.Datastore) (datastore.
 
 // StandardDatastoreWithCaveatedData returns a datastore populated with both the standard test definitions
 // and some caveated relationships.
-func StandardDatastoreWithCaveatedData(t *testing.T, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+func StandardDatastoreWithCaveatedData(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 	t.Helper()
 	ds, _ = StandardDatastoreWithSchema(t, ds)
 	ctx := t.Context()
@@ -228,7 +226,7 @@ func StandardDatastoreWithCaveatedData(t *testing.T, ds datastore.Datastore) (da
 	return ds, revision
 }
 
-func createTestCaveat(t *testing.T) []*core.CaveatDefinition {
+func createTestCaveat(t testing.TB) []*core.CaveatDefinition {
 	t.Helper()
 	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 		"secret":         caveattypes.Default.StringType,
@@ -251,7 +249,7 @@ func createTestCaveat(t *testing.T) []*core.CaveatDefinition {
 
 // DatastoreFromSchemaAndTestRelationships returns a validating datastore wrapping that specified,
 // loaded with the given schema and relationships.
-func DatastoreFromSchemaAndTestRelationships(t *testing.T, ds datastore.Datastore, schema string, relationships []tuple.Relationship) (datastore.Datastore, datastore.Revision) {
+func DatastoreFromSchemaAndTestRelationships(t testing.TB, ds datastore.Datastore, schema string, relationships []tuple.Relationship) (datastore.Datastore, datastore.Revision) {
 	ctx := t.Context()
 	validating := NewValidatingDatastore(ds)
 

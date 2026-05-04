@@ -25,7 +25,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		definition user {}
 
 		definition resource {
@@ -34,7 +34,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 		}
 	`, []tuple.Relationship{
 		tuple.MustParse("resource:someresource#viewer@resource:someresource#viewer"),
-	}, require.New(t))
+	})
 
 	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 

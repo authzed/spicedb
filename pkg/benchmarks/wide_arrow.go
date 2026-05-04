@@ -50,7 +50,6 @@ func setupWideArrow(ctx context.Context, ds datastore.Datastore) (*QuerySets, er
 		}
 	`
 
-	fmt.Println("schemaText")
 	_, err := datalayer.WriteStoredSchemaForTest(ctx, ds, schemaText)
 	if err != nil {
 		return nil, err

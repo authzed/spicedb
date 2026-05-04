@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -41,7 +40,7 @@ func TestBurst(t *testing.T) {
 				dsconfig.WithRevisionQuantization(10),
 				dsconfig.WithMaxRetries(50),
 				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
-			ds, revision := tf.StandardDatastoreWithData(ds, require.New(t))
+			ds, revision := tf.StandardDatastoreWithData(t, ds)
 
 			conns, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 			t.Cleanup(cleanup)

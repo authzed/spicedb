@@ -454,7 +454,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat firstCaveat(first int) {
 					first == 42
 				}
@@ -466,7 +466,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 				caveat thirdCaveat(third bool) {
 					third
 				}
-				`, nil, req)
+				`, nil)
 			headRevisionResult, err := ds.HeadRevision(t.Context())
 			req.NoError(err)
 
@@ -514,11 +514,11 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat some_caveat(themap map<any>) {
 					themap.first == 42
 				}
-				`, nil, req)
+				`, nil)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
@@ -547,11 +547,11 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat some_caveat(themap map<any>) {
 					themap.first == 42
 				}
-				`, nil, req)
+				`, nil)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
@@ -582,7 +582,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat some_caveat(themap map<any>) {
 					themap.first == 42
 				}
@@ -590,7 +590,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 				caveat another_caveat(somecondition int) {
 					somecondition == 42
 				}
-				`, nil, req)
+				`, nil)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
@@ -655,11 +655,11 @@ func TestRunCaveatWithMissingDefinition(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat existing_caveat(param int) {
 			param == 42
 		}
-		`, nil, req)
+		`, nil)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
@@ -688,14 +688,14 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat first_caveat(firstparam int) {
 			firstparam == 42
 		}
 		caveat second_caveat(secondparam string) {
 			secondparam == "hello"
 		}
-		`, nil, req)
+		`, nil)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
@@ -737,11 +737,11 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat test_caveat(param int) {
 			param == 42
 		}
-		`, nil, req)
+		`, nil)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
@@ -819,11 +819,11 @@ func TestUnknownCaveatOperation(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat test_caveat(param int) {
 			param == 42
 		}
-		`, nil, req)
+		`, nil)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)

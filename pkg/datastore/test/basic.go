@@ -31,7 +31,7 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, revision := testfixtures.StandardDatastoreWithCaveatedData(rawDS, require.New(t))
+	ds, revision := testfixtures.StandardDatastoreWithCaveatedData(t, rawDS)
 	ctx := t.Context()
 
 	// Ensure at least a few relationships and namespaces exist.

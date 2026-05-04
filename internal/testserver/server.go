@@ -2,6 +2,7 @@ package testserver
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -36,24 +37,25 @@ var DefaultTestServerConfig = ServerConfig{
 	StreamingAPITimeout:                30 * time.Second,
 	MaxRelationshipContextSize:         25000,
 	EnableExperimentalLookupResources3: true,
+	DataLayerOpts: []datalayer.DataLayerOption{datalayer.WithSchemaMode(datalayer.SchemaModeReadLegacyWriteBoth)},
 }
 
-type DatastoreInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision)
+type DatastoreInitFunc func(testing.TB, datastore.Datastore) (datastore.Datastore, datastore.Revision)
 
 // NewTestServer creates a new test server, using defaults for the config.
-func NewTestServer(require *require.Assertions,
+func NewTestServer(t testing.TB,
 	revisionQuantization time.Duration,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
 	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
-	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
+	return NewTestServerWithConfig(t, revisionQuantization, gcWindow, schemaPrefixRequired,
 		DefaultTestServerConfig,
 		dsInitFunc)
 }
 
 // NewTestServerWithConfig creates as new test server with the specified config.
-func NewTestServerWithConfig(require *require.Assertions,
+func NewTestServerWithConfig(t testing.TB,
 	revisionQuantization time.Duration,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
@@ -61,12 +63,12 @@ func NewTestServerWithConfig(require *require.Assertions,
 	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
-	require.NoError(err)
+	require.NoError(t, err)
 
-	return NewTestServerWithConfigAndDatastore(require, revisionQuantization, gcWindow, schemaPrefixRequired, config, emptyDS, dsInitFunc)
+	return NewTestServerWithConfigAndDatastore(t, revisionQuantization, gcWindow, schemaPrefixRequired, config, emptyDS, dsInitFunc)
 }
 
-func NewTestServerWithConfigAndDatastore(require *require.Assertions,
+func NewTestServerWithConfigAndDatastore(t testing.TB,
 	revisionQuantization time.Duration,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
@@ -74,7 +76,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	emptyDS datastore.Datastore,
 	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
-	ds, revision := dsInitFunc(emptyDS, require)
+	ds, revision := dsInitFunc(t, emptyDS)
 	ctx, cancel := context.WithCancel(context.Background())
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
@@ -84,12 +86,12 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	}
 
 	params, err := graph.NewDefaultDispatcherParametersForTesting()
-	require.NoError(err)
+	require.NoError(t, err)
 
 	params.TypeSet = cts
 
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
@@ -159,19 +161,19 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 			},
 		}),
 	).Complete(ctx)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	go func() {
-		require.NoError(srv.Run(ctx))
+		_ = srv.Run(ctx)
 	}()
 
 	// TODO: move off of WithBlock
 	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock()) // nolint: staticcheck
-	require.NoError(err)
+	require.NoError(t, err)
 
 	return conn, func() {
 		if conn != nil {
-			require.NoError(conn.Close())
+			require.NoError(t, conn.Close())
 		}
 		cancel()
 	}, ds, revision

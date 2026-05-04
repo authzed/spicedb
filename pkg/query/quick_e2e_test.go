@@ -21,7 +21,7 @@ func TestCheck(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// This stands in for the step of fetching and caching the schema locally.
 	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
@@ -51,7 +51,7 @@ func TestBaseIterSubjects(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// This stands in for the step of fetching and caching the schema locally.
 	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
@@ -77,7 +77,7 @@ func TestCheckArrow(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// This stands in for the step of fetching and caching the schema locally.
 	objectDefs := []*corev1.NamespaceDefinition{testfixtures.UserNS.CloneVT(), testfixtures.FolderNS.CloneVT(), testfixtures.DocumentNS.CloneVT()}
@@ -133,7 +133,7 @@ func TestCyclicLookupResources(t *testing.T) {
 		tuple.MustParse("folder:a#parent@folder:b"),
 		tuple.MustParse("folder:b#parent@folder:a"),
 	}
-	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, cyclicSchema, relationships, require)
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, cyclicSchema, relationships)
 
 	dsSchema, err := ReadSchema(ctx, ds, revision)
 	require.NoError(err)
@@ -179,7 +179,7 @@ func TestCyclicLookupSubjects(t *testing.T) {
 		tuple.MustParse("folder:b#parent@folder:a"),
 		tuple.MustParse("resource:foo#parent@folder:a"),
 	}
-	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, cyclicSchema, relationships, require)
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, cyclicSchema, relationships)
 
 	dsSchema, err := ReadSchema(ctx, ds, revision)
 	require.NoError(err)
@@ -228,7 +228,7 @@ func TestCyclicCheck(t *testing.T) {
 		tuple.MustParse("folder:b#parent@folder:a"),
 		tuple.MustParse("resource:foo#parent@folder:a"),
 	}
-	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, cyclicSchema, relationships, require)
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, cyclicSchema, relationships)
 
 	dsSchema, err := ReadSchema(ctx, ds, revision)
 	require.NoError(err)

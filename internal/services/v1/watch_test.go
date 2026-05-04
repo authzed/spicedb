@@ -243,10 +243,10 @@ func TestWatch(t *testing.T) {
 		{
 			name:       "watch with schema kind returns a schema update (new definition)",
 			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
-			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
-				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+			datastoreInitFunc: func(t testing.TB, datastore datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(t, datastore, `
 definition user {}
-`, nil, require.New(t))
+`, nil)
 			},
 			mutatedSchema: `definition user {}
 definition org {}`,
@@ -257,10 +257,10 @@ definition org {}`,
 		{
 			name:       "watch with schema kind returns a schema update (new caveat)",
 			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
-			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
-				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+			datastoreInitFunc: func(t testing.TB, datastore datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(t, datastore, `
 definition user {}
-`, nil, require.New(t))
+`, nil)
 			},
 			mutatedSchema: `
 caveat is_tuesday(today string) {
@@ -275,13 +275,13 @@ definition user {}
 		{
 			name:       "watch with schema kind returns a schema update (deleted caveat)",
 			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
-			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
-				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+			datastoreInitFunc: func(t testing.TB, datastore datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(t, datastore, `
 caveat is_tuesday(today string) {
    today == 'tuesday'
 }
 definition user {}
-`, nil, require.New(t))
+`, nil)
 			},
 			mutatedSchema: `
 definition user {}
@@ -293,11 +293,11 @@ definition user {}
 		{
 			name:       "watch with schema kind returns a schema update (deleted namespace)",
 			watchKinds: []v1.WatchKind{v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES},
-			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
-				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+			datastoreInitFunc: func(t testing.TB, datastore datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(t, datastore, `
 definition user {}
 definition org {}
-`, nil, require.New(t))
+`, nil)
 			},
 			mutatedSchema: `
 definition user {}
@@ -313,13 +313,13 @@ definition user {}
 				v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES,
 				v1.WatchKind_WATCH_KIND_INCLUDE_CHECKPOINTS,
 			},
-			datastoreInitFunc: func(datastore datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
-				return testfixtures.DatastoreFromSchemaAndTestRelationships(datastore, `
+			datastoreInitFunc: func(t testing.TB, datastore datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+				return testfixtures.DatastoreFromSchemaAndTestRelationships(t, datastore, `
 definition user {}
 definition document {
   relation view: user
 }
-`, nil, require.New(t))
+`, nil)
 			},
 			mutations: []*v1.RelationshipUpdate{
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "view", "user", "user1"),
@@ -346,7 +346,7 @@ definition document {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tc.datastoreInitFunc)
+			conn, cleanup, _, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tc.datastoreInitFunc)
 			t.Cleanup(cleanup)
 			client := v1.NewWatchServiceClient(conn)
 

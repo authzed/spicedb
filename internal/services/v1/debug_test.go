@@ -489,10 +489,9 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			req := require.New(t)
-			conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
-				func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-					return tf.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, req)
+			conn, cleanup, _, revision := testserver.NewTestServer(t, 5*time.Second, memdb.DisableGC, true,
+				func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+					return tf.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 				})
 
 			client := v1.NewPermissionsServiceClient(conn)
@@ -884,9 +883,9 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
-			conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
-				func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-					return tf.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, req)
+			conn, cleanup, _, revision := testserver.NewTestServer(t, 5*time.Second, memdb.DisableGC, true,
+				func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+					return tf.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 				})
 
 			client := v1.NewPermissionsServiceClient(conn)
@@ -952,9 +951,9 @@ func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 	}
 
 	// NOTE: the default test server configuration selects LR3
-	conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, 5*time.Second, memdb.DisableGC, true,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, schema, relationships)
 		})
 	t.Cleanup(cleanup)
 
@@ -1041,10 +1040,10 @@ func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
 	lr2Config := testserver.DefaultTestServerConfig
 	lr2Config.EnableExperimentalLookupResources3 = false
 
-	conn, cleanup, _, revision := testserver.NewTestServerWithConfig(req, 5*time.Second, memdb.DisableGC, true,
+	conn, cleanup, _, revision := testserver.NewTestServerWithConfig(t, 5*time.Second, memdb.DisableGC, true,
 		lr2Config,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-			return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, relationships, req)
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, schema, relationships)
 		})
 	t.Cleanup(cleanup)
 

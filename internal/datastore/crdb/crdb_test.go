@@ -70,9 +70,12 @@ func crdbTestVersion() string {
 
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
-	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			// TODO: It feels like this is the issue - there's some proxy that should be here
+			// and isn't
+			// Is the datalayer involved at all here? Where? How?
 			ds, err := NewCRDBDatastore(
 				ctx,
 				uri,
@@ -503,7 +506,7 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 	ctx := t.Context()
 
 	// Write a relationship with integrity information.
@@ -567,7 +570,7 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 	ctx := t.Context()
 
 	// Write a relationship with integrity information.
@@ -617,7 +620,7 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, rev := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, rev := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 	ctx := t.Context()
 
 	// Write a relationship with integrity information.
@@ -666,7 +669,7 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 	require := require.New(t)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		use expiration
 		definition user {}
 
@@ -676,7 +679,7 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 	`, []tuple.Relationship{
 		tuple.MustParse("resource:foo#viewer@user:tom"),
 		tuple.MustParse("resource:foo#viewer@user:fred"),
-	}, require)
+	})
 	ctx := t.Context()
 
 	cds := datastore.UnwrapAs[*crdbDatastore](ds)
@@ -790,9 +793,9 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 	require := require.New(t)
 
-	ds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat somecaveat(somecondition int) {
-			somecondition == 42
+			somecondition == 4t, 2
 		}
 
 		caveat somecaveat2(somecondition int) {
@@ -813,7 +816,7 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 	`, []tuple.Relationship{
 		tuple.MustParse("resource:foo#viewer@user:tom"),
 		tuple.MustParse("resource:foo#viewer@user:fred"),
-	}, require)
+	})
 	ctx := t.Context()
 
 	// Touch and delete some relationships, add a namespace and caveat and delete a namespace and caveat.

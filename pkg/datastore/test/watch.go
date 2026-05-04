@@ -63,7 +63,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 			require.NoError(err)
 
-			setupDatastore(ds, require)
+			setupDatastore(t, ds)
 
 			lowestRevisionResult, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
@@ -243,7 +243,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	startWatchRevision := setupDatastore(ds, require)
+	startWatchRevision := setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships())
@@ -289,7 +289,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -395,7 +395,7 @@ func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -441,7 +441,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -481,7 +481,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -574,7 +574,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -667,7 +667,7 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -800,7 +800,7 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -836,7 +836,7 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()

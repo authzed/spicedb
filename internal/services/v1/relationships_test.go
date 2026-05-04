@@ -282,7 +282,7 @@ func TestReadRelationships(t *testing.T) {
 					for _, tc := range testCases {
 						t.Run(tc.name, func(t *testing.T) {
 							require := require.New(t)
-							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							conn, cleanup, _, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
 							t.Cleanup(cleanup)
 
@@ -363,7 +363,7 @@ func TestReadRelationships(t *testing.T) {
 func TestWriteRelationships(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -464,7 +464,7 @@ func TestWriteRelationships(t *testing.T) {
 func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -483,7 +483,7 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 func TestWriteExpiringRelationships(t *testing.T) {
 	req := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -509,7 +509,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 		t.Run(fmt.Sprintf("with-caveat-%v", deleteWithCaveat), func(t *testing.T) {
 			req := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
@@ -877,7 +877,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -1244,7 +1244,7 @@ func TestDeleteRelationships(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
 				require := require.New(t)
-				conn, cleanup, ds, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+				conn, cleanup, ds, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 				client := v1.NewPermissionsServiceClient(conn)
 				t.Cleanup(cleanup)
 
@@ -1273,7 +1273,7 @@ func TestDeleteRelationships(t *testing.T) {
 
 func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1290,7 +1290,7 @@ func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
 
 func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1307,7 +1307,7 @@ func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 
 func TestReadRelationshipsBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1345,7 +1345,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 
 		t.Run(fmt.Sprintf("batchsize-%d", batchSize), func(t *testing.T) {
 			require := require.New(t)
-			conn, cleanup, ds, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+			conn, cleanup, ds, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
@@ -1402,7 +1402,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1460,7 +1460,7 @@ func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 func TestWriteRelationshipsWithMetadata(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, beforeWriteRev := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1508,7 +1508,7 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1537,7 +1537,7 @@ func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
 func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1567,7 +1567,7 @@ func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
 func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1616,7 +1616,7 @@ func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1649,7 +1649,7 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1684,7 +1684,7 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 	require := require.New(t)
 
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		0,
 		memdb.DisableGC,
 		false,
@@ -1743,7 +1743,7 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 func TestReadRelationshipsInvalidCursor(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1824,7 +1824,7 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -2293,7 +2293,7 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 			require := require.New(t)
 
 			// Create test server with custom schema and data
-			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 

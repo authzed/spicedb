@@ -601,7 +601,7 @@ definition resource {
 				relationships = append(relationships, tuple.MustParse(rel))
 			}
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.startingSchema, relationships, require)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.startingSchema, relationships)
 
 			// Update the schema and ensure it works.
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -741,7 +741,7 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schemaInDB, nil, require)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, schemaInDB, nil)
 
 			// Update the schema and ensure it works.
 			compiled, err := compiler.Compile(compiler.InputSchema{

@@ -268,7 +268,7 @@ func TestCheckPermissions(t *testing.T) {
 							tc.subject.OptionalRelation,
 						), func(t *testing.T) {
 							require := require.New(t)
-							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							conn, cleanup, _, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
 							t.Cleanup(cleanup)
 
@@ -327,7 +327,7 @@ func TestCheckPermissions(t *testing.T) {
 func TestCheckPermissionSchemaLoadedOnce(t *testing.T) {
 	counter := &readStoredSchemaCounter{}
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require.New(t),
+		t,
 		0,
 		memdb.DisableGC,
 		true,
@@ -340,7 +340,7 @@ func TestCheckPermissionSchemaLoadedOnce(t *testing.T) {
 				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}),
 			},
 		},
-		func(ds datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 			wrapped := counter.wrap(ds)
 			rev, err := wrapped.HeadRevision(t.Context())
 			require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestCheckPermissionSchemaLoadedOnce(t *testing.T) {
 func TestCheckPermissionSchemaLoadedOnceMinLatency(t *testing.T) {
 	counter := &readStoredSchemaCounter{}
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require.New(t),
+		t,
 		time.Nanosecond, // effectively no quantization, but non-zero to avoid memdb divide-by-zero
 		memdb.DisableGC,
 		true,
@@ -434,7 +434,7 @@ func TestCheckPermissionSchemaLoadedOnceMinLatency(t *testing.T) {
 				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}),
 			},
 		},
-		func(ds datastore.Datastore, _ *require.Assertions) (datastore.Datastore, datastore.Revision) {
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 			wrapped := counter.wrap(ds)
 			rev, err := wrapped.HeadRevision(t.Context())
 			require.NoError(t, err)
@@ -602,7 +602,7 @@ func (c *simpleSchemaCache) Wait() {}
 
 func TestCheckPermissionWithWildcardSubject(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(require, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -627,7 +627,7 @@ func TestCheckPermissionWithWildcardSubject(t *testing.T) {
 
 func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(require, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -670,9 +670,10 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 
 func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
-		func(ds datastore.Datastore, assertions *require.Assertions) (datastore.Datastore, datastore.Revision) {
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 			return tf.DatastoreFromSchemaAndTestRelationships(
+				t,
 				ds,
 				`definition user {}
 
@@ -687,7 +688,6 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 					tuple.MustParse("document:doc2#viewer@document:doc3#view"),
 					tuple.MustParse("document:doc3#viewer@document:doc1#view"),
 				},
-				assertions,
 			)
 		},
 	)
@@ -907,7 +907,7 @@ func TestLookupResources(t *testing.T) {
 						t.Run(fmt.Sprintf("v2:%v", useV2), func(t *testing.T) {
 							require := require.New(t)
 							conn, cleanup, _, revision := testserver.NewTestServerWithConfig(
-								require,
+								t,
 								delta,
 								memdb.DisableGC,
 								true,
@@ -992,7 +992,7 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s:%s#%s", tc.startObjectType, tc.startObjectID, tc.startPermission), func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+					conn, cleanup, _, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -1125,7 +1125,7 @@ func TestTranslateExpansionTree(t *testing.T) {
 }
 
 func TestLookupSubjectsWithConcreteLimit(t *testing.T) {
-	conn, cleanup, _, revision := testserver.NewTestServer(require.New(t), testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1259,7 +1259,7 @@ func TestLookupSubjects(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s:%s#%s for %s#%s", tc.resource.ObjectType, tc.resource.ObjectId, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+					conn, cleanup, _, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 					defer cleanup()
@@ -1311,7 +1311,7 @@ func TestLookupSubjects(t *testing.T) {
 
 func TestCheckWithCaveats(t *testing.T) {
 	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1363,12 +1363,13 @@ func TestCheckWithCaveats(t *testing.T) {
 func TestCheckWithCaveatErrors(t *testing.T) {
 	req := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(
-		req,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
-		func(ds datastore.Datastore, assertions *require.Assertions) (datastore.Datastore, datastore.Revision) {
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 			return tf.DatastoreFromSchemaAndTestRelationships(
+				t,
 				ds,
 				`definition user {}
 
@@ -1382,7 +1383,6 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 				 }
 				`,
 				[]tuple.Relationship{tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]")},
-				assertions,
 			)
 		})
 
@@ -1453,9 +1453,9 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 
 func TestLookupResourcesWithCaveats(t *testing.T) {
 	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, `
 				definition user {}
 
 				caveat testcaveat(somecondition int) {
@@ -1469,7 +1469,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 			`, []tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustWithCaveat(tuple.MustParse("document:second#viewer@user:tom"), "testcaveat"),
-			}, require)
+			})
 		})
 
 	client := v1.NewPermissionsServiceClient(conn)
@@ -1572,9 +1572,9 @@ func byIDAndPermission(a, b *v1.LookupResourcesResponse) int {
 
 func TestLookupSubjectsWithCaveats(t *testing.T) {
 	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, `
 				definition user {}
 
 				caveat testcaveat(somecondition int) {
@@ -1588,7 +1588,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 			`, []tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "testcaveat"),
-			}, require)
+			})
 		})
 
 	client := v1.NewPermissionsServiceClient(conn)
@@ -1731,9 +1731,9 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 
 func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, `
 				definition user {}
 
 				caveat testcaveat(somecondition int) {
@@ -1752,7 +1752,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 			`, []tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:*"), "testcaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:bannedguy"), "anothercaveat"),
-			}, require)
+			})
 		})
 
 	client := v1.NewPermissionsServiceClient(conn)
@@ -1929,7 +1929,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 					for _, tc := range testCases {
 						t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
 							require := require.New(t)
-							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							conn, cleanup, _, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
 							defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 							defer cleanup()
@@ -1990,10 +1990,9 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 }
 
 func TestLookupResourcesDeduplication(t *testing.T) {
-	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+	conn, cleanup, _, revision := testserver.NewTestServer(t, testTimedeltas[0], memdb.DisableGC, true,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, `
 				definition user {}
 
 				definition document {
@@ -2004,7 +2003,7 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 			`, []tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#editor@user:tom"),
-			}, require)
+			})
 		})
 
 	client := v1.NewPermissionsServiceClient(conn)
@@ -2039,7 +2038,7 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 
 func TestLookupResourcesBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -2059,7 +2058,7 @@ func TestLookupResourcesBeyondAllowedLimit(t *testing.T) {
 func TestCheckBulkPermissions(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewPermissionsServiceClient(conn)
 	defer cleanup()
 
@@ -2359,7 +2358,7 @@ func TestImportBulkRelationships(t *testing.T) {
 				t.Run(fmt.Sprintf("withTrait=%s", withTrait), func(t *testing.T) {
 					require := require.New(t)
 
-					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -2459,7 +2458,7 @@ func TestImportBulkRelationships(t *testing.T) {
 
 func TestExportBulkRelationshipsBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -2474,7 +2473,7 @@ func TestExportBulkRelationshipsBeyondAllowedLimit(t *testing.T) {
 }
 
 func TestExportBulkRelationships(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -2625,7 +2624,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
@@ -2730,7 +2729,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 // TestBulkCheckCaveatContextCollision is a regression test for an issue with
 // caveat hash collision.
 func TestBulkCheckCaveatContextCollision(t *testing.T) {
-	dsInit := func(ds datastore.Datastore, r *require.Assertions) (datastore.Datastore, datastore.Revision) {
+	dsInit := func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 		schema := `
 		definition user {}
 		caveat shape(x list<any>) {
@@ -2743,9 +2742,9 @@ func TestBulkCheckCaveatContextCollision(t *testing.T) {
 		rels := []tuple.Relationship{
 			tuple.MustParse(`document:doc#viewer@user:alice[shape]`),
 		}
-		return tf.DatastoreFromSchemaAndTestRelationships(ds, schema, rels, r)
+		return tf.DatastoreFromSchemaAndTestRelationships(t, ds, schema, rels)
 	}
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, dsInit)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, dsInit)
 	t.Cleanup(cleanup)
 	client := v1.NewPermissionsServiceClient(conn)
 

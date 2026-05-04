@@ -21,7 +21,7 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Register the filter.
 	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
@@ -72,7 +72,7 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Run multiple registrations of the counter in parallel and ensure only
 	// one succeeds.
@@ -115,7 +115,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Try calling count without the filter being registered.
 	reader := ds.SnapshotReader(rev)
@@ -217,7 +217,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
-	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Register the filter.
 	updatedRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
@@ -260,7 +260,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	reader := ds.SnapshotReader(rev)
 	filters, err := reader.LookupCounters(t.Context())

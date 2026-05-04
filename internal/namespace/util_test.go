@@ -165,7 +165,7 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, req)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, nil)
 
 			revResult, err := ds.HeadRevision(t.Context())
 			require.NoError(t, err)

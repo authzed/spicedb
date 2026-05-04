@@ -132,7 +132,7 @@ func TestTraitsForArrowRelation(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, nil)
 			dl := datalayer.NewDataLayer(ds)
 			reader := dl.SnapshotReader(revision, datalayer.NoSchemaHashForTesting)
 
