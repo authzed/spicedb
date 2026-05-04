@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	cobrautil "github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
@@ -198,3 +199,121 @@ func TestConfigPrecedence(t *testing.T) {
 		require.Equal(t, uint16(23000), mergedConfig.DatastoreConfig.WatchBufferLength)
 	})
 }
+
+// runOTelProviderTest wires up a real serve command (so all flags are
+// registered) but replaces PreRunE with a minimal stack that only runs
+// SyncViperDotEnvPreRunE followed by inferOTelProviderFromEnvPreRunE. This
+// means no actual OTel exporter connection is ever opened, keeping the tests
+// hermetic. The resolved value of --otel-provider is returned.
+func runOTelProviderTest(t *testing.T, args []string, envVars map[string]string) string {
+	t.Helper()
+
+	for k, v := range envVars {
+		t.Setenv(k, v)
+	}
+
+	config := server.NewConfigWithOptionsAndDefaults()
+	cmd := NewServeCommand("spicedb", config)
+	require.NoError(t, RegisterRootFlags(cmd))
+	require.NoError(t, RegisterServeFlags(cmd, config))
+
+	// Disable metrics singletons to avoid test pollution.
+	config.DispatchClusterMetricsEnabled = false
+	config.DispatchClientMetricsEnabled = false
+	config.DatastoreConfig.EnableDatastoreMetrics = false
+	config.DispatchCacheConfig.Metrics = false
+	config.ClusterDispatchCacheConfig.Metrics = false
+	config.NamespaceCacheConfig.Metrics = false
+
+	var resolvedProvider string
+
+	// Replace PreRunE with only the two hooks we care about:
+	//   1. SyncViper – so SPICEDB_* env vars (and .env file) are applied.
+	//   2. inferOTelProviderFromEnvPreRunE – the logic under test.
+	// cobraotel.RunE is deliberately excluded so no collector connection
+	// is ever opened.
+	cmd.PreRunE = func(cmd *cobra.Command, cmdArgs []string) error {
+		syncViper := cobrautil.SyncViperPreRunE("spicedb")
+		if err := syncViper(cmd, cmdArgs); err != nil {
+			return err
+		}
+		infer := server.InferOTelProviderFromEnvPreRunE()
+		return infer(cmd, cmdArgs)
+	}
+
+	// RunE just reads the flag after PreRunE has fired.
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		f := cmd.Flags().Lookup("otel-provider")
+		if f != nil {
+			resolvedProvider = f.Value.String()
+		}
+		return nil
+	}
+
+	baseArgs := []string{"--grpc-preshared-key", "test-key"}
+	cmd.SetArgs(append(baseArgs, args...))
+	require.NoError(t, cmd.Execute())
+
+	return resolvedProvider
+}
+
+// TestOTelEnvOnlyEnablesTracing verifies that setting a standard OTEL_*
+// environment variable (without any SpiceDB flags) causes the provider to be
+// inferred as "otlpgrpc".
+func TestOTelEnvOnlyEnablesTracing(t *testing.T) {
+	provider := runOTelProviderTest(t, nil, map[string]string{
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "localhost:4317",
+	})
+	require.Equal(t, "otlpgrpc", provider)
+}
+
+// TestOTelTracesEndpointEnablesTracing covers the OTEL_EXPORTER_OTLP_TRACES_ENDPOINT variant.
+func TestOTelTracesEndpointEnablesTracing(t *testing.T) {
+	provider := runOTelProviderTest(t, nil, map[string]string{
+		"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "localhost:4317",
+	})
+	require.Equal(t, "otlpgrpc", provider)
+}
+
+// TestOTelTracesExporterEnablesTracing covers the OTEL_TRACES_EXPORTER variant.
+func TestOTelTracesExporterEnablesTracing(t *testing.T) {
+	provider := runOTelProviderTest(t, nil, map[string]string{
+		"OTEL_TRACES_EXPORTER": "otlp",
+	})
+	require.Equal(t, "otlpgrpc", provider)
+}
+
+// TestOTelFlagOnlyUnchanged verifies that when only SpiceDB flags are used,
+// they are passed through unchanged.
+func TestOTelFlagOnlyUnchanged(t *testing.T) {
+	provider := runOTelProviderTest(t,
+		[]string{"--otel-provider", "otlphttp"},
+		nil,
+	)
+	require.Equal(t, "otlphttp", provider)
+}
+
+// TestOTelExplicitNoneDisablesTracing verifies that --otel-provider=none
+// overrides any OTEL_* environment variables; tracing stays disabled.
+func TestOTelExplicitNoneDisablesTracing(t *testing.T) {
+	provider := runOTelProviderTest(t,
+		[]string{"--otel-provider", "none"},
+		map[string]string{
+			"OTEL_EXPORTER_OTLP_ENDPOINT": "localhost:4317",
+		},
+	)
+	require.Equal(t, "none", provider)
+}
+
+// TestOTelNoConfigDefaultsToNone verifies the baseline: with no flags and no
+// OTEL_* env vars, the provider remains "none" and tracing is disabled.
+func TestOTelNoConfigDefaultsToNone(t *testing.T) {
+	// Scrub any OTEL_* vars that might be set in the test environment.
+	os.Unsetenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	os.Unsetenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	os.Unsetenv("OTEL_TRACES_EXPORTER")
+
+	provider := runOTelProviderTest(t, nil, nil)
+	require.Equal(t, "none", provider)
+}
+

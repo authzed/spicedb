@@ -209,6 +209,11 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// NOTE: cobraotel.New takes service name as an arg rather than command name.
 	otel := cobraotel.New("spicedb")
 	otel.RegisterFlags(tracingFlags)
+	// Deprecate --otel-provider: the provider is now inferred automatically
+	// from standard OTEL_* environment variables when not explicitly set.
+	if err := tracingFlags.MarkDeprecated("otel-provider", "provider is inferred automatically from configuration; this flag will be removed in a future release"); err != nil {
+		return fmt.Errorf("failed to mark otel-provider as deprecated: %w", err)
+	}
 
 	loggingFlagSet := nfs.FlagSet(BoldBlue("Logging"))
 	loggingFlagSet.BoolVar(&config.EnableRequestLogs, "grpc-log-requests-enabled", false, "enable logging of API request payloads")

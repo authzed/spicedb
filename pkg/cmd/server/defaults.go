@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -66,6 +68,43 @@ func ServeExample(programName string) string {
 	)
 }
 
+// otelEnvVars is the set of standard OpenTelemetry environment variables that
+// indicate the user intends to configure tracing via the environment rather
+// than SpiceDB-specific flags.
+var otelEnvVars = []string{
+	"OTEL_EXPORTER_OTLP_ENDPOINT",
+	"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+	"OTEL_TRACES_EXPORTER",
+}
+
+// InferOTelProviderFromEnvPreRunE returns a CobraRunFunc that, when the
+// --otel-provider flag has NOT been explicitly set by the user, checks whether
+// any standard OTEL_* environment variables are present. If they are, it
+// promotes the provider to "otlpgrpc" so that cobraotel.RunE will actually
+// initialise a tracer provider and let the OpenTelemetry SDK read the rest of
+// the configuration from the environment.
+func InferOTelProviderFromEnvPreRunE() cobrautil.CobraRunFunc {
+	return func(cmd *cobra.Command, args []string) error {
+		flag := cmd.Flags().Lookup("otel-provider")
+		if flag == nil || flag.Changed {
+			// Flag does not exist on this command, or the user set it explicitly.
+			// In either case do not touch it.
+			return nil
+		}
+
+		for _, envVar := range otelEnvVars {
+			if os.Getenv(envVar) != "" {
+				// At least one standard OTEL env var is set; activate tracing.
+				if err := flag.Value.Set("otlpgrpc"); err != nil {
+					return fmt.Errorf("failed to infer otel provider from environment: %w", err)
+				}
+				return nil
+			}
+		}
+		return nil
+	}
+}
+
 // DefaultPreRunE sets up viper, zerolog, and OpenTelemetry flag handling for a
 // command.
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
@@ -82,6 +121,10 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 		// and zero under the same load and 0.9
 		cobraproclimits.SetMemLimitRunE(memlimit.WithRatio(0.9)),
 		cobraproclimits.SetProcLimitRunE(),
+		// Infer the OTel provider from standard OTEL_* env vars when the user
+		// has not explicitly specified --otel-provider. This must run before
+		// cobraotel.RunE so the correct provider is in place.
+		InferOTelProviderFromEnvPreRunE(),
 		cobraotel.New("spicedb",
 			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
 		).RunE(),
