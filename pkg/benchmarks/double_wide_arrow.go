@@ -110,7 +110,7 @@ func setupDoubleWideArrow(ctx context.Context, ds datastore.Datastore) (*QuerySe
 				ResourceID:      "file0",
 				Permission:      "viewer",
 				SubjectType:     "user",
-				SubjectID:       "user181",
+				SubjectID:       "user214",
 				SubjectRelation: tuple.Ellipsis,
 			},
 		},
