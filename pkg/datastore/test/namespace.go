@@ -163,11 +163,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NotNil(folderTpl)
 	tRequire.RelationshipExists(ctx, folderTpl, revision)
 
-	// TODO: it's as though the rwt is at the wrong revision?
-	// Or that something is delegating when it shouldn't be or isn't wrapped correctly?
-	// Where are these testers wrapped?
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		// I've validated that the schema is written at this time.
 		return rwt.LegacyDeleteNamespaces(ctx, []string{testfixtures.DocumentNS.Name}, datastore.DeleteNamespacesAndRelationships)
 	})
 	require.NoError(err)
