@@ -63,21 +63,68 @@ func newDispatchQueryPlanHandle(b *testing.B, fileName string) *dispatchQueryPla
 	return &dispatchQueryPlanHandle{ds: ds, revision: rev, schema: fullSchema, schemaHash: schemaHash}
 }
 
-// compileIterator builds and compiles an iterator for the given resource type and permission.
-func (h *dispatchQueryPlanHandle) compileIterator(b *testing.B, resourceType, permission, subjectType, subjectRelation string) query.Iterator {
+// compileIterator builds, warms up, and compiles an iterator for the given
+// resource type and permission. It runs a warm-up pass with a CountObserver to
+// collect statistics, then applies a CountAdvisor to incorporate data-driven
+// hints (e.g., arrow direction reversal) before returning the final iterator.
+// The operation parameter determines which warm-up operation is used so the
+// CountAdvisor sees realistic fan-out ratios for the actual query type.
+// The resourceID and subjectID are used for the warm-up pass to exercise the
+// same data paths as the actual benchmark queries.
+func (h *dispatchQueryPlanHandle) compileIterator(b *testing.B, operation query.Operation, resourceType, resourceID, permission, subjectType, subjectID, subjectRelation string) query.Iterator {
 	b.Helper()
 	co, err := query.BuildOutlineFromSchema(h.schema, resourceType, permission)
 	require.NoError(b, err)
 
+	// Apply structural optimizations (reachability pruning, caveat pushdown, alias collapse).
 	queryParams := queryopt.RequestParams{
-		Operation:       query.OperationCheck,
+		Operation:       operation,
 		SubjectType:     subjectType,
 		SubjectRelation: subjectRelation,
 	}
 	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	require.NoError(b, err)
 
-	it, err := optimized.Compile()
+	// Warm-up pass: run the iterator once with a CountObserver to
+	// collect per-node statistics for the CountAdvisor.
+	warmIt, err := optimized.Compile()
+	require.NoError(b, err)
+
+	obs := query.NewCountObserver()
+	warmCtx := query.NewLocalContext(b.Context(),
+		query.WithReader(query.NewQueryDatastoreReader(
+			datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, h.schemaHash),
+		)),
+		query.WithObserver(obs),
+		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
+	)
+
+	resource := query.NewObject(resourceType, resourceID)
+	subject := query.NewObject(subjectType, subjectID).WithEllipses()
+
+	switch operation {
+	case query.OperationCheck:
+		_, err = warmCtx.Check(warmIt, resource, subject)
+		require.NoError(b, err)
+	case query.OperationIterResources:
+		seq, werr := warmCtx.IterResources(warmIt, subject, query.NoObjectFilter())
+		require.NoError(b, werr)
+		_, werr = query.CollectAll(seq)
+		require.NoError(b, werr)
+	case query.OperationIterSubjects:
+		seq, werr := warmCtx.IterSubjects(warmIt, resource, query.NoObjectFilter())
+		require.NoError(b, werr)
+		_, werr = query.CollectAll(seq)
+		require.NoError(b, werr)
+	}
+
+	// Apply the CountAdvisor to incorporate data-driven hints (e.g., arrow
+	// direction reversal) on top of the optimized canonical outline.
+	advisor := query.NewCountAdvisor(obs.GetStats())
+	advisedCO, err := query.ApplyAdvisor(optimized, advisor)
+	require.NoError(b, err)
+
+	it, err := advisedCO.Compile()
 	require.NoError(b, err)
 	return it
 }
@@ -265,16 +312,38 @@ func (d *localQueryPlanDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRe
 // findIterator compiles the full plan from schema and walks the iterator tree
 // to find the subtree matching the requested canonical key.
 func (d *localQueryPlanDispatcher) findIterator(req *v1.DispatchQueryPlanRequest) (query.Iterator, error) {
-	// Compile all permissions in the schema and search for the matching canonical key.
-	// In a real implementation this would use a cached plan.
 	targetKey := query.CanonicalKey(req.CanonicalKey)
+
+	// Map PlanOperation to query.Operation for optimizer selection.
+	var operation query.Operation
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		operation = query.OperationCheck
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		operation = query.OperationIterResources
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		operation = query.OperationIterSubjects
+	}
+
+	queryParams := queryopt.RequestParams{
+		Operation:       operation,
+		SubjectType:     req.Subject.Namespace,
+		SubjectRelation: req.Subject.Relation,
+	}
+
 	for nsName, def := range d.handle.schema.Definitions() {
 		for permName := range def.Permissions() {
 			co, err := query.BuildOutlineFromSchema(d.handle.schema, nsName, permName)
 			if err != nil {
 				continue
 			}
-			it, err := co.Compile()
+
+			optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
+			if err != nil {
+				continue
+			}
+
+			it, err := optimized.Compile()
 			if err != nil {
 				continue
 			}
@@ -323,7 +392,7 @@ func BenchmarkDispatchQueryPlanCheck(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			handle := newDispatchQueryPlanHandle(b, tt.file)
-			it := handle.compileIterator(b, tt.resourceType, tt.permission, tt.subjectType, tt.subjectRelation)
+			it := handle.compileIterator(b, query.OperationCheck, tt.resourceType, tt.resourceID, tt.permission, tt.subjectType, tt.subjectID, tt.subjectRelation)
 
 			resource := query.Object{ObjectType: tt.resourceType, ObjectID: tt.resourceID}
 			subject := query.ObjectAndRelation{ObjectType: tt.subjectType, ObjectID: tt.subjectID, Relation: tt.subjectRelation}
@@ -383,7 +452,7 @@ func BenchmarkDispatchQueryPlanLookupResources(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			handle := newDispatchQueryPlanHandle(b, tt.file)
-			it := handle.compileIterator(b, tt.resourceType, tt.permission, tt.subjectType, tt.subjectRelation)
+			it := handle.compileIterator(b, query.OperationIterResources, tt.resourceType, "", tt.permission, tt.subjectType, tt.subjectID, tt.subjectRelation)
 
 			subject := query.ObjectAndRelation{ObjectType: tt.subjectType, ObjectID: tt.subjectID, Relation: tt.subjectRelation}
 
@@ -438,7 +507,7 @@ func BenchmarkDispatchQueryPlanLookupSubjects(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			handle := newDispatchQueryPlanHandle(b, tt.file)
-			it := handle.compileIterator(b, tt.resourceType, tt.permission, tt.subjectType, tt.subjectRelation)
+			it := handle.compileIterator(b, query.OperationIterSubjects, tt.resourceType, tt.resourceID, tt.permission, tt.subjectType, "", tt.subjectRelation)
 
 			resource := query.Object{ObjectType: tt.resourceType, ObjectID: tt.resourceID}
 
