@@ -28,6 +28,13 @@ type Context struct {
 	// Iterators may inspect it to skip work that is irrelevant for the current operation type.
 	TopLevelOperation Operation
 
+	// BatchedArrows enables the batched arrow check path: arrows drain their
+	// left/right side into a slice and issue a single CheckMany call instead of
+	// one Check per element. Always set when running with DispatchExecutor so
+	// arrow fanout collapses into a single RPC per alias boundary; left off in
+	// LocalExecutor by default to keep the simpler path.
+	BatchedArrows bool
+
 	// Pagination options for IterSubjects and IterResources
 	PaginationCursors map[string]*tuple.Relationship // Cursors for pagination, keyed by iterator ID
 	PaginationLimit   *uint64                        // Limit for pagination (max number of results to return)
@@ -103,6 +110,11 @@ func WithCaveatContext(caveatCtx map[string]any) ContextOption {
 // WithMaxRecursionDepth sets the maximum recursion depth for the context.
 func WithMaxRecursionDepth(depth int) ContextOption {
 	return func(ctx *Context) { ctx.MaxRecursionDepth = depth }
+}
+
+// WithBatchedArrows enables the batched arrow check path on the context.
+func WithBatchedArrows(enabled bool) ContextOption {
+	return func(ctx *Context) { ctx.BatchedArrows = enabled }
 }
 
 // WithPaginationLimit sets the pagination limit for the context.
@@ -246,6 +258,64 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 	return path, nil
 }
 
+// CheckManySubjects tests resource against each subject in subjects. Returns a
+// parallel slice of paths (result[i] matches subjects[i], nil if no match).
+func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error) {
+	if ctx.Executor == nil {
+		return nil, spiceerrors.MustBugf("no executor has been set")
+	}
+	if len(subjects) == 0 {
+		return nil, nil
+	}
+
+	ctx.topLevelOnce.Do(func() {
+		ctx.topLevelIterator = it
+		ctx.TopLevelOperation = OperationCheck
+	})
+
+	key := it.CanonicalKey()
+	ctx.notifyEnterIterator(OperationCheck, key)
+
+	paths, err := ctx.Executor.CheckManySubjects(ctx, it, resource, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range paths {
+		ctx.notifyCheckResult(key, p)
+	}
+	return paths, nil
+}
+
+// CheckManyResources tests each resource in resources against subject. Returns a
+// parallel slice of paths (result[i] matches resources[i], nil if no match).
+func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error) {
+	if ctx.Executor == nil {
+		return nil, spiceerrors.MustBugf("no executor has been set")
+	}
+	if len(resources) == 0 {
+		return nil, nil
+	}
+
+	ctx.topLevelOnce.Do(func() {
+		ctx.topLevelIterator = it
+		ctx.TopLevelOperation = OperationCheck
+	})
+
+	key := it.CanonicalKey()
+	ctx.notifyEnterIterator(OperationCheck, key)
+
+	paths, err := ctx.Executor.CheckManyResources(ctx, it, resources, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range paths {
+		ctx.notifyCheckResult(key, p)
+	}
+	return paths, nil
+}
+
 // wrapPathSeqForTracing wraps a PathSeq to collect results for exit tracing if tracing is enabled,
 // otherwise returns the original PathSeq unchanged.
 func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq {
@@ -359,6 +429,16 @@ type Executor interface {
 	// Check tests if the given resource is connected to subject.
 	// Returns the matching Path if found, or nil if not found.
 	Check(ctx *Context, it Iterator, resource Object, subject ObjectAndRelation) (*Path, error)
+
+	// CheckManySubjects tests resource against each subject in the slice.
+	// Returns a parallel slice of paths: result[i] is the matching Path for
+	// subjects[i], or nil if subjects[i] does not match.
+	CheckManySubjects(ctx *Context, it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error)
+
+	// CheckManyResources tests each resource in the slice against subject.
+	// Returns a parallel slice of paths: result[i] is the matching Path for
+	// resources[i], or nil if resources[i] does not match.
+	CheckManyResources(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error)
 
 	// IterSubjects returns a sequence of all the relations in this set that match the given resource.
 	// The filterSubjectType parameter filters results to only include subjects matching the

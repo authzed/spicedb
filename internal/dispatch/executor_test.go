@@ -77,7 +77,7 @@ func TestDispatchExecutor_Check_AliasDispatches(t *testing.T) {
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	// AliasIterator wrapping a FixedIterator — should trigger dispatch
@@ -100,7 +100,7 @@ func TestDispatchExecutor_Check_AliasDispatches(t *testing.T) {
 func TestDispatchExecutor_Check_NonAliasLocal(t *testing.T) {
 	td := &testDispatcher{}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	// FixedIterator (not an alias) — should delegate locally, no dispatch
@@ -126,7 +126,7 @@ func TestDispatchExecutor_Check_AliasNoResult(t *testing.T) {
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
@@ -147,7 +147,7 @@ func TestDispatchExecutor_IterSubjects_AliasDispatches(t *testing.T) {
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
@@ -168,7 +168,7 @@ func TestDispatchExecutor_IterSubjects_AliasDispatches(t *testing.T) {
 func TestDispatchExecutor_IterSubjects_NonAliasLocal(t *testing.T) {
 	td := &testDispatcher{}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	fixed := query.NewFixedIterator(
@@ -203,7 +203,7 @@ func TestDispatchExecutor_IterResources_AliasDispatches(t *testing.T) {
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
@@ -224,7 +224,7 @@ func TestDispatchExecutor_IterResources_AliasDispatches(t *testing.T) {
 func TestDispatchExecutor_IterResources_NonAliasLocal(t *testing.T) {
 	td := &testDispatcher{}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	fixed := query.NewFixedIterator(
@@ -247,7 +247,7 @@ func TestDispatchExecutor_IterResources_NonAliasLocal(t *testing.T) {
 func TestDispatchExecutor_Check_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
 	td := &testDispatcher{}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	// AliasIterator wrapping a RecursiveSentinel — should NOT dispatch
@@ -266,7 +266,7 @@ func TestDispatchExecutor_Check_AliasWithRecursiveSentinelDoesNotDispatch(t *tes
 func TestDispatchExecutor_IterSubjects_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
 	td := &testDispatcher{}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
@@ -284,7 +284,7 @@ func TestDispatchExecutor_IterSubjects_AliasWithRecursiveSentinelDoesNotDispatch
 func TestDispatchExecutor_IterResources_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
 	td := &testDispatcher{}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
@@ -313,7 +313,7 @@ func TestDispatchExecutor_Check_AliasWithSentinelInsideRecursiveDispatches(t *te
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	// AliasIterator wrapping a RecursiveIterator that contains a RecursiveSentinel.
@@ -345,7 +345,7 @@ func TestDispatchExecutor_IterSubjects_AliasWithSentinelInsideRecursiveDispatche
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
@@ -377,7 +377,7 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
@@ -398,7 +398,7 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 func TestDispatchExecutor_Check_DoubleRecursionUnmatchedSentinelDoesNotDispatch(t *testing.T) {
 	td := &testDispatcher{}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	// Double recursion: RecursiveIterator for "folder#viewer" contains a
@@ -431,7 +431,7 @@ func TestDispatchExecutor_Check_DoubleRecursionBothMatchedDispatches(t *testing.
 		}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	// Double recursion with both pairs matched:
@@ -466,7 +466,7 @@ func TestDispatchExecutor_StreamBatching(t *testing.T) {
 		},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
 	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
@@ -492,7 +492,7 @@ func TestDispatchExecutor_PlanContextForwarded(t *testing.T) {
 		MaxRecursionDepth:      5,
 		OptionalDatastoreLimit: 100,
 	}
-	exec := NewDispatchExecutor(td, pc)
+	exec := NewDispatchExecutor(td, pc, 100)
 	ctx := newTestContext()
 
 	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
@@ -512,7 +512,7 @@ func TestDispatchExecutor_ContextCancellation(t *testing.T) {
 		planResponses: []*v1.DispatchQueryPlanResponse{{Paths: []*v1.ResultPath{}}},
 	}
 
-	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"})
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	qctx := query.NewLocalContext(ctx)
 
 	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
@@ -633,4 +633,229 @@ func TestPaginationLimitFromPlanContext(t *testing.T) {
 func TestPaginationLimitFromPlanContext_Zero(t *testing.T) {
 	pc := NewPlanContext("rev1", datalayer.NoSchemaHashForTesting, nil, 0, 0)
 	require.Nil(t, PaginationLimitFromPlanContext(pc))
+}
+
+// --- CheckMany dispatch tests ---
+
+func TestDispatchExecutor_CheckManyResources_NonAliasLocal(t *testing.T) {
+	td := &testDispatcher{}
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
+	ctx := newTestContext()
+
+	// FixedIterator (not an alias) — must delegate locally, no dispatch.
+	fixed := query.NewFixedIterator(query.Path{
+		Resource: query.Object{ObjectType: "document", ObjectID: "doc1"},
+		Relation: "viewer",
+		Subject:  query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	})
+
+	resources := []query.Object{
+		{ObjectType: "document", ObjectID: "doc1"},
+		{ObjectType: "document", ObjectID: "missing"},
+	}
+	out, err := exec.CheckManyResources(ctx, fixed, resources, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	require.NotNil(t, out[0])
+	require.Nil(t, out[1])
+	require.Empty(t, td.planCalls)
+}
+
+func TestDispatchExecutor_CheckManyResources_AliasDispatchesAndPairsByONR(t *testing.T) {
+	// Receiver returns paths in arbitrary order; sender must pair to inputs by
+	// resource ONR identity, not by position.
+	td := &testDispatcher{
+		planResponses: []*v1.DispatchQueryPlanResponse{{
+			Paths: []*v1.ResultPath{
+				{ResourceType: "document", ResourceId: "doc3", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
+				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
+			},
+		}},
+	}
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
+	ctx := newTestContext()
+
+	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	resources := []query.Object{
+		{ObjectType: "document", ObjectID: "doc1"},
+		{ObjectType: "document", ObjectID: "doc2"},
+		{ObjectType: "document", ObjectID: "doc3"},
+	}
+	out, err := exec.CheckManyResources(ctx, alias, resources, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	require.NoError(t, err)
+	require.Len(t, out, 3)
+	require.NotNil(t, out[0])
+	require.Equal(t, "doc1", out[0].Resource.ObjectID)
+	require.Nil(t, out[1], "doc2 had no response — expected nil")
+	require.NotNil(t, out[2])
+	require.Equal(t, "doc3", out[2].Resource.ObjectID)
+
+	require.Len(t, td.planCalls, 1)
+	require.Equal(t, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, td.planCalls[0].Operation)
+	require.Len(t, td.planCalls[0].Many, 3)
+	require.Equal(t, "doc1", td.planCalls[0].Many[0].ObjectId)
+	require.Equal(t, "doc2", td.planCalls[0].Many[1].ObjectId)
+	require.Equal(t, "doc3", td.planCalls[0].Many[2].ObjectId)
+}
+
+func TestDispatchExecutor_CheckManySubjects_AliasDispatches(t *testing.T) {
+	td := &testDispatcher{
+		planResponses: []*v1.DispatchQueryPlanResponse{{
+			Paths: []*v1.ResultPath{
+				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "bob", SubjectRelation: "..."},
+			},
+		}},
+	}
+	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
+	ctx := newTestContext()
+
+	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	subjects := []query.ObjectAndRelation{
+		{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		{ObjectType: "user", ObjectID: "bob", Relation: "..."},
+	}
+	out, err := exec.CheckManySubjects(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, subjects)
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	require.Nil(t, out[0], "alice had no response")
+	require.NotNil(t, out[1])
+	require.Equal(t, "bob", out[1].Subject.ObjectID)
+
+	require.Len(t, td.planCalls, 1)
+	require.Equal(t, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, td.planCalls[0].Operation)
+}
+
+// chunkingDispatcher records every DispatchQueryPlan call and lets the test
+// configure a per-call response, simulating chunked RPCs.
+type chunkingDispatcher struct {
+	planCalls []*v1.DispatchQueryPlanRequest
+	respond   func(req *v1.DispatchQueryPlanRequest) []*v1.ResultPath
+}
+
+func (d *chunkingDispatcher) DispatchCheck(_ context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+	return &v1.DispatchCheckResponse{}, nil
+}
+
+func (d *chunkingDispatcher) DispatchExpand(_ context.Context, _ *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+	return &v1.DispatchExpandResponse{}, nil
+}
+
+func (d *chunkingDispatcher) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, _ LookupResources2Stream) error {
+	return nil
+}
+
+func (d *chunkingDispatcher) DispatchLookupResources3(_ *v1.DispatchLookupResources3Request, _ LookupResources3Stream) error {
+	return nil
+}
+
+func (d *chunkingDispatcher) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ LookupSubjectsStream) error {
+	return nil
+}
+
+func (d *chunkingDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream PlanStream) error {
+	d.planCalls = append(d.planCalls, req)
+	if d.respond != nil {
+		paths := d.respond(req)
+		if len(paths) > 0 {
+			return stream.Publish(&v1.DispatchQueryPlanResponse{Paths: paths})
+		}
+	}
+	return nil
+}
+func (d *chunkingDispatcher) Close() error           { return nil }
+func (d *chunkingDispatcher) ReadyState() ReadyState { return ReadyState{IsReady: true} }
+
+var _ Dispatcher = &chunkingDispatcher{}
+
+func TestDispatchExecutor_CheckManyResources_ChunksByDispatchChunkSize(t *testing.T) {
+	const chunkSize = 3
+	const total = 10
+
+	cd := &chunkingDispatcher{
+		respond: func(req *v1.DispatchQueryPlanRequest) []*v1.ResultPath {
+			// Echo back every input as a match so the per-input pairing is exercised.
+			out := make([]*v1.ResultPath, 0, len(req.Many))
+			for _, m := range req.Many {
+				out = append(out, &v1.ResultPath{
+					ResourceType:    m.Namespace,
+					ResourceId:      m.ObjectId,
+					Relation:        "viewer",
+					SubjectType:     req.Subject.Namespace,
+					SubjectId:       req.Subject.ObjectId,
+					SubjectRelation: req.Subject.Relation,
+				})
+			}
+			return out
+		},
+	}
+	exec := NewDispatchExecutor(cd, &v1.PlanContext{Revision: "rev1"}, chunkSize)
+	ctx := newTestContext()
+
+	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+
+	resources := make([]query.Object, total)
+	for i := range resources {
+		resources[i] = query.Object{ObjectType: "document", ObjectID: "doc" + string(rune('a'+i))}
+	}
+	subject := query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
+
+	out, err := exec.CheckManyResources(ctx, alias, resources, subject)
+	require.NoError(t, err)
+	require.Len(t, out, total)
+	for i, p := range out {
+		require.NotNil(t, p, "output %d should be non-nil", i)
+		require.Equal(t, resources[i].ObjectID, p.Resource.ObjectID)
+	}
+
+	// 10 inputs at chunkSize=3 → 4 RPCs (3,3,3,1).
+	require.Len(t, cd.planCalls, 4)
+	require.Len(t, cd.planCalls[0].Many, 3)
+	require.Len(t, cd.planCalls[1].Many, 3)
+	require.Len(t, cd.planCalls[2].Many, 3)
+	require.Len(t, cd.planCalls[3].Many, 1)
+}
+
+func TestDispatchExecutor_CheckManySubjects_ChunksByDispatchChunkSize(t *testing.T) {
+	const chunkSize = 4
+	const total = 9
+
+	cd := &chunkingDispatcher{
+		respond: func(req *v1.DispatchQueryPlanRequest) []*v1.ResultPath {
+			out := make([]*v1.ResultPath, 0, len(req.Many))
+			for _, m := range req.Many {
+				out = append(out, &v1.ResultPath{
+					ResourceType:    req.Resource.Namespace,
+					ResourceId:      req.Resource.ObjectId,
+					Relation:        "viewer",
+					SubjectType:     m.Namespace,
+					SubjectId:       m.ObjectId,
+					SubjectRelation: m.Relation,
+				})
+			}
+			return out
+		},
+	}
+	exec := NewDispatchExecutor(cd, &v1.PlanContext{Revision: "rev1"}, chunkSize)
+	ctx := newTestContext()
+
+	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	subjects := make([]query.ObjectAndRelation, total)
+	for i := range subjects {
+		subjects[i] = query.ObjectAndRelation{ObjectType: "user", ObjectID: "u" + string(rune('a'+i)), Relation: "..."}
+	}
+	resource := query.Object{ObjectType: "document", ObjectID: "doc1"}
+
+	out, err := exec.CheckManySubjects(ctx, alias, resource, subjects)
+	require.NoError(t, err)
+	require.Len(t, out, total)
+	for i, p := range out {
+		require.NotNil(t, p, "output %d should be non-nil", i)
+		require.Equal(t, subjects[i].ObjectID, p.Subject.ObjectID)
+	}
+
+	// 9 inputs at chunkSize=4 → 3 RPCs (4,4,1).
+	require.Len(t, cd.planCalls, 3)
+	require.Len(t, cd.planCalls[0].Many, 4)
+	require.Len(t, cd.planCalls[1].Many, 4)
+	require.Len(t, cd.planCalls[2].Many, 1)
 }

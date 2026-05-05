@@ -17,11 +17,16 @@ import (
 // through the dispatch infrastructure at alias iterator boundaries.
 // For non-alias iterators, it delegates locally like LocalExecutor.
 type DispatchExecutor struct {
-	dispatcher  Dispatcher
-	planContext *v1.PlanContext
+	dispatcher        Dispatcher
+	planContext       *v1.PlanContext
+	dispatchChunkSize uint16
 }
 
 var _ query.Executor = &DispatchExecutor{}
+
+// defaultDispatchChunkSize is the fallback batch size for CheckMany RPCs when
+// the executor was constructed with chunkSize == 0.
+const defaultDispatchChunkSize = 100
 
 // recursiveKey uniquely identifies a recursion pair by definition and relation name.
 type recursiveKey struct {
@@ -71,11 +76,16 @@ func containsUnmatchedRecursiveSentinel(it query.Iterator) bool {
 }
 
 // NewDispatchExecutor creates a new DispatchExecutor that dispatches alias
-// iterator operations through the given Dispatcher chain.
-func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext) *DispatchExecutor {
+// iterator operations through the given Dispatcher chain. dispatchChunkSize
+// caps the number of inputs per CheckMany RPC; if zero, defaults to 100.
+func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext, dispatchChunkSize uint16) *DispatchExecutor {
+	if dispatchChunkSize == 0 {
+		dispatchChunkSize = defaultDispatchChunkSize
+	}
 	return &DispatchExecutor{
-		dispatcher:  dispatcher,
-		planContext: planContext,
+		dispatcher:        dispatcher,
+		planContext:       planContext,
+		dispatchChunkSize: dispatchChunkSize,
 	}
 }
 
@@ -84,6 +94,36 @@ func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource
 		return e.dispatchCheck(ctx, it, resource, subject)
 	}
 	return it.CheckImpl(ctx, resource, subject)
+}
+
+func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterator, resource query.Object, subjects []query.ObjectAndRelation) ([]*query.Path, error) {
+	if _, ok := it.(*query.AliasIterator); !ok || containsUnmatchedRecursiveSentinel(it) {
+		out := make([]*query.Path, len(subjects))
+		for i, s := range subjects {
+			p, err := it.CheckImpl(ctx, resource, s)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = p
+		}
+		return out, nil
+	}
+	return e.dispatchCheckManySubjects(ctx, it, resource, subjects)
+}
+
+func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Iterator, resources []query.Object, subject query.ObjectAndRelation) ([]*query.Path, error) {
+	if _, ok := it.(*query.AliasIterator); !ok || containsUnmatchedRecursiveSentinel(it) {
+		out := make([]*query.Path, len(resources))
+		for i, r := range resources {
+			p, err := it.CheckImpl(ctx, r, subject)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = p
+		}
+		return out, nil
+	}
+	return e.dispatchCheckManyResources(ctx, it, resources, subject)
 }
 
 func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
@@ -164,6 +204,110 @@ func (e *DispatchExecutor) dispatchIterResources(ctx *query.Context, it query.It
 
 	paths := collectPathsFromResponses(stream.Results())
 	return query.FilterResourcesByType(query.PathSeqFromSlice(paths), filterResourceType), nil
+}
+
+func (e *DispatchExecutor) dispatchCheckManySubjects(ctx *query.Context, it query.Iterator, resource query.Object, subjects []query.ObjectAndRelation) ([]*query.Path, error) {
+	subCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	out := make([]*query.Path, len(subjects))
+	chunk := int(e.dispatchChunkSize)
+	for start := 0; start < len(subjects); start += chunk {
+		end := start + chunk
+		if end > len(subjects) {
+			end = len(subjects)
+		}
+		req := e.buildManyRequest(v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, subjects[start:end])
+		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
+		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
+			return nil, err
+		}
+		// Index responses by subject ONR for back-mapping.
+		bySubject := make(map[query.ObjectAndRelation]*query.Path)
+		for _, resp := range stream.Results() {
+			for _, rp := range resp.Paths {
+				p := resultPathToQueryPath(rp)
+				bySubject[p.Subject] = p
+			}
+		}
+		for i := start; i < end; i++ {
+			out[i] = bySubject[subjects[i]]
+		}
+	}
+	return out, nil
+}
+
+func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it query.Iterator, resources []query.Object, subject query.ObjectAndRelation) ([]*query.Path, error) {
+	subCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	out := make([]*query.Path, len(resources))
+	chunk := int(e.dispatchChunkSize)
+	for start := 0; start < len(resources); start += chunk {
+		end := start + chunk
+		if end > len(resources) {
+			end = len(resources)
+		}
+		req := e.buildManyRequest(v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, resources[start:end], nil)
+		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
+		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
+			return nil, err
+		}
+		// Index responses by resource Object for back-mapping.
+		byResource := make(map[query.Object]*query.Path)
+		for _, resp := range stream.Results() {
+			for _, rp := range resp.Paths {
+				p := resultPathToQueryPath(rp)
+				byResource[p.Resource] = p
+			}
+		}
+		for i := start; i < end; i++ {
+			out[i] = byResource[resources[i]]
+		}
+	}
+	return out, nil
+}
+
+// buildManyRequest constructs a DispatchQueryPlanRequest for CheckMany operations.
+// Exactly one of (manyResources, manySubjects) is non-nil; the corresponding
+// singular field (resource for CHECK_MANY_RESOURCES, subject for CHECK_MANY_SUBJECTS)
+// must be left zero — the receiver inspects `many` for those operations.
+func (e *DispatchExecutor) buildManyRequest(op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
+	alias := it.(*query.AliasIterator)
+	req := &v1.DispatchQueryPlanRequest{
+		Operation:    op,
+		CanonicalKey: alias.DefinitionName() + "#" + alias.Relation(),
+		Resource: &core.ObjectAndRelation{
+			Namespace: resource.ObjectType,
+			ObjectId:  resource.ObjectID,
+		},
+		Subject: &core.ObjectAndRelation{
+			Namespace: subject.ObjectType,
+			ObjectId:  subject.ObjectID,
+			Relation:  subject.Relation,
+		},
+		PlanContext: e.planContext,
+	}
+	if len(manyResources) > 0 {
+		req.Many = make([]*core.ObjectAndRelation, len(manyResources))
+		for i, r := range manyResources {
+			req.Many[i] = &core.ObjectAndRelation{
+				Namespace: r.ObjectType,
+				ObjectId:  r.ObjectID,
+			}
+		}
+	}
+	if len(manySubjects) > 0 {
+		req.Many = make([]*core.ObjectAndRelation, len(manySubjects))
+		for i, s := range manySubjects {
+			req.Many[i] = &core.ObjectAndRelation{
+				Namespace: s.ObjectType,
+				ObjectId:  s.ObjectID,
+				Relation:  s.Relation,
+			}
+		}
+	}
+	return req
 }
 
 func (e *DispatchExecutor) buildRequest(op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
@@ -259,20 +403,23 @@ func toProtoStruct(m map[string]any) (*structpb.Struct, error) {
 // driven by the given PlanContext, so that dispatched sub-requests carry the
 // same plan state. Plan-derived options (caveat context, recursion depth,
 // datastore limit) are applied first; extra opts are appended after.
+// dispatchChunkSize caps inputs-per-RPC for batched CheckMany operations.
 func NewQueryContext(
 	stdContext context.Context,
 	dispatcher Dispatcher,
 	planContext *v1.PlanContext,
 	reader query.QueryDatastoreReader,
 	caveatRunner *caveats.CaveatRunner,
+	dispatchChunkSize uint16,
 	opts ...query.ContextOption,
 ) *query.Context {
-	executor := NewDispatchExecutor(dispatcher, planContext)
+	executor := NewDispatchExecutor(dispatcher, planContext, dispatchChunkSize)
 
 	baseOpts := []query.ContextOption{
 		query.WithReader(reader),
 		query.WithCaveatContext(CaveatContextFromPlanContext(planContext)),
 		query.WithCaveatRunner(caveatRunner),
+		query.WithBatchedArrows(true),
 	}
 	if d := planContext.GetMaxRecursionDepth(); d > 0 {
 		baseOpts = append(baseOpts, query.WithMaxRecursionDepth(int(d)))

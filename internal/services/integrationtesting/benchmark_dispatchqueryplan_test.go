@@ -142,7 +142,7 @@ func (h *dispatchQueryPlanHandle) newLocalContext(ctx context.Context) *query.Co
 func (h *dispatchQueryPlanHandle) newDispatchContext(ctx context.Context) *query.Context {
 	planCtx := dispatch.NewPlanContext(h.revision.String(), h.schemaHash, nil, 0, 0)
 	lpd := &localQueryPlanDispatcher{handle: h}
-	executor := dispatch.NewDispatchExecutor(lpd, planCtx)
+	executor := dispatch.NewDispatchExecutor(lpd, planCtx, 100)
 
 	qctx := &query.Context{
 		Context:       ctx,
@@ -158,7 +158,7 @@ func (h *dispatchQueryPlanHandle) newDispatchContext(ctx context.Context) *query
 // a caching layer wrapping the localQueryPlanDispatcher. This exercises the Check cache path.
 func (h *dispatchQueryPlanHandle) newCachedDispatchContext(b *testing.B, cachingDispatcher *caching.Dispatcher) *query.Context {
 	planCtx := dispatch.NewPlanContext(h.revision.String(), h.schemaHash, nil, 0, 0)
-	executor := dispatch.NewDispatchExecutor(cachingDispatcher, planCtx)
+	executor := dispatch.NewDispatchExecutor(cachingDispatcher, planCtx, 100)
 
 	qctx := &query.Context{
 		Context:       b.Context(),
@@ -240,7 +240,7 @@ func (d *localQueryPlanDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRe
 	// while letting anything underneath go through the executor normally.
 	planCtx := req.PlanContext
 	lpd := &localQueryPlanDispatcher{handle: d.handle}
-	executor := dispatch.NewDispatchExecutor(lpd, planCtx)
+	executor := dispatch.NewDispatchExecutor(lpd, planCtx, 100)
 
 	qctx := &query.Context{
 		Context:       ctx,

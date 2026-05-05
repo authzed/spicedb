@@ -160,6 +160,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		planContext,
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 
@@ -292,6 +293,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		planContext,
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 
@@ -419,6 +421,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		planContext,
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 

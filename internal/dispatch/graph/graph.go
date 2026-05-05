@@ -151,7 +151,7 @@ func NewLocalOnlyDispatcher(parameters DispatcherParameters) (dispatch.Dispatche
 		return nil, err
 	}
 
-	d := &localDispatcher{}
+	d := &localDispatcher{dispatchChunkSize: parameters.DispatchChunkSize}
 
 	typeSet := parameters.TypeSet
 	concurrencyLimits := limitsOrDefaults(parameters.ConcurrencyLimits, defaultConcurrencyLimit)
@@ -197,6 +197,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, parameters DispatcherParame
 		lookupSubjectsHandler:   lookupSubjectsHandler,
 		lookupResourcesHandler2: lookupResourcesHandler2,
 		lookupResourcesHandler3: lr3,
+		dispatchChunkSize:       chunkSize,
 	}, nil
 }
 
@@ -206,6 +207,7 @@ type localDispatcher struct {
 	lookupSubjectsHandler   *graph.ConcurrentLookupSubjects
 	lookupResourcesHandler2 *graph.CursoredLookupResources2
 	lookupResourcesHandler3 *graph.CursoredLookupResources3
+	dispatchChunkSize       uint16
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision, schemaHash datalayer.SchemaHash) (*core.NamespaceDefinition, error) {
@@ -510,13 +512,14 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	// Use DispatchExecutor so nested alias boundaries in the subtree re-dispatch
 	// through the full dispatch chain.
 	dl := datalayer.MustFromContext(ctx)
-	executor := dispatch.NewDispatchExecutor(ld, planCtx)
+	executor := dispatch.NewDispatchExecutor(ld, planCtx, ld.dispatchChunkSize)
 	qctx := &query.Context{
 		Context:       ctx,
 		Executor:      executor,
 		Reader:        query.NewQueryDatastoreReader(dl.SnapshotReader(revision, schemaHash)),
 		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		CaveatContext: dispatch.CaveatContextFromPlanContext(planCtx),
+		BatchedArrows: true,
 	}
 
 	resource := query.Object{ObjectType: req.Resource.Namespace, ObjectID: req.Resource.ObjectId}
@@ -572,6 +575,46 @@ func (ld *localDispatcher) DispatchQueryPlan(
 				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
 			}); err != nil {
 				return err
+			}
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES:
+		// Iterate CheckImpl directly: dispatch boundary already crossed for this
+		// alias. qctx still uses DispatchExecutor, so nested aliases re-dispatch.
+		for _, m := range req.Many {
+			res := query.Object{ObjectType: m.Namespace, ObjectID: m.ObjectId}
+			path, err := it.CheckImpl(qctx, res, subject)
+			if err != nil {
+				return err
+			}
+			if path != nil {
+				if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+					Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+				}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
+		for _, m := range req.Many {
+			sub := query.ObjectAndRelation{
+				ObjectType: m.Namespace,
+				ObjectID:   m.ObjectId,
+				Relation:   m.Relation,
+			}
+			path, err := it.CheckImpl(qctx, resource, sub)
+			if err != nil {
+				return err
+			}
+			if path != nil {
+				if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+					Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+				}); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -646,7 +689,9 @@ func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, re
 // corresponding query.Operation used by the optimizer-selection logic.
 func planOperationToQueryOperation(op v1.PlanOperation) query.Operation {
 	switch op {
-	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+	case v1.PlanOperation_PLAN_OPERATION_CHECK,
+		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES,
+		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
 		return query.OperationCheck
 	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
 		return query.OperationIterResources

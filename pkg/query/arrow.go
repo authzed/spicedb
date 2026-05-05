@@ -57,11 +57,19 @@ func (a *ArrowIterator) CheckImpl(ctx *Context, resource Object, subject ObjectA
 	// - IterResources on the right, Check on the left
 	// - IterSubjects on left, IterResources on right, and intersect the two iterators here (especially if they are known to be sorted)
 	//
-	// But for now, we cover the first two.
+	// But for now, we cover the first two. When BatchedArrows is set the
+	// per-element Check loop is replaced by a single CheckMany call so the
+	// executor (e.g. DispatchExecutor) can collapse fanout into one RPC.
 	switch a.direction {
 	case leftToRight:
+		if ctx.BatchedArrows {
+			return a.checkLeftToRightBatch(ctx, resource, subject)
+		}
 		return a.checkLeftToRight(ctx, resource, subject)
 	case rightToLeft:
+		if ctx.BatchedArrows {
+			return a.checkRightToLeftBatch(ctx, resource, subject)
+		}
 		return a.checkRightToLeft(ctx, resource, subject)
 	default:
 		return nil, spiceerrors.MustBugf("unknown arrow direction: %d", a.direction)
@@ -205,6 +213,135 @@ func (a *ArrowIterator) checkRightToLeft(ctx *Context, resource Object, subject 
 
 	if ctx.shouldTrace() {
 		ctx.TraceStep(a, "arrow (right-to-left) completed: %d right paths, found=%v", rightPathCount, result != nil)
+	}
+	return result, nil
+}
+
+// checkLeftToRightBatch is the batched variant of checkLeftToRight: it drains
+// all left subjects first, then issues a single CheckManyResources call against
+// the right side. Wildcards still fall back to the per-element IterResources
+// inversion path because they cannot be used as a concrete resource on the right.
+func (a *ArrowIterator) checkLeftToRightBatch(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow check (left-to-right, batched) for resource %s:%s", resource.ObjectType, resource.ObjectID)
+	}
+
+	subit, err := ctx.IterSubjects(a.left, resource, NoObjectFilter())
+	if err != nil {
+		return nil, err
+	}
+	leftPaths, err := CollectAll(subit)
+	if err != nil {
+		return nil, err
+	}
+
+	var result *Path
+	concreteLeft := make([]*Path, 0, len(leftPaths))
+	concreteRes := make([]Object, 0, len(leftPaths))
+	for _, leftPath := range leftPaths {
+		// Wildcards: invert to IterResources, like the unbatched path.
+		if leftPath.Subject.ObjectID == tuple.PublicWildcard {
+			rightSeq, err := ctx.IterResources(a.right, subject, ObjectType{Type: leftPath.Subject.ObjectType})
+			if err != nil {
+				return nil, err
+			}
+			for rightPath, err := range rightSeq {
+				if err != nil {
+					return nil, err
+				}
+				combined := combineArrowPaths(leftPath, rightPath)
+				if combined.Caveat == nil {
+					return combined, nil
+				}
+				result, err = result.MergeOr(combined)
+				if err != nil {
+					return nil, err
+				}
+			}
+			continue
+		}
+		concreteLeft = append(concreteLeft, leftPath)
+		concreteRes = append(concreteRes, GetObject(leftPath.Subject))
+	}
+
+	if len(concreteRes) > 0 {
+		rightPaths, err := ctx.CheckManyResources(a.right, concreteRes, subject)
+		if err != nil {
+			return nil, err
+		}
+		for i, rightPath := range rightPaths {
+			if rightPath == nil {
+				continue
+			}
+			combined := combineArrowPaths(concreteLeft[i], rightPath)
+			if combined.Caveat == nil {
+				return combined, nil
+			}
+			result, err = result.MergeOr(combined)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow (left-to-right, batched) completed: %d concrete, found=%v", len(concreteLeft), result != nil)
+	}
+	return result, nil
+}
+
+// checkRightToLeftBatch is the batched variant of checkRightToLeft: it drains
+// all right resources first, then issues a single CheckManySubjects call against
+// the left side using the right resources (with ellipsis relation) as subjects.
+func (a *ArrowIterator) checkRightToLeftBatch(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow check (right-to-left, batched) for resource %s:%s, subject %s:%s",
+			resource.ObjectType, resource.ObjectID, subject.ObjectType, subject.ObjectID)
+	}
+
+	rightSeq, err := ctx.IterResources(a.right, subject, NoObjectFilter())
+	if err != nil {
+		return nil, err
+	}
+	rightPaths, err := CollectAll(rightSeq)
+	if err != nil {
+		return nil, err
+	}
+	if len(rightPaths) == 0 {
+		return nil, nil
+	}
+
+	intermediates := make([]ObjectAndRelation, len(rightPaths))
+	for i, rightPath := range rightPaths {
+		intermediates[i] = ObjectAndRelation{
+			ObjectType: rightPath.Resource.ObjectType,
+			ObjectID:   rightPath.Resource.ObjectID,
+			Relation:   tuple.Ellipsis,
+		}
+	}
+
+	leftPaths, err := ctx.CheckManySubjects(a.left, resource, intermediates)
+	if err != nil {
+		return nil, err
+	}
+
+	var result *Path
+	for i, leftPath := range leftPaths {
+		if leftPath == nil {
+			continue
+		}
+		combined := combineArrowPaths(leftPath, rightPaths[i])
+		if combined.Caveat == nil {
+			return combined, nil
+		}
+		result, err = result.MergeOr(combined)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if ctx.shouldTrace() {
+		ctx.TraceStep(a, "arrow (right-to-left, batched) completed: %d right paths, found=%v", len(rightPaths), result != nil)
 	}
 	return result, nil
 }
