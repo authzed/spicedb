@@ -131,9 +131,14 @@ func (e *DispatchExecutor) dispatchIterSubjects(ctx *query.Context, it query.Ite
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// For LookupSubjects the proto Subject field carries the *filter* subject
+	// type+relation rather than a real subject ONR — the receiver needs the
+	// filter to apply the same reachability/optimizer decisions the sender
+	// would have applied. The actual receiver-side iteration uses NoObjectFilter
+	// since the sender filters the returned paths itself.
 	req := e.buildRequest(v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, it, resource, query.ObjectAndRelation{
-		ObjectType: resource.ObjectType,
-		ObjectID:   resource.ObjectID,
+		ObjectType: filterSubjectType.Type,
+		Relation:   filterSubjectType.Subrelation,
 	})
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
@@ -162,9 +167,14 @@ func (e *DispatchExecutor) dispatchIterResources(ctx *query.Context, it query.It
 }
 
 func (e *DispatchExecutor) buildRequest(op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
+	// dispatch{Check,IterSubjects,IterResources} only enter buildRequest when
+	// it is a *query.AliasIterator, so the type assertion is safe. The dispatch
+	// boundary is always the (definition, relation) the alias represents; we
+	// encode that as "definition#relation" in the canonical_key field.
+	alias := it.(*query.AliasIterator)
 	return &v1.DispatchQueryPlanRequest{
 		Operation:    op,
-		CanonicalKey: string(it.CanonicalKey()),
+		CanonicalKey: alias.DefinitionName() + "#" + alias.Relation(),
 		Resource: &core.ObjectAndRelation{
 			Namespace: resource.ObjectType,
 			ObjectId:  resource.ObjectID,

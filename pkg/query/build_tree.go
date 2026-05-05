@@ -146,6 +146,7 @@ func (b *outlineBuilder) buildOutlineFromSchemaInternal(definitionName string, r
 }
 
 func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRelations bool) (Outline, error) {
+	defName := r.Definition().Name()
 	if len(r.BaseRelations()) == 1 {
 		baseIt, err := b.buildBaseDatastoreOutline(r.BaseRelations()[0], withSubRelations)
 		if err != nil {
@@ -153,7 +154,7 @@ func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRel
 		}
 		return Outline{
 			Type:        AliasIteratorType,
-			Args:        &IteratorArgs{RelationName: r.Name()},
+			Args:        &IteratorArgs{DefinitionName: defName, RelationName: r.Name()},
 			SubOutlines: []Outline{baseIt},
 		}, nil
 	}
@@ -171,7 +172,7 @@ func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRel
 	}
 	return Outline{
 		Type:        AliasIteratorType,
-		Args:        &IteratorArgs{RelationName: r.Name()},
+		Args:        &IteratorArgs{DefinitionName: defName, RelationName: r.Name()},
 		SubOutlines: []Outline{union},
 	}, nil
 }
@@ -183,7 +184,7 @@ func (b *outlineBuilder) buildOutlineFromPermission(p *schema.Permission) (Outli
 	}
 	return Outline{
 		Type:        AliasIteratorType,
-		Args:        &IteratorArgs{RelationName: p.Name()},
+		Args:        &IteratorArgs{DefinitionName: p.Definition().Name(), RelationName: p.Name()},
 		SubOutlines: []Outline{baseIt},
 	}, nil
 }

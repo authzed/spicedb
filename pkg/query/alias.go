@@ -15,10 +15,11 @@ import "strings"
 // semantics of an uncollapsed chain. The underlying identity (relation) is kept so
 // the canonical key for caching reflects the data the iterator actually reads.
 type AliasIterator struct {
-	relation     string
-	aliasedAs    []string
-	subIt        Iterator
-	canonicalKey CanonicalKey
+	definitionName string
+	relation       string
+	aliasedAs      []string
+	subIt          Iterator
+	canonicalKey   CanonicalKey
 }
 
 var _ Iterator = &AliasIterator{}
@@ -29,6 +30,18 @@ func NewAliasIterator(relation string, subIt Iterator) *AliasIterator {
 	return &AliasIterator{
 		relation: relation,
 		subIt:    subIt,
+	}
+}
+
+// NewAliasIteratorWithDefinition creates a new Alias iterator that also carries
+// the schema definition name to which the alias belongs. The definition name is
+// used by the dispatch layer to identify the (definition, relation) boundary
+// represented by this alias.
+func NewAliasIteratorWithDefinition(definitionName, relation string, subIt Iterator) *AliasIterator {
+	return &AliasIterator{
+		definitionName: definitionName,
+		relation:       relation,
+		subIt:          subIt,
 	}
 }
 
@@ -56,6 +69,19 @@ func (a *AliasIterator) effectiveRelation() string {
 		return a.aliasedAs[n-1]
 	}
 	return a.relation
+}
+
+// DefinitionName returns the schema definition this alias belongs to, or the
+// empty string if the alias was constructed without one (e.g. by tests using
+// the 2-arg NewAliasIterator).
+func (a *AliasIterator) DefinitionName() string {
+	return a.definitionName
+}
+
+// Relation returns the outermost name in the alias chain — what emitted paths
+// are rewritten to and what callers asked the alias to compute.
+func (a *AliasIterator) Relation() string {
+	return a.effectiveRelation()
 }
 
 // matchesSelfEdgeRelation reports whether the given relation name would trigger
@@ -256,10 +282,11 @@ func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 func (a *AliasIterator) Clone() Iterator {
 	return &AliasIterator{
-		canonicalKey: a.canonicalKey,
-		relation:     a.relation,
-		aliasedAs:    append([]string(nil), a.aliasedAs...),
-		subIt:        a.subIt.Clone(),
+		canonicalKey:   a.canonicalKey,
+		definitionName: a.definitionName,
+		relation:       a.relation,
+		aliasedAs:      append([]string(nil), a.aliasedAs...),
+		subIt:          a.subIt.Clone(),
 	}
 }
 
@@ -281,10 +308,11 @@ func (a *AliasIterator) Subiterators() []Iterator {
 
 func (a *AliasIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &AliasIterator{
-		canonicalKey: a.canonicalKey,
-		relation:     a.relation,
-		aliasedAs:    append([]string(nil), a.aliasedAs...),
-		subIt:        newSubs[0],
+		canonicalKey:   a.canonicalKey,
+		definitionName: a.definitionName,
+		relation:       a.relation,
+		aliasedAs:      append([]string(nil), a.aliasedAs...),
+		subIt:          newSubs[0],
 	}, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -498,39 +499,22 @@ func (ld *localDispatcher) DispatchQueryPlan(
 
 	schemaHash := datalayer.SchemaHash(planCtx.GetSchemaHash())
 
-	// Load schema at the requested revision.
+	// Load schema at the requested revision and rebuild the iterator subtree
+	// for the (definition, relation) pair encoded in CanonicalKey.
 	// TODO: use cached compiled plans (Phase 7) instead of recompiling each time.
-
-	// Map PlanOperation to query.Operation for optimizer selection.
-	var operation query.Operation
-	switch req.Operation {
-	case v1.PlanOperation_PLAN_OPERATION_CHECK:
-		operation = query.OperationCheck
-	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
-		operation = query.OperationIterResources
-	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
-		operation = query.OperationIterSubjects
-	}
-
-	queryParams := queryopt.RequestParams{
-		Operation:       operation,
-		SubjectType:     req.Subject.Namespace,
-		SubjectRelation: req.Subject.Relation,
-	}
-
-	it, err := ld.findIteratorByCanonicalKey(ctx, revision, schemaHash, query.CanonicalKey(req.CanonicalKey), queryParams)
+	it, err := ld.compileIteratorForDispatchKey(ctx, revision, schemaHash, req)
 	if err != nil {
 		return err
 	}
 
-	// Build execution context with DispatchExecutor so nested alias boundaries
-	// in the subtree can re-dispatch through the full dispatch chain.
+	// Use DispatchExecutor so nested alias boundaries in the subtree re-dispatch
+	// through the full dispatch chain.
 	dl := datalayer.MustFromContext(ctx)
 	executor := dispatch.NewDispatchExecutor(ld, planCtx)
 	qctx := &query.Context{
 		Context:       ctx,
 		Executor:      executor,
-		Reader:        query.NewQueryDatastoreReader(dl.SnapshotReader(revision, datalayer.SchemaHash(req.GetPlanContext().GetSchemaHash()))),
+		Reader:        query.NewQueryDatastoreReader(dl.SnapshotReader(revision, schemaHash)),
 		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 		CaveatContext: dispatch.CaveatContextFromPlanContext(planCtx),
 	}
@@ -597,10 +581,19 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	}
 }
 
-// findIteratorByCanonicalKey loads the schema at the given revision, compiles
-// all permissions with the given request parameters for optimization, and returns
-// the iterator subtree matching the canonical key.
-func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, targetKey query.CanonicalKey, queryParams queryopt.RequestParams) (query.Iterator, error) {
+// compileIteratorForDispatchKey loads the schema at the given revision, parses
+// the dispatch key (currently encoded as "definition#relation"), builds the
+// outline standalone for that pair, applies the same optimizers the sender
+// would have used, and compiles to an iterator. The returned iterator's outer
+// node is the *AliasIterator for the requested (definition, relation); callers
+// invoke its Impl method directly so the alias's rewrite + self-edge logic
+// runs without re-triggering the executor's dispatch decision at this level.
+func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, req *v1.DispatchQueryPlanRequest) (query.Iterator, error) {
+	defName, relName, ok := strings.Cut(req.CanonicalKey, "#")
+	if !ok || defName == "" || relName == "" {
+		return nil, fmt.Errorf("DispatchQueryPlan: invalid dispatch key %q (expected \"definition#relation\")", req.CanonicalKey)
+	}
+
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(revision, schemaHash)
 
@@ -627,41 +620,41 @@ func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revis
 		return nil, fmt.Errorf("DispatchQueryPlan: failed to build schema: %w", err)
 	}
 
-	for nsName, def := range fullSchema.Definitions() {
-		for permName := range def.Permissions() {
-			co, err := query.BuildOutlineFromSchema(fullSchema, nsName, permName)
-			if err != nil {
-				continue
-			}
-
-			optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
-			if err != nil {
-				continue
-			}
-
-			it, err := optimized.Compile()
-			if err != nil {
-				continue
-			}
-			if found := findByCanonicalKey(it, targetKey); found != nil {
-				return found, nil
-			}
-		}
+	co, err := query.BuildOutlineFromSchema(fullSchema, defName, relName)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to build outline for %s#%s: %w", defName, relName, err)
 	}
-	return nil, fmt.Errorf("DispatchQueryPlan: no iterator found for canonical key %q", targetKey)
+
+	params := queryopt.RequestParams{
+		Operation:       planOperationToQueryOperation(req.Operation),
+		SubjectType:     req.Subject.GetNamespace(),
+		SubjectRelation: req.Subject.GetRelation(),
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(params), params)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to optimize outline for %s#%s: %w", defName, relName, err)
+	}
+
+	it, err := optimized.Compile()
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to compile outline for %s#%s: %w", defName, relName, err)
+	}
+	return it, nil
 }
 
-// findByCanonicalKey recursively searches an iterator tree for a node matching the key.
-func findByCanonicalKey(it query.Iterator, key query.CanonicalKey) query.Iterator {
-	if it.CanonicalKey() == key {
-		return it
+// planOperationToQueryOperation maps the proto PlanOperation enum to the
+// corresponding query.Operation used by the optimizer-selection logic.
+func planOperationToQueryOperation(op v1.PlanOperation) query.Operation {
+	switch op {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		return query.OperationCheck
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		return query.OperationIterResources
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		return query.OperationIterSubjects
+	default:
+		return query.OperationCheck
 	}
-	for _, sub := range it.Subiterators() {
-		if found := findByCanonicalKey(sub, key); found != nil {
-			return found
-		}
-	}
-	return nil
 }
 
 func (ld *localDispatcher) Close() error {
