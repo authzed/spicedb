@@ -26,6 +26,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -499,7 +500,25 @@ func (ld *localDispatcher) DispatchQueryPlan(
 
 	// Load schema at the requested revision.
 	// TODO: use cached compiled plans (Phase 7) instead of recompiling each time.
-	it, err := ld.findIteratorByCanonicalKey(ctx, revision, schemaHash, query.CanonicalKey(req.CanonicalKey))
+
+	// Map PlanOperation to query.Operation for optimizer selection.
+	var operation query.Operation
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		operation = query.OperationCheck
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		operation = query.OperationIterResources
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		operation = query.OperationIterSubjects
+	}
+
+	queryParams := queryopt.RequestParams{
+		Operation:       operation,
+		SubjectType:     req.Subject.Namespace,
+		SubjectRelation: req.Subject.Relation,
+	}
+
+	it, err := ld.findIteratorByCanonicalKey(ctx, revision, schemaHash, query.CanonicalKey(req.CanonicalKey), queryParams)
 	if err != nil {
 		return err
 	}
@@ -579,8 +598,9 @@ func (ld *localDispatcher) DispatchQueryPlan(
 }
 
 // findIteratorByCanonicalKey loads the schema at the given revision, compiles
-// all permissions, and returns the iterator subtree matching the canonical key.
-func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, targetKey query.CanonicalKey) (query.Iterator, error) {
+// all permissions with the given request parameters for optimization, and returns
+// the iterator subtree matching the canonical key.
+func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, targetKey query.CanonicalKey, queryParams queryopt.RequestParams) (query.Iterator, error) {
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(revision, schemaHash)
 
@@ -613,7 +633,13 @@ func (ld *localDispatcher) findIteratorByCanonicalKey(ctx context.Context, revis
 			if err != nil {
 				continue
 			}
-			it, err := co.Compile()
+
+			optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
+			if err != nil {
+				continue
+			}
+
+			it, err := optimized.Compile()
 			if err != nil {
 				continue
 			}
