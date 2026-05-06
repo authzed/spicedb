@@ -530,6 +530,18 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	}
 
 	// Call Impl directly — the dispatch boundary has already been crossed.
+	// Pre-seal qctx's topLevelOnce with the user-facing operation that started
+	// the dispatch chain (carried on PlanContext) so the first inner ctx.IterX
+	// call inside the body is NOT treated as the API-boundary top-level — that
+	// wrap strips wildcards, and on a receiver we must propagate them back to
+	// the sender. If PlanContext's top_level_operation matches req.Operation
+	// (e.g. zero/CHECK on both for an older sender), derive from req.Operation;
+	// otherwise prefer the explicit PlanContext value.
+	topLevelOp := planOperationToQueryOperation(req.PlanContext.GetTopLevelOperation())
+	if topLevelOp == query.OperationCheck && req.Operation != v1.PlanOperation_PLAN_OPERATION_CHECK {
+		topLevelOp = planOperationToQueryOperation(req.Operation)
+	}
+	qctx.MarkAsOperation(it, topLevelOp)
 	switch req.Operation {
 	case v1.PlanOperation_PLAN_OPERATION_CHECK:
 		path, err := it.CheckImpl(qctx, resource, subject)

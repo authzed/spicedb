@@ -1747,8 +1747,16 @@ type PlanContext struct {
 	// plan for a key contains another structurally complete instance of itself
 	// (cross-relation recursion the sentinel machinery can't see).
 	InProgressKeys []string `protobuf:"bytes,6,rep,name=in_progress_keys,json=inProgressKeys,proto3" json:"in_progress_keys,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// top_level_operation carries the user-facing operation (Check / LookupSubjects
+	// / LookupResources) that started the dispatch chain. The receiver pre-seals
+	// its qctx with this value so iterators that consult TopLevelOperation (e.g.
+	// AliasIterator.shouldIncludeSelfEdge) see the original API intent rather
+	// than the per-hop dispatch op. Reuses PlanOperation so a single enum
+	// describes both per-hop and user-facing operations; only CHECK,
+	// LOOKUP_RESOURCES, and LOOKUP_SUBJECTS are valid here.
+	TopLevelOperation PlanOperation `protobuf:"varint,7,opt,name=top_level_operation,json=topLevelOperation,proto3,enum=dispatch.v1.PlanOperation" json:"top_level_operation,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *PlanContext) Reset() {
@@ -1821,6 +1829,13 @@ func (x *PlanContext) GetInProgressKeys() []string {
 		return x.InProgressKeys
 	}
 	return nil
+}
+
+func (x *PlanContext) GetTopLevelOperation() PlanOperation {
+	if x != nil {
+		return x.TopLevelOperation
+	}
+	return PlanOperation_PLAN_OPERATION_CHECK
 }
 
 type DispatchQueryPlanRequest struct {
@@ -2294,7 +2309,7 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\f\n" +
 	"\bRELATION\x10\x01\x12\x0e\n" +
 	"\n" +
-	"PERMISSION\x10\x02\"\x9e\x02\n" +
+	"PERMISSION\x10\x02\"\xea\x02\n" +
 	"\vPlanContext\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\tR\brevision\x12>\n" +
 	"\x0ecaveat_context\x18\x02 \x01(\v2\x17.google.protobuf.StructR\rcaveatContext\x12.\n" +
@@ -2302,7 +2317,8 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\x18optional_datastore_limit\x18\x04 \x01(\x04R\x16optionalDatastoreLimit\x12\x1f\n" +
 	"\vschema_hash\x18\x05 \x01(\fR\n" +
 	"schemaHash\x12(\n" +
-	"\x10in_progress_keys\x18\x06 \x03(\tR\x0einProgressKeys\"\xd4\x02\n" +
+	"\x10in_progress_keys\x18\x06 \x03(\tR\x0einProgressKeys\x12J\n" +
+	"\x13top_level_operation\x18\a \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\x11topLevelOperation\"\xd4\x02\n" +
 	"\x18DispatchQueryPlanRequest\x128\n" +
 	"\toperation\x18\x01 \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\toperation\x12#\n" +
 	"\rcanonical_key\x18\x02 \x01(\tR\fcanonicalKey\x126\n" +
@@ -2458,38 +2474,39 @@ var file_dispatch_v1_dispatch_proto_depIdxs = []int32{
 	26, // 46: dispatch.v1.CheckDebugTrace.sub_problems:type_name -> dispatch.v1.CheckDebugTrace
 	40, // 47: dispatch.v1.CheckDebugTrace.duration:type_name -> google.protobuf.Duration
 	39, // 48: dispatch.v1.PlanContext.caveat_context:type_name -> google.protobuf.Struct
-	0,  // 49: dispatch.v1.DispatchQueryPlanRequest.operation:type_name -> dispatch.v1.PlanOperation
-	36, // 50: dispatch.v1.DispatchQueryPlanRequest.resource:type_name -> core.v1.ObjectAndRelation
-	36, // 51: dispatch.v1.DispatchQueryPlanRequest.subject:type_name -> core.v1.ObjectAndRelation
-	27, // 52: dispatch.v1.DispatchQueryPlanRequest.plan_context:type_name -> dispatch.v1.PlanContext
-	36, // 53: dispatch.v1.DispatchQueryPlanRequest.many:type_name -> core.v1.ObjectAndRelation
-	24, // 54: dispatch.v1.DispatchQueryPlanResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	30, // 55: dispatch.v1.DispatchQueryPlanResponse.paths:type_name -> dispatch.v1.ResultPath
-	37, // 56: dispatch.v1.ResultPath.caveat:type_name -> core.v1.CaveatExpression
-	41, // 57: dispatch.v1.ResultPath.expiration:type_name -> google.protobuf.Timestamp
-	42, // 58: dispatch.v1.ResultPath.integrity:type_name -> core.v1.RelationshipIntegrity
-	39, // 59: dispatch.v1.ResultPath.metadata:type_name -> google.protobuf.Struct
-	30, // 60: dispatch.v1.ResultPath.excluded_subjects:type_name -> dispatch.v1.ResultPath
-	9,  // 61: dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry.value:type_name -> dispatch.v1.ResourceCheckResult
-	21, // 62: dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry.value:type_name -> dispatch.v1.FoundSubjects
-	9,  // 63: dispatch.v1.CheckDebugTrace.ResultsEntry.value:type_name -> dispatch.v1.ResourceCheckResult
-	6,  // 64: dispatch.v1.DispatchService.DispatchCheck:input_type -> dispatch.v1.DispatchCheckRequest
-	10, // 65: dispatch.v1.DispatchService.DispatchExpand:input_type -> dispatch.v1.DispatchExpandRequest
-	19, // 66: dispatch.v1.DispatchService.DispatchLookupSubjects:input_type -> dispatch.v1.DispatchLookupSubjectsRequest
-	13, // 67: dispatch.v1.DispatchService.DispatchLookupResources2:input_type -> dispatch.v1.DispatchLookupResources2Request
-	16, // 68: dispatch.v1.DispatchService.DispatchLookupResources3:input_type -> dispatch.v1.DispatchLookupResources3Request
-	28, // 69: dispatch.v1.DispatchService.DispatchQueryPlan:input_type -> dispatch.v1.DispatchQueryPlanRequest
-	8,  // 70: dispatch.v1.DispatchService.DispatchCheck:output_type -> dispatch.v1.DispatchCheckResponse
-	11, // 71: dispatch.v1.DispatchService.DispatchExpand:output_type -> dispatch.v1.DispatchExpandResponse
-	22, // 72: dispatch.v1.DispatchService.DispatchLookupSubjects:output_type -> dispatch.v1.DispatchLookupSubjectsResponse
-	15, // 73: dispatch.v1.DispatchService.DispatchLookupResources2:output_type -> dispatch.v1.DispatchLookupResources2Response
-	17, // 74: dispatch.v1.DispatchService.DispatchLookupResources3:output_type -> dispatch.v1.DispatchLookupResources3Response
-	29, // 75: dispatch.v1.DispatchService.DispatchQueryPlan:output_type -> dispatch.v1.DispatchQueryPlanResponse
-	70, // [70:76] is the sub-list for method output_type
-	64, // [64:70] is the sub-list for method input_type
-	64, // [64:64] is the sub-list for extension type_name
-	64, // [64:64] is the sub-list for extension extendee
-	0,  // [0:64] is the sub-list for field type_name
+	0,  // 49: dispatch.v1.PlanContext.top_level_operation:type_name -> dispatch.v1.PlanOperation
+	0,  // 50: dispatch.v1.DispatchQueryPlanRequest.operation:type_name -> dispatch.v1.PlanOperation
+	36, // 51: dispatch.v1.DispatchQueryPlanRequest.resource:type_name -> core.v1.ObjectAndRelation
+	36, // 52: dispatch.v1.DispatchQueryPlanRequest.subject:type_name -> core.v1.ObjectAndRelation
+	27, // 53: dispatch.v1.DispatchQueryPlanRequest.plan_context:type_name -> dispatch.v1.PlanContext
+	36, // 54: dispatch.v1.DispatchQueryPlanRequest.many:type_name -> core.v1.ObjectAndRelation
+	24, // 55: dispatch.v1.DispatchQueryPlanResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	30, // 56: dispatch.v1.DispatchQueryPlanResponse.paths:type_name -> dispatch.v1.ResultPath
+	37, // 57: dispatch.v1.ResultPath.caveat:type_name -> core.v1.CaveatExpression
+	41, // 58: dispatch.v1.ResultPath.expiration:type_name -> google.protobuf.Timestamp
+	42, // 59: dispatch.v1.ResultPath.integrity:type_name -> core.v1.RelationshipIntegrity
+	39, // 60: dispatch.v1.ResultPath.metadata:type_name -> google.protobuf.Struct
+	30, // 61: dispatch.v1.ResultPath.excluded_subjects:type_name -> dispatch.v1.ResultPath
+	9,  // 62: dispatch.v1.DispatchCheckResponse.ResultsByResourceIdEntry.value:type_name -> dispatch.v1.ResourceCheckResult
+	21, // 63: dispatch.v1.DispatchLookupSubjectsResponse.FoundSubjectsByResourceIdEntry.value:type_name -> dispatch.v1.FoundSubjects
+	9,  // 64: dispatch.v1.CheckDebugTrace.ResultsEntry.value:type_name -> dispatch.v1.ResourceCheckResult
+	6,  // 65: dispatch.v1.DispatchService.DispatchCheck:input_type -> dispatch.v1.DispatchCheckRequest
+	10, // 66: dispatch.v1.DispatchService.DispatchExpand:input_type -> dispatch.v1.DispatchExpandRequest
+	19, // 67: dispatch.v1.DispatchService.DispatchLookupSubjects:input_type -> dispatch.v1.DispatchLookupSubjectsRequest
+	13, // 68: dispatch.v1.DispatchService.DispatchLookupResources2:input_type -> dispatch.v1.DispatchLookupResources2Request
+	16, // 69: dispatch.v1.DispatchService.DispatchLookupResources3:input_type -> dispatch.v1.DispatchLookupResources3Request
+	28, // 70: dispatch.v1.DispatchService.DispatchQueryPlan:input_type -> dispatch.v1.DispatchQueryPlanRequest
+	8,  // 71: dispatch.v1.DispatchService.DispatchCheck:output_type -> dispatch.v1.DispatchCheckResponse
+	11, // 72: dispatch.v1.DispatchService.DispatchExpand:output_type -> dispatch.v1.DispatchExpandResponse
+	22, // 73: dispatch.v1.DispatchService.DispatchLookupSubjects:output_type -> dispatch.v1.DispatchLookupSubjectsResponse
+	15, // 74: dispatch.v1.DispatchService.DispatchLookupResources2:output_type -> dispatch.v1.DispatchLookupResources2Response
+	17, // 75: dispatch.v1.DispatchService.DispatchLookupResources3:output_type -> dispatch.v1.DispatchLookupResources3Response
+	29, // 76: dispatch.v1.DispatchService.DispatchQueryPlan:output_type -> dispatch.v1.DispatchQueryPlanResponse
+	71, // [71:77] is the sub-list for method output_type
+	65, // [65:71] is the sub-list for method input_type
+	65, // [65:65] is the sub-list for extension type_name
+	65, // [65:65] is the sub-list for extension extendee
+	0,  // [0:65] is the sub-list for field type_name
 }
 
 func init() { file_dispatch_v1_dispatch_proto_init() }

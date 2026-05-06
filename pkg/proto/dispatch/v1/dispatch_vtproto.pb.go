@@ -653,6 +653,7 @@ func (m *PlanContext) CloneVT() *PlanContext {
 	r.CaveatContext = (*structpb.Struct)((*structpb1.Struct)(m.CaveatContext).CloneVT())
 	r.MaxRecursionDepth = m.MaxRecursionDepth
 	r.OptionalDatastoreLimit = m.OptionalDatastoreLimit
+	r.TopLevelOperation = m.TopLevelOperation
 	if rhs := m.SchemaHash; rhs != nil {
 		tmpBytes := make([]byte, len(rhs))
 		copy(tmpBytes, rhs)
@@ -1713,6 +1714,9 @@ func (this *PlanContext) EqualVT(that *PlanContext) bool {
 		if vx != vy {
 			return false
 		}
+	}
+	if this.TopLevelOperation != that.TopLevelOperation {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -3608,6 +3612,11 @@ func (m *PlanContext) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.TopLevelOperation != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TopLevelOperation))
+		i--
+		dAtA[i] = 0x38
+	}
 	if len(m.InProgressKeys) > 0 {
 		for iNdEx := len(m.InProgressKeys) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.InProgressKeys[iNdEx])
@@ -4737,6 +4746,9 @@ func (m *PlanContext) SizeVT() (n int) {
 			l = len(s)
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
+	}
+	if m.TopLevelOperation != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.TopLevelOperation))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -9120,6 +9132,25 @@ func (m *PlanContext) UnmarshalVT(dAtA []byte) error {
 			}
 			m.InProgressKeys = append(m.InProgressKeys, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TopLevelOperation", wireType)
+			}
+			m.TopLevelOperation = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TopLevelOperation |= PlanOperation(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

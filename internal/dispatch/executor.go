@@ -177,7 +177,7 @@ func (e *DispatchExecutor) dispatchCheck(ctx *query.Context, it query.Iterator, 
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	req := e.buildRequest(v1.PlanOperation_PLAN_OPERATION_CHECK, it, resource, subject)
+	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK, it, resource, subject)
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 		return nil, err
@@ -201,7 +201,7 @@ func (e *DispatchExecutor) dispatchIterSubjects(ctx *query.Context, it query.Ite
 	// filter to apply the same reachability/optimizer decisions the sender
 	// would have applied. The actual receiver-side iteration uses NoObjectFilter
 	// since the sender filters the returned paths itself.
-	req := e.buildRequest(v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, it, resource, query.ObjectAndRelation{
+	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, it, resource, query.ObjectAndRelation{
 		ObjectType: filterSubjectType.Type,
 		Relation:   filterSubjectType.Subrelation,
 	})
@@ -218,7 +218,7 @@ func (e *DispatchExecutor) dispatchIterResources(ctx *query.Context, it query.It
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	req := e.buildRequest(v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES, it, query.Object{
+	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES, it, query.Object{
 		ObjectType: subject.ObjectType,
 		ObjectID:   subject.ObjectID,
 	}, subject)
@@ -242,7 +242,7 @@ func (e *DispatchExecutor) dispatchCheckManySubjects(ctx *query.Context, it quer
 		if end > len(subjects) {
 			end = len(subjects)
 		}
-		req := e.buildManyRequest(v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, subjects[start:end])
+		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, subjects[start:end])
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -273,7 +273,7 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 		if end > len(resources) {
 			end = len(resources)
 		}
-		req := e.buildManyRequest(v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, resources[start:end], nil)
+		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, resources[start:end], nil)
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -297,7 +297,7 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 // Exactly one of (manyResources, manySubjects) is non-nil; the corresponding
 // singular field (resource for CHECK_MANY_RESOURCES, subject for CHECK_MANY_SUBJECTS)
 // must be left zero — the receiver inspects `many` for those operations.
-func (e *DispatchExecutor) buildManyRequest(op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
+func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
 	alias := it.(*query.AliasIterator)
 	key := alias.DefinitionName() + "#" + alias.Relation()
 	req := &v1.DispatchQueryPlanRequest{
@@ -312,7 +312,7 @@ func (e *DispatchExecutor) buildManyRequest(op v1.PlanOperation, it query.Iterat
 			ObjectId:  subject.ObjectID,
 			Relation:  subject.Relation,
 		},
-		PlanContext: planContextWithKey(e.planContext, key),
+		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
 	}
 	if len(manyResources) > 0 {
 		req.Many = make([]*core.ObjectAndRelation, len(manyResources))
@@ -336,7 +336,7 @@ func (e *DispatchExecutor) buildManyRequest(op v1.PlanOperation, it query.Iterat
 	return req
 }
 
-func (e *DispatchExecutor) buildRequest(op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
+func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
 	// dispatch{Check,IterSubjects,IterResources} only enter buildRequest when
 	// it is a *query.AliasIterator, so the type assertion is safe. The dispatch
 	// boundary is always the (definition, relation) the alias represents; we
@@ -355,22 +355,57 @@ func (e *DispatchExecutor) buildRequest(op v1.PlanOperation, it query.Iterator, 
 			ObjectId:  subject.ObjectID,
 			Relation:  subject.Relation,
 		},
-		PlanContext: planContextWithKey(e.planContext, key),
+		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
 	}
 }
 
-// planContextWithKey returns a shallow copy of pc with key appended to the
-// in-progress dispatch keys. The receiver's DispatchExecutor consults this set
-// to refuse re-dispatching keys that any ancestor on the dispatch chain is
-// already computing — the only way to terminate cross-relation cycles produced
-// by standalone plan rebuilds at each receiver hop.
-func planContextWithKey(pc *v1.PlanContext, key string) *v1.PlanContext {
+// planContextForDispatch returns a shallow copy of pc with `key` appended to
+// the in-progress dispatch keys and `topLevelOp` recorded as the user-facing
+// operation. Two receiver-side guards depend on these:
+//   - InProgressKeys breaks cross-relation cycles produced by standalone plan
+//     rebuilds at each receiver hop.
+//   - TopLevelOperation propagates the original API operation across hops so
+//     iterators that consult TopLevelOperation see consistent user intent.
+func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Operation) *v1.PlanContext {
 	if pc == nil {
-		return &v1.PlanContext{InProgressKeys: []string{key}}
+		return &v1.PlanContext{
+			InProgressKeys:    []string{key},
+			TopLevelOperation: queryOpToPlanOperation(topLevelOp),
+		}
 	}
-	out := *pc
-	out.InProgressKeys = append(append([]string(nil), pc.InProgressKeys...), key)
-	return &out
+	// Preserve any TopLevelOperation already on pc (set higher in the chain);
+	// only fill in when the chain hasn't recorded a user-facing op yet.
+	// PlanOperation's zero value is CHECK, which is also the natural fallback
+	// for Check-rooted chains, so detecting "unset" here is by-design lossy.
+	tlo := pc.TopLevelOperation
+	if tlo == v1.PlanOperation_PLAN_OPERATION_CHECK {
+		tlo = queryOpToPlanOperation(topLevelOp)
+	}
+	return &v1.PlanContext{
+		Revision:               pc.Revision,
+		CaveatContext:          pc.CaveatContext,
+		MaxRecursionDepth:      pc.MaxRecursionDepth,
+		OptionalDatastoreLimit: pc.OptionalDatastoreLimit,
+		SchemaHash:             pc.SchemaHash,
+		InProgressKeys:         append(append([]string(nil), pc.InProgressKeys...), key),
+		TopLevelOperation:      tlo,
+	}
+}
+
+// queryOpToPlanOperation maps the user-facing query.Operation (Check /
+// IterSubjects / IterResources) to its PlanOperation equivalent so the
+// outgoing PlanContext can carry the original API operation across hops.
+// CheckMany variants and OperationUnset both map to PLAN_OPERATION_CHECK
+// since the field only describes user-facing intent.
+func queryOpToPlanOperation(op query.Operation) v1.PlanOperation {
+	switch op {
+	case query.OperationIterSubjects:
+		return v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS
+	case query.OperationIterResources:
+		return v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES
+	default:
+		return v1.PlanOperation_PLAN_OPERATION_CHECK
+	}
 }
 
 func collectPathsFromResponses(responses []*v1.DispatchQueryPlanResponse) []*query.Path {
@@ -406,6 +441,12 @@ func resultPathToQueryPath(rp *v1.ResultPath) *query.Path {
 	if rp.Metadata != nil {
 		p.Metadata = rp.Metadata.AsMap()
 	}
+	if len(rp.ExcludedSubjects) > 0 {
+		p.ExcludedSubjects = make([]*query.Path, len(rp.ExcludedSubjects))
+		for i, esp := range rp.ExcludedSubjects {
+			p.ExcludedSubjects[i] = resultPathToQueryPath(esp)
+		}
+	}
 	return p
 }
 
@@ -428,6 +469,12 @@ func QueryPathToResultPath(p *query.Path) *v1.ResultPath {
 		md, err := toProtoStruct(p.Metadata)
 		if err == nil {
 			rp.Metadata = md
+		}
+	}
+	if len(p.ExcludedSubjects) > 0 {
+		rp.ExcludedSubjects = make([]*v1.ResultPath, len(p.ExcludedSubjects))
+		for i, ep := range p.ExcludedSubjects {
+			rp.ExcludedSubjects[i] = QueryPathToResultPath(ep)
 		}
 	}
 	return rp

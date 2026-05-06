@@ -246,6 +246,14 @@ message PlanContext {
   // plan for a key contains another structurally complete instance of itself
   // (cross-relation recursion the sentinel machinery can't see).
   repeated string in_progress_keys = 6;
+  // top_level_operation carries the user-facing operation (Check / LookupSubjects
+  // / LookupResources) that started the dispatch chain. The receiver pre-seals
+  // its qctx with this value so iterators that consult TopLevelOperation (e.g.
+  // AliasIterator.shouldIncludeSelfEdge) see the original API intent rather
+  // than the per-hop dispatch op. Reuses PlanOperation so a single enum
+  // describes both per-hop and user-facing operations; only CHECK,
+  // LOOKUP_RESOURCES, and LOOKUP_SUBJECTS are valid here.
+  PlanOperation top_level_operation = 7;
 }
 
 message DispatchQueryPlanRequest {

@@ -236,10 +236,7 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		ctx.TopLevelOperation = OperationCheck
-	})
+	ctx.MarkAsOperation(it, OperationCheck)
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
@@ -258,6 +255,33 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 	return path, nil
 }
 
+// MarkAsOperation records the top-level iterator and operation for this
+// context, idempotently. The first caller "wins" and gets isTopLevel=true; all
+// subsequent calls are no-ops and return false. This is used in two ways:
+//
+//  1. By Context.{Check,IterSubjects,IterResources,CheckManyX}, which call it
+//     on entry so that any nested calls into the same context know they are
+//     not the top-level — and so that the entry path can apply API-boundary
+//     wrappers (FilterWildcardSubjects / DeduplicatePathSeq) only when truly
+//     at the top.
+//
+//  2. By dispatch receivers, which pre-seal it so that the first inner
+//     ctx.IterX call on the body is NOT mistaken for the top-level. Without
+//     pre-sealing, the receiver's first inner call applies FilterWildcardSubjects
+//     to a sub-iterator's results, silently dropping wildcards that should
+//     propagate back to the sender's intersection/exclusion logic.
+//
+// It also sets TopLevelOperation so iterators that consult it (e.g.
+// AliasIterator.shouldIncludeSelfEdge) see the right value.
+func (ctx *Context) MarkAsOperation(it Iterator, op Operation) (isTopLevel bool) {
+	ctx.topLevelOnce.Do(func() {
+		ctx.topLevelIterator = it
+		ctx.TopLevelOperation = op
+		isTopLevel = true
+	})
+	return
+}
+
 // CheckManySubjects tests resource against each subject in subjects. Returns a
 // parallel slice of paths (result[i] matches subjects[i], nil if no match).
 func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error) {
@@ -268,10 +292,7 @@ func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []O
 		return nil, nil
 	}
 
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		ctx.TopLevelOperation = OperationCheck
-	})
+	ctx.MarkAsOperation(it, OperationCheck)
 
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationCheck, key)
@@ -297,10 +318,7 @@ func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject 
 		return nil, nil
 	}
 
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		ctx.TopLevelOperation = OperationCheck
-	})
+	ctx.MarkAsOperation(it, OperationCheck)
 
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationCheck, key)
@@ -355,12 +373,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	isTopLevel := false
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		isTopLevel = true
-		ctx.TopLevelOperation = OperationIterSubjects
-	})
+	isTopLevel := ctx.MarkAsOperation(it, OperationIterSubjects)
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
@@ -394,12 +407,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	isTopLevel := false
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		isTopLevel = true
-		ctx.TopLevelOperation = OperationIterResources
-	})
+	isTopLevel := ctx.MarkAsOperation(it, OperationIterResources)
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
