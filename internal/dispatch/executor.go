@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"context"
+	"slices"
 
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -236,13 +237,9 @@ func (e *DispatchExecutor) dispatchCheckManySubjects(ctx *query.Context, it quer
 	defer cancel()
 
 	out := make([]*query.Path, len(subjects))
-	chunk := int(e.dispatchChunkSize)
-	for start := 0; start < len(subjects); start += chunk {
-		end := start + chunk
-		if end > len(subjects) {
-			end = len(subjects)
-		}
-		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, subjects[start:end])
+	idx := 0
+	for chunk := range slices.Chunk(subjects, int(e.dispatchChunkSize)) {
+		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, chunk)
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -255,8 +252,9 @@ func (e *DispatchExecutor) dispatchCheckManySubjects(ctx *query.Context, it quer
 				bySubject[p.Subject] = p
 			}
 		}
-		for i := start; i < end; i++ {
-			out[i] = bySubject[subjects[i]]
+		for _, subject := range chunk {
+			out[idx] = bySubject[subject]
+			idx++
 		}
 	}
 	return out, nil
@@ -267,13 +265,9 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 	defer cancel()
 
 	out := make([]*query.Path, len(resources))
-	chunk := int(e.dispatchChunkSize)
-	for start := 0; start < len(resources); start += chunk {
-		end := start + chunk
-		if end > len(resources) {
-			end = len(resources)
-		}
-		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, resources[start:end], nil)
+	idx := 0
+	for chunk := range slices.Chunk(resources, int(e.dispatchChunkSize)) {
+		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, chunk, nil)
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -286,8 +280,9 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 				byResource[p.Resource] = p
 			}
 		}
-		for i := start; i < end; i++ {
-			out[i] = byResource[resources[i]]
+		for _, resource := range chunk {
+			out[idx] = byResource[resource]
+			idx++
 		}
 	}
 	return out, nil
@@ -381,13 +376,19 @@ func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Ope
 	if tlo == v1.PlanOperation_PLAN_OPERATION_CHECK {
 		tlo = queryOpToPlanOperation(topLevelOp)
 	}
+
+	// Duplicate and append the in progress keys
+	inProgress := make([]string, len(pc.InProgressKeys)+1)
+	copy(inProgress, pc.InProgressKeys)
+	inProgress[len(pc.InProgressKeys)] = key
+
 	return &v1.PlanContext{
 		Revision:               pc.Revision,
 		CaveatContext:          pc.CaveatContext,
 		MaxRecursionDepth:      pc.MaxRecursionDepth,
 		OptionalDatastoreLimit: pc.OptionalDatastoreLimit,
 		SchemaHash:             pc.SchemaHash,
-		InProgressKeys:         append(append([]string(nil), pc.InProgressKeys...), key),
+		InProgressKeys:         inProgress,
 		TopLevelOperation:      tlo,
 	}
 }

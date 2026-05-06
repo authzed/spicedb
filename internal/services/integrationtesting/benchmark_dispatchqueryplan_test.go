@@ -189,8 +189,7 @@ func (h *dispatchQueryPlanHandle) newCachingDispatcher(b *testing.B) *caching.Di
 }
 
 // localQueryPlanDispatcher is a minimal dispatcher that handles DispatchQueryPlan by compiling
-// the plan from schema and executing it locally. This simulates what the real
-// localDispatcher will do in Phase 4.
+// the plan from schema and executing it locally.
 type localQueryPlanDispatcher struct {
 	handle *dispatchQueryPlanHandle
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt"
 	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -503,7 +504,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 
 	// Load schema at the requested revision and rebuild the iterator subtree
 	// for the (definition, relation) pair encoded in CanonicalKey.
-	// TODO: use cached compiled plans (Phase 7) instead of recompiling each time.
+	// TODO: use cached compiled plans instead of recompiling each time.
 	it, err := ld.compileIteratorForDispatchKey(ctx, revision, schemaHash, req)
 	if err != nil {
 		return err
@@ -534,12 +535,10 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	// the dispatch chain (carried on PlanContext) so the first inner ctx.IterX
 	// call inside the body is NOT treated as the API-boundary top-level — that
 	// wrap strips wildcards, and on a receiver we must propagate them back to
-	// the sender. If PlanContext's top_level_operation matches req.Operation
-	// (e.g. zero/CHECK on both for an older sender), derive from req.Operation;
-	// otherwise prefer the explicit PlanContext value.
-	topLevelOp := planOperationToQueryOperation(req.PlanContext.GetTopLevelOperation())
-	if topLevelOp == query.OperationCheck && req.Operation != v1.PlanOperation_PLAN_OPERATION_CHECK {
-		topLevelOp = planOperationToQueryOperation(req.Operation)
+	// the sender.
+	topLevelOp, err := planOperationToQueryOperation(req.PlanContext.GetTopLevelOperation())
+	if err != nil {
+		return err
 	}
 	qctx.MarkAsOperation(it, topLevelOp)
 	switch req.Operation {
@@ -594,9 +593,9 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES:
 		// Iterate CheckImpl directly: dispatch boundary already crossed for this
 		// alias. qctx still uses DispatchExecutor, so nested aliases re-dispatch.
-		for _, m := range req.Many {
-			res := query.Object{ObjectType: m.Namespace, ObjectID: m.ObjectId}
-			path, err := it.CheckImpl(qctx, res, subject)
+		for _, res := range req.Many {
+			resource := query.Object{ObjectType: res.Namespace, ObjectID: res.ObjectId}
+			path, err := it.CheckImpl(qctx, resource, subject)
 			if err != nil {
 				return err
 			}
@@ -611,13 +610,13 @@ func (ld *localDispatcher) DispatchQueryPlan(
 		return nil
 
 	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
-		for _, m := range req.Many {
-			sub := query.ObjectAndRelation{
-				ObjectType: m.Namespace,
-				ObjectID:   m.ObjectId,
-				Relation:   m.Relation,
+		for _, sub := range req.Many {
+			subject := query.ObjectAndRelation{
+				ObjectType: sub.Namespace,
+				ObjectID:   sub.ObjectId,
+				Relation:   sub.Relation,
 			}
-			path, err := it.CheckImpl(qctx, resource, sub)
+			path, err := it.CheckImpl(qctx, resource, subject)
 			if err != nil {
 				return err
 			}
@@ -680,8 +679,13 @@ func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, re
 		return nil, fmt.Errorf("DispatchQueryPlan: failed to build outline for %s#%s: %w", defName, relName, err)
 	}
 
+	operation, err := planOperationToQueryOperation(req.Operation)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: %w", err)
+	}
+
 	params := queryopt.RequestParams{
-		Operation:       planOperationToQueryOperation(req.Operation),
+		Operation:       operation,
 		SubjectType:     req.Subject.GetNamespace(),
 		SubjectRelation: req.Subject.GetRelation(),
 	}
@@ -699,18 +703,18 @@ func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, re
 
 // planOperationToQueryOperation maps the proto PlanOperation enum to the
 // corresponding query.Operation used by the optimizer-selection logic.
-func planOperationToQueryOperation(op v1.PlanOperation) query.Operation {
+func planOperationToQueryOperation(op v1.PlanOperation) (query.Operation, error) {
 	switch op {
 	case v1.PlanOperation_PLAN_OPERATION_CHECK,
 		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES,
 		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
-		return query.OperationCheck
+		return query.OperationCheck, nil
 	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
-		return query.OperationIterResources
+		return query.OperationIterResources, nil
 	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
-		return query.OperationIterSubjects
+		return query.OperationIterSubjects, nil
 	default:
-		return query.OperationCheck
+		return query.OperationUnset, spiceerrors.MustBugf("unhandled plan operation type")
 	}
 }
 
