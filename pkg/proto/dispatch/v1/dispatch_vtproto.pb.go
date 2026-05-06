@@ -658,6 +658,11 @@ func (m *PlanContext) CloneVT() *PlanContext {
 		copy(tmpBytes, rhs)
 		r.SchemaHash = tmpBytes
 	}
+	if rhs := m.InProgressKeys; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.InProgressKeys = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -1699,6 +1704,15 @@ func (this *PlanContext) EqualVT(that *PlanContext) bool {
 	}
 	if string(this.SchemaHash) != string(that.SchemaHash) {
 		return false
+	}
+	if len(this.InProgressKeys) != len(that.InProgressKeys) {
+		return false
+	}
+	for i, vx := range this.InProgressKeys {
+		vy := that.InProgressKeys[i]
+		if vx != vy {
+			return false
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -3594,6 +3608,15 @@ func (m *PlanContext) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.InProgressKeys) > 0 {
+		for iNdEx := len(m.InProgressKeys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.InProgressKeys[iNdEx])
+			copy(dAtA[i:], m.InProgressKeys[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.InProgressKeys[iNdEx])))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
 	if len(m.SchemaHash) > 0 {
 		i -= len(m.SchemaHash)
 		copy(dAtA[i:], m.SchemaHash)
@@ -4708,6 +4731,12 @@ func (m *PlanContext) SizeVT() (n int) {
 	l = len(m.SchemaHash)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.InProgressKeys) > 0 {
+		for _, s := range m.InProgressKeys {
+			l = len(s)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -9058,6 +9087,38 @@ func (m *PlanContext) UnmarshalVT(dAtA []byte) error {
 			if m.SchemaHash == nil {
 				m.SchemaHash = []byte{}
 			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field InProgressKeys", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.InProgressKeys = append(m.InProgressKeys, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

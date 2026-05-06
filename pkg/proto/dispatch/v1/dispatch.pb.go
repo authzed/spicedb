@@ -1740,8 +1740,15 @@ type PlanContext struct {
 	MaxRecursionDepth      int32                  `protobuf:"varint,3,opt,name=max_recursion_depth,json=maxRecursionDepth,proto3" json:"max_recursion_depth,omitempty"`
 	OptionalDatastoreLimit uint64                 `protobuf:"varint,4,opt,name=optional_datastore_limit,json=optionalDatastoreLimit,proto3" json:"optional_datastore_limit,omitempty"`
 	SchemaHash             []byte                 `protobuf:"bytes,5,opt,name=schema_hash,json=schemaHash,proto3" json:"schema_hash,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// in_progress_keys are the dispatch canonical keys (\"def#rel\") that ancestors
+	// of this dispatch are currently computing. The receiver-side DispatchExecutor
+	// refuses to dispatch any alias whose key is in this set, falling back to local
+	// execution. This is what breaks dispatch loops that arise when the standalone
+	// plan for a key contains another structurally complete instance of itself
+	// (cross-relation recursion the sentinel machinery can't see).
+	InProgressKeys []string `protobuf:"bytes,6,rep,name=in_progress_keys,json=inProgressKeys,proto3" json:"in_progress_keys,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *PlanContext) Reset() {
@@ -1805,6 +1812,13 @@ func (x *PlanContext) GetOptionalDatastoreLimit() uint64 {
 func (x *PlanContext) GetSchemaHash() []byte {
 	if x != nil {
 		return x.SchemaHash
+	}
+	return nil
+}
+
+func (x *PlanContext) GetInProgressKeys() []string {
+	if x != nil {
+		return x.InProgressKeys
 	}
 	return nil
 }
@@ -2280,14 +2294,15 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\f\n" +
 	"\bRELATION\x10\x01\x12\x0e\n" +
 	"\n" +
-	"PERMISSION\x10\x02\"\xf4\x01\n" +
+	"PERMISSION\x10\x02\"\x9e\x02\n" +
 	"\vPlanContext\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\tR\brevision\x12>\n" +
 	"\x0ecaveat_context\x18\x02 \x01(\v2\x17.google.protobuf.StructR\rcaveatContext\x12.\n" +
 	"\x13max_recursion_depth\x18\x03 \x01(\x05R\x11maxRecursionDepth\x128\n" +
 	"\x18optional_datastore_limit\x18\x04 \x01(\x04R\x16optionalDatastoreLimit\x12\x1f\n" +
 	"\vschema_hash\x18\x05 \x01(\fR\n" +
-	"schemaHash\"\xd4\x02\n" +
+	"schemaHash\x12(\n" +
+	"\x10in_progress_keys\x18\x06 \x03(\tR\x0einProgressKeys\"\xd4\x02\n" +
 	"\x18DispatchQueryPlanRequest\x128\n" +
 	"\toperation\x18\x01 \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\toperation\x12#\n" +
 	"\rcanonical_key\x18\x02 \x01(\tR\fcanonicalKey\x126\n" +

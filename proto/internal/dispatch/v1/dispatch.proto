@@ -239,6 +239,13 @@ message PlanContext {
   int32 max_recursion_depth = 3;
   uint64 optional_datastore_limit = 4;
   bytes schema_hash = 5;
+  // in_progress_keys are the dispatch canonical keys (\"def#rel\") that ancestors
+  // of this dispatch are currently computing. The receiver-side DispatchExecutor
+  // refuses to dispatch any alias whose key is in this set, falling back to local
+  // execution. This is what breaks dispatch loops that arise when the standalone
+  // plan for a key contains another structurally complete instance of itself
+  // (cross-relation recursion the sentinel machinery can't see).
+  repeated string in_progress_keys = 6;
 }
 
 message DispatchQueryPlanRequest {

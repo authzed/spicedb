@@ -89,15 +89,40 @@ func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext, dis
 	}
 }
 
+// shouldDispatchAlias reports whether the iterator is an AliasIterator that the
+// executor should ship over RPC, vs. running locally. Two reasons to refuse:
+//   - the alias contains a sentinel whose matching RecursiveIterator lives
+//     outside its own subtree (sentinel-based recursion guard, ancestor case).
+//   - the alias's canonical key is already in the active dispatch chain
+//     (in-progress guard, cross-relation cycle case). Without this, a standalone
+//     plan that re-expands the same key in a sibling subtree produces an
+//     infinite dispatch loop.
+func (e *DispatchExecutor) shouldDispatchAlias(it query.Iterator) (string, bool) {
+	alias, ok := it.(*query.AliasIterator)
+	if !ok {
+		return "", false
+	}
+	if containsUnmatchedRecursiveSentinel(it) {
+		return "", false
+	}
+	key := alias.DefinitionName() + "#" + alias.Relation()
+	for _, k := range e.planContext.GetInProgressKeys() {
+		if k == key {
+			return "", false
+		}
+	}
+	return key, true
+}
+
 func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*query.Path, error) {
-	if _, ok := it.(*query.AliasIterator); ok && !containsUnmatchedRecursiveSentinel(it) {
+	if _, ok := e.shouldDispatchAlias(it); ok {
 		return e.dispatchCheck(ctx, it, resource, subject)
 	}
 	return it.CheckImpl(ctx, resource, subject)
 }
 
 func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterator, resource query.Object, subjects []query.ObjectAndRelation) ([]*query.Path, error) {
-	if _, ok := it.(*query.AliasIterator); !ok || containsUnmatchedRecursiveSentinel(it) {
+	if _, ok := e.shouldDispatchAlias(it); !ok {
 		out := make([]*query.Path, len(subjects))
 		for i, s := range subjects {
 			p, err := it.CheckImpl(ctx, resource, s)
@@ -112,7 +137,7 @@ func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterat
 }
 
 func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Iterator, resources []query.Object, subject query.ObjectAndRelation) ([]*query.Path, error) {
-	if _, ok := it.(*query.AliasIterator); !ok || containsUnmatchedRecursiveSentinel(it) {
+	if _, ok := e.shouldDispatchAlias(it); !ok {
 		out := make([]*query.Path, len(resources))
 		for i, r := range resources {
 			p, err := it.CheckImpl(ctx, r, subject)
@@ -127,7 +152,7 @@ func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Itera
 }
 
 func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := it.(*query.AliasIterator); ok && !containsUnmatchedRecursiveSentinel(it) {
+	if _, ok := e.shouldDispatchAlias(it); ok {
 		return e.dispatchIterSubjects(ctx, it, resource, filterSubjectType)
 	}
 	pathSeq, err := it.IterSubjectsImpl(ctx, resource, filterSubjectType)
@@ -138,7 +163,7 @@ func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, r
 }
 
 func (e *DispatchExecutor) IterResources(ctx *query.Context, it query.Iterator, subject query.ObjectAndRelation, filterResourceType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := it.(*query.AliasIterator); ok && !containsUnmatchedRecursiveSentinel(it) {
+	if _, ok := e.shouldDispatchAlias(it); ok {
 		return e.dispatchIterResources(ctx, it, subject, filterResourceType)
 	}
 	pathSeq, err := it.IterResourcesImpl(ctx, subject, filterResourceType)
@@ -274,9 +299,10 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 // must be left zero — the receiver inspects `many` for those operations.
 func (e *DispatchExecutor) buildManyRequest(op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
 	alias := it.(*query.AliasIterator)
+	key := alias.DefinitionName() + "#" + alias.Relation()
 	req := &v1.DispatchQueryPlanRequest{
 		Operation:    op,
-		CanonicalKey: alias.DefinitionName() + "#" + alias.Relation(),
+		CanonicalKey: key,
 		Resource: &core.ObjectAndRelation{
 			Namespace: resource.ObjectType,
 			ObjectId:  resource.ObjectID,
@@ -286,7 +312,7 @@ func (e *DispatchExecutor) buildManyRequest(op v1.PlanOperation, it query.Iterat
 			ObjectId:  subject.ObjectID,
 			Relation:  subject.Relation,
 		},
-		PlanContext: e.planContext,
+		PlanContext: planContextWithKey(e.planContext, key),
 	}
 	if len(manyResources) > 0 {
 		req.Many = make([]*core.ObjectAndRelation, len(manyResources))
@@ -316,9 +342,10 @@ func (e *DispatchExecutor) buildRequest(op v1.PlanOperation, it query.Iterator, 
 	// boundary is always the (definition, relation) the alias represents; we
 	// encode that as "definition#relation" in the canonical_key field.
 	alias := it.(*query.AliasIterator)
+	key := alias.DefinitionName() + "#" + alias.Relation()
 	return &v1.DispatchQueryPlanRequest{
 		Operation:    op,
-		CanonicalKey: alias.DefinitionName() + "#" + alias.Relation(),
+		CanonicalKey: key,
 		Resource: &core.ObjectAndRelation{
 			Namespace: resource.ObjectType,
 			ObjectId:  resource.ObjectID,
@@ -328,8 +355,22 @@ func (e *DispatchExecutor) buildRequest(op v1.PlanOperation, it query.Iterator, 
 			ObjectId:  subject.ObjectID,
 			Relation:  subject.Relation,
 		},
-		PlanContext: e.planContext,
+		PlanContext: planContextWithKey(e.planContext, key),
 	}
+}
+
+// planContextWithKey returns a shallow copy of pc with key appended to the
+// in-progress dispatch keys. The receiver's DispatchExecutor consults this set
+// to refuse re-dispatching keys that any ancestor on the dispatch chain is
+// already computing — the only way to terminate cross-relation cycles produced
+// by standalone plan rebuilds at each receiver hop.
+func planContextWithKey(pc *v1.PlanContext, key string) *v1.PlanContext {
+	if pc == nil {
+		return &v1.PlanContext{InProgressKeys: []string{key}}
+	}
+	out := *pc
+	out.InProgressKeys = append(append([]string(nil), pc.InProgressKeys...), key)
+	return &out
 }
 
 func collectPathsFromResponses(responses []*v1.DispatchQueryPlanResponse) []*query.Path {
