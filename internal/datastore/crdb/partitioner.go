@@ -120,24 +120,32 @@ func groupRanges(ctx context.Context, ranges []rangeInfo, desiredCount uint32) [
 		target = 1
 	}
 
-	// Greedy pack: walk ranges in order, accumulating size into the current
-	// partition. As soon as it reaches the target, close it off by splitting
-	// at the next range's cursor and start a new partition. Ranges smaller
-	// than the target are absorbed into whichever partition they land in,
-	// which means very skewed inputs may produce fewer than K partitions —
-	// but each one we do produce is close to target-sized, so workers stay
-	// balanced.
+	// Greedy pack: walk ranges in order, deciding at each cursor whether to
+	// close off the current partition by splitting there. Each ranges[i].cursor
+	// is a usable split point — including ranges[0].cursor, which separates
+	// the unparseable prefix region (whose start_key we can't parse, but which
+	// holds real data) from the rest. We seed the accumulator with an estimate
+	// of the prefix region's size so it becomes a candidate split point: one
+	// unit in unit-size mode, or the average range size in size-aware mode.
+	// Without this seed the algorithm would always merge the prefix into the
+	// first partition and produce at most len(ranges) partitions instead of
+	// len(ranges)+1.
 	splits := make([]options.Cursor, 0, K-1)
 	var acc int64
-	for i := 0; i < len(ranges)-1 && len(splits) < K-1; i++ {
+	if useUnitSize {
+		acc = 1
+	} else if len(ranges) > 0 {
+		acc = totalSize / int64(len(ranges))
+	}
+	for i := 0; i < len(ranges) && len(splits) < K-1; i++ {
+		if acc >= target {
+			splits = append(splits, ranges[i].cursor)
+			acc = 0
+		}
 		if useUnitSize {
 			acc++
 		} else {
 			acc += ranges[i].size
-		}
-		if acc >= target {
-			splits = append(splits, ranges[i+1].cursor)
-			acc = 0
 		}
 	}
 
