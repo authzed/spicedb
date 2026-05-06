@@ -440,14 +440,23 @@ func TestPlanPartitionsLogic(t *testing.T) {
 		require.Len(t, partitions, 1)
 	})
 
-	t.Run("single range yields single partition", func(t *testing.T) {
-		// One kept range gives no usable split point (you can't split inside
-		// a range), so we collapse to a single full-table partition.
+	t.Run("single boundary yields two partitions", func(t *testing.T) {
+		// One parseable boundary is a usable split point: it separates the
+		// unparseable prefix region from the parseable range, giving two
+		// partitions [-∞, b) and [b, +∞).
 		b := makeBoundary("ns1", "oid1", "rel1", "uns1", "uoid1", "urel1")
 		partitions := groupRanges(t.Context(), equalSizeRanges(b), 4)
-		require.Len(t, partitions, 1)
+		require.Len(t, partitions, 2)
 		require.Nil(t, partitions[0].LowerBound)
-		require.Nil(t, partitions[0].UpperBound)
+		require.Equal(t,
+			*dsoptions.ToRelationship(b),
+			*dsoptions.ToRelationship(partitions[0].UpperBound),
+		)
+		require.Equal(t,
+			*dsoptions.ToRelationship(b),
+			*dsoptions.ToRelationship(partitions[1].LowerBound),
+		)
+		require.Nil(t, partitions[1].UpperBound)
 	})
 
 	t.Run("equal-sized ranges split into K partitions", func(t *testing.T) {
@@ -472,10 +481,10 @@ func TestPlanPartitionsLogic(t *testing.T) {
 	})
 
 	t.Run("partition count caps at usable splits", func(t *testing.T) {
-		// 1 range, K=100: nothing to split on, single partition.
+		// 1 boundary, K=100: only one split point available, two partitions.
 		b := makeBoundary("a", "0", "r", "u", "0", "...")
 		partitions := groupRanges(t.Context(), equalSizeRanges(b), 100)
-		require.Len(t, partitions, 1)
+		require.Len(t, partitions, 2)
 	})
 
 	t.Run("many equal ranges with small K balances by size", func(t *testing.T) {
@@ -587,9 +596,9 @@ func TestPlanPartitionsLogic(t *testing.T) {
 }
 
 // equalSizeRanges builds a rangeInfo slice modeling N ranges of equal size,
-// each keyed by one of the supplied boundaries. With N parseable boundaries
-// only N-1 of them are usable as split points (the first is the lower bound
-// of range 0), so groupRanges produces at most N partitions.
+// each keyed by one of the supplied boundaries. All N boundaries are usable
+// as split points (the first separates the unparseable prefix region from
+// ranges[0]), so groupRanges produces at most N+1 partitions.
 func equalSizeRanges(boundaries ...dsoptions.Cursor) []rangeInfo {
 	ranges := make([]rangeInfo, 0, len(boundaries))
 	for _, b := range boundaries {
