@@ -577,7 +577,7 @@ func TestOutline_Decompile(t *testing.T) {
 	t.Run("AliasIterator", func(t *testing.T) {
 		require := require.New(t)
 
-		alias := NewAliasIterator("viewer", NewFixedIterator())
+		alias := NewAliasIterator("", "viewer", NewFixedIterator())
 
 		outline, err := Decompile(alias)
 		require.NoError(err)

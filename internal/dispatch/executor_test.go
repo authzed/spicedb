@@ -82,7 +82,7 @@ func TestDispatchExecutor_Check_AliasDispatches(t *testing.T) {
 
 	// AliasIterator wrapping a FixedIterator — should trigger dispatch
 	inner := query.NewFixedIterator()
-	alias := query.NewAliasIterator("viewer", inner)
+	alias := query.NewAliasIterator("", "viewer", inner)
 
 	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestDispatchExecutor_Check_AliasNoResult(t *testing.T) {
 	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
 	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestDispatchExecutor_IterSubjects_AliasDispatches(t *testing.T) {
 	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
 	pathSeq, err := exec.IterSubjects(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
 	require.NoError(t, err)
@@ -206,7 +206,7 @@ func TestDispatchExecutor_IterResources_AliasDispatches(t *testing.T) {
 	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
 	pathSeq, err := exec.IterResources(ctx, alias, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
 	require.NoError(t, err)
@@ -252,7 +252,7 @@ func TestDispatchExecutor_Check_AliasWithRecursiveSentinelDoesNotDispatch(t *tes
 
 	// AliasIterator wrapping a RecursiveSentinel — should NOT dispatch
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("viewer", sentinel)
+	alias := query.NewAliasIterator("", "viewer", sentinel)
 
 	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(t, err)
@@ -270,7 +270,7 @@ func TestDispatchExecutor_IterSubjects_AliasWithRecursiveSentinelDoesNotDispatch
 	ctx := newTestContext()
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("viewer", sentinel)
+	alias := query.NewAliasIterator("", "viewer", sentinel)
 
 	pathSeq, err := exec.IterSubjects(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
 	require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestDispatchExecutor_IterResources_AliasWithRecursiveSentinelDoesNotDispatc
 	ctx := newTestContext()
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("viewer", sentinel)
+	alias := query.NewAliasIterator("", "viewer", sentinel)
 
 	pathSeq, err := exec.IterResources(ctx, alias, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
 	require.NoError(t, err)
@@ -320,7 +320,7 @@ func TestDispatchExecutor_Check_AliasWithSentinelInsideRecursiveDispatches(t *te
 	// The sentinel is managed by the RecursiveIterator's context, so dispatch is allowed.
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
-	alias := query.NewAliasIterator("viewer", recursive)
+	alias := query.NewAliasIterator("", "viewer", recursive)
 
 	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(t, err)
@@ -350,7 +350,7 @@ func TestDispatchExecutor_IterSubjects_AliasWithSentinelInsideRecursiveDispatche
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
-	alias := query.NewAliasIterator("viewer", recursive)
+	alias := query.NewAliasIterator("", "viewer", recursive)
 
 	pathSeq, err := exec.IterSubjects(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
 	require.NoError(t, err)
@@ -382,7 +382,7 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
-	alias := query.NewAliasIterator("viewer", recursive)
+	alias := query.NewAliasIterator("", "viewer", recursive)
 
 	pathSeq, err := exec.IterResources(ctx, alias, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
 	require.NoError(t, err)
@@ -407,7 +407,7 @@ func TestDispatchExecutor_Check_DoubleRecursionUnmatchedSentinelDoesNotDispatch(
 	// so dispatch should be blocked.
 	documentSentinel := query.NewRecursiveSentinelIterator("document", "reader", false)
 	folderRecursive := query.NewRecursiveIterator(documentSentinel, "folder", "viewer")
-	alias := query.NewAliasIterator("viewer", folderRecursive)
+	alias := query.NewAliasIterator("", "viewer", folderRecursive)
 
 	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(t, err)
@@ -441,7 +441,7 @@ func TestDispatchExecutor_Check_DoubleRecursionBothMatchedDispatches(t *testing.
 	documentSentinel := query.NewRecursiveSentinelIterator("document", "reader", false)
 	documentRecursive := query.NewRecursiveIterator(documentSentinel, "document", "reader")
 	folderRecursive := query.NewRecursiveIterator(documentRecursive, "folder", "viewer")
-	alias := query.NewAliasIterator("viewer", folderRecursive)
+	alias := query.NewAliasIterator("", "viewer", folderRecursive)
 
 	path, err := exec.Check(ctx, alias, query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 	require.NoError(t, err)
@@ -469,7 +469,7 @@ func TestDispatchExecutor_StreamBatching(t *testing.T) {
 	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
 	pathSeq, err := exec.IterResources(ctx, alias, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
 	require.NoError(t, err)
@@ -495,7 +495,7 @@ func TestDispatchExecutor_PlanContextForwarded(t *testing.T) {
 	exec := NewDispatchExecutor(td, pc, 100)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	_, _ = exec.Check(ctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 
 	require.Len(t, td.planCalls, 1)
@@ -515,7 +515,7 @@ func TestDispatchExecutor_ContextCancellation(t *testing.T) {
 	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	qctx := query.NewLocalContext(ctx)
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	_, err := exec.Check(qctx, alias, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
 
 	// The dispatch itself succeeds (our test dispatcher doesn't check context),
@@ -675,7 +675,7 @@ func TestDispatchExecutor_CheckManyResources_AliasDispatchesAndPairsByONR(t *tes
 	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	resources := []query.Object{
 		{ObjectType: "document", ObjectID: "doc1"},
 		{ObjectType: "document", ObjectID: "doc2"},
@@ -709,7 +709,7 @@ func TestDispatchExecutor_CheckManySubjects_AliasDispatches(t *testing.T) {
 	exec := NewDispatchExecutor(td, &v1.PlanContext{Revision: "rev1"}, 100)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	subjects := []query.ObjectAndRelation{
 		{ObjectType: "user", ObjectID: "alice", Relation: "..."},
 		{ObjectType: "user", ObjectID: "bob", Relation: "..."},
@@ -791,7 +791,7 @@ func TestDispatchExecutor_CheckManyResources_ChunksByDispatchChunkSize(t *testin
 	exec := NewDispatchExecutor(cd, &v1.PlanContext{Revision: "rev1"}, chunkSize)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
 	resources := make([]query.Object, total)
 	for i := range resources {
@@ -838,7 +838,7 @@ func TestDispatchExecutor_CheckManySubjects_ChunksByDispatchChunkSize(t *testing
 	exec := NewDispatchExecutor(cd, &v1.PlanContext{Revision: "rev1"}, chunkSize)
 	ctx := newTestContext()
 
-	alias := query.NewAliasIterator("viewer", query.NewFixedIterator())
+	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	subjects := make([]query.ObjectAndRelation, total)
 	for i := range subjects {
 		subjects[i] = query.ObjectAndRelation{ObjectType: "user", ObjectID: "u" + string(rune('a'+i)), Relation: "..."}

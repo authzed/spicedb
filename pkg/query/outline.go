@@ -224,9 +224,8 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 		if outline.Args == nil || outline.Args.RelationName == "" {
 			return nil, errors.New("AliasIterator requires RelationName in Args")
 		}
-		alias := NewAliasIteratorWithChain(outline.Args.RelationName, outline.Args.AliasedAs, compiledSubs[0])
+		alias := NewAliasIteratorWithChain(outline.Args.DefinitionName, outline.Args.RelationName, outline.Args.AliasedAs, compiledSubs[0])
 		alias.canonicalKey = key
-		alias.definitionName = outline.Args.DefinitionName
 		it = alias
 
 	case RecursiveIteratorType:

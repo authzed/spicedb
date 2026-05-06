@@ -25,19 +25,10 @@ type AliasIterator struct {
 var _ Iterator = &AliasIterator{}
 
 // NewAliasIterator creates a new Alias iterator that rewrites paths from the sub-iterator
-// to use the specified relation name.
-func NewAliasIterator(relation string, subIt Iterator) *AliasIterator {
-	return &AliasIterator{
-		relation: relation,
-		subIt:    subIt,
-	}
-}
-
-// NewAliasIteratorWithDefinition creates a new Alias iterator that also carries
-// the schema definition name to which the alias belongs. The definition name is
-// used by the dispatch layer to identify the (definition, relation) boundary
-// represented by this alias.
-func NewAliasIteratorWithDefinition(definitionName, relation string, subIt Iterator) *AliasIterator {
+// to use the specified relation name. The definitionName identifies the schema definition
+// to which the alias belongs and is used by the dispatch layer to identify the
+// (definition, relation) boundary represented by this alias.
+func NewAliasIterator(definitionName, relation string, subIt Iterator) *AliasIterator {
 	return &AliasIterator{
 		definitionName: definitionName,
 		relation:       relation,
@@ -53,11 +44,12 @@ func NewAliasIteratorWithDefinition(definitionName, relation string, subIt Itera
 // as the identity (cache key, datastore-facing name) and records ["view","perm"]
 // in aliasedAs so the iterator emits paths labeled "perm" and the self-edge
 // matches subject relations in {"viewer","view","perm"}.
-func NewAliasIteratorWithChain(relation string, aliasedAs []string, subIt Iterator) *AliasIterator {
+func NewAliasIteratorWithChain(definitionName, relation string, aliasedAs []string, subIt Iterator) *AliasIterator {
 	return &AliasIterator{
-		relation:  relation,
-		aliasedAs: append([]string(nil), aliasedAs...),
-		subIt:     subIt,
+		definitionName: definitionName,
+		relation:       relation,
+		aliasedAs:      append([]string(nil), aliasedAs...),
+		subIt:          subIt,
 	}
 }
 
@@ -71,9 +63,7 @@ func (a *AliasIterator) effectiveRelation() string {
 	return a.relation
 }
 
-// DefinitionName returns the schema definition this alias belongs to, or the
-// empty string if the alias was constructed without one (e.g. by tests using
-// the 2-arg NewAliasIterator).
+// DefinitionName returns the schema definition this alias belongs to.
 func (a *AliasIterator) DefinitionName() string {
 	return a.definitionName
 }
