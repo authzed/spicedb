@@ -49,6 +49,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -108,6 +109,7 @@ type Config struct {
 	DispatchClusterMetricsEnabled     bool                    `debugmap:"visible"`
 	DispatchClusterMetricsPrefix      string                  `debugmap:"visible"`
 	Dispatcher                        dispatch.Dispatcher     `debugmap:"visible"`
+	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
 	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
 	DispatchHashringSpread            uint8                   `debugmap:"visible"`
 	DispatchChunkSize                 uint16                  `debugmap:"visible" default:"100"`
@@ -231,6 +233,15 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
 	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
+	// Single QueryPlanMetadata instance shared by the in-process dispatcher and
+	// the permissions service so receiver-side stats accumulate into the same
+	// store the sender consults via the count-based advisor. Callers may inject
+	// their own to share with an externally-constructed dispatcher.
+	queryPlanMetadata := c.QueryPlanMetadata
+	if queryPlanMetadata == nil {
+		queryPlanMetadata = query.NewQueryPlanMetadata()
+	}
+
 	// Create LR3 resource chunk cache (used by both dispatcher types)
 	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&c.LR3ResourceChunkCacheConfig)
 	if err != nil {
@@ -290,6 +301,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
+			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -452,6 +464,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			LookupResources: slices.Contains(c.ExperimentalQueryPlan, "lr"),
 			LookupSubjects:  slices.Contains(c.ExperimentalQueryPlan, "ls"),
 		},
+		QueryPlanMetadata: queryPlanMetadata,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

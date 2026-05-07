@@ -39,6 +39,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -120,6 +121,13 @@ type PermissionsServerConfig struct {
 
 	// ExperimentalQueryPlan configures which API operations use the experimental query plan.
 	ExperimentalQueryPlan ExperimentalQueryPlanConfig
+
+	// QueryPlanMetadata is the shared per-server stats store that drives the
+	// count-based plan advisor. When nil, NewPermissionsServer allocates a fresh
+	// instance. To share stats with a co-located dispatcher (so receiver-side
+	// dispatch can consult and update the same store), construct one externally
+	// and pass it both here and via graph.DispatcherParameters.
+	QueryPlanMetadata *query.QueryPlanMetadata
 }
 
 // ExperimentalQueryPlanConfig controls which API operations are routed through the
@@ -158,6 +166,10 @@ func NewPermissionsServer(
 		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
+		QueryPlanMetadata:                  config.QueryPlanMetadata,
+	}
+	if configWithDefaults.QueryPlanMetadata == nil {
+		configWithDefaults.QueryPlanMetadata = query.NewQueryPlanMetadata()
 	}
 	return &permissionServer{
 		dispatch: dispatch,
@@ -185,7 +197,7 @@ func NewPermissionsServer(
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
-		queryPlanMetadata: NewQueryPlanMetadata(),
+		queryPlanMetadata: configWithDefaults.QueryPlanMetadata,
 	}
 }
 
@@ -197,7 +209,7 @@ type permissionServer struct {
 	config   PermissionsServerConfig
 
 	bulkChecker       *bulkChecker
-	queryPlanMetadata *QueryPlanMetadata
+	queryPlanMetadata *query.QueryPlanMetadata
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
