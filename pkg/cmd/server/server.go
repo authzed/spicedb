@@ -97,22 +97,22 @@ type Config struct {
 	ExperimentalSchemaMode string `debugmap:"visible"`
 
 	// Dispatch options
-	DispatchServer                    util.GRPCServerConfig   `debugmap:"visible"`
-	DispatchMaxDepth                  uint32                  `debugmap:"visible"`
-	GlobalDispatchConcurrencyLimit    uint16                  `debugmap:"visible"`
-	DispatchConcurrencyLimits         graph.ConcurrencyLimits `debugmap:"visible"`
-	DispatchUpstreamAddr              string                  `debugmap:"visible"`
-	DispatchUpstreamCAPath            string                  `debugmap:"visible"`
-	DispatchUpstreamTimeout           time.Duration           `debugmap:"visible"`
-	DispatchClientMetricsEnabled      bool                    `debugmap:"visible"`
-	DispatchClientMetricsPrefix       string                  `debugmap:"visible"`
-	DispatchClusterMetricsEnabled     bool                    `debugmap:"visible"`
-	DispatchClusterMetricsPrefix      string                  `debugmap:"visible"`
-	Dispatcher                        dispatch.Dispatcher     `debugmap:"visible"`
+	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
+	DispatchMaxDepth                  uint32                   `debugmap:"visible"`
+	GlobalDispatchConcurrencyLimit    uint16                   `debugmap:"visible"`
+	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
+	DispatchUpstreamAddr              string                   `debugmap:"visible"`
+	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
+	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible"`
+	DispatchClientMetricsEnabled      bool                     `debugmap:"visible"`
+	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
+	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible"`
+	DispatchClusterMetricsPrefix      string                   `debugmap:"visible"`
+	Dispatcher                        dispatch.Dispatcher      `debugmap:"visible"`
 	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
-	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
-	DispatchHashringSpread            uint8                   `debugmap:"visible"`
-	DispatchChunkSize                 uint16                  `debugmap:"visible" default:"100"`
+	DispatchHashringReplicationFactor uint16                   `debugmap:"visible"`
+	DispatchHashringSpread            uint8                    `debugmap:"visible"`
+	DispatchChunkSize                 uint16                   `debugmap:"visible" default:"100"`
 
 	DispatchSecondaryUpstreamAddrs               map[string]string `debugmap:"visible"`
 	DispatchSecondaryUpstreamExprs               map[string]string `debugmap:"visible"`
@@ -333,6 +333,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
 			clusterdispatch.RelationshipChunkCache(lr3ChunkCache),
+			clusterdispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
