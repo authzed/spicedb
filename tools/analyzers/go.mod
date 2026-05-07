@@ -3,7 +3,7 @@ module github.com/authzed/spicedb/tools/analyzers
 go 1.26.3
 
 require (
-	github.com/samber/lo v1.52.0
+	github.com/samber/lo v1.53.0
 	golang.org/x/tools v0.44.0
 )
 
