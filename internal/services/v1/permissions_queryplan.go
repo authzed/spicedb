@@ -8,6 +8,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	caveatsimpl "github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -151,11 +152,15 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	// Create count observer to track query execution statistics
 	countObserver := query.NewCountObserver()
 
-	// Create query context with count observer
-	qctx := query.NewLocalContext(ctx,
-		query.WithReader(query.NewQueryDatastoreReader(reader)),
-		query.WithCaveatContext(caveatContext),
-		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+	// Create query context backed by a DispatchExecutor.
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	qctx := dispatch.NewQueryContext(
+		ctx,
+		ps.dispatch,
+		planContext,
+		query.NewQueryDatastoreReader(reader),
+		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 
@@ -281,10 +286,14 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 
 	countObserver := query.NewCountObserver()
 
-	qctx := query.NewLocalContext(ctx,
-		query.WithReader(query.NewQueryDatastoreReader(reader)),
-		query.WithCaveatContext(caveatContext),
-		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	qctx := dispatch.NewQueryContext(
+		ctx,
+		ps.dispatch,
+		planContext,
+		query.NewQueryDatastoreReader(reader),
+		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 
@@ -405,10 +414,14 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 
 	countObserver := query.NewCountObserver()
 
-	qctx := query.NewLocalContext(ctx,
-		query.WithReader(query.NewQueryDatastoreReader(reader)),
-		query.WithCaveatContext(caveatContext),
-		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	qctx := dispatch.NewQueryContext(
+		ctx,
+		ps.dispatch,
+		planContext,
+		query.NewQueryDatastoreReader(reader),
+		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 

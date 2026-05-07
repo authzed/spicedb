@@ -224,7 +224,7 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 		if outline.Args == nil || outline.Args.RelationName == "" {
 			return nil, errors.New("AliasIterator requires RelationName in Args")
 		}
-		alias := NewAliasIteratorWithChain(outline.Args.RelationName, outline.Args.AliasedAs, compiledSubs[0])
+		alias := NewAliasIteratorWithChain(outline.Args.DefinitionName, outline.Args.RelationName, outline.Args.AliasedAs, compiledSubs[0])
 		alias.canonicalKey = key
 		it = alias
 
@@ -378,8 +378,9 @@ func Decompile(it Iterator) (Outline, error) {
 		return Outline{
 			Type: AliasIteratorType,
 			Args: &IteratorArgs{
-				RelationName: typed.relation,
-				AliasedAs:    append([]string(nil), typed.aliasedAs...),
+				DefinitionName: typed.definitionName,
+				RelationName:   typed.relation,
+				AliasedAs:      append([]string(nil), typed.aliasedAs...),
 			},
 			SubOutlines: decompSubs,
 		}, nil

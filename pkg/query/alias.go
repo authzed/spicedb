@@ -15,20 +15,24 @@ import "strings"
 // semantics of an uncollapsed chain. The underlying identity (relation) is kept so
 // the canonical key for caching reflects the data the iterator actually reads.
 type AliasIterator struct {
-	relation     string
-	aliasedAs    []string
-	subIt        Iterator
-	canonicalKey CanonicalKey
+	definitionName string
+	relation       string
+	aliasedAs      []string
+	subIt          Iterator
+	canonicalKey   CanonicalKey
 }
 
 var _ Iterator = &AliasIterator{}
 
 // NewAliasIterator creates a new Alias iterator that rewrites paths from the sub-iterator
-// to use the specified relation name.
-func NewAliasIterator(relation string, subIt Iterator) *AliasIterator {
+// to use the specified relation name. The definitionName identifies the schema definition
+// to which the alias belongs and is used by the dispatch layer to identify the
+// (definition, relation) boundary represented by this alias.
+func NewAliasIterator(definitionName, relation string, subIt Iterator) *AliasIterator {
 	return &AliasIterator{
-		relation: relation,
-		subIt:    subIt,
+		definitionName: definitionName,
+		relation:       relation,
+		subIt:          subIt,
 	}
 }
 
@@ -40,11 +44,12 @@ func NewAliasIterator(relation string, subIt Iterator) *AliasIterator {
 // as the identity (cache key, datastore-facing name) and records ["view","perm"]
 // in aliasedAs so the iterator emits paths labeled "perm" and the self-edge
 // matches subject relations in {"viewer","view","perm"}.
-func NewAliasIteratorWithChain(relation string, aliasedAs []string, subIt Iterator) *AliasIterator {
+func NewAliasIteratorWithChain(definitionName, relation string, aliasedAs []string, subIt Iterator) *AliasIterator {
 	return &AliasIterator{
-		relation:  relation,
-		aliasedAs: append([]string(nil), aliasedAs...),
-		subIt:     subIt,
+		definitionName: definitionName,
+		relation:       relation,
+		aliasedAs:      append([]string(nil), aliasedAs...),
+		subIt:          subIt,
 	}
 }
 
@@ -56,6 +61,17 @@ func (a *AliasIterator) effectiveRelation() string {
 		return a.aliasedAs[n-1]
 	}
 	return a.relation
+}
+
+// DefinitionName returns the schema definition this alias belongs to.
+func (a *AliasIterator) DefinitionName() string {
+	return a.definitionName
+}
+
+// Relation returns the outermost name in the alias chain — what emitted paths
+// are rewritten to and what callers asked the alias to compute.
+func (a *AliasIterator) Relation() string {
+	return a.effectiveRelation()
 }
 
 // matchesSelfEdgeRelation reports whether the given relation name would trigger
@@ -256,10 +272,11 @@ func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 func (a *AliasIterator) Clone() Iterator {
 	return &AliasIterator{
-		canonicalKey: a.canonicalKey,
-		relation:     a.relation,
-		aliasedAs:    append([]string(nil), a.aliasedAs...),
-		subIt:        a.subIt.Clone(),
+		canonicalKey:   a.canonicalKey,
+		definitionName: a.definitionName,
+		relation:       a.relation,
+		aliasedAs:      append([]string(nil), a.aliasedAs...),
+		subIt:          a.subIt.Clone(),
 	}
 }
 
@@ -281,10 +298,11 @@ func (a *AliasIterator) Subiterators() []Iterator {
 
 func (a *AliasIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
 	return &AliasIterator{
-		canonicalKey: a.canonicalKey,
-		relation:     a.relation,
-		aliasedAs:    append([]string(nil), a.aliasedAs...),
-		subIt:        newSubs[0],
+		canonicalKey:   a.canonicalKey,
+		definitionName: a.definitionName,
+		relation:       a.relation,
+		aliasedAs:      append([]string(nil), a.aliasedAs...),
+		subIt:          newSubs[0],
 	}, nil
 }
 

@@ -227,6 +227,10 @@ enum PlanOperation {
   PLAN_OPERATION_CHECK = 0;
   PLAN_OPERATION_LOOKUP_RESOURCES = 1;
   PLAN_OPERATION_LOOKUP_SUBJECTS = 2;
+  // CHECK_MANY_RESOURCES: many = repeated resource ONRs, subject = single ONR.
+  PLAN_OPERATION_CHECK_MANY_RESOURCES = 3;
+  // CHECK_MANY_SUBJECTS: resource = single ONR, many = repeated subject ONRs.
+  PLAN_OPERATION_CHECK_MANY_SUBJECTS = 4;
 }
 
 message PlanContext {
@@ -235,14 +239,34 @@ message PlanContext {
   int32 max_recursion_depth = 3;
   uint64 optional_datastore_limit = 4;
   bytes schema_hash = 5;
+  // in_progress_keys are the dispatch canonical keys (\"def#rel\") that ancestors
+  // of this dispatch are currently computing. The receiver-side DispatchExecutor
+  // refuses to dispatch any alias whose key is in this set, falling back to local
+  // execution. This is what breaks dispatch loops that arise when the standalone
+  // plan for a key contains another structurally complete instance of itself
+  // (cross-relation recursion the sentinel machinery can't see).
+  repeated string in_progress_keys = 6;
+  // top_level_operation carries the user-facing operation (Check / LookupSubjects
+  // / LookupResources) that started the dispatch chain. The receiver pre-seals
+  // its qctx with this value so iterators that consult TopLevelOperation (e.g.
+  // AliasIterator.shouldIncludeSelfEdge) see the original API intent rather
+  // than the per-hop dispatch op. Reuses PlanOperation so a single enum
+  // describes both per-hop and user-facing operations; only CHECK,
+  // LOOKUP_RESOURCES, and LOOKUP_SUBJECTS are valid here.
+  PlanOperation top_level_operation = 7;
 }
 
 message DispatchQueryPlanRequest {
   PlanOperation operation = 1;
   string canonical_key = 2;
+  // For CHECK_MANY_RESOURCES, resource is empty and `many` carries the resources.
   core.v1.ObjectAndRelation resource = 3;
+  // For CHECK_MANY_SUBJECTS, subject is empty and `many` carries the subjects.
   core.v1.ObjectAndRelation subject = 4;
   PlanContext plan_context = 5;
+  // many takes the place of resource or subject (whichever is empty), used by
+  // PLAN_OPERATION_CHECK_MANY_RESOURCES and PLAN_OPERATION_CHECK_MANY_SUBJECTS.
+  repeated core.v1.ObjectAndRelation many = 6;
 }
 
 message DispatchQueryPlanResponse {
