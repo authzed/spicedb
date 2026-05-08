@@ -11,6 +11,8 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/authzed/spicedb/pkg/query"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -19,6 +21,7 @@ type Option func(*optionState)
 type optionState struct {
 	metricsEnabled               bool
 	prometheusSubsystem          string
+	prometheusRegisterer         prometheus.Registerer
 	cache                        cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits            graph.ConcurrencyLimits
 	remoteDispatchTimeout        time.Duration
@@ -26,6 +29,15 @@ type optionState struct {
 	caveatTypeSet                *caveattypes.TypeSet
 	relationshipChunkCacheConfig *cache.Config
 	relationshipChunkCache       cache.Cache[cache.StringKey, any]
+	queryPlanMetadata            *query.QueryPlanMetadata
+}
+
+// QueryPlanMetadata sets the shared count-stats store for the receiver-side
+// query plan dispatcher built by NewClusterDispatcher.
+func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
+	return func(state *optionState) {
+		state.queryPlanMetadata = m
+	}
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -138,6 +150,8 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		TypeSet:                cts,
 		DispatchChunkSize:      opts.dispatchChunkSize,
 		RelationshipChunkCache: relationshipChunkCache,
+		PrometheusRegisterer:   opts.prometheusRegisterer,
+		QueryPlanMetadata:      opts.queryPlanMetadata,
 	}
 	clusterDispatch, err := graph.NewDispatcher(dispatch, params)
 	if err != nil {
@@ -148,7 +162,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusRegisterer, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

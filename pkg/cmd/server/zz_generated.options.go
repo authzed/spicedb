@@ -8,6 +8,7 @@ import (
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
+	query "github.com/authzed/spicedb/pkg/query"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpc "google.golang.org/grpc"
@@ -71,6 +72,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchClusterMetricsEnabled = c.DispatchClusterMetricsEnabled
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
 		to.Dispatcher = c.Dispatcher
+		to.QueryPlanMetadata = c.QueryPlanMetadata
 		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.DispatchHashringSpread = c.DispatchHashringSpread
 		to.DispatchChunkSize = c.DispatchChunkSize
@@ -665,6 +667,13 @@ func WithDispatchClusterMetricsPrefix(dispatchClusterMetricsPrefix string) Confi
 func WithDispatcher(dispatcher dispatch.Dispatcher) ConfigOption {
 	return func(c *Config) {
 		c.Dispatcher = dispatcher
+	}
+}
+
+// WithQueryPlanMetadata returns an option that can set QueryPlanMetadata on a Config
+func WithQueryPlanMetadata(queryPlanMetadata *query.QueryPlanMetadata) ConfigOption {
+	return func(c *Config) {
+		c.QueryPlanMetadata = queryPlanMetadata
 	}
 }
 

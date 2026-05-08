@@ -77,13 +77,6 @@ const defaultTDigestCompression = float64(1000)
 
 var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 
-func init() {
-	prometheus.MustRegister(dispatchCounter)
-	prometheus.MustRegister(hedgeWaitHistogram)
-	prometheus.MustRegister(hedgeActualWaitHistogram)
-	prometheus.MustRegister(primaryDispatch)
-}
-
 type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
@@ -100,6 +93,9 @@ type ClusterDispatcherConfig struct {
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
 	// before it should timeout.
 	DispatchOverallTimeout time.Duration
+
+	// Registerer is the prometheus registerer to use for metrics. If nil, prometheus.DefaultRegisterer is used.
+	Registerer prometheus.Registerer
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -119,6 +115,19 @@ type SecondaryDispatch struct {
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
 func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (dispatch.Dispatcher, error) {
+	registerer := config.Registerer
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	for _, c := range []prometheus.Collector{dispatchCounter, hedgeWaitHistogram, hedgeActualWaitHistogram, primaryDispatch} {
+		if err := registerer.Register(c); err != nil {
+			var alreadyRegistered prometheus.AlreadyRegisteredError
+			if !errors.As(err, &alreadyRegistered) {
+				return nil, fmt.Errorf("failed to register cluster dispatch metrics: %w", err)
+			}
+		}
+	}
+
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}

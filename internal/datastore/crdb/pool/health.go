@@ -2,6 +2,8 @@ package pool
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -23,10 +25,6 @@ var healthyCRDBNodeCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Help: "the number of healthy crdb nodes detected by spicedb",
 })
 
-func init() {
-	prometheus.MustRegister(healthyCRDBNodeCountGauge)
-}
-
 // NodeHealthTracker detects changes in the node pool by polling the cluster periodically and recording
 // the node ids that are seen. This is used to detect new nodes that come online that have either previously
 // been marked unhealthy due to connection errors or due to scale up.
@@ -41,10 +39,20 @@ type NodeHealthTracker struct {
 }
 
 // NewNodeHealthChecker builds a health checker that polls the cluster at the given url.
-func NewNodeHealthChecker(url string) (*NodeHealthTracker, error) {
+func NewNodeHealthChecker(url string, registerer prometheus.Registerer) (*NodeHealthTracker, error) {
 	connConfig, err := pgxcommon.ParseConfigWithInstrumentation(url)
 	if err != nil {
 		return nil, err
+	}
+
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(healthyCRDBNodeCountGauge); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return nil, fmt.Errorf("failed to register crdb health metrics: %w", err)
+		}
 	}
 
 	return &NodeHealthTracker{

@@ -63,16 +63,21 @@ var (
 
 // RegisterGCMetrics registers garbage collection metrics to the default
 // registry and returns them (so that they be unregistered).
-func RegisterGCMetrics() ([]prometheus.Collector, error) {
+func RegisterGCMetrics(registerer prometheus.Registerer) ([]prometheus.Collector, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
 	collectors := []prometheus.Collector{
 		gcDurationHistogram,
 		gcRelationshipsCounter,
+		gcExpiredRelationshipsCounter,
 		gcTransactionsCounter,
 		gcNamespacesCounter,
 		gcFailureCounter,
 	}
 	for _, metric := range collectors {
-		if err := prometheus.Register(metric); err != nil {
+		if err := registerer.Register(metric); err != nil {
 			return nil, fmt.Errorf("failed to register GC metric: %w", err)
 		}
 	}

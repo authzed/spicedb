@@ -40,6 +40,7 @@ type Dispatcher struct {
 	lookupResourcesFromCacheCounter prometheus.Counter
 	lookupSubjectsTotalCounter      prometheus.Counter
 	lookupSubjectsFromCacheCounter  prometheus.Counter
+	registerer                      prometheus.Registerer
 }
 
 func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
@@ -53,9 +54,13 @@ func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates
 // dispatch requests and caches the responses when possible and desirable.
-func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], metricsEnabled bool, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
+func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], metricsEnabled bool, registerer prometheus.Registerer, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
 	if cacheInst == nil {
 		cacheInst = cache.NoopCache[keys.DispatchCacheKey, any]()
+	}
+
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
 	}
 
 	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
@@ -98,27 +103,27 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 	})
 
 	if metricsEnabled && prometheusSubsystem != "" {
-		err := prometheus.Register(checkTotalCounter)
+		err := registerer.Register(checkTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-		err = prometheus.Register(checkFromCacheCounter)
+		err = registerer.Register(checkFromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-		err = prometheus.Register(lookupResourcesTotalCounter)
+		err = registerer.Register(lookupResourcesTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-		err = prometheus.Register(lookupResourcesFromCacheCounter)
+		err = registerer.Register(lookupResourcesFromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-		err = prometheus.Register(lookupSubjectsTotalCounter)
+		err = registerer.Register(lookupSubjectsTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-		err = prometheus.Register(lookupSubjectsFromCacheCounter)
+		err = registerer.Register(lookupSubjectsFromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
@@ -138,6 +143,7 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		lookupResourcesFromCacheCounter: lookupResourcesFromCacheCounter,
 		lookupSubjectsTotalCounter:      lookupSubjectsTotalCounter,
 		lookupSubjectsFromCacheCounter:  lookupSubjectsFromCacheCounter,
+		registerer:                      registerer,
 	}, nil
 }
 
@@ -457,12 +463,15 @@ func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequ
 }
 
 func (cd *Dispatcher) Close() error {
-	prometheus.Unregister(cd.checkTotalCounter)
-	prometheus.Unregister(cd.checkFromCacheCounter)
-	prometheus.Unregister(cd.lookupResourcesTotalCounter)
-	prometheus.Unregister(cd.lookupResourcesFromCacheCounter)
-	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
-	prometheus.Unregister(cd.lookupSubjectsTotalCounter)
+	if cd.registerer != nil {
+		cd.registerer.Unregister(cd.checkTotalCounter)
+		cd.registerer.Unregister(cd.checkFromCacheCounter)
+		cd.registerer.Unregister(cd.lookupResourcesTotalCounter)
+		cd.registerer.Unregister(cd.lookupResourcesFromCacheCounter)
+		cd.registerer.Unregister(cd.lookupSubjectsFromCacheCounter)
+		cd.registerer.Unregister(cd.lookupSubjectsTotalCounter)
+	}
+
 	if cache := cd.c; cache != nil {
 		cache.Close()
 	}

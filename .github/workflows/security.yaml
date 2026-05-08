@@ -51,7 +51,7 @@ jobs:
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v4" # v3.7.0
+      - uses: "docker/login-action@v4.1.0" # v3.7.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -60,7 +60,7 @@ jobs:
           sudo snap install snapcraft --channel=8.x/stable --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages
-      - uses: "aquasecurity/trivy-action@v0.35.0"
+      - uses: "aquasecurity/trivy-action@v0.36.0"
         with:
           scan-type: "fs"
           ignore-unfixed: true
@@ -71,7 +71,7 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db"
           TRIVY_JAVA_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-java-db"
-      - uses: "goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29" # v7.0.0
+      - uses: "goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8" # v7.2.1
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"

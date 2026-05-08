@@ -41,12 +41,18 @@ var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOp
 
 const noOriginalRelation = ""
 
-func init() {
-	prometheus.MustRegister(dispatchChunkCountHistogram)
-}
-
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16) *ConcurrentChecker {
+func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16, registerer prometheus.Registerer) *ConcurrentChecker {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(dispatchChunkCountHistogram); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			// log at debug level — metric registration failures should not crash the server
+			_ = fmt.Errorf("failed to register check dispatch metrics: %w", err)
+		}
+	}
 	return &ConcurrentChecker{d, concurrencyLimit, dispatchChunkSize}
 }
 

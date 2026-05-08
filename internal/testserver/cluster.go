@@ -24,6 +24,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
@@ -159,9 +160,16 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 	cancelFuncs := make([]func(), 0, size)
 
 	for i := range size {
+		// One QueryPlanMetadata per node, shared between the node's dispatcher
+		// (so receiver-side DispatchQueryPlan augments + advises off it) and the
+		// permissions service (so the sender's advisor and the receiver's are
+		// consulting the same store).
+		queryPlanMetadata := query.NewQueryPlanMetadata()
+
 		dispatcherOptions := []combineddispatch.Option{
 			combineddispatch.UpstreamAddr("test://" + prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
+			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithDefaultServiceConfig(
 					(&consistent.BalancerConfig{
@@ -193,6 +201,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 		serverOptions := []server.ConfigOption{ //nolint: prealloc  // we're not worried about perf here
 			server.WithDatastore(ds),
 			server.WithDispatcher(dispatcher),
+			server.WithQueryPlanMetadata(queryPlanMetadata),
 			server.WithDispatchMaxDepth(50),
 			server.WithMaximumPreconditionCount(1000),
 			server.WithMaximumUpdatesPerWrite(1000),

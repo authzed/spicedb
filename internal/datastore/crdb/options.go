@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type crdbOptions struct {
@@ -29,6 +30,7 @@ type crdbOptions struct {
 	enableConnectionBalancing      bool
 	analyzeBeforeStatistics        bool
 	filterMaximumIDCount           uint16
+	prometheusRegisterer           prometheus.Registerer
 	enablePrometheusStats          bool
 	withIntegrity                  bool
 	allowedMigrations              []string

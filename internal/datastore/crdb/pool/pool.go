@@ -34,10 +34,6 @@ var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
 })
 
-func init() {
-	prometheus.MustRegister(resetHistogram)
-}
-
 type ctxDisableRetries struct{}
 
 var (
@@ -56,7 +52,17 @@ type RetryPool struct {
 	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
 }
 
-func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
+func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration, registerer prometheus.Registerer) (*RetryPool, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(resetHistogram); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return nil, fmt.Errorf("failed to register crdb pool metrics: %w", err)
+		}
+	}
+
 	config = config.Copy()
 	p := &RetryPool{
 		id:            name,

@@ -1,14 +1,27 @@
 package cache
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func init() {
-	prometheus.MustRegister(defaultCollector)
+// RegisterMetrics registers the cache prometheus collector with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(defaultCollector); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return fmt.Errorf("failed to register cache metrics: %w", err)
+		}
+	}
+	return nil
 }
 
 const (

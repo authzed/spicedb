@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -122,7 +123,7 @@ func TestMaxDepthCaching(t *testing.T) {
 				}
 			}
 
-			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), false, prometheus.DefaultRegisterer, "", nil)
 			dispatch.SetDelegate(delegate)
 			require.NoError(err)
 			defer dispatch.Close()
@@ -174,7 +175,7 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 			},
 		}, nil)
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), false, prometheus.DefaultRegisterer, "", nil)
 	require.NoError(err)
 	dispatcher.SetDelegate(delegate)
 	t.Cleanup(func() {

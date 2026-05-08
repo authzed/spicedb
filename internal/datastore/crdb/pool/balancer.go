@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"errors"
 	"hash/maphash"
 	"maps"
 	"math"
@@ -33,11 +34,6 @@ var (
 	}, []string{"pool"})
 )
 
-func init() {
-	prometheus.MustRegister(connectionsPerCRDBNodeCountGauge)
-	prometheus.MustRegister(pruningTimeHistogram)
-}
-
 type balancePoolConn[C balanceConn] interface {
 	Conn() C
 	Release()
@@ -68,7 +64,18 @@ type NodeConnectionBalancer struct {
 }
 
 // NewNodeConnectionBalancer builds a new nodeConnectionBalancer for a given connection pool and health tracker.
-func NewNodeConnectionBalancer(pool *RetryPool, healthTracker *NodeHealthTracker, interval time.Duration) *NodeConnectionBalancer {
+func NewNodeConnectionBalancer(pool *RetryPool, healthTracker *NodeHealthTracker, interval time.Duration, registerer prometheus.Registerer) *NodeConnectionBalancer {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	for _, c := range []prometheus.Collector{connectionsPerCRDBNodeCountGauge, pruningTimeHistogram} {
+		if err := registerer.Register(c); err != nil {
+			var alreadyRegistered prometheus.AlreadyRegisteredError
+			if !errors.As(err, &alreadyRegistered) {
+				log.Warn().Err(err).Msg("failed to register crdb connection balancer metrics")
+			}
+		}
+	}
 	return &NodeConnectionBalancer{*newNodeConnectionBalancer[*pgxpool.Conn, *pgx.Conn](pool, healthTracker, interval)}
 }
 

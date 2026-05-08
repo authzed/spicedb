@@ -56,8 +56,27 @@ var definitionsReadTotalCounter = prometheus.NewCounterVec(prometheus.CounterOpt
 
 const maximumRetryCount = 10
 
-func init() {
-	prometheus.MustRegister(namespacesFallbackModeGauge, caveatsFallbackModeGauge, schemaCacheRevisionGauge, definitionsReadCachedCounter, definitionsReadTotalCounter)
+// RegisterMetrics registers the watching schema cache prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	for _, c := range []prometheus.Collector{
+		namespacesFallbackModeGauge,
+		caveatsFallbackModeGauge,
+		schemaCacheRevisionGauge,
+		definitionsReadCachedCounter,
+		definitionsReadTotalCounter,
+	} {
+		if err := registerer.Register(c); err != nil {
+			var alreadyRegistered prometheus.AlreadyRegisteredError
+			if !errors.As(err, &alreadyRegistered) {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // watchingCachingProxy is a datastore proxy that caches schema (namespaces and caveat definitions)

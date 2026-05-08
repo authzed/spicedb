@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/logging"
+	"github.com/authzed/spicedb/pkg/query"
 )
 
 // ServerConfig is configuration for the test server.
@@ -88,6 +89,8 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	require.NoError(t, err)
 
 	params.TypeSet = cts
+	queryPlanMetadata := query.NewQueryPlanMetadata()
+	params.QueryPlanMetadata = queryPlanMetadata
 
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
@@ -95,6 +98,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
+		server.WithQueryPlanMetadata(queryPlanMetadata),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),

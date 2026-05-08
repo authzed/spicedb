@@ -94,8 +94,12 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 // metrics and pprof endpoints.
 func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Handler {
 	mux := http.NewServeMux()
+	gatherer := prometheus.DefaultGatherer
+	if c != nil && c.PrometheusGatherer != nil {
+		gatherer = c.PrometheusGatherer
+	}
 
-	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
 		// Opt into OpenMetrics e.g. to support exemplars.
 		EnableOpenMetrics: true,
 	}))
@@ -191,6 +195,7 @@ type MiddlewareOption struct {
 	EnableRequestLog          bool                                 `debugmap:"visible"`
 	EnableResponseLog         bool                                 `debugmap:"visible"`
 	DisableGRPCHistogram      bool                                 `debugmap:"visible"`
+	PrometheusRegisterer      prometheus.Registerer                `debugmap:"hidden"`
 	MiddlewareServiceLabel    string                               `debugmap:"visible"`
 	MismatchingZedTokenOption consistencymw.MismatchingTokenOption `debugmap:"visible"`
 
@@ -253,9 +258,9 @@ var gRPCMetricsStreamingInterceptor grpc.StreamServerInterceptor
 var serverMetricsOnce sync.Once
 
 // GRPCMetrics returns the interceptors used for the default gRPC metrics from grpc-ecosystem/go-grpc-middleware
-func GRPCMetrics(disableLatencyHistogram bool) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+func GRPCMetrics(registerer prometheus.Registerer, disableLatencyHistogram bool) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	serverMetricsOnce.Do(func() {
-		gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor = createServerMetrics(disableLatencyHistogram)
+		gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor = createServerMetrics(registerer, disableLatencyHistogram)
 	})
 
 	return gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor
@@ -277,7 +282,7 @@ func doesNotMatchRoute(route string) func(_ context.Context, c interceptors.Call
 
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
 func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
-	grpcMetricsUnaryInterceptor, _ := GRPCMetrics(opts.DisableGRPCHistogram)
+	grpcMetricsUnaryInterceptor, _ := GRPCMetrics(opts.PrometheusRegisterer, opts.DisableGRPCHistogram)
 	memoryProtectionUnaryInterceptor := memoryprotection.New(opts.MemoryUsageProvider, "unary-middleware")
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
@@ -352,7 +357,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
 func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
-	_, grpcMetricsStreamingInterceptor := GRPCMetrics(opts.DisableGRPCHistogram)
+	_, grpcMetricsStreamingInterceptor := GRPCMetrics(opts.PrometheusRegisterer, opts.DisableGRPCHistogram)
 	memoryProtectionStreamInterceptor := memoryprotection.New(opts.MemoryUsageProvider, "stream-middleware")
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
@@ -437,8 +442,8 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 }
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
-func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, disableGRPCLatencyHistogram bool, memoryUsageProvider memoryprotection.MemoryUsageProvider, dlOpts ...datalayer.DataLayerOption) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
+func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, registerer prometheus.Registerer, disableGRPCLatencyHistogram bool, memoryUsageProvider memoryprotection.MemoryUsageProvider, dlOpts ...datalayer.DataLayerOption) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(registerer, disableGRPCLatencyHistogram)
 	dispatchMemoryProtection := memoryprotection.New(memoryUsageProvider, "dispatch-middleware")
 	dl := datalayer.NewDataLayer(ds, dlOpts...)
 
@@ -484,7 +489,11 @@ func InterceptorLogger(l zerolog.Logger) grpclog.Logger {
 }
 
 // initializes prometheus grpc interceptors with exemplar support enabled
-func createServerMetrics(disableHistogram bool) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+func createServerMetrics(registerer prometheus.Registerer, disableHistogram bool) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
 	var opts []grpcprom.ServerMetricsOption
 	if !disableHistogram {
 		opts = append(opts, grpcprom.WithServerHandlingTimeHistogram(
@@ -500,7 +509,7 @@ func createServerMetrics(disableHistogram bool) (grpc.UnaryServerInterceptor, gr
 	srvMetrics := grpcprom.NewServerMetrics(opts...)
 	// deliberately ignore if these metrics were already registered, so that
 	// custom builds of SpiceDB can register these metrics with custom labels
-	_ = prometheus.Register(srvMetrics)
+	_ = registerer.Register(srvMetrics)
 
 	exemplarFromContext := func(ctx context.Context) prometheus.Labels {
 		if span := trace.SpanContextFromContext(ctx); span.IsSampled() {

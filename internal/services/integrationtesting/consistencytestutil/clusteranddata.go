@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -75,7 +76,7 @@ func CreateDispatcherForTesting(t *testing.T, withCaching bool) dispatch.Dispatc
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(err)
 	if withCaching {
-		cachingDispatcher, err := caching.NewCachingDispatcher(nil, false, "", &keys.CanonicalKeyHandler{})
+		cachingDispatcher, err := caching.NewCachingDispatcher(nil, false, prometheus.DefaultRegisterer, "", &keys.CanonicalKeyHandler{})
 		require.NoError(err)
 
 		params2, err := graph.NewDefaultDispatcherParametersForTesting()

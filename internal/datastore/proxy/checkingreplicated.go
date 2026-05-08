@@ -3,11 +3,11 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -16,27 +16,48 @@ import (
 )
 
 var (
-	checkingReplicatedTotalReaderCount = promauto.NewCounter(prometheus.CounterOpts{
+	checkingReplicatedTotalReaderCount = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "checking_replicated_reader_total",
 		Help:      "total number of readers created by the checking replica proxy",
 	})
 
-	checkingReplicatedReplicaReaderCount = promauto.NewCounterVec(prometheus.CounterOpts{
+	checkingReplicatedReplicaReaderCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "checking_replicated_replica_reader_total",
 		Help:      "number of readers created by the checking replica proxy that are using the replica",
 	}, []string{"replica"})
 
-	readReplicatedSelectedReplicaCount = promauto.NewCounterVec(prometheus.CounterOpts{
+	readReplicatedSelectedReplicaCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "selected_replica_total",
 		Help:      "the selected replica in a read replicated datastore",
 	}, []string{"replica"})
 )
+
+// RegisterCheckingReplicatedMetrics registers the checking replicated datastore proxy prometheus metrics.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterCheckingReplicatedMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	for _, c := range []prometheus.Collector{
+		checkingReplicatedTotalReaderCount,
+		checkingReplicatedReplicaReaderCount,
+		readReplicatedSelectedReplicaCount,
+	} {
+		if err := registerer.Register(c); err != nil {
+			var alreadyRegistered prometheus.AlreadyRegisteredError
+			if !errors.As(err, &alreadyRegistered) {
+				return fmt.Errorf("failed to register checking replicated datastore metrics: %w", err)
+			}
+		}
+	}
+	return nil
+}
 
 // NewCheckingReplicatedDatastore creates a new datastore that writes to the provided primary and reads
 // from the provided replicas. The replicas are chosen in a round-robin fashion. If a replica does

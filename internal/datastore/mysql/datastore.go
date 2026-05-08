@@ -174,10 +174,14 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		}
 	}
 
-	db, collectors, err := registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, connector, config.enablePrometheusStats)
+	registerer := config.prometheusRegisterer
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	db, collectors, err := registerAndReturnPrometheusCollectors(registerer, replicaIndex, isPrimary, connector, config.enablePrometheusStats)
 	if err != nil {
 		for _, collector := range collectors {
-			_ = prometheus.Unregister(collector)
+			_ = registerer.Unregister(collector)
 		}
 		return nil, err
 	}
@@ -472,12 +476,13 @@ type mysqlDatastore struct {
 	*revisions.CachedOptimizedRevisions
 	*common.MigrationValidator
 
-	db                 *sql.DB
-	driver             *migrations.MySQLDriver
-	readTxOptions      *sql.TxOptions
-	url                string
-	analyzeBeforeStats bool
-	collectors         []prometheus.Collector
+	db                   *sql.DB
+	driver               *migrations.MySQLDriver
+	readTxOptions        *sql.TxOptions
+	url                  string
+	analyzeBeforeStats   bool
+	collectors           []prometheus.Collector
+	prometheusRegisterer prometheus.Registerer
 
 	revisionQuantization         time.Duration
 	gcWindow                     time.Duration
@@ -518,7 +523,7 @@ func (mds *mysqlDatastore) Close() error {
 		}
 	}
 	for _, collector := range mds.collectors {
-		_ = prometheus.Unregister(collector)
+		_ = mds.prometheusRegisterer.Unregister(collector)
 	}
 	return mds.db.Close()
 }
@@ -685,12 +690,16 @@ func (debugLogger) Print(v ...any) {
 	log.Logger.Debug().CallerSkipFrame(1).Str("datastore", "mysql").Msg(fmt.Sprint(v...))
 }
 
-func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, connector driver.Connector, enablePrometheusStats bool) (*sql.DB, []prometheus.Collector, error) {
+func registerAndReturnPrometheusCollectors(registerer prometheus.Registerer, replicaIndex int, isPrimary bool, connector driver.Connector, enablePrometheusStats bool) (*sql.DB, []prometheus.Collector, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
 	if !enablePrometheusStats {
 		return sql.OpenDB(connector), nil, nil
 	}
 
-	connector, collectors, err := instrumentConnector(connector, strconv.Itoa(replicaIndex))
+	connector, collectors, err := instrumentConnector(registerer, connector, strconv.Itoa(replicaIndex))
 	if err != nil {
 		return nil, collectors, err
 	}
@@ -702,13 +711,13 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, con
 
 	db := sql.OpenDB(connector)
 	collector := prom_collectors.NewDBStatsCollector(db, dbName)
-	if err := prometheus.Register(collector); err != nil {
+	if err := registerer.Register(collector); err != nil {
 		return nil, collectors, err
 	}
 	collectors = append(collectors, collector)
 
 	if isPrimary {
-		gcMetrics, err := datastore.RegisterGCMetrics()
+		gcMetrics, err := datastore.RegisterGCMetrics(registerer)
 		if err != nil {
 			return nil, collectors, err
 		}

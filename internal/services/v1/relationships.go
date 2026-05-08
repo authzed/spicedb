@@ -10,7 +10,6 @@ import (
 	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -39,18 +38,34 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-var writeUpdateCounter = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var writeUpdateCounter = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "v1",
 	Name:      "write_relationships_updates",
 	Help:      "The update counts for the WriteRelationships calls",
 	Buckets:   []float64{0, 1, 2, 5, 10, 15, 25, 50, 100, 250, 500, 1000},
 }, []string{"kind"})
+
+// RegisterMetrics registers the relationships service prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(writeUpdateCounter); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return fmt.Errorf("failed to register relationships service metrics: %w", err)
+		}
+	}
+	return nil
+}
 
 const MaximumTransactionMetadataSize = 65000 // bytes. Limited by the BLOB size used in MySQL driver
 
@@ -120,6 +135,13 @@ type PermissionsServerConfig struct {
 
 	// ExperimentalQueryPlan configures which API operations use the experimental query plan.
 	ExperimentalQueryPlan ExperimentalQueryPlanConfig
+
+	// QueryPlanMetadata is the shared per-server stats store that drives the
+	// count-based plan advisor. When nil, NewPermissionsServer allocates a fresh
+	// instance. To share stats with a co-located dispatcher (so receiver-side
+	// dispatch can consult and update the same store), construct one externally
+	// and pass it both here and via graph.DispatcherParameters.
+	QueryPlanMetadata *query.QueryPlanMetadata
 }
 
 // ExperimentalQueryPlanConfig controls which API operations are routed through the
@@ -158,6 +180,10 @@ func NewPermissionsServer(
 		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
+		QueryPlanMetadata:                  config.QueryPlanMetadata,
+	}
+	if configWithDefaults.QueryPlanMetadata == nil {
+		configWithDefaults.QueryPlanMetadata = query.NewQueryPlanMetadata()
 	}
 	return &permissionServer{
 		dispatch: dispatch,
@@ -185,7 +211,7 @@ func NewPermissionsServer(
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
-		queryPlanMetadata: NewQueryPlanMetadata(),
+		queryPlanMetadata: configWithDefaults.QueryPlanMetadata,
 	}
 }
 
@@ -197,7 +223,7 @@ type permissionServer struct {
 	config   PermissionsServerConfig
 
 	bulkChecker       *bulkChecker
-	queryPlanMetadata *QueryPlanMetadata
+	queryPlanMetadata *query.QueryPlanMetadata
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {

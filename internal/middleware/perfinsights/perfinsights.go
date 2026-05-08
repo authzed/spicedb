@@ -2,6 +2,7 @@ package perfinsights
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -61,7 +61,7 @@ func NoLabels() APIShapeLabels {
 //
 // To use make use of native histograms, a special flag must be set on Prometheus:
 // https://prometheus.io/docs/prometheus/latest/feature_flags/#native-histograms
-var APIShapeLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var APIShapeLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace:                   "spicedb",
 	Subsystem:                   "perf_insights",
 	Name:                        "api_shape_latency_seconds",
@@ -71,6 +71,21 @@ var APIShapeLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 }, append([]string{"api_kind"}, allLabels...))
 
 var tracer = otel.Tracer("spicedb/internal/middleware")
+
+// RegisterMetrics registers the performance insights prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(APIShapeLatency); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return fmt.Errorf("failed to register perfinsights metrics: %w", err)
+		}
+	}
+	return nil
+}
 
 // ShapeBuilder is a function that returns a slice of strings representing the shape of the API call.
 // This is used to report the shape of the API call to Prometheus.

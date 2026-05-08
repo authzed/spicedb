@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/authzed/grpcutil"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
@@ -21,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -28,6 +30,7 @@ type Option func(*optionState)
 
 type optionState struct {
 	metricsEnabled                               bool
+	prometheusRegisterer                         prometheus.Registerer
 	prometheusSubsystem                          string
 	upstreamAddr                                 string
 	upstreamCAPath                               string
@@ -44,6 +47,16 @@ type optionState struct {
 	caveatTypeSet                                *caveattypes.TypeSet
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
+	queryPlanMetadata                            *query.QueryPlanMetadata
+}
+
+// QueryPlanMetadata sets the shared count-stats store used by the receiver-side
+// query plan dispatcher. Pass the same instance to the permissions service so
+// stats accumulate across both compile and dispatch boundaries.
+func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
+	return func(state *optionState) {
+		state.queryPlanMetadata = m
+	}
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -191,7 +204,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusRegisterer, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
@@ -233,6 +246,8 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			TypeSet:                caveattypes.TypeSetOrDefault(opts.caveatTypeSet),
 			DispatchChunkSize:      chunkSize,
 			RelationshipChunkCache: relationshipChunkCache,
+			PrometheusRegisterer:   opts.prometheusRegisterer,
+			QueryPlanMetadata:      opts.queryPlanMetadata,
 		}
 		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)
 		if err != nil {
@@ -299,8 +314,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 
 		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
-			DispatchOverallTimeout: opts.remoteDispatchTimeout,
-		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
+			DispatchOverallTimeout: opts.remoteDispatchTimeout, Registerer: opts.prometheusRegisterer}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
 		if err != nil {
 			return nil, err
 		}

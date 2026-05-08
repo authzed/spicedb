@@ -421,7 +421,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 		},
 		Permission: "read",
 	}
-	lrc, err := psc.LookupResources(ctx, lrreq)
+	lrc, err := psc.LookupResources(ctx, lrreq, grpc.WaitForReady(true))
 	require.NoError(t, err)
 
 	_, err = lrc.Recv()
@@ -533,7 +533,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 		Permission: "read",
 	}
 
-	lrc, err := psc.LookupResources(ctx, lrreq)
+	lrc, err := psc.LookupResources(ctx, lrreq, grpc.WaitForReady(true))
 	require.NoError(t, err)
 
 	_, err = lrc.Recv()

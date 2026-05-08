@@ -3,7 +3,6 @@ package v1
 import (
 	"cmp"
 	"context"
-	"sync"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -18,69 +17,9 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// QueryPlanMetadata aggregates CountStats for iterator canonical keys across multiple queries.
-// This allows tracking which parts of query plans are used most frequently.
-type QueryPlanMetadata struct {
-	mu    sync.Mutex
-	stats map[query.CanonicalKey]query.CountStats // GUARDED_BY(mu)
-}
-
-// NewQueryPlanMetadata creates a new QueryPlanMetadata tracker.
-func NewQueryPlanMetadata() *QueryPlanMetadata {
-	return &QueryPlanMetadata{
-		stats: make(map[query.CanonicalKey]query.CountStats),
-	}
-}
-
-// MergeCountStats merges CountStats from a query execution into the aggregated metadata.
-func (m *QueryPlanMetadata) MergeCountStats(counts map[query.CanonicalKey]query.CountStats) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for key, newStats := range counts {
-		existing := m.stats[key]
-		existing.CheckCalls += newStats.CheckCalls
-		existing.IterSubjectsCalls += newStats.IterSubjectsCalls
-		existing.IterResourcesCalls += newStats.IterResourcesCalls
-		existing.CheckResults += newStats.CheckResults
-		existing.IterSubjectsResults += newStats.IterSubjectsResults
-		existing.IterResourcesResults += newStats.IterResourcesResults
-		m.stats[key] = existing
-	}
-}
-
-// GetStats returns a copy of all aggregated stats.
-func (m *QueryPlanMetadata) GetStats() map[query.CanonicalKey]query.CountStats {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	result := make(map[query.CanonicalKey]query.CountStats, len(m.stats))
-	for k, v := range m.stats {
-		result[k] = v
-	}
-	return result
-}
-
-// ApplyAdvisor applies a CountAdvisor to the outline if accumulated stats are
-// available. If no stats have been collected yet, the outline is returned
-// unmodified.
-func (m *QueryPlanMetadata) ApplyAdvisor(co query.CanonicalOutline) (query.CanonicalOutline, error) {
-	stats := m.GetStats()
-	if len(stats) == 0 {
-		return co, nil
-	}
-	advisor := query.NewCountAdvisor(stats)
-	return query.ApplyAdvisor(co, advisor)
-}
-
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
 func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
-	// Lazy initialization of QueryPlanMetadata if nil
-	if ps.queryPlanMetadata == nil {
-		ps.queryPlanMetadata = NewQueryPlanMetadata()
-	}
-
 	atRevision, schemaHash, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)

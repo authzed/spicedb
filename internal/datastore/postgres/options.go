@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type postgresOptions struct {
@@ -42,7 +43,8 @@ type postgresOptions struct {
 
 	logger *tracingLogger
 
-	queryInterceptor pgxcommon.QueryInterceptor
+	queryInterceptor     pgxcommon.QueryInterceptor
+	prometheusRegisterer prometheus.Registerer
 }
 
 type migrationPhase uint8

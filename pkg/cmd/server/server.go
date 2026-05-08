@@ -34,9 +34,12 @@ import (
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
@@ -47,8 +50,9 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	consistency "github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -96,21 +100,22 @@ type Config struct {
 	ExperimentalSchemaMode string `debugmap:"visible"`
 
 	// Dispatch options
-	DispatchServer                    util.GRPCServerConfig   `debugmap:"visible"`
-	DispatchMaxDepth                  uint32                  `debugmap:"visible"`
-	GlobalDispatchConcurrencyLimit    uint16                  `debugmap:"visible"`
-	DispatchConcurrencyLimits         graph.ConcurrencyLimits `debugmap:"visible"`
-	DispatchUpstreamAddr              string                  `debugmap:"visible"`
-	DispatchUpstreamCAPath            string                  `debugmap:"visible"`
-	DispatchUpstreamTimeout           time.Duration           `debugmap:"visible"`
-	DispatchClientMetricsEnabled      bool                    `debugmap:"visible"`
-	DispatchClientMetricsPrefix       string                  `debugmap:"visible"`
-	DispatchClusterMetricsEnabled     bool                    `debugmap:"visible"`
-	DispatchClusterMetricsPrefix      string                  `debugmap:"visible"`
-	Dispatcher                        dispatch.Dispatcher     `debugmap:"visible"`
-	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
-	DispatchHashringSpread            uint8                   `debugmap:"visible"`
-	DispatchChunkSize                 uint16                  `debugmap:"visible" default:"100"`
+	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
+	DispatchMaxDepth                  uint32                   `debugmap:"visible"`
+	GlobalDispatchConcurrencyLimit    uint16                   `debugmap:"visible"`
+	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
+	DispatchUpstreamAddr              string                   `debugmap:"visible"`
+	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
+	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible"`
+	DispatchClientMetricsEnabled      bool                     `debugmap:"visible"`
+	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
+	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible"`
+	DispatchClusterMetricsPrefix      string                   `debugmap:"visible"`
+	Dispatcher                        dispatch.Dispatcher      `debugmap:"visible"`
+	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
+	DispatchHashringReplicationFactor uint16                   `debugmap:"visible"`
+	DispatchHashringSpread            uint8                    `debugmap:"visible"`
+	DispatchChunkSize                 uint16                   `debugmap:"visible" default:"100"`
 
 	DispatchSecondaryUpstreamAddrs               map[string]string `debugmap:"visible"`
 	DispatchSecondaryUpstreamExprs               map[string]string `debugmap:"visible"`
@@ -156,10 +161,12 @@ type Config struct {
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor `debugmap:"hidden"`
 
 	// Telemetry
-	SilentlyDisableTelemetry bool          `debugmap:"visible"`
-	TelemetryCAOverridePath  string        `debugmap:"visible"`
-	TelemetryEndpoint        string        `debugmap:"visible"`
-	TelemetryInterval        time.Duration `debugmap:"visible"`
+	SilentlyDisableTelemetry bool                  `debugmap:"visible"`
+	TelemetryCAOverridePath  string                `debugmap:"visible"`
+	TelemetryEndpoint        string                `debugmap:"visible"`
+	TelemetryInterval        time.Duration         `debugmap:"visible"`
+	PrometheusGatherer       prometheus.Gatherer   `debugmap:"hidden"`
+	PrometheusRegisterer     prometheus.Registerer `debugmap:"hidden"`
 
 	// Logs
 	EnableRequestLogs  bool `debugmap:"visible"`
@@ -231,6 +238,15 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
 	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
+	// Single QueryPlanMetadata instance shared by the in-process dispatcher and
+	// the permissions service so receiver-side stats accumulate into the same
+	// store the sender consults via the count-based advisor. Callers may inject
+	// their own to share with an externally-constructed dispatcher.
+	queryPlanMetadata := c.QueryPlanMetadata
+	if queryPlanMetadata == nil {
+		queryPlanMetadata = query.NewQueryPlanMetadata()
+	}
+
 	// Create LR3 resource chunk cache (used by both dispatcher types)
 	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&c.LR3ResourceChunkCacheConfig)
 	if err != nil {
@@ -290,6 +306,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
+			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -321,6 +338,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
 			clusterdispatch.RelationshipChunkCache(lr3ChunkCache),
+			clusterdispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
@@ -452,6 +470,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			LookupResources: slices.Contains(c.ExperimentalQueryPlan, "lr"),
 			LookupSubjects:  slices.Contains(c.ExperimentalQueryPlan, "ls"),
 		},
+		QueryPlanMetadata: queryPlanMetadata,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)
@@ -483,11 +502,37 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	closeables.AddCloser(gatewayCloser)
 	closeables.AddWithoutError(gatewayServer.Close)
 
+	registerer := c.PrometheusRegisterer
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
+	// Register all prometheus metrics with the configured registerer.
+	for _, regFn := range []func(prometheus.Registerer) error{
+		schemacaching.RegisterMetrics,
+		singleflight.RegisterMetrics,
+		proxy.RegisterMetrics,
+		proxy.RegisterCheckingReplicatedMetrics,
+		proxy.RegisterStrictReplicatedMetrics,
+		usagemetrics.RegisterMetrics,
+		consistency.RegisterMetrics,
+		memoryprotection.RegisterMetrics,
+		perfinsights.RegisterMetrics,
+		telemetry.RegisterMetrics,
+		gateway.RegisterMetrics,
+		v1svc.RegisterMetrics,
+		cache.RegisterMetrics,
+	} {
+		if err := regFn(registerer); err != nil {
+			return nil, fmt.Errorf("failed to register prometheus metrics: %w", err)
+		}
+	}
+
 	infoCollector, err := telemetry.SpiceDBClusterInfoCollector(ctx, "environment", c.DatastoreConfig.Engine, ds)
 	if err != nil {
 		log.Warn().Err(err).Msg("unable to initialize info collector")
 	} else {
-		if err := prometheus.Register(infoCollector); err != nil {
+		if err := registerer.Register(infoCollector); err != nil {
 			log.Warn().Err(err).Msg("unable to initialize info collector")
 		}
 	}
@@ -596,9 +641,9 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.PrometheusRegisterer, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.PrometheusRegisterer, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		}
 	}
 

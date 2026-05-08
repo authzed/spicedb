@@ -2,13 +2,14 @@ package usagemetrics
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 
@@ -28,7 +29,7 @@ var (
 	// DispatchedCountHistogram is the metric that SpiceDB uses to keep track
 	// of the number of downstream dispatches that are performed to answer a
 	// single query.
-	DispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	DispatchedCountHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "spicedb",
 		Subsystem: "services",
 		Name:      "dispatches",
@@ -38,6 +39,21 @@ var (
 
 	tracer = otel.Tracer("spicedb/internal/middleware")
 )
+
+// RegisterMetrics registers the usagemetrics prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(DispatchedCountHistogram); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return fmt.Errorf("failed to register usagemetrics: %w", err)
+		}
+	}
+	return nil
+}
 
 type reporter struct{}
 

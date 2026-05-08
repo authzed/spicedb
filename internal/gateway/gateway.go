@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	grpcfilters "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
@@ -32,12 +32,27 @@ import (
 	"github.com/authzed/spicedb/internal/grpchelpers"
 )
 
-var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var histogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "rest_gateway",
 	Name:      "request_duration_seconds",
 	Help:      "A histogram of the duration spent processing requests to the SpiceDB REST Gateway.",
 }, []string{"method"})
+
+// RegisterMetrics registers the REST gateway prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	if err := registerer.Register(histogram); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return fmt.Errorf("failed to register gateway metrics: %w", err)
+		}
+	}
+	return nil
+}
 
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
 // configuration.

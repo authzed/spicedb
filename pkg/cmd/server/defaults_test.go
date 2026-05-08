@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
@@ -32,6 +33,7 @@ func TestWithDatastore(t *testing.T) {
 		true,
 		true,
 		false,
+		prometheus.DefaultRegisterer,
 		"service",
 		consistency.TreatMismatchingTokensAsError,
 		memoryprotection.NewNoopMemoryUsageProvider(),
@@ -75,6 +77,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		true,
 		true,
 		false,
+		prometheus.DefaultRegisterer,
 		"service",
 		consistency.TreatMismatchingTokensAsError,
 		memoryprotection.NewNoopMemoryUsageProvider(),

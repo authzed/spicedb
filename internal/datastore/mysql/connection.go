@@ -45,7 +45,11 @@ func (d *instrumentedConnector) Driver() driver.Driver {
 	return d.drv
 }
 
-func instrumentConnector(c driver.Connector, replicaIndex string) (driver.Connector, []prometheus.Collector, error) {
+func instrumentConnector(registerer prometheus.Registerer, c driver.Connector, replicaIndex string) (driver.Connector, []prometheus.Collector, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
 	var (
 		connectHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "spicedb",
@@ -70,13 +74,13 @@ func instrumentConnector(c driver.Connector, replicaIndex string) (driver.Connec
 
 	var collectors []prometheus.Collector
 
-	err := prometheus.Register(connectHistogram)
+	err := registerer.Register(connectHistogram)
 	if err != nil {
 		return nil, collectors, err
 	}
 
 	collectors = append(collectors, connectHistogram)
-	err = prometheus.Register(connectCount)
+	err = registerer.Register(connectCount)
 	if err != nil {
 		return nil, collectors, err
 	}
