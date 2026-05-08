@@ -32,7 +32,7 @@ jobs:
           echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
 
       - name: "Restore benchmark from cache"
-        uses: "actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306" # v5.0.3
+        uses: "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae" # v5.0.5
         with:
           path: "./cache/benchmark-data.json"
           key: "${{ steps.prev-sha.outputs.sha }}-${{ runner.os }}-go-benchmark"
@@ -43,7 +43,7 @@ jobs:
           go run mage.go benchmark:all | tee bench_output.txt
 
       - name: "Compare benchmark against HEAD~1"
-        uses: "benchmark-action/github-action-benchmark@a7bc2366eda11037936ea57d811a43b3418d3073" # v1.21.0
+        uses: "benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba" # v1.22.1
         with:
           # What benchmark tool the output.txt came from
           tool: "go"
@@ -62,7 +62,7 @@ jobs:
       - name: "Publish to gh-pages. See https://authzed.github.io/spicedb/dev/bench/"
         # Run even if the compare step failed on a regression, so the dashboard reflects reality.
         if: "${{ !cancelled() }}"
-        uses: "benchmark-action/github-action-benchmark@a7bc2366eda11037936ea57d811a43b3418d3073" # v1.21.0
+        uses: "benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba" # v1.22.1
         with:
           # What benchmark tool the output.txt came from
           tool: "go"
@@ -76,7 +76,7 @@ jobs:
       - name: "Save benchmark JSON"
         # Run even if the compare step failed on a regression, so the next run has a baseline.
         if: "${{ !cancelled() || failure() }}"
-        uses: "actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306" # v5.0.3
+        uses: "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae" # v5.0.5
         with:
           path: "./cache/benchmark-data.json"
           # Save with commit hash to avoid "cache already exists"
@@ -84,7 +84,7 @@ jobs:
 
       - name: "Notify in Slack if benchmark job failed"
         if: "${{ failure() }}"
-        uses: "slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a" # v2.1.1
+        uses: "slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c" # v3.0.3
         with:
           webhook: "${{ secrets.SLACK_BUILDS_WEBHOOK_URL }}"
           webhook-type: "incoming-webhook"
