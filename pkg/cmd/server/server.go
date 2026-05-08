@@ -49,6 +49,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -96,21 +97,22 @@ type Config struct {
 	ExperimentalSchemaMode string `debugmap:"visible"`
 
 	// Dispatch options
-	DispatchServer                    util.GRPCServerConfig   `debugmap:"visible"`
-	DispatchMaxDepth                  uint32                  `debugmap:"visible"`
-	GlobalDispatchConcurrencyLimit    uint16                  `debugmap:"visible"`
-	DispatchConcurrencyLimits         graph.ConcurrencyLimits `debugmap:"visible"`
-	DispatchUpstreamAddr              string                  `debugmap:"visible"`
-	DispatchUpstreamCAPath            string                  `debugmap:"visible"`
-	DispatchUpstreamTimeout           time.Duration           `debugmap:"visible"`
-	DispatchClientMetricsEnabled      bool                    `debugmap:"visible"`
-	DispatchClientMetricsPrefix       string                  `debugmap:"visible"`
-	DispatchClusterMetricsEnabled     bool                    `debugmap:"visible"`
-	DispatchClusterMetricsPrefix      string                  `debugmap:"visible"`
-	Dispatcher                        dispatch.Dispatcher     `debugmap:"visible"`
-	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
-	DispatchHashringSpread            uint8                   `debugmap:"visible"`
-	DispatchChunkSize                 uint16                  `debugmap:"visible" default:"100"`
+	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
+	DispatchMaxDepth                  uint32                   `debugmap:"visible"`
+	GlobalDispatchConcurrencyLimit    uint16                   `debugmap:"visible"`
+	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
+	DispatchUpstreamAddr              string                   `debugmap:"visible"`
+	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
+	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible"`
+	DispatchClientMetricsEnabled      bool                     `debugmap:"visible"`
+	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
+	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible"`
+	DispatchClusterMetricsPrefix      string                   `debugmap:"visible"`
+	Dispatcher                        dispatch.Dispatcher      `debugmap:"visible"`
+	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
+	DispatchHashringReplicationFactor uint16                   `debugmap:"visible"`
+	DispatchHashringSpread            uint8                    `debugmap:"visible"`
+	DispatchChunkSize                 uint16                   `debugmap:"visible" default:"100"`
 
 	DispatchSecondaryUpstreamAddrs               map[string]string `debugmap:"visible"`
 	DispatchSecondaryUpstreamExprs               map[string]string `debugmap:"visible"`
@@ -231,6 +233,15 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
 	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
+	// Single QueryPlanMetadata instance shared by the in-process dispatcher and
+	// the permissions service so receiver-side stats accumulate into the same
+	// store the sender consults via the count-based advisor. Callers may inject
+	// their own to share with an externally-constructed dispatcher.
+	queryPlanMetadata := c.QueryPlanMetadata
+	if queryPlanMetadata == nil {
+		queryPlanMetadata = query.NewQueryPlanMetadata()
+	}
+
 	// Create LR3 resource chunk cache (used by both dispatcher types)
 	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&c.LR3ResourceChunkCacheConfig)
 	if err != nil {
@@ -290,6 +301,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
+			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -321,6 +333,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
 			clusterdispatch.RelationshipChunkCache(lr3ChunkCache),
+			clusterdispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
@@ -452,6 +465,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			LookupResources: slices.Contains(c.ExperimentalQueryPlan, "lr"),
 			LookupSubjects:  slices.Contains(c.ExperimentalQueryPlan, "ls"),
 		},
+		QueryPlanMetadata: queryPlanMetadata,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

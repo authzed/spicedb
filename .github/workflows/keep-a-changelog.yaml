@@ -23,7 +23,7 @@ jobs:
   changelog:
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "dangoslen/changelog-enforcer@ea6a56764870c323a4563f450c0a50c5f2d72cd6"
+      - uses: "dangoslen/changelog-enforcer@43d9d695c578fb444f2e5bd23c0e9ec7c97b1d37"
         with:
           skipLabels: "Skip-Changelog,dependencies,tests"
           missingUpdateErrorMessage: "If your PR has a change that users might care about, please add an entry to CHANGELOG.md, run 'npx keep-a-changelog', and commit the changes. Otherwise, add the Skip-Changelog label to your PR."

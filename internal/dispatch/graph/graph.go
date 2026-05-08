@@ -94,6 +94,13 @@ type DispatcherParameters struct {
 	DispatchChunkSize      uint16
 	TypeSet                *caveattypes.TypeSet
 	RelationshipChunkCache cache.Cache[cache.StringKey, any]
+
+	// QueryPlanMetadata is the shared count-stats store consulted and updated
+	// by the receiver-side DispatchQueryPlan handler (advisor at compile,
+	// observer-driven merge after execution). When nil, the dispatcher
+	// allocates a fresh per-instance store; to share stats with the calling
+	// permissions service, pass the same instance to both.
+	QueryPlanMetadata *query.QueryPlanMetadata
 }
 
 func (dp *DispatcherParameters) validate() error {
@@ -152,7 +159,10 @@ func NewLocalOnlyDispatcher(parameters DispatcherParameters) (dispatch.Dispatche
 		return nil, err
 	}
 
-	d := &localDispatcher{dispatchChunkSize: parameters.DispatchChunkSize}
+	d := &localDispatcher{
+		dispatchChunkSize: parameters.DispatchChunkSize,
+		queryPlanMetadata: queryPlanMetadataOrNew(parameters.QueryPlanMetadata),
+	}
 
 	typeSet := parameters.TypeSet
 	concurrencyLimits := limitsOrDefaults(parameters.ConcurrencyLimits, defaultConcurrencyLimit)
@@ -199,7 +209,15 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, parameters DispatcherParame
 		lookupResourcesHandler2: lookupResourcesHandler2,
 		lookupResourcesHandler3: lr3,
 		dispatchChunkSize:       chunkSize,
+		queryPlanMetadata:       queryPlanMetadataOrNew(parameters.QueryPlanMetadata),
 	}, nil
+}
+
+func queryPlanMetadataOrNew(m *query.QueryPlanMetadata) *query.QueryPlanMetadata {
+	if m != nil {
+		return m
+	}
+	return query.NewQueryPlanMetadata()
 }
 
 type localDispatcher struct {
@@ -209,6 +227,7 @@ type localDispatcher struct {
 	lookupResourcesHandler2 *graph.CursoredLookupResources2
 	lookupResourcesHandler3 *graph.CursoredLookupResources3
 	dispatchChunkSize       uint16
+	queryPlanMetadata       *query.QueryPlanMetadata
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision, schemaHash datalayer.SchemaHash) (*core.NamespaceDefinition, error) {
@@ -514,14 +533,23 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	// through the full dispatch chain.
 	dl := datalayer.MustFromContext(ctx)
 	executor := dispatch.NewDispatchExecutor(ld, planCtx, ld.dispatchChunkSize)
-	qctx := &query.Context{
-		Context:       ctx,
-		Executor:      executor,
-		Reader:        query.NewQueryDatastoreReader(dl.SnapshotReader(revision, schemaHash)),
-		CaveatRunner:  caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
-		CaveatContext: dispatch.CaveatContextFromPlanContext(planCtx),
-		BatchedArrows: true,
-	}
+
+	// Attach a CountObserver so the receiver augments the shared metadata with
+	// stats from the iterator subtree it executes. After the operation
+	// completes, results merge back so the next sender or receiver advisor
+	// pass picks up data-driven hints (e.g. arrow direction reversal) for
+	// nodes only this hop has visibility into.
+	countObserver := query.NewCountObserver()
+	qctx := query.NewQueryContext(ctx, executor,
+		query.WithReader(query.NewQueryDatastoreReader(dl.SnapshotReader(revision, schemaHash))),
+		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
+		query.WithCaveatContext(dispatch.CaveatContextFromPlanContext(planCtx)),
+		query.WithBatchedArrows(true),
+		query.WithObserver(countObserver),
+	)
+	defer func() {
+		ld.queryPlanMetadata.MergeCountStats(countObserver.GetStats())
+	}()
 
 	resource := query.Object{ObjectType: req.Resource.Namespace, ObjectID: req.Resource.ObjectId}
 	subject := query.ObjectAndRelation{
@@ -692,6 +720,14 @@ func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, re
 	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(params), params)
 	if err != nil {
 		return nil, fmt.Errorf("DispatchQueryPlan: failed to optimize outline for %s#%s: %w", defName, relName, err)
+	}
+
+	// Apply the count-based advisor using the shared QueryPlanMetadata so the
+	// receiver-side compile benefits from stats accumulated by prior runs on
+	// either side of the dispatch boundary.
+	optimized, err = ld.queryPlanMetadata.ApplyAdvisor(optimized)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to apply advisor for %s#%s: %w", defName, relName, err)
 	}
 
 	it, err := optimized.Compile()
