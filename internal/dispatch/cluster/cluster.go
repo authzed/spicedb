@@ -11,10 +11,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-<<<<<<< HEAD
 	"github.com/prometheus/client_golang/prometheus"
-=======
->>>>>>> main
 	"github.com/authzed/spicedb/pkg/query"
 )
 
