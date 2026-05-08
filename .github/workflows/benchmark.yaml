@@ -49,10 +49,9 @@ jobs:
           tool: "go"
           # Where the output from the benchmark tool is stored
           output-file-path: "bench_output.txt"
-          # Where the benchmarks in main are (to compare)
+          # Where we store the results
           external-data-json-path: "./cache/benchmark-data.json"
-          # Do not save the data
-          save-data-file: false
+          save-data-file: true
           # Alert when current run is >= 2x worse than HEAD~1
           alert-threshold: "200%"
           # Workflow will fail when an alert happens
@@ -76,7 +75,7 @@ jobs:
 
       - name: "Save benchmark JSON"
         # Run even if the compare step failed on a regression, so the next run has a baseline.
-        if: "${{ !cancelled() }}"
+        if: "${{ !cancelled() || failure() }}"
         uses: "actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306" # v5.0.3
         with:
           path: "./cache/benchmark-data.json"
