@@ -196,7 +196,9 @@ func TestAbsorptionRegistered(t *testing.T) {
 		input := unionOutline(a, intersectionOutline(a, b))
 		co := canonicalize(input)
 
-		result, err := ApplyOptimizations(co, []string{"set-simplification"}, RequestParams{})
+		opt, err := GetOptimization("set-simplification")
+		require.NoError(t, err)
+		result, err := ApplyOptimizations(co, []Optimizer{opt}, RequestParams{})
 		require.NoError(t, err)
 		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
 		require.Equal(t, 0, query.OutlineCompare(result.Root, a))
