@@ -1,0 +1,25 @@
+# More information about this file
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+
+[*.md]
+tab_width = 2
+trim_trailing_whitespace = false # can be used for indentation with double spaces
+# Not enforced, markdownlint already reports it
+#insert_final_newline = true
+
+[*.{yml,yaml}]
+tab_width = 2
+trim_trailing_whitespace = true
+# Not enforced, markdownlint already reports it
+#insert_final_newline = true
+
+[*.toml,.ini]
+tab_width = 2
+trim_trailing_whitespace = true
+insert_final_newline = true
+

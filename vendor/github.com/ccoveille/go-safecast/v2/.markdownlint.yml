@@ -1,0 +1,14 @@
+---
+
+# Default state for all rules
+default: true
+
+MD013:
+  # Overload the default value (120)
+  line_length: 200
+
+MD033:
+  allowed_elements:
+    # <details><summary></summary></details> are useful for spoilers
+    - summary
+    - details

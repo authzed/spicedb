@@ -1,0 +1,10 @@
+# vim: ft=yaml
+---
+yaml-files:
+  - "*.yaml"
+  - "*.yml"
+  - ".yamllint"
+extends: "default"
+rules:
+  quoted-strings: "enable"
+  line-length: "disable"

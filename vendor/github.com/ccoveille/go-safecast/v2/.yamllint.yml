@@ -1,0 +1,14 @@
+---
+extends: default
+ignore:
+  # These files are imported by vale from an external repository
+  .vale/styles/RedHat/
+rules:
+  line-length:
+    max: 200
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  truthy:
+    # the node "on:" present in each GitHub Actions workflow file
+    ignore: |
+      .github/

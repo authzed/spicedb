@@ -1,0 +1,110 @@
+version: "2"
+run:
+  concurrency: 8
+  timeout: 5m
+  build-tags:
+    - integration
+  modules-download-mode: readonly
+output:
+  formats:
+    tab:
+      path: lint.txt
+      colors: false
+formatters:
+  enable:
+    - gci
+    - gofumpt
+  settings:
+    gci:
+      sections:
+        - standard # Standard lib
+        - default # External dependencies
+        - prefix(github.com/maypok86/otter) # Internal packages
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - gocheckcompilerdirectives
+    - gocritic
+    - godot
+    - gomoddirectives
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - tagliatelle
+    - testableexamples
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+  disable:
+    - gosec
+    - unused
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errname
+          - errcheck
+          - errorlint
+      - path: cmd/generator
+        linters:
+          - errcheck
+          - gosec
+      - linters:
+          - staticcheck
+        text: "QF1001:"
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - hugeParam
+        - rangeExprCopy
+        - rangeValCopy
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - io/ioutil.ReadFile
+        - io.Copy(*bytes.Buffer)
+        - io.Copy(os.Stdout)
+    nakedret:
+      max-func-lines: 1
+    revive:
+      rules:
+        - name: empty-block
+          disabled: true
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

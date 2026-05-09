@@ -1,0 +1,17 @@
+version: v2
+managed:
+  enabled: true
+  disable:
+    - file_option: go_package
+      module: buf.build/bufbuild/protovalidate
+    - file_option: go_package
+      module: buf.build/rodaine/protogofakeit
+  override:
+    - file_option: go_package_prefix
+      value: buf.build/go/protovalidate/internal/gen
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.6
+    out: internal/gen
+    opt:
+     - paths=source_relative
+     - default_api_level=API_HYBRID

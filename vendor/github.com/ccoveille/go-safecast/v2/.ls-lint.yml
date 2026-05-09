@@ -1,0 +1,17 @@
+---
+# ls-lint configuration file. More information on the file format can be found on https://ls-lint.org/
+ls:
+  .md: screamingsnakecase   # README.md or CODE_OF_CONDUCT.md
+
+  # DEACTIVATED: Go files should are linted via golangci-lint revive filename-format rule
+  # .go: snakecase
+
+ignore:
+  # .git folder cannot be linted
+  - .git
+  # .github folder contains configuration files with specific name, and should not be linted
+  - .github
+  # dot files are usually configuration files with specific name
+  - .ls-lint.yml
+  - .markdownlint.yml
+  - .yamllint.yml

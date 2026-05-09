@@ -1,0 +1,42 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck # Check for unchecked errors
+    - staticcheck # Advanced static analysis (includes gosimple, stylecheck)
+    - govet # Standard Go vet checks
+    - ineffassign # Detect ineffectual assignments
+    - unused # Find unused code
+    - misspell # Check for misspelled words
+    - gocyclo # Cyclomatic complexity
+    - dupl # Duplicate code detection
+    - goconst # Find repeated strings that could be constants
+    - unconvert # Remove unnecessary type conversions
+
+  settings:
+    gocyclo:
+      min-complexity: 20 # Raised to accommodate main() function
+    dupl:
+      threshold: 100
+    errcheck:
+      check-type-assertions: true
+      check-blank: false # Allow _ = assignments to explicitly ignore errors
+
+  exclusions:
+    paths:
+      - vendor/
+      - testdata/
+    rules:
+      - path: _test\.go
+        text: "cyclomatic complexity"
+      - path: _test\.go
+        text: "lines are duplicate"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

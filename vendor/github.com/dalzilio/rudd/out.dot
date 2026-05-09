@@ -1,0 +1,14 @@
+digraph G {
+1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+10 [label=<
+	<FONT POINT-SIZE="20">4</FONT>
+	<FONT POINT-SIZE="10">[10]</FONT>
+>];
+10 -> 1 [style=filled];
+19 [label=<
+	<FONT POINT-SIZE="20">1</FONT>
+	<FONT POINT-SIZE="10">[19]</FONT>
+>];
+19 -> 10 [style=dotted];
+19 -> 1 [style=filled];
+}

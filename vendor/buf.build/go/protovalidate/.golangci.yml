@@ -1,0 +1,117 @@
+version: "2"
+linters:
+  default: all
+  disable:
+    - cyclop            # covered by gocyclo
+    - depguard          # we can manage dependencies strictly if the need arises in the future
+    - err113            # internal error causes may be dynamic
+    - embeddedstructfieldcheck # over-generous whitespace violates house style
+    - exhaustive        # don't _always_ need to exhaustively test all enum values
+    - exhaustruct       # don't _always_ need to exhaustively create struct
+    - funcorder         # consider enabling in the future
+    - funlen            # rely on code review to limit function length
+    - gocognit          # dubious "cognitive overhead" quantification
+    - gomoddirectives   # we use go modules replacements intentionally
+    - gomodguard        # not compatible with go workspaces
+    - ireturn           # "accept interfaces, return structs" isn't ironclad
+    - lll               # don't want hard limits for line length
+    - maintidx          # covered by gocyclo
+    - mnd               # some unnamed constants are okay
+    - nlreturn          # generous whitespace violates house style
+    - noinlineerr       # inline is fine
+    - nonamedreturns    # usage of named returns should be selective
+    - testpackage       # internal tests are fine
+    - thelper           # overzealous breaking of stack traces
+    - wrapcheck         # don't _always_ need to wrap errors
+    - wsl               # over-generous whitespace violates house style
+    - wsl_v5            # over-generous whitespace violates house style
+  settings:
+    errcheck:
+      check-type-assertions: true
+    forbidigo:
+      forbid:
+        - pattern: ^fmt\.Print
+        - pattern: ^log\.
+        - pattern: ^print$
+        - pattern: ^println$
+        - pattern: ^panic$
+    godox:
+      # TODO, OPT, etc. comments are fine to commit. Use FIXME comments for
+      # temporary hacks, and use godox to prevent committing them.
+      keywords:
+        - FIXME
+    varnamelen:
+      ignore-decls:
+        - T any
+        - i int
+        - wg sync.WaitGroup
+        - ok bool
+        - w io.Writer
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Loosen requirements on conformance executor
+      - linters:
+          - errorlint
+          - forbidigo
+        path: internal/cmd/
+      # Loosen requirements on tests
+      - linters:
+          - funlen
+          - gosec
+          - gosmopolitan
+          - unparam
+          - varnamelen
+        path: _test.go
+      - linters:
+          # setting up custom functions/overloads appears duplicative (false positive)
+          - dupl
+          # Types are checked internally within CEL. There are bigger issues if its
+          # type analysis is wrong
+          - forcetypeassert
+        path: cel/library.go
+      # static unexported lookup tables
+      - linters:
+          - gochecknoglobals
+        path: lookups.go
+      - linters:
+          # uses deprecated fields on protoimpl.ExtensionInfo but its the only way
+          - staticcheck
+        path: resolver/resolver.go
+      # We allow a global validator.
+      - linters:
+          - gochecknoglobals
+        path: validator.go
+      # Library code uses for loops to implement parsing that often don't have bodies.
+      # Unfortunately, revive doesn't detect comments within these empty for loops.
+      - linters:
+          - revive
+        text: "empty-block"
+        path: cel/library.go
+      ### BEGIN Temporary exclusions from golangci-lint upgrade.
+      # Will remove in a future PR.
+      - linters:
+          - staticcheck
+        text: "QF1001:" # could apply De Morgan's law
+      ### END Temporary exclusions
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-same-issues: 0
+formatters:
+  enable:
+    - gci
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

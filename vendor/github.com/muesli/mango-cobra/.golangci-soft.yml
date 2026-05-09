@@ -1,0 +1,35 @@
+version: "2"
+run:
+  tests: false
+linters:
+  enable:
+    - exhaustive
+    - goconst
+    - godot
+    - godox
+    - gomoddirectives
+    - goprintffuncname
+    - misspell
+    - mnd
+    - nakedret
+    - nestif
+    - noctx
+    - nolintlint
+    - prealloc
+    - wrapcheck
+  disable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  exclusions:
+    generated: lax
