@@ -105,9 +105,11 @@ func flattenAssociativity(outline query.Outline) query.Outline {
 // children in a union.
 // Law: A ∪ A = A
 func unionIdempotency(outline query.Outline) query.Outline {
-	return eliminateRedundantChildren(outline, query.UnionIteratorType, func(y, x query.Outline) bool {
-		return query.OutlineCompare(x, y) == 0
-	})
+	return eliminateRedundantChildren(
+		outline,
+		query.UnionIteratorType,
+		func(y, x query.Outline) bool { return x.Equals(y) },
+	)
 }
 
 // unionAbsorption is an OutlineMutation that drops intersection children from a
@@ -123,9 +125,7 @@ func unionAbsorption(outline query.Outline) query.Outline {
 			return false
 		}
 		for _, factor := range intersectionFactors(x) {
-			if !slices.ContainsFunc(y.SubOutlines, func(c query.Outline) bool {
-				return query.OutlineCompare(factor, c) == 0
-			}) {
+			if !slices.ContainsFunc(y.SubOutlines, factor.Equals) {
 				return false
 			}
 		}
@@ -151,9 +151,11 @@ func unionComplementAbsorption(outline query.Outline) query.Outline {
 // identical children in an intersection.
 // Law: A ∩ A = A
 func intersectionIdempotency(outline query.Outline) query.Outline {
-	return eliminateRedundantChildren(outline, query.IntersectionIteratorType, func(y, x query.Outline) bool {
-		return query.OutlineCompare(x, y) == 0
-	})
+	return eliminateRedundantChildren(
+		outline,
+		query.IntersectionIteratorType,
+		func(y, x query.Outline) bool { return x.Equals(y) },
+	)
 }
 
 // intersectionAbsorption is an OutlineMutation that drops weaker children from an
@@ -166,9 +168,11 @@ func intersectionIdempotency(outline query.Outline) query.Outline {
 // This also subsumes the case where two intersection children differ in specificity:
 // (A ∩ B) ∩ (A ∩ B ∩ C) = A ∩ B ∩ C, because A ∩ B ∩ C ⊆ A ∩ B.
 func intersectionAbsorption(outline query.Outline) query.Outline {
-	return eliminateRedundantChildren(outline, query.IntersectionIteratorType, func(y, x query.Outline) bool {
-		return isSubsumedBy(x, y)
-	})
+	return eliminateRedundantChildren(
+		outline,
+		query.IntersectionIteratorType,
+		func(y, x query.Outline) bool { return isSubsumedBy(x, y) },
+	)
 }
 
 // intersectionComplementAnnihilation is an OutlineMutation that replaces an
@@ -359,22 +363,18 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 //     each Xᵢ, so Y ⊆ X.
 func isSubsumedBy(y, x query.Outline) bool {
 	switch {
-	case query.OutlineCompare(x, y) == 0:
+	case x.Equals(y):
 		return true
 
 	case x.Type == query.UnionIteratorType:
-		return slices.ContainsFunc(x.SubOutlines, func(c query.Outline) bool {
-			return query.OutlineCompare(y, c) == 0
-		})
+		return slices.ContainsFunc(x.SubOutlines, y.Equals)
 
 	case y.Type == query.ExclusionIteratorType && len(y.SubOutlines) == 2:
 		return isSubsumedBy(y.SubOutlines[0], x)
 
 	case y.Type == query.IntersectionIteratorType:
 		for _, factor := range intersectionFactors(x) {
-			if !slices.ContainsFunc(y.SubOutlines, func(c query.Outline) bool {
-				return query.OutlineCompare(factor, c) == 0
-			}) {
+			if !slices.ContainsFunc(y.SubOutlines, factor.Equals) {
 				return false
 			}
 		}
