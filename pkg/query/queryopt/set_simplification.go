@@ -86,18 +86,21 @@ func flattenAssociativity(outline query.Outline) query.Outline {
 		}
 	}
 
-	if !changed {
+	switch {
+	case !changed:
+		// Nothing changed, return the original.
 		return outline
-	}
 
-	if len(newChildren) == 1 {
+	case len(newChildren) == 1:
+		// Only one result: return it as a singleton.
 		return newChildren[0]
-	}
 
-	return query.Outline{
-		Type:        outline.Type,
-		Args:        outline.Args,
-		SubOutlines: newChildren,
+	default:
+		return query.Outline{
+			Type:        outline.Type,
+			Args:        outline.Args,
+			SubOutlines: newChildren,
+		}
 	}
 }
 
@@ -213,9 +216,10 @@ func intersectionComplementAnnihilation(outline query.Outline) query.Outline {
 //
 // NullPropagation cascades the resulting null through any parent nodes.
 func exclusionAnnihilation(outline query.Outline) query.Outline {
-	if outline.Type == query.ExclusionIteratorType &&
-		len(outline.SubOutlines) == 2 &&
-		isSubsumedBy(outline.SubOutlines[0], outline.SubOutlines[1]) {
+	if outline.Type != query.ExclusionIteratorType || len(outline.SubOutlines) != 2 {
+		return outline
+	}
+	if isSubsumedBy(outline.SubOutlines[0], outline.SubOutlines[1]) {
 		return query.Outline{Type: query.NullIteratorType}
 	}
 	return outline
@@ -238,24 +242,15 @@ func exclusionLeftPruning(outline query.Outline) query.Outline {
 		return outline
 	}
 
-	keep := slices.Repeat([]bool{true}, len(left.SubOutlines))
-	anyPruned := false
-	for i, child := range left.SubOutlines {
-		if isSubsumedBy(child, right) {
-			keep[i] = false
-			anyPruned = true
-		}
-	}
-
-	if !anyPruned {
-		return outline
-	}
-
 	var survivors []query.Outline
-	for i, child := range left.SubOutlines {
-		if keep[i] {
+	for _, child := range left.SubOutlines {
+		if !isSubsumedBy(child, right) {
 			survivors = append(survivors, child)
 		}
+	}
+
+	if len(survivors) == len(left.SubOutlines) {
+		return outline
 	}
 
 	var newLeft query.Outline
@@ -283,9 +278,10 @@ func exclusionLeftPruning(outline query.Outline) query.Outline {
 // lives here rather than in NullPropagation so that reachability pruning, which
 // also calls NullPropagation, is not affected.
 func exclusionNullIdentity(outline query.Outline) query.Outline {
-	if outline.Type == query.ExclusionIteratorType &&
-		len(outline.SubOutlines) == 2 &&
-		outline.SubOutlines[1].Type == query.NullIteratorType {
+	if outline.Type != query.ExclusionIteratorType || len(outline.SubOutlines) != 2 {
+		return outline
+	}
+	if outline.SubOutlines[1].Type == query.NullIteratorType {
 		return outline.SubOutlines[0]
 	}
 	return outline
@@ -306,6 +302,7 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 
 	children := outline.SubOutlines
 	keep := slices.Repeat([]bool{true}, len(children))
+	anyDropped := false
 
 	for i, y := range children {
 		if !keep[i] {
@@ -317,12 +314,13 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 			}
 			if shouldDrop(y, x) {
 				keep[i] = false
+				anyDropped = true
 				break
 			}
 		}
 	}
 
-	if !slices.Contains(keep, false) {
+	if !anyDropped {
 		return outline
 	}
 
@@ -334,11 +332,11 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 	}
 
 	if len(newSubs) == 1 {
+		// Only one result: return it as a singleton.
 		return newSubs[0]
 	}
 
 	return query.Outline{
-		ID:          0, // FillMissingNodeIDs assigns a fresh canonical key
 		Type:        nodeType,
 		Args:        outline.Args,
 		SubOutlines: newSubs,
