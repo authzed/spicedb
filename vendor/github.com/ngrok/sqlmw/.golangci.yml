@@ -1,3 +1,0 @@
-issues:
-  exclude:
-    - "SA1019: .* has been deprecated since Go 1.*: Drivers should implement .*"
