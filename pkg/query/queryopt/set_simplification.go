@@ -305,9 +305,6 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 	anyDropped := false
 
 	for i, y := range children {
-		if !keep[i] {
-			continue
-		}
 		for j, x := range children {
 			if i == j || !keep[j] {
 				continue

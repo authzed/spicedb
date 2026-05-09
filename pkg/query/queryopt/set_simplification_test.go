@@ -494,6 +494,15 @@ func TestExclusionLeftPruning(t *testing.T) {
 		require.Equal(t, query.NullIteratorType, result.Type)
 	})
 
+	t.Run("(A ∪ B) − (A ∪ B ∪ C) = ∅ — all union children subsumed by superset union", func(t *testing.T) {
+		// exclusionAnnihilation does not fire: isSubsumedBy(Union[A,B], Union[A,B,C])
+		// checks direct membership — Union[A,B] is not a child of [A,B,C]. But A and B
+		// individually are children of Union[A,B,C], so both are pruned by
+		// exclusionLeftPruning (case 0), leaving Null which propagates.
+		result := applyAbsorption(exclusionOutline(unionOutline(a, b), unionOutline(a, b, c)))
+		require.Equal(t, query.NullIteratorType, result.Type)
+	})
+
 	t.Run("no-op: (A ∪ B) − C — neither A nor B is subsumed by C", func(t *testing.T) {
 		result := applyAbsorption(exclusionOutline(unionOutline(a, b), c))
 		require.Equal(t, query.ExclusionIteratorType, result.Type)
