@@ -326,6 +326,23 @@ func TestSingleFlightDispatcherExpandBypassesIfMissingBloomFiler(t *testing.T) {
 	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "missing")
 }
 
+func TestDispatchQueryPlanRecordsSingleflightMetric(t *testing.T) {
+	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	reg := registerMetricInGatherer(singleFlightCount)
+
+	disp := New(mockDispatcher{f: func() {}}, &keys.DirectKeyHandler{})
+
+	req := &v1.DispatchQueryPlanRequest{
+		Operation: v1.PlanOperation_PLAN_OPERATION_CHECK,
+	}
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
+
+	err := disp.DispatchQueryPlan(req, stream)
+	require.NoError(t, err)
+
+	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "DispatchQueryPlan")
+}
+
 func registerMetricInGatherer(collector prometheus.Collector) prometheus.Gatherer {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collector)
