@@ -330,10 +330,12 @@ func TestDispatchQueryPlanRecordsSingleflightMetric(t *testing.T) {
 	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
 	reg := registerMetricInGatherer(singleFlightCount)
 
+	// Non-CHECK operations are passthrough — verify the metric fires with the
+	// passthrough label.
 	disp := New(mockDispatcher{f: func() {}}, &keys.DirectKeyHandler{})
 
 	req := &v1.DispatchQueryPlanRequest{
-		Operation: v1.PlanOperation_PLAN_OPERATION_CHECK,
+		Operation: v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES,
 	}
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
 
@@ -342,6 +344,126 @@ func TestDispatchQueryPlanRecordsSingleflightMetric(t *testing.T) {
 
 	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "DispatchQueryPlan")
 }
+
+func TestDispatchQueryPlanCheckCoalescesConcurrentCalls(t *testing.T) {
+	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	reg := registerMetricInGatherer(singleFlightCount)
+
+	var called atomic.Uint64
+	mock := planMockDispatcher{
+		f: func() {
+			// Hold the singleflight long enough for the second caller to
+			// attach to the in-flight group.
+			time.Sleep(100 * time.Millisecond)
+			called.Add(1)
+		},
+	}
+	disp := New(mock, &keys.DirectKeyHandler{})
+
+	req := &v1.DispatchQueryPlanRequest{
+		Operation:    v1.PlanOperation_PLAN_OPERATION_CHECK,
+		CanonicalKey: "document#viewer",
+		Resource:     tuple.ONRStringToCore("document", "doc1", "viewer"),
+		Subject:      tuple.ONRStringToCore("user", "alice", "..."),
+		PlanContext: &v1.PlanContext{
+			Revision:   "1234",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
+		assert.NoError(t, disp.DispatchQueryPlan(req.CloneVT(), stream))
+		assert.Len(t, stream.Results(), 1)
+	}()
+	go func() {
+		defer wg.Done()
+		// Stagger slightly so the first goroutine wins the group leadership.
+		time.Sleep(10 * time.Millisecond)
+		stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
+		assert.NoError(t, disp.DispatchQueryPlan(req.CloneVT(), stream))
+		assert.Len(t, stream.Results(), 1)
+	}()
+	wg.Wait()
+
+	require.Equal(t, uint64(1), called.Load(), "delegate should be invoked once; the second caller should share the result")
+	// Exactly one {method=DispatchQueryPlan, shared=true} series should exist
+	// with both callers credited to it.
+	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "true")
+	require.InEpsilon(t, float64(2), counterValueWithLabels(t, reg, "spicedb_dispatch_single_flight_total", map[string]string{
+		"method": "DispatchQueryPlan",
+		"shared": "true",
+	}), 0)
+}
+
+func counterValueWithLabels(t *testing.T, gatherer prometheus.Gatherer, metricName string, want map[string]string) float64 {
+	t.Helper()
+	families, err := gatherer.Gather()
+	require.NoError(t, err)
+	for _, mf := range families {
+		if mf.GetName() != metricName {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			match := true
+			for _, l := range m.GetLabel() {
+				if v, ok := want[l.GetName()]; ok && v != l.GetValue() {
+					match = false
+					break
+				}
+			}
+			if match {
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
+
+// planMockDispatcher is a dispatcher whose DispatchQueryPlan publishes a single
+// response carrying one ResultPath. It is used to exercise singleflight
+// coalescing for plan-check.
+type planMockDispatcher struct {
+	f func()
+}
+
+func (m planMockDispatcher) DispatchCheck(_ context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+	return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, nil
+}
+
+func (m planMockDispatcher) DispatchExpand(_ context.Context, _ *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+	return &v1.DispatchExpandResponse{}, nil
+}
+
+func (m planMockDispatcher) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, _ dispatch.LookupResources2Stream) error {
+	return nil
+}
+
+func (m planMockDispatcher) DispatchLookupResources3(_ *v1.DispatchLookupResources3Request, _ dispatch.LookupResources3Stream) error {
+	return nil
+}
+
+func (m planMockDispatcher) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ dispatch.LookupSubjectsStream) error {
+	return nil
+}
+
+func (m planMockDispatcher) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	m.f()
+	return stream.Publish(&v1.DispatchQueryPlanResponse{
+		Metadata: &v1.ResponseMeta{DispatchCount: 1},
+		Paths: []*v1.ResultPath{{
+			ResourceType: "document",
+			ResourceId:   "doc1",
+			Relation:     "viewer",
+		}},
+	})
+}
+
+func (m planMockDispatcher) Close() error                    { return nil }
+func (m planMockDispatcher) ReadyState() dispatch.ReadyState { return dispatch.ReadyState{} }
 
 func registerMetricInGatherer(collector prometheus.Collector) prometheus.Gatherer {
 	reg := prometheus.NewRegistry()
