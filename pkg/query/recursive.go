@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -8,6 +9,24 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: RecursiveIteratorType,
+		Name: "Recursive",
+		ConstructWithArgs: func(args *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 1 {
+				return nil, fmt.Errorf("RecursiveIterator requires exactly 1 subiterator, got %d", len(subs))
+			}
+			if args == nil || args.DefinitionName == "" || args.RelationName == "" {
+				return nil, errors.New("RecursiveIterator requires DefinitionName and RelationName in Args")
+			}
+			recursive := NewRecursiveIterator(subs[0], args.DefinitionName, args.RelationName)
+			recursive.canonicalKey = key
+			return recursive, nil
+		},
+	})
+}
 
 // frontierEntry is a lightweight frontier node for BFS IterSubjects.
 // It carries only the fields needed to combine with the next hop's path —

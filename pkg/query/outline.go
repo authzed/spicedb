@@ -1,7 +1,6 @@
 package query
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -10,28 +9,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-)
-
-// IteratorType is an enum to represent each basic type of iterator by a
-// well-known byte.
-//
-// Remember to also update  the allIteratorTypes list below when adding a new one.
-type IteratorType byte
-
-const (
-	NullIteratorType              IteratorType = '0'
-	DatastoreIteratorType         IteratorType = 'D'
-	UnionIteratorType             IteratorType = '|'
-	IntersectionIteratorType      IteratorType = '&'
-	FixedIteratorType             IteratorType = 'F'
-	ArrowIteratorType             IteratorType = '>'
-	ExclusionIteratorType         IteratorType = 'X'
-	CaveatIteratorType            IteratorType = 'C'
-	AliasIteratorType             IteratorType = '@'
-	RecursiveIteratorType         IteratorType = 'R'
-	RecursiveSentinelIteratorType IteratorType = 'r'
-	IntersectionArrowIteratorType IteratorType = 'A'
-	SelfIteratorType              IteratorType = '='
 )
 
 // CanonicalKey is a unique string identifier for a canonical Outline subtree.
@@ -138,13 +115,14 @@ func (co CanonicalOutline) Compile() (Iterator, error) {
 
 // compileOutline recursively builds an Iterator tree from an Outline,
 // looking up each node's CanonicalKey from the provided map and applying hints.
+// The concrete iterator for each node comes from the registry — see
+// MustRegisterIterator and the init() in each iterator's file.
 func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints map[OutlineNodeID][]Hint) (Iterator, error) {
 	key, ok := keys[outline.ID]
 	if !ok {
 		return nil, spiceerrors.MustBugf("outline node ID %d not found in CanonicalKeys map - outline must come from a CanonicalOutline", outline.ID)
 	}
 
-	// First, recursively compile all subiterators (bottom-up)
 	compiledSubs := make([]Iterator, len(outline.SubOutlines))
 	for i, sub := range outline.SubOutlines {
 		compiled, err := compileOutline(sub, keys, hints)
@@ -154,121 +132,11 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 		compiledSubs[i] = compiled
 	}
 
-	// Now construct the iterator based on type and set canonical key
-	var it Iterator
-	switch outline.Type {
-	case NullIteratorType:
-		fixed := NewFixedIterator()
-		fixed.canonicalKey = key
-		it = fixed
-
-	case DatastoreIteratorType:
-		if outline.Args == nil || outline.Args.Relation == nil {
-			return nil, errors.New("DatastoreIterator requires Relation in Args")
-		}
-		ds := NewDatastoreIterator(outline.Args.Relation)
-		ds.canonicalKey = key
-		it = ds
-
-	case UnionIteratorType:
-		union := NewUnionIterator(compiledSubs...)
-		union.(*UnionIterator).canonicalKey = key
-		it = union
-
-	case IntersectionIteratorType:
-		intersection := NewIntersectionIterator(compiledSubs...)
-		intersection.(*IntersectionIterator).canonicalKey = key
-		it = intersection
-
-	case FixedIteratorType:
-		var fixed *FixedIterator
-		if outline.Args != nil {
-			fixed = NewFixedIterator(outline.Args.FixedPaths...)
-		} else {
-			fixed = NewFixedIterator()
-		}
-		fixed.canonicalKey = key
-		it = fixed
-
-	case ArrowIteratorType:
-		if len(compiledSubs) != 2 {
-			return nil, fmt.Errorf("ArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
-		}
-		arrow := NewArrowIterator(compiledSubs[0], compiledSubs[1])
-		arrow.canonicalKey = key
-		it = arrow
-
-	case ExclusionIteratorType:
-		if len(compiledSubs) != 2 {
-			return nil, fmt.Errorf("ExclusionIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
-		}
-		exclusion := NewExclusionIterator(compiledSubs[0], compiledSubs[1])
-		exclusion.canonicalKey = key
-		it = exclusion
-
-	case CaveatIteratorType:
-		if len(compiledSubs) != 1 {
-			return nil, fmt.Errorf("CaveatIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
-		}
-		if outline.Args == nil || outline.Args.Caveat == nil {
-			return nil, errors.New("CaveatIterator requires Caveat in Args")
-		}
-		caveat := NewCaveatIterator(compiledSubs[0], outline.Args.Caveat)
-		caveat.canonicalKey = key
-		it = caveat
-
-	case AliasIteratorType:
-		if len(compiledSubs) != 1 {
-			return nil, fmt.Errorf("AliasIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
-		}
-		if outline.Args == nil || outline.Args.RelationName == "" {
-			return nil, errors.New("AliasIterator requires RelationName in Args")
-		}
-		alias := NewAliasIteratorWithChain(outline.Args.DefinitionName, outline.Args.RelationName, outline.Args.AliasedAs, compiledSubs[0])
-		alias.canonicalKey = key
-		it = alias
-
-	case RecursiveIteratorType:
-		if len(compiledSubs) != 1 {
-			return nil, fmt.Errorf("RecursiveIterator requires exactly 1 subiterator, got %d", len(compiledSubs))
-		}
-		if outline.Args == nil || outline.Args.DefinitionName == "" || outline.Args.RelationName == "" {
-			return nil, errors.New("RecursiveIterator requires DefinitionName and RelationName in Args")
-		}
-		recursive := NewRecursiveIterator(compiledSubs[0], outline.Args.DefinitionName, outline.Args.RelationName)
-		recursive.canonicalKey = key
-		it = recursive
-
-	case RecursiveSentinelIteratorType:
-		if outline.Args == nil || outline.Args.DefinitionName == "" || outline.Args.RelationName == "" {
-			return nil, errors.New("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
-		}
-		// withSubRelations defaults to false for now
-		sentinel := NewRecursiveSentinelIterator(outline.Args.DefinitionName, outline.Args.RelationName, false)
-		sentinel.canonicalKey = key
-		it = sentinel
-
-	case IntersectionArrowIteratorType:
-		if len(compiledSubs) != 2 {
-			return nil, fmt.Errorf("IntersectionArrowIterator requires exactly 2 subiterators, got %d", len(compiledSubs))
-		}
-		intersectionArrow := NewIntersectionArrowIterator(compiledSubs[0], compiledSubs[1])
-		intersectionArrow.canonicalKey = key
-		it = intersectionArrow
-
-	case SelfIteratorType:
-		if outline.Args == nil || outline.Args.RelationName == "" || outline.Args.DefinitionName == "" {
-			return nil, errors.New("SelfIterator requires RelationName and DefinitionName in Args")
-		}
-		self := NewSelfIterator(outline.Args.RelationName, outline.Args.DefinitionName)
-		self.canonicalKey = key
-		it = self
-
-	default:
-		return nil, fmt.Errorf("unknown iterator type: %c", outline.Type)
+	it, err := MakeIterator(outline.Type, outline.Args, compiledSubs, key)
+	if err != nil {
+		return nil, err
 	}
 
-	// Apply hints to the constructed iterator
 	if hints != nil {
 		for _, hint := range hints[outline.ID] {
 			if err := hint(it); err != nil {

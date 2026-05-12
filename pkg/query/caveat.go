@@ -9,6 +9,24 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: CaveatIteratorType,
+		Name: "Caveat",
+		ConstructWithArgs: func(args *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 1 {
+				return nil, fmt.Errorf("CaveatIterator requires exactly 1 subiterator, got %d", len(subs))
+			}
+			if args == nil || args.Caveat == nil {
+				return nil, errors.New("CaveatIterator requires Caveat in Args")
+			}
+			caveat := NewCaveatIterator(subs[0], args.Caveat)
+			caveat.canonicalKey = key
+			return caveat, nil
+		},
+	})
+}
+
 // CaveatIterator wraps another iterator and applies caveat evaluation to its results.
 // It checks caveat conditions on relationships during iteration and only yields
 // relationships that satisfy the caveat constraints.

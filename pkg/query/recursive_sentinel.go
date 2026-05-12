@@ -1,11 +1,28 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: RecursiveSentinelIteratorType,
+		Name: "RecursiveSentinel",
+		ConstructWithArgs: func(args *IteratorArgs, _ []Iterator, key CanonicalKey) (Iterator, error) {
+			if args == nil || args.DefinitionName == "" || args.RelationName == "" {
+				return nil, errors.New("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
+			}
+			// withSubRelations defaults to false; the outline does not yet carry it.
+			sentinel := NewRecursiveSentinelIterator(args.DefinitionName, args.RelationName, false)
+			sentinel.canonicalKey = key
+			return sentinel, nil
+		},
+	})
+}
 
 var _ Iterator = &RecursiveSentinelIterator{}
 
