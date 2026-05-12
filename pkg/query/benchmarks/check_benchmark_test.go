@@ -127,6 +127,12 @@ func BenchmarkCheck(b *testing.B) {
 				}
 			})
 
+			if *includeClassic {
+				b.Run("classic", func(b *testing.B) {
+					runClassicCheck(b, ctx, rawDS, revision, check, classicDepth(queries))
+				})
+			}
+
 			if *includeDelay {
 				if *includePlain {
 					b.Run("plain_delay", func(b *testing.B) {
