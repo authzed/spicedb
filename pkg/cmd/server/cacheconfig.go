@@ -25,8 +25,9 @@ var errOverHundredPercent = errors.New("percentage greater than 100")
 //
 //go:generate go run github.com/ecordell/optgen -output zz_generated.cacheconfig.options.go . CacheConfig
 type CacheConfig struct {
-	Name        string        `debugmap:"visible"`
-	MaxCost     string        `debugmap:"visible"`
+	Name    string `debugmap:"visible"`
+	MaxCost string `debugmap:"visible"`
+	// Deprecated: NumCounters is no longer used with the current cache implementation.
 	NumCounters int64         `debugmap:"visible"`
 	Metrics     bool          `debugmap:"visible"`
 	Enabled     bool          `debugmap:"visible"`
@@ -47,7 +48,7 @@ func (cc *CacheConfig) WithRevisionParameters(
 
 // CompleteCache translates the CLI cache config into a cache config.
 func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V], error) {
-	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" || cc.NumCounters == 0 {
+	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" {
 		return cache.NoopCache[K, V](), nil
 	}
 
@@ -72,16 +73,14 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 
 	if cc.Metrics {
 		return cache.NewStandardCacheWithMetrics[K, V](cc.Name, &cache.Config{
-			MaxCost:     intMaxCost,
-			NumCounters: cc.NumCounters,
-			DefaultTTL:  cc.defaultTTL,
+			MaxCost:    intMaxCost,
+			DefaultTTL: cc.defaultTTL,
 		})
 	}
 
 	return cache.NewStandardCache[K, V](&cache.Config{
-		MaxCost:     intMaxCost,
-		NumCounters: cc.NumCounters,
-		DefaultTTL:  cc.defaultTTL,
+		MaxCost:    intMaxCost,
+		DefaultTTL: cc.defaultTTL,
 	})
 }
 
@@ -104,7 +103,11 @@ func RegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string
 	config.Name = defaults.Name
 	flagPrefix = cmp.Or(flagPrefix, "cache")
 	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound (in bytes or as a percent of available memory) of the cache for "+flagDescription)
-	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaults.NumCounters, "number of counters for tracking access frequency in the cache for "+flagDescription+". A higher number means more accurate eviction decisions but more memory usage")
+	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", 0, "number of counters for tracking access frequency in the cache for "+flagDescription+". A higher number means more accurate eviction decisions but more memory usage")
+	err := flags.MarkDeprecated(flagPrefix+"-num-counters", "this flag is now unused")
+	if err != nil {
+		return err
+	}
 	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", defaults.Metrics, "enable metrics for the cache for "+flagDescription)
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaults.Enabled, "enable caching of "+flagDescription)
 

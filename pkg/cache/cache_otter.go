@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package cache
 
 import (
@@ -94,6 +96,10 @@ func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
 
 func (wtc *otterCache[K, V]) Wait() {}
 func (wtc *otterCache[K, V]) Close() {
+	// NOTE: CleanUp is *not* the same as Close - otter/v2 doesn't expose a Close
+	// method. It should help reduce resource usage e.g. in tests, but there will
+	// still be a periodicCleanup goroutine hanging around.
+	wtc.cache.CleanUp()
 	unregisterCache(wtc.name)
 }
 

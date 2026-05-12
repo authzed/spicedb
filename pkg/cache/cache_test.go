@@ -9,9 +9,8 @@ import (
 
 func TestCacheWithMetrics(t *testing.T) {
 	config := &Config{
-		NumCounters: 10000,
-		MaxCost:     1000,
-		DefaultTTL:  10 * time.Hour,
+		MaxCost:    1000,
+		DefaultTTL: 10 * time.Hour,
 	}
 
 	t.Run("Set and Get", func(t *testing.T) {

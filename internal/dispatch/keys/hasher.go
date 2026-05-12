@@ -121,8 +121,8 @@ func (hc hashableContext) AppendToHash(hasher hasherInterface) {
 }
 
 // dispatchCacheKeyHash computes a DispatchCheckKey for the given prefix and any hashable values.
-func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, computeOption dispatchCacheKeyHashComputeOption, args ...hashableValue) DispatchCacheKey {
-	hasher := newDispatchCacheKeyHasher(prefix, computeOption)
+func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, args ...hashableValue) DispatchCacheKey {
+	hasher := newDispatchCacheKeyHasher(prefix)
 
 	for _, arg := range args {
 		arg.AppendToHash(hasher)
@@ -134,14 +134,12 @@ func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, computeOption d
 }
 
 type dispatchCacheKeyHasher struct {
-	stableHasher       *xxhash.Digest
-	computeOption      dispatchCacheKeyHashComputeOption
+	stableHasher *xxhash.Digest
 }
 
-func newDispatchCacheKeyHasher(prefix cachePrefix, computeOption dispatchCacheKeyHashComputeOption) *dispatchCacheKeyHasher {
+func newDispatchCacheKeyHasher(prefix cachePrefix) *dispatchCacheKeyHasher {
 	h := &dispatchCacheKeyHasher{
-		stableHasher:  xxhash.New(),
-		computeOption: computeOption,
+		stableHasher: xxhash.New(),
 	}
 
 	prefixString := string(prefix)

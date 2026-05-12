@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Build: strip quarantine attribute for MacOS (https://github.com/authzed/spicedb/pull/3082)
+- Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation
 
 ### Fixed
 - Query plan contexts are written to during recursive calls -- for now, disble dispatch inside recursive calls (https://github.com/authzed/spicedb/pull/3078)
