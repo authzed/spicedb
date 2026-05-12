@@ -25,13 +25,12 @@ var errOverHundredPercent = errors.New("percentage greater than 100")
 //
 //go:generate go run github.com/ecordell/optgen -output zz_generated.cacheconfig.options.go . CacheConfig
 type CacheConfig struct {
-	Name                string        `debugmap:"visible"`
-	MaxCost             string        `debugmap:"visible"`
-	NumCounters         int64         `debugmap:"visible"`
-	Metrics             bool          `debugmap:"visible"`
-	Enabled             bool          `debugmap:"visible"`
-	defaultTTL          time.Duration `debugmap:"visible"`
-	CacheKindForTesting string        `debugmap:"visible"`
+	Name        string        `debugmap:"visible"`
+	MaxCost     string        `debugmap:"visible"`
+	NumCounters int64         `debugmap:"visible"`
+	Metrics     bool          `debugmap:"visible"`
+	Enabled     bool          `debugmap:"visible"`
+	defaultTTL  time.Duration `debugmap:"visible"`
 }
 
 // WithRevisionParameters configures a cache such that all entries are given a TTL
@@ -69,34 +68,6 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 	intMaxCost, err := safecast.Convert[int64](maxCost)
 	if err != nil {
 		return nil, errors.New("could not cast max cost to int64")
-	}
-
-	if cc.CacheKindForTesting != "" {
-		switch cc.CacheKindForTesting {
-		case "theine":
-			return cache.NewTheineCacheWithMetrics[K, V](cc.Name, &cache.Config{
-				MaxCost:     intMaxCost,
-				NumCounters: cc.NumCounters,
-				DefaultTTL:  cc.defaultTTL,
-			})
-
-		case "otter":
-			if cc.Metrics {
-				return cache.NewOtterCacheWithMetrics[K, V](cc.Name, &cache.Config{
-					MaxCost:     intMaxCost,
-					NumCounters: cc.NumCounters,
-					DefaultTTL:  cc.defaultTTL,
-				})
-			}
-			return cache.NewOtterCache[K, V](cc.Name, &cache.Config{
-				MaxCost:     intMaxCost,
-				NumCounters: cc.NumCounters,
-				DefaultTTL:  cc.defaultTTL,
-			})
-
-		default:
-			return nil, fmt.Errorf("unknown cache kind: %s", cc.CacheKindForTesting)
-		}
 	}
 
 	if cc.Metrics {
@@ -137,10 +108,5 @@ func RegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string
 	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", defaults.Metrics, "enable metrics for the cache for "+flagDescription)
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaults.Enabled, "enable caching of "+flagDescription)
 
-	// Hidden flags.
-	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
-	if err := flags.MarkHidden(flagPrefix + "-kind-for-testing"); err != nil {
-		return err
-	}
 	return nil
 }

@@ -1,5 +1,3 @@
-//go:build !wasm
-
 package cache
 
 import (
@@ -16,29 +14,8 @@ func TestCacheWithMetrics(t *testing.T) {
 		DefaultTTL:  10 * time.Hour,
 	}
 
-	t.Run("otter", func(t *testing.T) {
-		testCacheImplementation(t, func() (Cache[StringKey, string], error) {
-			return NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
-		})
-	})
-
-	t.Run("ristretto", func(t *testing.T) {
-		testCacheImplementation(t, func() (Cache[StringKey, string], error) {
-			// Use the metrics version for proper metrics tracking
-			return NewRistrettoCacheWithMetrics[StringKey, string]("test-ristretto", config)
-		})
-	})
-
-	t.Run("theine", func(t *testing.T) {
-		testCacheImplementation(t, func() (Cache[StringKey, string], error) {
-			return NewTheineCacheWithMetrics[StringKey, string]("test-theine", config)
-		})
-	})
-}
-
-func testCacheImplementation(t *testing.T, factory func() (Cache[StringKey, string], error)) {
 	t.Run("Set and Get", func(t *testing.T) {
-		cache, err := factory()
+		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 
@@ -69,7 +46,7 @@ func testCacheImplementation(t *testing.T, factory func() (Cache[StringKey, stri
 	})
 
 	t.Run("Set same key with diff values", func(t *testing.T) {
-		cache, err := factory()
+		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 
@@ -90,7 +67,7 @@ func testCacheImplementation(t *testing.T, factory func() (Cache[StringKey, stri
 	})
 
 	t.Run("Close multiple times", func(t *testing.T) {
-		cache, err := factory()
+		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
 		require.NoError(t, err)
 
 		for range 10 {
@@ -99,7 +76,7 @@ func testCacheImplementation(t *testing.T, factory func() (Cache[StringKey, stri
 	})
 
 	t.Run("GetTTL", func(t *testing.T) {
-		cache, err := factory()
+		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 
@@ -107,7 +84,7 @@ func testCacheImplementation(t *testing.T, factory func() (Cache[StringKey, stri
 	})
 
 	t.Run("GetMetrics", func(t *testing.T) {
-		cache, err := factory()
+		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 

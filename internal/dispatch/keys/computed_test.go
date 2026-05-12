@@ -661,7 +661,6 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 
 	dataCombinationSeen := mapz.NewSet[string]()
 	stableCacheKeysSeen := mapz.NewSet[string]()
-	unstableCacheKeysSeen := mapz.NewSet[uint64]()
 
 	// Ensure all key functions are generated.
 	require.Len(t, cachePrefixes, len(generatorFuncs))
@@ -687,7 +686,6 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 													usedDataString := fmt.Sprintf("%s:%s", prefix, strings.Join(usedData, ","))
 													if dataCombinationSeen.Add(usedDataString) {
 														require.True(t, stableCacheKeysSeen.Add(hex.EncodeToString((generated.StableSumAsBytes()))))
-														require.True(t, unstableCacheKeysSeen.Add(generated.processSpecificSum))
 													}
 												})
 											}
@@ -701,20 +699,6 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestComputeOnlyStableHash(t *testing.T) {
-	result := checkRequestToKey(&v1.DispatchCheckRequest{
-		ResourceRelation: RR("document", "view"),
-		ResourceIds:      []string{"foo", "bar"},
-		Subject:          ONR("user", "tom", "..."),
-		Metadata: &v1.ResolverMeta{
-			AtRevision: "1234",
-			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
-		},
-	}, computeOnlyStableHash)
-
-	require.Equal(t, uint64(0), result.processSpecificSum)
 }
 
 func TestComputeContextHash(t *testing.T) {
