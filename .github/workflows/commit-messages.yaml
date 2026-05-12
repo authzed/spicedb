@@ -18,6 +18,8 @@ jobs:
     runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "webiny/action-conventional-commits@v1.4.2"
       - uses: "amannn/action-semantic-pull-request@v6.1.1"
         env:

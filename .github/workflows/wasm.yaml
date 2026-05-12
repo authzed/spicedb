@@ -16,6 +16,7 @@ jobs:
       - uses: "actions/checkout@v6"
         with:
           ref: "${{ env.GITHUB_SHA }}"
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Build WASM"
         run: "go run mage.go build:wasm"

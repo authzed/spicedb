@@ -27,6 +27,8 @@ jobs:
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d" # v4.0.1
         id: "code-filter"
         with:
@@ -57,6 +59,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121" # v4.1.0
         with:
@@ -76,6 +80,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Unit tests with coverage"
         run: "go run mage.go test:unitCover"
@@ -94,6 +100,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Steelthread tests"
         run: "go run mage.go test:steelthread"
@@ -107,6 +115,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121" # v4.1.0
         with:
@@ -133,6 +143,8 @@ jobs:
       - uses: "actions/checkout@v6"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -167,6 +179,8 @@ jobs:
       - uses: "actions/checkout@v6"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -202,6 +216,8 @@ jobs:
       - uses: "actions/checkout@v6"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -237,6 +253,8 @@ jobs:
       - uses: "actions/checkout@v6"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -276,6 +294,8 @@ jobs:
       - uses: "actions/checkout@v6"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -315,6 +335,8 @@ jobs:
       - uses: "actions/checkout@v6"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
@@ -351,6 +373,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "e2e/go.mod"
@@ -372,6 +396,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "tools/analyzers/go.mod"
@@ -386,6 +412,8 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Disable AppArmor"
         if:
@@ -412,6 +440,8 @@ jobs:
       needs.paths-filter.outputs.protochange == 'true'
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
@@ -446,6 +476,7 @@ jobs:
       - uses: "actions/checkout@v6"
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: "authzed/actions/setup-go@main"
         with:

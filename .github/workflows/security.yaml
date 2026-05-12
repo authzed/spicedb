@@ -34,6 +34,8 @@ jobs:
 
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - uses: "authzed/actions/codeql@main"
 
@@ -50,6 +52,7 @@ jobs:
           # this is used so goreleaser generates the right version out of the tags, which we need so that
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@v4.1.0" # v3.7.0
         with:
@@ -82,4 +85,4 @@ jobs:
       - name: "Obtain container image to scan"
         run: 'echo "IMAGE_VERSION=$(jq .version dist/linux_amd64/metadata.json --raw-output)" >> $GITHUB_ENV'
       - name: "run trivy on release image"
-        run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.69.3 image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64 --db-repository public.ecr.aws/aquasecurity/trivy-db --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db"
+        run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.69.3 image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${IMAGE_VERSION}-amd64 --db-repository public.ecr.aws/aquasecurity/trivy-db --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db"

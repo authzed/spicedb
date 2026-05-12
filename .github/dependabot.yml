@@ -14,6 +14,8 @@ updates:
     groups:
       go-mod:
         patterns: ["*"]
+    cooldown:
+      default-days: 7
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -23,6 +25,8 @@ updates:
     groups:
       docker:
         patterns: ["*"]
+    cooldown:
+      default-days: 7
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -30,3 +34,5 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+    cooldown:
+      default-days: 7

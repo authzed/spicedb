@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: "Checkout source"
         uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - name: "Checkout target"
         uses: "actions/checkout@v6"
         with:
@@ -30,6 +32,7 @@ jobs:
           repository: "${{ env.DOCS_REPO }}"
           path: "docs-repo"
           ref: "main"
+          persist-credentials: false
 
       - name: "Send changes from source to target and check if target changed "
         id: "check-changes"
@@ -69,9 +72,10 @@ jobs:
 
       - name: "Enable Pull Request Automerge in target"
         if: "steps.check-changes.outputs.docs_changed == 'true'"
-        run: "gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --merge --auto -R ${{ env.DOCS_REPO }}"
+        run: "gh pr merge ${STEPS_CPR_OUTPUTS_PULL_REQUEST_NUMBER} --merge --auto -R ${{ env.DOCS_REPO }}"
         env:
           GH_TOKEN: "${{ secrets.AUTHZEDAPPROVER_REPO_SCOPED_TOKEN }}"
+          STEPS_CPR_OUTPUTS_PULL_REQUEST_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
 
       - name: "Notify in Slack if failure"
         if: "${{ failure() }}"

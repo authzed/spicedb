@@ -22,6 +22,8 @@ jobs:
     runs-on: "depot-ubuntu-24.04-small"
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Check Licenses"
         uses: "authzed/actions/go-license-check@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
@@ -32,6 +34,8 @@ jobs:
     runs-on: "depot-ubuntu-24.04-4"
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate docs"
         run: "go run mage.go gen:docs"
@@ -44,6 +48,8 @@ jobs:
     runs-on: "depot-ubuntu-24.04-4"
     steps:
       - uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
       - uses: "authzed/actions/setup-go@main"
       - name: "Lint Everything"
         run: "go run mage.go lint:all"
