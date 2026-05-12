@@ -147,6 +147,10 @@ func (d *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReques
 }
 
 func (d *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	// Plan dispatches are not currently grouped via singleflight; record the
+	// passthrough so the metric series exists and can be compared against the
+	// other dispatch methods.
+	singleFlightCount.WithLabelValues("DispatchQueryPlan", "passthrough").Inc()
 	return d.delegate.DispatchQueryPlan(req, stream)
 }
 
