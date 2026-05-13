@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -114,12 +115,13 @@ type Config struct {
 	FilterMaximumIDCount        uint16        `debugmap:"hidden"    default:"100"`
 
 	// Options
-	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`
-	WriteConnPool                  ConnPoolConfig `debugmap:"visible"`
-	ReadOnly                       bool           `debugmap:"visible"`
-	EnableDatastoreMetrics         bool           `debugmap:"visible"`
-	DisableStats                   bool           `debugmap:"visible"`
-	IncludeQueryParametersInTraces bool           `debugmap:"visible"`
+	ReadConnPool                   ConnPoolConfig        `debugmap:"visible"`
+	WriteConnPool                  ConnPoolConfig        `debugmap:"visible"`
+	ReadOnly                       bool                  `debugmap:"visible"`
+	PrometheusRegisterer           prometheus.Registerer `debugmap:"hidden"`
+	EnableDatastoreMetrics         bool                  `debugmap:"visible"`
+	DisableStats                   bool                  `debugmap:"visible"`
+	IncludeQueryParametersInTraces bool                  `debugmap:"visible"`
 
 	// Read Replicas
 	ReadReplicaConnPool ConnPoolConfig `debugmap:"visible"`
@@ -603,6 +605,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),
 		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		crdb.WithPrometheusRegisterer(opts.PrometheusRegisterer),
 		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
 		crdb.AllowedMigrations(opts.AllowedMigrations),
 		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),

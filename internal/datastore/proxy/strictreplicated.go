@@ -42,8 +42,7 @@ func RegisterStrictReplicatedMetrics(registerer prometheus.Registerer) error {
 		strictReadReplicatedFallbackQueryCount,
 	} {
 		if err := registerer.Register(c); err != nil {
-			var alreadyRegistered prometheus.AlreadyRegisteredError
-			if !errors.As(err, &alreadyRegistered) {
+			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 				return fmt.Errorf("failed to register strict replicated datastore metrics: %w", err)
 			}
 		}

@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -1017,11 +1018,13 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 		PresharedSecureKey: []string{"sometestkey"},
 		DatastoreConfig: datastore.Config{
 			Engine:               "memory",
+			PrometheusRegisterer: prometheus.NewRegistry(),
 			RevisionQuantization: 5 * time.Second,
 			GCWindow:             5 * time.Minute,
 			FilterMaximumIDCount: 100,
 		},
 	}
+	config.PrometheusRegisterer = prometheus.NewRegistry()
 
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)

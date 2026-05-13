@@ -7,6 +7,7 @@ import (
 	consistency "github.com/authzed/spicedb/pkg/middleware/consistency"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	prometheus "github.com/prometheus/client_golang/prometheus"
 	zerolog "github.com/rs/zerolog"
 )
 
@@ -41,6 +42,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.EnableRequestLog = m.EnableRequestLog
 		to.EnableResponseLog = m.EnableResponseLog
 		to.DisableGRPCHistogram = m.DisableGRPCHistogram
+		to.PrometheusRegisterer = m.PrometheusRegisterer
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
 		to.MemoryUsageProvider = m.MemoryUsageProvider
@@ -106,71 +108,78 @@ func (m *MiddlewareOption) WithOptions(opts ...MiddlewareOptionOption) *Middlewa
 	return m
 }
 
-// WithLogger returns an option that can set Logger on a MiddlewareOption
-func WithLogger(logger zerolog.Logger) MiddlewareOptionOption {
+// WithMiddlewareOptionLogger returns an option that can set Logger on a MiddlewareOption
+func WithMiddlewareOptionLogger(logger zerolog.Logger) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.Logger = logger
 	}
 }
 
-// WithAuthFunc returns an option that can set AuthFunc on a MiddlewareOption
-func WithAuthFunc(authFunc auth.AuthFunc) MiddlewareOptionOption {
+// WithMiddlewareOptionAuthFunc returns an option that can set AuthFunc on a MiddlewareOption
+func WithMiddlewareOptionAuthFunc(authFunc auth.AuthFunc) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.AuthFunc = authFunc
 	}
 }
 
-// WithEnableVersionResponse returns an option that can set EnableVersionResponse on a MiddlewareOption
-func WithEnableVersionResponse(enableVersionResponse bool) MiddlewareOptionOption {
+// WithMiddlewareOptionEnableVersionResponse returns an option that can set EnableVersionResponse on a MiddlewareOption
+func WithMiddlewareOptionEnableVersionResponse(enableVersionResponse bool) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.EnableVersionResponse = enableVersionResponse
 	}
 }
 
-// WithDispatcherForMiddleware returns an option that can set DispatcherForMiddleware on a MiddlewareOption
-func WithDispatcherForMiddleware(dispatcherForMiddleware dispatch.Dispatcher) MiddlewareOptionOption {
+// WithMiddlewareOptionDispatcherForMiddleware returns an option that can set DispatcherForMiddleware on a MiddlewareOption
+func WithMiddlewareOptionDispatcherForMiddleware(dispatcherForMiddleware dispatch.Dispatcher) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.DispatcherForMiddleware = dispatcherForMiddleware
 	}
 }
 
-// WithEnableRequestLog returns an option that can set EnableRequestLog on a MiddlewareOption
-func WithEnableRequestLog(enableRequestLog bool) MiddlewareOptionOption {
+// WithMiddlewareOptionEnableRequestLog returns an option that can set EnableRequestLog on a MiddlewareOption
+func WithMiddlewareOptionEnableRequestLog(enableRequestLog bool) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.EnableRequestLog = enableRequestLog
 	}
 }
 
-// WithEnableResponseLog returns an option that can set EnableResponseLog on a MiddlewareOption
-func WithEnableResponseLog(enableResponseLog bool) MiddlewareOptionOption {
+// WithMiddlewareOptionEnableResponseLog returns an option that can set EnableResponseLog on a MiddlewareOption
+func WithMiddlewareOptionEnableResponseLog(enableResponseLog bool) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.EnableResponseLog = enableResponseLog
 	}
 }
 
-// WithDisableGRPCHistogram returns an option that can set DisableGRPCHistogram on a MiddlewareOption
-func WithDisableGRPCHistogram(disableGRPCHistogram bool) MiddlewareOptionOption {
+// WithMiddlewareOptionDisableGRPCHistogram returns an option that can set DisableGRPCHistogram on a MiddlewareOption
+func WithMiddlewareOptionDisableGRPCHistogram(disableGRPCHistogram bool) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.DisableGRPCHistogram = disableGRPCHistogram
 	}
 }
 
-// WithMiddlewareServiceLabel returns an option that can set MiddlewareServiceLabel on a MiddlewareOption
-func WithMiddlewareServiceLabel(middlewareServiceLabel string) MiddlewareOptionOption {
+// WithMiddlewareOptionPrometheusRegisterer returns an option that can set PrometheusRegisterer on a MiddlewareOption
+func WithMiddlewareOptionPrometheusRegisterer(prometheusRegisterer prometheus.Registerer) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.PrometheusRegisterer = prometheusRegisterer
+	}
+}
+
+// WithMiddlewareOptionMiddlewareServiceLabel returns an option that can set MiddlewareServiceLabel on a MiddlewareOption
+func WithMiddlewareOptionMiddlewareServiceLabel(middlewareServiceLabel string) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MiddlewareServiceLabel = middlewareServiceLabel
 	}
 }
 
-// WithMismatchingZedTokenOption returns an option that can set MismatchingZedTokenOption on a MiddlewareOption
-func WithMismatchingZedTokenOption(mismatchingZedTokenOption consistency.MismatchingTokenOption) MiddlewareOptionOption {
+// WithMiddlewareOptionMismatchingZedTokenOption returns an option that can set MismatchingZedTokenOption on a MiddlewareOption
+func WithMiddlewareOptionMismatchingZedTokenOption(mismatchingZedTokenOption consistency.MismatchingTokenOption) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MismatchingZedTokenOption = mismatchingZedTokenOption
 	}
 }
 
-// WithMemoryUsageProvider returns an option that can set MemoryUsageProvider on a MiddlewareOption
-func WithMemoryUsageProvider(memoryUsageProvider memoryprotection.MemoryUsageProvider) MiddlewareOptionOption {
+// WithMiddlewareOptionMemoryUsageProvider returns an option that can set MemoryUsageProvider on a MiddlewareOption
+func WithMiddlewareOptionMemoryUsageProvider(memoryUsageProvider memoryprotection.MemoryUsageProvider) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MemoryUsageProvider = memoryUsageProvider
 	}

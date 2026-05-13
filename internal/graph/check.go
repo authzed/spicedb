@@ -47,8 +47,7 @@ func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16, dispatchChu
 		registerer = prometheus.DefaultRegisterer
 	}
 	if err := registerer.Register(dispatchChunkCountHistogram); err != nil {
-		var alreadyRegistered prometheus.AlreadyRegisteredError
-		if !errors.As(err, &alreadyRegistered) {
+		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 			// log at debug level — metric registration failures should not crash the server
 			_ = fmt.Errorf("failed to register check dispatch metrics: %w", err)
 		}

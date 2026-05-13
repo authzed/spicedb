@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/utils/ptr"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 type crdbOptions struct {
@@ -127,6 +127,13 @@ func generateConfig(options []Option) (crdbOptions, error) {
 	}
 
 	return computed, nil
+}
+
+// WithPrometheusRegisterer sets the prometheus.Registerer used for CockroachDB datastore metrics.
+func WithPrometheusRegisterer(registerer prometheus.Registerer) Option {
+	return func(po *crdbOptions) {
+		po.prometheusRegisterer = registerer
+	}
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max

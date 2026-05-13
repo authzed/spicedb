@@ -121,8 +121,7 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 	}
 	for _, c := range []prometheus.Collector{dispatchCounter, hedgeWaitHistogram, hedgeActualWaitHistogram, primaryDispatch} {
 		if err := registerer.Register(c); err != nil {
-			var alreadyRegistered prometheus.AlreadyRegisteredError
-			if !errors.As(err, &alreadyRegistered) {
+			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 				return nil, fmt.Errorf("failed to register cluster dispatch metrics: %w", err)
 			}
 		}

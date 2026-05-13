@@ -186,7 +186,7 @@ const (
 	DefaultInternalMiddlewareServerSpecific = "servicespecific"
 )
 
-//go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go . MiddlewareOption
+//go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go -prefix . MiddlewareOption
 type MiddlewareOption struct {
 	Logger                    zerolog.Logger                       `debugmap:"hidden"`
 	AuthFunc                  grpcauth.AuthFunc                    `debugmap:"hidden"`

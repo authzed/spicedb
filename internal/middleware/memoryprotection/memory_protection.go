@@ -35,8 +35,7 @@ func RegisterMetrics(registerer prometheus.Registerer) error {
 		registerer = prometheus.DefaultRegisterer
 	}
 	if err := registerer.Register(RequestsProcessed); err != nil {
-		var alreadyRegistered prometheus.AlreadyRegisteredError
-		if !errors.As(err, &alreadyRegistered) {
+		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 			return fmt.Errorf("failed to register memory protection metrics: %w", err)
 		}
 	}

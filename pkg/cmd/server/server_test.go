@@ -186,7 +186,9 @@ func TestOTelReporting(t *testing.T) {
 		WithEnableMemoryProtectionMiddleware(false),
 	}
 
-	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	srvCfg := NewConfigWithOptionsAndDefaults(configOpts...)
+	srvCfg.PrometheusRegisterer = prometheus.NewRegistry()
+	srv, err := srvCfg.Complete(ctx)
 	require.NoError(t, err)
 
 	conn, err := srv.GRPCDialContext(ctx)
@@ -258,7 +260,9 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 		WithDatastore(ds),
 	}
 
-	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	srvCfg2 := NewConfigWithOptionsAndDefaults(configOpts...)
+	srvCfg2.PrometheusRegisterer = prometheus.NewRegistry()
+	srv, err := srvCfg2.Complete(ctx)
 	require.NoError(t, err)
 
 	conn, err := srv.GRPCDialContext(ctx)
@@ -395,7 +399,9 @@ func TestRetryPolicy(t *testing.T) {
 		}),
 	}
 
-	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	srvCfg3 := NewConfigWithOptionsAndDefaults(configOpts...)
+	srvCfg3.PrometheusRegisterer = prometheus.NewRegistry()
+	srv, err := srvCfg3.Complete(ctx)
 	require.NoError(t, err)
 
 	conn, err := srv.GRPCDialContext(ctx,
@@ -470,6 +476,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 			Network: util.BufferedNetwork,
 		},
 	}, WithPresharedSecureKey("psk"), WithDatastore(ds), WithEnableMemoryProtectionMiddleware(false))
+	c.PrometheusRegisterer = prometheus.NewRegistry()
 	cancel()
 	_, err = c.Complete(ctx)
 	require.NoError(t, err)

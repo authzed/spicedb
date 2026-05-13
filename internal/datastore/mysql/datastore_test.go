@@ -145,7 +145,9 @@ func TestMySQLRevisionTimestamps(t *testing.T) {
 
 func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 	reg := prometheus.NewRegistry()
-	regOptions := append(defaultOptions, WithPrometheusRegisterer(reg))
+	regOptions := make([]Option, 0, len(defaultOptions)+1)
+	copy(regOptions, defaultOptions)
+	regOptions = append(regOptions, WithPrometheusRegisterer(reg))
 
 	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest, regOptions...))
 	t.Run("PrometheusCollector", createDatastoreTestWithGatherer(b, reg, PrometheusCollectorTest, regOptions...))

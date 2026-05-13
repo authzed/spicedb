@@ -47,8 +47,7 @@ func RegisterMetrics(registerer prometheus.Registerer) error {
 		registerer = prometheus.DefaultRegisterer
 	}
 	if err := registerer.Register(DispatchedCountHistogram); err != nil {
-		var alreadyRegistered prometheus.AlreadyRegisteredError
-		if !errors.As(err, &alreadyRegistered) {
+		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 			return fmt.Errorf("failed to register usagemetrics: %w", err)
 		}
 	}

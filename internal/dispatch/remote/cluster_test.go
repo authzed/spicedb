@@ -12,6 +12,7 @@ import (
 	"github.com/caio/go-tdigest/v4"
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -200,6 +201,7 @@ func TestDispatchTimeout(t *testing.T) {
 			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: tc.timeout,
+				Registerer:             prometheus.NewRegistry(),
 			}, nil, nil, 0*time.Second)
 			require.NoError(t, err)
 			require.True(t, dispatcher.ReadyState().IsReady)
@@ -355,6 +357,7 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: 30 * time.Second,
+				Registerer:             prometheus.NewRegistry(),
 			}, map[string]SecondaryDispatch{
 				"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 			}, map[string]*DispatchExpr{
@@ -650,6 +653,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: 30 * time.Second,
+				Registerer:             prometheus.NewRegistry(),
 			}, map[string]SecondaryDispatch{
 				"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 				"tertiary":  {Name: "tertiary", Client: v1.NewDispatchServiceClient(tertiaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
@@ -687,6 +691,7 @@ func TestLRDispatchFallbackToPrimary(t *testing.T) {
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 	}, map[string]*DispatchExpr{
@@ -787,6 +792,7 @@ func TestLSSecondaryDispatch(t *testing.T) {
 			dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: 30 * time.Second,
+				Registerer:             prometheus.NewRegistry(),
 			}, map[string]SecondaryDispatch{
 				"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 				"tertiary":  {Name: "tertiary", Client: v1.NewDispatchServiceClient(tertiaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
@@ -824,6 +830,7 @@ func TestLSDispatchFallbackToPrimary(t *testing.T) {
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 	}, map[string]*DispatchExpr{
@@ -865,6 +872,7 @@ func TestCheckUsesDelayByDefaultForPrimary(t *testing.T) {
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 15 * time.Millisecond},
 	}, map[string]*DispatchExpr{
@@ -903,6 +911,7 @@ func TestStreamingDispatchDelayByDefaultForPrimary(t *testing.T) {
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 15 * time.Millisecond},
 	}, map[string]*DispatchExpr{
@@ -950,6 +959,7 @@ func TestGetPrimaryWaitTime(t *testing.T) {
 	d, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 	}, map[string]*DispatchExpr{
@@ -994,6 +1004,7 @@ func TestCheckUsesMaximumDelayByDefaultForPrimary(t *testing.T) {
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 0 * time.Millisecond},
 	}, map[string]*DispatchExpr{
@@ -1134,6 +1145,7 @@ func TestCheckToUnsupportedRemovesHedgingDelay(t *testing.T) {
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
 	}, map[string]*DispatchExpr{
@@ -1267,6 +1279,7 @@ func TestPrimaryDispatcherErrorReturned(t *testing.T) {
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}, map[string]SecondaryDispatch{
 		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 0}, // No delay so primary runs immediately
 	}, map[string]*DispatchExpr{
@@ -1317,7 +1330,7 @@ func TestReadyStateConnecting(t *testing.T) {
 
 	dispatcher, err := NewClusterDispatcher(
 		v1.NewDispatchServiceClient(conn), conn,
-		ClusterDispatcherConfig{KeyHandler: &keys.DirectKeyHandler{}},
+		ClusterDispatcherConfig{KeyHandler: &keys.DirectKeyHandler{}, Registerer: prometheus.NewRegistry()},
 		nil, nil, 0,
 	)
 	t.Cleanup(func() { dispatcher.Close() })

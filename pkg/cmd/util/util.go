@@ -1,6 +1,6 @@
 package util
 
-//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . GRPCServerConfig HTTPServerConfig
+//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go -prefix . GRPCServerConfig HTTPServerConfig
 
 import (
 	"cmp"

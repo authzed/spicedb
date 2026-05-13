@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -49,6 +50,7 @@ func BenchmarkSecondaryDispatching(b *testing.B) {
 	config := ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
+		Registerer:             prometheus.NewRegistry(),
 	}
 
 	parsed, err := ParseDispatchExpression("check", "['secondary']")

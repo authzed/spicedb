@@ -913,12 +913,12 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 		_ = cds.Close()
 	})
 
-	err = cds.registerPrometheusCollectors(false)
+	err = cds.registerPrometheusCollectors(prometheus.NewPedanticRegistry(), false)
 	require.NoError(t, err)
 	require.Empty(t, cds.collectors)
 
 	// Register collectors and verify the values of the metrics
-	err = cds.registerPrometheusCollectors(true)
+	err = cds.registerPrometheusCollectors(prometheus.NewPedanticRegistry(), true)
 	require.NoError(t, err)
 	require.Len(t, cds.collectors, 2)
 

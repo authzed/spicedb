@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
@@ -376,6 +377,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 			Enabled: true,
 		}),
 	)
+	c.PrometheusRegisterer = prometheus.NewRegistry()
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
@@ -487,6 +489,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 			},
 		}),
 	)
+	c.PrometheusRegisterer = prometheus.NewRegistry()
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 

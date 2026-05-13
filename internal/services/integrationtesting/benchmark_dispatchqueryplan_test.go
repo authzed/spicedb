@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -180,7 +181,7 @@ func (h *dispatchQueryPlanHandle) newCachingDispatcher(b *testing.B) *caching.Di
 	c, err := cache.NewStandardCache[keys.DispatchCacheKey, any](cacheConfig)
 	require.NoError(b, err)
 
-	cd, err := caching.NewCachingDispatcher(c, false, "bench", &keys.DirectKeyHandler{})
+	cd, err := caching.NewCachingDispatcher(c, false, prometheus.DefaultRegisterer, "bench", &keys.DirectKeyHandler{})
 	require.NoError(b, err)
 
 	lpd := &localQueryPlanDispatcher{handle: h}

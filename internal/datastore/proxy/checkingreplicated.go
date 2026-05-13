@@ -50,8 +50,7 @@ func RegisterCheckingReplicatedMetrics(registerer prometheus.Registerer) error {
 		readReplicatedSelectedReplicaCount,
 	} {
 		if err := registerer.Register(c); err != nil {
-			var alreadyRegistered prometheus.AlreadyRegisteredError
-			if !errors.As(err, &alreadyRegistered) {
+			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 				return fmt.Errorf("failed to register checking replicated datastore metrics: %w", err)
 			}
 		}

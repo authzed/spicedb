@@ -11,6 +11,7 @@ import (
 	query "github.com/authzed/spicedb/pkg/query"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	prometheus "github.com/prometheus/client_golang/prometheus"
 	grpc "google.golang.org/grpc"
 	"time"
 )
@@ -111,6 +112,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.PrometheusGatherer = c.PrometheusGatherer
+		to.PrometheusRegisterer = c.PrometheusRegisterer
 		to.EnableRequestLogs = c.EnableRequestLogs
 		to.EnableResponseLogs = c.EnableResponseLogs
 		to.DisableGRPCLatencyHistogram = c.DisableGRPCLatencyHistogram
@@ -996,6 +999,20 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithPrometheusGatherer returns an option that can set PrometheusGatherer on a Config
+func WithPrometheusGatherer(prometheusGatherer prometheus.Gatherer) ConfigOption {
+	return func(c *Config) {
+		c.PrometheusGatherer = prometheusGatherer
+	}
+}
+
+// WithPrometheusRegisterer returns an option that can set PrometheusRegisterer on a Config
+func WithPrometheusRegisterer(prometheusRegisterer prometheus.Registerer) ConfigOption {
+	return func(c *Config) {
+		c.PrometheusRegisterer = prometheusRegisterer
 	}
 }
 

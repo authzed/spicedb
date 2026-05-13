@@ -50,8 +50,7 @@ func RegisterMetrics(registerer prometheus.Registerer) error {
 	}
 	for _, c := range []prometheus.Collector{loadedRelationshipCount, queryLatency} {
 		if err := registerer.Register(c); err != nil {
-			var alreadyRegistered prometheus.AlreadyRegisteredError
-			if !errors.As(err, &alreadyRegistered) {
+			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 				return fmt.Errorf("failed to register observable datastore proxy metrics: %w", err)
 			}
 		}

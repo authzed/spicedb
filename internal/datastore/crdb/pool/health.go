@@ -49,8 +49,7 @@ func NewNodeHealthChecker(url string, registerer prometheus.Registerer) (*NodeHe
 		registerer = prometheus.DefaultRegisterer
 	}
 	if err := registerer.Register(healthyCRDBNodeCountGauge); err != nil {
-		var alreadyRegistered prometheus.AlreadyRegisteredError
-		if !errors.As(err, &alreadyRegistered) {
+		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 			return nil, fmt.Errorf("failed to register crdb health metrics: %w", err)
 		}
 	}

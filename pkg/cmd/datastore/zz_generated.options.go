@@ -5,6 +5,7 @@ import (
 	"fmt"
 	types "github.com/authzed/spicedb/pkg/caveats/types"
 	defaults "github.com/creasty/defaults"
+	prometheus "github.com/prometheus/client_golang/prometheus"
 	"time"
 )
 
@@ -43,6 +44,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.ReadConnPool = c.ReadConnPool
 		to.WriteConnPool = c.WriteConnPool
 		to.ReadOnly = c.ReadOnly
+		to.PrometheusRegisterer = c.PrometheusRegisterer
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 		to.DisableStats = c.DisableStats
 		to.IncludeQueryParametersInTraces = c.IncludeQueryParametersInTraces
@@ -428,6 +430,13 @@ func WithWriteConnPool(writeConnPool ConnPoolConfig) ConfigOption {
 func WithReadOnly(readOnly bool) ConfigOption {
 	return func(c *Config) {
 		c.ReadOnly = readOnly
+	}
+}
+
+// WithPrometheusRegisterer returns an option that can set PrometheusRegisterer on a Config
+func WithPrometheusRegisterer(prometheusRegisterer prometheus.Registerer) ConfigOption {
+	return func(c *Config) {
+		c.PrometheusRegisterer = prometheusRegisterer
 	}
 }
 

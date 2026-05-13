@@ -70,8 +70,7 @@ func NewNodeConnectionBalancer(pool *RetryPool, healthTracker *NodeHealthTracker
 	}
 	for _, c := range []prometheus.Collector{connectionsPerCRDBNodeCountGauge, pruningTimeHistogram} {
 		if err := registerer.Register(c); err != nil {
-			var alreadyRegistered prometheus.AlreadyRegisteredError
-			if !errors.As(err, &alreadyRegistered) {
+			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 				log.Warn().Err(err).Msg("failed to register crdb connection balancer metrics")
 			}
 		}

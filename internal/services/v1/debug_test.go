@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -47,6 +48,12 @@ type debugCheckInfo struct {
 	expectedPermission             v1.CheckPermissionResponse_Permissionship
 	expectedMinimumSubProblemCount int
 	runDebugAssertions             []rda
+}
+
+func debugTestServerConfig() testserver.ServerConfig {
+	cfg := testserver.DefaultTestServerConfig
+	cfg.PrometheusRegisterer = prometheus.NewRegistry()
+	return cfg
 }
 
 func expectDebugFrames(permissionNames ...string) rda {
@@ -489,7 +496,8 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, revision := testserver.NewTestServer(t, 5*time.Second, memdb.DisableGC, true,
+			conn, cleanup, _, revision := testserver.NewTestServerWithConfig(t, 5*time.Second, memdb.DisableGC, true,
+				debugTestServerConfig(),
 				func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 					return tf.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 				})
@@ -883,7 +891,8 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
-			conn, cleanup, _, revision := testserver.NewTestServer(t, 5*time.Second, memdb.DisableGC, true,
+			conn, cleanup, _, revision := testserver.NewTestServerWithConfig(t, 5*time.Second, memdb.DisableGC, true,
+				debugTestServerConfig(),
 				func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 					return tf.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 				})
@@ -951,7 +960,8 @@ func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 	}
 
 	// NOTE: the default test server configuration selects LR3
-	conn, cleanup, _, revision := testserver.NewTestServer(t, 5*time.Second, memdb.DisableGC, true,
+	conn, cleanup, _, revision := testserver.NewTestServerWithConfig(t, 5*time.Second, memdb.DisableGC, true,
+		debugTestServerConfig(),
 		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, schema, relationships)
 		})
@@ -1039,6 +1049,7 @@ func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
 	// NOTE: this makes LR2 the active implementation in the test server.
 	lr2Config := testserver.DefaultTestServerConfig
 	lr2Config.EnableExperimentalLookupResources3 = false
+	lr2Config.PrometheusRegisterer = prometheus.NewRegistry()
 
 	conn, cleanup, _, revision := testserver.NewTestServerWithConfig(t, 5*time.Second, memdb.DisableGC, true,
 		lr2Config,
