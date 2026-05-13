@@ -96,6 +96,7 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 				}
 				return
 			}
+			previousTxn := currentTxn
 			currentTxn = ctxn
 
 			// Write the staged updates to the channel
@@ -110,6 +111,19 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 					return
 				}
 				changeCount++
+			}
+
+			// Emit a checkpoint at the latest revision whenever HEAD
+			// advances (even even when the transaction produced no observable changes)
+			// and the consumer asked for checkpoints.
+			if currentTxn > previousTxn &&
+				options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+				if !sendChange(datastore.RevisionChanges{
+					Revision:     revisions.NewForTransactionID(currentTxn),
+					IsCheckpoint: true,
+				}) {
+					return
+				}
 			}
 
 			// If there were no changes, sleep a bit

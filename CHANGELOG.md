@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- Watch consumers that request `WatchCheckpoints` now eventually observe every revision returned by `WriteRelationships` as a checkpoint. MemDB regressed this in https://github.com/authzed/spicedb/pull/2578 for no-op writes and MySQL never emitted checkpoints at all prior to now. Both now emit a checkpoint at the new revision. (https://github.com/authzed/spicedb/pull/3114)
+
+## [1.53.0] - 2026-05-13
 ### Added
 - Add DispatchExecutor, a query plan executor that is Dispatch-aware and sends subproblems on Alias boundaries (https://github.com/authzed/spicedb/pull/3074)
 - Implement Dispatch caching for query plan execution (https://github.com/authzed/spicedb/pull/3079)
@@ -3615,7 +3619,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.52.0...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.53.0...HEAD
+[1.53.0]: https://github.com/authzed/spicedb/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/authzed/spicedb/compare/v1.51.1...v1.52.0
 [1.51.1]: https://github.com/authzed/spicedb/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/authzed/spicedb/compare/v1.50.0...v1.51.0

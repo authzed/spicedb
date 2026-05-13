@@ -313,13 +313,13 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			}
 
 			changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
-			isFirstChange := true
+			wroteChangelog := false
 			for rc, err := range changes {
 				if err != nil {
 					return datastore.NoRevision, err
 				}
 
-				if !isFirstChange {
+				if wroteChangelog {
 					return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
 				}
 
@@ -331,7 +331,22 @@ func (mdb *memdbDatastore) ReadWriteTx(
 					return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
 				}
 
-				isFirstChange = false
+				wroteChangelog = true
+			}
+
+			// Always emit a changelog entry for the committed revision, even
+			// when the transaction produced no observable changes (e.g., a
+			// TOUCH that matched the existing relationship). The changes
+			// payload is intentionally empty — the watch goroutine constructs the
+			// checkpoint event itself based on each consumer's options.
+			if !wroteChangelog {
+				change := &changelog{
+					revisionNanos: newRevision.TimestampNanoSec(),
+					changes:       datastore.RevisionChanges{},
+				}
+				if err := tx.Insert(tableChangelog, change); err != nil {
+					return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
+				}
 			}
 
 			tx.Commit()
