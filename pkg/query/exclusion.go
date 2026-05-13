@@ -19,6 +19,7 @@ func init() {
 			exclusion.canonicalKey = key
 			return exclusion, nil
 		},
+		Deserialize: deserializeExclusion,
 	})
 }
 

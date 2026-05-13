@@ -21,6 +21,7 @@ func init() {
 			sentinel.canonicalKey = key
 			return sentinel, nil
 		},
+		Deserialize: deserializeRecursiveSentinel,
 	})
 }
 

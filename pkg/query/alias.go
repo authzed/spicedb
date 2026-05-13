@@ -21,6 +21,7 @@ func init() {
 			alias.canonicalKey = key
 			return alias, nil
 		},
+		Deserialize: deserializeAlias,
 	})
 }
 

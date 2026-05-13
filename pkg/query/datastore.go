@@ -21,6 +21,7 @@ func init() {
 			ds.canonicalKey = key
 			return ds, nil
 		},
+		Deserialize: deserializeDatastore,
 	})
 }
 

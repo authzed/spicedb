@@ -19,6 +19,7 @@ func init() {
 			fixed.canonicalKey = key
 			return fixed, nil
 		},
+		Deserialize: deserializeNull,
 	})
 	MustRegisterIterator(IteratorSpec{
 		Type: FixedIteratorType,
@@ -33,6 +34,7 @@ func init() {
 			fixed.canonicalKey = key
 			return fixed, nil
 		},
+		Deserialize: deserializeFixed,
 	})
 }
 

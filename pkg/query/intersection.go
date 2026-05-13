@@ -17,10 +17,12 @@ func init() {
 			case *IntersectionIterator:
 				v.canonicalKey = key
 			case *FixedIterator:
+				// This stands in for the fixed, so the canonical key is correct.
 				v.canonicalKey = key
 			}
 			return it, nil
 		},
+		Deserialize: deserializeIntersection,
 	})
 }
 
@@ -35,7 +37,7 @@ var _ Iterator = &IntersectionIterator{}
 
 func NewIntersectionIterator(subiterators ...Iterator) Iterator {
 	if len(subiterators) == 0 {
-		return NewFixedIterator() // Return empty FixedIterator instead of empty Intersection
+		return NewEmptyFixedIterator() // Return empty FixedIterator instead of empty Intersection
 	}
 	return &IntersectionIterator{
 		subIts: subiterators,

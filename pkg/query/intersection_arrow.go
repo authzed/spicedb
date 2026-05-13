@@ -21,6 +21,7 @@ func init() {
 			ia.canonicalKey = key
 			return ia, nil
 		},
+		Deserialize: deserializeIntersectionArrow,
 	})
 }
 

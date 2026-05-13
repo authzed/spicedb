@@ -19,6 +19,7 @@ func init() {
 			self.canonicalKey = key
 			return self, nil
 		},
+		Deserialize: deserializeSelf,
 	})
 }
 

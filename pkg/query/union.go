@@ -19,6 +19,7 @@ func init() {
 			}
 			return it, nil
 		},
+		Deserialize: deserializeUnion,
 	})
 }
 

@@ -25,6 +25,7 @@ func init() {
 			recursive.canonicalKey = key
 			return recursive, nil
 		},
+		Deserialize: deserializeRecursive,
 	})
 }
 

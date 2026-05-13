@@ -24,6 +24,7 @@ func init() {
 			caveat.canonicalKey = key
 			return caveat, nil
 		},
+		Deserialize: deserializeCaveat,
 	})
 }
 

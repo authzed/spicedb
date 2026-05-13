@@ -21,6 +21,7 @@ func init() {
 			arrow.canonicalKey = key
 			return arrow, nil
 		},
+		Deserialize: deserializeArrow,
 	})
 }
 
