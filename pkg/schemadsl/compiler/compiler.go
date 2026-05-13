@@ -45,6 +45,21 @@ type CompiledSchema struct {
 	// order in which they were found.
 	OrderedDefinitions []SchemaDefinition
 
+	// CompiledPartials holds the relations and permissions for each partial
+	// definition in the schema, keyed by the partial's fully-qualified name.
+	// Partials are not part of the runtime schema but are retained here so that
+	// callers can perform additional validation (e.g. type-checking partial bodies
+	// at compile time, before they are referenced elsewhere).
+	CompiledPartials map[string][]*core.Relation
+
+	// PartialRelationOrigins maps each *core.Relation produced from partial
+	// bodies back to the partial path in which the relation was originally
+	// declared. Relations that flow into another partial via a `...other_partial`
+	// splat retain the original partial as the origin, and the same pointer is
+	// reused everywhere the relation is inlined (including in any consuming
+	// object definition).
+	PartialRelationOrigins map[*core.Relation]string
+
 	rootNode *dslNode
 	mapper   input.PositionMapper
 }
@@ -165,18 +180,20 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	}
 
 	initialCompiledPartials := make(map[string][]*core.Relation)
+	initialPartialRelationOrigins := make(map[*core.Relation]string)
 	caveatTypeSet := caveattypes.TypeSetOrDefault(cfg.caveatTypeSet)
 	compiled, err := translate(&translationContext{
-		objectTypePrefix:   cfg.objectTypePrefix,
-		mapper:             mapper,
-		schemaString:       schema.SchemaString,
-		skipValidate:       cfg.skipValidation,
-		allowedFlags:       cfg.allowedFlags,
-		enabledFlags:       mapz.NewSet[string](),
-		existingNames:      mapz.NewSet[string](),
-		compiledPartials:   initialCompiledPartials,
-		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
-		caveatTypeSet:      caveatTypeSet,
+		objectTypePrefix:       cfg.objectTypePrefix,
+		mapper:                 mapper,
+		schemaString:           schema.SchemaString,
+		skipValidate:           cfg.skipValidation,
+		allowedFlags:           cfg.allowedFlags,
+		enabledFlags:           mapz.NewSet[string](),
+		existingNames:          mapz.NewSet[string](),
+		compiledPartials:       initialCompiledPartials,
+		partialRelationOrigins: initialPartialRelationOrigins,
+		unresolvedPartials:     mapz.NewMultiMap[string, *dslNode](),
+		caveatTypeSet:          caveatTypeSet,
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError
