@@ -3,6 +3,7 @@ package query
 import (
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -720,4 +721,61 @@ func (r *RecursiveIterator) recursiveCheckIterResources(ctx *Context, resource O
 		ctx.TraceStep(r, "Check via IterResources: completed, found=%v", result != nil)
 	}
 	return result, nil
+}
+
+const recursiveFlagStrategy = 0 // strategy byte follows if set (default == iter-subjects)
+
+func (r *RecursiveIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, RecursiveIteratorType, r.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		nonDefault := r.checkStrategy != recursiveCheckIterSubjects
+		setFlag(&flags, recursiveFlagStrategy, nonDefault)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.definitionName); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.relationName); err != nil {
+			return err
+		}
+		if nonDefault {
+			if _, err := buf.Write([]byte{byte(r.checkStrategy)}); err != nil {
+				return err
+			}
+		}
+		return r.templateTree.Serialize(buf)
+	})
+}
+
+func deserializeRecursive(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("recursive flags: %w", err)
+	}
+	defName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("recursive def: %w", err)
+	}
+	relName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("recursive rel: %w", err)
+	}
+	strategy := recursiveCheckIterSubjects
+	if hasFlag(flags, recursiveFlagStrategy) {
+		b, err := br.ReadByte()
+		if err != nil {
+			return nil, fmt.Errorf("recursive strategy: %w", err)
+		}
+		strategy = recursiveCheckStrategy(b)
+	}
+	sub, err := Deserialize(br, dctx)
+	if err != nil {
+		return nil, fmt.Errorf("recursive template: %w", err)
+	}
+	ri := NewRecursiveIterator(sub, defName, relName)
+	ri.checkStrategy = strategy
+	ri.canonicalKey = key
+	return ri, nil
 }

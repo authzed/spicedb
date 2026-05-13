@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -463,4 +464,33 @@ func (ia *IntersectionArrowIterator) ResourceType() ([]ObjectType, error) {
 func (ia *IntersectionArrowIterator) SubjectTypes() ([]ObjectType, error) {
 	// IntersectionArrow's subjects come from the right side
 	return ia.right.SubjectTypes()
+}
+
+func (ia *IntersectionArrowIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, IntersectionArrowIteratorType, ia.canonicalKey, func(buf io.Writer) error {
+		if err := writeUvarint(buf, 0); err != nil {
+			return err
+		}
+		if err := ia.left.Serialize(buf); err != nil {
+			return fmt.Errorf("left: %w", err)
+		}
+		if err := ia.right.Serialize(buf); err != nil {
+			return fmt.Errorf("right: %w", err)
+		}
+		return nil
+	})
+}
+
+func deserializeIntersectionArrow(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	if _, err := readUvarint(br); err != nil {
+		return nil, fmt.Errorf("intersection_arrow flags: %w", err)
+	}
+	subs, err := readNSubs(br, 2, dctx)
+	if err != nil {
+		return nil, err
+	}
+	ia := NewIntersectionArrowIterator(subs[0], subs[1])
+	ia.canonicalKey = key
+	return ia, nil
 }

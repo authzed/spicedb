@@ -1,6 +1,9 @@
 package query
 
 import (
+	"fmt"
+	"io"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -413,4 +416,32 @@ func (i *IntersectionIterator) ResourceType() ([]ObjectType, error) {
 
 func (i *IntersectionIterator) SubjectTypes() ([]ObjectType, error) {
 	return collectAndDeduplicateSubjectTypes(i.subIts)
+}
+
+func (i *IntersectionIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, IntersectionIteratorType, i.canonicalKey, func(buf io.Writer) error {
+		if err := writeUvarint(buf, 0); err != nil {
+			return err
+		}
+		return writeSubs(buf, i.subIts)
+	})
+}
+
+func deserializeIntersection(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	if _, err := readUvarint(br); err != nil {
+		return nil, fmt.Errorf("intersection flags: %w", err)
+	}
+	subs, err := readSubs(br, dctx)
+	if err != nil {
+		return nil, err
+	}
+	it := NewIntersectionIterator(subs...)
+	switch v := it.(type) {
+	case *IntersectionIterator:
+		v.canonicalKey = key
+	case *FixedIterator:
+		v.canonicalKey = key
+	}
+	return it, nil
 }
