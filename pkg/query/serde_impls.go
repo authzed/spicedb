@@ -1,7 +1,6 @@
 package query
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -48,7 +47,7 @@ const (
 )
 
 func (r *DatastoreIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, DatastoreIteratorType, r.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, DatastoreIteratorType, r.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, dsFlagCaveat, r.base.Caveat() != "")
 		setFlag(&flags, dsFlagExpiration, r.base.Expiration())
@@ -129,11 +128,11 @@ func (f *FixedIterator) Serialize(w io.Writer) error {
 	// Empty FixedIterator decompiles to NullIteratorType; emit Null on the wire
 	// so the receiver reconstructs the same shape.
 	if len(f.paths) == 0 {
-		return serializeWithHeader(w, NullIteratorType, f.canonicalKey, func(buf *bytes.Buffer) error {
+		return serializeWithHeader(w, NullIteratorType, f.canonicalKey, func(buf io.Writer) error {
 			return writeUvarint(buf, 0)
 		})
 	}
-	return serializeWithHeader(w, FixedIteratorType, f.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, FixedIteratorType, f.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, fixedFlagHasPaths, len(f.paths) > 0)
 		if err := writeUvarint(buf, flags); err != nil {
@@ -196,7 +195,7 @@ const (
 	pathFlagIntegrity
 )
 
-func serializePath(w *bytes.Buffer, p *Path) error {
+func serializePath(w io.Writer, p *Path) error {
 	var flags uint64
 	setFlag(&flags, pathFlagCaveat, p.Caveat != nil)
 	setFlag(&flags, pathFlagExpiration, p.Expiration != nil)
@@ -346,7 +345,7 @@ func deserializePath(r byteReader) (Path, error) {
 // ----- Union -----
 
 func (u *UnionIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, UnionIteratorType, u.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, UnionIteratorType, u.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil { // flags reserved
 			return err
 		}
@@ -376,7 +375,7 @@ func deserializeUnion(body io.Reader, key CanonicalKey, dctx *DeserializeContext
 // ----- Intersection -----
 
 func (i *IntersectionIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, IntersectionIteratorType, i.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, IntersectionIteratorType, i.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}
@@ -411,7 +410,7 @@ const (
 )
 
 func (a *ArrowIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, ArrowIteratorType, a.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, ArrowIteratorType, a.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, arrowFlagSchemaArrow, a.isSchemaArrow)
 		setFlag(&flags, arrowFlagRightToLeft, a.direction == rightToLeft)
@@ -454,7 +453,7 @@ func deserializeArrow(body io.Reader, key CanonicalKey, dctx *DeserializeContext
 // ----- Exclusion -----
 
 func (e *ExclusionIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, ExclusionIteratorType, e.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, ExclusionIteratorType, e.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}
@@ -487,7 +486,7 @@ func deserializeExclusion(body io.Reader, key CanonicalKey, dctx *DeserializeCon
 const caveatFlagHasCaveat = 0
 
 func (c *CaveatIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, CaveatIteratorType, c.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, CaveatIteratorType, c.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, caveatFlagHasCaveat, c.caveat != nil)
 		if err := writeUvarint(buf, flags); err != nil {
@@ -533,7 +532,7 @@ func deserializeCaveat(body io.Reader, key CanonicalKey, dctx *DeserializeContex
 const aliasFlagHasAliasedAs = 0
 
 func (a *AliasIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, AliasIteratorType, a.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, AliasIteratorType, a.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, aliasFlagHasAliasedAs, len(a.aliasedAs) > 0)
 		if err := writeUvarint(buf, flags); err != nil {
@@ -605,7 +604,7 @@ func deserializeAlias(body io.Reader, key CanonicalKey, dctx *DeserializeContext
 const recursiveFlagStrategy = 0 // strategy byte follows if set (default == iter-subjects)
 
 func (r *RecursiveIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, RecursiveIteratorType, r.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, RecursiveIteratorType, r.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		nonDefault := r.checkStrategy != recursiveCheckIterSubjects
 		setFlag(&flags, recursiveFlagStrategy, nonDefault)
@@ -664,7 +663,7 @@ func deserializeRecursive(body io.Reader, key CanonicalKey, dctx *DeserializeCon
 const sentinelFlagWithSubRelations = 0
 
 func (r *RecursiveSentinelIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, RecursiveSentinelIteratorType, r.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, RecursiveSentinelIteratorType, r.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, sentinelFlagWithSubRelations, r.withSubRelations)
 		if err := writeUvarint(buf, flags); err != nil {
@@ -699,7 +698,7 @@ func deserializeRecursiveSentinel(body io.Reader, key CanonicalKey, _ *Deseriali
 // ----- IntersectionArrow -----
 
 func (ia *IntersectionArrowIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, IntersectionArrowIteratorType, ia.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, IntersectionArrowIteratorType, ia.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}
@@ -730,7 +729,7 @@ func deserializeIntersectionArrow(body io.Reader, key CanonicalKey, dctx *Deseri
 // ----- Self -----
 
 func (s *SelfIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, SelfIteratorType, s.canonicalKey, func(buf *bytes.Buffer) error {
+	return serializeWithHeader(w, SelfIteratorType, s.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}

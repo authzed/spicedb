@@ -2,12 +2,10 @@ package query
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
@@ -23,19 +21,22 @@ type DeserializeContext struct {
 }
 
 // Deserialize reads one Iterator subtree from r. It peels the type byte,
-// looks up the matching IteratorSpec, reads the framed key + body, then
-// delegates the body to the spec's Deserialize.
+// looks up the matching IteratorSpec, reads the canonical key, then delegates
+// the rest of the body to the spec's Deserialize, which reads its own fields
+// and recurses for any sub-iterators directly from the same underlying reader.
 //
 // The wire format per node is:
 //
-//	[1B type][uvarint keyLen][key bytes][uvarint bodyLen][body bytes]
+//	[1B type][uvarint keyLen][key bytes][type-specific body bytes]
 //
-// Bodies are length-prefixed so unknown trailing extensions can be skipped
-// for forward compatibility; bodies for whole subtrees nest inside their
-// parent's bodyLen wrapper.
+// No body-length prefix: this saves a per-node []byte and *bytes.Reader on
+// decode. Forward compatibility for body shape comes via registering a new
+// IteratorType byte (the registry is the schema). Additive changes still work
+// when the new field is gated on a new flag bit and emits nothing when
+// defaulted, so old plans are byte-for-byte unchanged.
 func Deserialize(r io.Reader, dctx *DeserializeContext) (Iterator, error) {
 	br := asByteReader(r)
-	t, key, body, err := readHeader(br)
+	t, key, err := readHeader(br)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +47,7 @@ func Deserialize(r io.Reader, dctx *DeserializeContext) (Iterator, error) {
 	if spec.Deserialize == nil {
 		return nil, fmt.Errorf("query: iterator type %q (%s) has no Deserialize registered", byte(t), spec.Name)
 	}
-	return spec.Deserialize(body, key, dctx)
+	return spec.Deserialize(br, key, dctx)
 }
 
 // byteReader is the union of io.Reader and io.ByteReader that the binary
@@ -65,64 +66,40 @@ func asByteReader(r io.Reader) byteReader {
 
 // ----- Header framing -----
 
-// readHeader reads [type][keyLen+key][bodyLen+body] and returns a bytes.Reader
-// over the body slice.
-func readHeader(r byteReader) (IteratorType, CanonicalKey, *bytes.Reader, error) {
+// readHeader reads [type][keyLen+key] and returns the type and key. The
+// type-specific body bytes are left on the reader for the spec's Deserialize
+// to consume directly — no intermediate slice or *bytes.Reader is allocated.
+func readHeader(r byteReader) (IteratorType, CanonicalKey, error) {
 	var tb [1]byte
 	if _, err := io.ReadFull(r, tb[:]); err != nil {
-		return 0, "", nil, fmt.Errorf("query: read type byte: %w", err)
+		return 0, "", fmt.Errorf("query: read type byte: %w", err)
 	}
 	key, err := readString(r)
 	if err != nil {
-		return 0, "", nil, fmt.Errorf("query: read canonical key: %w", err)
+		return 0, "", fmt.Errorf("query: read canonical key: %w", err)
 	}
-	body, err := readBytes(r)
-	if err != nil {
-		return 0, "", nil, fmt.Errorf("query: read body: %w", err)
-	}
-	return IteratorType(tb[0]), CanonicalKey(key), bytes.NewReader(body), nil
+	return IteratorType(tb[0]), CanonicalKey(key), nil
 }
 
-// writeHeader emits [type][keyLen+key][bodyLen+body] in one shot.
-func writeHeader(w io.Writer, t IteratorType, key CanonicalKey, body []byte) error {
+// writeHeader emits [type][keyLen+key]. The type-specific body bytes are
+// written by the caller directly to w.
+func writeHeader(w io.Writer, t IteratorType, key CanonicalKey) error {
 	if _, err := w.Write([]byte{byte(t)}); err != nil {
 		return err
 	}
-	if err := writeString(w, string(key)); err != nil {
+	return writeString(w, string(key))
+}
+
+// serializeWithHeader emits the header and then invokes writeBody to write the
+// type-specific body straight into w — no intermediate buffer. (An earlier
+// version built the body in a pooled bytes.Buffer so we could length-prefix
+// it; we dropped the length prefix to let the decode side avoid a per-node
+// allocation, which also lets the encode side skip the staging buffer.)
+func serializeWithHeader(w io.Writer, t IteratorType, key CanonicalKey, writeBody func(io.Writer) error) error {
+	if err := writeHeader(w, t, key); err != nil {
 		return err
 	}
-	return writeBytes(w, body)
-}
-
-// ----- Body buffer pool -----
-
-var bodyBufPool = sync.Pool{
-	New: func() any { return new(bytes.Buffer) },
-}
-
-func acquireBodyBuf() *bytes.Buffer {
-	b := bodyBufPool.Get().(*bytes.Buffer)
-	b.Reset()
-	return b
-}
-
-func releaseBodyBuf(b *bytes.Buffer) {
-	// Don't pool huge buffers — they'd hold memory indefinitely.
-	if b.Cap() > 64*1024 {
-		return
-	}
-	bodyBufPool.Put(b)
-}
-
-// serializeWithHeader is a convenience that builds a body in a pooled buffer,
-// invokes writeBody to fill it, then emits the framed node to w.
-func serializeWithHeader(w io.Writer, t IteratorType, key CanonicalKey, writeBody func(*bytes.Buffer) error) error {
-	buf := acquireBodyBuf()
-	defer releaseBodyBuf(buf)
-	if err := writeBody(buf); err != nil {
-		return err
-	}
-	return writeHeader(w, t, key, buf.Bytes())
+	return writeBody(w)
 }
 
 // ----- Primitives -----
