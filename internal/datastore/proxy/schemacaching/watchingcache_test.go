@@ -578,9 +578,8 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     10000,
-		DefaultTTL:  10000 * time.Second,
+		MaxCost:    10000,
+		DefaultTTL: 10000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -623,9 +622,8 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     10000,
-		DefaultTTL:  10000 * time.Second,
+		MaxCost:    10000,
+		DefaultTTL: 10000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -682,9 +680,8 @@ func TestOldWatchingCachePrepopulated(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     1000,
-		DefaultTTL:  1000 * time.Second,
+		MaxCost:    1000,
+		DefaultTTL: 1000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -728,9 +725,8 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     1000,
-		DefaultTTL:  1000 * time.Second,
+		MaxCost:    1000,
+		DefaultTTL: 1000 * time.Second,
 	})
 	require.NoError(t, err)
 

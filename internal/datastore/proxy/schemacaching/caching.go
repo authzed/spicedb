@@ -27,8 +27,7 @@ const (
 // DatastoreProxyTestCache returns a cache used for testing.
 func DatastoreProxyTestCache(t testing.TB) cache.Cache[cache.StringKey, CacheEntry] {
 	cache, err := cache.NewStandardCache[cache.StringKey, CacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     1 * humanize.MiByte,
+		MaxCost: 1 * humanize.MiByte,
 	})
 	require.NoError(t, err)
 	return cache

@@ -23,19 +23,10 @@ func (sk StringKey) KeyString() string {
 }
 
 // Config for caching.
-// See: https://github.com/outcaste-io/ristretto#Config
 type Config struct {
-	// NumCounters determines the number of counters (keys) to keep that hold
-	// access frequency information. It's generally a good idea to have more
-	// counters than the max cache capacity, as this will improve eviction
-	// accuracy and subsequent hit ratios.
-	//
-	// For example, if you expect your cache to hold 1,000,000 items when full,
-	// NumCounters should be 10,000,000 (10x). Each counter takes up roughly
-	// 3 bytes (4 bits for each counter * 4 copies plus about a byte per
-	// counter for the bloom filter). Note that the number of counters is
-	// internally rounded up to the nearest power of 2, so the space usage
-	// may be a little larger than 3 bytes * NumCounters.
+	// Deprecated: NumCounters was used to control behavior of the cache
+	// when the underlying cache exposed it, but the current cache implementation
+	// does not use it.
 	NumCounters int64
 
 	// MaxCost can be considered as the cache capacity, in whatever units you
@@ -57,7 +48,6 @@ func (c *Config) MarshalZerologObject(e *zerolog.Event) {
 	maxCost := spiceerrors.MustSafecast[uint64](c.MaxCost)
 	e.
 		Str("maxCost", humanize.IBytes(maxCost)).
-		Int64("numCounters", c.NumCounters).
 		Dur("defaultTTL", c.DefaultTTL)
 }
 
