@@ -661,7 +661,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	}, changes, errchan, false)
 }
 
-func WatchAllTest(t *testing.T, tester DatastoreTester) {
+func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
@@ -794,7 +794,7 @@ func verifyMixedUpdates(
 	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
 
-func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
+func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
@@ -916,6 +916,111 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 		}
 
 		if relTouchEmitted && metadataEmitted && checkpointEmitted {
+			return
+		}
+	}
+}
+
+// WatchObservesEveryReturnedRevisionTest verifies this contract: if
+// WriteRelationships returns revision X, a watch consumer eventually observes
+// revision X on the watch stream — even when the write produced no actual
+// changes (e.g., a TOUCH that exactly matches an existing relationship).
+func WatchObservesEveryReturnedRevisionTest(t *testing.T, tester DatastoreTester) {
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(t, err)
+
+	setupDatastore(t, ds)
+
+	// First TOUCH creates the relationship.
+	afterCreateRevision, err := common.WriteRelationships(t.Context(), ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+	)
+	require.NoError(t, err)
+
+	// Start watching from after the create.
+	changes, errchan := ds.Watch(t.Context(), afterCreateRevision, datastore.WatchOptions{
+		Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+		CheckpointInterval: 100 * time.Millisecond,
+	})
+	require.Empty(t, errchan)
+
+	// Second TOUCH of the same relationship is a no-op (no actual changes),
+	secondRevision, err := common.WriteRelationships(t.Context(), ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+	)
+	require.NoError(t, err)
+
+	verifyWatchReachesRevision(t, secondRevision, changes, errchan)
+}
+
+func verifyWatchReachesRevision(
+	t *testing.T,
+	targetRevision datastore.Revision,
+	changes <-chan datastore.RevisionChanges,
+	errchan <-chan error,
+) {
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(t, ok, "watch stream closed before observing revision %s", targetRevision)
+			if change.Revision != nil &&
+				(change.Revision.Equal(targetRevision) || change.Revision.GreaterThan(targetRevision)) {
+				return
+			}
+		case err := <-errchan:
+			require.NoError(t, err, "unexpected watch error while waiting for revision %s", targetRevision)
+		case <-time.After(waitForChangesTimeout):
+			require.Fail(t, "Timed out waiting for watch to reach revision", "target: %s", targetRevision)
+			return
+		}
+	}
+}
+
+// WatchEmitsCheckpointAfterWriteWithChangesTest verifies that when a consumer asks for checkpoints,
+// every revision returned by WriteRelationships must eventually be observable as a checkpoint.
+func WatchEmitsCheckpointAfterWriteWithChangesTest(t *testing.T, tester DatastoreTester) {
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(t, err)
+
+	setupDatastore(t, ds)
+
+	startingRevisionResult, err := ds.HeadRevision(t.Context())
+	require.NoError(t, err)
+	startingRevision := startingRevisionResult.Revision
+
+	changes, errchan := ds.Watch(t.Context(), startingRevision, datastore.WatchOptions{
+		Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+		CheckpointInterval: 100 * time.Millisecond,
+	})
+	require.Empty(t, errchan)
+
+	// A TOUCH that produces a real change.
+	afterWriteRevision, err := common.WriteRelationships(t.Context(), ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+	)
+	require.NoError(t, err)
+
+	verifyWatchEmitsCheckpoint(t, afterWriteRevision, changes, errchan)
+}
+
+func verifyWatchEmitsCheckpoint(
+	t *testing.T,
+	targetRevision datastore.Revision,
+	changes <-chan datastore.RevisionChanges,
+	errchan <-chan error,
+) {
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(t, ok, "watch stream closed before observing checkpoint at revision %s", targetRevision)
+			if change.IsCheckpoint && change.Revision != nil &&
+				(change.Revision.Equal(targetRevision) || change.Revision.GreaterThan(targetRevision)) {
+				return
+			}
+		case err := <-errchan:
+			require.NoError(t, err, "unexpected watch error while waiting for checkpoint at revision %s", targetRevision)
+		case <-time.After(waitForChangesTimeout):
+			require.Fail(t, "Timed out waiting for checkpoint", "target: %s", targetRevision)
 			return
 		}
 	}
