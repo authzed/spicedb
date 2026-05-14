@@ -2,7 +2,6 @@ package pool
 
 import (
 	"context"
-	"errors"
 	"hash/maphash"
 	"maps"
 	"math"
@@ -18,6 +17,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil"
 )
 
@@ -63,19 +63,16 @@ type NodeConnectionBalancer struct {
 	nodeConnectionBalancer[*pgxpool.Conn, *pgx.Conn]
 }
 
+// RegisterNodeConnectionBalancerMetrics registers the shared connection balancer collectors.
+func RegisterNodeConnectionBalancerMetrics(registerer prometheus.Registerer) (func(), error) {
+	return datastore.RegisterPrometheusCollectors(registerer, "failed to register crdb connection balancer metrics", connectionsPerCRDBNodeCountGauge, pruningTimeHistogram)
+}
+
 // NewNodeConnectionBalancer builds a new nodeConnectionBalancer for a given connection pool and health tracker.
-func NewNodeConnectionBalancer(pool *RetryPool, healthTracker *NodeHealthTracker, interval time.Duration, registerer prometheus.Registerer) *NodeConnectionBalancer {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
+func NewNodeConnectionBalancer(pool *RetryPool, healthTracker *NodeHealthTracker, interval time.Duration) *NodeConnectionBalancer {
+	return &NodeConnectionBalancer{
+		*newNodeConnectionBalancer[*pgxpool.Conn, *pgx.Conn](pool, healthTracker, interval),
 	}
-	for _, c := range []prometheus.Collector{connectionsPerCRDBNodeCountGauge, pruningTimeHistogram} {
-		if err := registerer.Register(c); err != nil {
-			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-				log.Warn().Err(err).Msg("failed to register crdb connection balancer metrics")
-			}
-		}
-	}
-	return &NodeConnectionBalancer{*newNodeConnectionBalancer[*pgxpool.Conn, *pgx.Conn](pool, healthTracker, interval)}
 }
 
 // nodeConnectionBalancer is generic over underlying connection types for

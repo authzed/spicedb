@@ -2,7 +2,6 @@ package perfinsights
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/authzed/ctxkey"
 	"github.com/authzed/grpcutil"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -75,15 +75,8 @@ var tracer = otel.Tracer("spicedb/internal/middleware")
 // RegisterMetrics registers the performance insights prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(APIShapeLatency); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register perfinsights metrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register perfinsights metrics", APIShapeLatency)
+	return err
 }
 
 // ShapeBuilder is a function that returns a slice of strings representing the shape of the API call.

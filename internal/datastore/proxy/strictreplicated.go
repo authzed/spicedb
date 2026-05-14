@@ -34,20 +34,11 @@ var (
 // RegisterStrictReplicatedMetrics registers the strict replicated datastore proxy prometheus metrics.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterStrictReplicatedMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	for _, c := range []prometheus.Collector{
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register strict replicated datastore metrics",
 		strictReadReplicatedTotalQueryCount,
-		strictReadReplicatedFallbackQueryCount,
-	} {
-		if err := registerer.Register(c); err != nil {
-			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-				return fmt.Errorf("failed to register strict replicated datastore metrics: %w", err)
-			}
-		}
-	}
-	return nil
+		strictReadReplicatedFallbackQueryCount)
+
+	return err
 }
 
 // NewStrictReplicatedDatastore creates a new datastore that writes to the provided primary and reads

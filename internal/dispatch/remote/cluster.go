@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -115,16 +116,9 @@ type SecondaryDispatch struct {
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
 func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (dispatch.Dispatcher, error) {
-	registerer := config.Registerer
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	for _, c := range []prometheus.Collector{dispatchCounter, hedgeWaitHistogram, hedgeActualWaitHistogram, primaryDispatch} {
-		if err := registerer.Register(c); err != nil {
-			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-				return nil, fmt.Errorf("failed to register cluster dispatch metrics: %w", err)
-			}
-		}
+	unregister, err := datastore.RegisterPrometheusCollectors(config.Registerer, "failed to register cluster dispatch metrics", dispatchCounter, hedgeWaitHistogram, hedgeActualWaitHistogram, primaryDispatch)
+	if err != nil {
+		return nil, err
 	}
 
 	keyHandler := config.KeyHandler
@@ -164,6 +158,7 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		secondaryDispatchExprs:          secondaryDispatchExprs,
 		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
 		supportedResourceSubjectTracker: newSupportedResourceSubjectTracker(),
+		prometheusUnregisterFunction:    unregister,
 	}, nil
 }
 
@@ -177,6 +172,7 @@ type clusterDispatcher struct {
 	secondaryDispatchExprs          map[string]*DispatchExpr
 	secondaryInitialResponseDigests map[string]*digestAndLock
 	supportedResourceSubjectTracker *supportedResourceSubjectTracker
+	prometheusUnregisterFunction    func()
 }
 
 // digestAndLock is a struct that holds a TDigest and a lock to protect it.

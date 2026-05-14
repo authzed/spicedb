@@ -2,8 +2,6 @@ package memoryprotection
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -16,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var tracer = otel.Tracer("spicedb/internal/middleware/memory_protection")
@@ -31,15 +30,8 @@ var RequestsProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
 // RegisterMetrics registers the memory protection middleware prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(RequestsProcessed); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register memory protection metrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register memory protection metrics", RequestsProcessed)
+	return err
 }
 
 type MemoryProtectionMiddleware struct {

@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -41,21 +40,12 @@ var (
 // RegisterCheckingReplicatedMetrics registers the checking replicated datastore proxy prometheus metrics.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterCheckingReplicatedMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	for _, c := range []prometheus.Collector{
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register replicated datastore metrics",
 		checkingReplicatedTotalReaderCount,
 		checkingReplicatedReplicaReaderCount,
-		readReplicatedSelectedReplicaCount,
-	} {
-		if err := registerer.Register(c); err != nil {
-			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-				return fmt.Errorf("failed to register checking replicated datastore metrics: %w", err)
-			}
-		}
-	}
-	return nil
+		readReplicatedSelectedReplicaCount)
+
+	return err
 }
 
 // NewCheckingReplicatedDatastore creates a new datastore that writes to the provided primary and reads

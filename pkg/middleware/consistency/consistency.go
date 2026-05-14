@@ -3,7 +3,6 @@ package consistency
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,15 +31,8 @@ var ConsistencyCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 // RegisterMetrics registers the consistency middleware prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(ConsistencyCounter); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register consistency metrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register consistency metrics", ConsistencyCounter)
+	return err
 }
 
 // MismatchingTokenOption is the option specifying the behavior of the consistency middleware

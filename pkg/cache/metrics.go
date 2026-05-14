@@ -1,26 +1,19 @@
 package cache
 
 import (
-	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 // RegisterMetrics registers the cache prometheus collector with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(defaultCollector); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register cache metrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register cache metrics", defaultCollector)
+	return err
 }
 
 const (

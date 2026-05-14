@@ -2,8 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
@@ -45,17 +43,11 @@ var (
 // RegisterMetrics registers the observable datastore proxy prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	for _, c := range []prometheus.Collector{loadedRelationshipCount, queryLatency} {
-		if err := registerer.Register(c); err != nil {
-			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-				return fmt.Errorf("failed to register observable datastore proxy metrics: %w", err)
-			}
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register observable datastore proxy metrics",
+		loadedRelationshipCount,
+		queryLatency)
+
+	return err
 }
 
 func filterToAttributes(filter *v1.RelationshipFilter) []attribute.KeyValue {

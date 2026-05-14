@@ -55,15 +55,8 @@ var writeUpdateCounter = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 // RegisterMetrics registers the relationships service prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(writeUpdateCounter); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register relationships service metrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register relationships service metrics", writeUpdateCounter)
+	return err
 }
 
 const MaximumTransactionMetadataSize = 65000 // bytes. Limited by the BLOB size used in MySQL driver

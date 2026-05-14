@@ -285,6 +285,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
+			combineddispatch.PrometheusRegisterer(c.PrometheusRegisterer),
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.SecondaryMaximumPrimaryHedgingDelays(c.DispatchSecondaryMaximumPrimaryHedgingDelays),

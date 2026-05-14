@@ -2,8 +2,6 @@ package pool
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -16,6 +14,7 @@ import (
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const errorBurst = 2
@@ -32,10 +31,11 @@ var healthyCRDBNodeCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 // Consumers can manually mark a node healthy or unhealthy as well.
 type NodeHealthTracker struct {
 	sync.RWMutex
-	connConfig    *pgx.ConnConfig
-	healthyNodes  map[uint32]struct{}      // GUARDED_BY(RWMutex)
-	nodesEverSeen map[uint32]*rate.Limiter // GUARDED_BY(RWMutex)
-	newLimiter    func() *rate.Limiter
+	connConfig                   *pgx.ConnConfig
+	healthyNodes                 map[uint32]struct{}      // GUARDED_BY(RWMutex)
+	nodesEverSeen                map[uint32]*rate.Limiter // GUARDED_BY(RWMutex)
+	newLimiter                   func() *rate.Limiter
+	prometheusUnregisterFunction func()
 }
 
 // NewNodeHealthChecker builds a health checker that polls the cluster at the given url.
@@ -45,14 +45,7 @@ func NewNodeHealthChecker(url string, registerer prometheus.Registerer) (*NodeHe
 		return nil, err
 	}
 
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(healthyCRDBNodeCountGauge); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return nil, fmt.Errorf("failed to register crdb health metrics: %w", err)
-		}
-	}
+	unregister, _ := datastore.RegisterPrometheusCollectors(registerer, "failed to register crdb health metrics", healthyCRDBNodeCountGauge)
 
 	return &NodeHealthTracker{
 		connConfig:    connConfig,
@@ -61,6 +54,7 @@ func NewNodeHealthChecker(url string, registerer prometheus.Registerer) (*NodeHe
 		newLimiter: func() *rate.Limiter {
 			return rate.NewLimiter(rate.Every(1*time.Minute), errorBurst)
 		},
+		prometheusUnregisterFunction: unregister,
 	}, nil
 }
 

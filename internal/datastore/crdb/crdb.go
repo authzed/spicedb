@@ -198,6 +198,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		watchEnabled:                 !config.watchDisabled,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 		prometheusRegisterer:         config.prometheusRegisterer,
+		prometheusUnregisterFunction: func() {},
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
 
@@ -226,9 +227,18 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	// Start goroutines for pruning
 	if config.enableConnectionBalancing {
 		log.Ctx(initCtx).Info().Msg("starting cockroach connection balancer")
+		balancerUnregister, _ := pool.RegisterNodeConnectionBalancerMetrics(config.prometheusRegisterer)
+		if balancerUnregister != nil {
+			previousUnregister := ds.prometheusUnregisterFunction
+			ds.prometheusUnregisterFunction = func() {
+				previousUnregister()
+				balancerUnregister()
+			}
+		}
+
 		ds.pruneGroup, ds.ctx = errgroup.WithContext(ds.ctx)
-		writePoolBalancer := pool.NewNodeConnectionBalancer(ds.writePool, healthChecker, 5*time.Second, config.prometheusRegisterer)
-		readPoolBalancer := pool.NewNodeConnectionBalancer(ds.readPool, healthChecker, 5*time.Second, config.prometheusRegisterer)
+		writePoolBalancer := pool.NewNodeConnectionBalancer(ds.writePool, healthChecker, 5*time.Second)
+		readPoolBalancer := pool.NewNodeConnectionBalancer(ds.readPool, healthChecker, 5*time.Second)
 		ds.pruneGroup.Go(func() error {
 			writePoolBalancer.Prune(ds.ctx)
 			return nil
@@ -264,8 +274,8 @@ type crdbDatastore struct {
 
 	dburl                        string
 	readPool, writePool          *pool.RetryPool
-	collectors                   []prometheus.Collector
 	prometheusRegisterer         prometheus.Registerer
+	prometheusUnregisterFunction func()
 	watchBufferLength            uint16
 	watchChangeBufferMaximumSize uint64
 	watchBufferWriteTimeout      time.Duration
@@ -483,12 +493,8 @@ func (cds *crdbDatastore) Close() error {
 	}
 	cds.readPool.Close()
 	cds.writePool.Close()
-	for _, collector := range cds.collectors {
-		ok := cds.prometheusRegisterer.Unregister(collector)
-		if !ok {
-			errs = append(errs, errors.New("could not unregister collector for CRDB datastore"))
-		}
-	}
+	cds.prometheusUnregisterFunction()
+
 	return errors.Join(errs...)
 }
 
@@ -661,10 +667,6 @@ func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int
 }
 
 func (cds *crdbDatastore) registerPrometheusCollectors(registerer prometheus.Registerer, enablePrometheusStats bool) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-
 	if !enablePrometheusStats {
 		return nil
 	}
@@ -674,20 +676,14 @@ func (cds *crdbDatastore) registerPrometheusCollectors(registerer prometheus.Reg
 		"pool_usage": "read",
 	})
 
-	if err := registerer.Register(readCollector); err != nil {
-		return fmt.Errorf("failed to register prometheus read collector: %w", err)
-	}
-	cds.collectors = append(cds.collectors, readCollector)
-
 	writeCollector := pgxpoolprometheus.NewCollector(cds.writePool, map[string]string{
 		"db_name":    "spicedb",
 		"pool_usage": "write",
 	})
 
-	if err := registerer.Register(writeCollector); err != nil {
-		return fmt.Errorf("failed to register prometheus write collector: %w", err)
-	}
-	cds.collectors = append(cds.collectors, writeCollector)
+	unregister, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register crdb pool metrics", readCollector, writeCollector)
 
-	return nil
+	cds.prometheusUnregisterFunction = unregister
+
+	return err
 }

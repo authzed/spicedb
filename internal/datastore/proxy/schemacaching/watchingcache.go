@@ -59,23 +59,14 @@ const maximumRetryCount = 10
 // RegisterMetrics registers the watching schema cache prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	for _, c := range []prometheus.Collector{
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register watching cache metrics",
 		namespacesFallbackModeGauge,
 		caveatsFallbackModeGauge,
 		schemaCacheRevisionGauge,
 		definitionsReadCachedCounter,
-		definitionsReadTotalCounter,
-	} {
-		if err := registerer.Register(c); err != nil {
-			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-				return err
-			}
-		}
-	}
-	return nil
+		definitionsReadTotalCounter)
+
+	return err
 }
 
 // watchingCachingProxy is a datastore proxy that caches schema (namespaces and caveat definitions)

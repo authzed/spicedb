@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	datastoreTest "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -19,7 +20,8 @@ func TestExecuteGC(t *testing.T) {
 			name: "cockroachdb does not support garbage collection",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
+				cfg.EnableDatastoreMetrics = false
+				cfg.PrometheusRegisterer = prometheus.NewRegistry()
 				cfg.Engine = "cockroachdb"
 				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
 				db := runningDatastore.NewDatabase(t)
@@ -49,7 +51,8 @@ func TestExecuteRepair(t *testing.T) {
 			name: "memory datastore does not support repair",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
+				cfg.EnableDatastoreMetrics = false
+				cfg.PrometheusRegisterer = prometheus.NewRegistry()
 				cfg.Engine = datastore.MemoryEngine
 				return cfg
 			},
@@ -59,7 +62,8 @@ func TestExecuteRepair(t *testing.T) {
 			name: "postgres supports repair",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
+				cfg.EnableDatastoreMetrics = false
+				cfg.PrometheusRegisterer = prometheus.NewRegistry()
 				cfg.Engine = "postgres"
 				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
 				db := runningDatastore.NewDatabase(t)

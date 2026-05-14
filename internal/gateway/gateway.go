@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var histogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -42,15 +42,8 @@ var histogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 // RegisterMetrics registers the REST gateway prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(histogram); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register gateway metrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register gateway metrics", histogram)
+	return err
 }
 
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream

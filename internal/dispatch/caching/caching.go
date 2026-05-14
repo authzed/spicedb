@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/cache"
+	ds "github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -59,10 +60,6 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		cacheInst = cache.NoopCache[keys.DispatchCacheKey, any]()
 	}
 
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-
 	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
@@ -95,6 +92,7 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		Name:      "lookup_subjects_total",
 		Help:      "Total number of LookupSubjects dispatch requests processed.",
 	})
+
 	lookupSubjectsFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
@@ -103,27 +101,13 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 	})
 
 	if metricsEnabled && prometheusSubsystem != "" {
-		err := registerer.Register(checkTotalCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = registerer.Register(checkFromCacheCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = registerer.Register(lookupResourcesTotalCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = registerer.Register(lookupResourcesFromCacheCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = registerer.Register(lookupSubjectsTotalCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = registerer.Register(lookupSubjectsFromCacheCounter)
+		_, err := ds.RegisterPrometheusCollectors(registerer, prometheusSubsystem+": failed to register caching dispatcher metrics",
+			checkTotalCounter,
+			checkFromCacheCounter,
+			lookupResourcesTotalCounter,
+			lookupResourcesFromCacheCounter,
+			lookupSubjectsTotalCounter,
+			lookupSubjectsFromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}

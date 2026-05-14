@@ -3,7 +3,6 @@ package singleflight
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -31,15 +31,8 @@ var (
 // RegisterMetrics registers singleflight prometheus metrics with the given registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(singleFlightCount); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register singleflight metrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register singleflight metrics", singleFlightCount)
+	return err
 }
 
 func New(delegate dispatch.Dispatcher, handler keys.Handler) dispatch.Dispatcher {

@@ -245,7 +245,7 @@ func newPostgresDatastore(
 		registerer = prometheus.DefaultRegisterer
 	}
 
-	collectors, err := registerAndReturnPrometheusCollectors(registerer, replicaIndex, isPrimary, readPool, writePool, config.enablePrometheusStats)
+	collectors, gcMetricsUnregister, err := registerAndReturnPrometheusCollectors(registerer, replicaIndex, isPrimary, readPool, writePool, config.enablePrometheusStats)
 	if err != nil {
 		return nil, err
 	}
@@ -311,6 +311,7 @@ func newPostgresDatastore(
 		readPool:                     pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:                    nil, /* disabled by default */
 		collectors:                   collectors,
+		gcMetricsUnregister:          gcMetricsUnregister,
 		watchBufferLength:            config.watchBufferLength,
 		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
 		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
@@ -379,6 +380,7 @@ type pgDatastore struct {
 	dburl                          string
 	readPool, writePool            pgxcommon.ConnPooler
 	collectors                     []prometheus.Collector
+	gcMetricsUnregister            func()
 	watchBufferLength              uint16
 	watchChangeBufferMaximumSize   uint64
 	watchBufferWriteTimeout        time.Duration
@@ -655,6 +657,9 @@ func (pgd *pgDatastore) Close() error {
 	for _, collector := range pgd.collectors {
 		pgd.prometheusRegisterer.Unregister(collector)
 	}
+	if pgd.gcMetricsUnregister != nil {
+		pgd.gcMetricsUnregister()
+	}
 	return nil
 }
 
@@ -807,14 +812,15 @@ func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 
 var _ datastore.Datastore = &pgDatastore{}
 
-func registerAndReturnPrometheusCollectors(registerer prometheus.Registerer, replicaIndex int, isPrimary bool, readPool, writePool *pgxpool.Pool, enablePrometheusStats bool) ([]prometheus.Collector, error) {
+func registerAndReturnPrometheusCollectors(registerer prometheus.Registerer, replicaIndex int, isPrimary bool, readPool, writePool *pgxpool.Pool, enablePrometheusStats bool) ([]prometheus.Collector, func(), error) {
 	if registerer == nil {
 		registerer = prometheus.DefaultRegisterer
 	}
 
 	collectors := []prometheus.Collector{}
+	gcMetricsUnregister := func() {}
 	if !enablePrometheusStats {
-		return collectors, nil
+		return collectors, gcMetricsUnregister, nil
 	}
 
 	replicaIndexStr := strconv.Itoa(replicaIndex)
@@ -828,7 +834,7 @@ func registerAndReturnPrometheusCollectors(registerer prometheus.Registerer, rep
 		"pool_usage": "read",
 	})
 	if err := registerer.Register(readCollector); err != nil {
-		return collectors, err
+		return collectors, gcMetricsUnregister, err
 	}
 	collectors = append(collectors, readCollector)
 
@@ -839,16 +845,16 @@ func registerAndReturnPrometheusCollectors(registerer prometheus.Registerer, rep
 		})
 
 		if err := registerer.Register(writeCollector); err != nil {
-			return collectors, nil
+			return collectors, gcMetricsUnregister, nil
 		}
 		collectors = append(collectors, writeCollector)
 
-		gcCollectors, err := datastore.RegisterGCMetrics(registerer)
+		unregisterGC, err := datastore.RegisterGCMetrics(registerer)
 		if err != nil {
-			return collectors, err
+			return collectors, gcMetricsUnregister, err
 		}
-		collectors = append(collectors, gcCollectors...)
+		gcMetricsUnregister = unregisterGC
 	}
 
-	return collectors, nil
+	return collectors, gcMetricsUnregister, nil
 }

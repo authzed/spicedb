@@ -16,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -47,29 +48,23 @@ type RetryPool struct {
 	healthTracker *NodeHealthTracker
 
 	sync.RWMutex
-	maxRetries  uint8
-	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
-	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
+	maxRetries                   uint8
+	nodeForConn                  map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
+	gc                           map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
+	prometheusUnregisterFunction func()
 }
 
 func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration, registerer prometheus.Registerer) (*RetryPool, error) {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(resetHistogram); err != nil {
-		var alreadyRegistered prometheus.AlreadyRegisteredError
-		if !errors.As(err, &alreadyRegistered) {
-			return nil, fmt.Errorf("failed to register crdb pool metrics: %w", err)
-		}
-	}
+	unregister, _ := datastore.RegisterPrometheusCollectors(registerer, "failed to register crdb pool metrics", resetHistogram)
 
 	config = config.Copy()
 	p := &RetryPool{
-		id:            name,
-		maxRetries:    maxRetries,
-		healthTracker: healthTracker,
-		nodeForConn:   make(map[*pgx.Conn]uint32, 0),
-		gc:            make(map[*pgx.Conn]struct{}, 0),
+		id:                           name,
+		maxRetries:                   maxRetries,
+		healthTracker:                healthTracker,
+		nodeForConn:                  make(map[*pgx.Conn]uint32, 0),
+		gc:                           make(map[*pgx.Conn]struct{}, 0),
+		prometheusUnregisterFunction: unregister,
 	}
 
 	limiter := rate.NewLimiter(rate.Every(connectRate), 1)

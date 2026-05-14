@@ -2,8 +2,6 @@ package usagemetrics
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +16,7 @@ import (
 	"github.com/authzed/grpcutil"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -43,15 +42,8 @@ var (
 // RegisterMetrics registers the usagemetrics prometheus metrics with the provided registerer.
 // If registerer is nil, prometheus.DefaultRegisterer is used.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(DispatchedCountHistogram); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			return fmt.Errorf("failed to register usagemetrics: %w", err)
-		}
-	}
-	return nil
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register usagemetrics", DispatchedCountHistogram)
+	return err
 }
 
 type reporter struct{}

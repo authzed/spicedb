@@ -43,16 +43,9 @@ const noOriginalRelation = ""
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
 func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16, registerer prometheus.Registerer) *ConcurrentChecker {
-	if registerer == nil {
-		registerer = prometheus.DefaultRegisterer
-	}
-	if err := registerer.Register(dispatchChunkCountHistogram); err != nil {
-		if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
-			// log at debug level — metric registration failures should not crash the server
-			_ = fmt.Errorf("failed to register check dispatch metrics: %w", err)
-		}
-	}
-	return &ConcurrentChecker{d, concurrencyLimit, dispatchChunkSize}
+	unregister, _ := datastore.RegisterPrometheusCollectors(registerer, "failed to register dispatch metrics", dispatchChunkCountHistogram)
+
+	return &ConcurrentChecker{d, concurrencyLimit, dispatchChunkSize, unregister}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
@@ -61,6 +54,7 @@ type ConcurrentChecker struct {
 	d                 dispatch.Check
 	concurrencyLimit  uint16
 	dispatchChunkSize uint16
+	unregister        func()
 }
 
 // ValidatedCheckRequest represents a request after it has been validated and parsed for internal

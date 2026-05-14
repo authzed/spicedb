@@ -904,7 +904,7 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 
 	writePoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", writeMaxConns))
 	require.NoError(t, err)
-	writePool, err := pool.NewRetryPool(t.Context(), "read", writePoolConfig, nil, 18, 20, nil)
+	writePool, err := pool.NewRetryPool(t.Context(), "write", writePoolConfig, nil, 18, 20, nil)
 	require.NoError(t, err)
 
 	// Create datastore with those pools
@@ -915,12 +915,10 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 
 	err = cds.registerPrometheusCollectors(prometheus.NewPedanticRegistry(), false)
 	require.NoError(t, err)
-	require.Empty(t, cds.collectors)
 
 	// Register collectors and verify the values of the metrics
 	err = cds.registerPrometheusCollectors(prometheus.NewPedanticRegistry(), true)
 	require.NoError(t, err)
-	require.Len(t, cds.collectors, 2)
 
 	metricFamily, err := prometheus.DefaultGatherer.Gather()
 	require.NoError(t, err)
