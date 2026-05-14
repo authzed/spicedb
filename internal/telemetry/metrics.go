@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/promutil"
@@ -75,31 +76,39 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 func registerTelemetryCollector(datastoreEngine string, ds datastore.Datastore) (*prometheus.Registry, *collector, error) {
 	registry := prometheus.NewRegistry()
 
+	collector, err := registerTelemetryCollectorWithRegistry(registry, datastoreEngine, ds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return registry, collector, nil
+}
+
+func registerTelemetryCollectorWithRegistry(registry *prometheus.Registry, datastoreEngine string, ds datastore.Datastore) (*collector, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	infoCollector, err := SpiceDBClusterInfoCollector(ctx, "telemetry", datastoreEngine, ds)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable create info collector: %w", err)
+		return nil, fmt.Errorf("unable create info collector: %w", err)
 	}
 
-	if err := registry.Register(infoCollector); err != nil {
-		return nil, nil, fmt.Errorf("unable to register telemetry collector: %w", err)
+	if _, err := internalmetrics.RegisterOrReuse(registry, infoCollector); err != nil {
+		return nil, fmt.Errorf("unable to register telemetry collector: %w", err)
 	}
 
 	nodeID, err := os.Hostname()
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get hostname: %w", err)
+		return nil, fmt.Errorf("unable to get hostname: %w", err)
 	}
 
 	dbStats, err := ds.Statistics(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to query DB stats: %w", err)
+		return nil, fmt.Errorf("unable to query DB stats: %w", err)
 	}
 	clusterID := dbStats.UniqueID
 
-	collector := &collector{
-		ds: ds,
+	telemetryCollector := &collector{
 		objectDefsDesc: prometheus.NewDesc(
 			prometheus.BuildFQName("spicedb", "telemetry", "object_definitions_total"),
 			"Count of the number of objects defined by the schema.",
@@ -137,11 +146,18 @@ func registerTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 			},
 		),
 	}
-	if err := registry.Register(collector); err != nil {
-		return nil, collector, fmt.Errorf("unable to register telemetry collector: %w", err)
+
+	registeredCollector, err := internalmetrics.RegisterOrReuse(registry, telemetryCollector)
+	if err != nil {
+		return telemetryCollector, fmt.Errorf("unable to register telemetry collector: %w", err)
 	}
 
-	return registry, collector, nil
+	existingCollector, ok := registeredCollector.(*collector)
+	if ok {
+		telemetryCollector = existingCollector
+	}
+
+	return telemetryCollector, nil
 }
 
 type collector struct {
@@ -165,9 +181,14 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	dsStats, err := c.ds.Statistics(ctx)
-	if err != nil {
-		log.Warn().Err(err).Msg("unable to collect datastore statistics")
+	dsStats := datastore.Stats{}
+	if c.ds != nil {
+		stats, err := c.ds.Statistics(ctx)
+		if err != nil {
+			log.Warn().Err(err).Msg("unable to collect datastore statistics")
+		} else {
+			dsStats = stats
+		}
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))

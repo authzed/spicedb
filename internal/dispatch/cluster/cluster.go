@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/query"
@@ -20,6 +21,7 @@ type Option func(*optionState)
 type optionState struct {
 	metricsEnabled               bool
 	prometheusSubsystem          string
+	metricsFactory               metrics.Factory
 	cache                        cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits            graph.ConcurrencyLimits
 	remoteDispatchTimeout        time.Duration
@@ -49,6 +51,14 @@ func MetricsEnabled(enabled bool) Option {
 func PrometheusSubsystem(name string) Option {
 	return func(state *optionState) {
 		state.prometheusSubsystem = name
+	}
+}
+
+// MetricsFactory sets the metrics.Factory used to create and register
+// caching-dispatcher metrics.
+func MetricsFactory(f metrics.Factory) Option {
+	return func(state *optionState) {
+		state.metricsFactory = f
 	}
 }
 
@@ -159,7 +169,15 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	if opts.metricsFactory == nil {
+		if opts.metricsEnabled {
+			opts.metricsFactory = metrics.NewPrometheusFactory(nil) // falls back to DefaultRegisterer
+		} else {
+			opts.metricsFactory = metrics.NoopFactory{}
+		}
+	}
+
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsFactory, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

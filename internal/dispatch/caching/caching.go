@@ -2,31 +2,26 @@ package caching
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"sync"
 	"testing"
 	"unsafe"
 
 	"github.com/dustin/go-humanize"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-const (
-	errCachingInitialization = "error initializing caching dispatcher: %w"
-
-	prometheusNamespace = "spicedb"
-)
+const prometheusNamespace = "spicedb"
 
 // Dispatcher is a dispatcher with cacheInst-in caching.
 type Dispatcher struct {
@@ -34,14 +29,15 @@ type Dispatcher struct {
 	c          cache.Cache[keys.DispatchCacheKey, any]
 	keyHandler keys.Handler
 
-	checkTotalCounter               prometheus.Counter
-	checkFromCacheCounter           prometheus.Counter
-	lookupResourcesTotalCounter     prometheus.Counter
-	lookupResourcesFromCacheCounter prometheus.Counter
-	lookupSubjectsTotalCounter      prometheus.Counter
-	lookupSubjectsFromCacheCounter  prometheus.Counter
-	queryPlanTotalCounter           *prometheus.CounterVec
-	queryPlanFromCacheCounter       *prometheus.CounterVec
+	metricsFactory                  metrics.Factory
+	checkTotalCounter               metrics.Counter
+	checkFromCacheCounter           metrics.Counter
+	lookupResourcesTotalCounter     metrics.Counter
+	lookupResourcesFromCacheCounter metrics.Counter
+	lookupSubjectsTotalCounter      metrics.Counter
+	lookupSubjectsFromCacheCounter  metrics.Counter
+	queryPlanTotalCounter           metrics.CounterVec
+	queryPlanFromCacheCounter       metrics.CounterVec
 }
 
 func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
@@ -55,114 +51,56 @@ func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates
 // dispatch requests and caches the responses when possible and desirable.
-func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], metricsEnabled bool, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
+//
+// factory controls how metrics are created and registered.  Pass
+// metrics.NewPrometheusFactory(registerer) in production and
+// metrics.NewRecordingFactory() in tests that assert on metric values.
+// Pass metrics.NoopFactory{} (or nil) to disable metrics entirely.
+//
+// prometheusSubsystem is used as the Prometheus subsystem field in every
+// metric name, e.g. "dispatch_client" → spicedb_dispatch_client_check_total.
+func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], factory metrics.Factory, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
 	if cacheInst == nil {
 		cacheInst = cache.NoopCache[keys.DispatchCacheKey, any]()
 	}
-
-	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "check_total",
-		Help:      "Total number of CheckPermission dispatch requests processed.",
-	})
-	checkFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "check_from_cache_total",
-		Help:      "Total number of CheckPermission dispatch requests served directly from the dispatch cache, avoiding re-computation.",
-	})
-
-	lookupResourcesTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "lookup_resources_total",
-		Help:      "Total number of LookupResources dispatch requests processed.",
-	})
-	lookupResourcesFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "lookup_resources_from_cache_total",
-		Help:      "Total number of LookupResources dispatch requests served directly from the dispatch cache.",
-	})
-
-	lookupSubjectsTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "lookup_subjects_total",
-		Help:      "Total number of LookupSubjects dispatch requests processed.",
-	})
-	lookupSubjectsFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "lookup_subjects_from_cache_total",
-		Help:      "Total number of LookupSubjects dispatch requests served directly from the dispatch cache.",
-	})
-
-	queryPlanTotalCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "query_plan_total",
-		Help:      "Total number of DispatchQueryPlan requests processed, labelled by plan operation.",
-	}, []string{"operation"})
-	queryPlanFromCacheCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "query_plan_from_cache_total",
-		Help:      "Total number of DispatchQueryPlan requests served directly from the dispatch cache, labelled by plan operation.",
-	}, []string{"operation"})
-
-	if metricsEnabled && prometheusSubsystem != "" {
-		err := prometheus.Register(checkTotalCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(checkFromCacheCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(lookupResourcesTotalCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(lookupResourcesFromCacheCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(lookupSubjectsTotalCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(lookupSubjectsFromCacheCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(queryPlanTotalCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(queryPlanFromCacheCounter)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
+	if factory == nil {
+		factory = metrics.NoopFactory{}
 	}
 
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
 	}
 
+	newCounter := func(name, help string) metrics.Counter {
+		return factory.Counter(metrics.Opts{
+			Namespace: prometheusNamespace,
+			Subsystem: prometheusSubsystem,
+			Name:      name,
+			Help:      help,
+		})
+	}
+	newCounterVec := func(name, help string) metrics.CounterVec {
+		return factory.CounterVec(metrics.Opts{
+			Namespace: prometheusNamespace,
+			Subsystem: prometheusSubsystem,
+			Name:      name,
+			Help:      help,
+		}, []string{"operation"})
+	}
+
 	return &Dispatcher{
 		d:                               fakeDelegate{},
 		c:                               cacheInst,
 		keyHandler:                      keyHandler,
-		checkTotalCounter:               checkTotalCounter,
-		checkFromCacheCounter:           checkFromCacheCounter,
-		lookupResourcesTotalCounter:     lookupResourcesTotalCounter,
-		lookupResourcesFromCacheCounter: lookupResourcesFromCacheCounter,
-		lookupSubjectsTotalCounter:      lookupSubjectsTotalCounter,
-		lookupSubjectsFromCacheCounter:  lookupSubjectsFromCacheCounter,
-		queryPlanTotalCounter:           queryPlanTotalCounter,
-		queryPlanFromCacheCounter:       queryPlanFromCacheCounter,
+		metricsFactory:                  factory,
+		checkTotalCounter:               newCounter("check_total", "Total number of CheckPermission dispatch requests processed."),
+		checkFromCacheCounter:           newCounter("check_from_cache_total", "Total number of CheckPermission dispatch requests served directly from the dispatch cache, avoiding re-computation."),
+		lookupResourcesTotalCounter:     newCounter("lookup_resources_total", "Total number of LookupResources dispatch requests processed."),
+		lookupResourcesFromCacheCounter: newCounter("lookup_resources_from_cache_total", "Total number of LookupResources dispatch requests served directly from the dispatch cache."),
+		lookupSubjectsTotalCounter:      newCounter("lookup_subjects_total", "Total number of LookupSubjects dispatch requests processed."),
+		lookupSubjectsFromCacheCounter:  newCounter("lookup_subjects_from_cache_total", "Total number of LookupSubjects dispatch requests served directly from the dispatch cache."),
+		queryPlanTotalCounter:           newCounterVec("query_plan_total", "Total number of DispatchQueryPlan requests processed, labelled by plan operation."),
+		queryPlanFromCacheCounter:       newCounterVec("query_plan_from_cache_total", "Total number of DispatchQueryPlan requests served directly from the dispatch cache, labelled by plan operation."),
 	}, nil
 }
 
@@ -482,14 +420,7 @@ func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequ
 }
 
 func (cd *Dispatcher) Close() error {
-	prometheus.Unregister(cd.checkTotalCounter)
-	prometheus.Unregister(cd.checkFromCacheCounter)
-	prometheus.Unregister(cd.lookupResourcesTotalCounter)
-	prometheus.Unregister(cd.lookupResourcesFromCacheCounter)
-	prometheus.Unregister(cd.lookupSubjectsTotalCounter)
-	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
-	prometheus.Unregister(cd.queryPlanTotalCounter)
-	prometheus.Unregister(cd.queryPlanFromCacheCounter)
+	_ = cd.metricsFactory.Close()
 	if cache := cd.c; cache != nil {
 		cache.Close()
 	}

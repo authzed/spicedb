@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/utils/ptr"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -30,6 +31,7 @@ type crdbOptions struct {
 	analyzeBeforeStatistics        bool
 	filterMaximumIDCount           uint16
 	enablePrometheusStats          bool
+	prometheusRegisterer           prometheus.Registerer
 	withIntegrity                  bool
 	allowedMigrations              []string
 	columnOptimizationOption       common.ColumnOptimizationOption
@@ -343,6 +345,13 @@ func OverlapKey(key string) Option {
 // Prometheus metrics are disabled by default.
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(po *crdbOptions) { po.enablePrometheusStats = enablePrometheusStats }
+}
+
+// WithPrometheusRegisterer sets the prometheus.Registerer used to register
+// datastore metrics.  When not set (or nil), prometheus.DefaultRegisterer is
+// used.
+func WithPrometheusRegisterer(r prometheus.Registerer) Option {
+	return func(po *crdbOptions) { po.prometheusRegisterer = r }
 }
 
 // WithEnableConnectionBalancing marks whether Prometheus metrics provided by the Postgres

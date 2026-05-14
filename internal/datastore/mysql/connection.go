@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 // instrumentedConnector wraps the default MySQL driver connector
@@ -45,7 +46,16 @@ func (d *instrumentedConnector) Driver() driver.Driver {
 	return d.drv
 }
 
-func instrumentConnector(c driver.Connector, replicaIndex string) (driver.Connector, []prometheus.Collector, error) {
+// instrumentConnector wraps c to collect per-connection latency and count
+// metrics and registers them with registerer.
+//
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+// AlreadyRegisteredError is tolerated so that a primary and replica connector
+// can be instrumented in the same process without conflicting.
+func instrumentConnector(c driver.Connector, replicaIndex string, registerer prometheus.Registerer) (driver.Connector, []prometheus.Collector, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
 	var (
 		connectHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "spicedb",
@@ -70,24 +80,35 @@ func instrumentConnector(c driver.Connector, replicaIndex string) (driver.Connec
 
 	var collectors []prometheus.Collector
 
-	err := prometheus.Register(connectHistogram)
+	registered, err := internalmetrics.RegisterOrReuse(registerer, connectHistogram)
 	if err != nil {
 		return nil, collectors, err
 	}
+	collectors = append(collectors, registered)
 
-	collectors = append(collectors, connectHistogram)
-	err = prometheus.Register(connectCount)
+	registeredVec, err := internalmetrics.RegisterOrReuse(registerer, connectCount)
 	if err != nil {
 		return nil, collectors, err
 	}
+	collectors = append(collectors, registeredVec)
 
-	collectors = append(collectors, connectCount)
+	// The histogram and counter vec we use in the connector must be the
+	// registered instances (which may differ from our local vars when
+	// AlreadyRegisteredError was returned).
+	actualHistogram, ok := registered.(prometheus.Histogram)
+	if !ok {
+		actualHistogram = connectHistogram
+	}
+	actualCounter, ok2 := registeredVec.(*prometheus.CounterVec)
+	if !ok2 {
+		actualCounter = connectCount
+	}
 
 	return &instrumentedConnector{
 		conn:             c,
 		drv:              c.Driver(),
-		connectHistogram: connectHistogram,
-		connectCount:     connectCount,
+		connectHistogram: actualHistogram,
+		connectCount:     actualCounter,
 	}, collectors, nil
 }
 

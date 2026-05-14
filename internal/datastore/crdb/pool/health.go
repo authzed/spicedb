@@ -14,6 +14,7 @@ import (
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 const errorBurst = 2
@@ -24,7 +25,7 @@ var healthyCRDBNodeCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 })
 
 func init() {
-	prometheus.MustRegister(healthyCRDBNodeCountGauge)
+	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, healthyCRDBNodeCountGauge)
 }
 
 // NodeHealthTracker detects changes in the node pool by polling the cluster periodically and recording

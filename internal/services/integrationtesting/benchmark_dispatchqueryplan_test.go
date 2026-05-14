@@ -180,7 +180,7 @@ func (h *dispatchQueryPlanHandle) newCachingDispatcher(b *testing.B) *caching.Di
 	c, err := cache.NewStandardCache[keys.DispatchCacheKey, any](cacheConfig)
 	require.NoError(b, err)
 
-	cd, err := caching.NewCachingDispatcher(c, false, "bench", &keys.DirectKeyHandler{})
+	cd, err := caching.NewCachingDispatcher(c, nil, "bench", &keys.DirectKeyHandler{})
 	require.NoError(b, err)
 
 	lpd := &localQueryPlanDispatcher{handle: h}

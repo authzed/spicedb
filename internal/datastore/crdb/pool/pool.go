@@ -16,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -35,7 +36,7 @@ var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 })
 
 func init() {
-	prometheus.MustRegister(resetHistogram)
+	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, resetHistogram)
 }
 
 type ctxDisableRetries struct{}

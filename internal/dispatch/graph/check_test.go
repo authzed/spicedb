@@ -2074,7 +2074,7 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 		_ = dispatch.Close()
 	})
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), nil, "", &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)
 	cachingDispatcher.SetDelegate(dispatch)
 	t.Cleanup(func() {
@@ -2099,7 +2099,7 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 		dispatch.Close()
 	})
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), nil, "", &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)
 	cachingDispatcher.SetDelegate(dispatch)
 	t.Cleanup(func() {

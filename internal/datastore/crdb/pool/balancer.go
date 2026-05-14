@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/genutil"
 )
 
@@ -34,8 +35,8 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(connectionsPerCRDBNodeCountGauge)
-	prometheus.MustRegister(pruningTimeHistogram)
+	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, connectionsPerCRDBNodeCountGauge)
+	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, pruningTimeHistogram)
 }
 
 type balancePoolConn[C balanceConn] interface {

@@ -31,6 +31,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -240,7 +241,7 @@ func newPostgresDatastore(
 		}
 	}
 
-	collectors, err := registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, readPool, writePool, config.enablePrometheusStats)
+	collectors, err := registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, readPool, writePool, config.enablePrometheusStats, config.prometheusRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -306,6 +307,7 @@ func newPostgresDatastore(
 		readPool:                     pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:                    nil, /* disabled by default */
 		collectors:                   collectors,
+		prometheusRegisterer:         config.prometheusRegisterer,
 		watchBufferLength:            config.watchBufferLength,
 		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
 		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
@@ -374,6 +376,7 @@ type pgDatastore struct {
 	dburl                          string
 	readPool, writePool            pgxcommon.ConnPooler
 	collectors                     []prometheus.Collector
+	prometheusRegisterer           prometheus.Registerer
 	watchBufferLength              uint16
 	watchChangeBufferMaximumSize   uint64
 	watchBufferWriteTimeout        time.Duration
@@ -647,7 +650,11 @@ func (pgd *pgDatastore) Close() error {
 		pgd.writePool.Close()
 	}
 	for _, collector := range pgd.collectors {
-		prometheus.Unregister(collector)
+		r := pgd.prometheusRegisterer
+		if r == nil {
+			r = prometheus.DefaultRegisterer
+		}
+		r.Unregister(collector)
 	}
 	return nil
 }
@@ -801,7 +808,10 @@ func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 
 var _ datastore.Datastore = &pgDatastore{}
 
-func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, readPool, writePool *pgxpool.Pool, enablePrometheusStats bool) ([]prometheus.Collector, error) {
+func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, readPool, writePool *pgxpool.Pool, enablePrometheusStats bool, registerer prometheus.Registerer) ([]prometheus.Collector, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
 	collectors := []prometheus.Collector{}
 	if !enablePrometheusStats {
 		return collectors, nil
@@ -817,23 +827,24 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, rea
 		"db_name":    dbname,
 		"pool_usage": "read",
 	})
-	if err := prometheus.Register(readCollector); err != nil {
+	registered, err := internalmetrics.RegisterOrReuse(registerer, readCollector)
+	if err != nil {
 		return collectors, err
 	}
-	collectors = append(collectors, readCollector)
+	collectors = append(collectors, registered)
 
 	if isPrimary {
 		writeCollector := pgxpoolprometheus.NewCollector(writePool, map[string]string{
 			"db_name":    "spicedb",
 			"pool_usage": "write",
 		})
-
-		if err := prometheus.Register(writeCollector); err != nil {
-			return collectors, nil
+		registeredWrite, err := internalmetrics.RegisterOrReuse(registerer, writeCollector)
+		if err != nil {
+			return collectors, err
 		}
-		collectors = append(collectors, writeCollector)
+		collectors = append(collectors, registeredWrite)
 
-		gcCollectors, err := datastore.RegisterGCMetrics()
+		gcCollectors, err := datastore.RegisterGCMetrics(registerer)
 		if err != nil {
 			return collectors, err
 		}

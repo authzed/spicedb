@@ -11,6 +11,7 @@ import (
 	query "github.com/authzed/spicedb/pkg/query"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	prometheus "github.com/prometheus/client_golang/prometheus"
 	grpc "google.golang.org/grpc"
 	"time"
 )
@@ -114,6 +115,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableRequestLogs = c.EnableRequestLogs
 		to.EnableResponseLogs = c.EnableResponseLogs
 		to.DisableGRPCLatencyHistogram = c.DisableGRPCLatencyHistogram
+		to.PrometheusRegisterer = c.PrometheusRegisterer
 	}
 }
 
@@ -1017,5 +1019,12 @@ func WithEnableResponseLogs(enableResponseLogs bool) ConfigOption {
 func WithDisableGRPCLatencyHistogram(disableGRPCLatencyHistogram bool) ConfigOption {
 	return func(c *Config) {
 		c.DisableGRPCLatencyHistogram = disableGRPCLatencyHistogram
+	}
+}
+
+// WithPrometheusRegisterer returns an option that can set PrometheusRegisterer on a Config
+func WithPrometheusRegisterer(prometheusRegisterer prometheus.Registerer) ConfigOption {
+	return func(c *Config) {
+		c.PrometheusRegisterer = prometheusRegisterer
 	}
 }

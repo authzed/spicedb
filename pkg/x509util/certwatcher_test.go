@@ -72,6 +72,31 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 	cancel2()
 }
 
+func TestCertWatcherRepeatedConstructionMetricRegistration(t *testing.T) {
+	dir := t.TempDir()
+	certPath := dir + "/tls.crt"
+	keyPath := dir + "/tls.key"
+
+	require.NoError(t, writeCerts(certPath, keyPath, "127.0.0.1"))
+
+	watcher1, err := NewTLSCertWatcher(certPath, keyPath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, watcher1.watcher.Close())
+		watcher1.unregisterMetrics()
+	})
+
+	watcher2, err := NewTLSCertWatcher(certPath, keyPath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, watcher2.watcher.Close())
+		watcher2.unregisterMetrics()
+	})
+
+	require.Same(t, watcher1.ReadCertificateTotal, watcher2.ReadCertificateTotal)
+	require.Same(t, watcher1.ReadCertificateErrors, watcher2.ReadCertificateErrors)
+}
+
 // setupWatcher creates a temporary certificate/key pair for the given IP address,
 // constructs a CertWatcher, and returns a startWatcher function that launches the
 // watcher in a background goroutine.

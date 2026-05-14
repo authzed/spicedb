@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 var gcTracer = otel.Tracer("spicedb/pkg/datastore")
@@ -61,22 +62,35 @@ var (
 	gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
 )
 
-// RegisterGCMetrics registers garbage collection metrics to the default
-// registry and returns them (so that they be unregistered).
-func RegisterGCMetrics() ([]prometheus.Collector, error) {
-	collectors := []prometheus.Collector{
+// RegisterGCMetrics registers garbage collection metrics to the supplied
+// registerer and returns the registered collectors so they can be
+// unregistered when the datastore is closed.
+//
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+//
+// AlreadyRegisteredError is tolerated: when another caller has already
+// registered one of these metrics the existing collector is reused.  This
+// keeps the function idempotent when, for example, a primary and a replica
+// datastore are created in the same process.
+func RegisterGCMetrics(registerer prometheus.Registerer) ([]prometheus.Collector, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	candidates := []prometheus.Collector{
 		gcDurationHistogram,
 		gcRelationshipsCounter,
 		gcTransactionsCounter,
 		gcNamespacesCounter,
 		gcFailureCounter,
 	}
-	for _, metric := range collectors {
-		if err := prometheus.Register(metric); err != nil {
-			return nil, fmt.Errorf("failed to register GC metric: %w", err)
+	collectors := make([]prometheus.Collector, 0, len(candidates))
+	for _, metric := range candidates {
+		registered, err := internalmetrics.RegisterOrReuse(registerer, metric)
+		if err != nil {
+			return collectors, fmt.Errorf("failed to register GC metric: %w", err)
 		}
+		collectors = append(collectors, registered)
 	}
-
 	return collectors, nil
 }
 

@@ -115,13 +115,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
 		)
 	}
 
-	noAuth := server.WithAuthFunc(func(ctx context.Context) (context.Context, error) {
+	noAuth := server.WithMiddlewareOptionAuthFunc(func(ctx context.Context) (context.Context, error) {
 		// Turn off the default auth system.
 		return ctx, nil
 	})
 	opts := *server.NewMiddlewareOptionWithOptions(noAuth,
-		server.WithLogger(log.Logger),
-		server.WithMemoryUsageProvider(&memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}))
+		server.WithMiddlewareOptionLogger(log.Logger),
+		server.WithMiddlewareOptionMemoryUsageProvider(&memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}))
 	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
 
 	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)

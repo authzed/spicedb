@@ -11,6 +11,7 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -57,7 +58,15 @@ var definitionsReadTotalCounter = prometheus.NewCounterVec(prometheus.CounterOpt
 const maximumRetryCount = 10
 
 func init() {
-	prometheus.MustRegister(namespacesFallbackModeGauge, caveatsFallbackModeGauge, schemaCacheRevisionGauge, definitionsReadCachedCounter, definitionsReadTotalCounter)
+	for _, collector := range []prometheus.Collector{
+		namespacesFallbackModeGauge,
+		caveatsFallbackModeGauge,
+		schemaCacheRevisionGauge,
+		definitionsReadCachedCounter,
+		definitionsReadTotalCounter,
+	} {
+		internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, collector)
+	}
 }
 
 // watchingCachingProxy is a datastore proxy that caches schema (namespaces and caveat definitions)

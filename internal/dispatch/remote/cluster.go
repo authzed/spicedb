@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -77,13 +78,6 @@ const defaultTDigestCompression = float64(1000)
 
 var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 
-func init() {
-	prometheus.MustRegister(dispatchCounter)
-	prometheus.MustRegister(hedgeWaitHistogram)
-	prometheus.MustRegister(hedgeActualWaitHistogram)
-	prometheus.MustRegister(primaryDispatch)
-}
-
 type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
@@ -100,6 +94,10 @@ type ClusterDispatcherConfig struct {
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
 	// before it should timeout.
 	DispatchOverallTimeout time.Duration
+
+	// PrometheusRegisterer is the registerer used to publish cluster-dispatch
+	// metrics. If nil, prometheus.DefaultRegisterer is used.
+	PrometheusRegisterer prometheus.Registerer
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -122,6 +120,22 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
+	}
+
+	registerer := config.PrometheusRegisterer
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
+	for _, collector := range []prometheus.Collector{
+		dispatchCounter,
+		hedgeWaitHistogram,
+		hedgeActualWaitHistogram,
+		primaryDispatch,
+	} {
+		if _, err := internalmetrics.RegisterOrReuse(registerer, collector); err != nil {
+			return nil, err
+		}
 	}
 
 	dispatchOverallTimeout := config.DispatchOverallTimeout

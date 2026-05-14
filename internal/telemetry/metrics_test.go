@@ -103,3 +103,25 @@ outer:
 
 	require.Equal(t, 4, descCount, "Expected four metric descriptions")
 }
+
+func TestRegisterTelemetryCollectorRepeatedOnSameRegistry(t *testing.T) {
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 10*time.Hour, 10*time.Hour)
+	require.NoError(t, err)
+
+	registry := prometheus.NewRegistry()
+
+	firstCollector, err := registerTelemetryCollectorWithRegistry(registry, "memdb", ds)
+	require.NoError(t, err)
+	require.NotNil(t, firstCollector)
+
+	secondCollector, err := registerTelemetryCollectorWithRegistry(registry, "memdb", ds)
+	require.NoError(t, err)
+	require.NotNil(t, secondCollector)
+
+	// Re-registration should reuse the existing collector instance.
+	require.Same(t, firstCollector, secondCollector)
+
+	metricFamilies, err := registry.Gather()
+	require.NoError(t, err)
+	require.NotEmpty(t, metricFamilies)
+}

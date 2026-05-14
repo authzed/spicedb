@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -42,7 +43,7 @@ var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOp
 const noOriginalRelation = ""
 
 func init() {
-	prometheus.MustRegister(dispatchChunkCountHistogram)
+	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, dispatchChunkCountHistogram)
 }
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.

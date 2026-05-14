@@ -36,6 +36,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
@@ -168,7 +169,8 @@ type Config struct {
 	EnableResponseLogs bool `debugmap:"visible"`
 
 	// Metrics
-	DisableGRPCLatencyHistogram bool `debugmap:"visible"`
+	DisableGRPCLatencyHistogram bool                  `debugmap:"visible"`
+	PrometheusRegisterer        prometheus.Registerer `debugmap:"hidden"`
 }
 
 // Complete validates the config and fills out defaults.
@@ -199,6 +201,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if ds == nil {
 		var err error
 		c.supportOldAndNewReadReplicaConnectionPoolFlags()
+		c.DatastoreConfig.PrometheusRegisterer = c.PrometheusRegisterer
 		ds, err = datastorecfg.NewDatastore(ctx, c.DatastoreConfig.ToOption(),
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
@@ -294,7 +297,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 					requestid.StreamClientInterceptor(),
 				),
 			),
-			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
+			combineddispatch.MetricsFactory(dispatchClientMetricsFactory(c)),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
@@ -326,7 +329,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
 			dispatcher,
-			clusterdispatch.MetricsEnabled(c.DispatchClusterMetricsEnabled),
+			clusterdispatch.MetricsFactory(dispatchClusterMetricsFactory(c)),
 			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
 			clusterdispatch.Cache(cdcc),
 			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
@@ -385,6 +388,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	opts := MiddlewareOption{
 		Logger:                    log.Logger,
 		AuthFunc:                  c.GRPCAuthFunc,
+		PrometheusRegisterer:      c.PrometheusRegisterer,
 		EnableVersionResponse:     !c.DisableVersionResponse,
 		DispatcherForMiddleware:   dispatcher,
 		EnableRequestLog:          c.EnableRequestLogs,
@@ -501,7 +505,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if err != nil {
 		log.Warn().Err(err).Msg("unable to initialize info collector")
 	} else {
-		if err := prometheus.Register(infoCollector); err != nil {
+		registerer := c.PrometheusRegisterer
+		if registerer == nil {
+			registerer = prometheus.DefaultRegisterer
+		}
+
+		if _, err := metrics.RegisterOrReuse(registerer, infoCollector); err != nil {
 			log.Warn().Err(err).Msg("unable to initialize info collector")
 		}
 	}
@@ -551,6 +560,26 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		healthManager:      healthManager,
 		closeFunc:          closeables.Close,
 	}, nil
+}
+
+// dispatchClientMetricsFactory returns a metrics.Factory for the combined (client-side)
+// caching dispatcher, respecting the DispatchClientMetricsEnabled flag and the
+// PrometheusRegisterer injection point.
+func dispatchClientMetricsFactory(c *Config) metrics.Factory {
+	if !c.DispatchClientMetricsEnabled {
+		return metrics.NoopFactory{}
+	}
+	return metrics.NewPrometheusFactory(c.PrometheusRegisterer)
+}
+
+// dispatchClusterMetricsFactory returns a metrics.Factory for the cluster (server-side)
+// caching dispatcher, respecting the DispatchClusterMetricsEnabled flag and the
+// PrometheusRegisterer injection point.
+func dispatchClusterMetricsFactory(c *Config) metrics.Factory {
+	if !c.DispatchClusterMetricsEnabled {
+		return metrics.NoopFactory{}
+	}
+	return metrics.NewPrometheusFactory(c.PrometheusRegisterer)
 }
 
 func (c *Config) handleGrpcAuthn(ctx context.Context) error {
@@ -610,9 +639,9 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, c.PrometheusRegisterer, memoryUsageProvider, dlOpts...)
 		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, c.PrometheusRegisterer, memoryUsageProvider, dlOpts...)
 		}
 	}
 

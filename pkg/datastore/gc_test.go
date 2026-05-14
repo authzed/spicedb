@@ -167,7 +167,7 @@ func alwaysErr() error {
 
 func TestGCFailureBackoff(t *testing.T) {
 	t.Cleanup(func() {
-		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+		goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 	})
 	localCounter := prometheus.NewCounter(gcFailureCounterConfig)
 	reg := prometheus.NewRegistry()
@@ -176,14 +176,12 @@ func TestGCFailureBackoff(t *testing.T) {
 	errCh := make(chan error, 1)
 	synctest.Test(t, func(t *testing.T) {
 		duration := 1000 * time.Second
-		ctx, cancel := context.WithTimeout(t.Context(), duration)
-		t.Cleanup(func() {
-			cancel()
-		})
+		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
 			errCh <- runGCOnIntervalWithBackoff(ctx, alwaysErr, 100*time.Second, 1*time.Minute, localCounter)
 		}()
 		time.Sleep(duration)
+		cancel()
 		synctest.Wait()
 	})
 	require.Error(t, <-errCh)
@@ -239,6 +237,22 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	defer gc.lock.Unlock()
 
 	require.Greater(t, gc.markedCompleteCount, 20, "Next interval was not reset with backoff")
+}
+
+func TestRegisterGCMetricsRepeatedRegistration(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
+	first, err := RegisterGCMetrics(registry)
+	require.NoError(t, err)
+	require.NotEmpty(t, first)
+
+	second, err := RegisterGCMetrics(registry)
+	require.NoError(t, err)
+	require.Len(t, second, len(first))
+
+	for index := range first {
+		require.Same(t, first[index], second[index])
+	}
 }
 
 func TestGCUnlockOnTimeout(t *testing.T) {

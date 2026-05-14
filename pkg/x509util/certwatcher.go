@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 var (
@@ -69,6 +70,7 @@ type CertWatcher struct {
 	// metrics
 	ReadCertificateTotal  prometheus.Counter
 	ReadCertificateErrors prometheus.Counter
+	registerer            prometheus.Registerer
 }
 
 // NewTLSCertWatcher returns a new CertWatcher watching the given certificate and key.
@@ -84,11 +86,16 @@ func NewTLSCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
 		started:               make(chan error),
 		ReadCertificateTotal:  ReadTotal,
 		ReadCertificateErrors: ReadErrors,
+		registerer:            prometheus.DefaultRegisterer,
 	}
 
-	// ignore "duplicate metric registration" errors
-	_ = prometheus.Register(cw.ReadCertificateTotal)
-	_ = prometheus.Register(cw.ReadCertificateErrors)
+	if _, err := internalmetrics.RegisterOrReuse(cw.registerer, cw.ReadCertificateTotal); err != nil {
+		return nil, err
+	}
+	if _, err := internalmetrics.RegisterOrReuse(cw.registerer, cw.ReadCertificateErrors); err != nil {
+		cw.unregisterMetrics()
+		return nil, err
+	}
 
 	// Initial read of certificate and key.
 	if err := cw.ReadCertificate(); err != nil {
@@ -107,8 +114,11 @@ func NewTLSCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
 
 // unregisterMetrics removes the prometheus metrics registered by this CertWatcher.
 func (cw *CertWatcher) unregisterMetrics() {
-	prometheus.Unregister(cw.ReadCertificateTotal)
-	prometheus.Unregister(cw.ReadCertificateErrors)
+	if cw.registerer == nil {
+		cw.registerer = prometheus.DefaultRegisterer
+	}
+	cw.registerer.Unregister(cw.ReadCertificateTotal)
+	cw.registerer.Unregister(cw.ReadCertificateErrors)
 }
 
 // WithWatchInterval sets the watch interval and returns the CertWatcher pointer
