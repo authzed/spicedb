@@ -885,6 +885,11 @@ func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest,
 		return err
 	}
 
+	// TODO: route through dispatchStreamingRequest once DispatchQueryPlanRequest
+	// implements streamingRequestMessage, so plan can also benefit from hedging
+	// and secondary-dispatch.
+	reqKind := "queryplan_" + dispatch.PlanOperationLabel(req.Operation)
+	firstResult := true
 	for {
 		resp, err := client.Recv()
 		if err != nil {
@@ -892,6 +897,10 @@ func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest,
 				return nil
 			}
 			return err
+		}
+		if firstResult {
+			dispatchCounter.WithLabelValues(reqKind, primaryDispatcher).Inc()
+			firstResult = false
 		}
 		if err := stream.Publish(resp); err != nil {
 			return err

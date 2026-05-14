@@ -2,7 +2,9 @@ package caching
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -224,6 +226,121 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 	for err := range errors {
 		require.NoError(err)
 	}
+}
+
+// planDispatchMock is a minimal dispatch.Dispatcher used by the caching plan-metrics
+// test. It publishes a single DispatchQueryPlanResponse carrying one ResultPath so
+// the caching layer's cache-write path is exercised.
+type planDispatchMock struct {
+	delegateDispatchMock
+	calls atomic.Uint64
+}
+
+func (p *planDispatchMock) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	p.calls.Add(1)
+	return stream.Publish(&v1.DispatchQueryPlanResponse{
+		Metadata: &v1.ResponseMeta{DispatchCount: 1},
+		Paths: []*v1.ResultPath{{
+			ResourceType: "document",
+			ResourceId:   "doc1",
+			Relation:     "viewer",
+		}},
+	})
+}
+
+func sumOperationCounter(t *testing.T, gatherer prometheus.Gatherer, metricName, operationLabel string) float64 {
+	t.Helper()
+	families, err := gatherer.Gather()
+	require.NoError(t, err)
+	for _, mf := range families {
+		if mf.GetName() != metricName {
+			continue
+		}
+		var sum float64
+		for _, m := range mf.GetMetric() {
+			matched := operationLabel == ""
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "operation" && l.GetValue() == operationLabel {
+					matched = true
+				}
+			}
+			if matched {
+				sum += m.GetCounter().GetValue()
+			}
+		}
+		return sum
+	}
+	return 0
+}
+
+func sumPlainCounter(t *testing.T, gatherer prometheus.Gatherer, metricName string) float64 {
+	t.Helper()
+	families, err := gatherer.Gather()
+	require.NoError(t, err)
+	for _, mf := range families {
+		if mf.GetName() != metricName {
+			continue
+		}
+		var sum float64
+		for _, m := range mf.GetMetric() {
+			sum += m.GetCounter().GetValue()
+		}
+		return sum
+	}
+	return 0
+}
+
+func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
+	// Use a unique subsystem so we don't collide with other tests in the global
+	// default Prometheus registry.
+	subsystem := fmt.Sprintf("test_caching_%d", time.Now().UnixNano())
+	registry := prometheus.NewRegistry()
+
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), true, registry, subsystem, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dispatcher.Close() })
+
+	delegate := &planDispatchMock{delegateDispatchMock: delegateDispatchMock{&mock.Mock{}}}
+	dispatcher.SetDelegate(delegate)
+
+	req := &v1.DispatchQueryPlanRequest{
+		Operation:    v1.PlanOperation_PLAN_OPERATION_CHECK,
+		CanonicalKey: "document#viewer",
+		Resource:     tuple.ONRStringToCore("document", "doc1", "viewer"),
+		Subject:      tuple.ONRStringToCore("user", "alice", "..."),
+		PlanContext: &v1.PlanContext{
+			Revision:   "1",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
+		},
+	}
+
+	// First call: cache miss; bumps query_plan_total.
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
+	require.NoError(t, dispatcher.DispatchQueryPlan(req, stream))
+	require.Len(t, stream.Results(), 1)
+
+	// Give the cache a chance to converge before the second call.
+	time.Sleep(10 * time.Millisecond)
+
+	// Second call: cache hit; bumps both query_plan_total and query_plan_from_cache_total.
+	stream2 := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
+	require.NoError(t, dispatcher.DispatchQueryPlan(req, stream2))
+	require.Len(t, stream2.Results(), 1)
+
+	gatherer := registry
+
+	totalCheck := sumOperationCounter(t, gatherer, "spicedb_"+subsystem+"_query_plan_total", "check")
+	require.InEpsilon(t, float64(2), totalCheck, 1e-9, "query_plan_total{operation=check} should bump for each plan dispatch")
+
+	fromCacheCheck := sumOperationCounter(t, gatherer, "spicedb_"+subsystem+"_query_plan_from_cache_total", "check")
+	require.InEpsilon(t, float64(1), fromCacheCheck, 1e-9, "query_plan_from_cache_total{operation=check} should bump only on cache hit")
+
+	// Ensure the plan path no longer inflates the classic DispatchCheck counter.
+	checkTotal := sumPlainCounter(t, gatherer, "spicedb_"+subsystem+"_check_total")
+	require.Zero(t, checkTotal, "check_total must not be incremented from the plan path")
+
+	// The delegate is only consulted on the cache miss.
+	require.Equal(t, uint64(1), delegate.calls.Load(), "delegate should only be called once; second request must be served from cache")
 }
 
 type delegateDispatchMock struct {

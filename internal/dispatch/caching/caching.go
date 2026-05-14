@@ -42,6 +42,8 @@ type Dispatcher struct {
 	lookupSubjectsTotalCounter      prometheus.Counter
 	lookupSubjectsFromCacheCounter  prometheus.Counter
 	registerer                      prometheus.Registerer
+	queryPlanTotalCounter           *prometheus.CounterVec
+	queryPlanFromCacheCounter       *prometheus.CounterVec
 }
 
 func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
@@ -100,6 +102,19 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		Help:      "Total number of LookupSubjects dispatch requests served directly from the dispatch cache.",
 	})
 
+	queryPlanTotalCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "query_plan_total",
+		Help:      "Total number of DispatchQueryPlan requests processed, labelled by plan operation.",
+	}, []string{"operation"})
+	queryPlanFromCacheCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "query_plan_from_cache_total",
+		Help:      "Total number of DispatchQueryPlan requests served directly from the dispatch cache, labelled by plan operation.",
+	}, []string{"operation"})
+
 	if metricsEnabled && prometheusSubsystem != "" {
 		_, err := ds.RegisterPrometheusCollectors(registerer, prometheusSubsystem+": failed to register caching dispatcher metrics",
 			checkTotalCounter,
@@ -107,7 +122,10 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 			lookupResourcesTotalCounter,
 			lookupResourcesFromCacheCounter,
 			lookupSubjectsTotalCounter,
-			lookupSubjectsFromCacheCounter)
+			lookupSubjectsFromCacheCounter,
+			queryPlanTotalCounter,
+			queryPlanFromCacheCounter,
+		)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
@@ -128,6 +146,8 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		lookupSubjectsTotalCounter:      lookupSubjectsTotalCounter,
 		lookupSubjectsFromCacheCounter:  lookupSubjectsFromCacheCounter,
 		registerer:                      registerer,
+		queryPlanTotalCounter:           queryPlanTotalCounter,
+		queryPlanFromCacheCounter:       queryPlanFromCacheCounter,
 	}, nil
 }
 
@@ -395,6 +415,8 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 }
 
 func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	cd.queryPlanTotalCounter.WithLabelValues(dispatch.PlanOperationLabel(req.Operation)).Inc()
+
 	switch req.Operation {
 	case v1.PlanOperation_PLAN_OPERATION_CHECK:
 		return cd.dispatchQueryPlanCheckCached(req, stream)
@@ -405,8 +427,6 @@ func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream
 }
 
 func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
-	cd.checkTotalCounter.Inc()
-
 	requestKey, err := cd.keyHandler.PlanCheckCacheKey(stream.Context(), req)
 	if err != nil {
 		return err
@@ -417,7 +437,7 @@ func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequ
 		if err := cachedPath.UnmarshalVT(cachedPathRaw.([]byte)); err != nil {
 			return err
 		}
-		cd.checkFromCacheCounter.Inc()
+		cd.queryPlanFromCacheCounter.WithLabelValues(dispatch.PlanOperationLabel(req.Operation)).Inc()
 		return stream.Publish(&v1.DispatchQueryPlanResponse{
 			Paths: []*v1.ResultPath{&cachedPath},
 		})
@@ -454,8 +474,9 @@ func (cd *Dispatcher) Close() error {
 		cd.registerer.Unregister(cd.lookupResourcesFromCacheCounter)
 		cd.registerer.Unregister(cd.lookupSubjectsFromCacheCounter)
 		cd.registerer.Unregister(cd.lookupSubjectsTotalCounter)
+		cd.registerer.Unregister(cd.queryPlanTotalCounter)
+		cd.registerer.Unregister(cd.queryPlanFromCacheCounter)
 	}
-
 	if cache := cd.c; cache != nil {
 		cache.Close()
 	}

@@ -211,11 +211,16 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 
 	if !except.Watch() && !except.WatchSchema() {
 		t.Run("TestWatchSchema", runner(tester, WatchSchemaTest))
-		t.Run("TestWatchAll", runner(tester, WatchAllTest))
+		t.Run("TestWatchRelationshipsAndSchemaChanges", runner(tester, WatchRelationshipsAndSchemaChangesTest))
 	}
 
 	if !except.Watch() && !except.WatchCheckpoints() {
-		t.Run("TestWatchCheckpoints", runner(tester, WatchCheckpointsTest))
+		t.Run("TestWatchObservesEveryReturnedRevision", runner(tester, WatchObservesEveryReturnedRevisionTest))
+		t.Run("TestWatchEmitsCheckpointAfterWriteWithChanges", runner(tester, WatchEmitsCheckpointAfterWriteWithChangesTest))
+	}
+
+	if !except.Watch() && !except.WatchCheckpoints() && !except.WatchSchema() {
+		t.Run("TestWatchRelationshipsAndSchemaAndCheckpoints", runner(tester, WatchRelationshipsAndSchemaAndCheckpointsTest))
 	}
 
 	if !except.Transaction() {
