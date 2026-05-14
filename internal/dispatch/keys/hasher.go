@@ -164,7 +164,5 @@ func (h *dispatchCacheKeyHasher) mustWriteString(value string) {
 
 // BuildKey returns the constructed DispatchCheckKey.
 func (h *dispatchCacheKeyHasher) BuildKey() DispatchCacheKey {
-	return DispatchCacheKey{
-		stableSum: h.stableHasher.Sum64(),
-	}
+	return DispatchCacheKey(h.stableHasher.Sum64())
 }

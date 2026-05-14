@@ -18,6 +18,9 @@ func NewOtterCacheWithMetrics[K KeyString, V any](name string, config *Config) (
 	if err != nil {
 		return nil, err
 	}
+	// NOTE: this is the difference between `WithMetrics` and not -
+	// the counters are instantiated either way, but they're only registered
+	// in this variant.
 	mustRegisterCache(name, cache)
 	return cache, nil
 }

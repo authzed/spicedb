@@ -74,7 +74,7 @@ func expandRequestToKey(req *v1.DispatchExpandRequest) DispatchCacheKey {
 func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request) (DispatchCacheKey, error) {
 	stableContextString, err := caveats.StableContextStringForHashing(req.Context)
 	if err != nil {
-		return DispatchCacheKey{}, err
+		return emptyDispatchCacheKey, err
 	}
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision,
 		hashableRelationReference{req.ResourceRelation},
@@ -91,7 +91,7 @@ func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request) (Disp
 func lookupResourcesRequest3ToKey(req *v1.DispatchLookupResources3Request) (DispatchCacheKey, error) {
 	stableContextString, err := caveats.StableContextStringForHashing(req.Context)
 	if err != nil {
-		return DispatchCacheKey{}, err
+		return emptyDispatchCacheKey, err
 	}
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision,
 		hashableRelationReference{req.ResourceRelation},
