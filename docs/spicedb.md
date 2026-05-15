@@ -475,14 +475,12 @@ spicedb serve [flags]
       --dispatch-cache-enabled                                                          enable caching of dispatch calls this server makes to other servers (default true)
       --dispatch-cache-max-cost string                                                  upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server makes to other servers (default "30%")
       --dispatch-cache-metrics                                                          enable metrics for the cache for dispatch calls this server makes to other servers (default true)
-      --dispatch-cache-num-counters int                                                 number of counters for tracking access frequency in the cache for dispatch calls this server makes to other servers. A higher number means more accurate eviction decisions but more memory usage (default 10000)
       --dispatch-check-permission-concurrency-limit uint16                              maximum number of parallel goroutines to create for each check request or subrequest. defaults to --dispatch-concurrency-limit
       --dispatch-chunk-size uint16                                                      maximum number of object IDs in a dispatched request (default 100)
       --dispatch-cluster-addr string                                                    address to listen on to serve dispatch (default ":50053")
       --dispatch-cluster-cache-enabled                                                  enable caching of dispatch calls this server receives from other servers (default true)
       --dispatch-cluster-cache-max-cost string                                          upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server receives from other servers (default "70%")
       --dispatch-cluster-cache-metrics                                                  enable metrics for the cache for dispatch calls this server receives from other servers (default true)
-      --dispatch-cluster-cache-num-counters int                                         number of counters for tracking access frequency in the cache for dispatch calls this server receives from other servers. A higher number means more accurate eviction decisions but more memory usage (default 100000)
       --dispatch-cluster-enabled                                                        enable dispatch gRPC server
       --dispatch-cluster-max-conn-age duration                                          how long a connection serving dispatch should be able to live (default 30s)
       --dispatch-cluster-max-workers uint32                                             set the number of workers for this server (0 value means 1 worker per request)
@@ -527,7 +525,6 @@ spicedb serve [flags]
       --lookup-resources-chunk-cache-enabled                                            enable caching of LookupResources3 chunks (default true)
       --lookup-resources-chunk-cache-max-cost string                                    upper bound (in bytes or as a percent of available memory) of the cache for LookupResources3 chunks (default "50MiB")
       --lookup-resources-chunk-cache-metrics                                            enable metrics for the cache for LookupResources3 chunks
-      --lookup-resources-chunk-cache-num-counters int                                   number of counters for tracking access frequency in the cache for LookupResources3 chunks. A higher number means more accurate eviction decisions but more memory usage (default 10000)
       --max-bulk-export-relationships-limit uint32                                      maximum number of relationships that can be exported in a single request (default 10000)
       --max-caveat-context-size int                                                     maximum allowed size of request caveat context in bytes. A value of zero or less means no limit (default 4096)
       --max-datastore-read-page-size uint                                               limit on the maximum page size that we will load into memory from the datastore at one time (default 1000)
@@ -543,7 +540,6 @@ spicedb serve [flags]
       --ns-cache-enabled                                                                enable caching of schema (default true)
       --ns-cache-max-cost string                                                        upper bound (in bytes or as a percent of available memory) of the cache for schema (default "32MiB")
       --ns-cache-metrics                                                                enable metrics for the cache for schema (default true)
-      --ns-cache-num-counters int                                                       number of counters for tracking access frequency in the cache for schema. A higher number means more accurate eviction decisions but more memory usage (default 1000)
       --otel-endpoint string                                                            OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
       --otel-insecure                                                                   connect to the OpenTelemetry collector in plaintext
       --otel-provider string                                                            OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
@@ -556,7 +552,6 @@ spicedb serve [flags]
       --stored-schema-cache-enabled                                                     enable caching of stored schema (default true)
       --stored-schema-cache-max-cost string                                             upper bound (in bytes or as a percent of available memory) of the cache for stored schema (default "32MiB")
       --stored-schema-cache-metrics                                                     enable metrics for the cache for stored schema (default true)
-      --stored-schema-cache-num-counters int                                            number of counters for tracking access frequency in the cache for stored schema. A higher number means more accurate eviction decisions but more memory usage (default 1000)
       --streaming-api-response-delay-timeout duration                                   maximum time that streaming APIs (LookupSubjects, LookupResources, ReadRelationships and ExportBulkRelationships) can be allowed to run but no response be sent to the client before the stream times out (default 30s)
       --telemetry-ca-override-path string                                               path to a custom CA to use with the telemetry endpoint
       --telemetry-endpoint string                                                       endpoint to which telemetry is reported, empty string to disable (default "https://telemetry.authzed.com")

@@ -47,7 +47,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"e09cbca18290f7afae01",
 		},
@@ -62,7 +62,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"e09cbca18290f7afae01",
 		},
@@ -77,7 +77,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "123456",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"d586cee091f9e591c301",
 		},
@@ -106,7 +106,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"8afff68e91a7cbb3ef01",
 		},
@@ -119,7 +119,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"9dd1e0c9cba88edc6b",
 		},
@@ -132,7 +132,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1235",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"f1b396da87bdeae2bd01",
 		},
@@ -147,7 +147,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"d699c5b5d3a6dfade601",
 		},
@@ -163,7 +163,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"9884bbb3acd3b3ca1a",
@@ -181,7 +181,7 @@ func TestStableCacheKeys(t *testing.T) {
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalLimit: 0,
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"9884bbb3acd3b3ca1a",
@@ -199,7 +199,7 @@ func TestStableCacheKeys(t *testing.T) {
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalLimit: 42,
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"dba285cdd9caeef36e",
@@ -217,7 +217,7 @@ func TestStableCacheKeys(t *testing.T) {
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: nil,
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"9884bbb3acd3b3ca1a",
@@ -238,7 +238,7 @@ func TestStableCacheKeys(t *testing.T) {
 						v, _ := structpb.NewStruct(map[string]any{})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"9884bbb3acd3b3ca1a",
@@ -262,7 +262,7 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"a3dad09ce9d690b78401",
@@ -286,7 +286,7 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"f6d4bc92bae9e9d64b",
@@ -309,7 +309,7 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"a0aebfb9a8abd1b802",
@@ -336,7 +336,7 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"8e8ddfd8affeecc918",
@@ -354,7 +354,7 @@ func TestStableCacheKeys(t *testing.T) {
 						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{},
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"9884bbb3acd3b3ca1a",
@@ -374,7 +374,7 @@ func TestStableCacheKeys(t *testing.T) {
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo"},
 					},
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"9e82ddefb6ccbfd6aa01",
@@ -394,7 +394,7 @@ func TestStableCacheKeys(t *testing.T) {
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
 					},
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"e593e789a89a9acd13",
@@ -414,7 +414,7 @@ func TestStableCacheKeys(t *testing.T) {
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
 					},
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"f6cf8df7bdc7959520",
@@ -434,7 +434,7 @@ func TestStableCacheKeys(t *testing.T) {
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
 					},
-				}, computeBothHashes)
+				})
 				return key
 			},
 			"de839ec8eea2f7bf19",
@@ -471,7 +471,7 @@ var generatorFuncs = map[string]generatorFunc{
 				ResourceIds:      resourceIds,
 				Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 				Metadata:         metadata,
-			}, computeBothHashes), []string{
+			}), []string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -517,7 +517,7 @@ var generatorFuncs = map[string]generatorFunc{
 			SubjectIds:       subjectIds,
 			TerminalSubject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 			Metadata:         metadata,
-		}, computeBothHashes)
+		})
 		return key, []string{
 			resourceRelation.Namespace,
 			resourceRelation.Relation,
@@ -538,7 +538,7 @@ var generatorFuncs = map[string]generatorFunc{
 		return expandRequestToKey(&v1.DispatchExpandRequest{
 				ResourceAndRelation: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
 				Metadata:            metadata,
-			}, computeBothHashes), []string{
+			}), []string{
 				resourceRelation.Namespace,
 				resourceIds[0],
 				resourceRelation.Relation,
@@ -558,7 +558,7 @@ var generatorFuncs = map[string]generatorFunc{
 				Resource:     ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
 				Subject:      ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
-			}, computeBothHashes), []string{
+			}), []string{
 				resourceRelation.Relation,
 				resourceRelation.Namespace,
 				resourceIds[0],
@@ -580,7 +580,7 @@ var generatorFuncs = map[string]generatorFunc{
 				CanonicalKey: resourceRelation.Relation,
 				Subject:      ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
-			}, computeBothHashes), []string{
+			}), []string{
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
 				subjectIds[0],
@@ -600,7 +600,7 @@ var generatorFuncs = map[string]generatorFunc{
 				CanonicalKey: resourceRelation.Relation,
 				Resource:     ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
 				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
-			}, computeBothHashes), []string{
+			}), []string{
 				resourceRelation.Relation,
 				resourceRelation.Namespace,
 				resourceIds[0],
@@ -620,7 +620,7 @@ var generatorFuncs = map[string]generatorFunc{
 				SubjectRelation:  subjectRelation,
 				ResourceIds:      resourceIds,
 				Metadata:         metadata,
-			}, computeBothHashes), append([]string{
+			}), append([]string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -661,7 +661,6 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 
 	dataCombinationSeen := mapz.NewSet[string]()
 	stableCacheKeysSeen := mapz.NewSet[string]()
-	unstableCacheKeysSeen := mapz.NewSet[uint64]()
 
 	// Ensure all key functions are generated.
 	require.Len(t, cachePrefixes, len(generatorFuncs))
@@ -687,7 +686,6 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 													usedDataString := fmt.Sprintf("%s:%s", prefix, strings.Join(usedData, ","))
 													if dataCombinationSeen.Add(usedDataString) {
 														require.True(t, stableCacheKeysSeen.Add(hex.EncodeToString((generated.StableSumAsBytes()))))
-														require.True(t, unstableCacheKeysSeen.Add(generated.processSpecificSum))
 													}
 												})
 											}
@@ -701,20 +699,6 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestComputeOnlyStableHash(t *testing.T) {
-	result := checkRequestToKey(&v1.DispatchCheckRequest{
-		ResourceRelation: RR("document", "view"),
-		ResourceIds:      []string{"foo", "bar"},
-		Subject:          ONR("user", "tom", "..."),
-		Metadata: &v1.ResolverMeta{
-			AtRevision: "1234",
-			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
-		},
-	}, computeOnlyStableHash)
-
-	require.Equal(t, uint64(0), result.processSpecificSum)
 }
 
 func TestComputeContextHash(t *testing.T) {
@@ -741,7 +725,7 @@ func TestComputeContextHash(t *testing.T) {
 			})
 			return v
 		}(),
-	}, computeBothHashes)
+	})
 
 	require.NoError(t, err)
 	require.Equal(t, "e49efdc8e1d99daca601", hex.EncodeToString(result.StableSumAsBytes()))

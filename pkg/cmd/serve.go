@@ -24,48 +24,43 @@ const PresharedKeyFlag = "grpc-preshared-key"
 
 var (
 	namespaceCacheDefaults = &server.CacheConfig{
-		Name:                "namespace",
-		Enabled:             true,
-		Metrics:             true,
-		NumCounters:         1_000,
-		MaxCost:             "32MiB",
-		CacheKindForTesting: "",
+		Name:        "namespace",
+		Enabled:     true,
+		Metrics:     true,
+		NumCounters: 1_000,
+		MaxCost:     "32MiB",
 	}
 
 	dispatchCacheDefaults = &server.CacheConfig{
-		Name:                "dispatch",
-		Enabled:             true,
-		Metrics:             true,
-		NumCounters:         10_000,
-		MaxCost:             "30%",
-		CacheKindForTesting: "",
+		Name:        "dispatch",
+		Enabled:     true,
+		Metrics:     true,
+		NumCounters: 10_000,
+		MaxCost:     "30%",
 	}
 
 	dispatchClusterCacheDefaults = &server.CacheConfig{
-		Name:                "cluster_dispatch",
-		Enabled:             true,
-		Metrics:             true,
-		NumCounters:         100_000,
-		MaxCost:             "70%",
-		CacheKindForTesting: "",
+		Name:        "cluster_dispatch",
+		Enabled:     true,
+		Metrics:     true,
+		NumCounters: 100_000,
+		MaxCost:     "70%",
 	}
 
 	lr3ChunkCacheDefaults = &server.CacheConfig{
-		Name:                "lr3_chunk",
-		Enabled:             true,
-		Metrics:             false,
-		NumCounters:         10_000,
-		MaxCost:             "50MiB",
-		CacheKindForTesting: "",
+		Name:        "lr3_chunk",
+		Enabled:     true,
+		Metrics:     false,
+		NumCounters: 10_000,
+		MaxCost:     "50MiB",
 	}
 
 	storedSchemaCacheDefaults = &server.CacheConfig{
-		Name:                "stored_schema",
-		Enabled:             true,
-		Metrics:             true,
-		NumCounters:         1_000,
-		MaxCost:             "32MiB",
-		CacheKindForTesting: "",
+		Name:        "stored_schema",
+		Enabled:     true,
+		Metrics:     true,
+		NumCounters: 1_000,
+		MaxCost:     "32MiB",
 	}
 )
 

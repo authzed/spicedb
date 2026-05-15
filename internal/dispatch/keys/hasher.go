@@ -1,9 +1,11 @@
 package keys
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 
+	"github.com/cespare/xxhash/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
@@ -116,4 +118,51 @@ func (hc hashableContext) AppendToHash(hasher hasherInterface) {
 		return
 	}
 	hasher.WriteString(stable)
+}
+
+// dispatchCacheKeyHash computes a DispatchCheckKey for the given prefix and any hashable values.
+func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, args ...hashableValue) DispatchCacheKey {
+	hasher := newDispatchCacheKeyHasher(prefix)
+
+	for _, arg := range args {
+		arg.AppendToHash(hasher)
+		hasher.WriteString("@")
+	}
+
+	hasher.WriteString(atRevision)
+	return hasher.BuildKey()
+}
+
+type dispatchCacheKeyHasher struct {
+	stableHasher *xxhash.Digest
+}
+
+func newDispatchCacheKeyHasher(prefix cachePrefix) *dispatchCacheKeyHasher {
+	h := &dispatchCacheKeyHasher{
+		stableHasher: xxhash.New(),
+	}
+
+	prefixString := string(prefix)
+	h.WriteString(prefixString)
+	h.WriteString("/")
+	return h
+}
+
+// WriteString writes a single string to the hasher.
+func (h *dispatchCacheKeyHasher) WriteString(value string) {
+	h.mustWriteString(value)
+}
+
+func (h *dispatchCacheKeyHasher) mustWriteString(value string) {
+	// NOTE: xxhash doesn't seem to ever return an error for WriteString, but we check it just
+	// to be on the safe side.
+	_, err := h.stableHasher.WriteString(value)
+	if err != nil {
+		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))
+	}
+}
+
+// BuildKey returns the constructed DispatchCheckKey.
+func (h *dispatchCacheKeyHasher) BuildKey() DispatchCacheKey {
+	return DispatchCacheKey(h.stableHasher.Sum64())
 }
