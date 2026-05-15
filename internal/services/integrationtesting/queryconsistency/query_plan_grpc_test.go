@@ -41,7 +41,9 @@ func TestQueryPlanConsistencyGRPC(t *testing.T) { // nolint:tparallel
 
 	for _, filePath := range consistencyTestFiles {
 		t.Run(path.Base(filePath), func(t *testing.T) {
-			t.Parallel()
+			// Each subtest spins up a full server via Config.Complete, which mutates
+			// package-level metrics singletons in several packages. Running these in
+			// parallel triggers races on those globals.
 			runQueryPlanConsistencyGRPCForFile(t, filePath)
 		})
 	}
