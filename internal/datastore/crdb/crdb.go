@@ -73,6 +73,8 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	}
 
 	includeQueryParametersInTraces := config.includeQueryParametersInTraces
+	pool.SetMetricsFactory(internalmetrics.NewPrometheusFactory(config.prometheusRegisterer))
+
 	readPoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)

@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -20,54 +18,64 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-var namespacesFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: "spicedb",
-	Subsystem: "datastore",
-	Name:      "watching_schema_cache_namespaces_fallback_mode",
-	Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
-})
+var (
+	namespacesFallbackModeGauge  internalmetrics.Gauge
+	caveatsFallbackModeGauge     internalmetrics.Gauge
+	schemaCacheRevisionGauge     internalmetrics.Gauge
+	definitionsReadCachedCounter internalmetrics.CounterVec
+	definitionsReadTotalCounter  internalmetrics.CounterVec
+)
 
-var caveatsFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: "spicedb",
-	Subsystem: "datastore",
-	Name:      "watching_schema_cache_caveats_fallback_mode",
-	Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
-})
-
-var schemaCacheRevisionGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: "spicedb",
-	Subsystem: "datastore",
-	Name:      "watching_schema_cache_tracked_revision",
-	Help:      "The current maximum revision tracked by the CockroachDB changefeed-backed schema cache. A value that is not advancing over time indicates the changefeed has stalled.",
-})
-
-var definitionsReadCachedCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "datastore",
-	Name:      "watching_schema_cache_definitions_read_cached_total",
-	Help:      "cached number of definitions read from the watching cache",
-}, []string{"definition_kind"})
-
-var definitionsReadTotalCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "datastore",
-	Name:      "watching_schema_cache_definitions_read_total",
-	Help:      "total number of definitions read from the watching cache",
-}, []string{"definition_kind"})
-
-const maximumRetryCount = 10
+var (
+	namespacesGaugeOpts = internalmetrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "watching_schema_cache_namespaces_fallback_mode",
+		Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
+	}
+	caveatsGaugeOpts = internalmetrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "watching_schema_cache_caveats_fallback_mode",
+		Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
+	}
+	schemaCacheRevisionGaugeOpts = internalmetrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "watching_schema_cache_tracked_revision",
+		Help:      "The current maximum revision tracked by the CockroachDB changefeed-backed schema cache. A value that is not advancing over time indicates the changefeed has stalled.",
+	}
+	definitionsReadCachedCounterOpts = internalmetrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "watching_schema_cache_definitions_read_cached_total",
+		Help:      "cached number of definitions read from the watching cache",
+	}
+	definitionsReadTotalCounterOpts = internalmetrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "watching_schema_cache_definitions_read_total",
+		Help:      "total number of definitions read from the watching cache",
+	}
+)
 
 func init() {
-	for _, collector := range []prometheus.Collector{
-		namespacesFallbackModeGauge,
-		caveatsFallbackModeGauge,
-		schemaCacheRevisionGauge,
-		definitionsReadCachedCounter,
-		definitionsReadTotalCounter,
-	} {
-		internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, collector)
-	}
+	SetMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
 }
+
+// SetMetricsFactory configures which metrics factory is used by this package.
+func SetMetricsFactory(factory internalmetrics.Factory) {
+	if factory == nil {
+		factory = internalmetrics.NoopFactory{}
+	}
+	namespacesFallbackModeGauge = factory.Gauge(namespacesGaugeOpts)
+	caveatsFallbackModeGauge = factory.Gauge(caveatsGaugeOpts)
+	schemaCacheRevisionGauge = factory.Gauge(schemaCacheRevisionGaugeOpts)
+	definitionsReadCachedCounter = factory.CounterVec(definitionsReadCachedCounterOpts, []string{"definition_kind"})
+	definitionsReadTotalCounter = factory.CounterVec(definitionsReadTotalCounterOpts, []string{"definition_kind"})
+}
+
+const maximumRetryCount = 10
 
 // watchingCachingProxy is a datastore proxy that caches schema (namespaces and caveat definitions)
 // and updates its cache via a WatchSchema call. If the supplied datastore to be wrapped does not support
@@ -402,14 +410,14 @@ type schemaWatchCache[T datastore.SchemaDefinition] struct {
 
 	// definitionsReadCachedCounter is a counter of the number of cached definitions
 	// returned by the cache directly (without fallback)
-	definitionsReadCachedCounter *prometheus.CounterVec
+	definitionsReadCachedCounter internalmetrics.CounterVec
 
 	// definitionsReadTotalCounter is a counter of the total number of definitions
 	// returned.
-	definitionsReadTotalCounter *prometheus.CounterVec
+	definitionsReadTotalCounter internalmetrics.CounterVec
 
 	// fallbackGauge is a gauge holding a value of whether the cache is in fallback mode.
-	fallbackGauge prometheus.Gauge
+	fallbackGauge internalmetrics.Gauge
 
 	lock sync.RWMutex
 }
@@ -433,9 +441,9 @@ func newSchemaWatchCache[T datastore.SchemaDefinition](
 	notFoundError notFoundErrorFn,
 	readDefinition readDefinitionFn[T],
 	lookupDefinitions lookupDefinitionsFn[T],
-	definitionsReadCachedCounter *prometheus.CounterVec,
-	definitionsReadTotalCounter *prometheus.CounterVec,
-	fallbackGauge prometheus.Gauge,
+	definitionsReadCachedCounter internalmetrics.CounterVec,
+	definitionsReadTotalCounter internalmetrics.CounterVec,
+	fallbackGauge internalmetrics.Gauge,
 ) *schemaWatchCache[T] {
 	fallbackGauge.Set(1)
 

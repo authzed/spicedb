@@ -13,7 +13,6 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -22,21 +21,32 @@ import (
 )
 
 var (
-	connectionsPerCRDBNodeCountGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	connectionsPerCRDBNodeCountGauge internalmetrics.GaugeVec
+	pruningTimeHistogram             internalmetrics.HistogramVec
+)
+
+var (
+	connectionsGaugeOpts = internalmetrics.Opts{
 		Name: "crdb_connections_per_node",
 		Help: "The number of active connections SpiceDB holds to each CockroachDB node, by pool (read/write). Imbalanced values across nodes suggest the connection balancer is unable to redistribute connections evenly.",
-	}, []string{"pool", "node_id"})
-
-	pruningTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	}
+	pruningHistogramOpts = internalmetrics.Opts{
 		Name:    "crdb_pruning_duration",
 		Help:    "Duration in milliseconds of one iteration of the CockroachDB connection balancer pruning excess connections from over-represented nodes. Elevated values indicate the balancer is struggling to rebalance connections.",
 		Buckets: []float64{.1, .2, .5, 1, 2, 5, 10, 20, 50, 100},
-	}, []string{"pool"})
+	}
 )
 
 func init() {
-	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, connectionsPerCRDBNodeCountGauge)
-	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, pruningTimeHistogram)
+	setBalancerMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
+}
+
+func setBalancerMetricsFactory(factory internalmetrics.Factory) {
+	if factory == nil {
+		factory = internalmetrics.NoopFactory{}
+	}
+	connectionsPerCRDBNodeCountGauge = factory.GaugeVec(connectionsGaugeOpts, []string{"pool", "node_id"})
+	pruningTimeHistogram = factory.HistogramVec(pruningHistogramOpts, []string{"pool"})
 }
 
 type balancePoolConn[C balanceConn] interface {
@@ -183,10 +193,12 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 	p.healthTracker.RLock()
 	for node := range p.healthTracker.nodesEverSeen {
 		if _, ok := connectionCounts[node]; !ok {
-			connectionsPerCRDBNodeCountGauge.DeletePartialMatch(map[string]string{
-				"pool":    p.pool.ID(),
-				"node_id": strconv.FormatUint(uint64(node), 10),
-			})
+			if pgv, ok := internalmetrics.AsPrometheusGaugeVec(connectionsPerCRDBNodeCountGauge); ok {
+				pgv.DeletePartialMatch(map[string]string{
+					"pool":    p.pool.ID(),
+					"node_id": strconv.FormatUint(uint64(node), 10),
+				})
+			}
 		}
 	}
 	p.healthTracker.RUnlock()

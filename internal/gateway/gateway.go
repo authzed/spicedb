@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	grpcfilters "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
@@ -30,18 +28,29 @@ import (
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
+	"github.com/authzed/spicedb/internal/metrics"
 )
 
-var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var requestDurationOpts = metrics.Opts{
 	Namespace: "spicedb",
 	Subsystem: "rest_gateway",
 	Name:      "request_duration_seconds",
 	Help:      "A histogram of the duration spent processing requests to the SpiceDB REST Gateway.",
-}, []string{"method"})
+}
 
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
 // configuration.
 func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
+	return NewHandlerWithMetricsFactory(ctx, upstreamAddr, upstreamTLSCertPath, metrics.NewPrometheusFactory(nil))
+}
+
+// NewHandlerWithMetricsFactory creates a REST gateway handler and instruments
+// request duration metrics using the provided metrics factory.
+func NewHandlerWithMetricsFactory(ctx context.Context, upstreamAddr, upstreamTLSCertPath string, factory metrics.Factory) (*CloserHandler, error) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+
 	if upstreamAddr == "" {
 		return nil, errors.New("upstreamAddr must not be empty")
 	}
@@ -106,7 +115,12 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		otelhttp.WithFilter(httpfilters.Not(httpfilters.Path("/healthz"))),
 	}
 
-	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway", otelHandlerOpts...))
+	baseHandler := otelhttp.NewHandler(mux, "gateway", otelHandlerOpts...)
+	finalHandler := baseHandler
+	if histogram, ok := metrics.AsPrometheusHistogramVec(factory.HistogramVec(requestDurationOpts, []string{"method"})); ok {
+		finalHandler = promhttp.InstrumentHandlerDuration(histogram, baseHandler)
+	}
+
 	return newCloserHandler(finalHandler, schemaConn, permissionsConn, watchConn, healthConn, experimentalConn), nil
 }
 

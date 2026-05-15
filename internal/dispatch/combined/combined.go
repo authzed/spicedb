@@ -271,7 +271,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
-		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
+		redispatch = singleflight.NewWithMetricsFactory(redispatch, &keys.CanonicalKeyHandler{}, opts.metricsFactory)
 	} else {
 		// If an upstream is specified, create a cluster dispatcher.
 		if opts.upstreamCAPath != "" {
@@ -337,7 +337,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, err
 		}
-		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
+		redispatch = singleflight.NewWithMetricsFactory(re, &keys.CanonicalKeyHandler{}, opts.metricsFactory)
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

@@ -40,16 +40,12 @@ func TestNewClusterDispatcherRepeatedRegistration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, first)
 
+	// Repeated construction with the same registry must not return an error.
 	second, err := NewClusterDispatcher(nil, nil, ClusterDispatcherConfig{
 		PrometheusRegisterer: registry,
 	}, nil, nil, 0)
 	require.NoError(t, err)
 	require.NotNil(t, second)
-
-	err = registry.Register(dispatchCounter)
-	require.Error(t, err)
-	var are prometheus.AlreadyRegisteredError
-	require.ErrorAs(t, err, &are)
 }
 
 type fakeDispatchSvc struct {

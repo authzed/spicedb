@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -14,6 +12,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -22,12 +21,27 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-var ConsistencyCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+var ConsistencyCounter metrics.CounterVec
+
+var consistencyCounterOpts = metrics.Opts{
 	Namespace: "spicedb",
 	Subsystem: "middleware",
 	Name:      "consistency_assigned_total",
 	Help:      "Count of the consistencies used per request",
-}, []string{"method", "source", "service"})
+}
+
+func init() {
+	SetMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
+
+// SetMetricsFactory configures which metrics factory is used by consistency
+// middleware counters.
+func SetMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	ConsistencyCounter = factory.CounterVec(consistencyCounterOpts, []string{"method", "source", "service"})
+}
 
 // MismatchingTokenOption is the option specifying the behavior of the consistency middleware
 // when a ZedToken provided references a different datastore instance than the current

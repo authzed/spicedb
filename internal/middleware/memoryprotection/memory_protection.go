@@ -7,33 +7,41 @@ import (
 	"strings"
 
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 )
 
 var tracer = otel.Tracer("spicedb/internal/middleware/memory_protection")
 
-// RequestsProcessed tracks requests that were processed by this middleware.
-var RequestsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
+var requestsProcessedOpts = metrics.Opts{
 	Namespace: "spicedb",
 	Subsystem: "memory_middleware",
 	Name:      "requests_processed_total",
 	Help:      "Total requests processed by the memory protection middleware (flag --memory-protection-enabled)",
-}, []string{"endpoint", "accepted"})
+}
 
 type MemoryProtectionMiddleware struct {
 	currentMemoryUsageProvider MemoryUsageProvider
+	requestsProcessed          metrics.CounterVec
 }
 
 func New(usageProvider MemoryUsageProvider, name string) *MemoryProtectionMiddleware {
+	return NewWithMetricsFactory(usageProvider, name, metrics.NewPrometheusFactory(nil))
+}
+
+func NewWithMetricsFactory(usageProvider MemoryUsageProvider, name string, factory metrics.Factory) *MemoryProtectionMiddleware {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+
 	am := MemoryProtectionMiddleware{
 		currentMemoryUsageProvider: usageProvider,
+		requestsProcessed:          factory.CounterVec(requestsProcessedOpts, []string{"endpoint", "accepted"}),
 	}
 
 	log.Info().
@@ -94,6 +102,6 @@ func (am *MemoryProtectionMiddleware) recordMetric(fullMethod string, accepted b
 
 	acceptedStr := strconv.FormatBool(accepted)
 
-	RequestsProcessed.WithLabelValues(endpointType, acceptedStr).Inc()
+	am.requestsProcessed.WithLabelValues(endpointType, acceptedStr).Inc()
 	return endpointType
 }

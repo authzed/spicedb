@@ -12,7 +12,6 @@ import (
 
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	dto "github.com/prometheus/client_model/go"
 	"golang.org/x/sync/errgroup"
 
@@ -23,12 +22,38 @@ import (
 	"github.com/authzed/spicedb/pkg/promutil"
 )
 
-var LogicalChecks = promauto.NewCounter(prometheus.CounterOpts{
+var logicalChecksCounterOpts = internalmetrics.Opts{
 	Namespace: "spicedb",
 	Subsystem: "services",
 	Name:      "logical_checks_total",
 	Help:      `Count of the number of "checks" made across all APIs (e.g. each item within a CheckBulk, each item returned from a Lookup).`,
-})
+}
+
+var LogicalChecks internalmetrics.Counter
+
+var logicalChecksMetric prometheus.Metric
+
+func init() {
+	SetMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
+}
+
+// SetMetricsFactory configures which metrics factory is used by this package's
+// logical checks counter.
+func SetMetricsFactory(factory internalmetrics.Factory) {
+	if factory == nil {
+		factory = internalmetrics.NoopFactory{}
+	}
+
+	LogicalChecks = factory.Counter(logicalChecksCounterOpts)
+
+	metric, ok := LogicalChecks.(prometheus.Metric)
+	if !ok {
+		logicalChecksMetric = nil
+		return
+	}
+
+	logicalChecksMetric = metric
+}
 
 func SpiceDBClusterInfoCollector(ctx context.Context, subsystem, dsEngine string, ds datastore.Datastore) (promutil.CollectorFunc, error) {
 	nodeID, err := os.Hostname()
@@ -193,7 +218,11 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))
 	ch <- prometheus.MustNewConstMetric(c.relationshipsDesc, prometheus.GaugeValue, float64(dsStats.EstimatedRelationshipCount))
-	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, promutil.MustCounterValue(LogicalChecks))
+	logicalChecksValue := 0.0
+	if logicalChecksMetric != nil {
+		logicalChecksValue = promutil.MustCounterValue(logicalChecksMetric)
+	}
+	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, logicalChecksValue)
 
 	dispatchedCountMetrics := make(chan prometheus.Metric)
 	g := errgroup.Group{}
@@ -228,7 +257,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		return nil
 	})
 
-	usagemetrics.DispatchedCountHistogram.Collect(dispatchedCountMetrics)
+	usagemetrics.CollectDispatchedCountMetrics(dispatchedCountMetrics)
 	close(dispatchedCountMetrics)
 
 	if err := g.Wait(); err != nil {

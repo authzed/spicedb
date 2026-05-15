@@ -2,9 +2,8 @@ package proxy
 
 import (
 	"context"
+	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -12,6 +11,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -22,24 +22,38 @@ import (
 var (
 	tracer = otel.Tracer("spicedb/datastore/proxy/observable")
 
-	loadedRelationshipCount = promauto.NewHistogram(prometheus.HistogramOpts{
+	loadedRelationshipCount metrics.Histogram
+
+	loadedRelationshipCountOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "loaded_relationships_count",
 		Buckets:   []float64{0, 1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
 		Help:      "Histogram of the number of relationships loaded per individual datastore query. High p99 values (>1000) may indicate broad permission checks or missing filters.",
-	})
+	}
 
-	queryLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	queryLatency metrics.HistogramVec
+
+	queryLatencyOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "query_latency",
 		Buckets:   []float64{.0005, .001, .002, .005, .01, .02, .05, .1, .2, .5},
 		Help:      "response latency for a database query",
-	}, []string{
-		"operation", "query_shape",
-	})
+	}
 )
+
+func init() {
+	setObservableMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
+
+func setObservableMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	loadedRelationshipCount = factory.Histogram(loadedRelationshipCountOpts)
+	queryLatency = factory.HistogramVec(queryLatencyOpts, []string{"operation", "query_shape"})
+}
 
 func filterToAttributes(filter *v1.RelationshipFilter) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
@@ -401,7 +415,7 @@ func observe(ctx context.Context, name string, queryShape string, opts ...trace.
 	}
 
 	ctx, span := tracer.Start(ctx, name, opts...)
-	timer := prometheus.NewTimer(queryLatency.WithLabelValues(name, queryShape))
+	startTime := time.Now()
 	closed := false
 
 	return ctx, func() {
@@ -410,7 +424,7 @@ func observe(ctx context.Context, name string, queryShape string, opts ...trace.
 		}
 
 		closed = true
-		timer.ObserveDuration()
+		queryLatency.WithLabelValues(name, queryShape).Observe(time.Since(startTime).Seconds())
 		span.End()
 	}
 }

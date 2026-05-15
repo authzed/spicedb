@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/spanner"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -420,6 +421,8 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	for _, o := range options {
 		o(opts)
 	}
+
+	proxy.SetMetricsFactory(internalmetrics.NewPrometheusFactory(opts.PrometheusRegisterer))
 
 	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
 		// Set the default follower read delay for postgres and mysql to 0 -

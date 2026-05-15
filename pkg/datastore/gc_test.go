@@ -169,7 +169,12 @@ func TestGCFailureBackoff(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 	})
-	localCounter := prometheus.NewCounter(gcFailureCounterConfig)
+	localCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: gcFailureCounterOpts.Namespace,
+		Subsystem: gcFailureCounterOpts.Subsystem,
+		Name:      gcFailureCounterOpts.Name,
+		Help:      gcFailureCounterOpts.Help,
+	})
 	reg := prometheus.NewRegistry()
 	require.NoError(t, reg.Register(localCounter))
 

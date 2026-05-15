@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -29,14 +28,23 @@ type pgxPool interface {
 	Stat() *pgxpool.Stat
 }
 
-var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+var resetHistogram internalmetrics.Histogram
+
+var resetHistogramOpts = internalmetrics.Opts{
 	Name:    "crdb_client_resets",
 	Help:    "Distribution of the number of client-side transaction restarts per transaction attempt. Restarts occur when CockroachDB returns a serialization failure (40001) and the driver retries the transaction from scratch. Sustained high values indicate transaction contention.",
 	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
-})
+}
 
 func init() {
-	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, resetHistogram)
+	setPoolMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
+}
+
+func setPoolMetricsFactory(factory internalmetrics.Factory) {
+	if factory == nil {
+		factory = internalmetrics.NoopFactory{}
+	}
+	resetHistogram = factory.Histogram(resetHistogramOpts)
 }
 
 type ctxDisableRetries struct{}

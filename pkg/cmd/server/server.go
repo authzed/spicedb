@@ -35,9 +35,12 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
+	graphmetrics "github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
@@ -190,6 +193,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	serviceMetricsFactory := metrics.NewPrometheusFactory(c.PrometheusRegisterer)
+	proxy.SetMetricsFactory(serviceMetricsFactory)
+	schemacaching.SetMetricsFactory(serviceMetricsFactory)
+	graphmetrics.SetMetricsFactory(serviceMetricsFactory)
+	telemetry.SetMetricsFactory(serviceMetricsFactory)
 
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
 	if err != nil {
@@ -472,6 +481,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		QueryPlanMetadata: queryPlanMetadata,
 	}
 
+	usagemetrics.SetMetricsFactory(serviceMetricsFactory)
+	perfinsights.SetMetricsFactory(serviceMetricsFactory)
+	v1svc.SetMetricsFactory(serviceMetricsFactory)
+	consistency.SetMetricsFactory(serviceMetricsFactory)
+
 	healthManager := health.NewHealthManager(dispatcher, ds)
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
@@ -752,7 +766,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	closeableGatewayHandler, err := gateway.NewHandlerWithMetricsFactory(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, metrics.NewPrometheusFactory(c.PrometheusRegisterer))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}

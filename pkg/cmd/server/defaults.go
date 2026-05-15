@@ -267,7 +267,7 @@ func doesNotMatchRoute(route string) func(_ context.Context, c interceptors.Call
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
 func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
 	grpcMetricsUnaryInterceptor, _ := GRPCMetrics(opts.DisableGRPCHistogram, opts.PrometheusRegisterer)
-	memoryProtectionUnaryInterceptor := memoryprotection.New(opts.MemoryUsageProvider, "unary-middleware")
+	memoryProtectionUnaryInterceptor := memoryprotection.NewWithMetricsFactory(opts.MemoryUsageProvider, "unary-middleware", internalmetrics.NewPrometheusFactory(opts.PrometheusRegisterer))
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -342,7 +342,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
 func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
 	_, grpcMetricsStreamingInterceptor := GRPCMetrics(opts.DisableGRPCHistogram, opts.PrometheusRegisterer)
-	memoryProtectionStreamInterceptor := memoryprotection.New(opts.MemoryUsageProvider, "stream-middleware")
+	memoryProtectionStreamInterceptor := memoryprotection.NewWithMetricsFactory(opts.MemoryUsageProvider, "stream-middleware", internalmetrics.NewPrometheusFactory(opts.PrometheusRegisterer))
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -428,7 +428,7 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
 func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, disableGRPCLatencyHistogram bool, registerer prometheus.Registerer, memoryUsageProvider memoryprotection.MemoryUsageProvider, dlOpts ...datalayer.DataLayerOption) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram, registerer)
-	dispatchMemoryProtection := memoryprotection.New(memoryUsageProvider, "dispatch-middleware")
+	dispatchMemoryProtection := memoryprotection.NewWithMetricsFactory(memoryUsageProvider, "dispatch-middleware", internalmetrics.NewPrometheusFactory(registerer))
 	dl := datalayer.NewDataLayer(ds, dlOpts...)
 
 	return []grpc.UnaryServerInterceptor{

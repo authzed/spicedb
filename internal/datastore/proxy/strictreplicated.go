@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -17,20 +15,36 @@ import (
 )
 
 var (
-	strictReadReplicatedTotalQueryCount = promauto.NewCounter(prometheus.CounterOpts{
+	strictReadReplicatedTotalQueryCount metrics.Counter
+
+	strictReadReplicatedTotalQueryCountOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "strict_replicated_query_total",
 		Help:      "total number of reads made by the strict read replicated datastore",
-	})
+	}
 
-	strictReadReplicatedFallbackQueryCount = promauto.NewCounterVec(prometheus.CounterOpts{
+	strictReadReplicatedFallbackQueryCount metrics.CounterVec
+
+	strictReadReplicatedFallbackQueryCountOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "strict_replicated_fallback_query_total",
 		Help:      "number of queries that have fallen back to the primary datastore",
-	}, []string{"replica"})
+	}
 )
+
+func init() {
+	setStrictReplicatedMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
+
+func setStrictReplicatedMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	strictReadReplicatedTotalQueryCount = factory.Counter(strictReadReplicatedTotalQueryCountOpts)
+	strictReadReplicatedFallbackQueryCount = factory.CounterVec(strictReadReplicatedFallbackQueryCountOpts, []string{"replica"})
+}
 
 // NewStrictReplicatedDatastore creates a new datastore that writes to the provided primary and reads
 // from the provided replicas. The replicas are chosen in a round-robin fashion. If a replica does

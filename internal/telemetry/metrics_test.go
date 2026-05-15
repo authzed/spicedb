@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 func TestCollect(t *testing.T) {
@@ -124,4 +125,22 @@ func TestRegisterTelemetryCollectorRepeatedOnSameRegistry(t *testing.T) {
 	metricFamilies, err := registry.Gather()
 	require.NoError(t, err)
 	require.NotEmpty(t, metricFamilies)
+}
+
+func TestCollectWithRecordingFactory(t *testing.T) {
+	SetMetricsFactory(internalmetrics.NewRecordingFactory())
+	t.Cleanup(func() {
+		SetMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
+	})
+
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 10*time.Hour, 10*time.Hour)
+	require.NoError(t, err)
+
+	_, c, err := registerTelemetryCollector("memdb", ds)
+	require.NoError(t, err)
+
+	ch := make(chan prometheus.Metric, 100)
+	require.NotPanics(t, func() {
+		c.Collect(ch)
+	})
 }

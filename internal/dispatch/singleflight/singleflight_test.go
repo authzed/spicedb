@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
-	"github.com/prometheus/client_golang/prometheus"
-	promclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -76,8 +75,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 }
 
 func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
-	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
-	reg := registerMetricInGatherer(singleFlightCount)
+	rf := metrics.NewRecordingFactory()
 
 	var called atomic.Uint64
 	f := func() {
@@ -85,7 +83,7 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 		called.Add(1)
 	}
 	keyHandler := &keys.DirectKeyHandler{}
-	disp := New(mockDispatcher{f: f}, keyHandler)
+	disp := NewWithMetricsFactory(mockDispatcher{f: f}, keyHandler, rf)
 
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
@@ -127,13 +125,12 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint64(4), called.Load(), "should have dispatched %d calls but did %d", uint64(4), called.Load())
-	assertCounterWithLabel(t, reg, 2, "spicedb_dispatch_single_flight_total", "loop")
+	require.Equal(t, float64(3), rf.CounterVecValue("spicedb", "dispatch", "single_flight_total", "DispatchCheck", "loop")) //nolint:testifylint // exact small integer values
 }
 
 // this test makes sure that bloom filter information is carried from dispatcher to dispatcher
 func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
-	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
-	reg := registerMetricInGatherer(singleFlightCount)
+	rf := metrics.NewRecordingFactory()
 
 	var called atomic.Uint64
 	f := func() {
@@ -142,7 +139,7 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 	}
 	keyHandler := &keys.DirectKeyHandler{}
 	// we simulate an actual dispatch-chain loop by nesting 2 singleflight dispatchers
-	disp := New(New(mockDispatcher{f: f}, keyHandler), keyHandler)
+	disp := NewWithMetricsFactory(NewWithMetricsFactory(mockDispatcher{f: f}, keyHandler, rf), keyHandler, rf)
 
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
@@ -174,7 +171,7 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
-	assertCounterWithLabel(t, reg, 2, "spicedb_dispatch_single_flight_total", "loop")
+	require.Greater(t, rf.CounterVecValue("spicedb", "dispatch", "single_flight_total", "DispatchCheck", "loop"), float64(0))
 }
 
 func TestSingleFlightDispatcherCancelation(t *testing.T) {
@@ -277,14 +274,13 @@ func TestSingleFlightDispatcherExpand(t *testing.T) {
 }
 
 func TestSingleFlightDispatcherCheckBypassesIfMissingBloomFiler(t *testing.T) {
-	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
-	reg := registerMetricInGatherer(singleFlightCount)
+	rf := metrics.NewRecordingFactory()
 
 	var called atomic.Uint64
 	f := func() {
 		called.Add(1)
 	}
-	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
+	disp := NewWithMetricsFactory(mockDispatcher{f: f}, &keys.DirectKeyHandler{}, rf)
 
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
@@ -299,18 +295,17 @@ func TestSingleFlightDispatcherCheckBypassesIfMissingBloomFiler(t *testing.T) {
 	_, _ = disp.DispatchCheck(t.Context(), req.CloneVT())
 
 	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
-	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "missing")
+	require.Equal(t, float64(1), rf.CounterVecValue("spicedb", "dispatch", "single_flight_total", "DispatchCheck", "missing")) //nolint:testifylint // exact small integer values
 }
 
 func TestSingleFlightDispatcherExpandBypassesIfMissingBloomFiler(t *testing.T) {
-	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
-	reg := registerMetricInGatherer(singleFlightCount)
+	rf := metrics.NewRecordingFactory()
 
 	var called atomic.Uint64
 	f := func() {
 		called.Add(1)
 	}
-	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
+	disp := NewWithMetricsFactory(mockDispatcher{f: f}, &keys.DirectKeyHandler{}, rf)
 
 	req := &v1.DispatchExpandRequest{
 		ResourceAndRelation: tuple.ONRStringToCore("document", "foo", "view"),
@@ -323,14 +318,13 @@ func TestSingleFlightDispatcherExpandBypassesIfMissingBloomFiler(t *testing.T) {
 	_, _ = disp.DispatchExpand(t.Context(), req.CloneVT())
 
 	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
-	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "missing")
+	require.Equal(t, float64(1), rf.CounterVecValue("spicedb", "dispatch", "single_flight_total", "DispatchExpand", "missing")) //nolint:testifylint // exact small integer values
 }
 
 func TestDispatchQueryPlanRecordsSingleflightMetric(t *testing.T) {
-	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
-	reg := registerMetricInGatherer(singleFlightCount)
+	rf := metrics.NewRecordingFactory()
 
-	disp := New(mockDispatcher{f: func() {}}, &keys.DirectKeyHandler{})
+	disp := NewWithMetricsFactory(mockDispatcher{f: func() {}}, &keys.DirectKeyHandler{}, rf)
 
 	req := &v1.DispatchQueryPlanRequest{
 		Operation: v1.PlanOperation_PLAN_OPERATION_CHECK,
@@ -340,40 +334,7 @@ func TestDispatchQueryPlanRecordsSingleflightMetric(t *testing.T) {
 	err := disp.DispatchQueryPlan(req, stream)
 	require.NoError(t, err)
 
-	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "DispatchQueryPlan")
-}
-
-func registerMetricInGatherer(collector prometheus.Collector) prometheus.Gatherer {
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(collector)
-
-	return reg
-}
-
-func assertCounterWithLabel(t *testing.T, gatherer prometheus.Gatherer, expectedMetricsCount int, metricName, labelName string) {
-	t.Helper()
-
-	metrics, err := gatherer.Gather()
-	require.NoError(t, err)
-
-	var mf *promclient.MetricFamily
-	for _, metric := range metrics {
-		if metric.GetName() == metricName {
-			mf = metric
-		}
-	}
-
-	found := false
-	require.Len(t, mf.GetMetric(), expectedMetricsCount)
-	for _, metric := range mf.GetMetric() {
-		for _, label := range metric.Label {
-			if *label.Value == labelName {
-				found = true
-			}
-		}
-	}
-
-	require.True(t, found, "didn't find counter with label %s", labelName)
+	require.Equal(t, float64(1), rf.CounterVecValue("spicedb", "dispatch", "single_flight_total", "DispatchQueryPlan", "passthrough")) //nolint:testifylint // exact small integer values
 }
 
 func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req *v1.DispatchCheckRequest) []byte {

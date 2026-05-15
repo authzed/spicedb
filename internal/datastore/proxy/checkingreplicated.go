@@ -6,37 +6,54 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var (
-	checkingReplicatedTotalReaderCount = promauto.NewCounter(prometheus.CounterOpts{
+	checkingReplicatedTotalReaderCount metrics.Counter
+
+	checkingReplicatedTotalReaderCountOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "checking_replicated_reader_total",
 		Help:      "total number of readers created by the checking replica proxy",
-	})
+	}
 
-	checkingReplicatedReplicaReaderCount = promauto.NewCounterVec(prometheus.CounterOpts{
+	checkingReplicatedReplicaReaderCount metrics.CounterVec
+
+	checkingReplicatedReplicaReaderCountOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "checking_replicated_replica_reader_total",
 		Help:      "number of readers created by the checking replica proxy that are using the replica",
-	}, []string{"replica"})
+	}
 
-	readReplicatedSelectedReplicaCount = promauto.NewCounterVec(prometheus.CounterOpts{
+	readReplicatedSelectedReplicaCount metrics.CounterVec
+
+	readReplicatedSelectedReplicaCountOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "selected_replica_total",
 		Help:      "the selected replica in a read replicated datastore",
-	}, []string{"replica"})
+	}
 )
+
+func init() {
+	setCheckingReplicatedMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
+
+func setCheckingReplicatedMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	checkingReplicatedTotalReaderCount = factory.Counter(checkingReplicatedTotalReaderCountOpts)
+	checkingReplicatedReplicaReaderCount = factory.CounterVec(checkingReplicatedReplicaReaderCountOpts, []string{"replica"})
+	readReplicatedSelectedReplicaCount = factory.CounterVec(readReplicatedSelectedReplicaCountOpts, []string{"replica"})
+}
 
 // NewCheckingReplicatedDatastore creates a new datastore that writes to the provided primary and reads
 // from the provided replicas. The replicas are chosen in a round-robin fashion. If a replica does

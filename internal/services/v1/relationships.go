@@ -9,8 +9,6 @@ import (
 
 	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -18,6 +16,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/middleware"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/interceptorwrapper"
@@ -45,13 +44,28 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-var writeUpdateCounter = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var writeUpdateCounter metrics.HistogramVec
+
+var writeUpdateCounterOpts = metrics.Opts{
 	Namespace: "spicedb",
 	Subsystem: "v1",
 	Name:      "write_relationships_updates",
 	Help:      "The update counts for the WriteRelationships calls",
 	Buckets:   []float64{0, 1, 2, 5, 10, 15, 25, 50, 100, 250, 500, 1000},
-}, []string{"kind"})
+}
+
+func init() {
+	SetMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
+
+// SetMetricsFactory configures which metrics factory is used by this package's
+// service-level metrics.
+func SetMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	writeUpdateCounter = factory.HistogramVec(writeUpdateCounterOpts, []string{"kind"})
+}
 
 const MaximumTransactionMetadataSize = 65000 // bytes. Limited by the BLOB size used in MySQL driver
 
