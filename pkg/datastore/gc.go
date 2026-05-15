@@ -3,6 +3,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -16,13 +17,15 @@ import (
 
 var gcTracer = otel.Tracer("spicedb/pkg/datastore")
 
+var gcMetricsMu sync.Mutex
+
 var (
-	gcDurationHistogram           internalmetrics.Histogram
-	gcRelationshipsCounter        internalmetrics.Counter
-	gcExpiredRelationshipsCounter internalmetrics.Counter
-	gcTransactionsCounter         internalmetrics.Counter
-	gcNamespacesCounter           internalmetrics.Counter
-	gcFailureCounter              internalmetrics.Counter
+	gcDurationHistogram           internalmetrics.Histogram // GUARDED_BY(gcMetricsMu)
+	gcRelationshipsCounter        internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcExpiredRelationshipsCounter internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcTransactionsCounter         internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcNamespacesCounter           internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcFailureCounter              internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
 
 	gcDurationHistogramOpts = internalmetrics.Opts{
 		Namespace: "spicedb",
@@ -78,6 +81,9 @@ func SetMetricsFactory(factory internalmetrics.Factory) {
 	if factory == nil {
 		factory = internalmetrics.NoopFactory{}
 	}
+
+	gcMetricsMu.Lock()
+	defer gcMetricsMu.Unlock()
 
 	gcDurationHistogram = factory.Histogram(gcDurationHistogramOpts)
 	gcRelationshipsCounter = factory.Counter(gcRelationshipsCounterOpts)
@@ -152,6 +158,9 @@ func RegisterGCMetrics(registerer prometheus.Registerer) ([]prometheus.Collector
 		}
 		collectors = append(collectors, registered)
 	}
+
+	gcMetricsMu.Lock()
+	defer gcMetricsMu.Unlock()
 
 	if h, ok := collectors[0].(prometheus.Histogram); ok {
 		gcDurationHistogram = h

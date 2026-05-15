@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jzelinskie/cobrautil/v2"
@@ -29,9 +30,11 @@ var logicalChecksCounterOpts = internalmetrics.Opts{
 	Help:      `Count of the number of "checks" made across all APIs (e.g. each item within a CheckBulk, each item returned from a Lookup).`,
 }
 
-var LogicalChecks internalmetrics.Counter
-
-var logicalChecksMetric prometheus.Metric
+var (
+	logicalChecksMu     sync.Mutex
+	LogicalChecks       internalmetrics.Counter // GUARDED_BY(logicalChecksMu)
+	logicalChecksMetric prometheus.Metric       // GUARDED_BY(logicalChecksMu)
+)
 
 func init() {
 	SetMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
@@ -43,6 +46,9 @@ func SetMetricsFactory(factory internalmetrics.Factory) {
 	if factory == nil {
 		factory = internalmetrics.NoopFactory{}
 	}
+
+	logicalChecksMu.Lock()
+	defer logicalChecksMu.Unlock()
 
 	LogicalChecks = factory.Counter(logicalChecksCounterOpts)
 
@@ -219,8 +225,11 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))
 	ch <- prometheus.MustNewConstMetric(c.relationshipsDesc, prometheus.GaugeValue, float64(dsStats.EstimatedRelationshipCount))
 	logicalChecksValue := 0.0
-	if logicalChecksMetric != nil {
-		logicalChecksValue = promutil.MustCounterValue(logicalChecksMetric)
+	logicalChecksMu.Lock()
+	metric := logicalChecksMetric
+	logicalChecksMu.Unlock()
+	if metric != nil {
+		logicalChecksValue = promutil.MustCounterValue(metric)
 	}
 	ch <- prometheus.MustNewConstMetric(c.logicalChecksDec, prometheus.CounterValue, logicalChecksValue)
 
