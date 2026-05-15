@@ -180,8 +180,9 @@ func TestIntersectionIteratorExplain(t *testing.T) {
 func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewTestContext(t)
+	// Capture trace to assert on the short-circuiting message
+	traceLogger := NewTraceLogger()
+	ctx := NewLocalContext(t.Context(), WithTraceLogger(traceLogger))
 
 	// Create an intersection where the first iterator returns no results
 	// This should cause early termination
@@ -195,6 +196,10 @@ func TestIntersectionIteratorEarlyTermination(t *testing.T) {
 	path, err := ctx.Check(intersect, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 	require.NoError(err)
 	require.Nil(path, "Early termination should return nil")
+
+	trace := traceLogger.DumpTrace()
+	require.Contains(trace, "sub-iterator 0 returned nil, short-circuiting",
+		"intersection must emit the short-circuit trace after the first miss")
 }
 
 func TestIntersectionIteratorCaveatCombination(t *testing.T) {

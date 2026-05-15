@@ -137,6 +137,32 @@ func TestUnionIterator(t *testing.T) {
 	})
 }
 
+func TestUnionIteratorEarlyTermination(t *testing.T) {
+	require := require.New(t)
+
+	// Capture trace to assert on the short-circuiting message
+	traceLogger := NewTraceLogger()
+	ctx := NewLocalContext(t.Context(), WithTraceLogger(traceLogger))
+
+	// First sub-iterator returns an uncaveated match. ORing anything with an
+	// uncaveated path produces an uncaveated path, so the union must short-circuit
+	// and skip the rest of the sub-iterators
+	pathNoCaveat := MustPathFromString("document:doc1#viewer@user:alice")
+	firstIter := NewFixedIterator(*pathNoCaveat)
+	laterIter := NewDocumentAccessFixedIterator()
+
+	union := NewUnionIterator(firstIter, laterIter)
+
+	path, err := ctx.Check(union, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
+	require.NoError(err)
+	require.NotNil(path)
+	require.Nil(path.Caveat, "uncaveated input must produce uncaveated output")
+
+	trace := traceLogger.DumpTrace()
+	require.Contains(trace, "sub-iterator 0 matched uncaveated, short-circuiting",
+		"union must emit a short-circuit trace after the first unconditional match")
+}
+
 func TestUnionIteratorClone(t *testing.T) {
 	require := require.New(t)
 

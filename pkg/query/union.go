@@ -54,6 +54,13 @@ func (u *UnionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectA
 		if err != nil {
 			return nil, err
 		}
+
+		if result.Caveat == nil {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(u, "sub-iterator %d matched uncaveated, short-circuiting", iterIdx)
+			}
+			return result, nil
+		}
 	}
 
 	return result, nil
