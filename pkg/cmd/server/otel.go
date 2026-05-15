@@ -1,14 +1,18 @@
 // pkg/cmd/server/otel.go
 //
-// This file replicates the OpenTelemetry provider initialization previously
-// provided by github.com/jzelinskie/cobrautil/v2/cobraotel.
+// This file owns the full OpenTelemetry lifecycle for SpiceDB:
 //
-// Motivation:
-//   - Issue #712: otel-provider defaults to "none" so OTEL_* env vars alone
-//     cannot activate tracing. Native ownership lets us address this properly.
-//   - Issue #3095: cobraotel owns the TracerProvider with no way for the
-//     signal handler to call Shutdown/ForceFlush. Traces are dropped on
-//     SIGTERM. Native ownership closes this lifecycle gap.
+//  1. RegisterOTelFlags  — registers CLI flags on a cobra.Command.
+//  2. OTelConfig / PopulateOTelConfig — struct + helper to move values from
+//     Cobra flags into a plain Go struct so OTel config is accessible
+//     programmatically (e.g. in tests and embedded use-cases).
+//  3. InitOTelProvider   — builds and registers the global TracerProvider.
+//  4. ShutdownOTelProvider — flush + shutdown with a single shared timeout.
+//
+// Why native lifecycle instead of cobraotel?
+//   - cobraotel registered a PreRunE but had no corresponding PostRunE hook,
+//     leaving the TracerProvider with no owner to call Shutdown/ForceFlush.
+//     Traces are dropped on SIGTERM. Native ownership closes this lifecycle gap.
 
 package server
 
@@ -18,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/authzed/ctxkey"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/contrib/propagators/ot"
@@ -28,10 +33,13 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
-// otelProviderContextKey is the unexported context key for the TracerProvider.
-type otelProviderContextKey struct{}
+// otelProviderKey is the context key for storing an otelShutdowner.
+// Using ctxkey.New follows the codebase-wide pattern (see pkg/datalayer/context.go).
+var otelProviderKey = ctxkey.New[otelShutdowner]()
 
 // OTelShutdownTimeout is the maximum time for flushing spans on shutdown.
 const OTelShutdownTimeout = 30 * time.Second
@@ -42,6 +50,65 @@ const OTelShutdownTimeout = 30 * time.Second
 type otelShutdowner interface {
 	Shutdown(ctx context.Context) error
 	ForceFlush(ctx context.Context) error
+}
+
+// OTelConfig holds the configuration for the OpenTelemetry provider.
+// It is populated from Cobra flags by PopulateOTelConfig and then passed
+// into server.Config so the provider can be constructed during Complete().
+type OTelConfig struct {
+	Provider        string
+	Endpoint        string
+	ServiceName     string
+	TracePropagator string
+	Insecure        bool
+	Headers         map[string]string
+	SampleRatio     float64
+}
+
+// PopulateOTelConfig reads all otel-* flag values from cmd into an OTelConfig.
+// Call this from the serve RunE after Viper has synced flags, before calling
+// server.Complete.
+func PopulateOTelConfig(cmd *cobra.Command) (OTelConfig, error) {
+	f := cmd.Flags()
+
+	provider, err := f.GetString("otel-provider")
+	if err != nil {
+		return OTelConfig{}, fmt.Errorf("reading otel-provider: %w", err)
+	}
+	endpoint, err := f.GetString("otel-endpoint")
+	if err != nil {
+		return OTelConfig{}, fmt.Errorf("reading otel-endpoint: %w", err)
+	}
+	serviceName, err := f.GetString("otel-service-name")
+	if err != nil {
+		return OTelConfig{}, fmt.Errorf("reading otel-service-name: %w", err)
+	}
+	propagator, err := f.GetString("otel-trace-propagator")
+	if err != nil {
+		return OTelConfig{}, fmt.Errorf("reading otel-trace-propagator: %w", err)
+	}
+	insecure, err := f.GetBool("otel-insecure")
+	if err != nil {
+		return OTelConfig{}, fmt.Errorf("reading otel-insecure: %w", err)
+	}
+	headers, err := f.GetStringToString("otel-headers")
+	if err != nil {
+		return OTelConfig{}, fmt.Errorf("reading otel-headers: %w", err)
+	}
+	sampleRatio, err := f.GetFloat64("otel-sample-ratio")
+	if err != nil {
+		return OTelConfig{}, fmt.Errorf("reading otel-sample-ratio: %w", err)
+	}
+
+	return OTelConfig{
+		Provider:        strings.TrimSpace(strings.ToLower(provider)),
+		Endpoint:        endpoint,
+		ServiceName:     serviceName,
+		TracePropagator: propagator,
+		Insecure:        insecure,
+		Headers:         headers,
+		SampleRatio:     sampleRatio,
+	}, nil
 }
 
 // RegisterOTelFlags registers all OpenTelemetry flags on cmd.
@@ -63,69 +130,21 @@ func RegisterOTelFlags(cmd *cobra.Command) {
 		`key=value pairs sent as headers to the OTel provider`)
 	f.Float64("otel-sample-ratio", 0.01,
 		`ratio of traces that are sampled`)
-
-	// Legacy flags
-	f.String("otel-jaeger-endpoint", "", "OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables")
-	_ = f.MarkHidden("otel-jaeger-endpoint")
-	f.String("otel-jaeger-service-name", "spicedb", "service name for trace data")
-	_ = f.MarkHidden("otel-jaeger-service-name")
 }
 
-// InitOTelProvider reads otel-* flags from cmd, builds a TracerProvider, sets
-// it as the global OTel provider, and returns it for lifecycle management.
+// InitOTelProvider builds a TracerProvider from cfg, sets it as the global OTel
+// provider, and returns it for lifecycle management.
 //
-// Returns (nil, nil) when otel-provider is "none". Callers must handle nil.
-func InitOTelProvider(cmd *cobra.Command) (otelShutdowner, error) {
-	flags := cmd.Flags()
-
-	// cobra commands may have no context when called outside Execute()
-	ctx := cmd.Context()
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	providerName, err := flags.GetString("otel-provider")
-	if err != nil {
-		return nil, fmt.Errorf("reading otel-provider: %w", err)
-	}
-	providerName = strings.TrimSpace(strings.ToLower(providerName))
+// Returns (nil, nil) when cfg.Provider is "none" or empty. Callers must handle nil.
+func InitOTelProvider(ctx context.Context, cfg OTelConfig) (otelShutdowner, error) {
+	providerName := cfg.Provider
 
 	if providerName == "none" || providerName == "" {
 		return nil, nil
 	}
 
-	endpoint, err := flags.GetString("otel-endpoint")
-	if err != nil {
-		return nil, fmt.Errorf("reading otel-endpoint: %w", err)
-	}
-
-	serviceName, err := flags.GetString("otel-service-name")
-	if err != nil {
-		return nil, fmt.Errorf("reading otel-service-name: %w", err)
-	}
-
-	propagatorName, err := flags.GetString("otel-trace-propagator")
-	if err != nil {
-		return nil, fmt.Errorf("reading otel-trace-propagator: %w", err)
-	}
-
-	insecureConn, err := flags.GetBool("otel-insecure")
-	if err != nil {
-		return nil, fmt.Errorf("reading otel-insecure: %w", err)
-	}
-
-	headers, err := flags.GetStringToString("otel-headers")
-	if err != nil {
-		return nil, fmt.Errorf("reading otel-headers: %w", err)
-	}
-
-	sampleRatio, err := flags.GetFloat64("otel-sample-ratio")
-	if err != nil {
-		return nil, fmt.Errorf("reading otel-sample-ratio: %w", err)
-	}
-
 	res, err := resource.New(ctx,
-		resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)),
+		resource.WithAttributes(semconv.ServiceNameKey.String(cfg.ServiceName)),
 		resource.WithProcess(),
 		resource.WithOS(),
 		resource.WithHost(),
@@ -139,14 +158,14 @@ func InitOTelProvider(cmd *cobra.Command) (otelShutdowner, error) {
 	switch providerName {
 	case "otlpgrpc":
 		opts := []otlptracegrpc.Option{}
-		if endpoint != "" {
-			opts = append(opts, otlptracegrpc.WithEndpoint(endpoint))
+		if cfg.Endpoint != "" {
+			opts = append(opts, otlptracegrpc.WithEndpoint(cfg.Endpoint))
 		}
-		if insecureConn {
+		if cfg.Insecure {
 			opts = append(opts, otlptracegrpc.WithInsecure())
 		}
-		if len(headers) > 0 {
-			opts = append(opts, otlptracegrpc.WithHeaders(headers))
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlptracegrpc.WithHeaders(cfg.Headers))
 		}
 		exp, err := otlptracegrpc.New(ctx, opts...)
 		if err != nil {
@@ -156,14 +175,14 @@ func InitOTelProvider(cmd *cobra.Command) (otelShutdowner, error) {
 
 	case "otlphttp":
 		opts := []otlptracehttp.Option{}
-		if endpoint != "" {
-			opts = append(opts, otlptracehttp.WithEndpoint(endpoint))
+		if cfg.Endpoint != "" {
+			opts = append(opts, otlptracehttp.WithEndpoint(cfg.Endpoint))
 		}
-		if insecureConn {
+		if cfg.Insecure {
 			opts = append(opts, otlptracehttp.WithInsecure())
 		}
-		if len(headers) > 0 {
-			opts = append(opts, otlptracehttp.WithHeaders(headers))
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlptracehttp.WithHeaders(cfg.Headers))
 		}
 		exp, err := otlptracehttp.New(ctx, opts...)
 		if err != nil {
@@ -178,6 +197,7 @@ func InitOTelProvider(cmd *cobra.Command) (otelShutdowner, error) {
 		)
 	}
 
+	sampleRatio := cfg.SampleRatio
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampleRatio))),
 		sdktrace.WithBatcher(exporter),
@@ -185,7 +205,7 @@ func InitOTelProvider(cmd *cobra.Command) (otelShutdowner, error) {
 	)
 
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(buildPropagator(propagatorName))
+	otel.SetTextMapPropagator(buildPropagator(cfg.TracePropagator))
 
 	return tp, nil
 }
@@ -196,40 +216,16 @@ func ShutdownOTelProvider(ctx context.Context, provider otelShutdowner) error {
 	if provider == nil {
 		return nil
 	}
-
-	flushCtx, flushCancel := context.WithTimeout(ctx, OTelShutdownTimeout)
-	defer flushCancel()
-	if err := provider.ForceFlush(flushCtx); err != nil {
+	// A single context covers both ForceFlush and Shutdown: they share the same
+	// overall shutdown budget. Separate contexts would silently double the max
+	// wait time.
+	shutCtx, cancel := context.WithTimeout(ctx, OTelShutdownTimeout)
+	defer cancel()
+	if err := provider.ForceFlush(shutCtx); err != nil {
 		// Log but continue — Shutdown must still be attempted.
-		fmt.Printf("otel: ForceFlush error (continuing to Shutdown): %v\n", err)
+		log.Warn().Err(err).Msg("otel: ForceFlush error during shutdown")
 	}
-
-	shutCtx, shutCancel := context.WithTimeout(ctx, OTelShutdownTimeout)
-	defer shutCancel()
 	return provider.Shutdown(shutCtx)
-}
-
-// OTelPreRunE is a cobra.PreRunE function that initializes the OTel provider
-// and stores it on the command context so the shutdown handler can retrieve it.
-func OTelPreRunE(cmd *cobra.Command, _ []string) error {
-	provider, err := InitOTelProvider(cmd)
-	if err != nil {
-		return fmt.Errorf("initializing OTel provider: %w", err)
-	}
-	parent := cmd.Context()
-	if parent == nil {
-		parent = context.Background()
-	}
-	ctx := context.WithValue(parent, otelProviderContextKey{}, provider)
-	cmd.SetContext(ctx)
-	return nil
-}
-
-// OTelProviderFromContext retrieves the otelShutdowner stored by OTelPreRunE.
-// Returns nil if no provider was initialized (e.g. otel-provider was "none").
-func OTelProviderFromContext(ctx context.Context) otelShutdowner {
-	v, _ := ctx.Value(otelProviderContextKey{}).(otelShutdowner)
-	return v
 }
 
 // buildPropagator returns the TextMapPropagator for the given name.

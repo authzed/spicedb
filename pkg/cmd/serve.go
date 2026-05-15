@@ -11,7 +11,6 @@ import (
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
 
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -19,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/runtime"
 )
+
 
 const PresharedKeyFlag = "grpc-preshared-key"
 
@@ -257,6 +257,14 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 		Long:    "start a SpiceDB server",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
+			// Populate OTel config from flags before calling Complete so that
+			// embedded callers can also set config.OTel programmatically.
+			otelCfg, err := server.PopulateOTelConfig(cmd)
+			if err != nil {
+				return err
+			}
+			config.OTel = otelCfg
+
 			srv, err := config.Complete(cmd.Context())
 			if err != nil {
 				return err
@@ -264,17 +272,12 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 			signalctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
-			defer func() {
-				// Shutdown OTel provider to ensure all traces are flushed
-				if provider := server.OTelProviderFromContext(cmd.Context()); provider != nil {
-					if err := server.ShutdownOTelProvider(context.Background(), provider); err != nil {
-						log.Warn().Err(err).Msg("failed to cleanly shutdown OpenTelemetry provider")
-					}
-				}
-			}()
+			// OTel provider shutdown is handled by closeables inside Complete().
+			// No explicit defer needed here.
 
 			return srv.Run(signalctx)
 		}),
 		Example: server.ServeExample(programName),
 	}
 }
+

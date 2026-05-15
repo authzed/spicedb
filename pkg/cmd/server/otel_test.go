@@ -15,17 +15,6 @@ import (
 // Helpers
 // ---------------------------------------------------------------------------
 
-func newTestCmd(t *testing.T) *cobra.Command {
-	t.Helper()
-	cmd := &cobra.Command{
-		Use:  "test",
-		RunE: func(cmd *cobra.Command, args []string) error { return nil },
-	}
-	RegisterOTelFlags(cmd)
-	cmd.SetContext(context.Background())
-	return cmd
-}
-
 // mockShutdowner is a test double that records calls to Shutdown/ForceFlush.
 type mockShutdowner struct {
 	shutdownCalled   bool
@@ -59,14 +48,20 @@ func (c *callOrderShutdowner) Shutdown(_ context.Context) error {
 	return nil
 }
 
+// makeTestCmd creates a bare cobra.Command for flag-registration tests.
+func makeTestCmd() *cobra.Command {
+	return &cobra.Command{Use: "test"}
+}
+
 // ---------------------------------------------------------------------------
 // RegisterOTelFlags
 // ---------------------------------------------------------------------------
 
+
 // TestRegisterOTelFlags_AllFlagsPresent verifies all OTel flags are
 // registered with correct names after calling RegisterOTelFlags.
 func TestRegisterOTelFlags_AllFlagsPresent(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
+	cmd := makeTestCmd()
 	RegisterOTelFlags(cmd)
 
 	for _, name := range []string{
@@ -84,7 +79,7 @@ func TestRegisterOTelFlags_AllFlagsPresent(t *testing.T) {
 
 // TestRegisterOTelFlags_ProviderDefault verifies otel-provider defaults to "none".
 func TestRegisterOTelFlags_ProviderDefault(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
+	cmd := makeTestCmd()
 	RegisterOTelFlags(cmd)
 	val, err := cmd.Flags().GetString("otel-provider")
 	require.NoError(t, err)
@@ -98,9 +93,8 @@ func TestRegisterOTelFlags_ProviderDefault(t *testing.T) {
 // TestInitOTelProvider_NoneSkipsInit verifies provider=none returns (nil, nil)
 // without attempting any network connection.
 func TestInitOTelProvider_NoneSkipsInit(t *testing.T) {
-	cmd := newTestCmd(t)
-	require.NoError(t, cmd.Flags().Set("otel-provider", "none"))
-	provider, err := InitOTelProvider(cmd)
+	cfg := OTelConfig{Provider: "none"}
+	provider, err := InitOTelProvider(context.Background(), cfg)
 	require.NoError(t, err)
 	assert.Nil(t, provider)
 }
@@ -108,9 +102,8 @@ func TestInitOTelProvider_NoneSkipsInit(t *testing.T) {
 // TestInitOTelProvider_UnknownProviderReturnsError verifies an unrecognized
 // provider string returns a non-nil error containing the bad value.
 func TestInitOTelProvider_UnknownProviderReturnsError(t *testing.T) {
-	cmd := newTestCmd(t)
-	require.NoError(t, cmd.Flags().Set("otel-provider", "bogusprovider"))
-	_, err := InitOTelProvider(cmd)
+	cfg := OTelConfig{Provider: "bogusprovider", ServiceName: "test", TracePropagator: "w3c"}
+	_, err := InitOTelProvider(context.Background(), cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bogusprovider")
 }
@@ -119,12 +112,15 @@ func TestInitOTelProvider_UnknownProviderReturnsError(t *testing.T) {
 // without error. No live collector required — connection errors surface only
 // on first export, not at initialization.
 func TestInitOTelProvider_OtlpGrpc_ValidEndpoint(t *testing.T) {
-	cmd := newTestCmd(t)
-	require.NoError(t, cmd.Flags().Set("otel-provider", "otlpgrpc"))
-	require.NoError(t, cmd.Flags().Set("otel-endpoint", "localhost:4317"))
-	require.NoError(t, cmd.Flags().Set("otel-insecure", "true"))
-
-	provider, err := InitOTelProvider(cmd)
+	cfg := OTelConfig{
+		Provider:        "otlpgrpc",
+		Endpoint:        "localhost:4317",
+		ServiceName:     "spicedb-test",
+		TracePropagator: "w3c",
+		Insecure:        true,
+		SampleRatio:     0.01,
+	}
+	provider, err := InitOTelProvider(context.Background(), cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
@@ -133,12 +129,15 @@ func TestInitOTelProvider_OtlpGrpc_ValidEndpoint(t *testing.T) {
 // TestInitOTelProvider_OtlpHttp_ValidEndpoint verifies otlphttp initializes
 // without error. No live collector required.
 func TestInitOTelProvider_OtlpHttp_ValidEndpoint(t *testing.T) {
-	cmd := newTestCmd(t)
-	require.NoError(t, cmd.Flags().Set("otel-provider", "otlphttp"))
-	require.NoError(t, cmd.Flags().Set("otel-endpoint", "localhost:4318"))
-	require.NoError(t, cmd.Flags().Set("otel-insecure", "true"))
-
-	provider, err := InitOTelProvider(cmd)
+	cfg := OTelConfig{
+		Provider:        "otlphttp",
+		Endpoint:        "localhost:4318",
+		ServiceName:     "spicedb-test",
+		TracePropagator: "w3c",
+		Insecure:        true,
+		SampleRatio:     0.01,
+	}
+	provider, err := InitOTelProvider(context.Background(), cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
@@ -193,44 +192,4 @@ func TestShutdownOTelProvider_ContextCancelled(t *testing.T) {
 	mock := &mockShutdowner{shutdownErr: context.Canceled}
 	err := ShutdownOTelProvider(ctx, mock)
 	_ = err // cancelled context may or may not surface — no panic is the guarantee
-}
-
-// ---------------------------------------------------------------------------
-// OTelPreRunE and OTelProviderFromContext
-// ---------------------------------------------------------------------------
-
-// TestOTelPreRunE_StoresProviderInContext verifies that after OTelPreRunE
-// runs with a real provider, OTelProviderFromContext returns non-nil.
-func TestOTelPreRunE_StoresProviderInContext(t *testing.T) {
-	cmd := newTestCmd(t)
-	require.NoError(t, cmd.Flags().Set("otel-provider", "otlpgrpc"))
-	require.NoError(t, cmd.Flags().Set("otel-endpoint", "localhost:4317"))
-	require.NoError(t, cmd.Flags().Set("otel-insecure", "true"))
-
-	err := OTelPreRunE(cmd, nil)
-	require.NoError(t, err)
-
-	provider := OTelProviderFromContext(cmd.Context())
-	assert.NotNil(t, provider, "TracerProvider must be stored in context")
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-}
-
-// TestOTelPreRunE_NoneIsNoop verifies provider=none results in nil context
-// value and no error.
-func TestOTelPreRunE_NoneIsNoop(t *testing.T) {
-	cmd := newTestCmd(t)
-	// otel-provider defaults to "none" — no Set needed
-
-	err := OTelPreRunE(cmd, nil)
-	require.NoError(t, err)
-
-	provider := OTelProviderFromContext(cmd.Context())
-	assert.Nil(t, provider)
-}
-
-// TestOTelProviderFromContext_MissingKey verifies that retrieving a provider
-// from a context where OTelPreRunE was never called returns nil without panic.
-func TestOTelProviderFromContext_MissingKey(t *testing.T) {
-	provider := OTelProviderFromContext(context.Background())
-	assert.Nil(t, provider)
 }

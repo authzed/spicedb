@@ -81,11 +81,13 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 		// and zero under the same load and 0.9
 		cobraproclimits.SetMemLimitRunE(memlimit.WithRatio(0.9)),
 		cobraproclimits.SetProcLimitRunE(),
-		OTelPreRunE,
+		// OTelPreRunE removed: OTel initialization now happens in Config.Complete()
+		// so that the provider lifecycle is tied to the closeables stack.
 		releases.CheckAndLogRunE(),
 		runtime.RunE(),
 	)
 }
+
 
 // MetricsHandler sets up an HTTP server that handles serving Prometheus
 // metrics and pprof endpoints.

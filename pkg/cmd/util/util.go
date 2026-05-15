@@ -448,10 +448,7 @@ func RegisterCommonFlags(cmd *cobra.Command) {
 	f.StringToString("otel-headers", nil, `key=value pairs sent as headers to the OTel provider`)
 	f.Float64("otel-sample-ratio", 0.01, `ratio of traces that are sampled`)
 
-	f.String("otel-jaeger-endpoint", "", "OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables")
-	_ = f.MarkHidden("otel-jaeger-endpoint")
-	f.String("otel-jaeger-service-name", "spicedb", "service name for trace data")
-	_ = f.MarkHidden("otel-jaeger-service-name")
 	termination.RegisterFlags(cmd.Flags())
 	runtime.RegisterFlags(cmd.Flags())
 }
+

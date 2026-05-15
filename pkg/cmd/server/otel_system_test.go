@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -86,16 +85,15 @@ func TestOTelSystem_SpansDeliveredToCollector(t *testing.T) {
 	addr, collector, cleanup := startCollector(t)
 	defer cleanup()
 
-	cmd := &cobra.Command{Use: "test"}
-	RegisterOTelFlags(cmd)
-	cmd.SetContext(context.Background())
-	require.NoError(t, cmd.Flags().Set("otel-provider", "otlpgrpc"))
-	require.NoError(t, cmd.Flags().Set("otel-endpoint", addr))
-	require.NoError(t, cmd.Flags().Set("otel-insecure", "true"))
-	require.NoError(t, cmd.Flags().Set("otel-service-name", "spicedb-system-test"))
-	require.NoError(t, cmd.Flags().Set("otel-sample-ratio", "1.0"))
-
-	provider, err := InitOTelProvider(cmd)
+	cfg := OTelConfig{
+		Provider:        "otlpgrpc",
+		Endpoint:        addr,
+		ServiceName:     "spicedb-system-test",
+		TracePropagator: "w3c",
+		Insecure:        true,
+		SampleRatio:     1.0,
+	}
+	provider, err := InitOTelProvider(context.Background(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, provider)
 	t.Cleanup(func() {
@@ -128,15 +126,15 @@ func TestOTelSystem_SpansNotDroppedOnShutdown(t *testing.T) {
 	addr, collector, cleanup := startCollector(t)
 	defer cleanup()
 
-	cmd := &cobra.Command{Use: "test"}
-	RegisterOTelFlags(cmd)
-	cmd.SetContext(context.Background())
-	require.NoError(t, cmd.Flags().Set("otel-provider", "otlpgrpc"))
-	require.NoError(t, cmd.Flags().Set("otel-endpoint", addr))
-	require.NoError(t, cmd.Flags().Set("otel-insecure", "true"))
-	require.NoError(t, cmd.Flags().Set("otel-sample-ratio", "1.0"))
-
-	provider, err := InitOTelProvider(cmd)
+	cfg := OTelConfig{
+		Provider:        "otlpgrpc",
+		Endpoint:        addr,
+		ServiceName:     "spicedb-system-test",
+		TracePropagator: "w3c",
+		Insecure:        true,
+		SampleRatio:     1.0,
+	}
+	provider, err := InitOTelProvider(context.Background(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, provider)
 
