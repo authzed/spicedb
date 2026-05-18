@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - Watch consumers that request `WatchCheckpoints` now eventually observe every revision returned by `WriteRelationships` as a checkpoint. MemDB regressed this in https://github.com/authzed/spicedb/pull/2578 for no-op writes and MySQL never emitted checkpoints at all prior to now. Both now emit a checkpoint at the new revision. (https://github.com/authzed/spicedb/pull/3114)
 - When Query Planner evaluates a union, short-circuit if one of the branches yields a positive un-caveated result (https://github.com/authzed/spicedb/pull/3120)
+- DispatchQueryPlan previously did not try to use the singleflight middleware for check calls. (https://github.com/authzed/spicedb/pull/3119)
 
 ## [1.53.0] - 2026-05-13
 ### Added
