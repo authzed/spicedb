@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	includeDelay = flag.Bool("bench-delay", false, "include delay variants in query planner benchmarks")
-	includePlain = flag.Bool("bench-plain", false, "include plain (non-advised) benchmark variants")
+	includeDelay   = flag.Bool("bench-delay", false, "include delay variants in query planner benchmarks")
+	includePlain   = flag.Bool("bench-plain", false, "include plain (non-advised) benchmark variants")
+	includeClassic = flag.Bool("bench-classic", false, "include the classic (graph dispatcher) variant for Check; uses an in-memory, no-cache, no-gRPC local dispatcher")
 )
 
 // directBenchmarkNames is the curated subset of registry benchmarks run
@@ -20,6 +21,7 @@ var directBenchmarkNames = []string{
 	"WideArrow",
 	"DoubleWideArrow",
 	"ShareWith",
+	"LookupIntersection",
 }
 
 // directBenchmarks returns the registry entries for directBenchmarkNames.
