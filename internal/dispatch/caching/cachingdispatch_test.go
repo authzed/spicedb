@@ -2,19 +2,18 @@ package caching
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -125,7 +124,7 @@ func TestMaxDepthCaching(t *testing.T) {
 				}
 			}
 
-			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), nil, "", nil)
 			dispatch.SetDelegate(delegate)
 			require.NoError(err)
 			defer dispatch.Close()
@@ -177,7 +176,7 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 			},
 		}, nil)
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), nil, "", nil)
 	require.NoError(err)
 	dispatcher.SetDelegate(delegate)
 	t.Cleanup(func() {
@@ -248,54 +247,10 @@ func (p *planDispatchMock) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, str
 	})
 }
 
-func sumOperationCounter(t *testing.T, gatherer prometheus.Gatherer, metricName, operationLabel string) float64 {
-	t.Helper()
-	families, err := gatherer.Gather()
-	require.NoError(t, err)
-	for _, mf := range families {
-		if mf.GetName() != metricName {
-			continue
-		}
-		var sum float64
-		for _, m := range mf.GetMetric() {
-			matched := operationLabel == ""
-			for _, l := range m.GetLabel() {
-				if l.GetName() == "operation" && l.GetValue() == operationLabel {
-					matched = true
-				}
-			}
-			if matched {
-				sum += m.GetCounter().GetValue()
-			}
-		}
-		return sum
-	}
-	return 0
-}
-
-func sumPlainCounter(t *testing.T, gatherer prometheus.Gatherer, metricName string) float64 {
-	t.Helper()
-	families, err := gatherer.Gather()
-	require.NoError(t, err)
-	for _, mf := range families {
-		if mf.GetName() != metricName {
-			continue
-		}
-		var sum float64
-		for _, m := range mf.GetMetric() {
-			sum += m.GetCounter().GetValue()
-		}
-		return sum
-	}
-	return 0
-}
-
 func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
-	// Use a unique subsystem so we don't collide with other tests in the global
-	// default Prometheus registry.
-	subsystem := fmt.Sprintf("test_caching_%d", time.Now().UnixNano())
+	rf := metrics.NewRecordingFactory()
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), true, subsystem, nil)
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), rf, "dispatch_test", nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
@@ -326,16 +281,14 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 	require.NoError(t, dispatcher.DispatchQueryPlan(req, stream2))
 	require.Len(t, stream2.Results(), 1)
 
-	gatherer := prometheus.DefaultGatherer
-
-	totalCheck := sumOperationCounter(t, gatherer, "spicedb_"+subsystem+"_query_plan_total", "check")
+	totalCheck := rf.CounterVecValue(prometheusNamespace, "dispatch_test", "query_plan_total", "check")
 	require.InEpsilon(t, float64(2), totalCheck, 1e-9, "query_plan_total{operation=check} should bump for each plan dispatch")
 
-	fromCacheCheck := sumOperationCounter(t, gatherer, "spicedb_"+subsystem+"_query_plan_from_cache_total", "check")
+	fromCacheCheck := rf.CounterVecValue(prometheusNamespace, "dispatch_test", "query_plan_from_cache_total", "check")
 	require.InEpsilon(t, float64(1), fromCacheCheck, 1e-9, "query_plan_from_cache_total{operation=check} should bump only on cache hit")
 
-	// Ensure the plan path no longer inflates the classic DispatchCheck counter.
-	checkTotal := sumPlainCounter(t, gatherer, "spicedb_"+subsystem+"_check_total")
+	// Ensure the plan path does not inflate the classic DispatchCheck counter.
+	checkTotal := rf.CounterValue(prometheusNamespace, "dispatch_test", "check_total")
 	require.Zero(t, checkTotal, "check_total must not be incremented from the plan path")
 
 	// The delegate is only consulted on the cache miss.

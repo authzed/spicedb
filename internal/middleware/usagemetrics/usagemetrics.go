@@ -8,7 +8,6 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/authzed/grpcutil"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -28,16 +28,39 @@ var (
 	// DispatchedCountHistogram is the metric that SpiceDB uses to keep track
 	// of the number of downstream dispatches that are performed to answer a
 	// single query.
-	DispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	DispatchedCountHistogram metrics.HistogramVec
+
+	dispatchedCountOpts = metrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "services",
 		Name:      "dispatches",
 		Help:      "Histogram of cluster dispatches performed by the instance.",
 		Buckets:   []float64{1, 5, 10, 25, 50, 100, 250},
-	}, DispatchedCountLabels)
+	}
 
 	tracer = otel.Tracer("spicedb/internal/middleware")
 )
+
+func init() {
+	SetMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
+
+// SetMetricsFactory configures which metrics factory is used by this package's
+// interceptors and exported histogram.
+func SetMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	DispatchedCountHistogram = factory.HistogramVec(dispatchedCountOpts, DispatchedCountLabels)
+}
+
+// CollectDispatchedCountMetrics collects the dispatched-count histogram metrics
+// when the configured histogram is backed by Prometheus.
+func CollectDispatchedCountMetrics(ch chan<- prometheus.Metric) {
+	if collector, ok := metrics.AsPrometheusHistogramVec(DispatchedCountHistogram); ok {
+		collector.Collect(ch)
+	}
+}
 
 type reporter struct{}
 

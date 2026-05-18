@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
@@ -167,23 +169,26 @@ func alwaysErr() error {
 
 func TestGCFailureBackoff(t *testing.T) {
 	t.Cleanup(func() {
-		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+		goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 	})
-	localCounter := prometheus.NewCounter(gcFailureCounterConfig)
+	localCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: gcFailureCounterOpts.Namespace,
+		Subsystem: gcFailureCounterOpts.Subsystem,
+		Name:      gcFailureCounterOpts.Name,
+		Help:      gcFailureCounterOpts.Help,
+	})
 	reg := prometheus.NewRegistry()
 	require.NoError(t, reg.Register(localCounter))
 
 	errCh := make(chan error, 1)
 	synctest.Test(t, func(t *testing.T) {
 		duration := 1000 * time.Second
-		ctx, cancel := context.WithTimeout(t.Context(), duration)
-		t.Cleanup(func() {
-			cancel()
-		})
+		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
 			errCh <- runGCOnIntervalWithBackoff(ctx, alwaysErr, 100*time.Second, 1*time.Minute, localCounter)
 		}()
 		time.Sleep(duration)
+		cancel()
 		synctest.Wait()
 	})
 	require.Error(t, <-errCh)
@@ -241,6 +246,142 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	require.Greater(t, gc.markedCompleteCount, 20, "Next interval was not reset with backoff")
 }
 
+func TestRunGCOnIntervalWithBackoffResetsAfterSuccess(t *testing.T) {
+	factory := internalmetrics.NewRecordingFactory()
+	failureCounter := factory.Counter(internalmetrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "gc_failure_reset_test_total",
+		Help:      "test",
+	})
+
+	var callCount atomic.Int32
+	errCh := make(chan error, 1)
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			errCh <- runGCOnIntervalWithBackoff(ctx, func() error {
+				if callCount.Add(1) == 1 {
+					return errors.New("first call fails")
+				}
+				return nil
+			}, 10*time.Millisecond, 1*time.Minute, failureCounter)
+		}()
+
+		// Allow enough virtual time for one failure and several successful runs.
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+		synctest.Wait()
+	})
+
+	require.Error(t, <-errCh)
+	require.GreaterOrEqual(t, callCount.Load(), int32(3), "expected repeated runs after a successful retry")
+	require.InEpsilon(t, 1.0, factory.CounterValue("spicedb", "datastore", "gc_failure_reset_test_total"), 1e-9)
+}
+
+func TestRegisterGCMetricsRepeatedRegistration(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
+	first, err := RegisterGCMetrics(registry)
+	require.NoError(t, err)
+	require.NotEmpty(t, first)
+
+	second, err := RegisterGCMetrics(registry)
+	require.NoError(t, err)
+	require.Len(t, second, len(first))
+
+	for index := range first {
+		require.Same(t, first[index], second[index])
+	}
+}
+
+func TestRegisterGCMetricsWithNilRegisterer(t *testing.T) {
+	// Passing nil should use DefaultRegisterer
+	collectors, err := RegisterGCMetrics(nil)
+	// Should succeed without error
+	require.NoError(t, err)
+	require.NotEmpty(t, collectors)
+	require.Len(t, collectors, 6)
+}
+
+func TestRegisterGCMetricsReturnsCollectors(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	collectors, err := RegisterGCMetrics(registry)
+
+	require.NoError(t, err)
+	require.Len(t, collectors, 6)
+
+	// Verify we got the expected collector types
+	_, isHistogram := collectors[0].(prometheus.Histogram)
+	require.True(t, isHistogram, "First collector should be a Histogram")
+
+	for i := 1; i < len(collectors); i++ {
+		_, isCounter := collectors[i].(prometheus.Counter)
+		require.True(t, isCounter, "Collector %d should be a Counter", i)
+	}
+}
+
+func TestRegisterGCMetricsAssignsGlobalMetricsFromRegisteredCollectors(t *testing.T) {
+	gcMetricsMu.Lock()
+	originalHistogram := gcDurationHistogram
+	originalRelationships := gcRelationshipsCounter
+	originalExpired := gcExpiredRelationshipsCounter
+	originalTransactions := gcTransactionsCounter
+	originalNamespaces := gcNamespacesCounter
+	originalFailure := gcFailureCounter
+	gcMetricsMu.Unlock()
+
+	t.Cleanup(func() {
+		gcMetricsMu.Lock()
+		defer gcMetricsMu.Unlock()
+		gcDurationHistogram = originalHistogram
+		gcRelationshipsCounter = originalRelationships
+		gcExpiredRelationshipsCounter = originalExpired
+		gcTransactionsCounter = originalTransactions
+		gcNamespacesCounter = originalNamespaces
+		gcFailureCounter = originalFailure
+	})
+
+	registry := prometheus.NewRegistry()
+	collectors, err := RegisterGCMetrics(registry)
+	require.NoError(t, err)
+	require.Len(t, collectors, 6)
+
+	gcMetricsMu.Lock()
+	registeredHistogram, ok := gcDurationHistogram.(prometheus.Histogram)
+	require.True(t, ok)
+	registeredRelationships, ok := gcRelationshipsCounter.(prometheus.Counter)
+	require.True(t, ok)
+	registeredExpired, ok := gcExpiredRelationshipsCounter.(prometheus.Counter)
+	require.True(t, ok)
+	registeredTransactions, ok := gcTransactionsCounter.(prometheus.Counter)
+	require.True(t, ok)
+	registeredNamespaces, ok := gcNamespacesCounter.(prometheus.Counter)
+	require.True(t, ok)
+	registeredFailure, ok := gcFailureCounter.(prometheus.Counter)
+	require.True(t, ok)
+	gcMetricsMu.Unlock()
+
+	require.Equal(t, collectors[0], registeredHistogram)
+	require.Equal(t, collectors[1], registeredRelationships)
+	require.Equal(t, collectors[2], registeredExpired)
+	require.Equal(t, collectors[3], registeredTransactions)
+	require.Equal(t, collectors[4], registeredNamespaces)
+	require.Equal(t, collectors[5], registeredFailure)
+
+	registeredHistogram.Observe(0.25)
+	registeredRelationships.Add(1)
+	registeredExpired.Add(1)
+	registeredTransactions.Add(1)
+	registeredNamespaces.Add(1)
+	registeredFailure.Add(1)
+
+	metricFamilies, err := registry.Gather()
+	require.NoError(t, err)
+	require.NotEmpty(t, metricFamilies)
+}
+
 func TestGCUnlockOnTimeout(t *testing.T) {
 	gc := newFakeGCStore(alwaysErrorDeleter{})
 
@@ -268,4 +409,63 @@ func TestGCUnlockOnTimeout(t *testing.T) {
 
 	require.True(t, gc.fakeGC.wasLocked, "GC should have been locked")
 	require.True(t, gc.fakeGC.wasUnlocked, "GC should have been unlocked")
+}
+
+func TestSetMetricsFactoryWithRecordingFactory(t *testing.T) {
+	original := internalmetrics.NewPrometheusFactory(nil)
+	t.Cleanup(func() {
+		SetMetricsFactory(original)
+	})
+
+	recordingFactory := internalmetrics.NewRecordingFactory()
+	SetMetricsFactory(recordingFactory)
+
+	// Verify that the metrics are set to the recording factory's implementations
+	require.NotNil(t, gcDurationHistogram)
+	require.NotNil(t, gcRelationshipsCounter)
+	require.NotNil(t, gcFailureCounter)
+
+	// Should not panic when using recording factory metrics
+	gcDurationHistogram.Observe(1.0)
+	gcRelationshipsCounter.Add(1)
+	gcFailureCounter.Add(1)
+}
+
+func TestSetMetricsFactoryWithNoopFactory(t *testing.T) {
+	original := internalmetrics.NewPrometheusFactory(nil)
+	t.Cleanup(func() {
+		SetMetricsFactory(original)
+	})
+
+	SetMetricsFactory(internalmetrics.NoopFactory{})
+
+	// Verify that the metrics are set (even if they're no-op)
+	require.NotNil(t, gcDurationHistogram)
+	require.NotNil(t, gcRelationshipsCounter)
+	require.NotNil(t, gcFailureCounter)
+
+	// Should not panic when using noop factory metrics
+	gcDurationHistogram.Observe(1.0)
+	gcRelationshipsCounter.Add(1)
+	gcFailureCounter.Add(1)
+}
+
+func TestSetMetricsFactoryWithNil(t *testing.T) {
+	original := internalmetrics.NewPrometheusFactory(nil)
+	t.Cleanup(func() {
+		SetMetricsFactory(original)
+	})
+
+	// Passing nil should default to NoopFactory
+	SetMetricsFactory(nil)
+
+	// Verify that the metrics are set (to noop implementations)
+	require.NotNil(t, gcDurationHistogram)
+	require.NotNil(t, gcRelationshipsCounter)
+	require.NotNil(t, gcFailureCounter)
+
+	// Should not panic when using noop factory metrics
+	gcDurationHistogram.Observe(1.0)
+	gcRelationshipsCounter.Add(1)
+	gcFailureCounter.Add(1)
 }

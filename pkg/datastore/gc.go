@@ -3,6 +3,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -11,70 +12,173 @@ import (
 	"go.opentelemetry.io/otel"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 var gcTracer = otel.Tracer("spicedb/pkg/datastore")
 
+var gcMetricsMu sync.Mutex
+
 var (
-	gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+	gcDurationHistogram           internalmetrics.Histogram // GUARDED_BY(gcMetricsMu)
+	gcRelationshipsCounter        internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcExpiredRelationshipsCounter internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcTransactionsCounter         internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcNamespacesCounter           internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+	gcFailureCounter              internalmetrics.Counter   // GUARDED_BY(gcMetricsMu)
+
+	gcDurationHistogramOpts = internalmetrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_duration_seconds",
 		Help:      "The duration of datastore garbage collection.",
 		Buckets:   []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
-	})
+	}
 
-	gcRelationshipsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcRelationshipsCounterOpts = internalmetrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_relationships_total",
 		Help:      "The number of stale relationships deleted by the datastore garbage collection.",
-	})
+	}
 
-	gcExpiredRelationshipsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcExpiredRelationshipsCounterOpts = internalmetrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_expired_relationships_total",
 		Help:      "The number of expired relationships deleted by the datastore garbage collection.",
-	})
+	}
 
-	gcTransactionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcTransactionsCounterOpts = internalmetrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_transactions_total",
 		Help:      "The number of stale transactions deleted by the datastore garbage collection.",
-	})
+	}
 
-	gcNamespacesCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcNamespacesCounterOpts = internalmetrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_namespaces_total",
 		Help:      "The number of stale namespaces deleted by the datastore garbage collection.",
-	})
+	}
 
-	gcFailureCounterConfig = prometheus.CounterOpts{
+	gcFailureCounterOpts = internalmetrics.Opts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_failure_total",
 		Help:      "The number of failed runs of the datastore garbage collection.",
 	}
-	gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
 )
 
-// RegisterGCMetrics registers garbage collection metrics to the default
-// registry and returns them (so that they be unregistered).
-func RegisterGCMetrics() ([]prometheus.Collector, error) {
-	collectors := []prometheus.Collector{
-		gcDurationHistogram,
-		gcRelationshipsCounter,
-		gcTransactionsCounter,
-		gcNamespacesCounter,
-		gcFailureCounter,
+func init() {
+	SetMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
+}
+
+// SetMetricsFactory configures which metrics factory is used by this package's
+// runtime garbage collection metrics.
+func SetMetricsFactory(factory internalmetrics.Factory) {
+	if factory == nil {
+		factory = internalmetrics.NoopFactory{}
 	}
-	for _, metric := range collectors {
-		if err := prometheus.Register(metric); err != nil {
-			return nil, fmt.Errorf("failed to register GC metric: %w", err)
+
+	gcMetricsMu.Lock()
+	defer gcMetricsMu.Unlock()
+
+	gcDurationHistogram = factory.Histogram(gcDurationHistogramOpts)
+	gcRelationshipsCounter = factory.Counter(gcRelationshipsCounterOpts)
+	gcExpiredRelationshipsCounter = factory.Counter(gcExpiredRelationshipsCounterOpts)
+	gcTransactionsCounter = factory.Counter(gcTransactionsCounterOpts)
+	gcNamespacesCounter = factory.Counter(gcNamespacesCounterOpts)
+	gcFailureCounter = factory.Counter(gcFailureCounterOpts)
+}
+
+func gcPrometheusCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: gcDurationHistogramOpts.Namespace,
+			Subsystem: gcDurationHistogramOpts.Subsystem,
+			Name:      gcDurationHistogramOpts.Name,
+			Help:      gcDurationHistogramOpts.Help,
+			Buckets:   gcDurationHistogramOpts.Buckets,
+		}),
+		prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: gcRelationshipsCounterOpts.Namespace,
+			Subsystem: gcRelationshipsCounterOpts.Subsystem,
+			Name:      gcRelationshipsCounterOpts.Name,
+			Help:      gcRelationshipsCounterOpts.Help,
+		}),
+		prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: gcExpiredRelationshipsCounterOpts.Namespace,
+			Subsystem: gcExpiredRelationshipsCounterOpts.Subsystem,
+			Name:      gcExpiredRelationshipsCounterOpts.Name,
+			Help:      gcExpiredRelationshipsCounterOpts.Help,
+		}),
+		prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: gcTransactionsCounterOpts.Namespace,
+			Subsystem: gcTransactionsCounterOpts.Subsystem,
+			Name:      gcTransactionsCounterOpts.Name,
+			Help:      gcTransactionsCounterOpts.Help,
+		}),
+		prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: gcNamespacesCounterOpts.Namespace,
+			Subsystem: gcNamespacesCounterOpts.Subsystem,
+			Name:      gcNamespacesCounterOpts.Name,
+			Help:      gcNamespacesCounterOpts.Help,
+		}),
+		prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: gcFailureCounterOpts.Namespace,
+			Subsystem: gcFailureCounterOpts.Subsystem,
+			Name:      gcFailureCounterOpts.Name,
+			Help:      gcFailureCounterOpts.Help,
+		}),
+	}
+}
+
+// RegisterGCMetrics registers garbage collection metrics to the supplied
+// registerer and returns the registered collectors so they can be
+// unregistered when the datastore is closed.
+//
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+//
+// AlreadyRegisteredError is tolerated: when another caller has already
+// registered one of these metrics the existing collector is reused.  This
+// keeps the function idempotent when, for example, a primary and a replica
+// datastore are created in the same process.
+func RegisterGCMetrics(registerer prometheus.Registerer) ([]prometheus.Collector, error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	candidates := gcPrometheusCollectors()
+	collectors := make([]prometheus.Collector, 0, len(candidates))
+	for _, metric := range candidates {
+		registered, err := internalmetrics.RegisterOrReuse(registerer, metric)
+		if err != nil {
+			return collectors, fmt.Errorf("failed to register GC metric: %w", err)
 		}
+		collectors = append(collectors, registered)
+	}
+
+	gcMetricsMu.Lock()
+	defer gcMetricsMu.Unlock()
+
+	if h, ok := collectors[0].(prometheus.Histogram); ok {
+		gcDurationHistogram = h
+	}
+	if c, ok := collectors[1].(prometheus.Counter); ok {
+		gcRelationshipsCounter = c
+	}
+	if c, ok := collectors[2].(prometheus.Counter); ok {
+		gcExpiredRelationshipsCounter = c
+	}
+	if c, ok := collectors[3].(prometheus.Counter); ok {
+		gcTransactionsCounter = c
+	}
+	if c, ok := collectors[4].(prometheus.Counter); ok {
+		gcNamespacesCounter = c
+	}
+	if c, ok := collectors[5].(prometheus.Counter); ok {
+		gcFailureCounter = c
 	}
 
 	return collectors, nil
@@ -162,7 +266,7 @@ func StartGarbageCollector(ctx context.Context, collectable GarbageCollectableDa
 	}, interval, timeout, gcFailureCounter)
 }
 
-func runGCOnIntervalWithBackoff(ctx context.Context, taskFn func() error, interval, timeout time.Duration, failureCounter prometheus.Counter) error {
+func runGCOnIntervalWithBackoff(ctx context.Context, taskFn func() error, interval, timeout time.Duration, failureCounter internalmetrics.Counter) error {
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
 	backoffInterval.MaxInterval = max(MaxGCInterval, interval)

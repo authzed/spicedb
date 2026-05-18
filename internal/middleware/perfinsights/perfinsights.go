@@ -9,7 +9,6 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -18,6 +17,7 @@ import (
 	"github.com/authzed/ctxkey"
 	"github.com/authzed/grpcutil"
 
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -61,14 +61,29 @@ func NoLabels() APIShapeLabels {
 //
 // To use make use of native histograms, a special flag must be set on Prometheus:
 // https://prometheus.io/docs/prometheus/latest/feature_flags/#native-histograms
-var APIShapeLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var apiShapeLatencyOpts = metrics.Opts{
 	Namespace:                   "spicedb",
 	Subsystem:                   "perf_insights",
 	Name:                        "api_shape_latency_seconds",
 	Help:                        "The latency of API calls, by shape",
 	Buckets:                     nil,
 	NativeHistogramBucketFactor: 1.1,
-}, append([]string{"api_kind"}, allLabels...))
+}
+
+var APIShapeLatency metrics.HistogramVec
+
+func init() {
+	SetMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
+
+// SetMetricsFactory configures which metrics factory is used by this package's
+// interceptors and exported latency histogram.
+func SetMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	APIShapeLatency = factory.HistogramVec(apiShapeLatencyOpts, append([]string{"api_kind"}, allLabels...))
+}
 
 var tracer = otel.Tracer("spicedb/internal/middleware")
 
@@ -81,7 +96,7 @@ func ObserveShapeLatency(ctx context.Context, methodName string, shape APIShapeL
 	observeShapeLatency(ctx, APIShapeLatency, methodName, shape, duration)
 }
 
-func observeShapeLatency(ctx context.Context, metric *prometheus.HistogramVec, methodName string, shape APIShapeLabels, duration time.Duration) {
+func observeShapeLatency(ctx context.Context, metric metrics.HistogramVec, methodName string, shape APIShapeLabels, duration time.Duration) {
 	ctx, span := tracer.Start(ctx, "perfInsights.observeShapeLatency")
 	defer span.End()
 	labels := buildLabels(methodName, shape)

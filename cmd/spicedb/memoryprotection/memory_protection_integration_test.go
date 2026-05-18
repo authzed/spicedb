@@ -33,9 +33,18 @@ func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 
 	serverToken := "mykey"
 	serveResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository:   "authzed/spicedb",
-		Tag:          "ci",
-		Cmd:          []string{"serve", "--log-level=debug", "--grpc-preshared-key", serverToken, "--telemetry-endpoint=\"\""},
+		Repository: "authzed/spicedb",
+		Tag:        "ci",
+		Cmd: []string{
+			"serve",
+			"--log-level=debug",
+			"--grpc-preshared-key", serverToken,
+			"--telemetry-endpoint", "",
+			// With very low GOMEMLIMIT values, percentage-based dispatch cache defaults
+			// can round down to zero and fail startup.
+			"--dispatch-cache-max-cost", "8KiB",
+			"--dispatch-cluster-cache-max-cost", "8KiB",
+		},
 		ExposedPorts: []string{"50051/tcp"},
 		Env:          []string{"GOMEMLIMIT=1B"}, // NOTE: Absurdly low on purpose
 	}, func(config *docker.HostConfig) {

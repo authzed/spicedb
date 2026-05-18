@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -20,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/spanner"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -114,12 +116,13 @@ type Config struct {
 	FilterMaximumIDCount        uint16        `debugmap:"hidden"    default:"100"`
 
 	// Options
-	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`
-	WriteConnPool                  ConnPoolConfig `debugmap:"visible"`
-	ReadOnly                       bool           `debugmap:"visible"`
-	EnableDatastoreMetrics         bool           `debugmap:"visible"`
-	DisableStats                   bool           `debugmap:"visible"`
-	IncludeQueryParametersInTraces bool           `debugmap:"visible"`
+	ReadConnPool                   ConnPoolConfig        `debugmap:"visible"`
+	WriteConnPool                  ConnPoolConfig        `debugmap:"visible"`
+	ReadOnly                       bool                  `debugmap:"visible"`
+	EnableDatastoreMetrics         bool                  `debugmap:"visible"`
+	PrometheusRegisterer           prometheus.Registerer `debugmap:"hidden"`
+	DisableStats                   bool                  `debugmap:"visible"`
+	IncludeQueryParametersInTraces bool                  `debugmap:"visible"`
 
 	// Read Replicas
 	ReadReplicaConnPool ConnPoolConfig `debugmap:"visible"`
@@ -419,6 +422,8 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		o(opts)
 	}
 
+	proxy.SetMetricsFactory(internalmetrics.NewPrometheusFactory(opts.PrometheusRegisterer))
+
 	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
 		// Set the default follower read delay for postgres and mysql to 0 -
 		// this should only be set if read replicas are used.
@@ -600,6 +605,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		crdb.WatchConnectTimeout(opts.WatchConnectTimeout),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		crdb.WithPrometheusRegisterer(opts.PrometheusRegisterer),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),
 		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
@@ -651,6 +657,7 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 	return []postgres.Option{
 		postgres.EnableTracing(),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		postgres.WithPrometheusRegisterer(opts.PrometheusRegisterer),
 		postgres.MaxRetries(maxRetries),
 		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		postgres.WithColumnOptimization(opts.ExperimentalColumnOptimization),
@@ -799,6 +806,7 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 		mysql.MaxRetries(maxRetries),
 		mysql.OverrideLockWaitTimeout(1),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		mysql.WithPrometheusRegisterer(opts.PrometheusRegisterer),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		mysql.WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),

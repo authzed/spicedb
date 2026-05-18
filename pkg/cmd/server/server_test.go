@@ -528,7 +528,20 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{
+		Logger:                    logging.Logger,
+		AuthFunc:                  nil,
+		EnableVersionResponse:     false,
+		DispatcherForMiddleware:   nil,
+		EnableRequestLog:          false,
+		EnableResponseLog:         false,
+		DisableGRPCHistogram:      false,
+		MiddlewareServiceLabel:    "testing",
+		MismatchingZedTokenOption: consistency.TreatMismatchingTokensAsFullConsistency,
+		MemoryUsageProvider:       memoryprotection.NewNoopMemoryUsageProvider(),
+		unaryDatastoreMiddleware:  nil,
+		streamDatastoreMiddleware: nil,
+	}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultUnaryMiddleware(opt)
@@ -556,7 +569,20 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{
+		Logger:                    logging.Logger,
+		AuthFunc:                  nil,
+		EnableVersionResponse:     false,
+		DispatcherForMiddleware:   nil,
+		EnableRequestLog:          false,
+		EnableResponseLog:         false,
+		DisableGRPCHistogram:      false,
+		MiddlewareServiceLabel:    "testing",
+		MismatchingZedTokenOption: consistency.TreatMismatchingTokensAsFullConsistency,
+		MemoryUsageProvider:       memoryprotection.NewNoopMemoryUsageProvider(),
+		unaryDatastoreMiddleware:  nil,
+		streamDatastoreMiddleware: nil,
+	}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultStreamingMiddleware(opt)

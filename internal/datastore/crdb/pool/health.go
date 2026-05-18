@@ -7,24 +7,33 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
 	"github.com/authzed/jitterbug"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 const errorBurst = 2
 
-var healthyCRDBNodeCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+var healthyCRDBNodeCountGauge internalmetrics.Gauge
+
+var healthyNodesGaugeOpts = internalmetrics.Opts{
 	Name: "crdb_healthy_nodes",
 	Help: "the number of healthy crdb nodes detected by spicedb",
-})
+}
 
 func init() {
-	prometheus.MustRegister(healthyCRDBNodeCountGauge)
+	setHealthMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
+}
+
+func setHealthMetricsFactory(factory internalmetrics.Factory) {
+	if factory == nil {
+		factory = internalmetrics.NoopFactory{}
+	}
+	healthyCRDBNodeCountGauge = factory.Gauge(healthyNodesGaugeOpts)
 }
 
 // NodeHealthTracker detects changes in the node pool by polling the cluster periodically and recording

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"resenje.org/singleflight"
@@ -15,29 +13,37 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-var (
-	singleFlightCount       = promauto.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
-	singleFlightCountConfig = prometheus.CounterOpts{
-		Namespace: "spicedb",
-		Subsystem: "dispatch",
-		Name:      "single_flight_total",
-		Help:      "total number of dispatch requests that were single flighted",
-	}
-)
+var singleFlightCountOpts = metrics.Opts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "single_flight_total",
+	Help:      "total number of dispatch requests that were single flighted",
+}
 
 func New(delegate dispatch.Dispatcher, handler keys.Handler) dispatch.Dispatcher {
+	return NewWithMetricsFactory(delegate, handler, metrics.NewPrometheusFactory(nil))
+}
+
+func NewWithMetricsFactory(delegate dispatch.Dispatcher, handler keys.Handler, factory metrics.Factory) dispatch.Dispatcher {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+
 	return &Dispatcher{
-		delegate:   delegate,
-		keyHandler: handler,
+		delegate:          delegate,
+		keyHandler:        handler,
+		singleFlightCount: factory.CounterVec(singleFlightCountOpts, []string{"method", "shared"}),
 	}
 }
 
 type Dispatcher struct {
-	delegate   dispatch.Dispatcher
-	keyHandler keys.Handler
+	delegate          dispatch.Dispatcher
+	keyHandler        keys.Handler
+	singleFlightCount metrics.CounterVec
 
 	checkGroup  singleflight.Group[string, *v1.DispatchCheckResponse]
 	expandGroup singleflight.Group[string, *v1.DispatchExpandResponse]
@@ -61,7 +67,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
 		}
 
-		singleFlightCount.WithLabelValues("DispatchCheck", "missing").Inc()
+		d.singleFlightCount.WithLabelValues("DispatchCheck", "missing").Inc()
 		req.Metadata.TraversalBloom = tb
 		return d.delegate.DispatchCheck(ctx, req)
 	}
@@ -75,7 +81,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
 		log.Debug().Object("DispatchCheckRequest", req).Str("key", keyString).Msg("potential DispatchCheckRequest loop detected")
-		singleFlightCount.WithLabelValues("DispatchCheck", "loop").Inc()
+		d.singleFlightCount.WithLabelValues("DispatchCheck", "loop").Inc()
 		return d.delegate.DispatchCheck(ctx, req)
 	}
 
@@ -87,7 +93,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 		sharedResp = &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}
 	}
 
-	singleFlightCount.WithLabelValues("DispatchCheck", strconv.FormatBool(isShared)).Inc()
+	d.singleFlightCount.WithLabelValues("DispatchCheck", strconv.FormatBool(isShared)).Inc()
 	return sharedResp.CloneVT(), err
 }
 
@@ -109,7 +115,7 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 			return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
 		}
 
-		singleFlightCount.WithLabelValues("DispatchExpand", "missing").Inc()
+		d.singleFlightCount.WithLabelValues("DispatchExpand", "missing").Inc()
 		req.Metadata.TraversalBloom = tb
 		return d.delegate.DispatchExpand(ctx, req)
 	}
@@ -119,7 +125,7 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
 		log.Debug().Object("DispatchExpand", req).Str("key", keyString).Msg("potential DispatchExpand loop detected")
-		singleFlightCount.WithLabelValues("DispatchExpand", "loop").Inc()
+		d.singleFlightCount.WithLabelValues("DispatchExpand", "loop").Inc()
 		return d.delegate.DispatchExpand(ctx, req)
 	}
 
@@ -127,7 +133,7 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 		return d.delegate.DispatchExpand(innerCtx, req)
 	})
 
-	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()
+	d.singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	}
@@ -150,7 +156,7 @@ func (d *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream 
 	// Plan dispatches are not currently grouped via singleflight; record the
 	// passthrough so the metric series exists and can be compared against the
 	// other dispatch methods.
-	singleFlightCount.WithLabelValues("DispatchQueryPlan", "passthrough").Inc()
+	d.singleFlightCount.WithLabelValues("DispatchQueryPlan", "passthrough").Inc()
 	return d.delegate.DispatchQueryPlan(req, stream)
 }
 

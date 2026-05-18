@@ -26,41 +26,62 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	metrics "github.com/authzed/spicedb/internal/metrics"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_handler_total",
-	Help:      "which dispatcher handled a request",
-}, []string{"request_kind", "handler_name"})
+var (
+	dispatchCounter          metrics.CounterVec
+	hedgeWaitHistogram       metrics.HistogramVec
+	hedgeActualWaitHistogram metrics.HistogramVec
+	primaryDispatch          metrics.CounterVec
+)
 
-var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_hedge_wait_duration_seconds",
-	Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
-	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
-}, []string{"rpc"})
+var (
+	dispatchCounterOpts = metrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "dispatch",
+		Name:      "remote_dispatch_handler_total",
+		Help:      "which dispatcher handled a request",
+	}
+	hedgeWaitHistogramOpts = metrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "dispatch",
+		Name:      "remote_dispatch_hedge_wait_duration_seconds",
+		Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
+		Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
+	}
+	hedgeActualWaitHistogramOpts = metrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "dispatch",
+		Name:      "remote_dispatch_hedge_actual_wait_duration_seconds",
+		Help:      "distribution in seconds of actual wait time for hedging requests to the primary dispatcher when a secondary is active.",
+		Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
+	}
+	primaryDispatchOpts = metrics.Opts{
+		Namespace: "spicedb",
+		Subsystem: "dispatch",
+		Name:      "remote_dispatch_primary_total",
+		Help:      "indicates what was the outcome of a scheduled primary dispatch: dispatched, or cancelled",
+	}
+)
 
-var hedgeActualWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_hedge_actual_wait_duration_seconds",
-	Help:      "distribution in seconds of actual wait time for hedging requests to the primary dispatcher when a secondary is active.",
-	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
-}, []string{"rpc"})
+func init() {
+	setClusterDispatchMetricsFactory(metrics.NewPrometheusFactory(nil))
+}
 
-var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_primary_total",
-	Help:      "indicates what was the outcome of a scheduled primary dispatch: dispatched, or cancelled",
-}, []string{"cancelled", "rpc"})
+func setClusterDispatchMetricsFactory(factory metrics.Factory) {
+	if factory == nil {
+		factory = metrics.NoopFactory{}
+	}
+	dispatchCounter = factory.CounterVec(dispatchCounterOpts, []string{"request_kind", "handler_name"})
+	hedgeWaitHistogram = factory.HistogramVec(hedgeWaitHistogramOpts, []string{"rpc"})
+	hedgeActualWaitHistogram = factory.HistogramVec(hedgeActualWaitHistogramOpts, []string{"rpc"})
+	primaryDispatch = factory.CounterVec(primaryDispatchOpts, []string{"cancelled", "rpc"})
+}
 
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
@@ -76,13 +97,6 @@ const minimumDigestCount = 10
 const defaultTDigestCompression = float64(1000)
 
 var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
-
-func init() {
-	prometheus.MustRegister(dispatchCounter)
-	prometheus.MustRegister(hedgeWaitHistogram)
-	prometheus.MustRegister(hedgeActualWaitHistogram)
-	prometheus.MustRegister(primaryDispatch)
-}
 
 type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
@@ -100,6 +114,10 @@ type ClusterDispatcherConfig struct {
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
 	// before it should timeout.
 	DispatchOverallTimeout time.Duration
+
+	// PrometheusRegisterer is the registerer used to publish cluster-dispatch
+	// metrics. If nil, prometheus.DefaultRegisterer is used.
+	PrometheusRegisterer prometheus.Registerer
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -123,6 +141,8 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
 	}
+
+	setClusterDispatchMetricsFactory(metrics.NewPrometheusFactory(config.PrometheusRegisterer))
 
 	dispatchOverallTimeout := config.DispatchOverallTimeout
 	if dispatchOverallTimeout <= 0 {

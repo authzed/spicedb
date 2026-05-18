@@ -12,6 +12,7 @@ import (
 	"github.com/caio/go-tdigest/v4"
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -29,6 +30,23 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func TestNewClusterDispatcherRepeatedRegistration(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
+	first, err := NewClusterDispatcher(nil, nil, ClusterDispatcherConfig{
+		PrometheusRegisterer: registry,
+	}, nil, nil, 0)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+
+	// Repeated construction with the same registry must not return an error.
+	second, err := NewClusterDispatcher(nil, nil, ClusterDispatcherConfig{
+		PrometheusRegisterer: registry,
+	}, nil, nil, 0)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+}
 
 type fakeDispatchSvc struct {
 	v1.UnimplementedDispatchServiceServer

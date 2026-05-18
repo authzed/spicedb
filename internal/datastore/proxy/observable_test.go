@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -13,45 +11,49 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var testRev = revisions.NewForTransactionID(42)
+var (
+	testRev             = revisions.NewForTransactionID(42)
+	proxyMetricsFactory *metrics.RecordingFactory
+)
 
 func floatPtr(f float64) *float64 { return &f }
 
-func histogramSampleCount(m prometheus.Metric) uint64 {
-	pb := &dto.Metric{}
-	_ = m.Write(pb)
-	return pb.GetHistogram().GetSampleCount()
-}
-
-func histogramSampleSum(m prometheus.Metric) float64 {
-	pb := &dto.Metric{}
-	_ = m.Write(pb)
-	return pb.GetHistogram().GetSampleSum()
-}
-
 func requireObservedLatency(t *testing.T, operation string, f func()) {
 	t.Helper()
-	obs := queryLatency.WithLabelValues(operation, "(none)")
-	before := histogramSampleCount(obs.(prometheus.Metric))
+	before := proxyMetricsFactory.HistogramVecCount("spicedb", "datastore", "query_latency", operation, "(none)")
 	f()
-	after := histogramSampleCount(obs.(prometheus.Metric))
+	after := proxyMetricsFactory.HistogramVecCount("spicedb", "datastore", "query_latency", operation, "(none)")
 	require.Greater(t, after, before, "expected latency metric for %s", operation)
 }
 
 func requireObservedRelationshipCount(t *testing.T, expectedCount float64, f func()) {
 	t.Helper()
-	beforeCount := histogramSampleCount(loadedRelationshipCount)
-	beforeSum := histogramSampleSum(loadedRelationshipCount)
+	beforeCount := proxyMetricsFactory.HistogramCount("spicedb", "datastore", "loaded_relationships_count")
+	beforeSum := proxyMetricsFactory.HistogramSum("spicedb", "datastore", "loaded_relationships_count")
 	f()
-	afterCount := histogramSampleCount(loadedRelationshipCount)
-	afterSum := histogramSampleSum(loadedRelationshipCount)
+	afterCount := proxyMetricsFactory.HistogramCount("spicedb", "datastore", "loaded_relationships_count")
+	afterSum := proxyMetricsFactory.HistogramSum("spicedb", "datastore", "loaded_relationships_count")
 	require.Greater(t, afterCount, beforeCount, "expected loadedRelationshipCount metric to be recorded")
 	require.InDelta(t, expectedCount, afterSum-beforeSum, 0.01, "expected relationship count to match")
+}
+
+func resetProxyMetricsForTest(t *testing.T) {
+	t.Helper()
+	proxyMetricsFactory = metrics.NewRecordingFactory()
+	setObservableMetricsFactory(proxyMetricsFactory)
+	setCheckingReplicatedMetricsFactory(proxyMetricsFactory)
+	setStrictReplicatedMetricsFactory(proxyMetricsFactory)
+	t.Cleanup(func() {
+		setObservableMetricsFactory(metrics.NewPrometheusFactory(nil))
+		setCheckingReplicatedMetricsFactory(metrics.NewPrometheusFactory(nil))
+		setStrictReplicatedMetricsFactory(metrics.NewPrometheusFactory(nil))
+	})
 }
 
 func newMocks() (*proxy_test.MockDatastore, *proxy_test.MockReader, *proxy_test.MockReadWriteTransaction) {
@@ -139,6 +141,7 @@ func TestObservableProxy_DatastoreMethodsWithMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			resetProxyMetricsForTest(t)
 			dsMock, _, _ := newMocks()
 			tt.setupMock(dsMock)
 			sut := NewObservableDatastoreProxy(dsMock)
@@ -151,6 +154,7 @@ func TestObservableProxy_DatastoreMethodsWithMetrics(t *testing.T) {
 
 func TestObservableProxy_DatastorePassthroughMethods(t *testing.T) {
 	t.Run("RevisionFromString", func(t *testing.T) {
+		resetProxyMetricsForTest(t)
 		dsMock, _, _ := newMocks()
 		dsMock.On("RevisionFromString", "42").Return(testRev, nil).Once()
 		sut := NewObservableDatastoreProxy(dsMock)
@@ -162,6 +166,7 @@ func TestObservableProxy_DatastorePassthroughMethods(t *testing.T) {
 	})
 
 	t.Run("Watch", func(t *testing.T) {
+		resetProxyMetricsForTest(t)
 		dsMock, _, _ := newMocks()
 		changesCh := make(<-chan datastore.RevisionChanges)
 		errCh := make(<-chan error)
@@ -175,6 +180,7 @@ func TestObservableProxy_DatastorePassthroughMethods(t *testing.T) {
 	})
 
 	t.Run("Close", func(t *testing.T) {
+		resetProxyMetricsForTest(t)
 		dsMock, _, _ := newMocks()
 		dsMock.On("Close").Return(nil).Once()
 
@@ -184,6 +190,7 @@ func TestObservableProxy_DatastorePassthroughMethods(t *testing.T) {
 	})
 
 	t.Run("OfflineFeatures", func(t *testing.T) {
+		resetProxyMetricsForTest(t)
 		dsMock, _, _ := newMocks()
 		dsMock.On("OfflineFeatures").Return(&datastore.Features{}, nil).Once()
 		sut := NewObservableDatastoreProxy(dsMock)
@@ -193,6 +200,7 @@ func TestObservableProxy_DatastorePassthroughMethods(t *testing.T) {
 	})
 
 	t.Run("Unwrap", func(t *testing.T) {
+		resetProxyMetricsForTest(t)
 		dsMock, _, _ := newMocks()
 		sut := NewObservableDatastoreProxy(dsMock)
 		require.Equal(t, dsMock, sut.(datastore.UnwrappableDatastore).Unwrap())
@@ -342,6 +350,7 @@ func TestObservableProxy_ReaderMethodsWithMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			resetProxyMetricsForTest(t)
 			dsMock, readerMock, _ := newMocks()
 			tt.setupMock(readerMock)
 
@@ -473,6 +482,7 @@ func TestObservableProxy_RWTMethodsWithMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			resetProxyMetricsForTest(t)
 			dsMock, _, rwtMock := newMocks()
 			tt.setupMock(rwtMock)
 			sut := NewObservableDatastoreProxy(dsMock)

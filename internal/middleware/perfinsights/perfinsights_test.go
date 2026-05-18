@@ -16,6 +16,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
+
+	"github.com/authzed/spicedb/internal/metrics"
 )
 
 func TestBuildLabels(t *testing.T) {
@@ -65,8 +67,8 @@ func TestBuildLabels(t *testing.T) {
 
 func TestObserveShapeLatency(t *testing.T) {
 	reg := prometheus.NewRegistry()
-
-	metric := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	factory := metrics.NewPrometheusFactory(reg)
+	metric := factory.HistogramVec(metrics.Opts{
 		Namespace:                   "spicedb",
 		Subsystem:                   "perf_insights",
 		Name:                        "api_shape_latency_seconds",
@@ -74,7 +76,6 @@ func TestObserveShapeLatency(t *testing.T) {
 		Buckets:                     nil,
 		NativeHistogramBucketFactor: 1.1,
 	}, append([]string{"api_kind"}, allLabels...))
-	require.NoError(t, reg.Register(metric))
 
 	// Report some data.
 	observeShapeLatency(t.Context(), metric, "testMethod", APIShapeLabels{

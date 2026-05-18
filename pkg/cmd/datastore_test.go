@@ -19,7 +19,6 @@ func TestExecuteGC(t *testing.T) {
 			name: "cockroachdb does not support garbage collection",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
 				cfg.Engine = "cockroachdb"
 				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
 				db := runningDatastore.NewDatabase(t)
@@ -49,7 +48,6 @@ func TestExecuteRepair(t *testing.T) {
 			name: "cockroachdb does not support repair",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
 				cfg.Engine = "cockroachdb"
 				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
 				db := runningDatastore.NewDatabase(t)
@@ -62,7 +60,6 @@ func TestExecuteRepair(t *testing.T) {
 			name: "postgres supports repair",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
 				cfg.Engine = "postgres"
 				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
 				db := runningDatastore.NewDatabase(t)

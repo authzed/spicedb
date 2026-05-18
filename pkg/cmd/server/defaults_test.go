@@ -25,18 +25,18 @@ func TestWithDatastore(t *testing.T) {
 	var someDispatcher dispatch.Dispatcher
 
 	opts := MiddlewareOption{
-		someLogger,
-		someAuthFunc,
-		true,
-		someDispatcher,
-		true,
-		true,
-		false,
-		"service",
-		consistency.TreatMismatchingTokensAsError,
-		memoryprotection.NewNoopMemoryUsageProvider(),
-		nil,
-		nil,
+		Logger:                    someLogger,
+		AuthFunc:                  someAuthFunc,
+		EnableVersionResponse:     true,
+		DispatcherForMiddleware:   someDispatcher,
+		EnableRequestLog:          true,
+		EnableResponseLog:         true,
+		DisableGRPCHistogram:      false,
+		MiddlewareServiceLabel:    "service",
+		MismatchingZedTokenOption: consistency.TreatMismatchingTokensAsError,
+		MemoryUsageProvider:       memoryprotection.NewNoopMemoryUsageProvider(),
+		unaryDatastoreMiddleware:  nil,
+		streamDatastoreMiddleware: nil,
 	}
 
 	someDS, err := memdb.NewMemdbDatastore(0, time.Hour, time.Hour)
@@ -68,18 +68,18 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 	var someDispatcher dispatch.Dispatcher
 
 	opts := MiddlewareOption{
-		someLogger,
-		someAuthFunc,
-		true,
-		someDispatcher,
-		true,
-		true,
-		false,
-		"service",
-		consistency.TreatMismatchingTokensAsError,
-		memoryprotection.NewNoopMemoryUsageProvider(),
-		nil,
-		nil,
+		Logger:                    someLogger,
+		AuthFunc:                  someAuthFunc,
+		EnableVersionResponse:     true,
+		DispatcherForMiddleware:   someDispatcher,
+		EnableRequestLog:          true,
+		EnableResponseLog:         true,
+		DisableGRPCHistogram:      false,
+		MiddlewareServiceLabel:    "service",
+		MismatchingZedTokenOption: consistency.TreatMismatchingTokensAsError,
+		MemoryUsageProvider:       memoryprotection.NewNoopMemoryUsageProvider(),
+		unaryDatastoreMiddleware:  nil,
+		streamDatastoreMiddleware: nil,
 	}
 
 	someMiddleware := pertoken.NewMiddleware(nil, caveattypes.Default.TypeSet)

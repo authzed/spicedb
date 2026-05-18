@@ -5,10 +5,12 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
+
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 )
 
 func init() {
-	prometheus.MustRegister(defaultCollector)
+	internalmetrics.MustRegisterOrReuse(prometheus.DefaultRegisterer, defaultCollector)
 }
 
 const (

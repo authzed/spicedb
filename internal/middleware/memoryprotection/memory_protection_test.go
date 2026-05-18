@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/internal/metrics"
 )
 
 func TestNew(t *testing.T) {
@@ -63,28 +63,11 @@ func TestMemoryProtectionMiddleware_RecordRejection(t *testing.T) {
 		goleak.VerifyNone(t)
 	})
 
-	// Create a custom registry for testing
-	registry := prometheus.NewRegistry()
-
-	// Register our metrics with the test registry
-	testRequestsProcessed := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "spicedb",
-		Subsystem: "memory_middleware",
-		Name:      "requests_processed_total",
-		Help:      "Total requests processed by the memory protection middleware (flag --memory-protection-enabled)",
-	}, []string{"endpoint", "accepted"})
-	registry.MustRegister(testRequestsProcessed)
-
-	// Replace the global counter with our test counter for this test
-	originalCounter := RequestsProcessed
-	RequestsProcessed = testRequestsProcessed
-	defer func() {
-		RequestsProcessed = originalCounter
-	}()
+	rf := metrics.NewRecordingFactory()
 
 	lp := &HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 
-	am := New(lp, "test")
+	am := NewWithMetricsFactory(lp, "test", rf)
 
 	// Test API endpoint
 	endpointType := am.recordMetric("/authzed.api.v1.PermissionsService/CheckPermission", true)
@@ -94,11 +77,11 @@ func TestMemoryProtectionMiddleware_RecordRejection(t *testing.T) {
 	endpointType = am.recordMetric("/dispatch.v1.DispatchService/DispatchCheck", false)
 	require.Equal(t, "dispatch", endpointType)
 
-	gaugeValue := testutil.ToFloat64(testRequestsProcessed.WithLabelValues("api", "true"))
-	require.Equal(t, float64(1), gaugeValue) //nolint:testifylint // these values aren't being operated on
+	apiAcceptedCount := rf.CounterVecValue("spicedb", "memory_middleware", "requests_processed_total", "api", "true")
+	require.Equal(t, float64(1), apiAcceptedCount) //nolint:testifylint // these values aren't being operated on
 
-	gaugeValue = testutil.ToFloat64(testRequestsProcessed.WithLabelValues("dispatch", "false"))
-	require.Equal(t, float64(1), gaugeValue) //nolint:testifylint // these values aren't being operated on
+	dispatchRejectedCount := rf.CounterVecValue("spicedb", "memory_middleware", "requests_processed_total", "dispatch", "false")
+	require.Equal(t, float64(1), dispatchRejectedCount) //nolint:testifylint // these values aren't being operated on
 }
 
 type memoryProtectionTestServer struct {

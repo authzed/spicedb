@@ -29,6 +29,7 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -72,6 +73,8 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	}
 
 	includeQueryParametersInTraces := config.includeQueryParametersInTraces
+	pool.SetMetricsFactory(internalmetrics.NewPrometheusFactory(config.prometheusRegisterer))
+
 	readPoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
@@ -213,7 +216,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
-	err = ds.registerPrometheusCollectors(config.enablePrometheusStats)
+	err = ds.registerPrometheusCollectors(config.enablePrometheusStats, config.prometheusRegisterer)
 	if err != nil {
 		ds.cancel()
 		return nil, err
@@ -264,6 +267,7 @@ type crdbDatastore struct {
 	dburl                        string
 	readPool, writePool          *pool.RetryPool
 	collectors                   []prometheus.Collector
+	prometheusRegisterer         prometheus.Registerer
 	watchBufferLength            uint16
 	watchChangeBufferMaximumSize uint64
 	watchBufferWriteTimeout      time.Duration
@@ -481,9 +485,12 @@ func (cds *crdbDatastore) Close() error {
 	}
 	cds.readPool.Close()
 	cds.writePool.Close()
+	r := cds.prometheusRegisterer
+	if r == nil {
+		r = prometheus.DefaultRegisterer
+	}
 	for _, collector := range cds.collectors {
-		ok := prometheus.Unregister(collector)
-		if !ok {
+		if ok := r.Unregister(collector); !ok {
 			errs = append(errs, errors.New("could not unregister collector for CRDB datastore"))
 		}
 	}
@@ -658,7 +665,11 @@ func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int
 	return gcSeconds * 1_000_000_000, nil
 }
 
-func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats bool) error {
+func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats bool, registerer prometheus.Registerer) error {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	cds.prometheusRegisterer = registerer
 	if !enablePrometheusStats {
 		return nil
 	}
@@ -667,21 +678,21 @@ func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats boo
 		"db_name":    "spicedb",
 		"pool_usage": "read",
 	})
-
-	if err := prometheus.Register(readCollector); err != nil {
+	registered, err := internalmetrics.RegisterOrReuse(registerer, readCollector)
+	if err != nil {
 		return fmt.Errorf("failed to register prometheus read collector: %w", err)
 	}
-	cds.collectors = append(cds.collectors, readCollector)
+	cds.collectors = append(cds.collectors, registered)
 
 	writeCollector := pgxpoolprometheus.NewCollector(cds.writePool, map[string]string{
 		"db_name":    "spicedb",
 		"pool_usage": "write",
 	})
-
-	if err := prometheus.Register(writeCollector); err != nil {
+	registeredWrite, err := internalmetrics.RegisterOrReuse(registerer, writeCollector)
+	if err != nil {
 		return fmt.Errorf("failed to register prometheus write collector: %w", err)
 	}
-	cds.collectors = append(cds.collectors, writeCollector)
+	cds.collectors = append(cds.collectors, registeredWrite)
 
 	return nil
 }

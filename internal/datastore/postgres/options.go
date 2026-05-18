@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -28,6 +30,7 @@ type postgresOptions struct {
 	filterMaximumIDCount         uint16
 
 	enablePrometheusStats          bool
+	prometheusRegisterer           prometheus.Registerer
 	analyzeBeforeStatistics        bool
 	gcEnabled                      bool
 	readStrictMode                 bool
@@ -351,6 +354,13 @@ func MaxRetries(maxRetries uint8) Option {
 // Prometheus metrics are disabled by default.
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(po *postgresOptions) { po.enablePrometheusStats = enablePrometheusStats }
+}
+
+// WithPrometheusRegisterer sets the prometheus.Registerer used to register
+// datastore metrics.  When not set (or nil), prometheus.DefaultRegisterer is
+// used.
+func WithPrometheusRegisterer(r prometheus.Registerer) Option {
+	return func(po *postgresOptions) { po.prometheusRegisterer = r }
 }
 
 // EnableTracing enables trace-level logging for the Postgres clients being

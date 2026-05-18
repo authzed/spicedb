@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -30,6 +31,7 @@ type Option func(*optionState)
 type optionState struct {
 	metricsEnabled                               bool
 	prometheusSubsystem                          string
+	metricsFactory                               metrics.Factory
 	upstreamAddr                                 string
 	upstreamCAPath                               string
 	grpcPresharedKey                             string
@@ -68,6 +70,17 @@ func MetricsEnabled(enabled bool) Option {
 func PrometheusSubsystem(name string) Option {
 	return func(state *optionState) {
 		state.prometheusSubsystem = name
+	}
+}
+
+// MetricsFactory sets the metrics.Factory used to create and register
+// caching-dispatcher metrics.  When set, MetricsEnabled is ignored; the
+// caller is responsible for choosing a Noop factory when metrics are not
+// desired.  When not set, the legacy metricsEnabled / prometheusSubsystem
+// path is used.
+func MetricsFactory(f metrics.Factory) Option {
+	return func(state *optionState) {
+		state.metricsFactory = f
 	}
 }
 
@@ -202,7 +215,15 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	if opts.metricsFactory == nil {
+		if opts.metricsEnabled {
+			opts.metricsFactory = metrics.NewPrometheusFactory(nil) // falls back to DefaultRegisterer
+		} else {
+			opts.metricsFactory = metrics.NoopFactory{}
+		}
+	}
+
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsFactory, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +271,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
-		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
+		redispatch = singleflight.NewWithMetricsFactory(redispatch, &keys.CanonicalKeyHandler{}, opts.metricsFactory)
 	} else {
 		// If an upstream is specified, create a cluster dispatcher.
 		if opts.upstreamCAPath != "" {
@@ -316,7 +337,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, err
 		}
-		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
+		redispatch = singleflight.NewWithMetricsFactory(re, &keys.CanonicalKeyHandler{}, opts.metricsFactory)
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

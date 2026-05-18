@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -44,6 +46,7 @@ type mysqlOptions struct {
 	watchBufferWriteTimeout      time.Duration
 	tablePrefix                  string
 	enablePrometheusStats        bool
+	prometheusRegisterer         prometheus.Registerer
 	maxOpenConns                 int
 	connMaxIdleTime              time.Duration
 	connMaxLifetime              time.Duration
@@ -201,6 +204,17 @@ func TablePrefix(prefix string) Option {
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(mo *mysqlOptions) {
 		mo.enablePrometheusStats = enablePrometheusStats
+	}
+}
+
+// WithPrometheusRegisterer sets the prometheus.Registerer used to register
+// datastore metrics.  When not set (or nil), prometheus.DefaultRegisterer is
+// used.  Inject a per-test or per-server registry to prevent duplicate-
+// metric registration errors when multiple datastore instances share a
+// process.
+func WithPrometheusRegisterer(r prometheus.Registerer) Option {
+	return func(mo *mysqlOptions) {
+		mo.prometheusRegisterer = r
 	}
 }
 

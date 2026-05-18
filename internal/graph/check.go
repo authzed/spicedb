@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -14,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
+	internalmetrics "github.com/authzed/spicedb/internal/metrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -33,16 +33,26 @@ import (
 
 var tracer = otel.Tracer("spicedb/internal/graph/check")
 
-var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+var dispatchChunkCountHistogram internalmetrics.Histogram
+
+var dispatchChunkCountHistogramOpts = internalmetrics.Opts{
 	Name:    "spicedb_check_dispatch_chunk_count",
 	Help:    "number of chunks when dispatching in check",
 	Buckets: []float64{1, 2, 3, 5, 10, 25, 100, 250},
-})
+}
 
 const noOriginalRelation = ""
 
 func init() {
-	prometheus.MustRegister(dispatchChunkCountHistogram)
+	SetMetricsFactory(internalmetrics.NewPrometheusFactory(nil))
+}
+
+// SetMetricsFactory configures which metrics factory is used by this package.
+func SetMetricsFactory(factory internalmetrics.Factory) {
+	if factory == nil {
+		factory = internalmetrics.NoopFactory{}
+	}
+	dispatchChunkCountHistogram = factory.Histogram(dispatchChunkCountHistogramOpts)
 }
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
