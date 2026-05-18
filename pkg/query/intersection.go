@@ -6,6 +6,24 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: IntersectionIteratorType,
+		Name: "Intersection",
+		ConstructWithArgs: func(_ *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			it := NewIntersectionIterator(subs...)
+			// NewIntersectionIterator returns a FixedIterator when subs is empty.
+			switch v := it.(type) {
+			case *IntersectionIterator:
+				v.canonicalKey = key
+			case *FixedIterator:
+				v.canonicalKey = key
+			}
+			return it, nil
+		},
+	})
+}
+
 // IntersectionIterator the set of paths that are in all of underlying subiterators.
 // This is equivalent to `permission foo = bar & baz`
 type IntersectionIterator struct {

@@ -4,6 +4,24 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: UnionIteratorType,
+		Name: "Union",
+		ConstructWithArgs: func(_ *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			it := NewUnionIterator(subs...)
+			// NewUnionIterator returns a FixedIterator when subs is empty.
+			switch v := it.(type) {
+			case *UnionIterator:
+				v.canonicalKey = key
+			case *FixedIterator:
+				v.canonicalKey = key
+			}
+			return it, nil
+		},
+	})
+}
+
 // UnionIterator the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
 type UnionIterator struct {

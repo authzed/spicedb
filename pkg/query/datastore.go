@@ -1,12 +1,28 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: DatastoreIteratorType,
+		Name: "Datastore",
+		ConstructWithArgs: func(args *IteratorArgs, _ []Iterator, key CanonicalKey) (Iterator, error) {
+			if args == nil || args.Relation == nil {
+				return nil, errors.New("DatastoreIterator requires Relation in Args")
+			}
+			ds := NewDatastoreIterator(args.Relation)
+			ds.canonicalKey = key
+			return ds, nil
+		},
+	})
+}
 
 // DatastoreIterator is a common leaf iterator. It represents the set of all
 // relationships of the given schema.BaseRelation, ie, relations that have a

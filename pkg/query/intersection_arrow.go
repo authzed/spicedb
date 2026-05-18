@@ -1,11 +1,28 @@
 package query
 
 import (
+	"fmt"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: IntersectionArrowIteratorType,
+		Name: "IntersectionArrow",
+		ConstructWithArgs: func(_ *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 2 {
+				return nil, fmt.Errorf("IntersectionArrowIterator requires exactly 2 subiterators, got %d", len(subs))
+			}
+			ia := NewIntersectionArrowIterator(subs[0], subs[1])
+			ia.canonicalKey = key
+			return ia, nil
+		},
+	})
+}
 
 // IntersectionArrowIterator is an iterator that represents the set of relations that
 // follow from a walk in the graph where ALL subjects on the left must satisfy

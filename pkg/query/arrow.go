@@ -9,6 +9,21 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: ArrowIteratorType,
+		Name: "Arrow",
+		ConstructWithArgs: func(_ *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 2 {
+				return nil, fmt.Errorf("ArrowIterator requires exactly 2 subiterators, got %d", len(subs))
+			}
+			arrow := NewArrowIterator(subs[0], subs[1])
+			arrow.canonicalKey = key
+			return arrow, nil
+		},
+	})
+}
+
 // arrowDirection specifies which direction to execute the arrow check
 type arrowDirection int
 

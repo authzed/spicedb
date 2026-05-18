@@ -1,9 +1,26 @@
 package query
 
 import (
+	"fmt"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: ExclusionIteratorType,
+		Name: "Exclusion",
+		ConstructWithArgs: func(_ *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 2 {
+				return nil, fmt.Errorf("ExclusionIterator requires exactly 2 subiterators, got %d", len(subs))
+			}
+			exclusion := NewExclusionIterator(subs[0], subs[1])
+			exclusion.canonicalKey = key
+			return exclusion, nil
+		},
+	})
+}
 
 // ExclusionIterator represents the set of relations that are in the mainSet but not in the excluded set.
 // This is equivalent to `permission foo = bar - baz`

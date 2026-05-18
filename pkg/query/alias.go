@@ -1,6 +1,28 @@
 package query
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: AliasIteratorType,
+		Name: "Alias",
+		ConstructWithArgs: func(args *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 1 {
+				return nil, fmt.Errorf("AliasIterator requires exactly 1 subiterator, got %d", len(subs))
+			}
+			if args == nil || args.RelationName == "" {
+				return nil, errors.New("AliasIterator requires RelationName in Args")
+			}
+			alias := NewAliasIteratorWithChain(args.DefinitionName, args.RelationName, args.AliasedAs, subs[0])
+			alias.canonicalKey = key
+			return alias, nil
+		},
+	})
+}
 
 // AliasIterator is an iterator that rewrites the Resource's Relation field of all paths
 // streamed from the sub-iterator.

@@ -462,15 +462,17 @@ func TestOutline_Compile(t *testing.T) {
 		require := require.New(t)
 
 		outline := Outline{
-			Type: IteratorType('Z'), // Unknown type
+			Type: IteratorType('\n'), // Unknown type — no init() registered it.
 		}
 
 		canonical, err := CanonicalizeOutline(outline)
 		require.NoError(err)
 
-		_, err = canonical.Compile()
-		require.Error(err)
-		require.Contains(err.Error(), "unknown iterator type")
+		// An unregistered iterator type indicates a missing init() registration,
+		// which is a programmer bug — MakeIterator panics via MustBugf under tests.
+		require.PanicsWithValue("cannot find iterator of type `\n`", func() {
+			_, _ = canonical.Compile()
+		})
 	})
 }
 

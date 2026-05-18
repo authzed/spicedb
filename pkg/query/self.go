@@ -1,9 +1,26 @@
 package query
 
 import (
+	"errors"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: SelfIteratorType,
+		Name: "Self",
+		ConstructWithArgs: func(args *IteratorArgs, _ []Iterator, key CanonicalKey) (Iterator, error) {
+			if args == nil || args.RelationName == "" || args.DefinitionName == "" {
+				return nil, errors.New("SelfIterator requires RelationName and DefinitionName in Args")
+			}
+			self := NewSelfIterator(args.RelationName, args.DefinitionName)
+			self.canonicalKey = key
+			return self, nil
+		},
+	})
+}
 
 // SelfIterator is an iterator that produces a synthetic relation for every
 // Resource in the subiterator that connects it to

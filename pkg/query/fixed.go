@@ -8,6 +8,34 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func init() {
+	// NullIteratorType and FixedIteratorType both produce a FixedIterator;
+	// the Null form is just the empty-paths case (see Decompile).
+	MustRegisterIterator(IteratorSpec{
+		Type: NullIteratorType,
+		Name: "Null",
+		ConstructWithArgs: func(_ *IteratorArgs, _ []Iterator, key CanonicalKey) (Iterator, error) {
+			fixed := NewFixedIterator()
+			fixed.canonicalKey = key
+			return fixed, nil
+		},
+	})
+	MustRegisterIterator(IteratorSpec{
+		Type: FixedIteratorType,
+		Name: "Fixed",
+		ConstructWithArgs: func(args *IteratorArgs, _ []Iterator, key CanonicalKey) (Iterator, error) {
+			var fixed *FixedIterator
+			if args != nil {
+				fixed = NewFixedIterator(args.FixedPaths...)
+			} else {
+				fixed = NewFixedIterator()
+			}
+			fixed.canonicalKey = key
+			return fixed, nil
+		},
+	})
+}
+
 // sortObjectTypes sorts a slice of ObjectType for deterministic ordering.
 // This prevents test flakiness from nondeterministic map iteration.
 func sortObjectTypes(types []ObjectType) {
