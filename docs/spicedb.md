@@ -131,7 +131,7 @@ spicedb datastore gc [flags]
       --otel-trace-propagator string                                          OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string                                           local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
 ```
 
@@ -165,7 +165,7 @@ spicedb datastore head [flags]
       --otel-trace-propagator string   OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int   sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int   sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string    local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string    local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
 ```
 
 ### Options Inherited From Parent Flags
@@ -206,7 +206,7 @@ spicedb datastore migrate [revision] [flags]
       --otel-trace-propagator string                 OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                 sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                 sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string                  local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                  local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
 ```
 
 ### Options Inherited From Parent Flags
@@ -294,7 +294,7 @@ spicedb datastore repair [flags]
       --otel-trace-propagator string                                          OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string                                           local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
 ```
 
@@ -556,7 +556,7 @@ spicedb serve [flags]
       --telemetry-ca-override-path string                                               path to a custom CA to use with the telemetry endpoint
       --telemetry-endpoint string                                                       endpoint to which telemetry is reported, empty string to disable (default "https://telemetry.authzed.com")
       --telemetry-interval duration                                                     approximate period between telemetry reports, minimum 1 minute (default 1h0m0s)
-      --termination-log-path string                                                     local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                                                     local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --update-relationships-max-preconditions-per-call uint16                          maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls (default 1000)
       --watch-api-heartbeat duration                                                    heartbeat time on the watch in the API. 0 means to default to the datastore's minimum. (default 1s)
       --write-conn-acquisition-timeout duration                                         amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
@@ -622,7 +622,7 @@ spicedb serve-testing [flags]
       --readonly-http-enabled                                    enable http read-only HTTP server
       --readonly-http-tls-cert-path string                       local path to the TLS certificate used to serve read-only HTTP
       --readonly-http-tls-key-path string                        local path to the TLS key used to serve read-only HTTP
-      --termination-log-path string                              local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                              local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --update-relationships-max-preconditions-per-call uint16   maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls (default 1000)
       --write-relationships-max-updates-per-call uint16          maximum number of updates allowed for WriteRelationships calls (default 1000)
 ```
