@@ -236,6 +236,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	// TODO: Still investigating whether a stale read can be used for
 	//       HeadRevision for FullConsistency queries.
 	ds.SetNowFunc(ds.staleHeadRevision)
+	ds.SetNowOnlyFunc(ds.nowOnly)
 
 	return ds, nil
 }

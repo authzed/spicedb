@@ -29,6 +29,12 @@ const (
 	// NoSchemaHashInLegacyMode is a sentinel value used when the DataLayer is
 	// operating in legacy schema mode, where no unified schema exists.
 	NoSchemaHashInLegacyMode SchemaHash = "no-schema-hash-in-legacy-mode"
+
+	// NoSchemaHashInLegacyZedToken is a sentinel value for decoding ZedTokens
+	// that do not contain a schema hash field (issued before the field was
+	// added, or issued from code paths that do not have the hash cheaply
+	// available).
+	NoSchemaHashInLegacyZedToken SchemaHash = "no-schema-hash-in-legacy-zedtoken" //nolint:gosec  // sentinel constant, not a credential
 )
 
 // IsBypassSentinel returns true if this SchemaHash is a sentinel value that
@@ -40,7 +46,8 @@ func (sh SchemaHash) IsBypassSentinel() bool {
 		NoSchemaHashForTesting,
 		NoSchemaHashForWatch,
 		NoSchemaHashForLegacyCursor,
-		NoSchemaHashInLegacyMode:
+		NoSchemaHashInLegacyMode,
+		NoSchemaHashInLegacyZedToken:
 		return true
 	default:
 		return false

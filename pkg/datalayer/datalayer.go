@@ -123,8 +123,10 @@ type ReadWriteTransaction interface {
 	// BulkLoad writes all relationships from the source in an optimized fashion.
 	BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error)
 
-	// WriteSchema writes the full set of schema definitions.
-	WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) error
+	// WriteSchema writes the full set of schema definitions and returns the
+	// hash of the resulting schema. The returned hash is NoSchemaHashInLegacyMode
+	// when the DataLayer does not write to unified schema storage.
+	WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) (SchemaHash, error)
 
 	// LegacySchemaWriter returns a legacy schema writer for backwards-compatible
 	// additive-only schema operations.

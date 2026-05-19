@@ -217,7 +217,7 @@ func TestCertRotation(t *testing.T) {
 	_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		Resource:   rel.Resource,
@@ -270,7 +270,7 @@ func TestCertRotation(t *testing.T) {
 		_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{
 				Requirement: &v1.Consistency_AtLeastAsFresh{
-					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 				},
 			},
 			Resource:   rel.Resource,

@@ -9,6 +9,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
@@ -58,34 +59,38 @@ type RevisionHolder interface {
 const uniqueIDPrefixLength = 8
 
 // MustNewFromRevisionForTesting generates an encoded zedtoken from an integral revision.
-func MustNewFromRevisionForTesting(revision datastore.Revision) *v1.ZedToken {
-	encoded, err := newFromRevision(revision, legacyEmptyDatastoreID)
+func MustNewFromRevisionForTesting(revision datastore.Revision, schemaHash datalayer.SchemaHash) *v1.ZedToken {
+	encoded, err := newFromRevision(revision, legacyEmptyDatastoreID, schemaHash)
 	if err != nil {
 		panic(err)
 	}
 	return encoded
 }
 
-// NewFromRevision generates an encoded zedtoken from an integral revision.
-func NewFromRevision(ctx context.Context, revision datastore.Revision, ds RevisionHolder) (*v1.ZedToken, error) {
+// NewFromRevision generates an encoded zedtoken from a revision and schema hash.
+func NewFromRevision(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, ds RevisionHolder) (*v1.ZedToken, error) {
 	datastoreUniqueID, err := ds.UniqueID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf(errEncodeError, err)
 	}
-
-	return newFromRevision(revision, datastoreUniqueID)
+	return newFromRevision(revision, datastoreUniqueID, schemaHash)
 }
 
-// NewFromRevisionNoDatastoreID generates an encoded zedtoken from an integral revision without a datastore ID.
+// NewFromRevisionNoDatastoreID generates an encoded zedtoken without a datastore ID.
 // This is only for use in legacy scenarios. Most callers should use NewFromRevision.
-func NewFromRevisionNoDatastoreID(revision datastore.Revision) (*v1.ZedToken, error) {
-	return newFromRevision(revision, legacyEmptyDatastoreID)
+func NewFromRevisionNoDatastoreID(revision datastore.Revision, schemaHash datalayer.SchemaHash) (*v1.ZedToken, error) {
+	return newFromRevision(revision, legacyEmptyDatastoreID, schemaHash)
 }
 
-func newFromRevision(revision datastore.Revision, datastoreUniqueID string) (*v1.ZedToken, error) {
+func newFromRevision(revision datastore.Revision, datastoreUniqueID string, schemaHash datalayer.SchemaHash) (*v1.ZedToken, error) {
 	datastoreUniqueIDPrefix := datastoreUniqueID
 	if len(datastoreUniqueIDPrefix) > uniqueIDPrefixLength {
 		datastoreUniqueIDPrefix = datastoreUniqueIDPrefix[0:uniqueIDPrefixLength]
+	}
+
+	var schemaHashBytes []byte
+	if schemaHash != "" && !schemaHash.IsBypassSentinel() {
+		schemaHashBytes = []byte(schemaHash)
 	}
 
 	toEncode := &zedtoken.DecodedZedToken{
@@ -93,6 +98,7 @@ func newFromRevision(revision datastore.Revision, datastoreUniqueID string) (*v1
 			V1: &zedtoken.DecodedZedToken_V1ZedToken{
 				Revision:                revision.String(),
 				DatastoreUniqueIdPrefix: datastoreUniqueIDPrefix,
+				SchemaHash:              schemaHashBytes,
 			},
 		},
 	}
@@ -132,11 +138,27 @@ func Decode(encoded *v1.ZedToken) (*zedtoken.DecodedZedToken, error) {
 	return decoded, nil
 }
 
-// DecodeRevision converts and extracts the revision from a zedtoken or legacy zookie.
-func DecodeRevision(encoded *v1.ZedToken, ds RevisionHolder) (datastore.Revision, TokenStatus, error) {
+// DecodedRevision is the result of decoding a zedtoken. SchemaHash is
+// NoSchemaHashInLegacyZedToken for tokens that pre-date the schema_hash field,
+// or whose Status is not StatusValid.
+type DecodedRevision struct {
+	Revision   datastore.Revision
+	SchemaHash datalayer.SchemaHash
+	Status     TokenStatus
+}
+
+// DecodeRevision converts and extracts the revision and schema hash from a zedtoken
+// or legacy zookie.
+func DecodeRevision(encoded *v1.ZedToken, ds RevisionHolder) (DecodedRevision, error) {
+	legacyResult := DecodedRevision{
+		Revision:   datastore.NoRevision,
+		SchemaHash: datalayer.NoSchemaHashInLegacyZedToken,
+		Status:     StatusUnknown,
+	}
+
 	decoded, err := Decode(encoded)
 	if err != nil {
-		return datastore.NoRevision, StatusUnknown, err
+		return legacyResult, err
 	}
 
 	switch ver := decoded.VersionOneof.(type) {
@@ -144,36 +166,55 @@ func DecodeRevision(encoded *v1.ZedToken, ds RevisionHolder) (datastore.Revision
 		revString := strconv.FormatUint(ver.DeprecatedV1Zookie.Revision, 10)
 		parsed, err := ds.RevisionFromString(revString)
 		if err != nil {
-			return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, err)
+			return legacyResult, fmt.Errorf(errDecodeError, err)
 		}
-		return parsed, StatusLegacyEmptyDatastoreID, nil
+		return DecodedRevision{
+			Revision:   parsed,
+			SchemaHash: datalayer.NoSchemaHashInLegacyZedToken,
+			Status:     StatusLegacyEmptyDatastoreID,
+		}, nil
 
 	case *zedtoken.DecodedZedToken_V1:
 		parsed, err := ds.RevisionFromString(ver.V1.Revision)
 		if err != nil {
-			return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, err)
+			return legacyResult, fmt.Errorf(errDecodeError, err)
 		}
 
 		if ver.V1.DatastoreUniqueIdPrefix == legacyEmptyDatastoreID {
-			return parsed, StatusLegacyEmptyDatastoreID, nil
+			return DecodedRevision{
+				Revision:   parsed,
+				SchemaHash: datalayer.NoSchemaHashInLegacyZedToken,
+				Status:     StatusLegacyEmptyDatastoreID,
+			}, nil
 		}
 
 		datastoreUniqueID, err := ds.UniqueID(context.Background())
 		if err != nil {
-			return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, err)
+			return legacyResult, fmt.Errorf(errDecodeError, err)
 		}
-
 		datastoreUniqueIDPrefix := datastoreUniqueID
 		if len(datastoreUniqueIDPrefix) > uniqueIDPrefixLength {
 			datastoreUniqueIDPrefix = datastoreUniqueIDPrefix[0:uniqueIDPrefixLength]
 		}
-
 		if ver.V1.DatastoreUniqueIdPrefix != datastoreUniqueIDPrefix {
-			return parsed, StatusMismatchedDatastoreID, nil
+			return DecodedRevision{
+				Revision:   parsed,
+				SchemaHash: datalayer.NoSchemaHashInLegacyZedToken,
+				Status:     StatusMismatchedDatastoreID,
+			}, nil
 		}
 
-		return parsed, StatusValid, nil
+		schemaHash := datalayer.NoSchemaHashInLegacyZedToken
+		if len(ver.V1.SchemaHash) > 0 {
+			schemaHash = datalayer.SchemaHash(ver.V1.SchemaHash)
+		}
+		return DecodedRevision{
+			Revision:   parsed,
+			SchemaHash: schemaHash,
+			Status:     StatusValid,
+		}, nil
+
 	default:
-		return datastore.NoRevision, StatusUnknown, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
+		return legacyResult, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
 	}
 }

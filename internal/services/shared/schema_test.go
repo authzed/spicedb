@@ -626,6 +626,10 @@ definition resource {
 				}
 
 				require.NoError(err)
+				// SchemaHash depends on the DataLayer's schema mode; the default is
+				// legacy storage, which produces no unified hash.
+				require.Equal(datalayer.NoSchemaHashInLegacyMode, applied.SchemaHash)
+				applied.SchemaHash = ""
 				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
 				return nil
 			})
@@ -774,6 +778,10 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 				}
 
 				require.NoError(err)
+				// SchemaHash depends on the DataLayer's schema mode; the default is
+				// legacy storage, which produces no unified hash.
+				require.Equal(datalayer.NoSchemaHashInLegacyMode, applied.SchemaHash)
+				applied.SchemaHash = ""
 				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
 
 				sr, err := rwt.ReadSchema(ctx)

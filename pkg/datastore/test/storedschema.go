@@ -34,7 +34,8 @@ func writeSchema(ctx context.Context, t *testing.T, ds datastore.Datastore,
 ) datastore.Revision {
 	t.Helper()
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(definitions), schemaText, nil)
+		_, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(definitions), schemaText, nil)
+		return err
 	})
 	require.NoError(t, err)
 	return rev
@@ -319,7 +320,7 @@ func StoredSchemaReadWithinTransactionTest(t *testing.T, tester DatastoreTester)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write within the transaction.
-		if err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(defs), schemaText, nil); err != nil {
+		if _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(defs), schemaText, nil); err != nil {
 			return err
 		}
 
@@ -583,7 +584,8 @@ definition document {
 		// Write schema through the datalayer.
 		t.Run(phase.name+"/Write", func(t *testing.T) {
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, allDefs, schemaText, caveattypes.Default.TypeSet)
+				_, err := rwt.WriteSchema(ctx, allDefs, schemaText, caveattypes.Default.TypeSet)
+				return err
 			})
 			require.NoError(t, err)
 			lastRev = rev

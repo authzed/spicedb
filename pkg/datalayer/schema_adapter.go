@@ -482,7 +482,7 @@ var _ SchemaReader = (*storedSchemaReaderAdapter)(nil)
 // If cache is nil, a no-op cache is used.
 func WriteSchemaViaStoredSchema(ctx context.Context, rwt datastore.ReadWriteTransaction,
 	definitions []datastore.SchemaDefinition, schemaString string, cache storedSchemaCache,
-) error {
+) (SchemaHash, error) {
 	if cache == nil {
 		cache = noopSchemaCache{}
 	}
@@ -495,10 +495,10 @@ func WriteSchemaViaStoredSchema(ctx context.Context, rwt datastore.ReadWriteTran
 
 	for _, def := range definitions {
 		if _, existing := namespaceDefs[def.GetName()]; existing {
-			return spiceerrors.MustBugf("duplicate definition name: %s", def.GetName())
+			return "", spiceerrors.MustBugf("duplicate definition name: %s", def.GetName())
 		}
 		if _, existing := caveatDefs[def.GetName()]; existing {
-			return spiceerrors.MustBugf("duplicate definition name: %s", def.GetName())
+			return "", spiceerrors.MustBugf("duplicate definition name: %s", def.GetName())
 		}
 
 		switch typedDef := def.(type) {
@@ -507,7 +507,7 @@ func WriteSchemaViaStoredSchema(ctx context.Context, rwt datastore.ReadWriteTran
 		case *core.CaveatDefinition:
 			caveatDefs[typedDef.Name] = typedDef
 		default:
-			return spiceerrors.MustBugf("unknown definition type: %T", def)
+			return "", spiceerrors.MustBugf("unknown definition type: %T", def)
 		}
 	}
 
@@ -516,14 +516,14 @@ func WriteSchemaViaStoredSchema(ctx context.Context, rwt datastore.ReadWriteTran
 	for _, def := range definitions {
 		compDef, ok := def.(compiler.SchemaDefinition)
 		if !ok {
-			return fmt.Errorf("definition %q does not implement compiler.SchemaDefinition", def.GetName())
+			return "", fmt.Errorf("definition %q does not implement compiler.SchemaDefinition", def.GetName())
 		}
 		compDefs = append(compDefs, compDef)
 	}
 
 	schemaHash, err := generator.ComputeSchemaHash(compDefs)
 	if err != nil {
-		return fmt.Errorf("failed to compute schema hash: %w", err)
+		return "", fmt.Errorf("failed to compute schema hash: %w", err)
 	}
 	span.SetAttributes(attribute.String(otelconv.AttrSchemaHash, schemaHash))
 	span.SetAttributes(attribute.Int(otelconv.AttrSchemaDataSizeBytes, len(schemaString)))
@@ -541,15 +541,15 @@ func WriteSchemaViaStoredSchema(ctx context.Context, rwt datastore.ReadWriteTran
 	}
 
 	if err := rwt.WriteStoredSchema(ctx, storedSchema); err != nil {
-		return err
+		return "", err
 	}
 
 	// Update cache after successful write
 	if v1 := storedSchema.GetV1(); v1 != nil && v1.SchemaHash != "" {
 		if err := cache.Set(SchemaHash(v1.SchemaHash), datastore.NewReadOnlyStoredSchema(storedSchema)); err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return nil
+	return SchemaHash(schemaHash), nil
 }

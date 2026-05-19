@@ -10,6 +10,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -41,13 +42,13 @@ func TestZedTokenEncode(t *testing.T) {
 	for _, rev := range encodeRevisionTests {
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
-			encoded := MustNewFromRevisionForTesting(rev)
+			encoded := MustNewFromRevisionForTesting(rev, datalayer.NoSchemaHashInLegacyZedToken)
 
-			decoded, _, err := DecodeRevision(encoded, revisions.CommonDecoder{
+			decoded, err := DecodeRevision(encoded, revisions.CommonDecoder{
 				Kind: revisions.TransactionID,
 			})
 			require.NoError(err)
-			require.True(rev.Equal(decoded))
+			require.True(rev.Equal(decoded.Revision))
 		})
 	}
 }
@@ -56,13 +57,13 @@ func TestZedTokenEncodeHLC(t *testing.T) {
 	for _, rev := range encodeHLCRevisionTests {
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
-			encoded := MustNewFromRevisionForTesting(rev)
+			encoded := MustNewFromRevisionForTesting(rev, datalayer.NoSchemaHashInLegacyZedToken)
 
-			decoded, _, err := DecodeRevision(encoded, revisions.CommonDecoder{
+			decoded, err := DecodeRevision(encoded, revisions.CommonDecoder{
 				Kind: revisions.HybridLogicalClock,
 			})
 			require.NoError(err)
-			require.True(rev.Equal(decoded))
+			require.True(rev.Equal(decoded.Revision))
 		})
 	}
 }
@@ -162,7 +163,7 @@ func TestDecode(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
 
-			decoded, status, err := DecodeRevision(&v1.ZedToken{
+			decoded, err := DecodeRevision(&v1.ZedToken{
 				Token: testCase.token,
 			}, revisions.CommonDecoder{
 				DatastoreUniqueID: testCase.datastoreUniqueID,
@@ -172,12 +173,12 @@ func TestDecode(t *testing.T) {
 				require.Error(err)
 			} else {
 				require.NoError(err)
-				require.Equal(testCase.expectedStatus, status)
+				require.Equal(testCase.expectedStatus, decoded.Status)
 				require.True(
-					testCase.expectedRevision.Equal(decoded),
+					testCase.expectedRevision.Equal(decoded.Revision),
 					"%s != %s",
 					testCase.expectedRevision,
-					decoded,
+					decoded.Revision,
 				)
 			}
 		})
@@ -267,7 +268,7 @@ func TestHLCDecode(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
 
-			decoded, status, err := DecodeRevision(&v1.ZedToken{
+			decoded, err := DecodeRevision(&v1.ZedToken{
 				Token: testCase.token,
 			}, revisions.CommonDecoder{
 				DatastoreUniqueID: testCase.datastoreUniqueID,
@@ -277,14 +278,55 @@ func TestHLCDecode(t *testing.T) {
 				require.Error(err)
 			} else {
 				require.NoError(err)
-				require.Equal(testCase.expectedStatus, status)
+				require.Equal(testCase.expectedStatus, decoded.Status)
 				require.True(
-					testCase.expectedRevision.Equal(decoded),
+					testCase.expectedRevision.Equal(decoded.Revision),
 					"%s != %s",
 					testCase.expectedRevision,
-					decoded,
+					decoded.Revision,
 				)
 			}
 		})
 	}
+}
+
+func TestZedTokenEncodeWithSchemaHash(t *testing.T) {
+	require := require.New(t)
+	hash := datalayer.SchemaHash("deadbeefcafebabe")
+	encoded, err := newFromRevision(revisions.NewForTransactionID(42), "abcd1234abcdef", hash)
+	require.NoError(err)
+
+	decoded, err := DecodeRevision(encoded, revisions.CommonDecoder{
+		Kind:              revisions.TransactionID,
+		DatastoreUniqueID: "abcd1234abcdef",
+	})
+	require.NoError(err)
+	require.True(decoded.Revision.Equal(revisions.NewForTransactionID(42)))
+	require.Equal(hash, decoded.SchemaHash)
+}
+
+func TestZedTokenEncodeEmptySchemaHash(t *testing.T) {
+	require := require.New(t)
+	encoded, err := newFromRevision(revisions.NewForTransactionID(42), "abcd1234abcdef", "")
+	require.NoError(err)
+
+	decoded, err := DecodeRevision(encoded, revisions.CommonDecoder{
+		Kind:              revisions.TransactionID,
+		DatastoreUniqueID: "abcd1234abcdef",
+	})
+	require.NoError(err)
+	require.Equal(datalayer.NoSchemaHashInLegacyZedToken, decoded.SchemaHash)
+}
+
+func TestZedTokenSentinelSchemaHashTreatedAsEmpty(t *testing.T) {
+	require := require.New(t)
+	encoded, err := newFromRevision(revisions.NewForTransactionID(42), "abcd1234abcdef", datalayer.NoSchemaHashForLegacyCursor)
+	require.NoError(err)
+
+	decoded, err := DecodeRevision(encoded, revisions.CommonDecoder{
+		Kind:              revisions.TransactionID,
+		DatastoreUniqueID: "abcd1234abcdef",
+	})
+	require.NoError(err)
+	require.Equal(datalayer.NoSchemaHashInLegacyZedToken, decoded.SchemaHash)
 }

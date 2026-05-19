@@ -114,7 +114,8 @@ func TestWriteSchemaRouting(t *testing.T) {
 			ctx := t.Context()
 
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, schemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -152,7 +153,8 @@ func TestReadSchemaRouting(t *testing.T) {
 
 			// Write through the datalayer so both stores are populated if needed.
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, schemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -207,7 +209,7 @@ func TestReadSchemaWithinTransaction(t *testing.T) {
 
 			_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
 				// Write schema.
-				if err := rwt.WriteSchema(ctx, defs, schemaText, nil); err != nil {
+				if _, err := rwt.WriteSchema(ctx, defs, schemaText, nil); err != nil {
 					return err
 				}
 
@@ -260,7 +262,8 @@ func TestWriteSchemaDualWriteConsistency(t *testing.T) {
 			ctx := t.Context()
 
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, schemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -314,7 +317,8 @@ func TestSchemaLookupOperationsPerMode(t *testing.T) {
 			ctx := t.Context()
 
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, schemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -412,7 +416,8 @@ definition document {
 			ctx := t.Context()
 
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, schemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -490,7 +495,8 @@ definition auser {}`
 			ctx := t.Context()
 
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, outOfOrderSchemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, outOfOrderSchemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -538,7 +544,7 @@ func TestWriteSchemaRejectsCaveatAndNamespaceWithSameName(t *testing.T) {
 
 	// WriteSchemaViaStoredSchema uses MustBugf for duplicate names, which panics in tests.
 	require.Panics(t, func() {
-		_ = WriteSchemaViaStoredSchema(t.Context(), nil, defs, "", nil)
+		_, _ = WriteSchemaViaStoredSchema(t.Context(), nil, defs, "", nil)
 	})
 }
 
@@ -786,7 +792,8 @@ func TestWriteSchemaDeletesRemovedDefinitions(t *testing.T) {
 			// Write initial schema with two definitions.
 			defs, schemaText := testSchemaDefinitions(t)
 			_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, schemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -796,7 +803,8 @@ func TestWriteSchemaDeletesRemovedDefinitions(t *testing.T) {
 			require.NoError(err)
 
 			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, smallerDefs, smallSchemaText, nil)
+				_, err := rwt.WriteSchema(ctx, smallerDefs, smallSchemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -872,7 +880,8 @@ func TestHashCacheIntegration_CachesReadStoredSchema(t *testing.T) {
 
 	// Write schema to populate unified storage.
 	rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs, schemaText, nil)
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -923,7 +932,8 @@ func TestHashCacheIntegration_BypassSentinelSkipsCache(t *testing.T) {
 	ctx := t.Context()
 
 	rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs, schemaText, nil)
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -953,7 +963,8 @@ func TestHashCacheIntegration_WriteUpdatesCache(t *testing.T) {
 	// Write initial schema.
 	defs1, schemaText1 := testSchemaDefinitions(t)
 	rev1, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		_, err := rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -963,7 +974,8 @@ func TestHashCacheIntegration_WriteUpdatesCache(t *testing.T) {
 	require.NoError(err)
 
 	rev2, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		_, err := rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -1011,7 +1023,8 @@ func TestHashCacheIntegration_CacheAcrossPhaseTransitions(t *testing.T) {
 	defs1, schemaText1 := testSchemaDefinitions(t)
 
 	rev1, err := dl1.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		_, err := rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		return err
 	})
 	require.NoError(t, err)
 
@@ -1045,7 +1058,8 @@ func TestHashCacheIntegration_CacheAcrossPhaseTransitions(t *testing.T) {
 	require.NoError(t, err)
 
 	rev2, err := dl2.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		_, err := rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		return err
 	})
 	require.NoError(t, err)
 
@@ -1086,7 +1100,8 @@ func TestHashCacheIntegration_NoCacheStillWorks(t *testing.T) {
 	ctx := t.Context()
 
 	rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs, schemaText, nil)
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -1125,7 +1140,8 @@ func TestHeadRevisionReturnsSchemaHashInNewReadModes(t *testing.T) {
 			ctx := t.Context()
 
 			_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-				return rwt.WriteSchema(ctx, defs, schemaText, nil)
+				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+				return err
 			})
 			require.NoError(err)
 
@@ -1156,7 +1172,8 @@ func TestHeadRevisionSchemaHashChangesWithSchema(t *testing.T) {
 	// Write first schema.
 	defs1, schemaText1 := testSchemaDefinitions(t)
 	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		_, err := rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -1170,7 +1187,8 @@ func TestHeadRevisionSchemaHashChangesWithSchema(t *testing.T) {
 	require.NoError(err)
 
 	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		_, err := rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -1209,7 +1227,8 @@ func TestHeadRevisionSchemaHashMatchesRevision(t *testing.T) {
 	// Write first schema.
 	defs1, schemaText1 := testSchemaDefinitions(t)
 	rev1, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		_, err := rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		return err
 	})
 	require.NoError(err)
 
@@ -1219,7 +1238,8 @@ func TestHeadRevisionSchemaHashMatchesRevision(t *testing.T) {
 	require.NoError(err)
 
 	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		_, err := rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		return err
 	})
 	require.NoError(err)
 

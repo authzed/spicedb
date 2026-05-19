@@ -199,6 +199,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
+	ds.SetNowOnlyFunc(ds.headRevisionInternalNoHash)
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
@@ -501,6 +502,24 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.RevisionW
 
 func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, string, error) {
 	return cds.headRevisionWithSchemaHash(ctx)
+}
+
+func (cds *crdbDatastore) headRevisionInternalNoHash(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "headRevisionInternalNoHash")
+	defer span.End()
+
+	var hlcNow decimal.Decimal
+	if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&hlcNow)
+	}, querySelectNow); err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	}
+
+	rev, err := revisions.NewForHLC(hlcNow)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	}
+	return rev, nil
 }
 
 const querySelectNowWithSchemaHash = "SELECT cluster_logical_timestamp(), COALESCE((SELECT hash FROM schema_revision WHERE name = 'current' LIMIT 1), ''::bytea)"

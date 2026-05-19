@@ -39,6 +39,19 @@ func (sd *spannerDatastore) nowWithHash(ctx context.Context) (time.Time, string,
 	return timestamp, string(schemaHash), nil
 }
 
+func (sd *spannerDatastore) nowOnly(ctx context.Context) (datastore.Revision, error) {
+	var timestamp time.Time
+	if err := sd.client.Single().
+		WithTimestampBound(spanner.ExactStaleness(sd.config.followerReadDelay)).
+		Query(ctx, nowStmt).
+		Do(func(r *spanner.Row) error {
+			return r.Columns(&timestamp)
+		}); err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	}
+	return revisions.NewForTime(timestamp), nil
+}
+
 func (sd *spannerDatastore) staleHeadRevision(ctx context.Context) (datastore.Revision, string, error) {
 	var timestamp time.Time
 	var schemaHash []byte

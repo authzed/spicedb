@@ -117,7 +117,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(exact),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
@@ -144,7 +144,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact),
+				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
@@ -171,7 +171,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(zero),
+				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(zero, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 	}, dl, "somelabel", TreatMismatchingTokensAsError)
@@ -212,7 +212,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	err = AddRevisionToContext(updated, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact),
+				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		OptionalCursor: cursor,
@@ -256,7 +256,7 @@ func TestAddRevisionToContextWithCursorAndSchemaHash(t *testing.T) {
 	err = AddRevisionToContext(updated, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact),
+				AtExactSnapshot: zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		OptionalCursor: encodedCursor,
@@ -364,7 +364,7 @@ func TestAtExactSnapshotWithMismatchedToken(t *testing.T) {
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, dl)
+	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, datalayer.NoSchemaHashInLegacyZedToken, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -393,7 +393,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, dl)
+	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, datalayer.NoSchemaHashInLegacyZedToken, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -422,7 +422,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, dl)
+	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, datalayer.NoSchemaHashInLegacyZedToken, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -457,7 +457,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 
 	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
-	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, dl)
+	zedToken, err := zedtoken.NewFromRevision(t.Context(), optimized, datalayer.NoSchemaHashInLegacyZedToken, dl)
 	require.NoError(err)
 
 	ds.CurrentUniqueID = "bar"
@@ -477,6 +477,92 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 	ds.AssertExpectations(t)
 }
 
+func TestAddRevisionToContextAtExactSnapshotPropagatesSchemaHash(t *testing.T) {
+	require := require.New(t)
+
+	ds := &proxy_test.MockDatastore{}
+	ds.On("CheckRevision", exact).Return(nil).Times(1)
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
+
+	// Build a zedtoken WITH a non-sentinel hash.
+	expectedHash := datalayer.SchemaHash("at-exact-snapshot-test-hash")
+	encoded, err := zedtoken.NewFromRevision(t.Context(), exact, expectedHash, dl)
+	require.NoError(err)
+
+	updated := ContextWithHandle(t.Context())
+	updated = datalayer.ContextWithDataLayer(updated, dl)
+
+	err = AddRevisionToContext(updated, &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtExactSnapshot{
+				AtExactSnapshot: encoded,
+			},
+		},
+	}, dl, "test", TreatMismatchingTokensAsFullConsistency)
+	require.NoError(err)
+
+	_, gotHash, _, err := RevisionFromContext(updated)
+	require.NoError(err)
+	require.Equal(expectedHash, gotHash)
+	ds.AssertExpectations(t)
+}
+
+func TestAddRevisionToContextAtLeastAsFreshUsesTokenSchemaHashWhenTokenWins(t *testing.T) {
+	require := require.New(t)
+
+	// Make OptimizedRevision return `optimized` (100) so the token at `exact` (123) wins.
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
+
+	// Build a zedtoken at `exact` with a non-sentinel schema hash.
+	expectedHash := datalayer.SchemaHash("at-least-as-fresh-test-hash")
+	encoded, err := zedtoken.NewFromRevision(t.Context(), exact, expectedHash, dl)
+	require.NoError(err)
+
+	updated := ContextWithHandle(t.Context())
+	updated = datalayer.ContextWithDataLayer(updated, dl)
+
+	err = AddRevisionToContext(updated, &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: encoded},
+		},
+	}, dl, "test", TreatMismatchingTokensAsFullConsistency)
+	require.NoError(err)
+
+	_, gotHash, _, err := RevisionFromContext(updated)
+	require.NoError(err)
+	require.Equal(expectedHash, gotHash)
+	ds.AssertExpectations(t)
+}
+
+func TestRevisionFromContextEmitsTokenWithSchemaHash(t *testing.T) {
+	require := require.New(t)
+
+	ds := &proxy_test.MockDatastore{}
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil)
+	dl := datalayer.NewDataLayer(ds)
+
+	ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
+	ctx = ContextWithHandle(ctx)
+
+	expectedHash := datalayer.SchemaHash("emit-test-hash")
+	handle := ctx.Value(revisionKey).(*revisionHandle)
+	handle.revision = exact
+	handle.schemaHash = expectedHash
+
+	_, gotHash, token, err := RevisionFromContext(ctx)
+	require.NoError(err)
+	require.Equal(expectedHash, gotHash)
+
+	// Round-trip the issued token and confirm the hash made it onto the wire.
+	decoded, err := zedtoken.DecodeRevision(token, dl)
+	require.NoError(err)
+	require.Equal(expectedHash, decoded.SchemaHash)
+}
+
 func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	require := require.New(t)
 
@@ -493,7 +579,7 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(exact),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 	}, dl, "somelabel", TreatMismatchingTokensAsError)

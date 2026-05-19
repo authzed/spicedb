@@ -83,7 +83,7 @@ func RevisionFromContext(ctx context.Context) (datastore.Revision, datalayer.Sch
 				return nil, "", nil, spiceerrors.MustBugf("consistency middleware did not inject datastore")
 			}
 
-			zedToken, err := zedtoken.NewFromRevision(ctx, rev, dl)
+			zedToken, err := zedtoken.NewFromRevision(ctx, rev, handle.schemaHash, dl)
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -197,22 +197,22 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 			ConsistencyCounter.WithLabelValues("snapshot", "request", serviceLabel).Inc()
 		}
 
-		requestedRev, status, err := zedtoken.DecodeRevision(consistency.GetAtExactSnapshot(), dl)
+		decoded, err := zedtoken.DecodeRevision(consistency.GetAtExactSnapshot(), dl)
 		if err != nil {
 			return errInvalidZedToken
 		}
 
-		if status == zedtoken.StatusMismatchedDatastoreID {
+		if decoded.Status == zedtoken.StatusMismatchedDatastoreID {
 			return errors.New("ZedToken specified references a different datastore instance but at-exact-snapshot was requested")
 		}
 
-		err = dl.CheckRevision(ctx, requestedRev)
+		err = dl.CheckRevision(ctx, decoded.Revision)
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
 
-		revision = requestedRev
-		schemaHash = datalayer.NoSchemaHashForLegacyCursor
+		revision = decoded.Revision
+		schemaHash = decoded.SchemaHash
 
 	default:
 		return status.Errorf(codes.Internal, "missing handling of consistency case in %v", consistency)
@@ -291,12 +291,12 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, dl datalayer.
 	}
 
 	if requested != nil {
-		requestedRev, status, err := zedtoken.DecodeRevision(requested, dl)
+		decoded, err := zedtoken.DecodeRevision(requested, dl)
 		if err != nil {
 			return datastore.NoRevision, "", false, errInvalidZedToken
 		}
 
-		if status == zedtoken.StatusMismatchedDatastoreID {
+		if decoded.Status == zedtoken.StatusMismatchedDatastoreID {
 			switch option {
 			case TreatMismatchingTokensAsFullConsistency:
 				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references a different datastore instance and SpiceDB is configured to treat this as a full consistency request")
@@ -320,11 +320,11 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, dl datalayer.
 			}
 		}
 
-		if databaseRev.GreaterThan(requestedRev) {
+		if databaseRev.GreaterThan(decoded.Revision) {
 			return databaseRev, hash, false, nil
 		}
 
-		return requestedRev, datalayer.NoSchemaHashForLegacyCursor, true, nil
+		return decoded.Revision, decoded.SchemaHash, true, nil
 	}
 
 	return databaseRev, hash, false, nil
