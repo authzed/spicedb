@@ -3,6 +3,7 @@ package query
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -21,6 +22,7 @@ func init() {
 			alias.canonicalKey = key
 			return alias, nil
 		},
+		Deserialize: deserializeAlias,
 	})
 }
 
@@ -338,4 +340,74 @@ func (a *AliasIterator) ResourceType() ([]ObjectType, error) {
 
 func (a *AliasIterator) SubjectTypes() ([]ObjectType, error) {
 	return a.subIt.SubjectTypes()
+}
+
+const aliasFlagHasAliasedAs = 0
+
+func (a *AliasIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, AliasIteratorType, a.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, aliasFlagHasAliasedAs, len(a.aliasedAs) > 0)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if err := writeString(buf, a.definitionName); err != nil {
+			return err
+		}
+		if err := writeString(buf, a.relation); err != nil {
+			return err
+		}
+		if hasFlag(flags, aliasFlagHasAliasedAs) {
+			if err := writeUvarint(buf, uint64(len(a.aliasedAs))); err != nil {
+				return err
+			}
+			for _, n := range a.aliasedAs {
+				if err := writeString(buf, n); err != nil {
+					return err
+				}
+			}
+		}
+		return a.subIt.Serialize(buf)
+	})
+}
+
+func deserializeAlias(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("alias flags: %w", err)
+	}
+	defName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("alias def: %w", err)
+	}
+	relName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("alias rel: %w", err)
+	}
+	var aliasedAs []string
+	if hasFlag(flags, aliasFlagHasAliasedAs) {
+		n, err := readUvarint(br)
+		if err != nil {
+			return nil, fmt.Errorf("alias aliasedAs count: %w", err)
+		}
+		if n > maxSubCount {
+			return nil, fmt.Errorf("alias aliasedAs count %d exceeds %d", n, maxSubCount)
+		}
+		aliasedAs = make([]string, n)
+		for i := range aliasedAs {
+			s, err := readString(br)
+			if err != nil {
+				return nil, fmt.Errorf("alias aliasedAs[%d]: %w", i, err)
+			}
+			aliasedAs[i] = s
+		}
+	}
+	sub, err := Deserialize(br, dctx)
+	if err != nil {
+		return nil, fmt.Errorf("alias sub: %w", err)
+	}
+	al := NewAliasIteratorWithChain(defName, relName, aliasedAs, sub)
+	al.canonicalKey = key
+	return al, nil
 }

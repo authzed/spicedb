@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -21,6 +22,7 @@ func init() {
 			arrow.canonicalKey = key
 			return arrow, nil
 		},
+		Deserialize: deserializeArrow,
 	})
 }
 
@@ -695,4 +697,50 @@ func (a *ArrowIterator) ResourceType() ([]ObjectType, error) {
 func (a *ArrowIterator) SubjectTypes() ([]ObjectType, error) {
 	// Arrow's subjects come from the right side
 	return a.right.SubjectTypes()
+}
+
+const (
+	arrowFlagSchemaArrow = iota
+	arrowFlagRightToLeft
+)
+
+func (a *ArrowIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, ArrowIteratorType, a.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, arrowFlagSchemaArrow, a.isSchemaArrow)
+		setFlag(&flags, arrowFlagRightToLeft, a.direction == rightToLeft)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if err := a.left.Serialize(buf); err != nil {
+			return fmt.Errorf("left: %w", err)
+		}
+		if err := a.right.Serialize(buf); err != nil {
+			return fmt.Errorf("right: %w", err)
+		}
+		return nil
+	})
+}
+
+func deserializeArrow(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("arrow flags: %w", err)
+	}
+	subs, err := readNSubs(br, 2, dctx)
+	if err != nil {
+		return nil, err
+	}
+	a := &ArrowIterator{
+		left:          subs[0],
+		right:         subs[1],
+		isSchemaArrow: hasFlag(flags, arrowFlagSchemaArrow),
+		direction:     leftToRight,
+		canonicalKey:  key,
+	}
+	if hasFlag(flags, arrowFlagRightToLeft) {
+		a.direction = rightToLeft
+	}
+	return a, nil
 }

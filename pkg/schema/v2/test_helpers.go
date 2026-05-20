@@ -24,13 +24,15 @@ func NewTestBaseRelation(defName, relationName, subjectType, subrelation string)
 	}
 	testDefinition.relations[relationName] = testRelation
 
-	return &BaseRelation{
+	br := &BaseRelation{
 		parent:      testRelation,
 		subjectType: subjectType,
 		subrelation: subrelation,
 		caveat:      "",
 		expiration:  false,
 	}
+	testRelation.baseRelations = append(testRelation.baseRelations, br)
+	return br
 }
 
 // NewTestBaseRelationWithFeatures creates a BaseRelation with caveat and expiration features.

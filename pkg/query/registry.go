@@ -1,11 +1,16 @@
 package query
 
-import "github.com/authzed/spicedb/pkg/spiceerrors"
+import (
+	"io"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+)
 
 // IteratorType is an enum to represent each basic type of iterator by a
 // well-known byte.
 //
-// Remember to also update  the allIteratorTypes list below when adding a new one.
+// Below we provide constants for the built-in iterator types. The registry will
+// complain if you try to register a type of the same byte ID from outside this package.
 type IteratorType byte
 
 const (
@@ -33,6 +38,13 @@ type IteratorSpec struct {
 	Type              IteratorType
 	Name              string
 	ConstructWithArgs func(args *IteratorArgs, subIterators []Iterator, key CanonicalKey) (Iterator, error)
+	// Deserialize reads a single body from r (the type byte and the wrapping
+	// key+bodyLen framing have already been peeled by the package-level
+	// query.Deserialize). It returns the fully-reconstructed Iterator, including
+	// any sub-iterators, which it reads recursively by calling query.Deserialize.
+	// The CanonicalKey is supplied separately so the body need only carry the
+	// type-specific args and children.
+	Deserialize func(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error)
 }
 
 var iteratorRegistry = make(map[IteratorType]IteratorSpec)

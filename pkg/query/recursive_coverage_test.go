@@ -1,6 +1,8 @@
 package query
 
 import (
+	"errors"
+	"io"
 	"testing"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -286,6 +288,10 @@ func (i *infiniteRecursiveIterator) SubjectTypes() ([]ObjectType, error) {
 	return []ObjectType{{Type: "user", Subrelation: "..."}}, nil
 }
 
+func (i *infiniteRecursiveIterator) Serialize(io.Writer) error {
+	return errors.New("infiniteRecursiveIterator does not support Serialize (test-only)")
+}
+
 // Helper iterator that counts depth iterations
 type depthCountingIterator struct {
 	counter int
@@ -335,4 +341,8 @@ func (d *depthCountingIterator) ResourceType() ([]ObjectType, error) {
 
 func (d *depthCountingIterator) SubjectTypes() ([]ObjectType, error) {
 	return []ObjectType{{Type: "user", Subrelation: "..."}}, nil
+}
+
+func (d *depthCountingIterator) Serialize(io.Writer) error {
+	return errors.New("depthCountingIterator does not support Serialize (test-only)")
 }

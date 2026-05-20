@@ -2,6 +2,8 @@ package query
 
 import (
 	"errors"
+	"fmt"
+	"io"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -19,6 +21,7 @@ func init() {
 			self.canonicalKey = key
 			return self, nil
 		},
+		Deserialize: deserializeSelf,
 	})
 }
 
@@ -123,4 +126,34 @@ func (s *SelfIterator) SubjectTypes() ([]ObjectType, error) {
 		Type:        s.typeName,
 		Subrelation: tuple.Ellipsis,
 	}}, nil
+}
+
+func (s *SelfIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, SelfIteratorType, s.canonicalKey, func(buf io.Writer) error {
+		if err := writeUvarint(buf, 0); err != nil {
+			return err
+		}
+		if err := writeString(buf, s.typeName); err != nil {
+			return err
+		}
+		return writeString(buf, s.relation)
+	})
+}
+
+func deserializeSelf(body io.Reader, key CanonicalKey, _ *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	if _, err := readUvarint(br); err != nil {
+		return nil, fmt.Errorf("self flags: %w", err)
+	}
+	typeName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("self typeName: %w", err)
+	}
+	rel, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("self relation: %w", err)
+	}
+	self := NewSelfIterator(rel, typeName)
+	self.canonicalKey = key
+	return self, nil
 }

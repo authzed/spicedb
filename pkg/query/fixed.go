@@ -2,8 +2,11 @@ package query
 
 import (
 	"fmt"
+	"io"
 	"sort"
+	"time"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -19,6 +22,7 @@ func init() {
 			fixed.canonicalKey = key
 			return fixed, nil
 		},
+		Deserialize: deserializeNull,
 	})
 	MustRegisterIterator(IteratorSpec{
 		Type: FixedIteratorType,
@@ -33,6 +37,7 @@ func init() {
 			fixed.canonicalKey = key
 			return fixed, nil
 		},
+		Deserialize: deserializeFixed,
 	})
 }
 
@@ -214,4 +219,237 @@ func (f *FixedIterator) ResourceType() ([]ObjectType, error) {
 
 func (f *FixedIterator) SubjectTypes() ([]ObjectType, error) {
 	return f.subjectTypes, nil
+}
+
+const fixedFlagHasPaths = 0
+
+func (f *FixedIterator) Serialize(w io.Writer) error {
+	// Empty FixedIterator decompiles to NullIteratorType; emit Null on the wire
+	// so the receiver reconstructs the same shape.
+	if len(f.paths) == 0 {
+		return serializeWithHeader(w, NullIteratorType, f.canonicalKey, func(buf io.Writer) error {
+			return writeUvarint(buf, 0)
+		})
+	}
+	return serializeWithHeader(w, FixedIteratorType, f.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, fixedFlagHasPaths, len(f.paths) > 0)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if !hasFlag(flags, fixedFlagHasPaths) {
+			return nil
+		}
+		if err := writeUvarint(buf, uint64(len(f.paths))); err != nil {
+			return err
+		}
+		for i := range f.paths {
+			if err := serializePath(buf, &f.paths[i]); err != nil {
+				return fmt.Errorf("path %d: %w", i, err)
+			}
+		}
+		return nil
+	})
+}
+
+func deserializeFixed(body io.Reader, key CanonicalKey, _ *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("fixed flags: %w", err)
+	}
+	var paths []Path
+	if hasFlag(flags, fixedFlagHasPaths) {
+		n, err := readUvarint(br)
+		if err != nil {
+			return nil, fmt.Errorf("fixed path count: %w", err)
+		}
+		if n > maxSubCount {
+			return nil, fmt.Errorf("fixed path count %d exceeds %d", n, maxSubCount)
+		}
+		paths = make([]Path, n)
+		for i := range paths {
+			p, err := deserializePath(br)
+			if err != nil {
+				return nil, fmt.Errorf("fixed path %d: %w", i, err)
+			}
+			paths[i] = p
+		}
+	}
+	f := NewFixedIterator(paths...)
+	f.canonicalKey = key
+	return f, nil
+}
+
+// deserializeNull reconstructs the empty FixedIterator emitted by Fixed.Serialize
+// when len(paths) == 0. Null shares the FixedIterator type but uses a distinct
+// type byte so old plans that distinguished the two stay round-trippable.
+func deserializeNull(body io.Reader, key CanonicalKey, _ *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	if _, err := readUvarint(br); err != nil {
+		return nil, fmt.Errorf("null body: %w", err)
+	}
+	f := NewFixedIterator()
+	f.canonicalKey = key
+	return f, nil
+}
+
+// Path serialization (used only by FixedIterator).
+//
+// Path.Metadata is runtime-only (map[string]any with arbitrary executor-
+// produced values) and is intentionally not serialized — round-trip equality
+// tests must ignore it.
+
+const (
+	pathFlagCaveat = iota
+	pathFlagExpiration
+	pathFlagExcluded
+	pathFlagIntegrity
+)
+
+func serializePath(w io.Writer, p *Path) error {
+	var flags uint64
+	setFlag(&flags, pathFlagCaveat, p.Caveat != nil)
+	setFlag(&flags, pathFlagExpiration, p.Expiration != nil)
+	setFlag(&flags, pathFlagExcluded, len(p.ExcludedSubjects) > 0)
+	setFlag(&flags, pathFlagIntegrity, len(p.Integrity) > 0)
+	if err := writeUvarint(w, flags); err != nil {
+		return err
+	}
+	if err := writeString(w, p.Resource.ObjectType); err != nil {
+		return err
+	}
+	if err := writeString(w, p.Resource.ObjectID); err != nil {
+		return err
+	}
+	if err := writeString(w, p.Relation); err != nil {
+		return err
+	}
+	if err := writeString(w, p.Subject.ObjectType); err != nil {
+		return err
+	}
+	if err := writeString(w, p.Subject.ObjectID); err != nil {
+		return err
+	}
+	if err := writeString(w, p.Subject.Relation); err != nil {
+		return err
+	}
+	if hasFlag(flags, pathFlagCaveat) {
+		if err := writeProto(w, p.Caveat); err != nil {
+			return err
+		}
+	}
+	if hasFlag(flags, pathFlagExpiration) {
+		if err := writeUvarint(w, uint64(p.Expiration.UnixNano())); err != nil {
+			return err
+		}
+	}
+	if hasFlag(flags, pathFlagExcluded) {
+		if err := writeUvarint(w, uint64(len(p.ExcludedSubjects))); err != nil {
+			return err
+		}
+		for i, sub := range p.ExcludedSubjects {
+			if err := serializePath(w, sub); err != nil {
+				return fmt.Errorf("excluded[%d]: %w", i, err)
+			}
+		}
+	}
+	if hasFlag(flags, pathFlagIntegrity) {
+		if err := writeUvarint(w, uint64(len(p.Integrity))); err != nil {
+			return err
+		}
+		for i, integ := range p.Integrity {
+			if err := writeProto(w, integ); err != nil {
+				return fmt.Errorf("integrity[%d]: %w", i, err)
+			}
+		}
+	}
+	return nil
+}
+
+func deserializePath(r byteReader) (Path, error) {
+	flags, err := readUvarint(r)
+	if err != nil {
+		return Path{}, err
+	}
+	resType, err := readString(r)
+	if err != nil {
+		return Path{}, err
+	}
+	resID, err := readString(r)
+	if err != nil {
+		return Path{}, err
+	}
+	rel, err := readString(r)
+	if err != nil {
+		return Path{}, err
+	}
+	subType, err := readString(r)
+	if err != nil {
+		return Path{}, err
+	}
+	subID, err := readString(r)
+	if err != nil {
+		return Path{}, err
+	}
+	subRel, err := readString(r)
+	if err != nil {
+		return Path{}, err
+	}
+	p := Path{
+		Resource: Object{ObjectType: resType, ObjectID: resID},
+		Relation: rel,
+		Subject:  ObjectAndRelation{ObjectType: subType, ObjectID: subID, Relation: subRel},
+		Metadata: make(map[string]any),
+	}
+	if hasFlag(flags, pathFlagCaveat) {
+		cav := &core.CaveatExpression{}
+		if err := readProto(r, cav); err != nil {
+			return Path{}, fmt.Errorf("caveat: %w", err)
+		}
+		p.Caveat = cav
+	}
+	if hasFlag(flags, pathFlagExpiration) {
+		ns, err := readUvarint(r)
+		if err != nil {
+			return Path{}, fmt.Errorf("expiration: %w", err)
+		}
+		t := time.Unix(0, int64(ns))
+		p.Expiration = &t
+	}
+	if hasFlag(flags, pathFlagExcluded) {
+		n, err := readUvarint(r)
+		if err != nil {
+			return Path{}, fmt.Errorf("excluded count: %w", err)
+		}
+		if n > maxSubCount {
+			return Path{}, fmt.Errorf("excluded count %d exceeds %d", n, maxSubCount)
+		}
+		p.ExcludedSubjects = make([]*Path, n)
+		for i := range p.ExcludedSubjects {
+			sub, err := deserializePath(r)
+			if err != nil {
+				return Path{}, fmt.Errorf("excluded[%d]: %w", i, err)
+			}
+			p.ExcludedSubjects[i] = &sub
+		}
+	}
+	if hasFlag(flags, pathFlagIntegrity) {
+		n, err := readUvarint(r)
+		if err != nil {
+			return Path{}, fmt.Errorf("integrity count: %w", err)
+		}
+		if n > maxSubCount {
+			return Path{}, fmt.Errorf("integrity count %d exceeds %d", n, maxSubCount)
+		}
+		p.Integrity = make([]*core.RelationshipIntegrity, n)
+		for i := range p.Integrity {
+			ri := &core.RelationshipIntegrity{}
+			if err := readProto(r, ri); err != nil {
+				return Path{}, fmt.Errorf("integrity[%d]: %w", i, err)
+			}
+			p.Integrity[i] = ri
+		}
+	}
+	return p, nil
 }

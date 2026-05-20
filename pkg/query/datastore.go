@@ -3,6 +3,7 @@ package query
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -21,6 +22,7 @@ func init() {
 			ds.canonicalKey = key
 			return ds, nil
 		},
+		Deserialize: deserializeDatastore,
 	})
 }
 
@@ -477,4 +479,84 @@ func (r *DatastoreIterator) SubjectTypes() ([]ObjectType, error) {
 		Type:        r.base.Type(),
 		Subrelation: r.base.Subrelation(),
 	}}, nil
+}
+
+const (
+	dsFlagCaveat = iota
+	dsFlagExpiration
+	dsFlagWildcard
+)
+
+func (r *DatastoreIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, DatastoreIteratorType, r.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, dsFlagCaveat, r.base.Caveat() != "")
+		setFlag(&flags, dsFlagExpiration, r.base.Expiration())
+		setFlag(&flags, dsFlagWildcard, r.base.Wildcard())
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		// Always-present identifying fields.
+		if err := writeString(buf, r.base.DefinitionName()); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.base.RelationName()); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.base.Type()); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.base.Subrelation()); err != nil {
+			return err
+		}
+		if hasFlag(flags, dsFlagCaveat) {
+			if err := writeString(buf, r.base.Caveat()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func deserializeDatastore(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	if dctx == nil || dctx.Schema == nil {
+		return nil, errors.New("DatastoreIterator deserialize requires DeserializeContext with Schema")
+	}
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore flags: %w", err)
+	}
+	defName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore def: %w", err)
+	}
+	relName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore rel: %w", err)
+	}
+	subjectType, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore subjectType: %w", err)
+	}
+	subrelation, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore subrelation: %w", err)
+	}
+	var caveat string
+	if hasFlag(flags, dsFlagCaveat) {
+		if caveat, err = readString(br); err != nil {
+			return nil, fmt.Errorf("datastore caveat: %w", err)
+		}
+	}
+	base, err := dctx.Schema.ResolveBaseRelation(
+		defName, relName, subjectType, subrelation, caveat,
+		hasFlag(flags, dsFlagExpiration), hasFlag(flags, dsFlagWildcard),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("datastore: %w", err)
+	}
+	ds := NewDatastoreIterator(base)
+	ds.canonicalKey = key
+	return ds, nil
 }

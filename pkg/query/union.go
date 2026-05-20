@@ -1,6 +1,9 @@
 package query
 
 import (
+	"fmt"
+	"io"
+
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 )
 
@@ -19,6 +22,7 @@ func init() {
 			}
 			return it, nil
 		},
+		Deserialize: deserializeUnion,
 	})
 }
 
@@ -220,4 +224,32 @@ func (u *UnionIterator) ResourceType() ([]ObjectType, error) {
 
 func (u *UnionIterator) SubjectTypes() ([]ObjectType, error) {
 	return collectAndDeduplicateSubjectTypes(u.subIts)
+}
+
+func (u *UnionIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, UnionIteratorType, u.canonicalKey, func(buf io.Writer) error {
+		if err := writeUvarint(buf, 0); err != nil { // flags reserved
+			return err
+		}
+		return writeSubs(buf, u.subIts)
+	})
+}
+
+func deserializeUnion(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	if _, err := readUvarint(br); err != nil {
+		return nil, fmt.Errorf("union flags: %w", err)
+	}
+	subs, err := readSubs(br, dctx)
+	if err != nil {
+		return nil, err
+	}
+	it := NewUnionIterator(subs...)
+	switch v := it.(type) {
+	case *UnionIterator:
+		v.canonicalKey = key
+	case *FixedIterator:
+		v.canonicalKey = key
+	}
+	return it, nil
 }

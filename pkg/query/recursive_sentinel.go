@@ -3,6 +3,7 @@ package query
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -21,6 +22,7 @@ func init() {
 			sentinel.canonicalKey = key
 			return sentinel, nil
 		},
+		Deserialize: deserializeRecursiveSentinel,
 	})
 }
 
@@ -151,4 +153,39 @@ func (r *RecursiveSentinelIterator) SubjectTypes() ([]ObjectType, error) {
 		Type:        r.definitionName,
 		Subrelation: subrel,
 	}}, nil
+}
+
+const sentinelFlagWithSubRelations = 0
+
+func (r *RecursiveSentinelIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, RecursiveSentinelIteratorType, r.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, sentinelFlagWithSubRelations, r.withSubRelations)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.definitionName); err != nil {
+			return err
+		}
+		return writeString(buf, r.relationName)
+	})
+}
+
+func deserializeRecursiveSentinel(body io.Reader, key CanonicalKey, _ *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel flags: %w", err)
+	}
+	defName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel def: %w", err)
+	}
+	relName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel rel: %w", err)
+	}
+	s := NewRecursiveSentinelIterator(defName, relName, hasFlag(flags, sentinelFlagWithSubRelations))
+	s.canonicalKey = key
+	return s, nil
 }

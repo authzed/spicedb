@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
@@ -91,6 +92,31 @@ func (s *Schema) Caveats() map[string]*Caveat {
 func (s *Schema) GetTypeDefinition(name string) (*Definition, bool) {
 	def, ok := s.definitions[name]
 	return def, ok
+}
+
+// ResolveBaseRelation walks definition → relation → base relations to find the
+// *BaseRelation matching the given identifying tuple. Used by iterator deserialization
+// to rebind a wire-serialized DatastoreIterator to a live schema object.
+func (s *Schema) ResolveBaseRelation(defName, relName, subjectType, subrelation, caveat string, expiration, wildcard bool) (*BaseRelation, error) {
+	def, ok := s.definitions[defName]
+	if !ok {
+		return nil, fmt.Errorf("schema: definition %q not found", defName)
+	}
+	rel, ok := def.relations[relName]
+	if !ok {
+		return nil, fmt.Errorf("schema: relation %q not found in definition %q", relName, defName)
+	}
+	for _, br := range rel.baseRelations {
+		if br.subjectType == subjectType &&
+			br.subrelation == subrelation &&
+			br.caveat == caveat &&
+			br.expiration == expiration &&
+			br.wildcard == wildcard {
+			return br, nil
+		}
+	}
+	return nil, fmt.Errorf("schema: no base relation on %s#%s matching subjectType=%q subrelation=%q caveat=%q expiration=%t wildcard=%t",
+		defName, relName, subjectType, subrelation, caveat, expiration, wildcard)
 }
 
 // clone creates a deep copy of the Schema.
