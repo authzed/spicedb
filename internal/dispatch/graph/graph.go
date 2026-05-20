@@ -722,6 +722,14 @@ func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, re
 		return nil, fmt.Errorf("DispatchQueryPlan: failed to optimize outline for %s#%s: %w", defName, relName, err)
 	}
 
+	// Tag dispatch-eligible aliases by wrapping them in DispatchIterator. This
+	// runs after the standard optimizer set so the wrap sees the post-optimizer
+	// tree shape (e.g. collapsed alias chains).
+	optimized, err = dispatch.ApplyDispatchWrap(optimized, params)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to apply dispatch wrap for %s#%s: %w", defName, relName, err)
+	}
+
 	// Apply the count-based advisor using the shared QueryPlanMetadata so the
 	// receiver-side compile benefits from stats accumulated by prior runs on
 	// either side of the dispatch boundary.
