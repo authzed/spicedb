@@ -3,6 +3,7 @@
 package integrationtesting_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"testing"
@@ -221,11 +222,17 @@ func (d *localQueryPlanDispatcher) ReadyState() dispatch.ReadyState {
 func (d *localQueryPlanDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	ctx := stream.Context()
 
-	// Find the iterator for this canonical key by compiling the full plan.
-	// In the real implementation, this would be cached.
-	it, err := d.findIterator(req)
+	// Deserialize the iterator the sender shipped on req.Plan. Mirrors what the
+	// production receiver in dispatch/graph does: the schema is needed so
+	// DatastoreIterator subjects rebind to live *schema.BaseRelation pointers
+	// via DeserializeContext, but no outline build / optimize / compile happens
+	// on this side.
+	if len(req.Plan) == 0 {
+		return fmt.Errorf("DispatchQueryPlan: missing serialized plan")
+	}
+	it, err := query.Deserialize(bytes.NewReader(req.Plan), &query.DeserializeContext{Schema: d.handle.schema})
 	if err != nil {
-		return err
+		return fmt.Errorf("DispatchQueryPlan: deserialize plan: %w", err)
 	}
 
 	// Build execution context with DispatchExecutor so nested aliases in the subtree
@@ -308,64 +315,6 @@ func (d *localQueryPlanDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRe
 	}
 }
 
-// findIterator compiles the full plan from schema and walks the iterator tree
-// to find the subtree matching the requested canonical key.
-func (d *localQueryPlanDispatcher) findIterator(req *v1.DispatchQueryPlanRequest) (query.Iterator, error) {
-	targetKey := query.CanonicalKey(req.CanonicalKey)
-
-	// Map PlanOperation to query.Operation for optimizer selection.
-	var operation query.Operation
-	switch req.Operation {
-	case v1.PlanOperation_PLAN_OPERATION_CHECK:
-		operation = query.OperationCheck
-	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
-		operation = query.OperationIterResources
-	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
-		operation = query.OperationIterSubjects
-	}
-
-	queryParams := queryopt.RequestParams{
-		Operation:       operation,
-		SubjectType:     req.Subject.Namespace,
-		SubjectRelation: req.Subject.Relation,
-	}
-
-	for nsName, def := range d.handle.schema.Definitions() {
-		for permName := range def.Permissions() {
-			co, err := query.BuildOutlineFromSchema(d.handle.schema, nsName, permName)
-			if err != nil {
-				continue
-			}
-
-			optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
-			if err != nil {
-				continue
-			}
-
-			it, err := optimized.Compile()
-			if err != nil {
-				continue
-			}
-			if found := findByCanonicalKey(it, targetKey); found != nil {
-				return found, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("no iterator found for canonical key %q", req.CanonicalKey)
-}
-
-// findByCanonicalKey recursively searches an iterator tree for a node with the given key.
-func findByCanonicalKey(it query.Iterator, key query.CanonicalKey) query.Iterator {
-	if it.CanonicalKey() == key {
-		return it
-	}
-	for _, sub := range it.Subiterators() {
-		if found := findByCanonicalKey(sub, key); found != nil {
-			return found
-		}
-	}
-	return nil
-}
 
 // --- Benchmarks ---
 

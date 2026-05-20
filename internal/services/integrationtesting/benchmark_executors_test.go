@@ -34,6 +34,7 @@ var executorScenarios = []string{
 	"DoubleWideArrow",
 	"DeepArrow",
 	"LookupIntersection",
+	"ShareWith",
 }
 
 // classicDispatchDepthRemaining matches the convention used elsewhere in the
