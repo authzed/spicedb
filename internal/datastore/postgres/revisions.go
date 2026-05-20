@@ -110,7 +110,7 @@ const (
 	LIMIT 1;`
 	queryCurrentSnapshotWithHash = `
 	WITH current_xid AS (
-		SELECT pg_current_xact_id() as xid, pg_current_snapshot() as snapshot
+		SELECT pg_current_xact_id_if_assigned() as xid, pg_current_snapshot() as snapshot
 	)
 	SELECT
 		current_xid.snapshot,

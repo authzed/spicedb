@@ -1147,8 +1147,10 @@ func HeadRevisionDoesNotConsumeXIDTest(t *testing.T, ds datastore.Datastore) {
 
 	nextXID := func() uint64 {
 		var x uint64
-		require.NoError(t, pds.readPool.QueryRow(ctx,
-			`SELECT pg_snapshot_xmax(pg_current_snapshot())::text::bigint`).Scan(&x))
+		// pg_snapshot_xmax returns the first not-yet-assigned xid at the time the snapshot
+		// was taken; reading it observes the xid counter without consuming an xid itself.
+		err := pds.readPool.QueryRow(ctx, `SELECT pg_snapshot_xmax(pg_current_snapshot())::text::bigint`).Scan(&x)
+		require.NoError(t, err)
 		return x
 	}
 
@@ -1160,8 +1162,7 @@ func HeadRevisionDoesNotConsumeXIDTest(t *testing.T, ds datastore.Datastore) {
 	}
 	after := nextXID()
 
-	require.Equal(t, before, after,
-		"HeadRevision burned %d xid(s) over %d calls; expected 0", after-before, iterations)
+	require.Equal(t, before, after, "HeadRevision burned %d xid(s) over %d calls; expected 0", after-before, iterations)
 }
 
 // ConcurrentRevisionWatchTest uses goroutines and channels to intentionally set up a pair of
