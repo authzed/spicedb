@@ -1839,9 +1839,14 @@ func (x *PlanContext) GetTopLevelOperation() PlanOperation {
 }
 
 type DispatchQueryPlanRequest struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	Operation    PlanOperation          `protobuf:"varint,1,opt,name=operation,proto3,enum=dispatch.v1.PlanOperation" json:"operation,omitempty"`
-	CanonicalKey string                 `protobuf:"bytes,2,opt,name=canonical_key,json=canonicalKey,proto3" json:"canonical_key,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Operation PlanOperation          `protobuf:"varint,1,opt,name=operation,proto3,enum=dispatch.v1.PlanOperation" json:"operation,omitempty"`
+	// canonical_key is superseded by `plan`: the iterator subtree now travels
+	// on the wire and the receiver no longer needs to rebuild it from this key.
+	// Retained for in-progress cycle bookkeeping that already keys on it.
+	//
+	// Deprecated: Marked as deprecated in dispatch/v1/dispatch.proto.
+	CanonicalKey string `protobuf:"bytes,2,opt,name=canonical_key,json=canonicalKey,proto3" json:"canonical_key,omitempty"`
 	// For CHECK_MANY_RESOURCES, resource is empty and `many` carries the resources.
 	Resource *v1.ObjectAndRelation `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource,omitempty"`
 	// For CHECK_MANY_SUBJECTS, subject is empty and `many` carries the subjects.
@@ -1849,7 +1854,12 @@ type DispatchQueryPlanRequest struct {
 	PlanContext *PlanContext          `protobuf:"bytes,5,opt,name=plan_context,json=planContext,proto3" json:"plan_context,omitempty"`
 	// many takes the place of resource or subject (whichever is empty), used by
 	// PLAN_OPERATION_CHECK_MANY_RESOURCES and PLAN_OPERATION_CHECK_MANY_SUBJECTS.
-	Many          []*v1.ObjectAndRelation `protobuf:"bytes,6,rep,name=many,proto3" json:"many,omitempty"`
+	Many []*v1.ObjectAndRelation `protobuf:"bytes,6,rep,name=many,proto3" json:"many,omitempty"`
+	// plan is the iterator subtree to execute, serialized via the pkg/query
+	// wire format. The receiver loads the schema indicated by plan_context and
+	// deserializes the plan in that schema; it executes the deserialized
+	// iterator directly rather than rebuilding from canonical_key.
+	Plan          []byte `protobuf:"bytes,7,opt,name=plan,proto3" json:"plan,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1891,6 +1901,7 @@ func (x *DispatchQueryPlanRequest) GetOperation() PlanOperation {
 	return PlanOperation_PLAN_OPERATION_CHECK
 }
 
+// Deprecated: Marked as deprecated in dispatch/v1/dispatch.proto.
 func (x *DispatchQueryPlanRequest) GetCanonicalKey() string {
 	if x != nil {
 		return x.CanonicalKey
@@ -1922,6 +1933,13 @@ func (x *DispatchQueryPlanRequest) GetPlanContext() *PlanContext {
 func (x *DispatchQueryPlanRequest) GetMany() []*v1.ObjectAndRelation {
 	if x != nil {
 		return x.Many
+	}
+	return nil
+}
+
+func (x *DispatchQueryPlanRequest) GetPlan() []byte {
+	if x != nil {
+		return x.Plan
 	}
 	return nil
 }
@@ -2318,14 +2336,15 @@ const file_dispatch_v1_dispatch_proto_rawDesc = "" +
 	"\vschema_hash\x18\x05 \x01(\fR\n" +
 	"schemaHash\x12(\n" +
 	"\x10in_progress_keys\x18\x06 \x03(\tR\x0einProgressKeys\x12J\n" +
-	"\x13top_level_operation\x18\a \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\x11topLevelOperation\"\xd4\x02\n" +
+	"\x13top_level_operation\x18\a \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\x11topLevelOperation\"\xec\x02\n" +
 	"\x18DispatchQueryPlanRequest\x128\n" +
-	"\toperation\x18\x01 \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\toperation\x12#\n" +
-	"\rcanonical_key\x18\x02 \x01(\tR\fcanonicalKey\x126\n" +
+	"\toperation\x18\x01 \x01(\x0e2\x1a.dispatch.v1.PlanOperationR\toperation\x12'\n" +
+	"\rcanonical_key\x18\x02 \x01(\tB\x02\x18\x01R\fcanonicalKey\x126\n" +
 	"\bresource\x18\x03 \x01(\v2\x1a.core.v1.ObjectAndRelationR\bresource\x124\n" +
 	"\asubject\x18\x04 \x01(\v2\x1a.core.v1.ObjectAndRelationR\asubject\x12;\n" +
 	"\fplan_context\x18\x05 \x01(\v2\x18.dispatch.v1.PlanContextR\vplanContext\x12.\n" +
-	"\x04many\x18\x06 \x03(\v2\x1a.core.v1.ObjectAndRelationR\x04many\"\x81\x01\n" +
+	"\x04many\x18\x06 \x03(\v2\x1a.core.v1.ObjectAndRelationR\x04many\x12\x12\n" +
+	"\x04plan\x18\a \x01(\fR\x04plan\"\x81\x01\n" +
 	"\x19DispatchQueryPlanResponse\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.dispatch.v1.ResponseMetaR\bmetadata\x12-\n" +
 	"\x05paths\x18\x02 \x03(\v2\x17.dispatch.v1.ResultPathR\x05paths\"\x83\x04\n" +

@@ -708,6 +708,11 @@ func (m *DispatchQueryPlanRequest) CloneVT() *DispatchQueryPlanRequest {
 		}
 		r.Many = tmpContainer
 	}
+	if rhs := m.Plan; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.Plan = tmpBytes
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -1783,6 +1788,9 @@ func (this *DispatchQueryPlanRequest) EqualVT(that *DispatchQueryPlanRequest) bo
 				return false
 			}
 		}
+	}
+	if string(this.Plan) != string(that.Plan) {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -3693,6 +3701,13 @@ func (m *DispatchQueryPlanRequest) MarshalToSizedBufferVT(dAtA []byte) (int, err
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.Plan) > 0 {
+		i -= len(m.Plan)
+		copy(dAtA[i:], m.Plan)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Plan)))
+		i--
+		dAtA[i] = 0x3a
+	}
 	if len(m.Many) > 0 {
 		for iNdEx := len(m.Many) - 1; iNdEx >= 0; iNdEx-- {
 			if vtmsg, ok := interface{}(m.Many[iNdEx]).(interface {
@@ -4802,6 +4817,10 @@ func (m *DispatchQueryPlanRequest) SizeVT() (n int) {
 			}
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
+	}
+	l = len(m.Plan)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -9417,6 +9436,40 @@ func (m *DispatchQueryPlanRequest) UnmarshalVT(dAtA []byte) error {
 				if err := proto.Unmarshal(dAtA[iNdEx:postIndex], m.Many[len(m.Many)-1]); err != nil {
 					return err
 				}
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Plan", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Plan = append(m.Plan[:0], dAtA[iNdEx:postIndex]...)
+			if m.Plan == nil {
+				m.Plan = []byte{}
 			}
 			iNdEx = postIndex
 		default:
