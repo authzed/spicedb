@@ -175,6 +175,17 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				MigrationPhase(config.migrationPhase),
 			))
 
+			t.Run("HeadRevisionDoesNotConsumeXID", createDatastoreTest(
+				b,
+				HeadRevisionDoesNotConsumeXIDTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				GCInterval(veryLargeGCInterval),
+				WatchBufferLength(1),
+				MigrationPhase(config.migrationPhase),
+				WithRevisionHeartbeat(false),
+			))
+
 			t.Run("ConcurrentRevisionWatch", createDatastoreTest(
 				b,
 				ConcurrentRevisionWatchTest,
@@ -1126,6 +1137,32 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	found, err := datastore.IteratorToSlice(it)
 	require.NoError(err)
 	require.Len(found, 2, "missing relationships in %v", found)
+}
+
+// HeadRevisionDoesNotConsumeXIDTest verifies that calling HeadRevision does not allocate a
+// new Postgres transaction ID.
+func HeadRevisionDoesNotConsumeXIDTest(t *testing.T, ds datastore.Datastore) {
+	pds := ds.(*pgDatastore)
+	ctx := t.Context()
+
+	nextXID := func() uint64 {
+		var x uint64
+		// pg_snapshot_xmax returns the first not-yet-assigned xid at the time the snapshot
+		// was taken; reading it observes the xid counter without consuming an xid itself.
+		err := pds.readPool.QueryRow(ctx, `SELECT pg_snapshot_xmax(pg_current_snapshot())::text::bigint`).Scan(&x)
+		require.NoError(t, err)
+		return x
+	}
+
+	const iterations = 10
+	before := nextXID()
+	for i := 0; i < iterations; i++ {
+		_, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+	}
+	after := nextXID()
+
+	require.Equal(t, before, after, "HeadRevision burned %d xid(s) over %d calls; expected 0", after-before, iterations)
 }
 
 // ConcurrentRevisionWatchTest uses goroutines and channels to intentionally set up a pair of
