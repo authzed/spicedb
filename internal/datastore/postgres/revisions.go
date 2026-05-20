@@ -40,6 +40,18 @@ const (
         LIMIT 1
 	);`
 
+	// schemaHashForSelectedXID looks up the schema hash visible at `selected.xid`.
+	// When `selected.xid` is NULL, it falls back to the currently-live row (deleted_xid = max_xid8).
+	// Returns an empty bytea when no row matches.
+	schemaHashForSelectedXID = `
+	COALESCE(
+		(SELECT hash FROM schema_revision
+		 WHERE (selected.xid IS NOT NULL AND created_xid <= selected.xid AND deleted_xid > selected.xid)
+		    OR (selected.xid IS NULL AND deleted_xid = '9223372036854775807'::xid8)
+		 ORDER BY created_xid DESC LIMIT 1),
+		''::bytea
+	)`
+
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction (and its active xmin)
 	// after that. If there are no transactions newer than the quantization period,
@@ -62,13 +74,7 @@ const (
 	SELECT selected.xid,
 	COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
 	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d,
-	COALESCE(
-		(SELECT hash FROM schema_revision
-		 WHERE (selected.xid IS NOT NULL AND created_xid <= selected.xid AND deleted_xid > selected.xid)
-		    OR (selected.xid IS NULL AND deleted_xid = '9223372036854775807'::xid8)
-		 ORDER BY created_xid DESC LIMIT 1),
-		''::bytea
-	)
+	` + schemaHashForSelectedXID + `
 	FROM selected;`
 
 	// queryValidTransaction will return a single row with three values:
@@ -108,14 +114,15 @@ const (
 	) AS candidates
 	ORDER BY %[3]s ASC
 	LIMIT 1;`
+	// queryCurrentSnapshotWithHash returns the current snapshot alongside the schema hash
+	// visible at the current xid. Uses pg_current_xact_id_if_assigned() so a read-only
+	// HeadRevision call does not allocate a fresh xid.
 	queryCurrentSnapshotWithHash = `
-	WITH current_xid AS (
+	WITH selected AS (
 		SELECT pg_current_xact_id_if_assigned() as xid, pg_current_snapshot() as snapshot
 	)
-	SELECT
-		current_xid.snapshot,
-		COALESCE((SELECT hash FROM schema_revision WHERE created_xid <= current_xid.xid AND deleted_xid > current_xid.xid ORDER BY created_xid DESC LIMIT 1), ''::bytea)
-	FROM current_xid;`
+	SELECT selected.snapshot, ` + schemaHashForSelectedXID + `
+	FROM selected;`
 
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
