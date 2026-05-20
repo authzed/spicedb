@@ -84,22 +84,27 @@ NodeTypeFile
               input-source = basic definition test
               start-rune = 208
               left-expr =>
-                NodeTypeExclusionExpression
-                  end-rune = 217
+                NodeTypeParenthesizedExpression
+                  end-rune = 218
                   input-source = basic definition test
-                  start-rune = 209
-                  left-expr =>
-                    NodeTypeIdentifier
-                      end-rune = 211
-                      identifier-value = foo
+                  start-rune = 208
+                  inner-expr =>
+                    NodeTypeExclusionExpression
+                      end-rune = 217
                       input-source = basic definition test
                       start-rune = 209
-                  right-expr =>
-                    NodeTypeIdentifier
-                      end-rune = 217
-                      identifier-value = meh
-                      input-source = basic definition test
-                      start-rune = 215
+                      left-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 211
+                          identifier-value = foo
+                          input-source = basic definition test
+                          start-rune = 209
+                      right-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 217
+                          identifier-value = meh
+                          input-source = basic definition test
+                          start-rune = 215
               right-expr =>
                 NodeTypeIdentifier
                   end-rune = 224
