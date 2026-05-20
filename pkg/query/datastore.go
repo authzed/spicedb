@@ -488,7 +488,7 @@ const (
 )
 
 func (r *DatastoreIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, DatastoreIteratorType, r.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, DatastoreIteratorType, r.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, dsFlagCaveat, r.base.Caveat() != "")
 		setFlag(&flags, dsFlagExpiration, r.base.Expiration())
