@@ -3,7 +3,7 @@ ignore:
   # not production code
   - "pkg/benchmarks/"
   - "pkg/query/benchmarks/"
-  - "**/zz_*.go"
+  - "**/zz_generated*.go"
   - "**/*.pb.go"
   - "**/*fortesting.go"
   - "**/testutil.go"
