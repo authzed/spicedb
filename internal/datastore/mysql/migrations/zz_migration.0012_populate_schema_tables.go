@@ -143,6 +143,18 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 		return fmt.Errorf("failed to marshal schema: %w", err)
 	}
 
+	// Before inserting schema chunks we insert a fresh transaction row
+	txResult, err := tx.ExecContext(ctx, fmt.Sprintf(
+		`INSERT INTO %s () VALUES ()`, wrapper.tables.RelationTupleTransaction(),
+	))
+	if err != nil {
+		return fmt.Errorf("failed to create transaction for schema population: %w", err)
+	}
+	newTxnID, err := txResult.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("failed to get id of new transaction: %w", err)
+	}
+
 	// Insert schema chunks
 	for chunkIndex := 0; chunkIndex*schemaChunkSize < len(schemaData); chunkIndex++ {
 		start := chunkIndex * schemaChunkSize
@@ -153,10 +165,10 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 		chunk := schemaData[start:end]
 
 		query = fmt.Sprintf(`
-			INSERT INTO %s (name, chunk_index, chunk_data)
-			VALUES (?, ?, ?)
+			INSERT INTO %s (name, chunk_index, chunk_data, created_transaction)
+			VALUES (?, ?, ?, ?)
 		`, wrapper.tables.Schema())
-		_, err = tx.ExecContext(ctx, query, unifiedSchemaName, chunkIndex, chunk)
+		_, err = tx.ExecContext(ctx, query, unifiedSchemaName, chunkIndex, chunk, newTxnID)
 		if err != nil {
 			return fmt.Errorf("failed to insert schema chunk %d: %w", chunkIndex, err)
 		}
@@ -164,10 +176,10 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 
 	// Insert schema hash
 	query = fmt.Sprintf(`
-		INSERT INTO %s (name, hash)
-		VALUES (?, ?)
+		INSERT INTO %s (name, hash, created_transaction)
+		VALUES (?, ?, ?)
 	`, wrapper.tables.SchemaRevision())
-	_, err = tx.ExecContext(ctx, query, schemaRevisionName, schemaHash)
+	_, err = tx.ExecContext(ctx, query, schemaRevisionName, schemaHash, newTxnID)
 	if err != nil {
 		return fmt.Errorf("failed to insert schema hash: %w", err)
 	}
