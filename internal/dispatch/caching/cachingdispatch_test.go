@@ -371,6 +371,10 @@ func (ddm delegateDispatchMock) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest
 	return nil
 }
 
+func (ddm delegateDispatchMock) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
+
 func (ddm delegateDispatchMock) Close() error {
 	return nil
 }

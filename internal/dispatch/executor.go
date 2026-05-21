@@ -180,6 +180,34 @@ func (e *DispatchExecutor) dispatchCheck(ctx *query.Context, it query.Iterator, 
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Probe the dispatcher chain for a cached Plan-Check answer before paying
+	// to serialize the iterator. The lookup descriptor is cheap to build —
+	// just the alias's (def, rel) plus the resource/subject ONRs and parent
+	// plan context — and the cache key it produces is identical to the one
+	// DispatchQueryPlan would compute (see keys.PlanCheckLookupKey), so a hit
+	// here is the same hit the slow path would have found.
+	alias := it.(*query.AliasIterator)
+	canonicalKey := alias.DefinitionName() + "#" + alias.Relation()
+	resourceONR := &core.ObjectAndRelation{
+		Namespace: resource.ObjectType,
+		ObjectId:  resource.ObjectID,
+	}
+	subjectONR := &core.ObjectAndRelation{
+		Namespace: subject.ObjectType,
+		ObjectId:  subject.ObjectID,
+		Relation:  subject.Relation,
+	}
+	if path, ok, err := e.dispatcher.LookupPlanCheck(subCtx, PlanCheckLookup{
+		CanonicalKey: canonicalKey,
+		Resource:     resourceONR,
+		Subject:      subjectONR,
+		PlanContext:  e.planContext,
+	}); err != nil {
+		return nil, err
+	} else if ok {
+		return resultPathToQueryPath(path), nil
+	}
+
 	req, err := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK, it, resource, subject)
 	if err != nil {
 		return nil, err

@@ -462,6 +462,9 @@ func (m planMockDispatcher) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, st
 	})
 }
 
+func (m planMockDispatcher) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
 func (m planMockDispatcher) Close() error                    { return nil }
 func (m planMockDispatcher) ReadyState() dispatch.ReadyState { return dispatch.ReadyState{} }
 
@@ -542,6 +545,10 @@ func (m mockDispatcher) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsReque
 
 func (m mockDispatcher) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, _ dispatch.PlanStream) error {
 	return nil
+}
+
+func (m mockDispatcher) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
 }
 
 func (m mockDispatcher) Close() error {

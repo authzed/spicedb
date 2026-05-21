@@ -497,6 +497,12 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	)
 }
 
+// LookupPlanCheck is a no-op on the local dispatcher — there is no cache layer
+// at this level, so callers should fall through to DispatchQueryPlan.
+func (ld *localDispatcher) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
+
 // DispatchQueryPlan implements dispatch.Plan interface.
 // It loads the schema (needed to rehydrate DatastoreIterator subjects), then
 // deserializes the iterator subtree the sender shipped in req.Plan and runs

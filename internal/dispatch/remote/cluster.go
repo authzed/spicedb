@@ -852,6 +852,15 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 		})
 }
 
+// LookupPlanCheck is a no-op on the cluster (remote) dispatcher. Probing a
+// remote cache would require its own RPC, which would defeat the purpose of
+// avoiding the heavy DispatchQueryPlan call; the remote receiver consults its
+// own caching layer when it gets a full request. Future work could expose a
+// cheap "PlanCheckLookup" RPC if remote cache amplification is needed.
+func (cr *clusterDispatcher) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
+
 func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	var requestKey []byte
 	var err error

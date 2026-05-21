@@ -214,6 +214,11 @@ func (d *localQueryPlanDispatcher) DispatchLookupResources3(_ *v1.DispatchLookup
 func (d *localQueryPlanDispatcher) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ dispatch.LookupSubjectsStream) error {
 	return fmt.Errorf("not implemented")
 }
+
+func (d *localQueryPlanDispatcher) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
+
 func (d *localQueryPlanDispatcher) Close() error { return nil }
 func (d *localQueryPlanDispatcher) ReadyState() dispatch.ReadyState {
 	return dispatch.ReadyState{IsReady: true}
@@ -314,7 +319,6 @@ func (d *localQueryPlanDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRe
 		return fmt.Errorf("unknown plan operation: %v", req.Operation)
 	}
 }
-
 
 // --- Benchmarks ---
 

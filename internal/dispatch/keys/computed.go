@@ -1,7 +1,10 @@
 package keys
 
 import (
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/authzed/spicedb/pkg/caveats"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -115,11 +118,27 @@ func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) DispatchC
 
 // planCheckRequestToKey converts a plan check request into a cache key
 func planCheckRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
-	return dispatchCacheKeyHash(planCheckPrefix, req.PlanContext.Revision,
-		hashableString(req.CanonicalKey),
-		hashableOnr{req.Resource},
-		hashableOnr{req.Subject},
-		hashableContext{Struct: req.PlanContext.CaveatContext},
+	return PlanCheckLookupKey(
+		req.PlanContext.Revision,
+		req.CanonicalKey,
+		req.Resource,
+		req.Subject,
+		req.PlanContext.CaveatContext,
+	)
+}
+
+// PlanCheckLookupKey computes the same Plan-Check cache key as
+// planCheckRequestToKey, but takes the inputs directly so callers can probe the
+// cache without first having to construct a DispatchQueryPlanRequest (which
+// forces iterator serialization). The hashed component set must stay identical
+// to planCheckRequestToKey or the cache-hit fast path and the DispatchQueryPlan
+// slow path will end up on different cache entries.
+func PlanCheckLookupKey(revision string, canonicalKey string, resource, subject *core.ObjectAndRelation, caveatContext *structpb.Struct) DispatchCacheKey {
+	return dispatchCacheKeyHash(planCheckPrefix, revision,
+		hashableString(canonicalKey),
+		hashableOnr{resource},
+		hashableOnr{subject},
+		hashableContext{Struct: caveatContext},
 	)
 }
 

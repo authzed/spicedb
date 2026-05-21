@@ -54,6 +54,10 @@ func (d *testDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, str
 	}
 	return nil
 }
+
+func (d *testDispatcher) LookupPlanCheck(_ context.Context, _ PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
 func (d *testDispatcher) Close() error           { return nil }
 func (d *testDispatcher) ReadyState() ReadyState { return ReadyState{IsReady: true} }
 
@@ -761,6 +765,10 @@ func (d *chunkingDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest,
 		}
 	}
 	return nil
+}
+
+func (d *chunkingDispatcher) LookupPlanCheck(_ context.Context, _ PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
 }
 func (d *chunkingDispatcher) Close() error           { return nil }
 func (d *chunkingDispatcher) ReadyState() ReadyState { return ReadyState{IsReady: true} }
