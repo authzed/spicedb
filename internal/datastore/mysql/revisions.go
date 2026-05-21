@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var ParseRevisionString = revisions.RevisionParser(revisions.TransactionID)
@@ -202,35 +201,6 @@ func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx,
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	var wrappedMetadata structpbWrapper
-	if len(metadata) > 0 {
-		wrappedMetadata = metadata
-	}
-
-	createQuery := mds.createTxn.Values(&wrappedMetadata)
-	if err != nil {
-		return 0, fmt.Errorf("createNewTransaction: %w", err)
-	}
-
-	sql, args, err := createQuery.ToSql()
-	if err != nil {
-		return 0, fmt.Errorf("createNewTransaction: %w", err)
-	}
-
-	result, err := tx.ExecContext(ctx, sql, args...)
-	if err != nil {
-		return 0, fmt.Errorf("createNewTransaction: %w", err)
-	}
-
-	lastInsertID, err := result.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
-	}
-
-	uintLastInsertID, err := safecast.Convert[uint64](lastInsertID)
-	if err != nil {
-		return 0, spiceerrors.MustBugf("lastInsertID was negative: %v", err)
-	}
-
-	return uintLastInsertID, nil
+	wrappedMetadata := structpbWrapper(metadata)
+	return mysqlCommon.InsertNewTransaction(ctx, tx, mds.driver.RelationTupleTransaction(), &wrappedMetadata)
 }

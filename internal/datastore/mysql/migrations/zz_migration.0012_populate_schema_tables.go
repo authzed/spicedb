@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -143,16 +144,11 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 		return fmt.Errorf("failed to marshal schema: %w", err)
 	}
 
-	// Before inserting schema chunks we insert a fresh transaction row
-	txResult, err := tx.ExecContext(ctx, fmt.Sprintf(
-		`INSERT INTO %s () VALUES ()`, wrapper.tables.RelationTupleTransaction(),
-	))
+	// stored_schema and stored_schema_revision require created_transaction NOT NULL,
+	// so mint a fresh transaction id for the populated rows.
+	newTxnID, err := mysqlCommon.InsertNewTransaction(ctx, tx, wrapper.tables.RelationTupleTransaction(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create transaction for schema population: %w", err)
-	}
-	newTxnID, err := txResult.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("failed to get id of new transaction: %w", err)
 	}
 
 	// Insert schema chunks
