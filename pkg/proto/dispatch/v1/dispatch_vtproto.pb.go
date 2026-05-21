@@ -681,7 +681,6 @@ func (m *DispatchQueryPlanRequest) CloneVT() *DispatchQueryPlanRequest {
 	}
 	r := new(DispatchQueryPlanRequest)
 	r.Operation = m.Operation
-	r.CanonicalKey = m.CanonicalKey
 	r.PlanContext = m.PlanContext.CloneVT()
 	if rhs := m.Resource; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.ObjectAndRelation }); ok {
@@ -1740,9 +1739,6 @@ func (this *DispatchQueryPlanRequest) EqualVT(that *DispatchQueryPlanRequest) bo
 		return false
 	}
 	if this.Operation != that.Operation {
-		return false
-	}
-	if this.CanonicalKey != that.CanonicalKey {
 		return false
 	}
 	if equal, ok := interface{}(this.Resource).(interface {
@@ -3786,13 +3782,6 @@ func (m *DispatchQueryPlanRequest) MarshalToSizedBufferVT(dAtA []byte) (int, err
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.CanonicalKey) > 0 {
-		i -= len(m.CanonicalKey)
-		copy(dAtA[i:], m.CanonicalKey)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CanonicalKey)))
-		i--
-		dAtA[i] = 0x12
-	}
 	if m.Operation != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Operation))
 		i--
@@ -4777,10 +4766,6 @@ func (m *DispatchQueryPlanRequest) SizeVT() (n int) {
 	_ = l
 	if m.Operation != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.Operation))
-	}
-	l = len(m.CanonicalKey)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	if m.Resource != nil {
 		if size, ok := interface{}(m.Resource).(interface {
@@ -9240,38 +9225,6 @@ func (m *DispatchQueryPlanRequest) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CanonicalKey", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CanonicalKey = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Resource", wireType)

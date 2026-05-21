@@ -120,11 +120,25 @@ func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) DispatchC
 func planCheckRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return PlanCheckLookupKey(
 		req.PlanContext.Revision,
-		req.CanonicalKey,
+		currentDispatchKey(req.PlanContext),
 		req.Resource,
 		req.Subject,
 		req.PlanContext.CaveatContext,
 	)
+}
+
+// currentDispatchKey returns the canonical "def#rel" key for the dispatch
+// currently being processed. By contract — see planContextForDispatch in
+// internal/dispatch/executor.go — the sender appends the current dispatch's
+// key to PlanContext.InProgressKeys before sending, so the last entry is
+// always the current dispatch's key. Returns "" if InProgressKeys is empty,
+// which is invalid for a Plan-dispatched request but is tolerated to keep
+// this helper safe to call on partial test fixtures.
+func currentDispatchKey(pc *v1.PlanContext) string {
+	if pc == nil || len(pc.InProgressKeys) == 0 {
+		return ""
+	}
+	return pc.InProgressKeys[len(pc.InProgressKeys)-1]
 }
 
 // PlanCheckLookupKey computes the same Plan-Check cache key as
@@ -145,7 +159,7 @@ func PlanCheckLookupKey(revision string, canonicalKey string, resource, subject 
 // planLookupResourcesRequestToKey converts a plan lookup resources request into a cache key
 func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return dispatchCacheKeyHash(planLookupResourcesPrefix, req.PlanContext.Revision,
-		hashableString(req.CanonicalKey),
+		hashableString(currentDispatchKey(req.PlanContext)),
 		hashableOnr{req.Subject},
 		hashableContext{Struct: req.PlanContext.CaveatContext},
 	)
@@ -154,7 +168,7 @@ func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchC
 // planLookupSubjectsRequestToKey converts a plan lookup subjects request into a cache key
 func planLookupSubjectsRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return dispatchCacheKeyHash(planLookupSubjectsPrefix, req.PlanContext.Revision,
-		hashableString(req.CanonicalKey),
+		hashableString(currentDispatchKey(req.PlanContext)),
 		hashableOnr{req.Resource},
 		hashableContext{Struct: req.PlanContext.CaveatContext},
 	)

@@ -344,9 +344,12 @@ func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperat
 	if err != nil {
 		return nil, err
 	}
+	// The current dispatch's canonical key rides on PlanContext.InProgressKeys
+	// (appended by planContextForDispatch). Receiver-side cache key computation
+	// reads it back from the last entry there; there is no top-level
+	// canonical_key field on the request anymore.
 	req := &v1.DispatchQueryPlanRequest{
-		Operation:    op,
-		CanonicalKey: key,
+		Operation: op,
 		Resource: &core.ObjectAndRelation{
 			Namespace: resource.ObjectType,
 			ObjectId:  resource.ObjectID,
@@ -396,7 +399,10 @@ func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation,
 	// dispatch{Check,IterSubjects,IterResources} only enter buildRequest when
 	// it is a *query.AliasIterator, so the type assertion is safe. The dispatch
 	// boundary is always the (definition, relation) the alias represents; we
-	// encode that as "definition#relation" in the canonical_key field.
+	// encode that as "definition#relation" and append it to
+	// PlanContext.InProgressKeys (planContextForDispatch). Cache/routing key
+	// computation pulls the current dispatch's canonical key back out of that
+	// slice — there is no top-level canonical_key field on the request anymore.
 	alias := it.(*query.AliasIterator)
 	key := alias.DefinitionName() + "#" + alias.Relation()
 	plan, err := serializePlan(it)
@@ -404,8 +410,7 @@ func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation,
 		return nil, err
 	}
 	return &v1.DispatchQueryPlanRequest{
-		Operation:    op,
-		CanonicalKey: key,
+		Operation: op,
 		Resource: &core.ObjectAndRelation{
 			Namespace: resource.ObjectType,
 			ObjectId:  resource.ObjectID,

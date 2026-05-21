@@ -258,10 +258,12 @@ message PlanContext {
 
 message DispatchQueryPlanRequest {
   PlanOperation operation = 1;
-  // canonical_key is superseded by `plan`: the iterator subtree now travels
-  // on the wire and the receiver no longer needs to rebuild it from this key.
-  // Retained for in-progress cycle bookkeeping that already keys on it.
-  string canonical_key = 2 [deprecated = true];
+  // Tag 2 was `string canonical_key`, removed once `plan` carried the
+  // iterator subtree on the wire and the sender-side caching/routing layers
+  // were taught to read the current dispatch's "def#rel" key from the last
+  // entry of PlanContext.in_progress_keys instead.
+  reserved 2;
+  reserved "canonical_key";
   // For CHECK_MANY_RESOURCES, resource is empty and `many` carries the resources.
   core.v1.ObjectAndRelation resource = 3;
   // For CHECK_MANY_SUBJECTS, subject is empty and `many` carries the subjects.
@@ -273,7 +275,7 @@ message DispatchQueryPlanRequest {
   // plan is the iterator subtree to execute, serialized via the pkg/query
   // wire format. The receiver loads the schema indicated by plan_context and
   // deserializes the plan in that schema; it executes the deserialized
-  // iterator directly rather than rebuilding from canonical_key.
+  // iterator directly.
   bytes plan = 7;
 }
 

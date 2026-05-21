@@ -303,13 +303,13 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 	dispatcher.SetDelegate(delegate)
 
 	req := &v1.DispatchQueryPlanRequest{
-		Operation:    v1.PlanOperation_PLAN_OPERATION_CHECK,
-		CanonicalKey: "document#viewer",
-		Resource:     tuple.ONRStringToCore("document", "doc1", "viewer"),
-		Subject:      tuple.ONRStringToCore("user", "alice", "..."),
+		Operation: v1.PlanOperation_PLAN_OPERATION_CHECK,
+		Resource:  tuple.ONRStringToCore("document", "doc1", "viewer"),
+		Subject:   tuple.ONRStringToCore("user", "alice", "..."),
 		PlanContext: &v1.PlanContext{
-			Revision:   "1",
-			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
+			Revision:       "1",
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+			InProgressKeys: []string{"document#viewer"},
 		},
 	}
 
