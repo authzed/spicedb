@@ -13,10 +13,12 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
@@ -104,6 +106,43 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	require.Equal(t, userSchema, readback.SchemaText)
 	require.NotNil(t, readback.ReadAt)
 	require.NotEmpty(t, readback.ReadAt.Token)
+}
+
+func TestSchemaWriteReturnsSchemaHashInZedToken(t *testing.T) {
+	config := testserver.DefaultTestServerConfig
+	config.DataLayerOpts = []datalayer.DataLayerOption{
+		datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
+	}
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true, config, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	writeResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+	permission view = viewer
+}`,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, writeResp.WrittenAt)
+
+	// The ZedToken returned from WriteSchema must carry the real schema hash,
+	// not a bypass sentinel (which encodes as an empty SchemaHash field).
+	writeDecoded, err := zedtoken.Decode(writeResp.WrittenAt)
+	require.NoError(t, err)
+	writeHash := writeDecoded.GetV1().GetSchemaHash()
+	require.NotEmpty(t, writeHash, "WriteSchema ZedToken should carry a real schema hash")
+	require.Len(t, writeHash, 64, "schema hash should be a hex-encoded SHA256")
+
+	// A read immediately after the write must observe the same schema hash.
+	readResp, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
+	require.NoError(t, err)
+	readDecoded, err := zedtoken.Decode(readResp.ReadAt)
+	require.NoError(t, err)
+	require.Equal(t, writeHash, readDecoded.GetV1().GetSchemaHash(),
+		"schema hash in WriteSchema token should match the hash observed by ReadSchema")
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {

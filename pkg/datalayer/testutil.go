@@ -34,7 +34,8 @@ func WriteStoredSchemaForTest(ctx context.Context, ds datastore.Datastore, schem
 	// regardless of which schema mode the server/DataLayer is running in.
 	dl := NewDataLayer(ds, WithSchemaMode(SchemaModeReadLegacyWriteBoth))
 	rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
-		return rwt.WriteSchema(ctx, schemaDefinitions, schemaText, nil)
+		_, err := rwt.WriteSchema(ctx, schemaDefinitions, schemaText, nil)
+		return err
 	})
 
 	return rev, err

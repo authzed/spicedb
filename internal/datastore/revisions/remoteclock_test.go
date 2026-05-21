@@ -143,6 +143,40 @@ func TestRemoteClockCheckRevisions(t *testing.T) {
 	}
 }
 
+func TestCheckRevisionPrefersNowOnlyFunc(t *testing.T) {
+	require := require.New(t)
+	rcr := NewRemoteClockRevisions(time.Hour, time.Minute, 0, 0)
+
+	nowFuncCalls := 0
+	nowOnlyCalls := 0
+	rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, string, error) {
+		nowFuncCalls++
+		return NewForTime(time.Now()), "hash", nil
+	})
+	rcr.SetNowOnlyFunc(func(ctx context.Context) (datastore.Revision, error) {
+		nowOnlyCalls++
+		return NewForTime(time.Now()), nil
+	})
+
+	require.NoError(rcr.CheckRevision(t.Context(), NewForTime(time.Now())))
+	require.Equal(0, nowFuncCalls, "CheckRevision must not call nowFunc when nowOnlyFunc is set")
+	require.Equal(1, nowOnlyCalls)
+}
+
+func TestCheckRevisionFallsBackToNowFuncWhenNowOnlyUnset(t *testing.T) {
+	require := require.New(t)
+	rcr := NewRemoteClockRevisions(time.Hour, time.Minute, 0, 0)
+
+	nowFuncCalls := 0
+	rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, string, error) {
+		nowFuncCalls++
+		return NewForTime(time.Now()), "hash", nil
+	})
+
+	require.NoError(rcr.CheckRevision(t.Context(), NewForTime(time.Now())))
+	require.Equal(1, nowFuncCalls)
+}
+
 func TestRemoteClockStalenessBeyondGC(t *testing.T) {
 	// Set a GC window of 1 hour.
 	gcWindow := 1 * time.Hour

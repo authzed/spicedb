@@ -832,11 +832,12 @@ func (mr *MockReadWriteTransactionMockRecorder) WriteRelationships(ctx, mutation
 }
 
 // WriteSchema mocks base method.
-func (m *MockReadWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *types.TypeSet) error {
+func (m *MockReadWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *types.TypeSet) (datalayer.SchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteSchema", ctx, definitions, schemaString, caveatTypeSet)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(datalayer.SchemaHash)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WriteSchema indicates an expected call of WriteSchema.

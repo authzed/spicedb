@@ -230,22 +230,25 @@ func (t *readWriteTransaction) BulkLoad(ctx context.Context, iter datastore.Bulk
 	return t.rwt.BulkLoad(ctx, iter)
 }
 
-func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) error {
+func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) (SchemaHash, error) {
 	// Write to legacy storage if mode requires it
 	if t.schemaMode.WritesToLegacy() {
 		if err := writeSchemaViaLegacy(ctx, t.rwt, t.rwt, definitions); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	// Write to unified storage if mode requires it
 	if t.schemaMode.WritesToNew() {
-		if err := WriteSchemaViaStoredSchema(ctx, t.rwt, definitions, schemaString, t.cache); err != nil {
-			return err
+		schemaHash, err := WriteSchemaViaStoredSchema(ctx, t.rwt, definitions, schemaString, t.cache)
+		if err != nil {
+			return "", err
 		}
+		return schemaHash, nil
 	}
 
-	return nil
+	// Legacy-only storage produces no unified schema hash.
+	return NoSchemaHashInLegacyMode, nil
 }
 
 func (t *readWriteTransaction) LegacySchemaWriter() LegacySchemaWriter {

@@ -520,7 +520,7 @@ func convertDiff(
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, datalayer.NoSchemaHashInLegacyZedToken, dl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zed token: %w", err)
 	}

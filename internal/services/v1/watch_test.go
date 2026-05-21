@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -350,7 +351,7 @@ definition document {
 			t.Cleanup(cleanup)
 			client := v1.NewWatchServiceClient(conn)
 
-			cursor := zedtoken.MustNewFromRevisionForTesting(revision)
+			cursor := zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken)
 			if tc.startCursor != nil {
 				cursor = tc.startCursor
 			}
@@ -432,6 +433,138 @@ definition document {
 			}
 		})
 	}
+}
+
+func TestWatchCarriesSchemaHash(t *testing.T) {
+	require := require.New(t)
+
+	// SchemaModeReadNewWriteBoth is required for the datastore to produce real
+	// schema hashes; the default legacy mode only yields bypass sentinels.
+	config := testserver.DefaultTestServerConfig
+	config.DataLayerOpts = []datalayer.DataLayerOption{
+		datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
+	}
+	conn, cleanup, ds, _ := testserver.NewTestServerWithConfig(
+		t, 0, memdb.DisableGC, true, config, testfixtures.EmptyDatastore,
+	)
+	t.Cleanup(cleanup)
+
+	schemaClient := v1.NewSchemaServiceClient(conn)
+	permClient := v1.NewPermissionsServiceClient(conn)
+
+	// Write an initial schema; its ZedToken carries the real schema hash.
+	writeResp, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+}`,
+	})
+	require.NoError(err)
+
+	// The schema hash stored in the datastore at this point.
+	headRev, err := ds.HeadRevision(t.Context())
+	require.NoError(err)
+	require.NotEmpty(headRev.SchemaHash)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// Resume the watch from the schema-write ZedToken, which carries the real hash.
+	stream, err := v1.NewWatchServiceClient(conn).Watch(ctx, &v1.WatchRequest{
+		OptionalUpdateKinds: []v1.WatchKind{
+			v1.WatchKind_WATCH_KIND_INCLUDE_RELATIONSHIP_UPDATES,
+			v1.WatchKind_WATCH_KIND_INCLUDE_SCHEMA_UPDATES,
+		},
+		OptionalStartCursor: writeResp.WrittenAt,
+	})
+	require.NoError(err)
+
+	watchResponses := make(chan *v1.WatchResponse, 3)
+	go func() {
+		defer close(watchResponses)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(3 * time.Second):
+				panic(fmt.Errorf("timed out waiting for stream updates"))
+			default:
+				resp, err := stream.Recv()
+				if err != nil {
+					errStatus, ok := status.FromError(err)
+					if (ok && (errStatus.Code() == codes.Canceled || errStatus.Code() == codes.Unavailable)) || errors.Is(err, io.EOF) {
+						return
+					}
+					panic(fmt.Errorf("received a stream read error: %w", err))
+				}
+				watchResponses <- resp
+			}
+		}
+	}()
+
+	// 1) A relationship write does not change the schema, so its ZedToken
+	//    carries the real schema hash currently in the datastore.
+	_, err = permClient.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
+		},
+	})
+	require.NoError(err)
+
+	// 2) A schema change makes the watch drop the hash: it is no longer tracked
+	//    across the change.
+	_, err = schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+definition organization {}
+
+definition document {
+	relation viewer: user
+}`,
+	})
+	require.NoError(err)
+
+	// 3) Any update after the schema change also carries no real hash.
+	_, err = permClient.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document2", "viewer", "user", "user1"),
+		},
+	})
+	require.NoError(err)
+
+	received := make([]*v1.WatchResponse, 0, 3)
+	for len(received) < 3 {
+		select {
+		case resp := <-watchResponses:
+			received = append(received, resp)
+		case <-time.After(3 * time.Second):
+			require.FailNow("timed out waiting for watch responses")
+		}
+	}
+
+	// schemaHashOf decodes the schema hash carried by a watch response's ZedToken.
+	schemaHashOf := func(resp *v1.WatchResponse) []byte {
+		decoded, err := zedtoken.Decode(resp.GetChangesThrough())
+		require.NoError(err)
+		return decoded.GetV1().GetSchemaHash()
+	}
+
+	// Response 1: a relationship update before any schema change carries the
+	// datastore's schema hash for that revision.
+	require.NotEmpty(received[0].GetUpdates())
+	require.Equal(headRev.SchemaHash, string(schemaHashOf(received[0])),
+		"watch ZedToken before a schema change should carry the datastore's schema hash")
+
+	// Response 2: the schema change itself drops the hash.
+	require.True(received[1].GetSchemaUpdated())
+	require.Empty(schemaHashOf(received[1]),
+		"watch ZedToken for a schema change should not carry a schema hash")
+
+	// Response 3: a relationship update after the schema change still has no hash.
+	require.NotEmpty(received[2].GetUpdates())
+	require.Empty(schemaHashOf(received[2]),
+		"watch ZedTokens after a schema change should not carry a schema hash")
 }
 
 func sortUpdates(in []*v1.RelationshipUpdate) []*v1.RelationshipUpdate {

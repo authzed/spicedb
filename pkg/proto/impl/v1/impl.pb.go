@@ -863,8 +863,12 @@ type DecodedZedToken_V1ZedToken struct {
 	// datastore_unique_id_prefix is a prefix of the unique ID for the datastore that created
 	// this token. Will be empty for legacy tokens.
 	DatastoreUniqueIdPrefix string `protobuf:"bytes,2,opt,name=datastore_unique_id_prefix,json=datastoreUniqueIdPrefix,proto3" json:"datastore_unique_id_prefix,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// schema_hash is the hash of the schema at the time the ZedToken was issued.
+	// Will be empty for legacy tokens issued before this field was added, and for
+	// tokens issued from code paths where the hash is not cheaply available.
+	SchemaHash    []byte `protobuf:"bytes,3,opt,name=schema_hash,json=schemaHash,proto3" json:"schema_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DecodedZedToken_V1ZedToken) Reset() {
@@ -911,6 +915,13 @@ func (x *DecodedZedToken_V1ZedToken) GetDatastoreUniqueIdPrefix() string {
 	return ""
 }
 
+func (x *DecodedZedToken_V1ZedToken) GetSchemaHash() []byte {
+	if x != nil {
+		return x.SchemaHash
+	}
+	return nil
+}
+
 var File_impl_v1_impl_proto protoreflect.FileDescriptor
 
 const file_impl_v1_impl_proto_rawDesc = "" +
@@ -929,16 +940,18 @@ const file_impl_v1_impl_proto_rawDesc = "" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x1a&\n" +
 	"\bV2Zookie\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\tR\brevisionB\x0f\n" +
-	"\rversion_oneof\"\xbf\x02\n" +
+	"\rversion_oneof\"\xe1\x02\n" +
 	"\x0fDecodedZedToken\x12U\n" +
 	"\x14deprecated_v1_zookie\x18\x02 \x01(\v2!.impl.v1.DecodedZedToken.V1ZookieH\x00R\x12deprecatedV1Zookie\x125\n" +
 	"\x02v1\x18\x03 \x01(\v2#.impl.v1.DecodedZedToken.V1ZedTokenH\x00R\x02v1\x1a&\n" +
 	"\bV1Zookie\x12\x1a\n" +
-	"\brevision\x18\x01 \x01(\x04R\brevision\x1ae\n" +
+	"\brevision\x18\x01 \x01(\x04R\brevision\x1a\x86\x01\n" +
 	"\n" +
 	"V1ZedToken\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\tR\brevision\x12;\n" +
-	"\x1adatastore_unique_id_prefix\x18\x02 \x01(\tR\x17datastoreUniqueIdPrefixB\x0f\n" +
+	"\x1adatastore_unique_id_prefix\x18\x02 \x01(\tR\x17datastoreUniqueIdPrefix\x12\x1f\n" +
+	"\vschema_hash\x18\x03 \x01(\fR\n" +
+	"schemaHashB\x0f\n" +
 	"\rversion_oneof\"E\n" +
 	"\rDecodedCursor\x12#\n" +
 	"\x02v1\x18\x01 \x01(\v2\x11.impl.v1.V1CursorH\x00R\x02v1B\x0f\n" +

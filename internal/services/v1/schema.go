@@ -108,7 +108,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 		DispatchCount: 1,
 	})
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, headSchemaHash, dl)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -155,11 +155,13 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
+	var writtenSchemaHash datalayer.SchemaHash
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		applied, err := shared.ApplySchemaChanges(ctx, rwt, ss.caveatTypeSet, validated)
 		if err != nil {
 			return err
 		}
+		writtenSchemaHash = applied.SchemaHash
 
 		dispatchCount, err := genutil.EnsureUInt32(applied.TotalOperationCount)
 		if err != nil {
@@ -175,7 +177,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, writtenSchemaHash, dl)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -189,7 +191,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	// Get the current schema.
-	schema, atRevision, err := loadCurrentSchema(ctx)
+	schema, atRevision, schemaHash, err := loadCurrentSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -228,7 +230,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, schemaHash, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -511,7 +512,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 							},
 						},
 						Resource:   stc.checkRequest.resource,
@@ -907,7 +908,7 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 			checkResp, err := client.CheckBulkPermissions(ctx, &v1.CheckBulkPermissionsRequest{
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_AtLeastAsFresh{
-						AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+						AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 					},
 				},
 				WithTracing: true,
@@ -964,7 +965,7 @@ func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		ResourceObjectType: "resource",
@@ -1054,7 +1055,7 @@ func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
 	stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		ResourceObjectType: "resource",

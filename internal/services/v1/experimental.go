@@ -519,7 +519,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	// Get the current schema.
-	schema, atRevision, err := loadCurrentSchema(ctx)
+	schema, atRevision, _, err := loadCurrentSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -558,7 +558,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	readAt, err := zedtoken.NewFromRevision(ctx, atRevision, dl)
+	readAt, err := zedtoken.NewFromRevision(ctx, atRevision, datalayer.NoSchemaHashInLegacyZedToken, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -837,7 +837,7 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 		return nil, spiceerrors.MustBugf("count should not be negative")
 	}
 
-	readAt, err := zedtoken.NewFromRevision(ctx, headRev, dl)
+	readAt, err := zedtoken.NewFromRevision(ctx, headRev, headSchemaHash, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

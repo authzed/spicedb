@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -300,7 +301,7 @@ func TestReadRelationships(t *testing.T) {
 								stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 									Consistency: &v1.Consistency{
 										Requirement: &v1.Consistency_AtLeastAsFresh{
-											AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+											AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 										},
 									},
 									RelationshipFilter: tc.filter,
@@ -1260,9 +1261,9 @@ func TestDeleteRelationships(t *testing.T) {
 				require.NoError(err)
 				require.NotNil(resp.DeletedAt)
 
-				rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+				decoded, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 				require.NoError(err)
-				require.True(rev.GreaterThan(revision))
+				require.True(decoded.Revision.GreaterThan(revision))
 
 				require.Equal(uint64(len(tc.deleted)), resp.RelationshipsDeletedCount)
 				require.Equal(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
@@ -1358,7 +1359,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				headRevResult, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
-				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult.Revision))
+				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult.Revision, datalayer.NoSchemaHashInLegacyZedToken))
 
 				resp, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					RelationshipFilter: &v1.RelationshipFilter{
@@ -1372,7 +1373,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				headRevResult2, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
-				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult2.Revision))
+				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult2.Revision, datalayer.NoSchemaHashInLegacyZedToken))
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
 				bs := safecast.RequireConvert[uint64](t, batchSize)
@@ -1386,9 +1387,9 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 					require.NoError(err)
 					require.NotNil(resp.DeletedAt)
 
-					rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+					decoded, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 					require.NoError(err)
-					require.True(rev.GreaterThan(revision))
+					require.True(decoded.Revision.GreaterThan(revision))
 					require.Equal(standardTuplesWithout(expected), readAll(require, client, resp.DeletedAt))
 					break
 				}
@@ -1491,7 +1492,7 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 
 	require.NoError(err)
 
-	beforeWriteToken := zedtoken.MustNewFromRevisionForTesting(beforeWriteRev)
+	beforeWriteToken := zedtoken.MustNewFromRevisionForTesting(beforeWriteRev, datalayer.NoSchemaHashInLegacyZedToken)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
@@ -1750,7 +1751,7 @@ func TestReadRelationshipsInvalidCursor(t *testing.T) {
 	stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		RelationshipFilter: &v1.RelationshipFilter{

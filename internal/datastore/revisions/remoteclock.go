@@ -14,6 +14,11 @@ import (
 // schema hash on this code path may return "".
 type RemoteNowFunction func(context.Context) (datastore.Revision, string, error)
 
+// RemoteNowOnlyFunction queries the datastore to get a current revision only,
+// without reading the schema hash. Used by CheckRevision where the hash is
+// not needed; allows backends to skip a schema_revision subquery.
+type RemoteNowOnlyFunction func(context.Context) (datastore.Revision, error)
+
 // RemoteClockRevisions handles revision calculation for datastores that provide
 // their own clocks.
 type RemoteClockRevisions struct {
@@ -21,6 +26,7 @@ type RemoteClockRevisions struct {
 
 	gcWindowNanos          int64
 	nowFunc                RemoteNowFunction
+	nowOnlyFunc            RemoteNowOnlyFunction
 	followerReadDelayNanos int64
 	quantizationNanos      int64
 }
@@ -87,6 +93,14 @@ func (rcr *RemoteClockRevisions) SetNowFunc(nowFunc RemoteNowFunction) {
 	rcr.nowFunc = nowFunc
 }
 
+// SetNowOnlyFunc sets a timestamp-only revision function used by CheckRevision.
+// Datastores that implement this can elide a schema-hash subquery on
+// revision-validation paths. If unset, CheckRevision falls back to nowFunc and
+// discards the hash.
+func (rcr *RemoteClockRevisions) SetNowOnlyFunc(nowOnlyFunc RemoteNowOnlyFunction) {
+	rcr.nowOnlyFunc = nowOnlyFunc
+}
+
 func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision datastore.Revision) error {
 	if dsRevision == datastore.NoRevision {
 		return datastore.NewInvalidRevisionErr(dsRevision, datastore.CouldNotDetermineRevision)
@@ -97,8 +111,15 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision d
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
-	// Make sure the system time indicated is within the software GC window
-	now, _, err := rcr.nowFunc(ctx)
+	// Make sure the system time indicated is within the software GC window.
+	// Use nowOnlyFunc when available to avoid reading the schema hash unnecessarily.
+	var now datastore.Revision
+	var err error
+	if rcr.nowOnlyFunc != nil {
+		now, err = rcr.nowOnlyFunc(ctx)
+	} else {
+		now, _, err = rcr.nowFunc(ctx)
+	}
 	if err != nil {
 		return err
 	}

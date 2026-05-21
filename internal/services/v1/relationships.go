@@ -466,7 +466,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		writeUpdateCounter.WithLabelValues(v1.RelationshipUpdate_Operation_name[int32(kind)]).Observe(float64(count))
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -601,7 +601,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

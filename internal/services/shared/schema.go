@@ -95,6 +95,11 @@ type AppliedSchemaChanges struct {
 
 	// RemovedCaveatDefNames contains the names of the removed caveat definitions.
 	RemovedCaveatDefNames []string
+
+	// SchemaHash is the hash of the resulting schema. It is a bypass sentinel
+	// when the changes were applied via the additive-only or legacy-only storage
+	// paths, which do not produce a unified schema hash.
+	SchemaHash datalayer.SchemaHash
 }
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
@@ -217,6 +222,10 @@ func ApplySchemaChangesOverExisting(
 		}
 	}
 
+	// The schema hash is produced only by the unified-storage write path.
+	// Additive-only changes and legacy-only storage do not produce one.
+	schemaHash := datalayer.NoSchemaHashInLegacyMode
+
 	if validated.additiveOnly {
 		// DEPRECATED: Use of legacy methods for additive-only schema changes is deprecated.
 		// This path is maintained for backwards compatibility but will be removed in a future version.
@@ -278,9 +287,11 @@ func ApplySchemaChangesOverExisting(
 		definitions = append(definitions, unchangedDefinitions...)
 
 		// WriteSchema will handle writing new/changed definitions and deleting removed ones
-		if err := rwt.WriteSchema(ctx, definitions, validated.schemaText, caveatTypeSet); err != nil {
+		writtenSchemaHash, err := rwt.WriteSchema(ctx, definitions, validated.schemaText, caveatTypeSet)
+		if err != nil {
 			return nil, err
 		}
+		schemaHash = writtenSchemaHash
 	}
 
 	log.Ctx(ctx).Trace().
@@ -298,6 +309,7 @@ func ApplySchemaChangesOverExisting(
 		RemovedObjectDefNames: removedObjectDefNames.AsSlice(),
 		NewCaveatDefNames:     validated.newCaveatDefNames.Subtract(existingCaveatDefNames).AsSlice(),
 		RemovedCaveatDefNames: removedCaveatDefNames.AsSlice(),
+		SchemaHash:            schemaHash,
 	}, nil
 }
 
