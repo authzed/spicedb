@@ -85,6 +85,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		builder.hostname = name
 		builder.port = strconv.Itoa(mysqlPort)
 	} else {
+		builder.hostname = "localhost"
 		builder.port = port
 	}
 

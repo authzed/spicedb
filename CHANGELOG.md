@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - When Query Planner evaluates a union, short-circuit if one of the branches yields a positive un-caveated result (https://github.com/authzed/spicedb/pull/3120)
 - DispatchQueryPlan previously did not try to use the singleflight middleware for check calls. (https://github.com/authzed/spicedb/pull/3119)
 - Fixed regression introduced in 1.53.0. Postgres `HeadRevision` no longer allocates a new transaction ID on every call (https://github.com/authzed/spicedb/pull/3127)
+- Fixed regression introduced in 1.53.0 for MySQL migration scripts (https://github.com/authzed/spicedb/pull/3129)
 
 ## [1.53.0] - 2026-05-13
 ### Added

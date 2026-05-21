@@ -190,8 +190,6 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	driver := migrations.NewMySQLDriverFromDB(db, config.tablePrefix)
 	queryBuilder := NewQueryBuilder(driver)
 
-	createTxn := sb.Insert(driver.RelationTupleTransaction()).Columns(colMetadata)
-
 	// used for seeding the initial relation_tuple_transaction. using INSERT IGNORE on a known
 	// ID value makes this idempotent (i.e. safe to execute concurrently).
 	createBaseTxn := fmt.Sprintf("INSERT IGNORE INTO %s (id, timestamp) VALUES (1, FROM_UNIXTIME(1))", driver.RelationTupleTransaction())
@@ -265,7 +263,6 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:       revisionQuery,
 		validTransactionQuery:        validTransactionQuery,
-		createTxn:                    createTxn,
 		createBaseTxn:                createBaseTxn,
 		QueryBuilder:                 queryBuilder,
 		readTxOptions:                &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
@@ -499,7 +496,6 @@ type mysqlDatastore struct {
 	cancelGc context.CancelFunc
 	gcHasRun atomic.Bool
 
-	createTxn     sq.InsertBuilder
 	createBaseTxn string
 
 	uniqueID atomic.Pointer[string]
