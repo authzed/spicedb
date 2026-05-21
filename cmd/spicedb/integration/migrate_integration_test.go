@@ -132,12 +132,12 @@ func TestMigrateUpgrade(t *testing.T) {
 // runMigrateHead launches a one-shot `migrate head` container at the given image
 // tag against the supplied datastore, waits for completion, and fails the test if
 // the exit code is non-zero (dumping container logs).
-func runMigrateHead(t *testing.T, pool *dockertest.Pool, spiceDbImageTag, bridgeNetworkName, engineKey, db string, envVars []string) {
+func runMigrateHead(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetworkName, engineKey, db string, envVars []string) {
 	t.Helper()
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "authzed/spicedb",
-		Tag:        spiceDbImageTag,
+		Tag:        spiceDBImageTag,
 		Cmd:        []string{"migrate", "head", "--datastore-engine", engineKey, "--datastore-conn-uri", db},
 		NetworkID:  bridgeNetworkName,
 		Env:        envVars,
@@ -163,16 +163,16 @@ func runMigrateHead(t *testing.T, pool *dockertest.Pool, spiceDbImageTag, bridge
 			Container:    resource.Container.ID,
 		})
 		require.NoError(t, lerr)
-		require.Failf(t, "migrate head exited with non-zero exit code", "image=%s engine=%s status=%d logs:\n%s", spiceDbImageTag, engineKey, status, stream.String())
+		require.Failf(t, "migrate head exited with non-zero exit code", "image=%s engine=%s status=%d logs:\n%s", spiceDBImageTag, engineKey, status, stream.String())
 	}
 }
 
-func runServe(t *testing.T, pool *dockertest.Pool, spiceDbImageTag, bridgeNetworkName, engineKey, dbConnection, presharedKey string, envVars []string) (*dockertest.Resource, string) {
+func runServe(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetworkName, engineKey, dbConnection, presharedKey string, envVars []string) (*dockertest.Resource, string) {
 	t.Helper()
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository:   "authzed/spicedb",
-		Tag:          spiceDbImageTag,
+		Tag:          spiceDBImageTag,
 		Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", presharedKey, "--datastore-engine", engineKey, "--datastore-conn-uri", dbConnection, "--telemetry-endpoint", ""},
 		NetworkID:    bridgeNetworkName,
 		Env:          envVars,
