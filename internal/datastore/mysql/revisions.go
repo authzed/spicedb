@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
@@ -197,10 +198,9 @@ func (mds *mysqlDatastore) checkValidTransaction(ctx context.Context, revisionTx
 	return freshEnough.Bool, unknown.Bool, nil
 }
 
-func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx, metadata map[string]any) (newTxnID uint64, err error) {
+func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx, metadata common.TransactionMetadata) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	wrappedMetadata := structpbWrapper(metadata)
-	return mysqlCommon.InsertNewTransaction(ctx, tx, mds.driver.RelationTupleTransaction(), &wrappedMetadata)
+	return mysqlCommon.InsertNewTransaction(ctx, tx, mds.driver.RelationTupleTransaction(), metadata)
 }
