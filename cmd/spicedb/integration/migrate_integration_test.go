@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,81 +21,58 @@ import (
 	"github.com/authzed/grpcutil"
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 var toSkip = []string{"memory"}
 
-func TestMigrate(t *testing.T) {
-	bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
-
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
-
-	// Create a bridge network for testing.
-	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{
-		Name: bridgeNetworkName,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = pool.Client.RemoveNetwork(network.ID)
-	})
-
+func TestMigrateWithNoData(t *testing.T) {
 	for _, engineKey := range datastore.Engines {
 		if slices.Contains(toSkip, engineKey) {
 			continue
 		}
 
 		t.Run(engineKey, func(t *testing.T) {
-			r := testdatastore.RunDatastoreEngineWithBridge(t, engineKey, bridgeNetworkName)
+			r := testdatastore.RunDatastoreEngine(t, engineKey)
 			db := r.NewDatabase(t)
 
-			envVars := []string{}
-			if wev, ok := r.(testdatastore.RunningEngineForTestWithEnvVars); ok {
-				envVars = wev.ExternalEnvVars()
-			}
-
-			runMigrateHead(t, pool, "ci", bridgeNetworkName, engineKey, db, envVars)
+			runMigrateHeadWithCode(t, engineKey, db)
 		})
 	}
 }
 
-// TestMigrateUpgrade verifies that migrations introduced on v1.53.0
-// apply cleanly on top of a database that was populated by v1.52.0.
-func TestMigrateUpgrade(t *testing.T) {
-	bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
+// TestMigrateWithData verifies that migrations introduced on v1.53.0
+// apply on top of a database that has data written by v1.52.0.
+func TestMigrateWithData(t *testing.T) {
 	presharedKey := uuid.NewString()
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{
-		Name: bridgeNetworkName,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = pool.Client.RemoveNetwork(network.ID)
-	})
-
 	for _, engineKey := range datastore.Engines {
 		if slices.Contains(toSkip, engineKey) {
 			continue
 		}
 
 		t.Run(engineKey, func(t *testing.T) {
-			r := testdatastore.RunDatastoreEngineWithBridge(t, engineKey, bridgeNetworkName)
+			r := testdatastore.RunDatastoreEngine(t, engineKey)
 			db := r.NewDatabase(t)
+			containerDB := hostInternalize(db)
 
 			envVars := []string{}
 			if wev, ok := r.(testdatastore.RunningEngineForTestWithEnvVars); ok {
-				envVars = wev.ExternalEnvVars()
+				for _, ev := range wev.ExternalEnvVars() {
+					envVars = append(envVars, hostInternalize(ev))
+				}
 			}
 
-			// Run "migrate head" against v1.52.0
-			runMigrateHead(t, pool, "v1.52.0", bridgeNetworkName, engineKey, db, envVars)
+			// 1. Migrate using SpiceDB v1.52.0.
+			runMigrateHeadWithContainer(t, pool, "v1.52.0", "", engineKey, containerDB, envVars)
 
-			// Write a schema with definitions and caveats
-			_, grpcPort := runServe(t, pool, "v1.52.0", bridgeNetworkName, engineKey, db, presharedKey, envVars)
+			// 2. Run v1.52.0 serve and write a schema.
+			_, grpcPort := runServe(t, pool, "v1.52.0", "", engineKey, containerDB, presharedKey, envVars)
 
 			conn, err := grpc.NewClient(
 				fmt.Sprintf("localhost:%s", grpcPort),
@@ -123,16 +101,30 @@ func TestMigrateUpgrade(t *testing.T) {
 				return err
 			}))
 
-			// Now run "migrate head" again but using the latest code on "main"
-			runMigrateHead(t, pool, "ci", bridgeNetworkName, engineKey, db, envVars)
+			// 3. Migrate using the current branch's code, in-process,
+			// so the migration code is included in the coverage profile.
+			runMigrateHeadWithCode(t, engineKey, db)
 		})
 	}
 }
 
-// runMigrateHead launches a one-shot `migrate head` container at the given image
-// tag against the supplied datastore, waits for completion, and fails the test if
-// the exit code is non-zero (dumping container logs).
-func runMigrateHead(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetworkName, engineKey, db string, envVars []string) {
+// runMigrateHeadWithCode runs `migrate head` in-process against the supplied
+// datastore by calling cmd.ExecuteMigrate directly.
+func runMigrateHeadWithCode(t *testing.T, engineKey, dbConnection string) {
+	t.Helper()
+
+	cfg := &cmd.MigrateConfig{
+		DatastoreEngine: engineKey,
+		DatastoreURI:    dbConnection,
+		Timeout:         5 * time.Minute,
+		BatchSize:       1000,
+	}
+	require.NoError(t, cmd.ExecuteMigrate(t.Context(), cfg, migrate.Head))
+}
+
+// runMigrateHeadWithContainer launches a docker container that runs `spicedb migrate head`
+// Use this when you need to exercise a released SpiceDB binary.
+func runMigrateHeadWithContainer(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetworkName, engineKey, db string, envVars []string) {
 	t.Helper()
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -143,6 +135,7 @@ func runMigrateHead(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridge
 		Env:        envVars,
 	}, func(config *docker.HostConfig) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		config.ExtraHosts = append(config.ExtraHosts, "host.docker.internal:host-gateway")
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -179,6 +172,7 @@ func runServe(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetwor
 		ExposedPorts: []string{"50051/tcp"},
 	}, func(config *docker.HostConfig) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		config.ExtraHosts = append(config.ExtraHosts, "host.docker.internal:host-gateway")
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -188,9 +182,9 @@ func runServe(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetwor
 	port := resource.GetPort("50051/tcp")
 	require.NotEmpty(t, port, "serve container did not expose a host port for 50051/tcp")
 
-	// pool.Retry below will handle full readiness; the deadline here just
-	// caps how long we wait for the gRPC service to come up.
-	pool.MaxWait = 60 * time.Second
-
 	return resource, port
+}
+
+func hostInternalize(uri string) string {
+	return strings.ReplaceAll(uri, "localhost", "host.docker.internal")
 }

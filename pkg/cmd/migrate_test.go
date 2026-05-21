@@ -192,7 +192,7 @@ func TestExecuteMigrate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.cfgBuilder(t)
 
-			err := executeMigrate(t.Context(), cfg, tt.revision)
+			err := ExecuteMigrate(t.Context(), cfg, tt.revision)
 			if tt.expectedError == "" {
 				require.NoError(t, err)
 				return

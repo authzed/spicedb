@@ -74,12 +74,12 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		BatchSize:               cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size"),
 	}
 
-	return executeMigrate(cmd.Context(), cfg, args[0])
+	return ExecuteMigrate(cmd.Context(), cfg, args[0])
 }
 
-// executeMigrate runs the migration with the given configuration.
+// ExecuteMigrate runs the migration with the given configuration.
 // This function is extracted to enable testing without cobra command dependencies.
-func executeMigrate(ctx context.Context, cfg *MigrateConfig, revision string) error {
+func ExecuteMigrate(ctx context.Context, cfg *MigrateConfig, revision string) error {
 	if revision == "" {
 		return errors.New("missing required revision")
 	}

@@ -24,6 +24,7 @@ import (
 
 type spannerTest struct {
 	hostname        string
+	port            string
 	targetMigration string
 }
 
@@ -83,13 +84,17 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 	}
 	if bridgeNetworkName != "" {
 		builder.hostname = name
+		builder.port = "9010"
+	} else {
+		builder.hostname = "localhost"
+		builder.port = port
 	}
 
 	return builder
 }
 
 func (b *spannerTest) ExternalEnvVars() []string {
-	return []string{fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:9010", b.hostname)}
+	return []string{fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:%s", b.hostname, b.port)}
 }
 
 func (b *spannerTest) NewDatabase(t testing.TB) string {
