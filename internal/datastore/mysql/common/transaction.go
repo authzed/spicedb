@@ -3,9 +3,9 @@ package common
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/ccoveille/go-safecast/v2"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -15,7 +15,7 @@ import (
 // returns its auto-generated id. When metadata is nil the row is inserted
 // with column defaults only (useful in migrations that predate the metadata
 // column or do not need to record metadata).
-func InsertNewTransaction(ctx context.Context, tx *sql.Tx, txnTable string, metadata common.TransactionMetadata) (uint64, error) {
+func InsertNewTransaction(ctx context.Context, tx *sql.Tx, txnTable string, metadata driver.Valuer) (uint64, error) {
 	var (
 		result sql.Result
 		err    error
