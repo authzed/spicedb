@@ -1,7 +1,6 @@
 package keys
 
 import (
-	"fmt"
 	"slices"
 	"strconv"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -173,7 +173,7 @@ func (h *dispatchCacheKeyHasher) Write(p []byte) {
 	// xxhash.Digest.Write never returns an error; mirror mustWriteString.
 	_, err := h.stableHasher.Write(p)
 	if err != nil {
-		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))
+		spiceerrors.MustPanicf("got an error from writing to the stable hasher: %w", err)
 	}
 }
 
@@ -182,7 +182,7 @@ func (h *dispatchCacheKeyHasher) mustWriteString(value string) {
 	// to be on the safe side.
 	_, err := h.stableHasher.WriteString(value)
 	if err != nil {
-		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))
+		spiceerrors.MustPanicf("got an error from writing to the stable hasher: %w", err)
 	}
 }
 
