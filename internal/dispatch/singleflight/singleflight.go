@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"resenje.org/singleflight"
@@ -15,11 +14,12 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 var (
-	singleFlightCount       = promauto.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	singleFlightCount       = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
 	singleFlightCountConfig = prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "dispatch",
@@ -27,6 +27,13 @@ var (
 		Help:      "total number of dispatch requests that were single flighted",
 	}
 )
+
+// RegisterMetrics registers singleflight prometheus metrics with the given registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register singleflight metrics", singleFlightCount)
+	return err
+}
 
 func New(delegate dispatch.Dispatcher, handler keys.Handler) dispatch.Dispatcher {
 	return &Dispatcher{

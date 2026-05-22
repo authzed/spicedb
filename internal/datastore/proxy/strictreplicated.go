@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -17,20 +16,30 @@ import (
 )
 
 var (
-	strictReadReplicatedTotalQueryCount = promauto.NewCounter(prometheus.CounterOpts{
+	strictReadReplicatedTotalQueryCount = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "strict_replicated_query_total",
 		Help:      "total number of reads made by the strict read replicated datastore",
 	})
 
-	strictReadReplicatedFallbackQueryCount = promauto.NewCounterVec(prometheus.CounterOpts{
+	strictReadReplicatedFallbackQueryCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "strict_replicated_fallback_query_total",
 		Help:      "number of queries that have fallen back to the primary datastore",
 	}, []string{"replica"})
 )
+
+// RegisterStrictReplicatedMetrics registers the strict replicated datastore proxy prometheus metrics.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterStrictReplicatedMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register strict replicated datastore metrics",
+		strictReadReplicatedTotalQueryCount,
+		strictReadReplicatedFallbackQueryCount)
+
+	return err
+}
 
 // NewStrictReplicatedDatastore creates a new datastore that writes to the provided primary and reads
 // from the provided replicas. The replicas are chosen in a round-robin fashion. If a replica does

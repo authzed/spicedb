@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -69,46 +70,80 @@ type CertWatcher struct {
 	// metrics
 	ReadCertificateTotal  prometheus.Counter
 	ReadCertificateErrors prometheus.Counter
+	prometheusUnregister  func()
 }
 
 // NewTLSCertWatcher returns a new CertWatcher watching the given certificate and key.
 // It registers prometheus metrics for certificate read counts and errors.
-// The metrics are unregistered when Start returns.
-func NewTLSCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
+// If the metrics are already registered, it reuses the existing collectors.
+func NewTLSCertWatcher(registerer prometheus.Registerer, certPath, keyPath string) (*CertWatcher, error) {
 	var err error
+	unregister := func() {}
+
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
+	readTotal, err := registerOrGetCounter(registerer, ReadTotal)
+	if err != nil {
+		return nil, err
+	}
+	if readTotal != ReadTotal {
+		unregister = func() {
+			registerer.Unregister(readTotal)
+		}
+	}
+
+	readErrors, err := registerOrGetCounter(registerer, ReadErrors)
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to register certificate metrics")
+		return nil, err
+	}
+	if readErrors != ReadErrors {
+		unregister = func() {
+			unregister()
+			registerer.Unregister(readErrors)
+		}
+	}
 
 	cw := &CertWatcher{
 		certPath:              certPath,
 		keyPath:               keyPath,
 		interval:              defaultWatchInterval,
 		started:               make(chan error),
-		ReadCertificateTotal:  ReadTotal,
-		ReadCertificateErrors: ReadErrors,
+		ReadCertificateTotal:  readTotal,
+		ReadCertificateErrors: readErrors,
+		prometheusUnregister:  unregister,
 	}
-
-	// ignore "duplicate metric registration" errors
-	_ = prometheus.Register(cw.ReadCertificateTotal)
-	_ = prometheus.Register(cw.ReadCertificateErrors)
 
 	// Initial read of certificate and key.
 	if err := cw.ReadCertificate(); err != nil {
-		cw.unregisterMetrics()
 		return nil, err
 	}
 
 	cw.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
-		cw.unregisterMetrics()
 		return nil, err
 	}
 
 	return cw, nil
 }
 
-// unregisterMetrics removes the prometheus metrics registered by this CertWatcher.
-func (cw *CertWatcher) unregisterMetrics() {
-	prometheus.Unregister(cw.ReadCertificateTotal)
-	prometheus.Unregister(cw.ReadCertificateErrors)
+func registerOrGetCounter(registerer prometheus.Registerer, counter prometheus.Counter) (prometheus.Counter, error) {
+	if err := registerer.Register(counter); err != nil {
+		if alreadyRegisteredError, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
+			existingCounter, ok := alreadyRegisteredError.ExistingCollector.(prometheus.Counter)
+			if !ok {
+				return nil, alreadyRegisteredError
+			}
+
+			return existingCounter, nil
+		}
+
+		return nil, err
+	}
+
+	return counter, nil
 }
 
 // WithWatchInterval sets the watch interval and returns the CertWatcher pointer
@@ -148,7 +183,7 @@ func (cw *CertWatcher) Started() <-chan error {
 // When Start returns, it unregisters the prometheus metrics that were registered
 // in NewTLSCertWatcher.
 func (cw *CertWatcher) Start(ctx context.Context) {
-	defer cw.unregisterMetrics()
+	defer cw.prometheusUnregister()
 
 	for _, f := range []string{cw.certPath, cw.keyPath} {
 		if err := cw.watcher.Add(f); err != nil {

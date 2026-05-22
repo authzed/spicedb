@@ -87,6 +87,22 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 	}
 }
 
+type datastoreTestFuncWithGatherer func(t *testing.T, ds datastore.Datastore, g prometheus.Gatherer)
+
+func createDatastoreTestWithGatherer(b testdatastore.RunningEngineForTest, g prometheus.Gatherer, tf datastoreTestFuncWithGatherer, options ...Option) func(*testing.T) {
+	return func(t *testing.T) {
+		ctx := t.Context()
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
+			require.NoError(t, err)
+			return ds
+		})
+		defer failOnError(t, ds.Close)
+
+		tf(t, ds, g)
+	}
+}
+
 type multiDatastoreTestFunc func(t *testing.T, ds1 datastore.Datastore, ds2 datastore.Datastore)
 
 func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiDatastoreTestFunc, options ...Option) func(*testing.T) {
@@ -129,20 +145,21 @@ func TestMySQLRevisionTimestamps(t *testing.T) {
 
 func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 	reg := prometheus.NewRegistry()
-	prometheus.DefaultGatherer = reg
-	prometheus.DefaultRegisterer = reg
+	regOptions := make([]Option, 0, len(defaultOptions)+1)
+	copy(regOptions, defaultOptions)
+	regOptions = append(regOptions, WithPrometheusRegisterer(reg))
 
-	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest, defaultOptions...))
-	t.Run("PrometheusCollector", createDatastoreTest(b, PrometheusCollectorTest, defaultOptions...))
-	t.Run("GarbageCollection", createDatastoreTest(b, GarbageCollectionTest, defaultOptions...))
-	t.Run("GarbageCollectionByTime", createDatastoreTest(b, GarbageCollectionByTimeTest, defaultOptions...))
-	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, defaultOptions...))
-	t.Run("EmptyGarbageCollection", createDatastoreTest(b, EmptyGarbageCollectionTest, defaultOptions...))
-	t.Run("NoRelationshipsGarbageCollection", createDatastoreTest(b, NoRelationshipsGarbageCollectionTest, defaultOptions...))
+	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest, regOptions...))
+	t.Run("PrometheusCollector", createDatastoreTestWithGatherer(b, reg, PrometheusCollectorTest, regOptions...))
+	t.Run("GarbageCollection", createDatastoreTest(b, GarbageCollectionTest, regOptions...))
+	t.Run("GarbageCollectionByTime", createDatastoreTest(b, GarbageCollectionByTimeTest, regOptions...))
+	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, regOptions...))
+	t.Run("EmptyGarbageCollection", createDatastoreTest(b, EmptyGarbageCollectionTest, regOptions...))
+	t.Run("NoRelationshipsGarbageCollection", createDatastoreTest(b, NoRelationshipsGarbageCollectionTest, regOptions...))
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
-	t.Run("Locking", createMultiDatastoreTest(b, LockingTest, defaultOptions...))
+	t.Run("Locking", createMultiDatastoreTest(b, LockingTest, regOptions...))
 }
 
 func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {
@@ -197,14 +214,14 @@ func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 }
 
-func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
+func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore, g prometheus.Gatherer) {
 	req := require.New(t)
 
 	// cause some use of the SQL connection pool to generate metrics
 	_, err := ds.ReadyState(t.Context())
 	req.NoError(err)
 
-	metrics, err := prometheus.DefaultGatherer.Gather()
+	metrics, err := g.Gather()
 	req.NoError(err, metrics)
 	var collectorStatsFound, connectorStatsFound bool
 	for _, metric := range metrics {

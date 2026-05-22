@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -56,6 +58,7 @@ type mysqlOptions struct {
 	allowedMigrations            []string
 	columnOptimizationOption     common.ColumnOptimizationOption
 	watchDisabled                bool
+	prometheusRegisterer         prometheus.Registerer
 }
 
 // Option provides the facility to configure how clients within the
@@ -195,12 +198,19 @@ func TablePrefix(prefix string) Option {
 }
 
 // WithEnablePrometheusStats marks whether Prometheus metrics provided by Go's database/sql package
-// are enabled.
-//
+// WithEnablePrometheusStats enables prometheus metrics for the MySQL datastore.
 // Prometheus metrics are disabled by default.
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(mo *mysqlOptions) {
 		mo.enablePrometheusStats = enablePrometheusStats
+	}
+}
+
+// WithPrometheusRegisterer sets the prometheus.Registerer used for MySQL datastore metrics.
+// If not set, prometheus.DefaultRegisterer is used.
+func WithPrometheusRegisterer(registerer prometheus.Registerer) Option {
+	return func(mo *mysqlOptions) {
+		mo.prometheusRegisterer = registerer
 	}
 }
 

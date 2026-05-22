@@ -125,7 +125,7 @@ func TestMaxDepthCaching(t *testing.T) {
 				}
 			}
 
-			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), false, prometheus.DefaultRegisterer, "", nil)
 			dispatch.SetDelegate(delegate)
 			require.NoError(err)
 			defer dispatch.Close()
@@ -177,7 +177,7 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 			},
 		}, nil)
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), false, prometheus.DefaultRegisterer, "", nil)
 	require.NoError(err)
 	dispatcher.SetDelegate(delegate)
 	t.Cleanup(func() {
@@ -294,8 +294,9 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 	// Use a unique subsystem so we don't collide with other tests in the global
 	// default Prometheus registry.
 	subsystem := fmt.Sprintf("test_caching_%d", time.Now().UnixNano())
+	registry := prometheus.NewRegistry()
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), true, subsystem, nil)
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), true, registry, subsystem, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
@@ -326,7 +327,7 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 	require.NoError(t, dispatcher.DispatchQueryPlan(req, stream2))
 	require.Len(t, stream2.Results(), 1)
 
-	gatherer := prometheus.DefaultGatherer
+	gatherer := registry
 
 	totalCheck := sumOperationCounter(t, gatherer, "spicedb_"+subsystem+"_query_plan_total", "check")
 	require.InEpsilon(t, float64(2), totalCheck, 1e-9, "query_plan_total{operation=check} should bump for each plan dispatch")

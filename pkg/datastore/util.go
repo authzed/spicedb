@@ -2,6 +2,10 @@ package datastore
 
 import (
 	"context"
+	"errors"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 )
@@ -58,4 +62,23 @@ func DeleteAllData(ctx context.Context, ds Datastore) error {
 		return nil
 	})
 	return err
+}
+
+func RegisterPrometheusCollectors(registerer prometheus.Registerer, errMessage string, collectors ...prometheus.Collector) (func(), error) {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	for _, c := range collectors {
+		if err := registerer.Register(c); err != nil {
+			if err, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
+				log.Warn().Err(err).Msg(errMessage)
+				return nil, err
+			}
+		}
+	}
+	return func() {
+		for _, c := range collectors {
+			registerer.Unregister(c)
+		}
+	}, nil
 }

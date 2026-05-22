@@ -41,13 +41,11 @@ var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOp
 
 const noOriginalRelation = ""
 
-func init() {
-	prometheus.MustRegister(dispatchChunkCountHistogram)
-}
-
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16) *ConcurrentChecker {
-	return &ConcurrentChecker{d, concurrencyLimit, dispatchChunkSize}
+func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16, registerer prometheus.Registerer) *ConcurrentChecker {
+	unregister, _ := datastore.RegisterPrometheusCollectors(registerer, "failed to register dispatch metrics", dispatchChunkCountHistogram)
+
+	return &ConcurrentChecker{d, concurrencyLimit, dispatchChunkSize, unregister}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
@@ -56,6 +54,7 @@ type ConcurrentChecker struct {
 	d                 dispatch.Check
 	concurrencyLimit  uint16
 	dispatchChunkSize uint16
+	unregister        func()
 }
 
 // ValidatedCheckRequest represents a request after it has been validated and parsed for internal

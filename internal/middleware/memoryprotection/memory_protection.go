@@ -8,24 +8,31 @@ import (
 
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var tracer = otel.Tracer("spicedb/internal/middleware/memory_protection")
 
 // RequestsProcessed tracks requests that were processed by this middleware.
-var RequestsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
+var RequestsProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "memory_middleware",
 	Name:      "requests_processed_total",
 	Help:      "Total requests processed by the memory protection middleware (flag --memory-protection-enabled)",
 }, []string{"endpoint", "accepted"})
+
+// RegisterMetrics registers the memory protection middleware prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register memory protection metrics", RequestsProcessed)
+	return err
+}
 
 type MemoryProtectionMiddleware struct {
 	currentMemoryUsageProvider MemoryUsageProvider

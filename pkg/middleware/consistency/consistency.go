@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -22,12 +21,19 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-var ConsistencyCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+var ConsistencyCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "middleware",
 	Name:      "consistency_assigned_total",
 	Help:      "Count of the consistencies used per request",
 }, []string{"method", "source", "service"})
+
+// RegisterMetrics registers the consistency middleware prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register consistency metrics", ConsistencyCounter)
+	return err
+}
 
 // MismatchingTokenOption is the option specifying the behavior of the consistency middleware
 // when a ZedToken provided references a different datastore instance than the current

@@ -2,14 +2,17 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"database/sql/driver"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	prom_collectors "github.com/prometheus/client_golang/prometheus/collectors"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 // instrumentedConnector wraps the default MySQL driver connector
@@ -45,14 +48,15 @@ func (d *instrumentedConnector) Driver() driver.Driver {
 	return d.drv
 }
 
-func instrumentConnector(c driver.Connector, replicaIndex string) (driver.Connector, []prometheus.Collector, error) {
+func instrumentConnector(registerer prometheus.Registerer, db *sql.DB, c driver.Connector, primaryIndex int, replicaIndex int) (driver.Connector, func(), error) {
+	replicaID := strconv.Itoa(replicaIndex)
 	var (
 		connectHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "spicedb",
 			Subsystem: "datastore",
 			Name:      "mysql_connect_duration",
 			ConstLabels: prometheus.Labels{
-				"replica": replicaIndex, // this is needed to avoid "duplicate metrics collector registration attempted"
+				"replica": replicaID,
 			},
 			Help:    "distribution in seconds of time spent opening a new MySQL connection.",
 			Buckets: []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
@@ -62,33 +66,26 @@ func instrumentConnector(c driver.Connector, replicaIndex string) (driver.Connec
 			Subsystem: "datastore",
 			Name:      "mysql_connect_count_total",
 			ConstLabels: prometheus.Labels{
-				"replica": replicaIndex, // this is needed to avoid "duplicate metrics collector registration attempted"
+				"replica": replicaID,
 			},
 			Help: "number of mysql connections opened.",
 		}, []string{"success"})
 	)
 
-	var collectors []prometheus.Collector
-
-	err := prometheus.Register(connectHistogram)
-	if err != nil {
-		return nil, collectors, err
+	dbName := "spicedb"
+	if replicaIndex != primaryIndex {
+		dbName = fmt.Sprintf("spicedb_replica_%d", replicaIndex)
 	}
+	dbStatsCollector := prom_collectors.NewDBStatsCollector(db, dbName)
 
-	collectors = append(collectors, connectHistogram)
-	err = prometheus.Register(connectCount)
-	if err != nil {
-		return nil, collectors, err
-	}
-
-	collectors = append(collectors, connectCount)
+	unregister, _ := datastore.RegisterPrometheusCollectors(registerer, "failed to register mysql connector metrics", connectHistogram, connectCount, dbStatsCollector)
 
 	return &instrumentedConnector{
 		conn:             c,
 		drv:              c.Driver(),
 		connectHistogram: connectHistogram,
 		connectCount:     connectCount,
-	}, collectors, nil
+	}, unregister, nil
 }
 
 type sessionVariableConnector struct {

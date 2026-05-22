@@ -16,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -34,10 +35,6 @@ var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
 })
 
-func init() {
-	prometheus.MustRegister(resetHistogram)
-}
-
 type ctxDisableRetries struct{}
 
 var (
@@ -51,19 +48,23 @@ type RetryPool struct {
 	healthTracker *NodeHealthTracker
 
 	sync.RWMutex
-	maxRetries  uint8
-	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
-	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
+	maxRetries                   uint8
+	nodeForConn                  map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
+	gc                           map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
+	prometheusUnregisterFunction func()
 }
 
-func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
+func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration, registerer prometheus.Registerer) (*RetryPool, error) {
+	unregister, _ := datastore.RegisterPrometheusCollectors(registerer, "failed to register crdb pool metrics", resetHistogram)
+
 	config = config.Copy()
 	p := &RetryPool{
-		id:            name,
-		maxRetries:    maxRetries,
-		healthTracker: healthTracker,
-		nodeForConn:   make(map[*pgx.Conn]uint32, 0),
-		gc:            make(map[*pgx.Conn]struct{}, 0),
+		id:                           name,
+		maxRetries:                   maxRetries,
+		healthTracker:                healthTracker,
+		nodeForConn:                  make(map[*pgx.Conn]uint32, 0),
+		gc:                           make(map[*pgx.Conn]struct{}, 0),
+		prometheusUnregisterFunction: unregister,
 	}
 
 	limiter := rate.NewLimiter(rate.Every(connectRate), 1)

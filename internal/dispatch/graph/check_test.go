@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -2074,7 +2075,7 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 		_ = dispatch.Close()
 	})
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, prometheus.DefaultRegisterer, "", &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)
 	cachingDispatcher.SetDelegate(dispatch)
 	t.Cleanup(func() {
@@ -2099,7 +2100,7 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 		dispatch.Close()
 	})
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, prometheus.DefaultRegisterer, "", &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)
 	cachingDispatcher.SetDelegate(dispatch)
 	t.Cleanup(func() {

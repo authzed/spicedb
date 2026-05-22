@@ -10,7 +10,6 @@ import (
 	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -45,13 +44,20 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-var writeUpdateCounter = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var writeUpdateCounter = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "v1",
 	Name:      "write_relationships_updates",
 	Help:      "The update counts for the WriteRelationships calls",
 	Buckets:   []float64{0, 1, 2, 5, 10, 15, 25, 50, 100, 250, 500, 1000},
 }, []string{"kind"})
+
+// RegisterMetrics registers the relationships service prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register relationships service metrics", writeUpdateCounter)
+	return err
+}
 
 const MaximumTransactionMetadataSize = 65000 // bytes. Limited by the BLOB size used in MySQL driver
 

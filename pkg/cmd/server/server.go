@@ -34,9 +34,12 @@ import (
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
+	"github.com/authzed/spicedb/internal/middleware/perfinsights"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
@@ -47,7 +50,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	consistency "github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -158,10 +161,12 @@ type Config struct {
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor `debugmap:"hidden"`
 
 	// Telemetry
-	SilentlyDisableTelemetry bool          `debugmap:"visible"`
-	TelemetryCAOverridePath  string        `debugmap:"visible"`
-	TelemetryEndpoint        string        `debugmap:"visible"`
-	TelemetryInterval        time.Duration `debugmap:"visible"`
+	SilentlyDisableTelemetry bool                  `debugmap:"visible"`
+	TelemetryCAOverridePath  string                `debugmap:"visible"`
+	TelemetryEndpoint        string                `debugmap:"visible"`
+	TelemetryInterval        time.Duration         `debugmap:"visible"`
+	PrometheusGatherer       prometheus.Gatherer   `debugmap:"hidden"`
+	PrometheusRegisterer     prometheus.Registerer `debugmap:"hidden"`
 
 	// Logs
 	EnableRequestLogs  bool `debugmap:"visible"`
@@ -280,6 +285,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
+			combineddispatch.PrometheusRegisterer(c.PrometheusRegisterer),
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.SecondaryMaximumPrimaryHedgingDelays(c.DispatchSecondaryMaximumPrimaryHedgingDelays),
@@ -497,11 +503,37 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	closeables.AddCloser(gatewayCloser)
 	closeables.AddWithoutError(gatewayServer.Close)
 
+	registerer := c.PrometheusRegisterer
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+
+	// Register all prometheus metrics with the configured registerer.
+	for _, regFn := range []func(prometheus.Registerer) error{
+		schemacaching.RegisterMetrics,
+		singleflight.RegisterMetrics,
+		proxy.RegisterMetrics,
+		proxy.RegisterCheckingReplicatedMetrics,
+		proxy.RegisterStrictReplicatedMetrics,
+		usagemetrics.RegisterMetrics,
+		consistency.RegisterMetrics,
+		memoryprotection.RegisterMetrics,
+		perfinsights.RegisterMetrics,
+		telemetry.RegisterMetrics,
+		gateway.RegisterMetrics,
+		v1svc.RegisterMetrics,
+		cache.RegisterMetrics,
+	} {
+		if err := regFn(registerer); err != nil {
+			return nil, fmt.Errorf("failed to register prometheus metrics: %w", err)
+		}
+	}
+
 	infoCollector, err := telemetry.SpiceDBClusterInfoCollector(ctx, "environment", c.DatastoreConfig.Engine, ds)
 	if err != nil {
 		log.Warn().Err(err).Msg("unable to initialize info collector")
 	} else {
-		if err := prometheus.Register(infoCollector); err != nil {
+		if err := registerer.Register(infoCollector); err != nil {
 			log.Warn().Err(err).Msg("unable to initialize info collector")
 		}
 	}
@@ -610,9 +642,9 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.PrometheusRegisterer, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.PrometheusRegisterer, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		}
 	}
 

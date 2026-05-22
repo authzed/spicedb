@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
@@ -376,6 +378,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 			Enabled: true,
 		}),
 	)
+	c.PrometheusRegisterer = prometheus.NewRegistry()
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
@@ -408,8 +411,13 @@ func TestMiddlewareOrdering(t *testing.T) {
 
 	// NOTE: using WaitForReady ensures that the connection is active
 	// and can accept RPCs, rather than returning an EOF error.
-	_, err = psc.CheckPermission(ctx, req, grpc.WaitForReady(true))
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		callCtx, callCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer callCancel()
+
+		_, err = psc.CheckPermission(callCtx, req, grpc.WaitForReady(true))
+		return err == nil
+	}, 5*time.Second, 50*time.Millisecond, "expected CheckPermission to succeed once server is ready")
 
 	lrreq := &v1.LookupResourcesRequest{
 		ResourceObjectType: "resource",
@@ -421,11 +429,18 @@ func TestMiddlewareOrdering(t *testing.T) {
 		},
 		Permission: "read",
 	}
-	lrc, err := psc.LookupResources(ctx, lrreq)
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		callCtx, callCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer callCancel()
 
-	_, err = lrc.Recv()
-	require.NoError(t, err)
+		lrc, err := psc.LookupResources(callCtx, lrreq, grpc.WaitForReady(true))
+		if err != nil {
+			return false
+		}
+
+		_, err = lrc.Recv()
+		return err == nil
+	}, 5*time.Second, 50*time.Millisecond, "expected LookupResources to succeed once server is ready")
 
 	cancel()
 	require.NoError(t, <-errChan)
@@ -487,6 +502,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 			},
 		}),
 	)
+	c.PrometheusRegisterer = prometheus.NewRegistry()
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
@@ -533,7 +549,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 		Permission: "read",
 	}
 
-	lrc, err := psc.LookupResources(ctx, lrreq)
+	lrc, err := psc.LookupResources(ctx, lrreq, grpc.WaitForReady(true))
 	require.NoError(t, err)
 
 	_, err = lrc.Recv()

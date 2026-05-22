@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -29,6 +30,7 @@ type Option func(*optionState)
 
 type optionState struct {
 	metricsEnabled                               bool
+	prometheusRegisterer                         prometheus.Registerer
 	prometheusSubsystem                          string
 	upstreamAddr                                 string
 	upstreamCAPath                               string
@@ -61,6 +63,13 @@ func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
 func MetricsEnabled(enabled bool) Option {
 	return func(state *optionState) {
 		state.metricsEnabled = enabled
+	}
+}
+
+// PrometheusRegisterer sets the prometheus registerer for dispatcher metrics.
+func PrometheusRegisterer(registerer prometheus.Registerer) Option {
+	return func(state *optionState) {
+		state.prometheusRegisterer = registerer
 	}
 }
 
@@ -208,7 +217,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusRegisterer, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +259,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			TypeSet:                caveattypes.TypeSetOrDefault(opts.caveatTypeSet),
 			DispatchChunkSize:      chunkSize,
 			RelationshipChunkCache: relationshipChunkCache,
+			PrometheusRegisterer:   opts.prometheusRegisterer,
 			QueryPlanMetadata:      opts.queryPlanMetadata,
 		}
 		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)
@@ -317,7 +327,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 
 		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
-			DispatchOverallTimeout: opts.remoteDispatchTimeout,
+			DispatchOverallTimeout: opts.remoteDispatchTimeout, Registerer: opts.prometheusRegisterer,
 		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
 		if err != nil {
 			return nil, err

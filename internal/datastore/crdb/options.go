@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/utils/ptr"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -29,6 +30,7 @@ type crdbOptions struct {
 	enableConnectionBalancing      bool
 	analyzeBeforeStatistics        bool
 	filterMaximumIDCount           uint16
+	prometheusRegisterer           prometheus.Registerer
 	enablePrometheusStats          bool
 	withIntegrity                  bool
 	allowedMigrations              []string
@@ -125,6 +127,13 @@ func generateConfig(options []Option) (crdbOptions, error) {
 	}
 
 	return computed, nil
+}
+
+// WithPrometheusRegisterer sets the prometheus.Registerer used for CockroachDB datastore metrics.
+func WithPrometheusRegisterer(registerer prometheus.Registerer) Option {
+	return func(po *crdbOptions) {
+		po.prometheusRegisterer = registerer
+	}
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max

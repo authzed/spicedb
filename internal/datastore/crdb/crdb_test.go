@@ -896,7 +896,7 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 	// Create read & write pools
 	readPoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", readMaxConns))
 	require.NoError(t, err)
-	readPool, err := pool.NewRetryPool(t.Context(), "read", readPoolConfig, nil, 18, 20)
+	readPool, err := pool.NewRetryPool(t.Context(), "read", readPoolConfig, nil, 18, 20, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		readPool.Close()
@@ -904,7 +904,7 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 
 	writePoolConfig, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://db:password@pg.example.com:5432/mydb?pool_max_conns=%d", writeMaxConns))
 	require.NoError(t, err)
-	writePool, err := pool.NewRetryPool(t.Context(), "read", writePoolConfig, nil, 18, 20)
+	writePool, err := pool.NewRetryPool(t.Context(), "write", writePoolConfig, nil, 18, 20, nil)
 	require.NoError(t, err)
 
 	// Create datastore with those pools
@@ -913,14 +913,12 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 		_ = cds.Close()
 	})
 
-	err = cds.registerPrometheusCollectors(false)
+	err = cds.registerPrometheusCollectors(prometheus.NewPedanticRegistry(), false)
 	require.NoError(t, err)
-	require.Empty(t, cds.collectors)
 
 	// Register collectors and verify the values of the metrics
-	err = cds.registerPrometheusCollectors(true)
+	err = cds.registerPrometheusCollectors(prometheus.NewPedanticRegistry(), true)
 	require.NoError(t, err)
-	require.Len(t, cds.collectors, 2)
 
 	metricFamily, err := prometheus.DefaultGatherer.Gather()
 	require.NoError(t, err)
@@ -977,9 +975,9 @@ func TestVersionReading(t *testing.T) {
 	// Set up a raw connection to the DB
 	initPoolConfig, err := pgxpool.ParseConfig(uri)
 	require.NoError(err)
-	checker, err := pool.NewNodeHealthChecker(uri)
+	checker, err := pool.NewNodeHealthChecker(uri, nil)
 	require.NoError(err)
-	initPool, err := pool.NewRetryPool(t.Context(), "pool", initPoolConfig, checker, 18, 20)
+	initPool, err := pool.NewRetryPool(t.Context(), "pool", initPoolConfig, checker, 18, 20, nil)
 	require.NoError(err)
 	t.Cleanup(func() {
 		initPool.Close()

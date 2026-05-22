@@ -3,6 +3,7 @@ package util
 
 import (
 	defaults "github.com/creasty/defaults"
+	prometheus "github.com/prometheus/client_golang/prometheus"
 	"time"
 )
 
@@ -38,6 +39,7 @@ func (g *GRPCServerConfig) ToOption() GRPCServerConfigOption {
 		to.Enabled = g.Enabled
 		to.BufferSize = g.BufferSize
 		to.ClientCAPath = g.ClientCAPath
+		to.PrometheusRegisterer = g.PrometheusRegisterer
 		to.MaxWorkers = g.MaxWorkers
 	}
 }
@@ -78,6 +80,13 @@ func (g *GRPCServerConfig) DebugMap() map[string]any {
 		debugMap["ClientCAPath"] = "(empty)"
 	} else {
 		debugMap["ClientCAPath"] = g.ClientCAPath
+	}
+	if dm, ok := any(&g.PrometheusRegisterer).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["PrometheusRegisterer"] = dm.DebugMap()
+	} else {
+		debugMap["PrometheusRegisterer"] = g.PrometheusRegisterer
 	}
 	debugMap["MaxWorkers"] = g.MaxWorkers
 	return debugMap
@@ -120,64 +129,71 @@ func (g *GRPCServerConfig) WithOptions(opts ...GRPCServerConfigOption) *GRPCServ
 	return g
 }
 
-// WithAddress returns an option that can set Address on a GRPCServerConfig
-func WithAddress(address string) GRPCServerConfigOption {
+// WithGRPCServerConfigAddress returns an option that can set Address on a GRPCServerConfig
+func WithGRPCServerConfigAddress(address string) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.Address = address
 	}
 }
 
-// WithNetwork returns an option that can set Network on a GRPCServerConfig
-func WithNetwork(network string) GRPCServerConfigOption {
+// WithGRPCServerConfigNetwork returns an option that can set Network on a GRPCServerConfig
+func WithGRPCServerConfigNetwork(network string) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.Network = network
 	}
 }
 
-// WithTLSCertPath returns an option that can set TLSCertPath on a GRPCServerConfig
-func WithTLSCertPath(tLSCertPath string) GRPCServerConfigOption {
+// WithGRPCServerConfigTLSCertPath returns an option that can set TLSCertPath on a GRPCServerConfig
+func WithGRPCServerConfigTLSCertPath(tLSCertPath string) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.TLSCertPath = tLSCertPath
 	}
 }
 
-// WithTLSKeyPath returns an option that can set TLSKeyPath on a GRPCServerConfig
-func WithTLSKeyPath(tLSKeyPath string) GRPCServerConfigOption {
+// WithGRPCServerConfigTLSKeyPath returns an option that can set TLSKeyPath on a GRPCServerConfig
+func WithGRPCServerConfigTLSKeyPath(tLSKeyPath string) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.TLSKeyPath = tLSKeyPath
 	}
 }
 
-// WithMaxConnAge returns an option that can set MaxConnAge on a GRPCServerConfig
-func WithMaxConnAge(maxConnAge time.Duration) GRPCServerConfigOption {
+// WithGRPCServerConfigMaxConnAge returns an option that can set MaxConnAge on a GRPCServerConfig
+func WithGRPCServerConfigMaxConnAge(maxConnAge time.Duration) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.MaxConnAge = maxConnAge
 	}
 }
 
-// WithEnabled returns an option that can set Enabled on a GRPCServerConfig
-func WithEnabled(enabled bool) GRPCServerConfigOption {
+// WithGRPCServerConfigEnabled returns an option that can set Enabled on a GRPCServerConfig
+func WithGRPCServerConfigEnabled(enabled bool) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.Enabled = enabled
 	}
 }
 
-// WithBufferSize returns an option that can set BufferSize on a GRPCServerConfig
-func WithBufferSize(bufferSize int) GRPCServerConfigOption {
+// WithGRPCServerConfigBufferSize returns an option that can set BufferSize on a GRPCServerConfig
+func WithGRPCServerConfigBufferSize(bufferSize int) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.BufferSize = bufferSize
 	}
 }
 
-// WithClientCAPath returns an option that can set ClientCAPath on a GRPCServerConfig
-func WithClientCAPath(clientCAPath string) GRPCServerConfigOption {
+// WithGRPCServerConfigClientCAPath returns an option that can set ClientCAPath on a GRPCServerConfig
+func WithGRPCServerConfigClientCAPath(clientCAPath string) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.ClientCAPath = clientCAPath
 	}
 }
 
-// WithMaxWorkers returns an option that can set MaxWorkers on a GRPCServerConfig
-func WithMaxWorkers(maxWorkers uint32) GRPCServerConfigOption {
+// WithGRPCServerConfigPrometheusRegisterer returns an option that can set PrometheusRegisterer on a GRPCServerConfig
+func WithGRPCServerConfigPrometheusRegisterer(prometheusRegisterer prometheus.Registerer) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.PrometheusRegisterer = prometheusRegisterer
+	}
+}
+
+// WithGRPCServerConfigMaxWorkers returns an option that can set MaxWorkers on a GRPCServerConfig
+func WithGRPCServerConfigMaxWorkers(maxWorkers uint32) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.MaxWorkers = maxWorkers
 	}
@@ -211,6 +227,7 @@ func (h *HTTPServerConfig) ToOption() HTTPServerConfigOption {
 		to.HTTPTLSCertPath = h.HTTPTLSCertPath
 		to.HTTPTLSKeyPath = h.HTTPTLSKeyPath
 		to.HTTPEnabled = h.HTTPEnabled
+		to.PrometheusRegisterer = h.PrometheusRegisterer
 	}
 }
 
@@ -233,6 +250,13 @@ func (h *HTTPServerConfig) DebugMap() map[string]any {
 		debugMap["HTTPTLSKeyPath"] = h.HTTPTLSKeyPath
 	}
 	debugMap["HTTPEnabled"] = h.HTTPEnabled
+	if dm, ok := any(&h.PrometheusRegisterer).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["PrometheusRegisterer"] = dm.DebugMap()
+	} else {
+		debugMap["PrometheusRegisterer"] = h.PrometheusRegisterer
+	}
 	return debugMap
 }
 
@@ -273,30 +297,37 @@ func (h *HTTPServerConfig) WithOptions(opts ...HTTPServerConfigOption) *HTTPServ
 	return h
 }
 
-// WithHTTPAddress returns an option that can set HTTPAddress on a HTTPServerConfig
-func WithHTTPAddress(hTTPAddress string) HTTPServerConfigOption {
+// WithHTTPServerConfigHTTPAddress returns an option that can set HTTPAddress on a HTTPServerConfig
+func WithHTTPServerConfigHTTPAddress(hTTPAddress string) HTTPServerConfigOption {
 	return func(h *HTTPServerConfig) {
 		h.HTTPAddress = hTTPAddress
 	}
 }
 
-// WithHTTPTLSCertPath returns an option that can set HTTPTLSCertPath on a HTTPServerConfig
-func WithHTTPTLSCertPath(hTTPTLSCertPath string) HTTPServerConfigOption {
+// WithHTTPServerConfigHTTPTLSCertPath returns an option that can set HTTPTLSCertPath on a HTTPServerConfig
+func WithHTTPServerConfigHTTPTLSCertPath(hTTPTLSCertPath string) HTTPServerConfigOption {
 	return func(h *HTTPServerConfig) {
 		h.HTTPTLSCertPath = hTTPTLSCertPath
 	}
 }
 
-// WithHTTPTLSKeyPath returns an option that can set HTTPTLSKeyPath on a HTTPServerConfig
-func WithHTTPTLSKeyPath(hTTPTLSKeyPath string) HTTPServerConfigOption {
+// WithHTTPServerConfigHTTPTLSKeyPath returns an option that can set HTTPTLSKeyPath on a HTTPServerConfig
+func WithHTTPServerConfigHTTPTLSKeyPath(hTTPTLSKeyPath string) HTTPServerConfigOption {
 	return func(h *HTTPServerConfig) {
 		h.HTTPTLSKeyPath = hTTPTLSKeyPath
 	}
 }
 
-// WithHTTPEnabled returns an option that can set HTTPEnabled on a HTTPServerConfig
-func WithHTTPEnabled(hTTPEnabled bool) HTTPServerConfigOption {
+// WithHTTPServerConfigHTTPEnabled returns an option that can set HTTPEnabled on a HTTPServerConfig
+func WithHTTPServerConfigHTTPEnabled(hTTPEnabled bool) HTTPServerConfigOption {
 	return func(h *HTTPServerConfig) {
 		h.HTTPEnabled = hTTPEnabled
+	}
+}
+
+// WithHTTPServerConfigPrometheusRegisterer returns an option that can set PrometheusRegisterer on a HTTPServerConfig
+func WithHTTPServerConfigPrometheusRegisterer(prometheusRegisterer prometheus.Registerer) HTTPServerConfigOption {
+	return func(h *HTTPServerConfig) {
+		h.PrometheusRegisterer = prometheusRegisterer
 	}
 }

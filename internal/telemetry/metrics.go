@@ -12,7 +12,6 @@ import (
 
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	dto "github.com/prometheus/client_model/go"
 	"golang.org/x/sync/errgroup"
 
@@ -22,12 +21,19 @@ import (
 	"github.com/authzed/spicedb/pkg/promutil"
 )
 
-var LogicalChecks = promauto.NewCounter(prometheus.CounterOpts{
+var LogicalChecks = prometheus.NewCounter(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "services",
 	Name:      "logical_checks_total",
 	Help:      `Count of the number of "checks" made across all APIs (e.g. each item within a CheckBulk, each item returned from a Lookup).`,
 })
+
+// RegisterMetrics registers the telemetry prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register telemetry metrics", LogicalChecks)
+	return err
+}
 
 func SpiceDBClusterInfoCollector(ctx context.Context, subsystem, dsEngine string, ds datastore.Datastore) (promutil.CollectorFunc, error) {
 	nodeID, err := os.Hostname()

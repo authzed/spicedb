@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -139,7 +140,8 @@ func TestNodeConnectionBalancerPrune(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tracker, err := NewNodeHealthChecker("")
+			reg := prometheus.NewRegistry()
+			tracker, err := NewNodeHealthChecker("", reg)
 			require.NoError(t, err)
 			for _, n := range tt.nodes {
 				tracker.healthyNodes[n] = struct{}{}

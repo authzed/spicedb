@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,7 +21,7 @@ import (
 var (
 	tracer = otel.Tracer("spicedb/datastore/proxy/observable")
 
-	loadedRelationshipCount = promauto.NewHistogram(prometheus.HistogramOpts{
+	loadedRelationshipCount = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "loaded_relationships_count",
@@ -30,7 +29,7 @@ var (
 		Help:      "Histogram of the number of relationships loaded per individual datastore query. High p99 values (>1000) may indicate broad permission checks or missing filters.",
 	})
 
-	queryLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	queryLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "query_latency",
@@ -40,6 +39,16 @@ var (
 		"operation", "query_shape",
 	})
 )
+
+// RegisterMetrics registers the observable datastore proxy prometheus metrics with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register observable datastore proxy metrics",
+		loadedRelationshipCount,
+		queryLatency)
+
+	return err
+}
 
 func filterToAttributes(filter *v1.RelationshipFilter) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}

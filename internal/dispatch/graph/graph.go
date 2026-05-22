@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -94,6 +95,7 @@ type DispatcherParameters struct {
 	DispatchChunkSize      uint16
 	TypeSet                *caveattypes.TypeSet
 	RelationshipChunkCache cache.Cache[cache.StringKey, any]
+	PrometheusRegisterer   prometheus.Registerer
 
 	// QueryPlanMetadata is the shared count-stats store consulted and updated
 	// by the receiver-side DispatchQueryPlan handler (advisor at compile,
@@ -168,7 +170,7 @@ func NewLocalOnlyDispatcher(parameters DispatcherParameters) (dispatch.Dispatche
 	concurrencyLimits := limitsOrDefaults(parameters.ConcurrencyLimits, defaultConcurrencyLimit)
 	chunkSize := parameters.DispatchChunkSize
 
-	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check, chunkSize)
+	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check, chunkSize, parameters.PrometheusRegisterer)
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects, chunkSize)
 	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, typeSet, concurrencyLimits.LookupResources, chunkSize)
@@ -193,7 +195,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, parameters DispatcherParame
 		log.Warn().Msgf("Dispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
 	}
 
-	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check, chunkSize)
+	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check, chunkSize, parameters.PrometheusRegisterer)
 	expander := graph.NewConcurrentExpander(redispatcher)
 	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects, chunkSize)
 	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, typeSet, concurrencyLimits.LookupResources, chunkSize)

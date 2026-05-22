@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ import (
 
 func TestCertWatcherNew(t *testing.T) {
 	t.Run("should error without cert/key", func(t *testing.T) {
-		_, err := NewTLSCertWatcher("", "")
+		_, err := NewTLSCertWatcher(prometheus.DefaultRegisterer, "", "")
 		require.Error(t, err)
 	})
 }
@@ -53,7 +54,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 
 	// First watcher: start and stop.
 	ctx1, cancel1 := context.WithCancel(t.Context())
-	watcher1, err := NewTLSCertWatcher(certPath, keyPath)
+	watcher1, err := NewTLSCertWatcher(prometheus.DefaultRegisterer, certPath, keyPath)
 	require.NoError(t, err)
 
 	go func() {
@@ -63,7 +64,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 
 	// Second watcher: should not fail due to duplicate metric registration.
 	ctx2, cancel2 := context.WithCancel(t.Context())
-	watcher2, err := NewTLSCertWatcher(certPath, keyPath)
+	watcher2, err := NewTLSCertWatcher(prometheus.DefaultRegisterer, certPath, keyPath)
 	require.NoError(t, err)
 
 	go func() {
@@ -86,7 +87,7 @@ func setupWatcher(t *testing.T, ip string) (certPath, keyPath string, watcher *C
 	err := writeCerts(certPath, keyPath, ip)
 	require.NoError(t, err)
 
-	watcher, err = NewTLSCertWatcher(certPath, keyPath)
+	watcher, err = NewTLSCertWatcher(prometheus.DefaultRegisterer, certPath, keyPath)
 	require.NoError(t, err)
 
 	startWatcher = func(interval time.Duration) {

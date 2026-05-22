@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -30,6 +31,7 @@ type ServerConfig struct {
 	CaveatTypeSet                      *caveattypes.TypeSet
 	EnableExperimentalLookupResources3 bool
 	DataLayerOpts                      []datalayer.DataLayerOption
+	PrometheusRegisterer               prometheus.Registerer
 }
 
 var DefaultTestServerConfig = ServerConfig{
@@ -77,6 +79,9 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	dsInitFunc DatastoreInitFunc,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(t, emptyDS)
+	if config.PrometheusRegisterer == nil {
+		config.PrometheusRegisterer = prometheus.NewRegistry()
+	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
@@ -95,7 +100,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
 
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	srvConfig := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
@@ -163,7 +168,9 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 				},
 			},
 		}),
-	).Complete(ctx)
+	)
+	srvConfig.PrometheusRegisterer = config.PrometheusRegisterer
+	srv, err := srvConfig.Complete(ctx)
 	require.NoError(t, err)
 
 	go func() {

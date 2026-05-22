@@ -5,10 +5,15 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-func init() {
-	prometheus.MustRegister(defaultCollector)
+// RegisterMetrics registers the cache prometheus collector with the provided registerer.
+// If registerer is nil, prometheus.DefaultRegisterer is used.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	_, err := datastore.RegisterPrometheusCollectors(registerer, "failed to register cache metrics", defaultCollector)
+	return err
 }
 
 const (

@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -18,6 +19,9 @@ func DatastoreConfigInitFunc(t testing.TB, options ...dsconfig.ConfigOption) tes
 	return func(engine, uri string) datastore.Datastore {
 		ds, err := dsconfig.NewDatastore(t.Context(),
 			append(options,
+				func(c *dsconfig.Config) {
+					c.PrometheusRegisterer = prometheus.NewRegistry()
+				},
 				dsconfig.WithEngine(engine),
 				dsconfig.WithEnableDatastoreMetrics(false),
 				dsconfig.WithURI(uri),

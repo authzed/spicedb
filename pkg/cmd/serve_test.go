@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
@@ -21,27 +22,28 @@ func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, m
 	err := RegisterRootFlags(cmd)
 	require.NoError(t, err)
 	require.NoError(t, RegisterServeFlags(cmd, config))
-	// Disable all metrics as they are singletons
-	config.DispatchClusterMetricsEnabled = false
-	config.DispatchClientMetricsEnabled = false
-	config.DatastoreConfig.EnableDatastoreMetrics = false
-	config.DispatchCacheConfig.Metrics = false
-	config.ClusterDispatchCacheConfig.Metrics = false
-	config.NamespaceCacheConfig.Metrics = false
-	config.StoredSchemaCacheConfig.Metrics = false
+	config.PrometheusRegisterer = prometheus.NewRegistry()
 
 	cmd.SetArgs(args)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithCancel(cmd.Context())
-		t.Cleanup(cancel)
+		defer cancel()
 
-		_, err := config.Complete(ctx)
+		srv, err := config.Complete(ctx)
 		if err != nil {
 			return err
 		}
+
+		runErrCh := make(chan error, 1)
+		go func() {
+			runErrCh <- srv.Run(ctx)
+		}()
+
 		assertConfig(t, config)
-		return nil
+
+		cancel()
+		return <-runErrCh
 	}
 	require.NoError(t, cmd.Execute())
 }

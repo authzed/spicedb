@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	datastoreTest "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -19,7 +20,8 @@ func TestExecuteGC(t *testing.T) {
 			name: "cockroachdb does not support garbage collection",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
+				cfg.EnableDatastoreMetrics = false
+				cfg.PrometheusRegisterer = prometheus.NewRegistry()
 				cfg.Engine = "cockroachdb"
 				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
 				db := runningDatastore.NewDatabase(t)
@@ -46,23 +48,22 @@ func TestExecuteRepair(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name: "cockroachdb does not support repair",
+			name: "memory datastore does not support repair",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
-				cfg.Engine = "cockroachdb"
-				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
-				db := runningDatastore.NewDatabase(t)
-				cfg.URI = db
+				cfg.EnableDatastoreMetrics = false
+				cfg.PrometheusRegisterer = prometheus.NewRegistry()
+				cfg.Engine = datastore.MemoryEngine
 				return cfg
 			},
-			expectedError: "datastore of type 'cockroachdb' does not support the repair operation",
+			expectedError: "datastore of type 'memory' does not support the repair operation",
 		},
 		{
 			name: "postgres supports repair",
 			cfgBuilder: func(t *testing.T) *datastore.Config {
 				cfg := datastore.DefaultDatastoreConfig()
-				cfg.EnableDatastoreMetrics = false // avoid "duplicate metrics collector registration attempted"
+				cfg.EnableDatastoreMetrics = false
+				cfg.PrometheusRegisterer = prometheus.NewRegistry()
 				cfg.Engine = "postgres"
 				runningDatastore := datastoreTest.RunDatastoreEngine(t, cfg.Engine)
 				db := runningDatastore.NewDatabase(t)

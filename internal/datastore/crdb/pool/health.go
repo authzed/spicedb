@@ -14,6 +14,7 @@ import (
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const errorBurst = 2
@@ -23,10 +24,6 @@ var healthyCRDBNodeCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Help: "the number of healthy crdb nodes detected by spicedb",
 })
 
-func init() {
-	prometheus.MustRegister(healthyCRDBNodeCountGauge)
-}
-
 // NodeHealthTracker detects changes in the node pool by polling the cluster periodically and recording
 // the node ids that are seen. This is used to detect new nodes that come online that have either previously
 // been marked unhealthy due to connection errors or due to scale up.
@@ -34,18 +31,21 @@ func init() {
 // Consumers can manually mark a node healthy or unhealthy as well.
 type NodeHealthTracker struct {
 	sync.RWMutex
-	connConfig    *pgx.ConnConfig
-	healthyNodes  map[uint32]struct{}      // GUARDED_BY(RWMutex)
-	nodesEverSeen map[uint32]*rate.Limiter // GUARDED_BY(RWMutex)
-	newLimiter    func() *rate.Limiter
+	connConfig                   *pgx.ConnConfig
+	healthyNodes                 map[uint32]struct{}      // GUARDED_BY(RWMutex)
+	nodesEverSeen                map[uint32]*rate.Limiter // GUARDED_BY(RWMutex)
+	newLimiter                   func() *rate.Limiter
+	prometheusUnregisterFunction func()
 }
 
 // NewNodeHealthChecker builds a health checker that polls the cluster at the given url.
-func NewNodeHealthChecker(url string) (*NodeHealthTracker, error) {
+func NewNodeHealthChecker(url string, registerer prometheus.Registerer) (*NodeHealthTracker, error) {
 	connConfig, err := pgxcommon.ParseConfigWithInstrumentation(url)
 	if err != nil {
 		return nil, err
 	}
+
+	unregister, _ := datastore.RegisterPrometheusCollectors(registerer, "failed to register crdb health metrics", healthyCRDBNodeCountGauge)
 
 	return &NodeHealthTracker{
 		connConfig:    connConfig,
@@ -54,6 +54,7 @@ func NewNodeHealthChecker(url string) (*NodeHealthTracker, error) {
 		newLimiter: func() *rate.Limiter {
 			return rate.NewLimiter(rate.Every(1*time.Minute), errorBurst)
 		},
+		prometheusUnregisterFunction: unregister,
 	}, nil
 }
 

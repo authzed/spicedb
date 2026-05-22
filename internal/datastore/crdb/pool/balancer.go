@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil"
 )
 
@@ -32,11 +33,6 @@ var (
 		Buckets: []float64{.1, .2, .5, 1, 2, 5, 10, 20, 50, 100},
 	}, []string{"pool"})
 )
-
-func init() {
-	prometheus.MustRegister(connectionsPerCRDBNodeCountGauge)
-	prometheus.MustRegister(pruningTimeHistogram)
-}
 
 type balancePoolConn[C balanceConn] interface {
 	Conn() C
@@ -67,9 +63,16 @@ type NodeConnectionBalancer struct {
 	nodeConnectionBalancer[*pgxpool.Conn, *pgx.Conn]
 }
 
+// RegisterNodeConnectionBalancerMetrics registers the shared connection balancer collectors.
+func RegisterNodeConnectionBalancerMetrics(registerer prometheus.Registerer) (func(), error) {
+	return datastore.RegisterPrometheusCollectors(registerer, "failed to register crdb connection balancer metrics", connectionsPerCRDBNodeCountGauge, pruningTimeHistogram)
+}
+
 // NewNodeConnectionBalancer builds a new nodeConnectionBalancer for a given connection pool and health tracker.
 func NewNodeConnectionBalancer(pool *RetryPool, healthTracker *NodeHealthTracker, interval time.Duration) *NodeConnectionBalancer {
-	return &NodeConnectionBalancer{*newNodeConnectionBalancer[*pgxpool.Conn, *pgx.Conn](pool, healthTracker, interval)}
+	return &NodeConnectionBalancer{
+		*newNodeConnectionBalancer[*pgxpool.Conn, *pgx.Conn](pool, healthTracker, interval),
+	}
 }
 
 // nodeConnectionBalancer is generic over underlying connection types for

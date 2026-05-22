@@ -1,6 +1,6 @@
 package util
 
-//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . GRPCServerConfig HTTPServerConfig
+//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go -prefix . GRPCServerConfig HTTPServerConfig
 
 import (
 	"cmp"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	_ "github.com/mostynb/go-grpc-compression/experimental/s2" // Register Snappy S2 compression
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -34,15 +35,16 @@ import (
 const BufferedNetwork string = "buffnet"
 
 type GRPCServerConfig struct {
-	Address      string        `debugmap:"visible"`
-	Network      string        `debugmap:"visible"`
-	TLSCertPath  string        `debugmap:"visible"`
-	TLSKeyPath   string        `debugmap:"visible"`
-	MaxConnAge   time.Duration `debugmap:"visible"`
-	Enabled      bool          `debugmap:"visible"`
-	BufferSize   int           `debugmap:"visible"`
-	ClientCAPath string        `debugmap:"visible"`
-	MaxWorkers   uint32        `debugmap:"visible"`
+	Address              string                `debugmap:"visible"`
+	Network              string                `debugmap:"visible"`
+	TLSCertPath          string                `debugmap:"visible"`
+	TLSKeyPath           string                `debugmap:"visible"`
+	MaxConnAge           time.Duration         `debugmap:"visible"`
+	Enabled              bool                  `debugmap:"visible"`
+	BufferSize           int                   `debugmap:"visible"`
+	ClientCAPath         string                `debugmap:"visible"`
+	PrometheusRegisterer prometheus.Registerer `debugmap:"visible"`
+	MaxWorkers           uint32                `debugmap:"visible"`
 
 	flagPrefix string
 }
@@ -156,7 +158,7 @@ func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *x509util.CertWatcher
 	}
 
 	// Else we've got TLS configuration and we'll construct the server options
-	watcher, err := x509util.NewTLSCertWatcher(c.TLSCertPath, c.TLSKeyPath)
+	watcher, err := x509util.NewTLSCertWatcher(c.PrometheusRegisterer, c.TLSCertPath, c.TLSKeyPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -289,10 +291,11 @@ func (d *disabledGrpcServer) ForceStop() {
 }
 
 type HTTPServerConfig struct {
-	HTTPAddress     string `debugmap:"visible"`
-	HTTPTLSCertPath string `debugmap:"visible"`
-	HTTPTLSKeyPath  string `debugmap:"visible"`
-	HTTPEnabled     bool   `debugmap:"visible"`
+	HTTPAddress          string                `debugmap:"visible"`
+	HTTPTLSCertPath      string                `debugmap:"visible"`
+	HTTPTLSKeyPath       string                `debugmap:"visible"`
+	HTTPEnabled          bool                  `debugmap:"visible"`
+	PrometheusRegisterer prometheus.Registerer `debugmap:"visible"`
 
 	flagPrefix string
 }
@@ -314,7 +317,7 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 		}
 
 	case c.HTTPTLSCertPath != "" && c.HTTPTLSKeyPath != "":
-		watcher, err := x509util.NewTLSCertWatcher(c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
+		watcher, err := x509util.NewTLSCertWatcher(c.PrometheusRegisterer, c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
 		if err != nil {
 			return nil, err
 		}

@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -77,13 +78,6 @@ const defaultTDigestCompression = float64(1000)
 
 var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 
-func init() {
-	prometheus.MustRegister(dispatchCounter)
-	prometheus.MustRegister(hedgeWaitHistogram)
-	prometheus.MustRegister(hedgeActualWaitHistogram)
-	prometheus.MustRegister(primaryDispatch)
-}
-
 type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
@@ -100,6 +94,9 @@ type ClusterDispatcherConfig struct {
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
 	// before it should timeout.
 	DispatchOverallTimeout time.Duration
+
+	// Registerer is the prometheus registerer to use for metrics. If nil, prometheus.DefaultRegisterer is used.
+	Registerer prometheus.Registerer
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -119,6 +116,11 @@ type SecondaryDispatch struct {
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
 func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (dispatch.Dispatcher, error) {
+	unregister, err := datastore.RegisterPrometheusCollectors(config.Registerer, "failed to register cluster dispatch metrics", dispatchCounter, hedgeWaitHistogram, hedgeActualWaitHistogram, primaryDispatch)
+	if err != nil {
+		return nil, err
+	}
+
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
@@ -156,6 +158,7 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		secondaryDispatchExprs:          secondaryDispatchExprs,
 		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
 		supportedResourceSubjectTracker: newSupportedResourceSubjectTracker(),
+		prometheusUnregisterFunction:    unregister,
 	}, nil
 }
 
@@ -169,6 +172,7 @@ type clusterDispatcher struct {
 	secondaryDispatchExprs          map[string]*DispatchExpr
 	secondaryInitialResponseDigests map[string]*digestAndLock
 	supportedResourceSubjectTracker *supportedResourceSubjectTracker
+	prometheusUnregisterFunction    func()
 }
 
 // digestAndLock is a struct that holds a TDigest and a lock to protect it.

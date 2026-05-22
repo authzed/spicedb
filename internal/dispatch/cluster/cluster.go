@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -20,6 +22,7 @@ type Option func(*optionState)
 type optionState struct {
 	metricsEnabled               bool
 	prometheusSubsystem          string
+	prometheusRegisterer         prometheus.Registerer
 	cache                        cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits            graph.ConcurrencyLimits
 	remoteDispatchTimeout        time.Duration
@@ -148,6 +151,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		TypeSet:                cts,
 		DispatchChunkSize:      opts.dispatchChunkSize,
 		RelationshipChunkCache: relationshipChunkCache,
+		PrometheusRegisterer:   opts.prometheusRegisterer,
 		QueryPlanMetadata:      opts.queryPlanMetadata,
 	}
 	clusterDispatch, err := graph.NewDispatcher(dispatch, params)
@@ -159,7 +163,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusRegisterer, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

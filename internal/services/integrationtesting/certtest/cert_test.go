@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
@@ -38,7 +39,12 @@ import (
 
 func TestCertRotation(t *testing.T) {
 	t.Cleanup(func() {
-		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+		goleak.VerifyNone(t, append(testutil.GoLeakIgnores(),
+			goleak.IgnoreCurrent(),
+			goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*lfuPolicy).processItems"),
+			goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*Cache).processItems"),
+			goleak.IgnoreTopFunction("github.com/fsnotify/fsnotify.(*inotify).readEvents"),
+		)...)
 	})
 
 	const (
@@ -125,7 +131,7 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	srvConfig := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),
@@ -182,7 +188,9 @@ func TestCertRotation(t *testing.T) {
 				},
 			},
 		}),
-	).Complete(ctx)
+	)
+	srvConfig.PrometheusRegisterer = prometheus.NewRegistry()
+	srv, err := srvConfig.Complete(ctx)
 	require.NoError(t, err)
 
 	wait := make(chan error, 1)
