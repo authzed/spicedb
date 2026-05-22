@@ -345,3 +345,14 @@ func TestDatastoreIterator_Types(t *testing.T) {
 		require.Equal(tuple.Ellipsis, subjectTypes[0].Subrelation) // Ellipsis is preserved as-is
 	})
 }
+
+func TestDatastoreIterator_ReplaceSubiteratorsPanics(t *testing.T) {
+	baseRel := createTestBaseRelation("document", "viewer", "user", "")
+	iter := NewDatastoreIterator(baseRel)
+
+	require.Empty(t, iter.Subiterators(), "DatastoreIterator is a leaf and has no subiterators")
+
+	require.Panics(t, func() {
+		_, _ = iter.ReplaceSubiterators([]Iterator{NewEmptyFixedIterator()})
+	})
+}

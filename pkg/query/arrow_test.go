@@ -8,6 +8,22 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+func TestNewSchemaArrow(t *testing.T) {
+	left := NewEmptyFixedIterator()
+	right := NewEmptyFixedIterator()
+
+	arrow := NewSchemaArrow(left, right)
+	require.NotNil(t, arrow)
+	require.Same(t, left, arrow.left)
+	require.Same(t, right, arrow.right)
+	require.Equal(t, leftToRight, arrow.direction)
+	require.True(t, arrow.isSchemaArrow, "NewSchemaArrow should mark isSchemaArrow=true")
+
+	// NewArrowIterator should, by contrast, mark isSchemaArrow=false.
+	subrelArrow := NewArrowIterator(left, right)
+	require.False(t, subrelArrow.isSchemaArrow)
+}
+
 // testArrowBothDirections runs the same test with both arrow directions
 func testArrowBothDirections(t *testing.T, name string, testFn func(t *testing.T, direction arrowDirection)) {
 	t.Run(name+"_LTR", func(t *testing.T) {

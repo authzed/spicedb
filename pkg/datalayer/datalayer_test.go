@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -17,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var testDefinitions = []compiler.SchemaDefinition{
@@ -34,6 +37,16 @@ func newTestDatastore(t *testing.T) datastore.Datastore {
 	return ds
 }
 
+func newTestDataLayer(t testing.TB) (DataLayer, datastore.Datastore) {
+	t.Helper()
+	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ds.Close()
+	})
+	return NewDataLayer(ds), ds
+}
+
 func testSchemaDefinitions(t *testing.T) ([]datastore.SchemaDefinition, string) {
 	t.Helper()
 	schemaText, _, err := generator.GenerateSchema(t.Context(), testDefinitions)
@@ -49,8 +62,7 @@ func testSchemaDefinitions(t *testing.T) ([]datastore.SchemaDefinition, string) 
 // hasLegacyData checks whether legacy schema storage has namespace data at the given revision.
 func hasLegacyData(t *testing.T, ds datastore.Datastore, rev datastore.Revision) bool {
 	t.Helper()
-	ctx := t.Context()
-	nsDefs, err := ds.SnapshotReader(rev).LegacyListAllNamespaces(ctx)
+	nsDefs, err := ds.SnapshotReader(rev).LegacyListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	return len(nsDefs) > 0
 }
@@ -58,13 +70,61 @@ func hasLegacyData(t *testing.T, ds datastore.Datastore, rev datastore.Revision)
 // hasUnifiedData checks whether unified schema storage has data at the given revision.
 func hasUnifiedData(t *testing.T, ds datastore.Datastore, rev datastore.Revision) bool {
 	t.Helper()
-	ctx := t.Context()
-	_, err := ds.SnapshotReader(rev).ReadStoredSchema(ctx)
+	_, err := ds.SnapshotReader(rev).ReadStoredSchema(t.Context())
 	if err != nil {
 		require.ErrorIs(t, err, datastore.ErrSchemaNotFound)
 		return false
 	}
 	return true
+}
+
+// TestDefaultDataLayer_PassThroughs exercises the trivial pass-through methods on
+// defaultDataLayer in impl.go.
+func TestDefaultDataLayer_PassThroughs(t *testing.T) {
+	dl, underlying := newTestDataLayer(t)
+	ctx := t.Context()
+
+	readyState, err := dl.ReadyState(ctx)
+	require.NoError(t, err)
+	require.True(t, readyState.IsReady)
+
+	features, err := dl.Features(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, features)
+
+	offline, err := dl.OfflineFeatures()
+	require.NoError(t, err)
+	require.NotNil(t, offline)
+
+	_, err = dl.Statistics(ctx)
+	require.NoError(t, err)
+
+	metricsID, err := dl.MetricsID()
+	require.NoError(t, err)
+	require.NotEmpty(t, metricsID)
+
+	uniqueID, err := dl.UniqueID(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, uniqueID)
+
+	rev, _, err := dl.HeadRevision(ctx)
+	require.NoError(t, err)
+	require.NoError(t, dl.CheckRevision(ctx, rev))
+
+	optRev, _, err := dl.OptimizedRevision(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, optRev)
+
+	roundTripped, err := dl.RevisionFromString(rev.String())
+	require.NoError(t, err)
+	require.True(t, roundTripped.Equal(rev))
+
+	watchCh, errCh := dl.Watch(ctx, rev, datastore.WatchOptions{Content: datastore.WatchRelationships})
+	require.NotNil(t, watchCh)
+	require.NotNil(t, errCh)
+
+	require.Equal(t, underlying, UnwrapDatastore(dl))
+	require.NoError(t, dl.Close())
 }
 
 func TestWriteSchemaRouting(t *testing.T) {
@@ -105,8 +165,6 @@ func TestWriteSchemaRouting(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require := require.New(t)
-
 			ds := newTestDatastore(t)
 			dl := NewDataLayer(ds, WithSchemaMode(tc.mode))
 
@@ -117,11 +175,11 @@ func TestWriteSchemaRouting(t *testing.T) {
 				_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
 				return err
 			})
-			require.NoError(err)
+			require.NoError(t, err)
 
-			require.Equal(tc.expectLegacy, hasLegacyData(t, ds, rev),
+			require.Equal(t, tc.expectLegacy, hasLegacyData(t, ds, rev),
 				"legacy store populated = %v, want %v", hasLegacyData(t, ds, rev), tc.expectLegacy)
-			require.Equal(tc.expectUnified, hasUnifiedData(t, ds, rev),
+			require.Equal(t, tc.expectUnified, hasUnifiedData(t, ds, rev),
 				"unified store populated = %v, want %v", hasUnifiedData(t, ds, rev), tc.expectUnified)
 		})
 	}
@@ -1008,6 +1066,184 @@ func TestHashCacheIntegration_WriteUpdatesCache(t *testing.T) {
 	_, err = reader1.ReadSchema(ctx)
 	require.NoError(err)
 	require.Equal(int32(0), ds.readStoredSchemaCalls.Load(), "old hash should also be cached from first write")
+}
+
+// TestNewReadOnlyDataLayer_RejectsWrite ensures the read-only adapter returns a
+// readonly error from ReadWriteTx and pass-throughs everything else.
+func TestNewReadOnlyDataLayer_RejectsWrite(t *testing.T) {
+	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ds.Close() })
+
+	ro := NewReadOnlyDataLayer(ds)
+	ctx := t.Context()
+
+	_, err = ro.ReadWriteTx(ctx, func(context.Context, ReadWriteTransaction) error {
+		return nil
+	})
+	require.Error(t, err)
+
+	rev, _, err := ro.HeadRevision(ctx)
+	require.NoError(t, err)
+	require.NoError(t, ro.CheckRevision(ctx, rev))
+
+	readyState, err := ro.ReadyState(ctx)
+	require.NoError(t, err)
+	require.True(t, readyState.IsReady)
+
+	_, err = ro.Features(ctx)
+	require.NoError(t, err)
+
+	_, err = ro.OfflineFeatures()
+	require.NoError(t, err)
+
+	_, err = ro.Statistics(ctx)
+	require.NoError(t, err)
+
+	_, err = ro.UniqueID(ctx)
+	require.NoError(t, err)
+
+	_, err = ro.MetricsID()
+	require.NoError(t, err)
+
+	optRev, _, err := ro.OptimizedRevision(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, optRev)
+
+	rtr, err := ro.RevisionFromString(rev.String())
+	require.NoError(t, err)
+	require.True(t, rtr.Equal(rev))
+
+	watchCh, errCh := ro.Watch(ctx, rev, datastore.WatchOptions{Content: datastore.WatchRelationships})
+	require.NotNil(t, watchCh)
+	require.NotNil(t, errCh)
+
+	// UnwrapDatastore returns nil for the readonly adapter.
+	require.Nil(t, UnwrapDatastore(ro))
+
+	require.NoError(t, ro.Close())
+}
+
+// TestReadOnlyDataLayer_ReaderPassThroughs exercises the snapshot reader on the
+// readonly adapter.
+func TestReadOnlyDataLayer_ReaderPassThroughs(t *testing.T) {
+	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ds.Close() })
+
+	ro := NewReadOnlyDataLayer(ds)
+	ctx := t.Context()
+
+	rev, schemaHash, err := ro.HeadRevision(ctx)
+	require.NoError(t, err)
+
+	reader := ro.SnapshotReader(rev, schemaHash)
+
+	// ReadSchema on revisionedReader (shared between impl.go and readonly adapter).
+	sr, err := reader.ReadSchema(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, sr)
+
+	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: "resource"})
+	require.NoError(t, err)
+	rels, err := datastore.IteratorToSlice(iter)
+	require.NoError(t, err)
+	require.Empty(t, rels)
+
+	rit, err := reader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{SubjectType: "user"})
+	require.NoError(t, err)
+	rrels, err := datastore.IteratorToSlice(rit)
+	require.NoError(t, err)
+	require.Empty(t, rrels)
+
+	_, err = reader.CountRelationships(ctx, "missing")
+	require.Error(t, err)
+
+	_, err = reader.LookupCounters(ctx)
+	require.NoError(t, err)
+}
+
+// stubBulkSourceDL is a minimal BulkWriteRelationshipSource for tests.
+type stubBulkSourceDL struct {
+	rels []tuple.Relationship
+	idx  int
+}
+
+func (s *stubBulkSourceDL) Next(_ context.Context) (*tuple.Relationship, error) {
+	if s.idx >= len(s.rels) {
+		return nil, nil
+	}
+	rel := s.rels[s.idx]
+	s.idx++
+	return &rel, nil
+}
+
+// TestReadWriteTransaction_AllMethods exercises the RW transaction wrappers in
+// impl.go: WriteRelationships, DeleteRelationships, ReadSchema,
+// CountRelationships, LookupCounters, BulkLoad, counter registration, and the
+// legacy schema writer.
+func TestReadWriteTransaction_AllMethods(t *testing.T) {
+	dl, _ := newTestDataLayer(t)
+	ctx := t.Context()
+
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		require.NoError(t, rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("resource:foo#viewer@user:tom")),
+			tuple.Create(tuple.MustParse("resource:bar#viewer@user:fred")),
+		}))
+
+		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			ResourceType:       "resource",
+			OptionalResourceId: "bar",
+		})
+		require.NoError(t, err)
+
+		sr, err := rwt.ReadSchema(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, sr)
+
+		_, err = rwt.CountRelationships(ctx, "missing")
+		require.Error(t, err)
+
+		_, err = rwt.LookupCounters(ctx)
+		require.NoError(t, err)
+
+		// BulkLoad via the passthrough iterator.
+		src := &stubBulkSourceDL{rels: []tuple.Relationship{
+			tuple.MustParse("resource:bulk1#viewer@user:alice"),
+			tuple.MustParse("resource:bulk2#viewer@user:bob"),
+		}}
+		loaded, err := rwt.BulkLoad(ctx, src)
+		require.NoError(t, err)
+		require.Equal(t, uint64(2), loaded)
+
+		// Counter registration + store + unregister.
+		counterName := "my_counter"
+		require.NoError(t, rwt.RegisterCounter(ctx, counterName, &core.RelationshipFilter{
+			ResourceType: "resource",
+		}))
+
+		// StoreCounterValue requires a revision; use a zero/no revision.
+		require.NoError(t, rwt.StoreCounterValue(ctx, counterName, 42, datastore.NoRevision))
+
+		require.NoError(t, rwt.UnregisterCounter(ctx, counterName))
+
+		// LegacySchemaWriter surface: exercise each method. memdb's legacy writer
+		// accepts empty inputs.
+		lw := rwt.LegacySchemaWriter()
+		require.NotNil(t, lw)
+		require.NoError(t, lw.LegacyWriteCaveats(ctx, nil))
+		require.NoError(t, lw.LegacyWriteNamespaces(ctx))
+		require.NoError(t, lw.LegacyDeleteCaveats(ctx, nil))
+		require.NoError(t, lw.LegacyDeleteNamespaces(ctx, nil, datastore.DeleteNamespacesOnly))
+
+		// WriteSchema with no definitions should succeed via the legacy path.
+		_, err = rwt.WriteSchema(ctx, nil, "", nil)
+		require.NoError(t, err)
+
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestHashCacheIntegration_CacheAcrossPhaseTransitions(t *testing.T) {

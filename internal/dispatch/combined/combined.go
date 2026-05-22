@@ -189,13 +189,19 @@ func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
 	}
 }
 
-// NewDispatcher initializes a Dispatcher that caches and redispatches
-// optionally to the provided upstream.
-func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
+// newOptions applies the provided Options and returns the resulting state.
+func newOptions(options ...Option) optionState {
 	var opts optionState
 	for _, fn := range options {
 		fn(&opts)
 	}
+	return opts
+}
+
+// NewDispatcher initializes a Dispatcher that caches and redispatches
+// optionally to the provided upstream.
+func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
+	opts := newOptions(options...)
 	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
 
 	if opts.prometheusSubsystem == "" {

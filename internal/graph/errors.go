@@ -10,7 +10,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/sharederrors"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -61,46 +60,6 @@ func NewAlwaysFailErr() error {
 		error: errors.New("always fail"),
 	}
 }
-
-// RelationNotFoundError occurs when a relation was not found under a namespace.
-type RelationNotFoundError struct {
-	error
-	namespaceName string
-	relationName  string
-}
-
-// NamespaceName returns the name of the namespace in which the relation was not found.
-func (err RelationNotFoundError) NamespaceName() string {
-	return err.namespaceName
-}
-
-// NotFoundRelationName returns the name of the relation not found.
-func (err RelationNotFoundError) NotFoundRelationName() string {
-	return err.relationName
-}
-
-func (err RelationNotFoundError) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
-}
-
-// DetailsMetadata returns the metadata for details for this error.
-func (err RelationNotFoundError) DetailsMetadata() map[string]string {
-	return map[string]string{
-		"definition_name":             err.namespaceName,
-		"relation_or_permission_name": err.relationName,
-	}
-}
-
-// NewRelationNotFoundErr constructs a new relation not found error.
-func NewRelationNotFoundErr(nsName string, relationName string) error {
-	return RelationNotFoundError{
-		error:         fmt.Errorf("relation/permission `%s` not found under definition `%s`", relationName, nsName),
-		namespaceName: nsName,
-		relationName:  relationName,
-	}
-}
-
-var _ sharederrors.UnknownRelationError = RelationNotFoundError{}
 
 // RelationMissingTypeInfoError defines an error for when type information is missing from a relation
 // during a lookup.

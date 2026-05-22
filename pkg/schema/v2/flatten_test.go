@@ -11,6 +11,49 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
+func TestWalkFlattenedSchema(t *testing.T) {
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source: input.Source("test"),
+		SchemaString: `definition user {}
+definition document {
+	relation viewer: user
+	permission view = viewer
+}`,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	schema, err := BuildSchemaFromCompiledSchema(*compiled)
+	require.NoError(t, err)
+
+	resolved, err := ResolveSchema(schema)
+	require.NoError(t, err)
+
+	flattened, err := FlattenSchema(resolved, FlattenSeparatorDoubleUnderscore)
+	require.NoError(t, err)
+	require.NotNil(t, flattened)
+	require.Same(t, flattened.resolvedSchema, flattened.ResolvedSchema())
+
+	visitor := &testVisitor{}
+	_, err = WalkFlattenedSchema(flattened, visitor, struct{}{})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, visitor.schemas)
+	require.GreaterOrEqual(t, len(visitor.definitions), 2)
+}
+
+func TestWalkFlattenedSchema_Nil(t *testing.T) {
+	visitor := &testVisitor{}
+	_, err := WalkFlattenedSchema[struct{}](nil, visitor, struct{}{})
+	require.NoError(t, err)
+	require.Empty(t, visitor.schemas)
+}
+
+func TestFlattenSchemaWithOptions_NilInput(t *testing.T) {
+	_, err := FlattenSchemaWithOptions(nil, FlattenOptions{Separator: FlattenSeparatorDollar})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "cannot flatten nil resolved schema")
+}
+
 func TestFlattenSchema(t *testing.T) {
 	tests := []struct {
 		name           string
