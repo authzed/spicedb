@@ -429,26 +429,28 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 	return nil
 }
 
-// LookupPlanCheck probes the cache for a Plan-Check answer using a lightweight
-// descriptor. This is the cache-hit fast path that avoids serializing the
-// iterator subtree on the sender side: the executor calls this first, and only
-// builds a full DispatchQueryPlanRequest (which is what forces plan
-// serialization) when this misses.
+// LookupPlanCheck probes the cache for a Plan-Check answer using the
+// serialized iterator bytes the caller has already produced. This is the
+// cache-hit fast path: the executor serializes once at dispatch time, calls
+// LookupPlanCheck with the bytes, and only on miss reuses those same bytes
+// for the full DispatchQueryPlanRequest. Cache hits skip the request/stream
+// machinery (~200 allocs in our memory-engine measurements) but still pay
+// the serialize cost.
 //
-// On a hit we increment both queryPlanTotal and queryPlanFromCache so the cache
-// hit ratio across LookupPlanCheck + DispatchQueryPlan stays sensible; on a
-// miss we *do not* increment queryPlanTotal here — the caller will issue the
-// full DispatchQueryPlan next, which counts the dispatch itself.
+// On a hit we increment both queryPlanTotal and queryPlanFromCache so the
+// cache hit ratio across LookupPlanCheck + DispatchQueryPlan stays sensible;
+// on a miss we do not increment queryPlanTotal here — the caller will issue
+// the full DispatchQueryPlan next, which counts the dispatch itself.
 //
-// We also forward to the delegate on miss so a chain of caching dispatchers
-// (rare today, but allowed by the layering) all get probed.
+// We forward to the delegate on miss so a chain of caching dispatchers (rare
+// today, but allowed by the layering) all get probed.
 func (cd *Dispatcher) LookupPlanCheck(ctx context.Context, lookup dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
 	if lookup.PlanContext == nil {
 		return cd.d.LookupPlanCheck(ctx, lookup)
 	}
 	cacheKey := keys.PlanCheckLookupKey(
 		lookup.PlanContext.Revision,
-		lookup.CanonicalKey,
+		lookup.Plan,
 		lookup.Resource,
 		lookup.Subject,
 		lookup.PlanContext.CaveatContext,

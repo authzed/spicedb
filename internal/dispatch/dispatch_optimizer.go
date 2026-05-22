@@ -53,12 +53,20 @@ func wrapAliasWithDispatch(outline query.Outline) query.Outline {
 	}
 }
 
-// containsUnmatchedRecursiveSentinelOutline is the outline-time mirror of
-// containsUnmatchedRecursiveSentinel (executor.go): it walks an outline
-// subtree and reports whether any RecursiveSentinel has no RecursiveIterator
-// with the same (definition, relation) key in the same subtree. An unmatched
-// sentinel means dispatching this subtree would sever the sentinel from the
-// collection context its iterator establishes.
+// recursiveKey uniquely identifies a recursion pair by definition and relation
+// name. Used by containsUnmatchedRecursiveSentinelOutline to pair up sentinels
+// with their managing RecursiveIterators at optimization time.
+type recursiveKey struct {
+	definitionName string
+	relationName   string
+}
+
+// containsUnmatchedRecursiveSentinelOutline walks an outline subtree and
+// reports whether any RecursiveSentinel has no RecursiveIterator with the
+// same (definition, relation) key in the same subtree. An unmatched sentinel
+// means dispatching this subtree would sever the sentinel from the collection
+// context its iterator establishes — the optimizer uses this to keep such
+// aliases unwrapped (and therefore non-dispatching) at planning time.
 func containsUnmatchedRecursiveSentinelOutline(root query.Outline) bool {
 	var iteratorKeys map[recursiveKey]struct{}
 	var sentinelKeys map[recursiveKey]struct{}
