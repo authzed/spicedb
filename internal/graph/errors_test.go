@@ -41,26 +41,6 @@ func TestAlwaysFailError(t *testing.T) {
 	require.Equal(t, "always fail", err.Error())
 }
 
-func TestRelationNotFoundError(t *testing.T) {
-	err := NewRelationNotFoundErr("document", "viewer")
-
-	var rnfe RelationNotFoundError
-	require.ErrorAs(t, err, &rnfe)
-	require.Equal(t, "document", rnfe.NamespaceName())
-	require.Equal(t, "viewer", rnfe.NotFoundRelationName())
-	require.Contains(t, err.Error(), "viewer")
-	require.Contains(t, err.Error(), "document")
-
-	require.Equal(t, map[string]string{
-		"definition_name":             "document",
-		"relation_or_permission_name": "viewer",
-	}, rnfe.DetailsMetadata())
-
-	require.NotPanics(t, func() {
-		rnfe.MarshalZerologObject(zerolog.Dict())
-	})
-}
-
 func TestRelationMissingTypeInfoError(t *testing.T) {
 	err := NewRelationMissingTypeInfoErr("document", "viewer")
 

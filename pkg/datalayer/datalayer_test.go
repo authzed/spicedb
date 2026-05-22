@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -30,18 +29,6 @@ var testDefinitions = []compiler.SchemaDefinition{
 	),
 }
 
-func testSchemaDefinitions(t *testing.T) ([]datastore.SchemaDefinition, string) {
-	t.Helper()
-	schemaText, _, err := generator.GenerateSchema(t.Context(), testDefinitions)
-	require.NoError(t, err)
-
-	defs := make([]datastore.SchemaDefinition, 0, len(testDefinitions))
-	for _, def := range testDefinitions {
-		defs = append(defs, def.(datastore.SchemaDefinition))
-	}
-	return defs, schemaText
-}
-
 func newTestDatastore(t *testing.T) datastore.Datastore {
 	t.Helper()
 	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 90000*time.Second)
@@ -58,6 +45,18 @@ func newTestDataLayer(t testing.TB) (DataLayer, datastore.Datastore) {
 		_ = ds.Close()
 	})
 	return NewDataLayer(ds), ds
+}
+
+func testSchemaDefinitions(t *testing.T) ([]datastore.SchemaDefinition, string) {
+	t.Helper()
+	schemaText, _, err := generator.GenerateSchema(t.Context(), testDefinitions)
+	require.NoError(t, err)
+
+	defs := make([]datastore.SchemaDefinition, 0, len(testDefinitions))
+	for _, def := range testDefinitions {
+		defs = append(defs, def.(datastore.SchemaDefinition))
+	}
+	return defs, schemaText
 }
 
 // hasLegacyData checks whether legacy schema storage has namespace data at the given revision.
@@ -1068,15 +1067,6 @@ func TestHashCacheIntegration_WriteUpdatesCache(t *testing.T) {
 	require.NoError(err)
 	require.Equal(int32(0), ds.readStoredSchemaCalls.Load(), "old hash should also be cached from first write")
 }
-
-// streamStub implements the minimum of grpc.ServerStream needed by the
-// interceptor — just Context().
-type streamStub struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (s *streamStub) Context() context.Context { return s.ctx }
 
 // TestNewReadOnlyDataLayer_RejectsWrite ensures the read-only adapter returns a
 // readonly error from ReadWriteTx and pass-throughs everything else.
