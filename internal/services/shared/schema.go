@@ -4,9 +4,12 @@ import (
 	"context"
 	"maps"
 
+	"go.opentelemetry.io/otel"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -19,6 +22,8 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+var tracer = otel.Tracer("spicedb/internal/services/shared")
 
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
@@ -35,6 +40,8 @@ type ValidatedSchemaChanges struct {
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
 // ValidatedSchemaChanges, if fully validated.
 func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, caveatTypeSet *caveattypes.TypeSet, additiveOnly bool, schemaText string) (*ValidatedSchemaChanges, error) {
+	ctx, span := tracer.Start(ctx, "schema.ValidateSchemaChanges")
+	defer span.End()
 	// 1) Validate the caveats defined.
 	newCaveatDefNames := mapz.NewSet[string]()
 	for _, caveatDef := range compiled.CaveatDefinitions {
@@ -88,17 +95,24 @@ type AppliedSchemaChanges struct {
 
 	// RemovedCaveatDefNames contains the names of the removed caveat definitions.
 	RemovedCaveatDefNames []string
+
+	// SchemaHash is the hash of the resulting schema. It is a bypass sentinel
+	// when the changes were applied via the additive-only or legacy-only storage
+	// paths, which do not produce a unified schema hash.
+	SchemaHash datalayer.SchemaHash
 }
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
-func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	schemaReader, err := rwt.SchemaReader()
+func ApplySchemaChanges(ctx context.Context, rwt datalayer.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
+	ctx, span := tracer.Start(ctx, "schema.ApplySchemaChanges")
+	defer span.End()
+	sr, err := rwt.ReadSchema(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	existingCaveatDefs, err := schemaReader.ListAllCaveatDefinitions(ctx)
+	existingCaveatDefs, err := sr.ListAllCaveatDefinitions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +121,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 		existingCaveats = append(existingCaveats, caveatDef.Definition)
 	}
 
-	existingTypeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+	existingTypeDefs, err := sr.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -125,12 +139,14 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 // objects not named in one of those two which are present in the datastore will be preserved.
 func ApplySchemaChangesOverExisting(
 	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	rwt datalayer.ReadWriteTransaction,
 	caveatTypeSet *caveattypes.TypeSet,
 	validated *ValidatedSchemaChanges,
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
 ) (*AppliedSchemaChanges, error) {
+	ctx, span := tracer.Start(ctx, "schema.ApplySchemaChangesOverExisting")
+	defer span.End()
 	// Build a map of existing caveats to determine those being removed, if any.
 	existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
 	existingCaveatDefNames := mapz.NewSet[string]()
@@ -206,38 +222,39 @@ func ApplySchemaChangesOverExisting(
 		}
 	}
 
+	// The schema hash is produced only by the unified-storage write path.
+	// Additive-only changes and legacy-only storage do not produce one.
+	schemaHash := datalayer.NoSchemaHashInLegacyMode
+
 	if validated.additiveOnly {
 		// DEPRECATED: Use of legacy methods for additive-only schema changes is deprecated.
 		// This path is maintained for backwards compatibility but will be removed in a future version.
+		lw := rwt.LegacySchemaWriter()
 
 		// Write the new/changes caveats.
 		if len(caveatDefsWithChanges) > 0 {
-			if err := rwt.LegacyWriteCaveats(ctx, caveatDefsWithChanges); err != nil {
+			if err := lw.LegacyWriteCaveats(ctx, caveatDefsWithChanges); err != nil {
 				return nil, err
 			}
 		}
 
 		// Write the new/changed namespaces.
 		if len(objectDefsWithChanges) > 0 {
-			if err := rwt.LegacyWriteNamespaces(ctx, objectDefsWithChanges...); err != nil {
+			if err := lw.LegacyWriteNamespaces(ctx, objectDefsWithChanges...); err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		// Use the new WriteSchema method for non-additive changes, which handles
+		// Use the WriteSchema method for non-additive changes, which handles
 		// writing and deleting in a single operation.
-		schemaWriter, err := rwt.SchemaWriter()
-		if err != nil {
-			return nil, err
-		}
 
 		// Get the list of extant definitions so that we can add them to the
 		// list of definitions that should be written in the single shot
-		reader, err := rwt.SchemaReader()
+		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
 			return nil, err
 		}
-		allExtantDefinitions, err := reader.ListAllSchemaDefinitions(ctx)
+		allExtantDefinitions, err := sr.ListAllSchemaDefinitions(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -270,9 +287,11 @@ func ApplySchemaChangesOverExisting(
 		definitions = append(definitions, unchangedDefinitions...)
 
 		// WriteSchema will handle writing new/changed definitions and deleting removed ones
-		if err := schemaWriter.WriteSchema(ctx, definitions, validated.schemaText, caveatTypeSet); err != nil {
+		writtenSchemaHash, err := rwt.WriteSchema(ctx, definitions, validated.schemaText, caveatTypeSet)
+		if err != nil {
 			return nil, err
 		}
+		schemaHash = writtenSchemaHash
 	}
 
 	log.Ctx(ctx).Trace().
@@ -290,6 +309,7 @@ func ApplySchemaChangesOverExisting(
 		RemovedObjectDefNames: removedObjectDefNames.AsSlice(),
 		NewCaveatDefNames:     validated.newCaveatDefNames.Subtract(existingCaveatDefNames).AsSlice(),
 		RemovedCaveatDefNames: removedCaveatDefNames.AsSlice(),
+		SchemaHash:            schemaHash,
 	}, nil
 }
 
@@ -297,7 +317,7 @@ func ApplySchemaChangesOverExisting(
 // the types of the parameters that may already exist on relationships.
 func sanityCheckCaveatChanges(
 	_ context.Context,
-	_ datastore.ReadWriteTransaction,
+	_ datalayer.ReadWriteTransaction,
 	caveatTypeSet *caveattypes.TypeSet,
 	caveatDef *core.CaveatDefinition,
 	existingDefs map[string]*core.CaveatDefinition,
@@ -332,7 +352,7 @@ func sanityCheckCaveatChanges(
 
 // ensureNoRelationshipsExistWithResourceType ensures that no relationships exist within the namespace with the given name as a resource type.
 // NOTE: this does *not* check for use of the namespace as a subject type, as that should be handled by the caller.
-func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
+func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datalayer.ReadWriteTransaction, namespaceName string) error {
 	qy, qyErr := rwt.QueryRelationships(
 		ctx,
 		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
@@ -358,7 +378,7 @@ func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datasto
 // and relations.
 func sanityCheckNamespaceChanges(
 	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	rwt datalayer.ReadWriteTransaction,
 	nsdef *core.NamespaceDefinition,
 	existingDefs map[string]*core.NamespaceDefinition,
 ) (*nsdiff.Diff, error) {

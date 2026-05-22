@@ -60,6 +60,18 @@ var flaggableLexerTests = []lexerTest{
 		{TokenTypeIdentifier, 0, "self", ""},
 		tEOF,
 	}},
+	{"use partial", "use partial", []Lexeme{
+		{TokenTypeIdentifier, 0, "use", ""},
+		{TokenTypeWhitespace, 0, " ", ""},
+		{TokenTypeKeyword, 0, "partial", ""},
+		tEOF,
+	}},
+	{"use import", "use import", []Lexeme{
+		{TokenTypeIdentifier, 0, "use", ""},
+		{TokenTypeWhitespace, 0, " ", ""},
+		{TokenTypeKeyword, 0, "import", ""},
+		tEOF,
+	}},
 }
 
 func TestFlaggableLexer(t *testing.T) {

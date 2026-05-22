@@ -52,14 +52,14 @@ func (dm *MockDatastore) ReadWriteTx(
 	return args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
+func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
 	args := dm.Called()
-	return args.Get(0).(datastore.Revision), args.Error(1)
+	return args.Get(0).(datastore.RevisionWithSchemaHash), args.Error(1)
 }
 
-func (dm *MockDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
+func (dm *MockDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
 	args := dm.Called()
-	return args.Get(0).(datastore.Revision), args.Error(1)
+	return args.Get(0).(datastore.RevisionWithSchemaHash), args.Error(1)
 }
 
 func (dm *MockDatastore) CheckRevision(_ context.Context, revision datastore.Revision) error {
@@ -205,13 +205,13 @@ func (dm *MockReader) LegacyListAllCaveats(_ context.Context) ([]datastore.Revis
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
-func (dm *MockReader) SchemaReader() (datastore.SchemaReader, error) {
+func (dm *MockReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
 	args := dm.Called()
-	var sr datastore.SchemaReader
+	var schema *datastore.ReadOnlyStoredSchema
 	if args.Get(0) != nil {
-		sr = args.Get(0).(datastore.SchemaReader)
+		schema = args.Get(0).(*datastore.ReadOnlyStoredSchema)
 	}
-	return sr, args.Error(1)
+	return schema, args.Error(1)
 }
 
 type MockReadWriteTransaction struct {
@@ -354,8 +354,9 @@ func (dm *MockReadWriteTransaction) LegacyWriteCaveats(_ context.Context, caveat
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) LegacyDeleteCaveats(_ context.Context, _ []string) error {
-	panic("not used")
+func (dm *MockReadWriteTransaction) LegacyDeleteCaveats(_ context.Context, names []string) error {
+	args := dm.Called(names)
+	return args.Error(0)
 }
 
 func (dm *MockReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
@@ -373,22 +374,18 @@ func (dm *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, name 
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) SchemaReader() (datastore.SchemaReader, error) {
+func (dm *MockReadWriteTransaction) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
 	args := dm.Called()
-	var sr datastore.SchemaReader
+	var schema *datastore.ReadOnlyStoredSchema
 	if args.Get(0) != nil {
-		sr = args.Get(0).(datastore.SchemaReader)
+		schema = args.Get(0).(*datastore.ReadOnlyStoredSchema)
 	}
-	return sr, args.Error(1)
+	return schema, args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
-	args := dm.Called()
-	var sw datastore.SchemaWriter
-	if args.Get(0) != nil {
-		sw = args.Get(0).(datastore.SchemaWriter)
-	}
-	return sw, args.Error(1)
+func (dm *MockReadWriteTransaction) WriteStoredSchema(_ context.Context, schema *core.StoredSchema) error {
+	args := dm.Called(schema)
+	return args.Error(0)
 }
 
 var (

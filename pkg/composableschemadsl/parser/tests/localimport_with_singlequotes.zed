@@ -1,7 +1,0 @@
-import 'path/to/user.zed'
-
-definition resource {
-    relation user: user
-    relation persona: persona
-    permission view = user + persona
-}

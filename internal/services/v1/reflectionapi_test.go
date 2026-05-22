@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,8 +12,8 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 	"github.com/authzed/spicedb/pkg/diff"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -550,11 +549,11 @@ func TestConvertDiff(t *testing.T) {
 			diff, err := diff.DiffSchemas(es, cs, caveattypes.Default.TypeSet)
 			require.NoError(t, err)
 
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 100, 1*time.Second, 100*time.Minute)
+			dl, err := dsfortesting.DataLayerForTesting(t, 100, 1*time.Second, 100*time.Minute)
 			require.NoError(t, err)
 
-			ctx := context.Background()
-			ctx = datastoremw.ContextWithDatastore(ctx, ds)
+			ctx := t.Context()
+			ctx = datalayer.ContextWithDataLayer(ctx, dl)
 
 			resp, err := convertDiff(
 				ctx,
@@ -781,7 +780,6 @@ func TestSchemaFiltering(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			sf, err := newSchemaFilters(tc.filters)
 			require.NoError(t, err)
@@ -898,7 +896,6 @@ func TestNewSchemaFilters(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := newSchemaFilters(tc.filters)
 			if tc.err == "" {

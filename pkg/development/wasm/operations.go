@@ -18,7 +18,7 @@ import (
 func runOperation(devContext *development.DevContext, operation *devinterface.Operation) (*devinterface.OperationResult, error) {
 	switch {
 	case operation.FormatSchemaParameters != nil:
-		formatted, _, err := generator.GenerateSchema(devContext.CompiledSchema.OrderedDefinitions)
+		formatted, _, err := generator.GenerateSchema(devContext.Ctx, devContext.CompiledSchema.OrderedDefinitions)
 		if err != nil {
 			return nil, err
 		}

@@ -67,7 +67,7 @@ func overlapKeysFromContext(ctx context.Context) keySet {
 	}
 
 	for _, keyList := range md[string(requestmeta.RequestOverlapKey)] {
-		for _, key := range strings.Split(keyList, ",") {
+		for key := range strings.SplitSeq(keyList, ",") {
 			key = strings.TrimSpace(key)
 			if len(key) > 0 {
 				keys[key] = struct{}{}

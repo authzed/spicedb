@@ -18,6 +18,9 @@ func NewOtterCacheWithMetrics[K KeyString, V any](name string, config *Config) (
 	if err != nil {
 		return nil, err
 	}
+	// NOTE: this is the difference between `WithMetrics` and not -
+	// the counters are instantiated either way, but they're only registered
+	// in this variant.
 	mustRegisterCache(name, cache)
 	return cache, nil
 }
@@ -96,6 +99,10 @@ func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
 
 func (wtc *otterCache[K, V]) Wait() {}
 func (wtc *otterCache[K, V]) Close() {
+	// NOTE: CleanUp is *not* the same as Close - otter/v2 doesn't expose a Close
+	// method. It should help reduce resource usage e.g. in tests, but there will
+	// still be a periodicCleanup goroutine hanging around.
+	wtc.cache.CleanUp()
 	unregisterCache(wtc.name)
 }
 

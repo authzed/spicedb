@@ -18,10 +18,10 @@ import (
 )
 
 func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Register the filter.
 	_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
@@ -69,20 +69,24 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 }
 
 func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Run multiple registrations of the counter in parallel and ensure only
 	// one succeeds.
 	var numSucceeded, numFailed atomic.Int32
-	failures := make(chan error, 10)
+
+	// we retry (memdb.MaxRetries - 1)
+	// ideally, we don't have to hardcode this number here and we can do
+	// numRetries = ds.MaxRetriesConfigured()
+	const numRetries = 9
+
+	failures := make(chan error, numRetries)
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numRetries {
+		wg.Go(func() {
 			_, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 				return tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
 					ResourceType: testfixtures.DocumentNS.Name,
@@ -94,24 +98,24 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 			} else {
 				numSucceeded.Add(1)
 			}
-		}()
+		})
 	}
 
 	// Wait for all goroutines to finish.
 	wg.Wait()
 	close(failures)
 	require.Equal(t, int32(1), numSucceeded.Load())
-	require.Equal(t, int32(9), numFailed.Load())
+	require.Equal(t, int32(numRetries-1), numFailed.Load())
 	for m := range failures {
 		require.Contains(t, m.Error(), "counter with name `document` already registered")
 	}
 }
 
 func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Try calling count without the filter being registered.
 	reader := ds.SnapshotReader(rev)
@@ -211,9 +215,9 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 }
 
 func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
-	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	// Register the filter.
 	updatedRev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
@@ -253,10 +257,10 @@ func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester)
 }
 
 func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	reader := ds.SnapshotReader(rev)
 	filters, err := reader.LookupCounters(t.Context())

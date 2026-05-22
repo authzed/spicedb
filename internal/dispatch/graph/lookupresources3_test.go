@@ -16,8 +16,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -114,6 +114,7 @@ func TestSimpleLookupResources3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -137,6 +138,7 @@ func TestSimpleLookupResources3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -151,8 +153,6 @@ func TestSimpleLookupResources3(t *testing.T) {
 }
 
 func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
-	t.Parallel()
-
 	for _, tc := range []struct {
 		subject        string
 		expectedFirst  []string
@@ -174,10 +174,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 			expectedSecond: []string{"companyplan", "masterplan"},
 		},
 	} {
-		tc := tc
 		t.Run(tc.subject, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 			ctx, dispatcher, revision := newLocalDispatcher(t)
 			defer dispatcher.Close()
@@ -193,6 +190,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: 1,
 			}, stream)
@@ -216,6 +214,7 @@ func TestSimpleLookupResourcesWithCursor3(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalCursor: cursor,
 				OptionalLimit:  2,
@@ -252,20 +251,19 @@ func processResults3(stream *dispatch.CloningCollectingDispatchStream[*v1.Dispat
 }
 
 func TestMaxDepthLookup3(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
-	require.NoError(datastoremw.SetInContext(ctx, ds))
+	ctx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources3Response](ctx)
 
 	err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
@@ -276,6 +274,7 @@ func TestMaxDepthLookup3(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -283,7 +282,6 @@ func TestMaxDepthLookup3(t *testing.T) {
 }
 
 func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name                  string
 		schema                string
@@ -689,13 +687,9 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			for _, pageSize := range []int{0, 104, 1023} {
-				pageSize := pageSize
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
-					t.Parallel()
 					require := require.New(t)
 
 					dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -707,10 +701,10 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 					ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 					require.NoError(err)
 
-					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
-					ctx := datastoremw.ContextWithHandle(t.Context())
-					require.NoError(datastoremw.SetInContext(ctx, ds))
+					ctx := datalayer.ContextWithHandle(t.Context())
+					require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 					var currentCursor []string
 					foundResourceIDs := mapz.NewSet[string]()
@@ -735,6 +729,7 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 							Metadata: &v1.ResolverMeta{
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
+								SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 							},
 							OptionalLimit:  uintPageSize,
 							OptionalCursor: currentCursor,
@@ -784,24 +779,22 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 }
 
 func TestLookupResources3WithError(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
+	ctx := datalayer.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithCancel(ctx)
 	cancel()
 
-	require.NoError(datastoremw.SetInContext(cctx, ds))
+	require.NoError(datalayer.SetInContext(cctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
 
 	err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
@@ -812,14 +805,13 @@ func TestLookupResources3WithError(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 	require.Error(err)
 }
 
 func TestLookupResources3EnsureCheckHints(t *testing.T) {
-	t.Parallel()
-
 	tcs := []struct {
 		name          string
 		schema        string
@@ -1259,16 +1251,13 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, tc.relationships, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, tc.relationships)
 
 			checkingDS := disallowedWrapper{ds, tc.disallowedQueries}
 
@@ -1276,11 +1265,11 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 			require.NoError(err)
 			defer dispatcher.Close()
 
-			ctx := datastoremw.ContextWithHandle(t.Context())
+			ctx := datalayer.ContextWithHandle(t.Context())
 			cctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 			defer cancel()
 
-			require.NoError(datastoremw.SetInContext(cctx, checkingDS))
+			require.NoError(datalayer.SetInContext(cctx, datalayer.NewDataLayer(checkingDS)))
 			stream := dispatch.NewCloningCollectingDispatchStream[*v1.DispatchLookupResources3Response](cctx)
 
 			err = dispatcher.DispatchLookupResources3(&v1.DispatchLookupResources3Request{
@@ -1291,6 +1280,7 @@ func TestLookupResources3EnsureCheckHints(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 			if tc.expectedError != "" {

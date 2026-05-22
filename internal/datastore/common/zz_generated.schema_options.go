@@ -12,8 +12,8 @@ type SchemaInformationOption func(s *SchemaInformation)
 // NewSchemaInformationWithOptions creates a new SchemaInformation with the passed in options set
 func NewSchemaInformationWithOptions(opts ...SchemaInformationOption) *SchemaInformation {
 	s := &SchemaInformation{}
-	for _, o := range opts {
-		o(s)
+	for _, opt := range opts {
+		opt(s)
 	}
 	return s
 }
@@ -22,8 +22,8 @@ func NewSchemaInformationWithOptions(opts ...SchemaInformationOption) *SchemaInf
 func NewSchemaInformationWithOptionsAndDefaults(opts ...SchemaInformationOption) *SchemaInformation {
 	s := &SchemaInformation{}
 	defaults.MustSet(s)
-	for _, o := range opts {
-		o(s)
+	for _, opt := range opts {
+		opt(s)
 	}
 	return s
 }
@@ -129,14 +129,32 @@ func (s *SchemaInformation) DebugMap() map[string]any {
 	} else {
 		debugMap["Indexes"] = fmt.Sprintf("(slice of size %d)", len(s.Indexes))
 	}
-	debugMap["PaginationFilterType"] = s.PaginationFilterType
-	debugMap["PlaceholderFormat"] = s.PlaceholderFormat
+	if dm, ok := any(&s.PaginationFilterType).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["PaginationFilterType"] = dm.DebugMap()
+	} else {
+		debugMap["PaginationFilterType"] = s.PaginationFilterType
+	}
+	if dm, ok := any(&s.PlaceholderFormat).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["PlaceholderFormat"] = dm.DebugMap()
+	} else {
+		debugMap["PlaceholderFormat"] = s.PlaceholderFormat
+	}
 	if s.NowFunction == "" {
 		debugMap["NowFunction"] = "(empty)"
 	} else {
 		debugMap["NowFunction"] = s.NowFunction
 	}
-	debugMap["ColumnOptimization"] = s.ColumnOptimization
+	if dm, ok := any(&s.ColumnOptimization).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ColumnOptimization"] = dm.DebugMap()
+	} else {
+		debugMap["ColumnOptimization"] = s.ColumnOptimization
+	}
 	debugMap["IntegrityEnabled"] = s.IntegrityEnabled
 	debugMap["ExpirationDisabled"] = s.ExpirationDisabled
 	if s.SortByResourceColumnOrder == nil {
@@ -175,16 +193,16 @@ func (s *SchemaInformation) FlatDebugMap() map[string]any {
 
 // SchemaInformationWithOptions configures an existing SchemaInformation with the passed in options set
 func SchemaInformationWithOptions(s *SchemaInformation, opts ...SchemaInformationOption) *SchemaInformation {
-	for _, o := range opts {
-		o(s)
+	for _, opt := range opts {
+		opt(s)
 	}
 	return s
 }
 
 // WithOptions configures the receiver SchemaInformation with the passed in options set
 func (s *SchemaInformation) WithOptions(opts ...SchemaInformationOption) *SchemaInformation {
-	for _, o := range opts {
-		o(s)
+	for _, opt := range opts {
+		opt(s)
 	}
 	return s
 }

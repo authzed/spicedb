@@ -57,17 +57,17 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("%d-%v", tc.numTuples, tc.expectFallBehind), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 			require.NoError(err)
 
-			setupDatastore(ds, require)
+			setupDatastore(t, ds)
 
-			lowestRevision, err := ds.HeadRevision(t.Context())
+			lowestRevisionResult, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
+			lowestRevision := lowestRevisionResult.Revision
 
 			opts := datastore.WatchOptions{
 				Content:                 datastore.WatchRelationships,
@@ -123,22 +123,24 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				testUpdates = append(testUpdates, bulkDeletes)
 			}
 
-			VerifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
+			VerifyUpdates(t, require, testUpdates, changes, errchan, tc.expectFallBehind)
 
 			// Test the catch-up case
 			changes, errchan = ds.Watch(t.Context(), lowestRevision, opts)
-			VerifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
+			VerifyUpdates(t, require, testUpdates, changes, errchan, tc.expectFallBehind)
 		})
 	}
 }
 
 func VerifyUpdates(
+	t *testing.T,
 	require *require.Assertions,
 	testUpdates [][]tuple.RelationshipUpdate,
 	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
+	t.Helper()
 	for _, expected := range testUpdates {
 		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {
@@ -175,12 +177,14 @@ func VerifyUpdates(
 }
 
 func VerifyUpdatesWithMetadata(
+	t *testing.T,
 	require *require.Assertions,
 	testUpdates []updateWithMetadata,
 	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
+	t.Helper()
 	for _, expected := range testUpdates {
 		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {
@@ -236,10 +240,10 @@ func setOfChanges(changes []tuple.RelationshipUpdate) *mapz.Set[string] {
 func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	startWatchRevision := setupDatastore(ds, require)
+	startWatchRevision := setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships(ds))
@@ -282,16 +286,17 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// TOUCH a relationship and ensure watch sees it.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
@@ -310,7 +315,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{
 			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom")),
 			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:sarah")),
@@ -354,7 +359,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]"))},
 	},
 		changes,
@@ -375,7 +380,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))},
 	},
 		changes,
@@ -387,16 +392,17 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
@@ -411,7 +417,7 @@ func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	}, options.WithMetadata(metadata))
 	require.NoError(err)
 
-	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom[expiration:2321-01-01T00:00:00Z]"))},
 	},
 		changes,
@@ -432,16 +438,17 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
 	require.Empty(errchan)
@@ -456,7 +463,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	}, options.WithMetadata(metadata))
 	require.NoError(err)
 
-	VerifyUpdatesWithMetadata(require, []updateWithMetadata{
+	VerifyUpdatesWithMetadata(t, require, []updateWithMetadata{
 		{
 			updates:  []tuple.RelationshipUpdate{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom"))},
 			metadata: map[string]any{"somekey": "somevalue"},
@@ -471,16 +478,17 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// TOUCH a relationship and ensure watch sees it.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
@@ -499,7 +507,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{
 			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom")),
 			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:sarah")),
@@ -523,7 +531,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+	VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
 		{tuple.Delete(tuple.MustParse("document:firstdoc#viewer@user:tom"))},
 	},
 		changes,
@@ -563,16 +571,17 @@ func verifyNoUpdates(
 func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema(ds))
 	require.Empty(errchan)
@@ -652,23 +661,28 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	}, changes, errchan, false)
 }
 
-func WatchAllTest(t *testing.T, tester DatastoreTester) {
+func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
-		Content: datastore.WatchRelationships | datastore.WatchSchema,
-	})
+	watchOpts, err := datastore.BuildAndValidateWatchOptions(
+		datastore.ServerWatchOptions{},
+		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchSchema},
+		ds.DefaultsWatchOptions(),
+	)
+	require.NoError(err)
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchOpts)
 	require.Empty(errchan)
 
 	// Write an updated schema.
@@ -784,19 +798,20 @@ func verifyMixedUpdates(
 	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
 
-func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
+func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships | datastore.WatchSchema,
@@ -823,10 +838,10 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	setupDatastore(t, ds)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -836,8 +851,9 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 
 	expectsWatchError := (features.WatchEmitsImmediately.Status != datastore.FeatureSupported)
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships,
@@ -905,6 +921,117 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 		}
 
 		if relTouchEmitted && metadataEmitted && checkpointEmitted {
+			return
+		}
+	}
+}
+
+// WatchObservesEveryReturnedRevisionTest verifies this contract: if
+// WriteRelationships returns revision X, a watch consumer eventually observes
+// revision X on the watch stream — even when the write produced no actual
+// changes (e.g., a TOUCH that exactly matches an existing relationship).
+func WatchObservesEveryReturnedRevisionTest(t *testing.T, tester DatastoreTester) {
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(t, err)
+
+	setupDatastore(t, ds)
+
+	// First TOUCH creates the relationship.
+	afterCreateRevision, err := common.WriteRelationships(t.Context(), ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+	)
+	require.NoError(t, err)
+
+	// Start watching from after the create.
+	watchOpts, err := datastore.BuildAndValidateWatchOptions(
+		datastore.ServerWatchOptions{CheckpointInterval: 100 * time.Millisecond},
+		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchCheckpoints},
+		ds.DefaultsWatchOptions(),
+	)
+	require.NoError(t, err)
+	changes, errchan := ds.Watch(t.Context(), afterCreateRevision, watchOpts)
+	require.Empty(t, errchan)
+
+	// Second TOUCH of the same relationship is a no-op (no actual changes),
+	secondRevision, err := common.WriteRelationships(t.Context(), ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+	)
+	require.NoError(t, err)
+
+	verifyWatchReachesRevision(t, secondRevision, changes, errchan)
+}
+
+func verifyWatchReachesRevision(
+	t *testing.T,
+	targetRevision datastore.Revision,
+	changes <-chan datastore.RevisionChanges,
+	errchan <-chan error,
+) {
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(t, ok, "watch stream closed before observing revision %s", targetRevision)
+			if change.Revision != nil &&
+				(change.Revision.Equal(targetRevision) || change.Revision.GreaterThan(targetRevision)) {
+				return
+			}
+		case err := <-errchan:
+			require.NoError(t, err, "unexpected watch error while waiting for revision %s", targetRevision)
+		case <-time.After(waitForChangesTimeout):
+			require.Fail(t, "Timed out waiting for watch to reach revision", "target: %s", targetRevision)
+			return
+		}
+	}
+}
+
+// WatchEmitsCheckpointAfterWriteWithChangesTest verifies that when a consumer asks for checkpoints,
+// every revision returned by WriteRelationships must eventually be observable as a checkpoint.
+func WatchEmitsCheckpointAfterWriteWithChangesTest(t *testing.T, tester DatastoreTester) {
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(t, err)
+
+	setupDatastore(t, ds)
+
+	startingRevisionResult, err := ds.HeadRevision(t.Context())
+	require.NoError(t, err)
+	startingRevision := startingRevisionResult.Revision
+
+	watchOpts, err := datastore.BuildAndValidateWatchOptions(
+		datastore.ServerWatchOptions{CheckpointInterval: 100 * time.Millisecond},
+		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchCheckpoints},
+		ds.DefaultsWatchOptions(),
+	)
+	require.NoError(t, err)
+	changes, errchan := ds.Watch(t.Context(), startingRevision, watchOpts)
+	require.Empty(t, errchan)
+
+	// A TOUCH that produces a real change.
+	afterWriteRevision, err := common.WriteRelationships(t.Context(), ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+	)
+	require.NoError(t, err)
+
+	verifyWatchEmitsCheckpoint(t, afterWriteRevision, changes, errchan)
+}
+
+func verifyWatchEmitsCheckpoint(
+	t *testing.T,
+	targetRevision datastore.Revision,
+	changes <-chan datastore.RevisionChanges,
+	errchan <-chan error,
+) {
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(t, ok, "watch stream closed before observing checkpoint at revision %s", targetRevision)
+			if change.IsCheckpoint && change.Revision != nil &&
+				(change.Revision.Equal(targetRevision) || change.Revision.GreaterThan(targetRevision)) {
+				return
+			}
+		case err := <-errchan:
+			require.NoError(t, err, "unexpected watch error while waiting for checkpoint at revision %s", targetRevision)
+		case <-time.After(waitForChangesTimeout):
+			require.Fail(t, "Timed out waiting for checkpoint", "target: %s", targetRevision)
 			return
 		}
 	}

@@ -58,6 +58,9 @@ type PositionMapper interface {
 
 	// TextForLine returns the text for the specified line number.
 	TextForLine(lineNumber int, path Source) (string, error)
+
+	// RegisterImportedFile registers the imported file within the mapper for cross-file references to work correctly.
+	RegisterImportedFile(source Source, content string)
 }
 
 // SourceRange represents a range inside a source file.

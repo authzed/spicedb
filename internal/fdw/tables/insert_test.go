@@ -1,7 +1,6 @@
 package tables
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,8 +8,6 @@ import (
 )
 
 func TestParseInsertStatement(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name          string
 		query         string
@@ -101,12 +98,10 @@ func TestParseInsertStatement(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			stmt, err := ParseInsertStatement(ctx, parsed.Stmts[0].Stmt.GetInsertStmt())
 
 			if tc.expectedError != "" {
@@ -123,8 +118,6 @@ func TestParseInsertStatement(t *testing.T) {
 }
 
 func TestInsertStatementReturningColumns(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name                  string
 		query                 string
@@ -144,12 +137,10 @@ func TestInsertStatementReturningColumns(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			stmt, err := ParseInsertStatement(ctx, parsed.Stmts[0].Stmt.GetInsertStmt())
 			require.NoError(t, err)
 			require.NotNil(t, stmt)

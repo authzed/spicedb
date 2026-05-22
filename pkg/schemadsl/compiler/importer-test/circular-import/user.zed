@@ -1,0 +1,5 @@
+use import
+
+import "subjects.zed"
+
+definition user {}

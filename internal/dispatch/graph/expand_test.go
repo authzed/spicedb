@@ -17,8 +17,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	expand "github.com/authzed/spicedb/internal/graph"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -138,8 +138,6 @@ var (
 )
 
 func TestExpand(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		start                 tuple.ObjectAndRelation
 		expansionMode         v1.DispatchExpandRequest_ExpansionMode
@@ -164,10 +162,7 @@ func TestExpand(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcher(t)
@@ -177,6 +172,7 @@ func TestExpand(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				ExpansionMode: tc.expansionMode,
 			})
@@ -278,21 +274,19 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 }
 
 func TestMaxDepthExpand(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	tpl := tuple.MustParse("folder:oops#parent@folder:oops")
-	ctx := datastoremw.ContextWithHandle(t.Context())
+	ctx := datalayer.ContextWithHandle(t.Context())
 
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
 	require.NoError(err)
-	require.NoError(datastoremw.SetInContext(ctx, ds))
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
@@ -305,6 +299,7 @@ func TestMaxDepthExpand(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
 	})
@@ -313,8 +308,6 @@ func TestMaxDepthExpand(t *testing.T) {
 }
 
 func TestExpandOverSchema(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name          string
 		schema        string
@@ -903,10 +896,7 @@ func TestExpandOverSchema(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcherWithSchemaAndRels(t, tc.schema, tc.relationships)
@@ -916,6 +906,7 @@ func TestExpandOverSchema(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				ExpansionMode: tc.expansionMode,
 			})

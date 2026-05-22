@@ -21,6 +21,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -154,7 +155,16 @@ type Config struct {
 	RelaxedIsolationLevel bool          `debugmap:"visible"`
 
 	// Spanner
-	SpannerCredentialsFile        string `debugmap:"visible"`
+	// SpannerCredentialsFile is a filename reference to a file containing
+	// spanner client credentials.
+	//
+	// Deprecated: Prefer Application Default Credentials for Spanner client credentials:
+	// https://docs.cloud.google.com/docs/authentication/client-libraries#adc
+	SpannerCredentialsFile string `debugmap:"visible"`
+	// SpannerCredentialsJSON is a mechanism for providing client configuration as JSON.
+	//
+	// Deprecated: Prefer Application Default Credentials for Spanner client credentials:
+	// https://docs.cloud.google.com/docs/authentication/client-libraries#adc
 	SpannerCredentialsJSON        []byte `debugmap:"sensitive"`
 	SpannerEmulatorHost           string `debugmap:"visible"`
 	SpannerMinSessions            uint64 `debugmap:"visible"`
@@ -284,7 +294,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return err
 	}
 
-	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner)")
+	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner)")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), DefaultFollowerReadDelay, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only)")
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
@@ -293,10 +303,22 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.BoolVar(&opts.EnableConnectionBalancing, flagName("datastore-connection-balancing"), defaults.EnableConnectionBalancing, "enable connection balancing between database nodes (CockroachDB driver only)")
 	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 100*time.Millisecond, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only)")
 	flagSet.StringVar(&opts.SpannerCredentialsFile, flagName("datastore-spanner-credentials"), "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
+	err = flagSet.MarkDeprecated(flagName("datastore-spanner-credentials"), "prefer Application Default Credentials: https://docs.cloud.google.com/docs/authentication/client-libraries#adc")
+	if err != nil {
+		return err
+	}
 	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	flagSet.Uint64Var(&opts.SpannerMinSessions, flagName("datastore-spanner-min-sessions"), 100, "minimum number of sessions across all Spanner gRPC connections the client can have at a given time")
+	err = flagSet.MarkDeprecated(flagName("datastore-spanner-min-sessions"), "sessions flags are deprecated as the client no longer uses a session pool")
+	if err != nil {
+		return err
+	}
 	flagSet.Uint64Var(&opts.SpannerMaxSessions, flagName("datastore-spanner-max-sessions"), 400, "maximum number of sessions across all Spanner gRPC connections the client can have at a given time")
-	flagSet.StringVar(&opts.SpannerDatastoreMetricsOption, flagName("datastore-spanner-metrics"), "otel", `configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus")`)
+	err = flagSet.MarkDeprecated(flagName("datastore-spanner-max-sessions"), "sessions flags are deprecated as the client no longer uses a session pool")
+	if err != nil {
+		return err
+	}
+	flagSet.StringVar(&opts.SpannerDatastoreMetricsOption, flagName("datastore-spanner-metrics"), "otel", `configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel")`)
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
@@ -427,7 +449,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 
-		nsDefs, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+		nsDefs, err := ds.SnapshotReader(revision.Revision).LegacyListAllNamespaces(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
@@ -444,17 +466,25 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 
 		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("initializing datastore from bootstrap files")
 
-		if len(opts.BootstrapFiles) > 0 {
-			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.CaveatTypeSet, opts.BootstrapFiles)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
+		// Combine bootstrap files and direct contents into a single set so that
+		// all definitions are written together (WriteSchema replaces the full schema).
+		bootstrapContents := make(map[string][]byte, len(opts.BootstrapFiles)+len(opts.BootstrapFileContents))
+		for _, filePath := range opts.BootstrapFiles {
+			fileContents, rerr := os.ReadFile(filePath)
+			if rerr != nil {
+				return nil, fmt.Errorf("failed to read bootstrap file %s: %w", filePath, rerr)
 			}
+			bootstrapContents[filePath] = fileContents
+		}
+		for k, v := range opts.BootstrapFileContents {
+			bootstrapContents[k] = v
 		}
 
-		if len(opts.BootstrapFileContents) > 0 {
-			_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.CaveatTypeSet, opts.BootstrapFileContents)
+		if len(bootstrapContents) > 0 {
+			bootstrapDL := datalayer.NewDataLayer(ds)
+			_, _, err = validationfile.PopulateFromFilesContents(ctx, bootstrapDL, opts.CaveatTypeSet, bootstrapContents)
 			if err != nil {
-				return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
+				return nil, fmt.Errorf("failed to load bootstrap data: %w", err)
 			}
 		}
 		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")
@@ -693,8 +723,6 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.WithDatastoreMetricsOption(metricsOption),
 		spanner.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		spanner.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
-		spanner.MinSessionCount(opts.SpannerMinSessions),
-		spanner.MaxSessionCount(opts.SpannerMaxSessions),
 		spanner.MigrationPhase(opts.MigrationPhase),
 		spanner.AllowedMigrations(opts.AllowedMigrations),
 		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),

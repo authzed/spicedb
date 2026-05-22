@@ -1,6 +1,7 @@
 package services
 
 import (
+	"buf.build/go/protovalidate"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -11,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	"github.com/authzed/spicedb/pkg/genutil"
 )
 
 // SchemaServiceOption defines the options for enabling or disabling the V1 Schema service.
@@ -57,12 +59,23 @@ func RegisterGrpcServices(
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
-	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig))
-	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer(dispatch, permSysConfig))
+	validator := genutil.MustNewProtoValidator(protovalidate.WithMessages(
+		// NOTE: these are the messages associated with the most latency-sensitive
+		// services, which are the messages we want to have a warm cache for.
+		// We do not warm the cache for every message because it increases memory
+		// usage and startup time.
+		&v1.BulkCheckPermissionRequest{},
+		&v1.CheckPermissionRequest{},
+		&v1.LookupResourcesRequest{},
+		&v1.LookupSubjectsRequest{},
+	))
+
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig, validator))
+	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer(dispatch, permSysConfig, validator))
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {
-		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(watchServiceConfig))
+		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(watchServiceConfig, validator))
 		healthManager.RegisterReportedService(v1.WatchService_ServiceDesc.ServiceName)
 	}
 
@@ -73,7 +86,7 @@ func RegisterGrpcServices(
 			ExpiringRelsEnabled:              permSysConfig.ExpiringRelationshipsEnabled,
 			PerformanceInsightMetricsEnabled: permSysConfig.PerformanceInsightMetricsEnabled,
 		}
-		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaConfig))
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaConfig, validator))
 		healthManager.RegisterReportedService(v1.SchemaService_ServiceDesc.ServiceName)
 	}
 

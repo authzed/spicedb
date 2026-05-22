@@ -14,6 +14,12 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
+func TestNewSourceGenerator(t *testing.T) {
+	mm := NewSourceGenerator(caveattypes.Default.TypeSet)
+	require.NotNil(t, mm)
+	require.True(t, mm.flags.IsEmpty())
+}
+
 func TestGenerateCaveat(t *testing.T) {
 	type generatorTest struct {
 		name     string
@@ -66,7 +72,6 @@ caveat somecaveat(someParam int) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			source, ok, err := GenerateCaveatSource(test.input, caveattypes.Default.TypeSet)
@@ -233,7 +238,6 @@ definition foos/document {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			source, ok, err := GenerateSource(test.input, caveattypes.Default.TypeSet)
@@ -447,7 +451,6 @@ definition user {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -456,7 +459,7 @@ definition user {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			source, _, err := GenerateSchema(compiled.OrderedDefinitions)
+			source, _, err := GenerateSchema(t.Context(), compiled.OrderedDefinitions)
 			require.NoError(err)
 			require.Equal(test.expected, source)
 		})

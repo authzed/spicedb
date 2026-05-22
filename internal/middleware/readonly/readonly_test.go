@@ -9,18 +9,13 @@ import (
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
-// fakeDatastore implements the datastore interface but panics on ReadWriteTx calls
+// fakeDatastore implements the ReadOnlyDatastore interface for testing.
 type fakeDatastore struct {
 	datastore.ReadOnlyDatastore
-}
-
-func (f *fakeDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
-	panic("ReadWriteTx should not be called in readonly mode")
 }
 
 // testServer implements the test service for middleware testing
@@ -30,12 +25,12 @@ type testServer struct {
 
 func (t *testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
 	// Try to use ReadWriteTx which should be blocked by readonly middleware
-	ds := datastoremw.FromContext(ctx)
-	if ds == nil {
+	dl := datalayer.FromContext(ctx)
+	if dl == nil {
 		return nil, errors.New("no datastore in context")
 	}
 
-	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
 		return nil
 	})
 	if err != nil {
@@ -47,12 +42,12 @@ func (t *testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) 
 
 func (t *testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	// Try to use ReadWriteTx which should be blocked by readonly middleware
-	ds := datastoremw.FromContext(server.Context())
-	if ds == nil {
+	dl := datalayer.FromContext(server.Context())
+	if dl == nil {
 		return errors.New("no datastore in context")
 	}
 
-	_, err := ds.ReadWriteTx(server.Context(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+	_, err := dl.ReadWriteTx(server.Context(), func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
 		return nil
 	})
 	if err != nil {
@@ -76,11 +71,11 @@ func TestReadonlyMiddleware(t *testing.T) {
 			TestService: &testServer{},
 			ServerOpts: []grpc.ServerOption{
 				grpc.ChainUnaryInterceptor(
-					datastoremw.UnaryServerInterceptor(fakeDS),
+					datalayer.UnaryServerInterceptor(datalayer.NewReadOnlyDataLayer(fakeDS)),
 					UnaryServerInterceptor(),
 				),
 				grpc.ChainStreamInterceptor(
-					datastoremw.StreamServerInterceptor(fakeDS),
+					datalayer.StreamServerInterceptor(datalayer.NewReadOnlyDataLayer(fakeDS)),
 					StreamServerInterceptor(),
 				),
 			},

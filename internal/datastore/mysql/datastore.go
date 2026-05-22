@@ -12,14 +12,13 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/dlmiddlecote/sqlstats"
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	prom_collectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
@@ -109,7 +108,7 @@ func NewMySQLDatastore(ctx context.Context, uri string, options ...Option) (data
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 func NewReadOnlyMySQLDatastore(
@@ -123,7 +122,7 @@ func NewReadOnlyMySQLDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, options ...Option) (*mysqlDatastore, error) {
@@ -191,8 +190,6 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	driver := migrations.NewMySQLDriverFromDB(db, config.tablePrefix)
 	queryBuilder := NewQueryBuilder(driver)
 
-	createTxn := sb.Insert(driver.RelationTupleTransaction()).Columns(colMetadata)
-
 	// used for seeding the initial relation_tuple_transaction. using INSERT IGNORE on a known
 	// ID value makes this idempotent (i.e. safe to execute concurrently).
 	createBaseTxn := fmt.Sprintf("INSERT IGNORE INTO %s (id, timestamp) VALUES (1, FROM_UNIXTIME(1))", driver.RelationTupleTransaction())
@@ -207,15 +204,9 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
-	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
-	if quantizationPeriodNanos < 1 {
-		quantizationPeriodNanos = 1
-	}
+	quantizationPeriodNanos := max(config.revisionQuantization.Nanoseconds(), 1)
 
-	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
-	if followerReadDelayNanos < 0 {
-		followerReadDelayNanos = 0
-	}
+	followerReadDelayNanos := max(config.followerReadDelay.Nanoseconds(), 0)
 
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
@@ -224,6 +215,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		colTimestamp,
 		quantizationPeriodNanos,
 		followerReadDelayNanos,
+		driver.SchemaRevision(),
 	)
 
 	validTransactionQuery := fmt.Sprintf(
@@ -268,7 +260,6 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		watchEnabled:           !config.watchDisabled,
 		optimizedRevisionQuery: revisionQuery,
 		validTransactionQuery:  validTransactionQuery,
-		createTxn:              createTxn,
 		createBaseTxn:          createBaseTxn,
 		QueryBuilder:           queryBuilder,
 		readTxOptions:          &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
@@ -298,7 +289,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		if store.gcInterval > 0*time.Minute && config.gcEnabled {
 			store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
 			store.gcGroup.Go(func() error {
-				return common.StartGarbageCollector(
+				return datastore.StartGarbageCollector(
 					store.gcCtx,
 					store,
 					store.gcInterval,
@@ -385,6 +376,7 @@ func (mds *mysqlDatastore) ReadWriteTx(
 					mds.schema,
 				},
 				mds.driver.RelationTuple(),
+				mds.driver.SchemaRevision(),
 				tx,
 				newTxnID,
 			}
@@ -498,7 +490,6 @@ type mysqlDatastore struct {
 	cancelGc context.CancelFunc
 	gcHasRun atomic.Bool
 
-	createTxn     sq.InsertBuilder
 	createBaseTxn string
 
 	uniqueID atomic.Pointer[string]
@@ -590,7 +581,7 @@ func (mds *mysqlDatastore) isSeeded(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if headRevision == datastore.NoRevision {
+	if headRevision.Revision == nil {
 		return false, nil
 	}
 
@@ -700,14 +691,14 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, con
 	}
 
 	db := sql.OpenDB(connector)
-	collector := sqlstats.NewStatsCollector(dbName, db)
+	collector := prom_collectors.NewDBStatsCollector(db, dbName)
 	if err := prometheus.Register(collector); err != nil {
 		return nil, collectors, err
 	}
 	collectors = append(collectors, collector)
 
 	if isPrimary {
-		gcMetrics, err := common.RegisterGCMetrics()
+		gcMetrics, err := datastore.RegisterGCMetrics()
 		if err != nil {
 			return nil, collectors, err
 		}

@@ -1,0 +1,75 @@
+//go:build integration
+
+package dockertests_test
+
+import (
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	"github.com/authzed/spicedb/internal/datastore/spanner"
+	tf "github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testserver"
+	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/internal/testserver/datastore/config"
+	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/zedtoken"
+)
+
+func TestBurst(t *testing.T) {
+	blacklist := []string{
+		spanner.Engine, // spanner emulator doesn't support parallel transactions
+	}
+
+	for _, engine := range datastore.Engines {
+		if slices.Contains(blacklist, engine) {
+			continue
+		}
+		b := testdatastore.RunDatastoreEngine(t, engine)
+		t.Run(engine, func(t *testing.T) {
+			ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
+				dsconfig.WithWatchBufferLength(0),
+				dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
+				dsconfig.WithRevisionQuantization(10),
+				dsconfig.WithMaxRetries(50),
+				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
+			ds, revision := tf.StandardDatastoreWithData(t, ds)
+
+			conns, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
+			t.Cleanup(cleanup)
+
+			client := v1.NewPermissionsServiceClient(conns[0])
+			var wg sync.WaitGroup
+			for i := 0; i < 100; i++ {
+				rel := tuple.ToV1Relationship(tuple.MustParse(tf.StandardRelationships[i%(len(tf.StandardRelationships))]))
+				run := make(chan struct{})
+				wg.Add(1)
+				go func() {
+					<-run
+					defer wg.Done()
+					_, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
+						Consistency: &v1.Consistency{
+							Requirement: &v1.Consistency_AtLeastAsFresh{
+								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
+							},
+						},
+						Resource:   rel.Resource,
+						Permission: "viewer",
+						Subject:    rel.Subject,
+					})
+					assert.NoError(t, err)
+				}()
+				run <- struct{}{}
+			}
+			wg.Wait()
+		})
+	}
+}

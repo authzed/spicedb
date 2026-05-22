@@ -8,8 +8,8 @@ type CacheConfigOption func(c *CacheConfig)
 // NewCacheConfigWithOptions creates a new CacheConfig with the passed in options set
 func NewCacheConfigWithOptions(opts ...CacheConfigOption) *CacheConfig {
 	c := &CacheConfig{}
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -18,8 +18,8 @@ func NewCacheConfigWithOptions(opts ...CacheConfigOption) *CacheConfig {
 func NewCacheConfigWithOptionsAndDefaults(opts ...CacheConfigOption) *CacheConfig {
 	c := &CacheConfig{}
 	defaults.MustSet(c)
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -32,7 +32,6 @@ func (c *CacheConfig) ToOption() CacheConfigOption {
 		to.NumCounters = c.NumCounters
 		to.Metrics = c.Metrics
 		to.Enabled = c.Enabled
-		to.CacheKindForTesting = c.CacheKindForTesting
 	}
 }
 
@@ -52,11 +51,6 @@ func (c *CacheConfig) DebugMap() map[string]any {
 	debugMap["NumCounters"] = c.NumCounters
 	debugMap["Metrics"] = c.Metrics
 	debugMap["Enabled"] = c.Enabled
-	if c.CacheKindForTesting == "" {
-		debugMap["CacheKindForTesting"] = "(empty)"
-	} else {
-		debugMap["CacheKindForTesting"] = c.CacheKindForTesting
-	}
 	return debugMap
 }
 
@@ -83,16 +77,16 @@ func (c *CacheConfig) FlatDebugMap() map[string]any {
 
 // CacheConfigWithOptions configures an existing CacheConfig with the passed in options set
 func CacheConfigWithOptions(c *CacheConfig, opts ...CacheConfigOption) *CacheConfig {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
 
 // WithOptions configures the receiver CacheConfig with the passed in options set
 func (c *CacheConfig) WithOptions(opts ...CacheConfigOption) *CacheConfig {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -129,12 +123,5 @@ func WithMetrics(metrics bool) CacheConfigOption {
 func WithEnabled(enabled bool) CacheConfigOption {
 	return func(c *CacheConfig) {
 		c.Enabled = enabled
-	}
-}
-
-// WithCacheKindForTesting returns an option that can set CacheKindForTesting on a CacheConfig
-func WithCacheKindForTesting(cacheKindForTesting string) CacheConfigOption {
-	return func(c *CacheConfig) {
-		c.CacheKindForTesting = cacheKindForTesting
 	}
 }

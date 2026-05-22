@@ -44,17 +44,15 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 	require.NotEmpty(t, consistencyTestFiles)
 
 	for _, filePath := range consistencyTestFiles {
-		filePath := filePath
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			require := require.New(t)
-			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, memdb.DisableGC)
+			dl, err := dsfortesting.DataLayerForTesting(t, 0, 1*time.Second, memdb.DisableGC)
 			require.NoError(err)
 
-			fullyResolved, _, err := validationfile.PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, []string{filePath})
+			fullyResolved, _, err := validationfile.PopulateFromFiles(t.Context(), dl, caveattypes.Default.TypeSet, []string{filePath})
 			require.NoError(err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {
-				nsDef := nsDef
 				t.Run("namespace "+nsDef.Name, func(t *testing.T) {
 					serialized, _ := nsDef.MarshalVT()
 					sizevt := nsDef.SizeVT()
@@ -62,7 +60,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 
 					succeeded := false
 					var used uint64
-					for i := 0; i < retryCount; i++ {
+					for range retryCount {
 						runtime.GC()
 						debug.FreeOSMemory()
 
@@ -90,17 +88,14 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 			}
 
 			for _, caveatDef := range fullyResolved.CaveatDefinitions {
-				caveatDef := caveatDef
 				t.Run("caveat "+caveatDef.Name, func(t *testing.T) {
-					t.Parallel()
-
 					serialized, _ := caveatDef.MarshalVT()
 					sizevt := caveatDef.SizeVT()
 					estimated := estimatedCaveatDefinitionSize(sizevt)
 
 					succeeded := false
 					var used uint64
-					for i := 0; i < retryCount; i++ {
+					for range retryCount {
 						runtime.GC()
 						debug.FreeOSMemory()
 

@@ -198,7 +198,6 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -215,7 +214,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 			vts, err := NewTypeSystem(resolver).GetDefinition(ctx, tc.subjectType)
 			require.NoError(err)
 
-			rg := vts.Reachability()
+			rg := vts.Reachability(NewTypeSystem(resolver))
 
 			relations, err := rg.RelationsEncounteredForSubject(ctx, compiled.ObjectDefinitions, &core.RelationReference{
 				Namespace: tc.subjectType,
@@ -549,7 +548,6 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -566,7 +564,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 			vts, err := NewTypeSystem(resolver).GetDefinition(ctx, tc.resourceType)
 			require.NoError(err)
 
-			rg := vts.Reachability()
+			rg := vts.Reachability(NewTypeSystem(resolver))
 
 			relations, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 				Namespace: tc.resourceType,
@@ -1228,7 +1226,6 @@ func TestReachabilityGraph(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -1240,11 +1237,10 @@ func TestReachabilityGraph(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
+			resolver := ResolverForSchema(compiled)
+			ts := NewTypeSystem(resolver)
 			var rdef *ValidatedDefinition
 			for _, nsDef := range compiled.ObjectDefinitions {
-				resolver := ResolverForSchema(compiled)
-				ts := NewTypeSystem(resolver)
-
 				vdef, terr := ts.GetValidatedDefinition(ctx, nsDef.Name)
 				require.NoError(terr)
 
@@ -1254,11 +1250,11 @@ func TestReachabilityGraph(t *testing.T) {
 			}
 			require.NotNil(rdef)
 
-			foundEntrypoints, err := rdef.Reachability().AllEntrypointsForSubjectToResource(ctx, tc.subjectType, tc.resourceType)
+			foundEntrypoints, err := rdef.Reachability(ts).AllEntrypointsForSubjectToResource(ctx, tc.subjectType, tc.resourceType)
 			require.NoError(err)
 			verifyEntrypoints(require, foundEntrypoints, tc.expectedFullEntrypointRelations)
 
-			foundOptEntrypoints, err := rdef.Reachability().FirstEntrypointsForSubjectToResource(ctx, tc.subjectType, tc.resourceType)
+			foundOptEntrypoints, err := rdef.Reachability(ts).FirstEntrypointsForSubjectToResource(ctx, tc.subjectType, tc.resourceType)
 			require.NoError(err)
 			verifyEntrypoints(require, foundOptEntrypoints, tc.expectedOptimizedEntrypointRelations)
 		})

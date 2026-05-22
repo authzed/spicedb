@@ -10,7 +10,6 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -48,8 +47,6 @@ var (
 	// SubObjectIDKey is a tracing attribute representing the the subject object
 	// ID.
 	SubObjectIDKey = attribute.Key("authzed.com/spicedb/sql/subObjectId")
-
-	tracer = otel.Tracer("spicedb/internal/datastore/common")
 )
 
 // PaginationFilterType is an enumerator for pagination filter types.
@@ -246,7 +243,7 @@ func columnsAndValuesForSort(
 		columnNames = schema.sortBySubjectColumnOrderColumns()
 
 	default:
-		return nil, spiceerrors.MustBugf("invalid sort order %q", order)
+		return nil, spiceerrors.MustBugf("invalid sort order %v", order)
 	}
 
 	nameAndValues := make([]nameAndValue, 0, len(columnNames))
@@ -350,6 +347,84 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 				}
 
 				andClause = append(andClause, sq.Gt{cav.name: cav.value})
+				orClause = append(orClause, andClause)
+			}
+		}
+
+		if len(orClause) > 0 {
+			sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
+		}
+	}
+
+	return sqf, nil
+}
+
+func (sqf SchemaQueryFilterer) MustBeforeOrEqual(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
+	updated, err := sqf.BeforeOrEqual(cursor, order)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
+func (sqf SchemaQueryFilterer) BeforeOrEqual(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
+	spiceerrors.DebugAssertNotNilf(cursor, "cursor cannot be nil")
+
+	columnsAndValues, err := columnsAndValuesForSort(order, sqf.schema, cursor)
+	if err != nil {
+		return sqf, err
+	}
+
+	switch sqf.schema.PaginationFilterType {
+	case TupleComparison:
+		columnNames := make([]string, 0, len(columnsAndValues))
+		valueSlots := make([]any, 0, len(columnsAndValues))
+		comparisonSlotCount := 0
+
+		for _, cav := range columnsAndValues {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
+				columnNames = append(columnNames, cav.name)
+				valueSlots = append(valueSlots, cav.value)
+				comparisonSlotCount++
+			}
+		}
+
+		if comparisonSlotCount > 0 {
+			comparisonTuple := "(" + strings.Join(columnNames, ",") + ") <= (" + strings.Repeat(",?", comparisonSlotCount)[1:] + ")"
+			sqf.queryBuilder = sqf.queryBuilder.Where(
+				comparisonTuple,
+				valueSlots...,
+			)
+		}
+
+	case ExpandedLogicComparison:
+		orClause := sq.Or{}
+
+		// Find the last non-static column. The expanded form of (a,b,c) <= (1,2,3)
+		// uses < for intermediate levels and <= only for the final level:
+		// (a < 1) OR (a = 1 AND b < 2) OR (a = 1 AND b = 2 AND c <= 3)
+		lastNonStaticIdx := -1
+		for i := len(columnsAndValues) - 1; i >= 0; i-- {
+			if !sqf.filteringColumnTracker.hasStaticValue(columnsAndValues[i].name) {
+				lastNonStaticIdx = i
+				break
+			}
+		}
+
+		for index, cav := range columnsAndValues {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
+				andClause := sq.And{}
+				for _, previous := range columnsAndValues[0:index] {
+					if !sqf.filteringColumnTracker.hasStaticValue(previous.name) {
+						andClause = append(andClause, sq.Eq{previous.name: previous.value})
+					}
+				}
+
+				if index == lastNonStaticIdx {
+					andClause = append(andClause, sq.LtOrEq{cav.name: cav.value})
+				} else {
+					andClause = append(andClause, sq.Lt{cav.name: cav.value})
+				}
 				orClause = append(orClause, andClause)
 			}
 		}
@@ -721,6 +796,14 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	}
 	query = query.TupleOrder(sort)
 
+	// Override pagination filter type if requested. This allows specific queries
+	// (e.g., partitioned export) to use tuple comparison even when the schema
+	// default is ExpandedLogicComparison, avoiding CRDB's union-all + distinct
+	// plan that causes temp storage exhaustion on large range-bounded queries.
+	if queryOpts.UseTupleComparison {
+		query.schema.PaginationFilterType = TupleComparison
+	}
+
 	// Add cursor.
 	if queryOpts.After != nil {
 		if sort == options.Unsorted {
@@ -728,6 +811,19 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 		}
 
 		q, err := query.After(queryOpts.After, sort)
+		if err != nil {
+			return nil, err
+		}
+		query = q
+	}
+
+	// Add upper bound cursor.
+	if queryOpts.BeforeOrEqual != nil {
+		if sort == options.Unsorted {
+			return nil, datastore.ErrCursorsWithoutSorting
+		}
+
+		q, err := query.BeforeOrEqual(queryOpts.BeforeOrEqual, sort)
 		if err != nil {
 			return nil, err
 		}

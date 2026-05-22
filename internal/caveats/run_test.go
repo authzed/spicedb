@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pkgcaveats "github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -447,14 +448,13 @@ func TestRunCaveatExpressions(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat firstCaveat(first int) {
 					first == 42
 				}
@@ -466,21 +466,22 @@ func TestRunCaveatExpressions(t *testing.T) {
 				caveat thirdCaveat(third bool) {
 					third
 				}
-				`, nil, req)
-			headRevision, err := ds.HeadRevision(t.Context())
+				`, nil)
+			headRevisionResult, err := ds.HeadRevision(t.Context())
 			req.NoError(err)
 
-			reader := ds.SnapshotReader(headRevision)
+			dl := datalayer.NewDataLayer(ds)
+			sr, err := dl.SnapshotReader(headRevisionResult.Revision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
+			req.NoError(err)
 
 			for _, debugOption := range []RunCaveatExpressionDebugOption{
 				RunCaveatExpressionNoDebugging,
 				RunCaveatExpressionWithDebugInformation,
 			} {
-				debugOption := debugOption
 				t.Run(fmt.Sprintf("%v", debugOption), func(t *testing.T) {
 					req := require.New(t)
 
-					result, err := RunSingleCaveatExpression(t.Context(), types.Default.TypeSet, tc.expression, tc.context, reader, debugOption)
+					result, err := RunSingleCaveatExpression(t.Context(), types.Default.TypeSet, tc.expression, tc.context, sr, debugOption)
 					req.NoError(err)
 					req.Equal(tc.expectedValue, result.Value())
 
@@ -513,23 +514,26 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat some_caveat(themap map<any>) {
 					themap.first == 42
 				}
-				`, nil, req)
+				`, nil)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
-	reader := ds.SnapshotReader(headRevision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
+	req.NoError(err)
 
 	result, err := RunSingleCaveatExpression(
 		t.Context(),
 		types.Default.TypeSet,
 		caveatexpr("some_caveat"),
 		map[string]any{},
-		reader,
+		sr,
 		RunCaveatExpressionNoDebugging,
 	)
 	req.NoError(err)
@@ -543,16 +547,19 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat some_caveat(themap map<any>) {
 					themap.first == 42
 				}
-				`, nil, req)
+				`, nil)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
-	reader := ds.SnapshotReader(headRevision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
+	req.NoError(err)
 
 	_, err = RunSingleCaveatExpression(
 		t.Context(),
@@ -561,7 +568,7 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 		map[string]any{
 			"themap": map[string]any{},
 		},
-		reader,
+		sr,
 		RunCaveatExpressionNoDebugging,
 	)
 	req.Error(err)
@@ -575,7 +582,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 				caveat some_caveat(themap map<any>) {
 					themap.first == 42
 				}
@@ -583,12 +590,16 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 				caveat another_caveat(somecondition int) {
 					somecondition == 42
 				}
-				`, nil, req)
+				`, nil)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
+	req.NoError(err)
+	headRevision := headRevisionResult.Revision
+
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Run the first caveat.
@@ -596,7 +607,7 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 		"themap": map[string]any{
 			"first": 42,
 		},
-	}, reader, RunCaveatExpressionNoDebugging)
+	}, sr, RunCaveatExpressionNoDebugging)
 	req.NoError(err)
 	req.True(result.Value())
 
@@ -606,14 +617,14 @@ func TestRunCaveatMultipleTimes(t *testing.T) {
 		"themap": map[string]any{
 			"first": 41,
 		},
-	}, noCaveatsReader{reader}, RunCaveatExpressionNoDebugging)
+	}, noCaveatsReader{}, RunCaveatExpressionNoDebugging)
 	req.NoError(err)
 	req.False(result.Value())
 
 	// Run the second caveat.
 	result, err = runner.RunCaveatExpression(t.Context(), caveatexpr("another_caveat"), map[string]any{
 		"somecondition": int64(42),
-	}, reader, RunCaveatExpressionNoDebugging)
+	}, sr, RunCaveatExpressionNoDebugging)
 	req.NoError(err)
 	req.True(result.Value())
 }
@@ -634,22 +645,29 @@ func (f noCaveatsReader) LegacyListAllCaveats(ctx context.Context) ([]datastore.
 	return nil, errors.New("should not be called")
 }
 
+func (f noCaveatsReader) LookupCaveatDefinitionsByNames(ctx context.Context, names []string) (map[string]datastore.CaveatDefinition, error) {
+	return nil, errors.New("should not be called")
+}
+
 func TestRunCaveatWithMissingDefinition(t *testing.T) {
 	req := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat existing_caveat(param int) {
 			param == 42
 		}
-		`, nil, req)
+		`, nil)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	req.NoError(err)
+	headRevision := headRevisionResult.Revision
 
-	reader := ds.SnapshotReader(headRevision)
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
+	req.NoError(err)
 
 	// Try to run a caveat that doesn't exist
 	_, err = RunSingleCaveatExpression(
@@ -657,7 +675,7 @@ func TestRunCaveatWithMissingDefinition(t *testing.T) {
 		types.Default.TypeSet,
 		caveatexpr("nonexistent_caveat"),
 		map[string]any{},
-		reader,
+		sr,
 		RunCaveatExpressionNoDebugging,
 	)
 	req.Error(err)
@@ -670,19 +688,23 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat first_caveat(firstparam int) {
 			firstparam == 42
 		}
 		caveat second_caveat(secondparam string) {
 			secondparam == "hello"
 		}
-		`, nil, req)
+		`, nil)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
+	req.NoError(err)
+	headRevision := headRevisionResult.Revision
+
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Test populating definitions for complex expression
@@ -691,7 +713,7 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 		caveatexpr("second_caveat"),
 	)
 
-	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, reader)
+	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, sr)
 	req.NoError(err)
 
 	// Should be able to run the expression now without additional lookups
@@ -701,7 +723,7 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 		map[string]any{
 			"firstparam": int64(42),
 		},
-		noCaveatsReader{reader},
+		noCaveatsReader{},
 		RunCaveatExpressionNoDebugging,
 	)
 	req.NoError(err)
@@ -715,16 +737,20 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat test_caveat(param int) {
 			param == 42
 		}
-		`, nil, req)
+		`, nil)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
+	req.NoError(err)
+	headRevision := headRevisionResult.Revision
+
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Test with an expression that has no caveats (empty operation)
@@ -737,7 +763,7 @@ func TestCaveatRunnerEmptyExpression(t *testing.T) {
 		},
 	}
 
-	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, reader)
+	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, sr)
 	req.Error(err)
 	req.Contains(err.Error(), "received empty caveat expression")
 }
@@ -793,16 +819,20 @@ func TestUnknownCaveatOperation(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	req.NoError(err)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat test_caveat(param int) {
 			param == 42
 		}
-		`, nil, req)
+		`, nil)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
+	req.NoError(err)
+	headRevision := headRevisionResult.Revision
+
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 	req.NoError(err)
 
-	reader := ds.SnapshotReader(headRevision)
 	runner := NewCaveatRunner(types.Default.TypeSet)
 
 	// Create an expression with an unknown operation
@@ -815,7 +845,7 @@ func TestUnknownCaveatOperation(t *testing.T) {
 		},
 	}
 
-	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, reader)
+	err = runner.PopulateCaveatDefinitionsForExpr(t.Context(), expr, sr)
 	req.NoError(err)
 
 	require.Panics(t, func() {
@@ -823,7 +853,7 @@ func TestUnknownCaveatOperation(t *testing.T) {
 			t.Context(),
 			expr,
 			map[string]any{"param": int64(42)},
-			reader,
+			sr,
 			RunCaveatExpressionNoDebugging,
 		)
 	})

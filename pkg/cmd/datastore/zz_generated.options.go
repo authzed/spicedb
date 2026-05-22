@@ -13,8 +13,8 @@ type ConfigOption func(c *Config)
 // NewConfigWithOptions creates a new Config with the passed in options set
 func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	c := &Config{}
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -23,8 +23,8 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 func NewConfigWithOptionsAndDefaults(opts ...ConfigOption) *Config {
 	c := &Config{}
 	defaults.MustSet(c)
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -104,22 +104,58 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["URI"] = "(sensitive)"
 	}
-	debugMap["GCWindow"] = c.GCWindow
-	debugMap["LegacyFuzzing"] = c.LegacyFuzzing
-	debugMap["RevisionQuantization"] = c.RevisionQuantization
+	if dm, ok := any(&c.GCWindow).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["GCWindow"] = dm.DebugMap()
+	} else {
+		debugMap["GCWindow"] = c.GCWindow
+	}
+	if dm, ok := any(&c.LegacyFuzzing).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["LegacyFuzzing"] = dm.DebugMap()
+	} else {
+		debugMap["LegacyFuzzing"] = c.LegacyFuzzing
+	}
+	if dm, ok := any(&c.RevisionQuantization).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["RevisionQuantization"] = dm.DebugMap()
+	} else {
+		debugMap["RevisionQuantization"] = c.RevisionQuantization
+	}
 	debugMap["MaxRevisionStalenessPercent"] = c.MaxRevisionStalenessPercent
 	if c.CredentialsProviderName == "" {
 		debugMap["CredentialsProviderName"] = "(empty)"
 	} else {
 		debugMap["CredentialsProviderName"] = c.CredentialsProviderName
 	}
-	debugMap["ReadConnPool"] = c.ReadConnPool
-	debugMap["WriteConnPool"] = c.WriteConnPool
+	if dm, ok := any(&c.ReadConnPool).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ReadConnPool"] = dm.DebugMap()
+	} else {
+		debugMap["ReadConnPool"] = c.ReadConnPool
+	}
+	if dm, ok := any(&c.WriteConnPool).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["WriteConnPool"] = dm.DebugMap()
+	} else {
+		debugMap["WriteConnPool"] = c.WriteConnPool
+	}
 	debugMap["ReadOnly"] = c.ReadOnly
 	debugMap["EnableDatastoreMetrics"] = c.EnableDatastoreMetrics
 	debugMap["DisableStats"] = c.DisableStats
 	debugMap["IncludeQueryParametersInTraces"] = c.IncludeQueryParametersInTraces
-	debugMap["ReadReplicaConnPool"] = c.ReadReplicaConnPool
+	if dm, ok := any(&c.ReadReplicaConnPool).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ReadReplicaConnPool"] = dm.DebugMap()
+	} else {
+		debugMap["ReadReplicaConnPool"] = c.ReadReplicaConnPool
+	}
 	debugMap["ReadReplicaURIs"] = "(sensitive)"
 	if c.ReadReplicaCredentialsProviderName == "" {
 		debugMap["ReadReplicaCredentialsProviderName"] = "(empty)"
@@ -145,12 +181,30 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["BootstrapFileContents"] = fmt.Sprintf("(map of size %d)", len(c.BootstrapFileContents))
 	}
 	debugMap["BootstrapOverwrite"] = c.BootstrapOverwrite
-	debugMap["BootstrapTimeout"] = c.BootstrapTimeout
+	if dm, ok := any(&c.BootstrapTimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["BootstrapTimeout"] = dm.DebugMap()
+	} else {
+		debugMap["BootstrapTimeout"] = c.BootstrapTimeout
+	}
 	debugMap["RequestHedgingEnabled"] = c.RequestHedgingEnabled
-	debugMap["RequestHedgingInitialSlowValue"] = c.RequestHedgingInitialSlowValue
+	if dm, ok := any(&c.RequestHedgingInitialSlowValue).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["RequestHedgingInitialSlowValue"] = dm.DebugMap()
+	} else {
+		debugMap["RequestHedgingInitialSlowValue"] = c.RequestHedgingInitialSlowValue
+	}
 	debugMap["RequestHedgingMaxRequests"] = c.RequestHedgingMaxRequests
 	debugMap["RequestHedgingQuantile"] = c.RequestHedgingQuantile
-	debugMap["FollowerReadDelay"] = c.FollowerReadDelay
+	if dm, ok := any(&c.FollowerReadDelay).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["FollowerReadDelay"] = dm.DebugMap()
+	} else {
+		debugMap["FollowerReadDelay"] = c.FollowerReadDelay
+	}
 	debugMap["MaxRetries"] = c.MaxRetries
 	if c.OverlapKey == "" {
 		debugMap["OverlapKey"] = "(empty)"
@@ -163,10 +217,34 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["OverlapStrategy"] = c.OverlapStrategy
 	}
 	debugMap["EnableConnectionBalancing"] = c.EnableConnectionBalancing
-	debugMap["ConnectRate"] = c.ConnectRate
-	debugMap["WriteAcquisitionTimeout"] = c.WriteAcquisitionTimeout
-	debugMap["GCInterval"] = c.GCInterval
-	debugMap["GCMaxOperationTime"] = c.GCMaxOperationTime
+	if dm, ok := any(&c.ConnectRate).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ConnectRate"] = dm.DebugMap()
+	} else {
+		debugMap["ConnectRate"] = c.ConnectRate
+	}
+	if dm, ok := any(&c.WriteAcquisitionTimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["WriteAcquisitionTimeout"] = dm.DebugMap()
+	} else {
+		debugMap["WriteAcquisitionTimeout"] = c.WriteAcquisitionTimeout
+	}
+	if dm, ok := any(&c.GCInterval).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["GCInterval"] = dm.DebugMap()
+	} else {
+		debugMap["GCInterval"] = c.GCInterval
+	}
+	if dm, ok := any(&c.GCMaxOperationTime).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["GCMaxOperationTime"] = dm.DebugMap()
+	} else {
+		debugMap["GCMaxOperationTime"] = c.GCMaxOperationTime
+	}
 	debugMap["RelaxedIsolationLevel"] = c.RelaxedIsolationLevel
 	if c.SpannerCredentialsFile == "" {
 		debugMap["SpannerCredentialsFile"] = "(empty)"
@@ -192,7 +270,13 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["TablePrefix"] = c.TablePrefix
 	}
 	debugMap["RelationshipIntegrityEnabled"] = c.RelationshipIntegrityEnabled
-	debugMap["RelationshipIntegrityCurrentKey"] = c.RelationshipIntegrityCurrentKey
+	if dm, ok := any(&c.RelationshipIntegrityCurrentKey).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["RelationshipIntegrityCurrentKey"] = dm.DebugMap()
+	} else {
+		debugMap["RelationshipIntegrityCurrentKey"] = c.RelationshipIntegrityCurrentKey
+	}
 	if c.RelationshipIntegrityExpiredKeys == nil {
 		debugMap["RelationshipIntegrityExpiredKeys"] = "nil"
 	} else {
@@ -204,8 +288,20 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["WatchChangeBufferMaximumSize"] = c.WatchChangeBufferMaximumSize
 	}
-	debugMap["WatchBufferWriteTimeout"] = c.WatchBufferWriteTimeout
-	debugMap["WatchConnectTimeout"] = c.WatchConnectTimeout
+	if dm, ok := any(&c.WatchBufferWriteTimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["WatchBufferWriteTimeout"] = dm.DebugMap()
+	} else {
+		debugMap["WatchBufferWriteTimeout"] = c.WatchBufferWriteTimeout
+	}
+	if dm, ok := any(&c.WatchConnectTimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["WatchConnectTimeout"] = dm.DebugMap()
+	} else {
+		debugMap["WatchConnectTimeout"] = c.WatchConnectTimeout
+	}
 	if c.MigrationPhase == "" {
 		debugMap["MigrationPhase"] = "(empty)"
 	} else {
@@ -244,16 +340,16 @@ func (c *Config) FlatDebugMap() map[string]any {
 
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
 
 // WithOptions configures the receiver Config with the passed in options set
 func (c *Config) WithOptions(opts ...ConfigOption) *Config {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }

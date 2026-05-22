@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -140,6 +141,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
+		SchemaHash:    datalayer.SchemaHash(rdc.parentRequest.Metadata.GetSchemaHash()),
 	}, resourceIDsToCheck, rdc.dispatchChunkSize)
 	if err != nil {
 		return err
@@ -227,7 +229,7 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 			return err
 		}
 
-		if err := publishResultToParentStream(ctx, result, rdc.ci, responsePartialCursor, adjustedResources, nil, isFirstPublishCall, checkMetadata, rdc.parentStream); err != nil {
+		if err := publishResultToParentStream(result, rdc.ci, responsePartialCursor, adjustedResources, nil, isFirstPublishCall, checkMetadata, rdc.parentStream); err != nil {
 			return err
 		}
 		isFirstPublishCall = false
@@ -242,10 +244,12 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     rdc.parentRequest.Revision.String(),
 			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
+			SchemaHash:     rdc.parentRequest.Metadata.SchemaHash,
 		},
-		OptionalCursor: updatedCi.currentCursor,
-		OptionalLimit:  rdc.ci.limits.currentLimit,
-		Context:        rdc.parentRequest.Context,
+		OptionalCursor:   updatedCi.currentCursor,
+		OptionalLimit:    rdc.ci.limits.currentLimit,
+		Context:          rdc.parentRequest.Context,
+		EnableDebugTrace: rdc.parentRequest.EnableDebugTrace,
 	}, wrappedStream)
 }
 
@@ -268,7 +272,7 @@ func unfilteredLookupResourcesDispatchStreamForEntrypoint(
 		default:
 		}
 
-		if err := publishResultToParentStream(ctx, result, ci, ci.responsePartialCursor(), foundResources, nil, isFirstPublishCall, emptyMetadata, parentStream); err != nil {
+		if err := publishResultToParentStream(result, ci, ci.responsePartialCursor(), foundResources, nil, isFirstPublishCall, emptyMetadata, parentStream); err != nil {
 			return err
 		}
 		isFirstPublishCall = false
@@ -281,7 +285,6 @@ func unfilteredLookupResourcesDispatchStreamForEntrypoint(
 // publishResultToParentStream publishes the result of a lookup resources call to the parent stream,
 // mapped via foundResources.
 func publishResultToParentStream(
-	ctx context.Context,
 	result *v1.DispatchLookupResources2Response,
 	ci cursorInformation,
 	responseCursor *v1.Cursor,
@@ -314,7 +317,7 @@ func publishResultToParentStream(
 	metadata := result.Metadata
 	if isFirstPublishCall {
 		metadata = addCallToResponseMetadata(metadata)
-		metadata = combineResponseMetadata(ctx, metadata, additionalMetadata)
+		metadata = combineResponseMetadata(metadata, additionalMetadata)
 	} else {
 		metadata = addAdditionalDepthRequired(metadata)
 	}

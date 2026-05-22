@@ -578,7 +578,6 @@ var testCases = []struct {
 
 func TestSerialize(t *testing.T) {
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("tuple/"+tc.input, func(t *testing.T) {
 			if tc.relFormat.Resource.ObjectType == "" {
 				return
@@ -594,7 +593,6 @@ func TestSerialize(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("relationship/"+tc.input, func(t *testing.T) {
 			if tc.v1Format == nil {
 				return
@@ -617,7 +615,6 @@ func TestSerialize(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("relationship/"+tc.input, func(t *testing.T) {
 			parsed, err := Parse(tc.input)
 			if tc.relFormat.Resource.ObjectType == "" {
@@ -631,7 +628,6 @@ func TestParse(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("v1/"+tc.input, func(t *testing.T) {
 			parsed, err := ParseV1Rel(tc.input)
 			if tc.relFormat.Resource.ObjectType == "" {
@@ -647,7 +643,6 @@ func TestParse(t *testing.T) {
 
 func TestConvert(t *testing.T) {
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
 			require := require.New(t)
 
@@ -674,7 +669,6 @@ func TestConvert(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("validate/"+tc.input, func(t *testing.T) {
 			parsed, err := ParseV1Rel(tc.input)
 			if err == nil {

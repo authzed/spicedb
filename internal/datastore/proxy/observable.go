@@ -12,7 +12,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -28,7 +27,7 @@ var (
 		Subsystem: "datastore",
 		Name:      "loaded_relationships_count",
 		Buckets:   []float64{0, 1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
-		Help:      "total number of relationships loaded for a query",
+		Help:      "Histogram of the number of relationships loaded per individual datastore query. High p99 values (>1000) may indicate broad permission checks or missing filters.",
 	})
 
 	queryLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -94,7 +93,7 @@ func (p *observableProxy) ReadWriteTx(
 	}, opts...)
 }
 
-func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	ctx, closer := observe(ctx, "OptimizedRevision", "")
 	defer closer()
 
@@ -110,7 +109,7 @@ func (p *observableProxy) CheckRevision(ctx context.Context, revision datastore.
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
-func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	ctx, closer := observe(ctx, "HeadRevision", "")
 	defer closer()
 
@@ -282,10 +281,10 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	}, nil
 }
 
-// SchemaReader returns a wrapped version of the proxy that exercises the
-// legacy methods to implement the new methods.
-func (r *observableReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
+func (r *observableReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	ctx, closer := observe(ctx, "ReadStoredSchema", "")
+	defer closer()
+	return r.delegate.ReadStoredSchema(ctx)
 }
 
 type observableRWT struct {
@@ -377,10 +376,6 @@ func (rwt *observableRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []
 	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
-func (rwt *observableRWT) SchemaWriter() (datastore.SchemaWriter, error) {
-	return rwt.delegate.SchemaWriter()
-}
-
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	ctx, closer := observe(ctx, "DeleteRelationships", "", trace.WithAttributes(
 		filterToAttributes(filter)...,
@@ -395,6 +390,12 @@ func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWrite
 	defer closer()
 
 	return rwt.delegate.BulkLoad(ctx, iter)
+}
+
+func (rwt *observableRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	ctx, closer := observe(ctx, "WriteStoredSchema", "")
+	defer closer()
+	return rwt.delegate.WriteStoredSchema(ctx, schema)
 }
 
 // nolint:spancheck

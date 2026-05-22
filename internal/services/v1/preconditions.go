@@ -6,6 +6,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -17,7 +18,7 @@ var limitOne uint64 = 1
 // read-write transaction, and returns an error if they are not met.
 func checkPreconditions(
 	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	rwt datalayer.ReadWriteTransaction,
 	preconditions []*v1.Precondition,
 ) error {
 	for _, precond := range preconditions {

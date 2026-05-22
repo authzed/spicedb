@@ -57,6 +57,7 @@ type fakeExecutor struct {
 	readResult  map[int][]byte
 	readErr     error
 	transaction *fakeTransaction
+	onRead      func() // Optional callback invoked on each read
 }
 
 func (m *fakeExecutor) BeginTransaction(ctx context.Context) (ChunkedBytesTransaction, error) {
@@ -64,10 +65,26 @@ func (m *fakeExecutor) BeginTransaction(ctx context.Context) (ChunkedBytesTransa
 }
 
 func (m *fakeExecutor) ExecuteRead(ctx context.Context, builder sq.SelectBuilder) (map[int][]byte, error) {
+	if m.onRead != nil {
+		m.onRead()
+	}
 	if m.readErr != nil {
 		return nil, m.readErr
 	}
 	return m.readResult, nil
+}
+
+// errorBeginExecutor always returns an error from BeginTransaction.
+type errorBeginExecutor struct {
+	err error
+}
+
+func (e *errorBeginExecutor) BeginTransaction(ctx context.Context) (ChunkedBytesTransaction, error) {
+	return nil, e.err
+}
+
+func (e *errorBeginExecutor) ExecuteRead(ctx context.Context, builder sq.SelectBuilder) (map[int][]byte, error) {
+	return nil, e.err
 }
 
 func TestMustNewSQLByteChunker(t *testing.T) {
@@ -226,7 +243,7 @@ func TestWriteChunkedBytes_InsertWithTombstones(t *testing.T) {
 
 	data := []byte("Hello, World! This is a test.")
 	createdAt := uint64(123)
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, createdAt)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, createdAt)
 	require.NoError(t, err)
 
 	// Should have 1 UPDATE (tombstone old) + 1 INSERT query
@@ -278,7 +295,7 @@ func TestWriteChunkedBytes_DeleteAndInsert(t *testing.T) {
 	})
 
 	data := []byte("Hello, World!")
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, 0)
 	require.NoError(t, err)
 
 	// Should have 1 DELETE + 1 INSERT query
@@ -317,7 +334,7 @@ func TestWriteChunkedBytes_EmptyData(t *testing.T) {
 	})
 
 	data := []byte{}
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, 0)
 	require.NoError(t, err)
 
 	// Should insert a single empty chunk
@@ -343,7 +360,7 @@ func TestWriteChunkedBytes_EmptyName(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.WriteChunkedBytes(context.Background(), "", []byte("test"), 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "", []byte("test"), 0)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -368,7 +385,7 @@ func TestWriteAndReadZeroByteChunk(t *testing.T) {
 	})
 
 	// Write zero-byte data
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", []byte{}, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte{}, 0)
 	require.NoError(t, err)
 
 	// Verify that a single empty chunk was inserted
@@ -380,7 +397,7 @@ func TestWriteAndReadZeroByteChunk(t *testing.T) {
 	require.Equal(t, []byte{}, insertArgs[2])
 
 	// Read it back
-	data, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
+	data, err := chunker.ReadChunkedBytes(t.Context(), "test-key")
 	require.NoError(t, err)
 	require.NotNil(t, data)
 	require.Empty(t, data)
@@ -392,6 +409,7 @@ func TestReadChunkedBytes(t *testing.T) {
 		name          string
 		chunks        map[int][]byte
 		expectedData  []byte
+		expectedErr   error
 		expectedError string
 	}{
 		{
@@ -418,9 +436,9 @@ func TestReadChunkedBytes(t *testing.T) {
 			expectedData: []byte{},
 		},
 		{
-			name:          "no chunks",
-			chunks:        map[int][]byte{},
-			expectedError: "no chunks found",
+			name:        "no chunks",
+			chunks:      map[int][]byte{},
+			expectedErr: ErrNoChunksFound,
 		},
 		{
 			name: "missing chunk in sequence",
@@ -448,12 +466,15 @@ func TestReadChunkedBytes(t *testing.T) {
 				WriteMode:         WriteModeDeleteAndInsert,
 			})
 
-			data, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
+			data, err := chunker.ReadChunkedBytes(t.Context(), "test-key")
 
-			if tt.expectedError != "" {
+			switch {
+			case tt.expectedErr != nil:
+				require.ErrorIs(t, err, tt.expectedErr)
+			case tt.expectedError != "":
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectedError)
-			} else {
+			default:
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedData, data)
 			}
@@ -474,7 +495,7 @@ func TestReadChunkedBytes_EmptyName(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	_, err := chunker.ReadChunkedBytes(context.Background(), "")
+	_, err := chunker.ReadChunkedBytes(t.Context(), "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -494,7 +515,7 @@ func TestReadChunkedBytes_ExecutorError(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	_, err := chunker.ReadChunkedBytes(context.Background(), "test-key")
+	_, err := chunker.ReadChunkedBytes(t.Context(), "test-key")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to read chunks")
 	require.Contains(t, err.Error(), "database error")
@@ -514,7 +535,7 @@ func TestDeleteChunkedBytes_DeleteAndInsert(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.DeleteChunkedBytes(context.Background(), "test-key", 0)
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", 0)
 	require.NoError(t, err)
 
 	// Verify the DELETE query
@@ -543,7 +564,7 @@ func TestDeleteChunkedBytes_InsertWithTombstones(t *testing.T) {
 	})
 
 	deletedAt := uint64(456)
-	err := chunker.DeleteChunkedBytes(context.Background(), "test-key", deletedAt)
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", deletedAt)
 	require.NoError(t, err)
 
 	// Verify the UPDATE query (tombstone)
@@ -570,7 +591,7 @@ func TestDeleteChunkedBytes_EmptyName(t *testing.T) {
 		WriteMode:         WriteModeDeleteAndInsert,
 	})
 
-	err := chunker.DeleteChunkedBytes(context.Background(), "", 0)
+	err := chunker.DeleteChunkedBytes(t.Context(), "", 0)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -667,7 +688,7 @@ func TestWriteChunkedBytes_LargeData_DeleteAndInsert(t *testing.T) {
 		data[i] = byte(i % 256)
 	}
 
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, 0)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, 0)
 	require.NoError(t, err)
 
 	// Should have 1 DELETE + 1 INSERT
@@ -675,6 +696,215 @@ func TestWriteChunkedBytes_LargeData_DeleteAndInsert(t *testing.T) {
 	require.Len(t, txn.capturedSQL, 2)
 	insertArgs := txn.capturedArgs[1]
 	require.Len(t, insertArgs, 33) // 11 chunks * 3 values per chunk
+}
+
+func TestWithExecutor(t *testing.T) {
+	executor1 := &fakeExecutor{}
+	executor2 := &fakeExecutor{}
+
+	config := SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      1024,
+		PlaceholderFormat: sq.Question,
+		Executor:          executor1,
+		WriteMode:         WriteModeDeleteAndInsert,
+	}
+
+	// WithExecutor should return a copy with the new executor.
+	newConfig := config.WithExecutor(executor2)
+	require.Equal(t, executor2, newConfig.Executor)
+
+	// Original should be unchanged.
+	require.Equal(t, executor1, config.Executor)
+}
+
+func TestWithTableName(t *testing.T) {
+	config := SQLByteChunkerConfig[uint64]{
+		TableName:         "original_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      1024,
+		PlaceholderFormat: sq.Question,
+		Executor:          &fakeExecutor{},
+		WriteMode:         WriteModeDeleteAndInsert,
+	}
+
+	// WithTableName should return a copy with the new table name.
+	newConfig := config.WithTableName("new_table")
+	require.Equal(t, "new_table", newConfig.TableName)
+
+	// Original should be unchanged.
+	require.Equal(t, "original_table", config.TableName)
+}
+
+func TestNewSQLByteChunker_EmptyColumnNames(t *testing.T) {
+	base := SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      1024,
+		PlaceholderFormat: sq.Question,
+		Executor:          &fakeExecutor{},
+		WriteMode:         WriteModeDeleteAndInsert,
+	}
+
+	t.Run("empty name column", func(t *testing.T) {
+		c := base
+		c.NameColumn = ""
+		_, err := NewSQLByteChunker(c)
+		require.ErrorContains(t, err, "nameColumn cannot be empty")
+	})
+
+	t.Run("empty chunk index column", func(t *testing.T) {
+		c := base
+		c.ChunkIndexColumn = ""
+		_, err := NewSQLByteChunker(c)
+		require.ErrorContains(t, err, "chunkIndexColumn cannot be empty")
+	})
+
+	t.Run("empty chunk data column", func(t *testing.T) {
+		c := base
+		c.ChunkDataColumn = ""
+		_, err := NewSQLByteChunker(c)
+		require.ErrorContains(t, err, "chunkDataColumn cannot be empty")
+	})
+}
+
+func TestWriteChunkedBytes_BeginTransactionError(t *testing.T) {
+	chunker := MustNewSQLByteChunker(SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      10,
+		PlaceholderFormat: sq.Question,
+		Executor: &errorBeginExecutor{
+			err: fmt.Errorf("begin failed"),
+		},
+		WriteMode: WriteModeDeleteAndInsert,
+	})
+
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), 0)
+	require.ErrorContains(t, err, "failed to begin transaction")
+}
+
+func TestWriteChunkedBytes_DeleteError(t *testing.T) {
+	txn := &fakeTransaction{deleteErr: fmt.Errorf("delete failed")}
+	executor := &fakeExecutor{transaction: txn}
+	chunker := MustNewSQLByteChunker(SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      10,
+		PlaceholderFormat: sq.Question,
+		Executor:          executor,
+		WriteMode:         WriteModeDeleteAndInsert,
+	})
+
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), 0)
+	require.ErrorContains(t, err, "failed to delete existing chunks")
+}
+
+func TestWriteChunkedBytes_TombstoneError(t *testing.T) {
+	txn := &fakeTransaction{updateErr: fmt.Errorf("update failed")}
+	executor := &fakeExecutor{transaction: txn}
+	chunker := MustNewSQLByteChunker(SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      10,
+		PlaceholderFormat: sq.Question,
+		Executor:          executor,
+		WriteMode:         WriteModeInsertWithTombstones,
+		CreatedAtColumn:   "created_at",
+		DeletedAtColumn:   "deleted_at",
+		AliveValue:        ^uint64(0),
+	})
+
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), uint64(1))
+	require.ErrorContains(t, err, "failed to tombstone existing chunks")
+}
+
+func TestWriteChunkedBytes_InsertError(t *testing.T) {
+	txn := &fakeTransaction{writeErr: fmt.Errorf("insert failed")}
+	executor := &fakeExecutor{transaction: txn}
+	chunker := MustNewSQLByteChunker(SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      10,
+		PlaceholderFormat: sq.Question,
+		Executor:          executor,
+		WriteMode:         WriteModeDeleteAndInsert,
+	})
+
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", []byte("hello"), 0)
+	require.ErrorContains(t, err, "failed to insert chunks")
+}
+
+func TestDeleteChunkedBytes_BeginTransactionError(t *testing.T) {
+	chunker := MustNewSQLByteChunker(SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      10,
+		PlaceholderFormat: sq.Question,
+		Executor: &errorBeginExecutor{
+			err: fmt.Errorf("begin failed"),
+		},
+		WriteMode: WriteModeDeleteAndInsert,
+	})
+
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", 0)
+	require.ErrorContains(t, err, "failed to begin transaction")
+}
+
+func TestDeleteChunkedBytes_DeleteError(t *testing.T) {
+	txn := &fakeTransaction{deleteErr: fmt.Errorf("delete failed")}
+	executor := &fakeExecutor{transaction: txn}
+	chunker := MustNewSQLByteChunker(SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      10,
+		PlaceholderFormat: sq.Question,
+		Executor:          executor,
+		WriteMode:         WriteModeDeleteAndInsert,
+	})
+
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", 0)
+	require.ErrorContains(t, err, "failed to delete chunks")
+}
+
+func TestDeleteChunkedBytes_TombstoneError(t *testing.T) {
+	txn := &fakeTransaction{updateErr: fmt.Errorf("update failed")}
+	executor := &fakeExecutor{transaction: txn}
+	chunker := MustNewSQLByteChunker(SQLByteChunkerConfig[uint64]{
+		TableName:         "test_table",
+		NameColumn:        "name",
+		ChunkIndexColumn:  "chunk_index",
+		ChunkDataColumn:   "chunk_data",
+		MaxChunkSize:      10,
+		PlaceholderFormat: sq.Question,
+		Executor:          executor,
+		WriteMode:         WriteModeInsertWithTombstones,
+		CreatedAtColumn:   "created_at",
+		DeletedAtColumn:   "deleted_at",
+		AliveValue:        ^uint64(0),
+	})
+
+	err := chunker.DeleteChunkedBytes(t.Context(), "test-key", uint64(1))
+	require.ErrorContains(t, err, "failed to tombstone chunks")
 }
 
 func TestWriteChunkedBytes_LargeData_InsertWithTombstones(t *testing.T) {
@@ -701,7 +931,7 @@ func TestWriteChunkedBytes_LargeData_InsertWithTombstones(t *testing.T) {
 	}
 
 	createdAt := uint64(999)
-	err := chunker.WriteChunkedBytes(context.Background(), "test-key", data, createdAt)
+	err := chunker.WriteChunkedBytes(t.Context(), "test-key", data, createdAt)
 	require.NoError(t, err)
 
 	// Should have 1 UPDATE (tombstone) + 1 INSERT

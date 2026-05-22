@@ -12,9 +12,9 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -126,15 +126,19 @@ func (crr *CursoredLookupResources2) afterSameType(
 	dispatched := NewSyncONRSet()
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
-	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(req.Revision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+	dl := datalayer.MustFromContext(ctx)
+	reader := dl.SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return err
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.ResourceRelation.Namespace)
 	if err != nil {
 		return err
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	entrypoints, err := rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: req.SubjectRelation.Namespace,
 		Relation:  req.SubjectRelation.Relation,
@@ -210,7 +214,7 @@ func (crr *CursoredLookupResources2) lookupRelationEntrypoint(
 	entrypoint schema.ReachabilityEntrypoint,
 	rg *schema.DefinitionReachability,
 	ts *schema.TypeSystem,
-	reader datastore.Reader,
+	reader datalayer.RevisionedReader,
 	req ValidatedLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 	dispatched *syncONRSet,
@@ -293,7 +297,7 @@ type redispatchOverDatabaseConfig2 struct {
 	ts *schema.TypeSystem
 
 	// Direct reader for reverse ReverseQueryRelationships
-	reader datastore.Reader
+	reader datalayer.RevisionedReader
 
 	subjectsFilter     datastore.SubjectsFilter
 	sourceResourceType *core.RelationReference
@@ -359,6 +363,10 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap2], 0)
 			currentCursor := queryCursor
 			caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
+			caveatSR, err := config.reader.ReadSchema(ctx)
+			if err != nil {
+				return nil, err
+			}
 
 			for rel, err := range it {
 				if err != nil {
@@ -370,7 +378,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
 				if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
 					caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-					runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), config.reader, caveats.RunCaveatExpressionNoDebugging)
+					runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), caveatSR, caveats.RunCaveatExpressionNoDebugging)
 					if err != nil {
 						return nil, err
 					}
@@ -440,7 +448,7 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 	entrypoint schema.ReachabilityEntrypoint,
 	rg *schema.DefinitionReachability,
 	ts *schema.TypeSystem,
-	reader datastore.Reader,
+	reader datalayer.RevisionedReader,
 	req ValidatedLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 	dispatched *syncONRSet,
@@ -597,6 +605,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,
 							DebugOption:   computed.NoDebugging,
 							CheckHints:    checkHints,
+							SchemaHash:    datalayer.SchemaHash(parentRequest.Metadata.GetSchemaHash()),
 						}, resourceIDs, crr.dispatchChunkSize)
 						if err != nil {
 							return err
@@ -678,7 +687,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			// all found results, as no further filtering will be needed.
 			if entrypoint.IsDirectResult() {
 				stream := unfilteredLookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, ci)
-				return crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+				err := crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 					ResourceRelation: parentRequest.ResourceRelation,
 					SubjectRelation:  newSubjectType,
 					SubjectIds:       filteredSubjectIDs,
@@ -686,15 +695,21 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+						SchemaHash:     parentRequest.Metadata.SchemaHash,
 					},
-					OptionalCursor: ci.currentCursor,
-					OptionalLimit:  parentRequest.OptionalLimit,
-					Context:        parentRequest.Context,
+					OptionalCursor:   ci.currentCursor,
+					OptionalLimit:    parentRequest.OptionalLimit,
+					Context:          parentRequest.Context,
+					EnableDebugTrace: parentRequest.EnableDebugTrace,
 				}, stream)
+				if parentRequest.EnableDebugTrace {
+					return dispatch.HandleTraversalTrace(err, newSubjectType.Namespace, newSubjectType.Relation, filteredSubjectIDs)
+				}
+				return err
 			}
 
 			// Otherwise, we need to filter results by batch checking along the way before dispatching.
-			return runCheckerAndDispatch(
+			err := runCheckerAndDispatch(
 				ctx,
 				parentRequest,
 				foundResources,
@@ -709,5 +724,9 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				crr.concurrencyLimit,
 				crr.dispatchChunkSize,
 			)
+			if parentRequest.EnableDebugTrace {
+				return dispatch.HandleTraversalTrace(err, newSubjectType.Namespace, newSubjectType.Relation, filteredSubjectIDs)
+			}
+			return err
 		})
 }

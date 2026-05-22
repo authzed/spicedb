@@ -30,7 +30,6 @@ func TestCheckIsLatestVersion(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			state, _, release, _ := CheckIsLatestVersion(t.Context(), func() (string, error) {
 				return tc.version, nil

@@ -146,7 +146,7 @@ func TestEstimatedConcurrencyLimit_CDFBelowThreshold(t *testing.T) {
 
 	// Pre-populate digest map with data that will result in CDF <= 0.1
 	// Add many high values so that the CDF for limit 100 is low
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		crr.digestMap.Add("test-key", 200.0) // Values much higher than limit
 	}
 
@@ -188,7 +188,7 @@ func TestEstimatedConcurrencyLimit_CDFAboveThreshold(t *testing.T) {
 
 	// Pre-populate digest map with data that will result in CDF > 0.1
 	// Add many low values so that the CDF for limit 100 is high
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		crr.digestMap.Add("test-key", 50.0) // Values lower than limit
 	}
 
@@ -232,7 +232,7 @@ func TestEstimatedConcurrencyLimit_CountingIteratorTracksResults(t *testing.T) {
 	fn := func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
 		return func(yield func(result, error) bool) {
 			// Yield 3 results
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				pramItem := possibleResource{
 					resourceID:    fmt.Sprintf("obj%d", i),
 					forSubjectIDs: []string{"user1"},

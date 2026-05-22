@@ -39,8 +39,9 @@ type Dispatcher struct {
 	delegate   dispatch.Dispatcher
 	keyHandler keys.Handler
 
-	checkGroup  singleflight.Group[string, *v1.DispatchCheckResponse]
-	expandGroup singleflight.Group[string, *v1.DispatchExpandResponse]
+	checkGroup     singleflight.Group[string, *v1.DispatchCheckResponse]
+	expandGroup    singleflight.Group[string, *v1.DispatchExpandResponse]
+	planCheckGroup singleflight.Group[string, []*v1.DispatchQueryPlanResponse]
 }
 
 func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -144,6 +145,46 @@ func (d *Dispatcher) DispatchLookupResources3(req *v1.DispatchLookupResources3Re
 
 func (d *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
 	return d.delegate.DispatchLookupSubjects(req, stream)
+}
+
+func (d *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	// Only PLAN_OPERATION_CHECK is request/response-shaped (single ResultPath
+	// per call) and therefore safe to deduplicate via singleflight. The lookup
+	// variants produce streamed multi-result outputs that don't fit the
+	// single-value singleflight model. Recursion safety is provided by the
+	// receiver-side DispatchExecutor, which refuses to dispatch any alias
+	// whose key is already in PlanContext.in_progress_keys, so a plan-check
+	// can never recurse to itself with the same dispatch key.
+	if req.Operation != v1.PlanOperation_PLAN_OPERATION_CHECK {
+		singleFlightCount.WithLabelValues("DispatchQueryPlan", "passthrough").Inc()
+		return d.delegate.DispatchQueryPlan(req, stream)
+	}
+
+	key, err := d.keyHandler.PlanCheckDispatchKey(stream.Context(), req)
+	if err != nil {
+		return status.Error(codes.Internal, "unexpected DispatchQueryPlan key error")
+	}
+	keyString := hex.EncodeToString(key)
+
+	sharedResults, isShared, err := d.planCheckGroup.Do(stream.Context(), keyString, func(innerCtx context.Context) ([]*v1.DispatchQueryPlanResponse, error) {
+		collecting := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](innerCtx)
+		if err := d.delegate.DispatchQueryPlan(req, collecting); err != nil {
+			return nil, err
+		}
+		return collecting.Results(), nil
+	})
+
+	singleFlightCount.WithLabelValues("DispatchQueryPlan", strconv.FormatBool(isShared)).Inc()
+
+	if err != nil {
+		return err
+	}
+	for _, resp := range sharedResults {
+		if err := stream.Publish(resp.CloneVT()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (d *Dispatcher) Close() error                    { return d.delegate.Close() }

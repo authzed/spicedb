@@ -14,9 +14,9 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -39,16 +39,9 @@ var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOp
 	Buckets: []float64{1, 2, 3, 5, 10, 25, 100, 250},
 })
 
-var directDispatchQueryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "spicedb_check_direct_dispatch_query_count",
-	Help:    "number of queries made per direct dispatch",
-	Buckets: []float64{1, 2},
-})
-
 const noOriginalRelation = ""
 
 func init() {
-	prometheus.MustRegister(directDispatchQueryHistogram)
 	prometheus.MustRegister(dispatchChunkCountHistogram)
 }
 
@@ -333,7 +326,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		}
 	}()
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
 
 	directSubjectsAndWildcardsWithoutCaveats := 0
 	directSubjectsAndWildcardsWithoutExpiration := 0
@@ -385,10 +378,6 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 	// If the direct subject or a wildcard form can be found, issue a query for just that
 	// subject.
-	var queryCount float64
-	defer func() {
-		directDispatchQueryHistogram.Observe(queryCount)
-	}()
 
 	hasDirectSubject := totalDirectSubjects > 0
 	hasWildcardSubject := totalWildcardSubjects > 0
@@ -421,7 +410,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
-		it, err := ds.QueryRelationships(ctx, filter,
+		it, err := dl.QueryRelationships(ctx, filter,
 			options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats),
 			options.WithSkipExpiration(!directSubjectOrWildcardCanHaveExpiration),
 			options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -429,8 +418,6 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		if err != nil {
 			return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 		}
-		queryCount += 1.0
-
 		// Find the matching subject(s).
 		for rel, err := range it {
 			if err != nil {
@@ -474,7 +461,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		},
 	}
 
-	it, err := ds.QueryRelationships(ctx, filter,
+	it, err := dl.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
 		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
 		options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects),
@@ -482,8 +469,6 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
-	queryCount += 1.0
-
 	// Build the set of subjects over which to dispatch, along with metadata for
 	// mapping over caveats (if any).
 	checksToDispatch := newCheckDispatchSet()
@@ -673,8 +658,12 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	// for TTU-based computed usersets, as directly computed ones reference relations within
 	// the same namespace as the caller, and thus must be fully typed checked.
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-		err := namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, ds)
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
+		sr, err := dl.ReadSchema(ctx)
+		if err != nil {
+			return checkResultError(err, emptyMetadata)
+		}
+		err = namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, sr)
 		if err != nil {
 			if errors.As(err, &namespace.RelationNotFoundError{}) {
 				return noMembers()
@@ -707,9 +696,9 @@ type Traits struct {
 
 // TraitsForArrowRelation returns traits such as HasCaveats and HasExpiration if *any* of the subject
 // types of the given relation support caveats or expiration.
-func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namespaceName string, relationName string) (Traits, error) {
+func TraitsForArrowRelation(ctx context.Context, reader datalayer.RevisionedReader, namespaceName string, relationName string) (Traits, error) {
 	// TODO(jschorr): Change to use the type system once we wire it through Check dispatch.
-	schemaReader, err := reader.SchemaReader()
+	schemaReader, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return Traits{}, err
 	}
@@ -753,11 +742,11 @@ func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namesp
 	}, nil
 }
 
-func queryOptionsForArrowRelation(ctx context.Context, ds datastore.Reader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
+func queryOptionsForArrowRelation(ctx context.Context, reader datalayer.RevisionedReader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
 	opts := make([]options.QueryOptionsOption, 0, 3)
 	opts = append(opts, options.WithQueryShape(queryshape.AllSubjectsForResources))
 
-	traits, err := TraitsForArrowRelation(ctx, ds, namespaceName, relationName)
+	traits, err := TraitsForArrowRelation(ctx, reader, namespaceName, relationName)
 	if err != nil {
 		return nil, err
 	}
@@ -822,13 +811,13 @@ func checkIntersectionTupleToUserset(
 
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
+	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
 
-	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+	it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      crc.filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
@@ -893,7 +882,7 @@ func checkIntersectionTupleToUserset(
 		}
 
 		resultsByDispatchedSubject[result.relationType].UnionWith(result.Resp.ResultsByResourceId)
-		combinedMetadata = combineResponseMetadata(ctx, combinedMetadata, result.Resp.Metadata)
+		combinedMetadata = combineResponseMetadata(combinedMetadata, result.Resp.Metadata)
 	}
 
 	// For each resource ID, check that there exist some sort of permission for *each* subject. If not, then the
@@ -988,14 +977,14 @@ func checkTupleToUserset[T relation](
 	defer span.End()
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
 
-	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
 
-	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+	it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
@@ -1033,11 +1022,11 @@ func checkTupleToUserset[T relation](
 	), hintsToReturn)
 }
 
-func withDistinctMetadata(ctx context.Context, result CheckResult) CheckResult {
+func withDistinctMetadata(result CheckResult) CheckResult {
 	// NOTE: This is necessary to ensure unique debug information on the request and that debug
 	// information from the child metadata is *not* copied over.
 	clonedResp := result.Resp.CloneVT()
-	clonedResp.Metadata = combineResponseMetadata(ctx, emptyMetadata, clonedResp.Metadata)
+	clonedResp.Metadata = combineResponseMetadata(emptyMetadata, clonedResp.Metadata)
 	return CheckResult{
 		Resp: clonedResp,
 		Err:  result.Err,
@@ -1066,7 +1055,7 @@ func run[T any, R withError](
 	defer cancelFn()
 
 	results := make([]R, 0, len(children))
-	for i := 0; i < len(children); i++ {
+	for range children {
 		select {
 		case result := <-resultChan:
 			results = append(results, result)
@@ -1093,7 +1082,7 @@ func union[T any](
 	}
 
 	if len(children) == 1 {
-		return withDistinctMetadata(ctx, handler(ctx, crc, children[0]))
+		return withDistinctMetadata(handler(ctx, crc, children[0]))
 	}
 
 	resultChan := make(chan CheckResult, len(children))
@@ -1104,11 +1093,11 @@ func union[T any](
 	responseMetadata := emptyMetadata
 	membershipSet := NewMembershipSet()
 
-	for i := 0; i < len(children); i++ {
+	for range children {
 		select {
 		case result := <-resultChan:
 			log.Ctx(ctx).Trace().Object("anyResult", result.Resp).Send()
-			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
@@ -1140,7 +1129,7 @@ func all[T any](
 	}
 
 	if len(children) == 1 {
-		return withDistinctMetadata(ctx, handler(ctx, crc, children[0]))
+		return withDistinctMetadata(handler(ctx, crc, children[0]))
 	}
 
 	responseMetadata := emptyMetadata
@@ -1156,10 +1145,10 @@ func all[T any](
 	defer cancelFn()
 
 	var membershipSet *MembershipSet
-	for i := 0; i < len(children); i++ {
+	for range children {
 		select {
 		case result := <-resultChan:
-			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
@@ -1226,7 +1215,7 @@ func difference[T any](
 	// Wait for the base set to return.
 	select {
 	case base := <-baseChan:
-		responseMetadata = combineResponseMetadata(ctx, responseMetadata, base.Resp.Metadata)
+		responseMetadata = combineResponseMetadata(responseMetadata, base.Resp.Metadata)
 
 		if base.Err != nil {
 			return checkResultError(base.Err, responseMetadata)
@@ -1245,7 +1234,7 @@ func difference[T any](
 	for i := 1; i < len(children); i++ {
 		select {
 		case sub := <-othersChan:
-			responseMetadata = combineResponseMetadata(ctx, responseMetadata, sub.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(responseMetadata, sub.Resp.Metadata)
 
 			if sub.Err != nil {
 				return checkResultError(sub.Err, responseMetadata)
@@ -1278,7 +1267,6 @@ func dispatchAllAsync[T any, R withError](
 ) {
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrencyLimit, len(children))
 	for _, currentChild := range children {
-		currentChild := currentChild
 		tr.Add(func(ctx context.Context) error {
 			result := handler(ctx, crc, currentChild)
 			resultChan <- result
@@ -1345,7 +1333,7 @@ func combineResultWithFoundResources(result CheckResult, foundResources *Members
 	}
 }
 
-func combineResponseMetadata(ctx context.Context, existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
+func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 	combined := &v1.ResponseMeta{
 		DispatchCount:       existing.DispatchCount + responseMetadata.DispatchCount,
 		DepthRequired:       max(existing.DepthRequired, responseMetadata.DepthRequired),

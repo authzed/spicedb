@@ -90,12 +90,16 @@ func (s *Server) handle(ctx context.Context, conn *jsonrpc2.Conn, r *jsonrpc2.Re
 		result, err = s.textDocDidChange(ctx, r, conn)
 	case "textDocument/didSave":
 		result, err = s.textDocDidSave(ctx, r, conn)
+	case "workspace/didChangeWatchedFiles":
+		result, err = s.didChangeWatchedFiles(ctx, r, conn)
 	case "textDocument/diagnostic":
 		result, err = s.textDocDiagnostic(ctx, r)
 	case "textDocument/formatting":
 		result, err = s.textDocFormat(ctx, r)
 	case "textDocument/hover":
 		result, err = s.textDocHover(ctx, r)
+	case "textDocument/definition":
+		result, err = s.textDocDefinition(ctx, r)
 	default:
 		log.Ctx(ctx).Warn().
 			Str("method", r.Method).

@@ -8,50 +8,48 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestFixedIterator(t *testing.T) {
-	require := require.New(t)
-	t.Parallel()
-
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
-	// Create test paths
+func newTestPaths() (*FixedIterator, *Path, *Path, *Path) {
 	path1 := MustPathFromString("document:doc1#viewer@user:alice")
 	path2 := MustPathFromString("document:doc2#editor@user:bob")
 	path3 := MustPathFromString("document:doc1#editor@user:charlie")
+	return NewFixedIterator(*path1, *path2, *path3), path1, path2, path3
+}
 
-	// Create fixed iterator
-	fixed := NewFixedIterator(path1, path2, path3)
-
+func TestFixedIterator(t *testing.T) {
 	t.Run("Check", func(t *testing.T) {
-		t.Parallel()
+		require := require.New(t)
 
-		// Test Check method
-		seq, err := ctx.Check(fixed, NewObjects("document", "doc1", "doc2"), NewObject("user", "alice").WithEllipses())
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
+
+		// doc1 matches alice; doc2 does not
+		path, err := ctx.Check(fixed, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
+		require.NotNil(path)
+		require.Equal("doc1", path.Resource.ObjectID)
+		require.Equal("alice", path.Subject.ObjectID)
 
-		results, err := CollectAll(seq)
+		path2, err := ctx.Check(fixed, NewObject("document", "doc2"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
-
-		// Should find rel1 (doc1 with alice as viewer)
-		require.Len(results, 1)
-		require.Equal("doc1", results[0].Resource.ObjectID)
-		require.Equal("alice", results[0].Subject.ObjectID)
+		require.Nil(path2, "doc2 should not match alice")
 	})
 
 	t.Run("Check_NoMatches", func(t *testing.T) {
-		t.Parallel()
+		require := require.New(t)
 
-		seq, err := ctx.Check(fixed, NewObjects("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
-		require.NoError(err)
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 
-		results, err := CollectAll(seq)
+		path, err := ctx.Check(fixed, NewObject("document", "doc1"), NewObject("user", "nonexistent").WithEllipses())
 		require.NoError(err)
-		require.Empty(results)
+		require.Nil(path)
 	})
 
 	t.Run("IterSubjects", func(t *testing.T) {
-		t.Parallel()
+		require := require.New(t)
+
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 
 		seq, err := ctx.IterSubjects(fixed, NewObject("document", "doc1"), NoObjectFilter())
 		require.NoError(err)
@@ -68,7 +66,10 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("IterResources", func(t *testing.T) {
-		t.Parallel()
+		require := require.New(t)
+
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 
 		seq, err := ctx.IterResources(fixed, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
 		require.NoError(err)
@@ -83,28 +84,27 @@ func TestFixedIterator(t *testing.T) {
 	})
 
 	t.Run("Clone", func(t *testing.T) {
-		t.Parallel()
+		require := require.New(t)
 
+		ctx := NewTestContext(t)
+		fixed, _, _, _ := newTestPaths()
 		cloned := fixed.Clone()
 		require.NotSame(fixed, cloned)
 
 		// Both should produce the same results
-		originalSeq, err := ctx.Check(fixed, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-		originalResults, err := CollectAll(originalSeq)
+		originalPath, err := ctx.Check(fixed, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		clonedSeq, err := ctx.Check(cloned, NewObjects("document", "doc1"), NewObject("user", "alice").WithEllipses())
-		require.NoError(err)
-		clonedResults, err := CollectAll(clonedSeq)
+		clonedPath, err := ctx.Check(cloned, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		require.NoError(err)
 
-		require.Equal(originalResults, clonedResults)
+		require.Equal(originalPath, clonedPath)
 	})
 
 	t.Run("Explain", func(t *testing.T) {
-		t.Parallel()
+		require := require.New(t)
 
+		fixed, _, _, _ := newTestPaths()
 		explain := fixed.Explain()
 		require.Equal("Fixed(3 paths)", explain.Info)
 		require.Empty(explain.SubExplain)
@@ -112,15 +112,12 @@ func TestFixedIterator(t *testing.T) {
 }
 
 func TestFixedIterator_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
-		fixed := NewFixedIterator(path1, path2)
+		fixed := NewFixedIterator(*path1, *path2)
 
 		resourceType, err := fixed.ResourceType()
 		require.NoError(err)
@@ -130,13 +127,12 @@ func TestFixedIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		path1 := MustPathFromString("document:doc1#viewer@user:alice")
 		path2 := MustPathFromString("document:doc2#editor@user:bob")
 		path3 := MustPathFromString("document:doc3#owner@group:engineers#member")
-		fixed := NewFixedIterator(path1, path2, path3)
+		fixed := NewFixedIterator(*path1, *path2, *path3)
 
 		subjectTypes, err := fixed.SubjectTypes()
 		require.NoError(err)
@@ -146,7 +142,6 @@ func TestFixedIterator_Types(t *testing.T) {
 	})
 
 	t.Run("EmptyIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		fixed := NewFixedIterator()

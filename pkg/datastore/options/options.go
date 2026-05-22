@@ -66,6 +66,7 @@ type QueryOptions struct {
 	Limit          *uint64   `debugmap:"visible"`
 	Sort           SortOrder `debugmap:"visible"`
 	After          Cursor    `debugmap:"visible"`
+	BeforeOrEqual  Cursor    `debugmap:"visible"`
 	SkipCaveats    bool      `debugmap:"visible"`
 	SkipExpiration bool      `debugmap:"visible"`
 
@@ -80,6 +81,12 @@ type QueryOptions struct {
 	// QueryShape is the marked shape of the query.
 	// For testing and validation only.
 	QueryShape queryshape.Shape `debugmap:"visible"`
+
+	// UseTupleComparison, when true, overrides the schema's PaginationFilterType
+	// to use tuple comparison syntax (e.g., (a,b,c) > (1,2,3)) instead of
+	// the expanded OR/AND logic. This avoids CRDB's union-all + distinct plan
+	// that causes temp storage exhaustion on large range-bounded queries.
+	UseTupleComparison bool `debugmap:"visible"`
 }
 
 // ReverseQueryOptions are the options that can affect the results of a reverse query.

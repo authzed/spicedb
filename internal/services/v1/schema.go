@@ -5,18 +5,20 @@ import (
 	"sort"
 	"strings"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"buf.build/go/protovalidate"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
+	"go.opentelemetry.io/otel"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/middleware/interceptorwrapper"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -27,6 +29,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
+
+var tracer = otel.Tracer("spicedb/internal/services/v1/schema")
 
 type SchemaServerConfig struct {
 	// CaveatTypeSet is the set of caveat types that are allowed in the schema.
@@ -43,17 +47,18 @@ type SchemaServerConfig struct {
 }
 
 // NewSchemaServer creates a SchemaServiceServer instance.
-func NewSchemaServer(config SchemaServerConfig) v1.SchemaServiceServer {
+func NewSchemaServer(config SchemaServerConfig, validator protovalidate.Validator) v1.SchemaServiceServer {
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
+
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(),
+				interceptorwrapper.WrapUnaryServerInterceptorWithSpans(grpcvalidate.UnaryServerInterceptor(validator), "protovalidate"),
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(),
+				grpcvalidate.StreamServerInterceptor(validator),
 				usagemetrics.StreamServerInterceptor(),
 				perfinsights.StreamServerInterceptor(config.PerformanceInsightMetricsEnabled),
 			),
@@ -81,20 +86,20 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	// Schema is always read from the head revision.
-	ds := datastoremw.MustFromContext(ctx)
-	headRevision, err := ds.HeadRevision(ctx)
+	dl := datalayer.MustFromContext(ctx)
+	headRevision, headSchemaHash, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	reader := ds.SnapshotReader(headRevision)
+	reader := dl.SnapshotReader(headRevision, headSchemaHash)
 
-	schemaReader, err := reader.SchemaReader()
+	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	schemaText, err := schemaReader.SchemaText()
+	schemaText, err := sr.SchemaText(ctx)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -103,7 +108,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 		DispatchCount: 1,
 	})
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, ds)
+	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, headSchemaHash, dl)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -119,7 +124,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
-	ds := datastoremw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
 	opts := make([]compiler.Option, 0, 3)
@@ -128,14 +133,20 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 
 	opts = append(opts, compiler.CaveatTypeSet(ss.caveatTypeSet))
+	// Imports don't make sense in a schema written directly to SpiceDB;
+	// the user must first compile them with `zed`
+	opts = append(opts, compiler.DisallowImportFlag())
 
+	_, span := tracer.Start(ctx, "compile")
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
 	}, compiler.AllowUnprefixedObjectType(), opts...)
 	if err != nil {
+		span.End()
 		return nil, ss.rewriteError(ctx, err)
 	}
+	span.End()
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
 	// Do as much validation as we can before talking to the datastore.
@@ -144,12 +155,13 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	// Update the schema.
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	var writtenSchemaHash datalayer.SchemaHash
+	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		applied, err := shared.ApplySchemaChanges(ctx, rwt, ss.caveatTypeSet, validated)
 		if err != nil {
 			return err
 		}
+		writtenSchemaHash = applied.SchemaHash
 
 		dispatchCount, err := genutil.EnsureUInt32(applied.TotalOperationCount)
 		if err != nil {
@@ -165,7 +177,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, ds)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, writtenSchemaHash, dl)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}
@@ -179,7 +191,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	// Get the current schema.
-	schema, atRevision, err := loadCurrentSchema(ctx)
+	schema, atRevision, schemaHash, err := loadCurrentSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -217,8 +229,8 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 		}
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, ds)
+	dl := datalayer.MustFromContext(ctx)
+	zedToken, err := zedtoken.NewFromRevision(ctx, atRevision, schemaHash, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -233,7 +245,7 @@ func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchema
 func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaRequest) (*v1.DiffSchemaResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, _, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -260,13 +272,17 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
+	sr, err := dl.ReadSchema(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -281,11 +297,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		}
 	}
 
-	schemaReader, err := ds.SchemaReader()
-	if err != nil {
-		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
-	}
-	typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
+	typeDefs, err := sr.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -295,7 +307,7 @@ func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.Compu
 		allDefinitions = append(allDefinitions, typeDef.Definition)
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -347,13 +359,17 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
+	sr2, err := dl.ReadSchema(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr2))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -368,7 +384,7 @@ func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.Dependen
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,

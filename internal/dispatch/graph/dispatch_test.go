@@ -9,6 +9,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -16,7 +17,6 @@ import (
 const veryLargeLimit = 1000000000
 
 func TestDispatchChunking(t *testing.T) {
-	t.Parallel()
 	schema := `
 		definition user {
 			relation its_a_me: user
@@ -29,7 +29,7 @@ func TestDispatchChunking(t *testing.T) {
 
 	resources := make([]tuple.Relationship, 0, math.MaxUint16+1)
 	enabled := make([]tuple.Relationship, 0, math.MaxUint16+1)
-	for i := 0; i < math.MaxUint16+1; i++ {
+	for i := range math.MaxUint16 + 1 {
 		resources = append(resources, tuple.MustParse(fmt.Sprintf("res:res1#owner@user:user%d", i)))
 		enabled = append(enabled, tuple.MustParse(fmt.Sprintf("user:user%d#its_a_me@user:user%d", i, i)))
 	}
@@ -37,7 +37,6 @@ func TestDispatchChunking(t *testing.T) {
 	ctx, dispatcher, revision := newLocalDispatcherWithSchemaAndRels(t, schema, append(enabled, resources...))
 
 	t.Run("check", func(t *testing.T) {
-		t.Parallel()
 		for _, tpl := range resources[:1] {
 			checkResult, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 				ResourceRelation: RR(tpl.Resource.ObjectType, "view").ToCoreRR(),
@@ -47,6 +46,7 @@ func TestDispatchChunking(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			})
 
@@ -58,8 +58,6 @@ func TestDispatchChunking(t *testing.T) {
 	})
 
 	t.Run("lookup-resources2", func(t *testing.T) {
-		t.Parallel()
-
 		for _, tpl := range resources[:1] {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 			err := dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -70,6 +68,7 @@ func TestDispatchChunking(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -82,8 +81,6 @@ func TestDispatchChunking(t *testing.T) {
 	})
 
 	t.Run("lookup-subjects", func(t *testing.T) {
-		t.Parallel()
-
 		for _, tpl := range resources[:1] {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
@@ -94,6 +91,7 @@ func TestDispatchChunking(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 

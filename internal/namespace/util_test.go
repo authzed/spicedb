@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -58,7 +59,6 @@ func TestListReferencedNamespaces(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -165,14 +165,17 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, req)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, nil)
 
-			rev, err := ds.HeadRevision(t.Context())
+			revResult, err := ds.HeadRevision(t.Context())
+			require.NoError(t, err)
+			rev := revResult.Revision
+
+			dl := datalayer.NewDataLayer(ds)
+			sr, err := dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 			require.NoError(t, err)
 
-			reader := ds.SnapshotReader(rev)
-
-			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, reader)
+			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, sr)
 			if tc.expectedError == "" {
 				require.NoError(t, err)
 			} else {

@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -276,16 +277,13 @@ func TestReadRelationships(t *testing.T) {
 	}
 
 	for _, pageSize := range []int{0, 1, 5, 10} {
-		pageSize := pageSize
 		t.Run(fmt.Sprintf("page%d_", pageSize), func(t *testing.T) {
 			for _, delta := range testTimedeltas {
-				delta := delta
 				t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 					for _, tc := range testCases {
-						tc := tc
 						t.Run(tc.name, func(t *testing.T) {
 							require := require.New(t)
-							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							conn, cleanup, _, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
 							t.Cleanup(cleanup)
 
@@ -299,11 +297,11 @@ func TestReadRelationships(t *testing.T) {
 
 							uintPageSize, err := safecast.Convert[uint32](pageSize)
 							require.NoError(err)
-							for i := 0; i < 20; i++ {
+							for range 20 {
 								stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 									Consistency: &v1.Consistency{
 										Requirement: &v1.Consistency_AtLeastAsFresh{
-											AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+											AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 										},
 									},
 									RelationshipFilter: tc.filter,
@@ -366,7 +364,7 @@ func TestReadRelationships(t *testing.T) {
 func TestWriteRelationships(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -467,7 +465,7 @@ func TestWriteRelationships(t *testing.T) {
 func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -486,7 +484,7 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 func TestWriteExpiringRelationships(t *testing.T) {
 	req := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -512,7 +510,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 		t.Run(fmt.Sprintf("with-caveat-%v", deleteWithCaveat), func(t *testing.T) {
 			req := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
@@ -767,14 +765,14 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			[]*v1.RelationshipFilter{precondFilter("document", "newdoc", "parent", "folder", "afolder", nil)},
 			[]*v1.Relationship{rel("document", "🍣", "parent", "folder", "afolder", "")},
 			codes.InvalidArgument,
-			"caused by: invalid ObjectReference.ObjectId: value does not match regex pattern",
+			"validation error: updates[0].relationship.resource.object_id: does not match regex pattern",
 		},
 		{
 			"invalid precondition, good write",
 			[]*v1.RelationshipFilter{precondFilter("document", "🍣", "parent", "folder", "afolder", nil)},
 			[]*v1.Relationship{rel("document", "newdoc", "parent", "folder", "afolder", "")},
 			codes.InvalidArgument,
-			"caused by: invalid RelationshipFilter.OptionalResourceId: value does not match regex pattern",
+			"validation error: optional_preconditions[0].filter.optional_resource_id: does not match regex pattern",
 		},
 		{
 			"write permission",
@@ -876,13 +874,11 @@ func TestInvalidWriteRelationship(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
-		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
-				tc := tc
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -908,9 +904,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 					})
 					grpcutil.RequireStatus(t, tc.expectedCode, err)
 					errStatus, ok := status.FromError(err)
-					if !ok {
-						panic("failed to find error in status")
-					}
+					require.True(ok, "failed to find error in status")
 					require.Contains(errStatus.Message(), tc.errorContains, "found unexpected error message: %s", errStatus.Message())
 				})
 			}
@@ -1248,12 +1242,10 @@ func TestDeleteRelationships(t *testing.T) {
 		},
 	}
 	for _, delta := range testTimedeltas {
-		delta := delta
 		for _, tc := range testCases {
-			tc := tc
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
 				require := require.New(t)
-				conn, cleanup, ds, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+				conn, cleanup, ds, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 				client := v1.NewPermissionsServiceClient(conn)
 				t.Cleanup(cleanup)
 
@@ -1269,9 +1261,9 @@ func TestDeleteRelationships(t *testing.T) {
 				require.NoError(err)
 				require.NotNil(resp.DeletedAt)
 
-				rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+				decoded, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 				require.NoError(err)
-				require.True(rev.GreaterThan(revision))
+				require.True(decoded.Revision.GreaterThan(revision))
 
 				require.Equal(uint64(len(tc.deleted)), resp.RelationshipsDeletedCount)
 				require.Equal(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
@@ -1282,7 +1274,7 @@ func TestDeleteRelationships(t *testing.T) {
 
 func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1299,7 +1291,7 @@ func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
 
 func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1316,7 +1308,7 @@ func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 
 func TestReadRelationshipsBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1350,25 +1342,24 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 	}
 
 	for _, batchSize := range []int{5, 6, 7, 10} {
-		batchSize := batchSize
 		require.Greater(t, len(expected), batchSize)
 
 		t.Run(fmt.Sprintf("batchsize-%d", batchSize), func(t *testing.T) {
 			require := require.New(t)
-			conn, cleanup, ds, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+			conn, cleanup, ds, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
 			iterations := 0
 			uintBatchSize, err := safecast.Convert[uint32](batchSize)
 			require.NoError(err)
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				iterations++
 
-				headRev, err := ds.HeadRevision(t.Context())
+				headRevResult, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
-				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
+				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult.Revision, datalayer.NoSchemaHashInLegacyZedToken))
 
 				resp, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 					RelationshipFilter: &v1.RelationshipFilter{
@@ -1379,10 +1370,10 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				})
 				require.NoError(err)
 
-				headRev, err = ds.HeadRevision(context.Background())
+				headRevResult2, err := ds.HeadRevision(t.Context())
 				require.NoError(err)
 
-				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
+				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRevResult2.Revision, datalayer.NoSchemaHashInLegacyZedToken))
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
 				bs := safecast.RequireConvert[uint64](t, batchSize)
@@ -1396,9 +1387,9 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 					require.NoError(err)
 					require.NotNil(resp.DeletedAt)
 
-					rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+					decoded, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 					require.NoError(err)
-					require.True(rev.GreaterThan(revision))
+					require.True(decoded.Revision.GreaterThan(revision))
 					require.Equal(standardTuplesWithout(expected), readAll(require, client, resp.DeletedAt))
 					break
 				}
@@ -1412,7 +1403,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1470,7 +1461,7 @@ func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 func TestWriteRelationshipsWithMetadata(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, beforeWriteRev := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1501,7 +1492,7 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 
 	require.NoError(err)
 
-	beforeWriteToken := zedtoken.MustNewFromRevisionForTesting(beforeWriteRev)
+	beforeWriteToken := zedtoken.MustNewFromRevisionForTesting(beforeWriteRev, datalayer.NoSchemaHashInLegacyZedToken)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
@@ -1518,7 +1509,7 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1547,7 +1538,7 @@ func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
 func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1577,7 +1568,7 @@ func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
 func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1626,7 +1617,7 @@ func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1659,7 +1650,7 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
 		true,
@@ -1694,7 +1685,7 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 	require := require.New(t)
 
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
-		require,
+		t,
 		0,
 		memdb.DisableGC,
 		false,
@@ -1710,9 +1701,9 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 
 	// Write additional test data.
 	counter := 0
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		updates := make([]*v1.RelationshipUpdate, 0, 100)
-		for j := 0; j < 1000; j++ {
+		for range 1000 {
 			counter++
 			updates = append(updates, &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -1727,7 +1718,7 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 	}
 
 	retryCount := 5
-	for i := 0; i < retryCount; i++ {
+	for range retryCount {
 		// Perform a read and ensures it times out.
 		stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 			Consistency: &v1.Consistency{
@@ -1753,14 +1744,14 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 func TestReadRelationshipsInvalidCursor(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
 	stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		RelationshipFilter: &v1.RelationshipFilter{
@@ -1834,7 +1825,7 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -1842,11 +1833,10 @@ func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *tes
 	// is limited.
 	g := errgroup.Group{}
 
-	for i := 0; i < 50; i++ {
-		i := i
+	for i := range 50 {
 		g.Go(func() error {
-			updates := []*v1.RelationshipUpdate{}
-			for j := 0; j < 500; j++ {
+			updates := make([]*v1.RelationshipUpdate, 0, 500) //nolint:prealloc  // for some reason prealloc thinks this should be 1k
+			for j := range 500 {
 				updates = append(updates, &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 					Relationship: tuple.ToV1Relationship(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))),
@@ -2304,13 +2294,13 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 			require := require.New(t)
 
 			// Create test server with custom schema and data
-			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			client := v1.NewPermissionsServiceClient(conn)
 			t.Cleanup(cleanup)
 
 			// Write the schema
 			schemaClient := v1.NewSchemaServiceClient(conn)
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 				Schema: tc.schema,
 			})
 			require.NoError(err)
@@ -2325,14 +2315,14 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 						Relationship: tuple.ToV1Relationship(rel),
 					})
 				}
-				_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				_, err = client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 					Updates: updates,
 				})
 				require.NoError(err)
 			}
 
 			// Execute ReadRelationships request
-			stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+			stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 				RelationshipFilter: tc.filter,
 			})
 			require.NoError(err)

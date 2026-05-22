@@ -1,0 +1,12 @@
+use partial
+
+partial view_partial {
+  relation user: user
+  permission view = user
+
+
+definition user {}
+
+definition resource {
+  ...view_partial
+}

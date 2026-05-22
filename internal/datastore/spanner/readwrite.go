@@ -13,7 +13,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -262,7 +261,11 @@ func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransac
 		return -1, fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
-	return int64(len(mutations)), nil
+	numDeleted, err := safecast.Convert[int64](len(mutations))
+	if err != nil {
+		return -1, err
+	}
+	return numDeleted, nil
 }
 
 func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter) (int64, error) {
@@ -410,10 +413,6 @@ func (rwt spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNam
 	}
 
 	return nil
-}
-
-func (rwt spannerReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
 }
 
 func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

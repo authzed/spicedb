@@ -11,7 +11,6 @@ import (
 )
 
 func TestPrimarySleeper_SleepWithZeroWaitTime(t *testing.T) {
-	t.Parallel()
 	sleeper := &primarySleeper{
 		reqKey:     "test",
 		waitTime:   0,
@@ -31,7 +30,6 @@ func TestPrimarySleeper_SleepWithZeroWaitTime(t *testing.T) {
 }
 
 func TestPrimarySleeper_SleepWithPositiveWaitTime(t *testing.T) {
-	t.Parallel()
 	waitTime := 10 * time.Millisecond
 	sleeper := &primarySleeper{
 		reqKey:     "test",
@@ -52,7 +50,6 @@ func TestPrimarySleeper_SleepWithPositiveWaitTime(t *testing.T) {
 }
 
 func TestPrimarySleeper_SleepWithContextCancellation(t *testing.T) {
-	t.Parallel()
 	waitTime := 100 * time.Millisecond
 	cancelTime := 5 * time.Millisecond
 	sleeper := &primarySleeper{
@@ -80,7 +77,6 @@ func TestPrimarySleeper_SleepWithContextCancellation(t *testing.T) {
 }
 
 func TestPrimarySleeper_SleepWithContextTimeout(t *testing.T) {
-	t.Parallel()
 	waitTime := 100 * time.Millisecond
 	cancelTime := 10 * time.Millisecond
 	sleeper := &primarySleeper{
@@ -103,7 +99,6 @@ func TestPrimarySleeper_SleepWithContextTimeout(t *testing.T) {
 }
 
 func TestPrimarySleeper_CancelSleep(t *testing.T) {
-	t.Parallel()
 	waitTime := 100 * time.Millisecond
 	cancelTime := 5 * time.Millisecond
 	sleeper := &primarySleeper{
@@ -131,7 +126,6 @@ func TestPrimarySleeper_CancelSleep(t *testing.T) {
 }
 
 func TestPrimarySleeper_CancelSleepBeforeSleep(t *testing.T) {
-	t.Parallel()
 	waitTime := 10 * time.Millisecond
 	sleeper := &primarySleeper{
 		reqKey:     "test",
@@ -153,7 +147,6 @@ func TestPrimarySleeper_CancelSleepBeforeSleep(t *testing.T) {
 }
 
 func TestPrimarySleeper_MultipleCancelSleep(t *testing.T) {
-	t.Parallel()
 	waitTime := 50 * time.Millisecond
 	cancelTime := 5 * time.Millisecond
 	sleeper := &primarySleeper{
@@ -183,7 +176,6 @@ func TestPrimarySleeper_MultipleCancelSleep(t *testing.T) {
 }
 
 func TestPrimarySleeper_ConcurrentCancelSleep(t *testing.T) {
-	t.Parallel()
 	waitTime := 50 * time.Millisecond
 	cancelTime := 5 * time.Millisecond
 	sleeper := &primarySleeper{
@@ -199,13 +191,11 @@ func TestPrimarySleeper_ConcurrentCancelSleep(t *testing.T) {
 		start := time.Now()
 		var wg sync.WaitGroup
 
-		for i := 0; i < 10; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 10 {
+			wg.Go(func() {
 				time.Sleep(5 * time.Millisecond)
 				sleeper.cancelSleep()
-			}()
+			})
 		}
 
 		go func() {
@@ -221,7 +211,6 @@ func TestPrimarySleeper_ConcurrentCancelSleep(t *testing.T) {
 }
 
 func TestPrimarySleeper_SleepTwice(t *testing.T) {
-	t.Parallel()
 	waitTime := 10 * time.Millisecond
 	sleeper := &primarySleeper{
 		reqKey:     "test",
@@ -248,7 +237,6 @@ func TestPrimarySleeper_SleepTwice(t *testing.T) {
 }
 
 func TestPrimarySleeper_SleepConcurrently(t *testing.T) {
-	t.Parallel()
 	waitTime := 20 * time.Millisecond
 	sleeper := &primarySleeper{
 		reqKey:     "test",
@@ -262,14 +250,14 @@ func TestPrimarySleeper_SleepConcurrently(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			wg.Add(1)
-			go func(idx int) {
+			go func() {
 				defer wg.Done()
 				start := time.Now()
 				sleeper.sleep(ctx)
 				results <- time.Since(start)
-			}(i)
+			}()
 		}
 
 		wg.Wait()
@@ -283,7 +271,6 @@ func TestPrimarySleeper_SleepConcurrently(t *testing.T) {
 }
 
 func TestPrimarySleeper_EdgeCaseZeroDurationContext(t *testing.T) {
-	t.Parallel()
 	waitTime := 10 * time.Millisecond
 	sleeper := &primarySleeper{
 		reqKey:     "test",

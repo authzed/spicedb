@@ -1,4 +1,4 @@
-//go:build steelthread && docker && image
+//go:build steelthread
 
 package steelthreadtesting
 
@@ -11,7 +11,7 @@ import (
 
 	"github.com/gosimple/slug"
 	"github.com/stretchr/testify/require"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "go.yaml.in/yaml/v3"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -65,18 +66,16 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 }
 
 func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datastore) {
-	req := require.New(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
-	clientConn, cleanup, _, _ := testserver.NewTestServerWithConfigAndDatastore(req, 0, 0, false,
+	clientConn, cleanup, _, _ := testserver.NewTestServerWithConfigAndDatastore(t, 0, 0, false,
 		testserver.DefaultTestServerConfig,
 		ds,
-		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
 			// Load in the data.
-			_, rev, err := validationfile.PopulateFromFiles(ctx, ds, caveattypes.Default.TypeSet, []string{"testdata/" + tc.datafile})
-			require.NoError(err)
+			_, rev, err := validationfile.PopulateFromFiles(ctx, datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{"testdata/" + tc.datafile})
+			require.NoError(t, err)
 
 			return ds, rev
 		})

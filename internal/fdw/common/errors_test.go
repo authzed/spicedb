@@ -12,8 +12,6 @@ import (
 )
 
 func TestNewUnsupportedError(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name           string
 		baseErr        error
@@ -36,8 +34,6 @@ func TestNewUnsupportedError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			err := NewUnsupportedError(tc.baseErr)
 			require.Error(t, err)
 			require.ErrorContains(t, err, tc.expectedPrefix)
@@ -51,8 +47,6 @@ func TestNewUnsupportedError(t *testing.T) {
 }
 
 func TestNewSemanticsError(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name           string
 		baseErr        error
@@ -75,8 +69,6 @@ func TestNewSemanticsError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			err := NewSemanticsError(tc.baseErr)
 			require.Error(t, err)
 			require.ErrorContains(t, err, tc.expectedPrefix)
@@ -90,8 +82,6 @@ func TestNewSemanticsError(t *testing.T) {
 }
 
 func TestNewQueryError(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name           string
 		baseErr        error
@@ -114,8 +104,6 @@ func TestNewQueryError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			err := NewQueryError(tc.baseErr)
 			require.Error(t, err)
 			require.ErrorContains(t, err, tc.expectedPrefix)
@@ -129,8 +117,6 @@ func TestNewQueryError(t *testing.T) {
 }
 
 func TestConvertError(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name        string
 		inputErr    error
@@ -165,8 +151,6 @@ func TestConvertError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			err := ConvertError(tc.inputErr)
 			require.Error(t, err)
 

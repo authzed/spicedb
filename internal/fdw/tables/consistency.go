@@ -57,8 +57,8 @@ func consistencyFromFields(fields fieldMap[string], parameters []wire.Parameter)
 
 	default:
 		isAtExactSnapshot := false
-		if strings.HasPrefix(consistencyFieldValue, consistencyExactPrefix) {
-			consistencyFieldValue = strings.TrimPrefix(consistencyFieldValue, consistencyExactPrefix)
+		if after, ok := strings.CutPrefix(consistencyFieldValue, consistencyExactPrefix); ok {
+			consistencyFieldValue = after
 			isAtExactSnapshot = true
 		}
 

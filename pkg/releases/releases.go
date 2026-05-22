@@ -48,7 +48,7 @@ func getLatestReleaseWithClient(ctx context.Context, httpClient *http.Client) (*
 
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Do(req) //nolint:gosec  // re: SSRF: nothing is actually user-controllable that i can see.
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "go.yaml.in/yaml/v3"
 )
 
 func TestParseRelationships(t *testing.T) {
@@ -45,7 +45,6 @@ document:second#viewer@user:1`,
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			pr := ParsedRelationships{}
 			err := yamlv3.Unmarshal([]byte(tt.contents), &pr)

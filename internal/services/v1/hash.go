@@ -101,7 +101,11 @@ func computeCallHash(apiName string, consistency *v1.Consistency, arguments map[
 			stringArguments[argName] = strconv.Itoa(int(v))
 
 		case *structpb.Struct:
-			stringArguments[argName] = caveats.StableContextStringForHashing(v)
+			contextString, err := caveats.StableContextStringForHashing(v)
+			if err != nil {
+				return "", err
+			}
+			stringArguments[argName] = contextString
 
 		default:
 			return "", spiceerrors.MustBugf("unknown argument type in compute call hash")

@@ -9,8 +9,6 @@ import (
 )
 
 func TestStringValue(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name          string
 		valueOrRef    valueOrRef
@@ -49,8 +47,6 @@ func TestStringValue(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			result, err := stringValue(tc.valueOrRef, tc.parameters)
 
 			if tc.expectedError != "" {
@@ -66,8 +62,6 @@ func TestStringValue(t *testing.T) {
 }
 
 func TestOptionalStringValue(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name          string
 		valueOrRef    valueOrRef
@@ -111,8 +105,6 @@ func TestOptionalStringValue(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			result, err := optionalStringValue(tc.valueOrRef, tc.parameters)
 
 			if tc.expectedError != "" {
@@ -128,8 +120,6 @@ func TestOptionalStringValue(t *testing.T) {
 }
 
 func TestReturningColumnsFromQuery(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name               string
 		query              string
@@ -160,8 +150,6 @@ func TestReturningColumnsFromQuery(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			parsed, err := pgquery.Parse(tc.query)
 			require.NoError(t, err)
 			require.NotEmpty(t, parsed.Stmts)

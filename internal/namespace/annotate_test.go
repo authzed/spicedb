@@ -32,16 +32,17 @@ func TestAnnotateNamespace(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
-	lastRevision, err := ds.HeadRevision(t.Context())
+	lastRevisionResult, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
+	lastRevision := lastRevisionResult.Revision
 
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 
-	def, err := schema.NewDefinition(ts, compiled.ObjectDefinitions[0])
+	def, err := schema.NewDefinition(compiled.ObjectDefinitions[0])
 	require.NoError(err)
 
 	ctx := t.Context()
-	vdef, terr := def.Validate(ctx)
+	vdef, terr := ts.Validate(ctx, def)
 	require.NoError(terr)
 
 	aerr := AnnotateNamespace(vdef)

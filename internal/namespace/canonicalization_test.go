@@ -518,7 +518,6 @@ func TestCanonicalization(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -527,15 +526,16 @@ func TestCanonicalization(t *testing.T) {
 
 			ctx := t.Context()
 
-			lastRevision, err := ds.HeadRevision(t.Context())
+			lastRevisionResult, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
+			lastRevision := lastRevisionResult.Revision
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 
-			def, err := schema.NewDefinition(ts, tc.toCheck)
+			def, err := schema.NewDefinition(tc.toCheck)
 			require.NoError(err)
 
-			vdef, derr := def.Validate(ctx)
+			vdef, derr := ts.Validate(ctx, def)
 			require.NoError(derr)
 
 			aliases, aerr := computePermissionAliases(vdef)
@@ -647,7 +647,6 @@ func TestCanonicalizationComparison(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -663,14 +662,15 @@ func TestCanonicalizationComparison(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(t.Context())
+			lastRevisionResult, err := ds.HeadRevision(t.Context())
+			require.NoError(err)
+			lastRevision := lastRevisionResult.Revision
+
+			def, err := schema.NewDefinition(compiled.ObjectDefinitions[0])
 			require.NoError(err)
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
-			def, err := schema.NewDefinition(ts, compiled.ObjectDefinitions[0])
-			require.NoError(err)
-
-			vts, terr := def.Validate(ctx)
+			vts, terr := ts.Validate(ctx, def)
 			require.NoError(terr)
 
 			aliases, aerr := computePermissionAliases(vts)

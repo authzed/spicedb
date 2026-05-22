@@ -6,7 +6,6 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -42,7 +41,10 @@ func TestOtelForwarding(t *testing.T) {
 	md := OtelAnnotator(outCtx, r)
 
 	// Assert the context was injected into the gRPC context.
-	_, spanCtx := otelgrpc.Extract(outCtx, &md, defaultOtelOpts...) // nolint:staticcheck
+	propagator := otel.GetTextMapPropagator()
+	carrier := metadataCarrier{mdata: &md}
+	traceCtx := propagator.Extract(outCtx, carrier)
+	spanCtx := trace.SpanFromContext(traceCtx).SpanContext()
 	require.True(t, spanCtx.HasTraceID())
 	require.Equal(t, traceID, spanCtx.TraceID())
 }

@@ -46,7 +46,7 @@ type fakeTx struct{}
 
 func TestContextError(t *testing.T) {
 	req := require.New(t)
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
 
 	err := m.Register("1", "", func(ctx context.Context, conn fakeConnPool) error {

@@ -1,0 +1,5 @@
+use import
+
+definition user {}
+
+import "doesnotexist.zed"

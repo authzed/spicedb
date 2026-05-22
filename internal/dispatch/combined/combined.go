@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -44,6 +45,16 @@ type optionState struct {
 	caveatTypeSet                                *caveattypes.TypeSet
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
+	queryPlanMetadata                            *query.QueryPlanMetadata
+}
+
+// QueryPlanMetadata sets the shared count-stats store used by the receiver-side
+// query plan dispatcher. Pass the same instance to the permissions service so
+// stats accumulate across both compile and dispatch boundaries.
+func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
+	return func(state *optionState) {
+		state.queryPlanMetadata = m
+	}
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -178,13 +189,19 @@ func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
 	}
 }
 
-// NewDispatcher initializes a Dispatcher that caches and redispatches
-// optionally to the provided upstream.
-func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
+// newOptions applies the provided Options and returns the resulting state.
+func newOptions(options ...Option) optionState {
 	var opts optionState
 	for _, fn := range options {
 		fn(&opts)
 	}
+	return opts
+}
+
+// NewDispatcher initializes a Dispatcher that caches and redispatches
+// optionally to the provided upstream.
+func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
+	opts := newOptions(options...)
 	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
 
 	if opts.prometheusSubsystem == "" {
@@ -233,6 +250,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			TypeSet:                caveattypes.TypeSetOrDefault(opts.caveatTypeSet),
 			DispatchChunkSize:      chunkSize,
 			RelationshipChunkCache: relationshipChunkCache,
+			QueryPlanMetadata:      opts.queryPlanMetadata,
 		}
 		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)
 		if err != nil {

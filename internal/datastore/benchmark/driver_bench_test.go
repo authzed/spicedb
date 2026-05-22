@@ -74,16 +74,16 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				_ = ds.Close()
 			})
 
-			ctx := context.Background()
+			ctx := b.Context()
 
 			// Write the standard schema
-			ds, _ = testfixtures.StandardDatastoreWithSchema(ds, require.New(b))
+			ds, _ = testfixtures.StandardDatastoreWithSchema(b, ds)
 
 			// Write a fair amount of data, much more than a functional test
-			for docNum := 0; docNum < numDocuments; docNum++ {
+			for docNum := range numDocuments {
 				_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 					var updates []tuple.RelationshipUpdate
-					for userNum := 0; userNum < usersPerDoc; userNum++ {
+					for userNum := range usersPerDoc {
 						updates = append(updates, tuple.Create(docViewer(strconv.Itoa(docNum), strconv.Itoa(userNum))))
 					}
 
@@ -95,8 +95,9 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			// Sleep to give the datastore time to stabilize after all the writes
 			time.Sleep(1 * time.Second)
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRevResult, err := ds.HeadRevision(ctx)
 			require.NoError(b, err)
+			headRev := headRevResult.Revision
 
 			b.StartTimer()
 
@@ -133,7 +134,6 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				})
 				b.Run("SortedSnapshotReadOnlyNamespace", func(b *testing.B) {
 					for orderName, order := range sortOrders {
-						order := order
 						b.Run(orderName, func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
 								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -151,7 +151,6 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				})
 				b.Run("SortedSnapshotReadWithRelation", func(b *testing.B) {
 					for orderName, order := range sortOrders {
-						order := order
 						b.Run(orderName, func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
 								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -170,7 +169,6 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				})
 				b.Run("SortedSnapshotReadAllResourceFields", func(b *testing.B) {
 					for orderName, order := range sortOrders {
-						order := order
 						b.Run(orderName, func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
 								randDocNum := rand.Intn(numDocuments) //nolint:gosec
@@ -207,12 +205,11 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				b.Run("CreateAndTouch", func(b *testing.B) {
 					const totalRelationships = 1000
 					for _, portionCreate := range []float64{0, 0.10, 0.25, 0.50, 1} {
-						portionCreate := portionCreate
 						b.Run(fmt.Sprintf("%v_", portionCreate), func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
 								portionCreateIndex := int(math.Floor(portionCreate * totalRelationships))
 								mutations := make([]tuple.RelationshipUpdate, 0, totalRelationships)
-								for index := 0; index < totalRelationships; index++ {
+								for index := range totalRelationships {
 									if index >= portionCreateIndex {
 										stableID := fmt.Sprintf("id-%d", index)
 										rel := docViewer(stableID, stableID)

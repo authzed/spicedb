@@ -6,9 +6,8 @@ import (
 	"sync"
 	"unsafe"
 
-	"golang.org/x/sync/singleflight"
+	"resenje.org/singleflight"
 
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -21,7 +20,11 @@ import (
 type definitionCachingProxy struct {
 	datastore.Datastore
 	c         cache.Cache[cache.StringKey, *cacheEntry]
-	readGroup singleflight.Group
+	readGroup singleflight.Group[string, *cacheEntry]
+}
+
+func (p *definitionCachingProxy) Unwrap() datastore.Datastore {
+	return p.Datastore
 }
 
 func (p *definitionCachingProxy) Close() error {
@@ -98,13 +101,6 @@ func (r *definitionCachingReader) LegacyLookupCaveatsWithNames(
 			return r.Reader.LegacyLookupCaveatsWithNames(ctx, names)
 		},
 		estimatedCaveatDefinitionSize)
-}
-
-// SchemaReader returns a reference to this reader, but wrapped in such a way
-// that the legacy methods are used to drive the new methods, which ensures
-// that caching logic stays in place.
-func (r *definitionCachingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 func listAndCache[T schemaDefinition](
@@ -184,8 +180,7 @@ func readAndCache[T schemaDefinition](
 	loaded, found := r.p.c.Get(cache.StringKey(cacheRevisionKey))
 	if !found {
 		// We couldn't use the cached entry, load one
-		var err error
-		loadedRaw, err, _ := r.p.readGroup.Do(cacheRevisionKey, func() (any, error) {
+		loadedEntry, _, err := r.p.readGroup.Do(ctx, cacheRevisionKey, func(ctx context.Context) (*cacheEntry, error) {
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted read
 			loaded, updatedRev, err := reader(context.WithoutCancel(ctx), name)
@@ -207,7 +202,7 @@ func readAndCache[T schemaDefinition](
 			return *new(T), datastore.NoRevision, err
 		}
 
-		loaded = loadedRaw.(*cacheEntry)
+		loaded = loadedEntry
 	}
 
 	return loaded.definition.(T), loaded.updated, loaded.notFound
@@ -293,20 +288,6 @@ func (rwt *definitionCachingRWT) LegacyWriteCaveats(ctx context.Context, newConf
 	}
 
 	return nil
-}
-
-// SchemaWriter returns a wrapper around the definitionCachingRWT that ensures
-// that the caching logic in this proxy is exercised when a handle on the
-// SchemaWriter is requested.
-func (rwt *definitionCachingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt.ReadWriteTransaction), nil
-}
-
-// SchemaReader returns a wrapper around the definitionCachingRWT that ensures
-// that the caching logic in this proxy is exercised when a handle on the
-// SchemaReader is requested.
-func (rwt *definitionCachingRWT) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(rwt), nil
 }
 
 type cacheEntry struct {

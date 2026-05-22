@@ -21,7 +21,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -48,9 +47,10 @@ var (
 type mysqlReadWriteTXN struct {
 	*mysqlReader
 
-	tupleTableName string
-	tx             *sql.Tx
-	newTxnID       uint64
+	tupleTableName          string
+	schemaRevisionTableName string
+	tx                      *sql.Tx
+	newTxnID                uint64
 }
 
 // structpbWrapper is used to marshall maps into MySQLs JSON data type
@@ -514,10 +514,6 @@ func (rwt *mysqlReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsName
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) SchemaWriter() (datastore.SchemaWriter, error) {
-	return schemautil.NewLegacySchemaWriterAdapter(rwt, rwt), nil
-}
-
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var sqlStmt bytes.Buffer
 
@@ -590,7 +586,7 @@ func convertToWriteConstraintError(err error) error {
 		if found != nil {
 			parts := strings.Split(found[1], "-")
 			if len(parts) == 7 {
-				return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+				return datastore.NewCreateRelationshipExistsError(&tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
 							ObjectType: parts[0],
@@ -611,7 +607,7 @@ func convertToWriteConstraintError(err error) error {
 		if found != nil {
 			parts := strings.Split(found[1], "-")
 			if len(parts) == 7 {
-				return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+				return datastore.NewCreateRelationshipExistsError(&tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
 							ObjectType: parts[0],
@@ -628,7 +624,7 @@ func convertToWriteConstraintError(err error) error {
 			}
 		}
 
-		return common.NewCreateRelationshipExistsError(nil)
+		return datastore.NewCreateRelationshipExistsError(nil)
 	}
 	return nil
 }

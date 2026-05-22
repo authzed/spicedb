@@ -10,7 +10,6 @@ import (
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -24,21 +23,21 @@ var namespacesFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_namespaces_fallback_mode",
-	Help:      "value of 1 if the cache is in fallback mode and 0 otherwise",
+	Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
 })
 
 var caveatsFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_caveats_fallback_mode",
-	Help:      "value of 1 if the cache is in fallback mode and 0 otherwise",
+	Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
 })
 
 var schemaCacheRevisionGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_tracked_revision",
-	Help:      "the currently tracked max revision for the schema cache",
+	Help:      "The current maximum revision tracked by the CockroachDB changefeed-backed schema cache. A value that is not advancing over time indicates the changefeed has stalled.",
 })
 
 var definitionsReadCachedCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -75,6 +74,10 @@ type watchingCachingProxy struct {
 
 	namespaceCache *schemaWatchCache[*core.NamespaceDefinition]
 	caveatCache    *schemaWatchCache[*core.CaveatDefinition]
+}
+
+func (p *watchingCachingProxy) Unwrap() datastore.Datastore {
+	return p.Datastore
 }
 
 // createWatchingCacheProxy creates and returns a watching cache proxy.
@@ -149,13 +152,14 @@ func (p *watchingCachingProxy) Start(ctx context.Context) error {
 
 func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	log.Info().Msg("starting watching cache")
-	headRev, err := p.HeadRevision(context.Background())
+	headRevWithHash, err := p.HeadRevision(context.Background())
 	if err != nil {
 		p.namespaceCache.setFallbackMode()
 		p.caveatCache.setFallbackMode()
 		log.Warn().Err(err).Msg("received error in schema watch")
 		return err
 	}
+	headRev := headRevWithHash.Revision
 
 	watchOptions, err := datastore.BuildAndValidateWatchOptions(
 		datastore.ServerWatchOptions{
@@ -644,8 +648,4 @@ func (w *watchingCachingReader) LegacyLookupCaveatsWithNames(
 	caveatNames []string,
 ) ([]datastore.RevisionedCaveat, error) {
 	return w.p.caveatCache.readDefinitionsWithNames(ctx, caveatNames, w.rev)
-}
-
-func (w *watchingCachingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(w), nil
 }

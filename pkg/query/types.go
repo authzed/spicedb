@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -11,10 +12,10 @@ import (
 // Plan is the external-facing notion of a query plan. These follow the general API for
 // querying anything in the database as well as describing the plan.
 type Plan interface {
-	// CheckImpl tests if, for the underlying set of relationships (which may be a full expression or a basic lookup, depending on the iterator)
-	// any of the `resourceIDs` are connected to `subjectID`.
-	// Returns the sequence of matching paths, if they exist, at most `len(resourceIDs)`.
-	CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error)
+	// CheckImpl tests if the given resource is connected to subject in the underlying
+	// set of relationships (which may be a full expression or a basic lookup, depending
+	// on the iterator). Returns the matching Path if found, or nil if not found.
+	CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error)
 
 	// IterSubjectsImpl returns a sequence of all the paths in this set that match the given resourceID.
 	// The filterSubjectType parameter filters the results to only include subjects matching the
@@ -59,9 +60,9 @@ type Iterator interface {
 	// Returns an error if the replacement fails or if the length of newSubs doesn't match expectations.
 	ReplaceSubiterators(newSubs []Iterator) (Iterator, error)
 
-	// ID returns a unique UUID for this instance of an iterator.
-	// Each call to Clone() generates a new UUID for the cloned iterator.
-	ID() string
+	// CanonicalKey returns the canonical key for this iterator.
+	// Cloned iterators share the same canonical key since they represent the same query plan node.
+	CanonicalKey() CanonicalKey
 
 	// ResourceType returns the ObjectType(s) of this iterator's resources.
 	// Returns a slice to support iterators that can return multiple types (e.g., unions).
@@ -70,6 +71,13 @@ type Iterator interface {
 	// SubjectTypes returns all the ObjectTypes for this iterator tree.
 	// Returns an error if subject types cannot be determined.
 	SubjectTypes() ([]ObjectType, error)
+
+	// Serialize writes a binary representation of this iterator and its
+	// subtree to w. The wire format is the IteratorType byte (used by
+	// package-level Deserialize for registry dispatch) followed by a
+	// length-prefixed canonical key and a length-prefixed body produced by
+	// the iterator's registered Deserialize counterpart.
+	Serialize(w io.Writer) error
 }
 
 type ObjectType struct {

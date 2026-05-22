@@ -22,7 +22,7 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 	if validated {
 		return &ValidatedDefinition{Definition: def}, nil
 	}
-	vdef, err := def.Validate(ctx)
+	vdef, err := ts.Validate(ctx, def)
 	if err != nil {
 		return nil, err
 	}
@@ -34,12 +34,12 @@ func (ts *TypeSystem) GetValidatedDefinition(ctx context.Context, definition str
 	return vdef, nil
 }
 
-func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, error) {
+func (ts *TypeSystem) Validate(ctx context.Context, def *Definition) (*ValidatedDefinition, error) {
 	for _, relation := range def.relationMap {
 		// Validate type annotations first.
 		// If there's type annotation metadata, the annotated terminal types are a superset of the reachable ones.
 		if annotations := nspkg.GetTypeAnnotations(relation); len(annotations) != 0 {
-			tset, err := def.ts.GetRecursiveTerminalTypesForRelation(ctx, def.nsDef.GetName(), relation.GetName())
+			tset, err := ts.GetRecursiveTerminalTypesForRelation(ctx, def.nsDef.GetName(), relation.GetName())
 			if err != nil {
 				return nil, err
 			}
@@ -97,7 +97,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
-				referencedWildcard, err := def.TypeSystem().referencesWildcardType(ctx, def, relationName)
+				referencedWildcard, err := ts.referencesWildcardType(ctx, def, relationName)
 				if err != nil {
 					return err, nil
 				}
@@ -143,7 +143,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
-				referencedWildcard, err := def.TypeSystem().referencesWildcardType(ctx, def, relationName)
+				referencedWildcard, err := ts.referencesWildcardType(ctx, def, relationName)
 				if err != nil {
 					return err, nil
 				}
@@ -231,7 +231,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 					}
 				}
 			} else {
-				subjectTS, err := def.TypeSystem().GetDefinition(ctx, allowedRelation.GetNamespace())
+				subjectTS, err := ts.GetDefinition(ctx, allowedRelation.GetNamespace())
 				if err != nil {
 					return nil, NewTypeWithSourceError(
 						fmt.Errorf("could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err),
@@ -253,7 +253,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 					}
 
 					// Ensure the relation doesn't itself import wildcard.
-					referencedWildcard, err := def.TypeSystem().referencesWildcardType(ctx, subjectTS, allowedRelation.GetRelation())
+					referencedWildcard, err := ts.referencesWildcardType(ctx, subjectTS, allowedRelation.GetRelation())
 					if err != nil {
 						return nil, err
 					}
@@ -277,7 +277,7 @@ func (def *Definition) Validate(ctx context.Context) (*ValidatedDefinition, erro
 
 			// Check the caveat, if any.
 			if allowedRelation.GetRequiredCaveat() != nil {
-				_, err := def.TypeSystem().GetCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
+				_, err := ts.GetCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
 				if err != nil {
 					return nil, NewTypeWithSourceError(
 						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetRequiredCaveat().CaveatName, relation.Name, err),

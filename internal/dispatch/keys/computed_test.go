@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -44,8 +45,9 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "tom", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"e09cbca18290f7afae01",
 		},
@@ -58,8 +60,9 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "tom", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"e09cbca18290f7afae01",
 		},
@@ -72,8 +75,9 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "sarah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "123456",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"d586cee091f9e591c301",
 		},
@@ -86,6 +90,7 @@ func TestStableCacheKeys(t *testing.T) {
 					Subject:          ONR("user", "tom", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 				}, "view")
 				return key
@@ -99,8 +104,9 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceAndRelation: ONR("document", "foo", "view"),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"8afff68e91a7cbb3ef01",
 		},
@@ -111,8 +117,9 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceAndRelation: ONR("document", "foo2", "view"),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"9dd1e0c9cba88edc6b",
 		},
@@ -123,8 +130,9 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceAndRelation: ONR("document", "foo2", "view"),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1235",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"f1b396da87bdeae2bd01",
 		},
@@ -137,103 +145,115 @@ func TestStableCacheKeys(t *testing.T) {
 					ResourceIds:      []string{"mariah", "tom"},
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
 			},
 			"d699c5b5d3a6dfade601",
 		},
 		{
 			"lookup resources 2",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with zero limit",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalLimit: 0,
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with non-zero limit",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalLimit: 42,
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"ea88adb1c1dfa6ebab01",
+			"dba285cdd9caeef36e",
 		},
 		{
 			"lookup resources 2 with nil context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: nil,
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with empty context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -242,20 +262,22 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"bbd78884eff9edbebd01",
+			"a3dad09ce9d690b78401",
 		},
 		{
 			"lookup resources 2 with different context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -264,20 +286,22 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"94d0faa5feaaa4dc17",
+			"f6d4bc92bae9e9d64b",
 		},
 		{
 			"lookup resources 2 with escaped string",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -285,20 +309,22 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"cdffc895cb9299b9da01",
+			"a0aebfb9a8abd1b802",
 		},
 		{
 			"lookup resources 2 with nested context",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					Context: func() *structpb.Struct {
 						v, _ := structpb.NewStruct(map[string]any{
@@ -310,102 +336,112 @@ func TestStableCacheKeys(t *testing.T) {
 						})
 						return v
 					}(),
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"84d8d38ff9fadbb36d",
+			"8e8ddfd8affeecc918",
 		},
 		{
 			"lookup resources 2 with empty cursor",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{},
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"f49fbafef9c489abe601",
+			"9884bbb3acd3b3ca1a",
 		},
 		{
 			"lookup resources 2 with non-empty cursor",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo"},
 					},
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"f09894c0d9a0b8ff7f",
+			"9e82ddefb6ccbfd6aa01",
 		},
 		{
 			"lookup resources 2 with different cursor",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "mariah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
 					},
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"badfd7c59cdbcef671",
+			"e593e789a89a9acd13",
 		},
 		{
 			"lookup resources 2 with different terminal subject",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah"},
 					TerminalSubject:  ONR("user", "sarah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
 					},
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"8787b685e9cea993a901",
+			"f6cf8df7bdc7959520",
 		},
 		{
 			"lookup resources 2 with different subject IDs",
 			func() DispatchCacheKey {
-				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+				key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah", "tom"},
 					TerminalSubject:  ONR("user", "sarah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
+						SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 					},
 					OptionalCursor: &v1.Cursor{
 						Sections: []string{"foo", "bar"},
 					},
-				}, computeBothHashes)
+				})
+				return key
 			},
-			"f4d6d884eaa5e4b4ed01",
+			"de839ec8eea2f7bf19",
 		},
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			key := tc.createKey()
 			require.Equal(t, tc.expected, hex.EncodeToString(key.StableSumAsBytes()))
@@ -435,7 +471,7 @@ var generatorFuncs = map[string]generatorFunc{
 				ResourceIds:      resourceIds,
 				Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 				Metadata:         metadata,
-			}, computeBothHashes), []string{
+			}), []string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -475,19 +511,20 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
-				ResourceRelation: resourceRelation,
-				SubjectRelation:  subjectRelation,
-				SubjectIds:       subjectIds,
-				TerminalSubject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				Metadata:         metadata,
-			}, computeBothHashes), []string{
-				resourceRelation.Namespace,
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
-				subjectIds[0],
-				subjectRelation.Relation,
-			}
+		key, _ := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+			ResourceRelation: resourceRelation,
+			SubjectRelation:  subjectRelation,
+			SubjectIds:       subjectIds,
+			TerminalSubject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+			Metadata:         metadata,
+		})
+		return key, []string{
+			resourceRelation.Namespace,
+			resourceRelation.Relation,
+			subjectRelation.Namespace,
+			subjectIds[0],
+			subjectRelation.Relation,
+		}
 	},
 
 	// Expand.
@@ -501,10 +538,72 @@ var generatorFuncs = map[string]generatorFunc{
 		return expandRequestToKey(&v1.DispatchExpandRequest{
 				ResourceAndRelation: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
 				Metadata:            metadata,
-			}, computeBothHashes), []string{
+			}), []string{
 				resourceRelation.Namespace,
 				resourceIds[0],
 				resourceRelation.Relation,
+			}
+	},
+
+	// Plan Check.
+	string(planCheckPrefix): func(
+		resourceIds []string,
+		subjectIds []string,
+		resourceRelation *core.RelationReference,
+		subjectRelation *core.RelationReference,
+		metadata *v1.ResolverMeta,
+	) (DispatchCacheKey, []string) {
+		return planCheckRequestToKey(&v1.DispatchQueryPlanRequest{
+				CanonicalKey: resourceRelation.Relation,
+				Resource:     ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+				Subject:      ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
+			}), []string{
+				resourceRelation.Relation,
+				resourceRelation.Namespace,
+				resourceIds[0],
+				subjectRelation.Namespace,
+				subjectIds[0],
+				subjectRelation.Relation,
+			}
+	},
+
+	// Plan Lookup Resources.
+	string(planLookupResourcesPrefix): func(
+		resourceIds []string,
+		subjectIds []string,
+		resourceRelation *core.RelationReference,
+		subjectRelation *core.RelationReference,
+		metadata *v1.ResolverMeta,
+	) (DispatchCacheKey, []string) {
+		return planLookupResourcesRequestToKey(&v1.DispatchQueryPlanRequest{
+				CanonicalKey: resourceRelation.Relation,
+				Subject:      ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
+			}), []string{
+				resourceRelation.Relation,
+				subjectRelation.Namespace,
+				subjectIds[0],
+				subjectRelation.Relation,
+			}
+	},
+
+	// Plan Lookup Subjects.
+	string(planLookupSubjectsPrefix): func(
+		resourceIds []string,
+		subjectIds []string,
+		resourceRelation *core.RelationReference,
+		subjectRelation *core.RelationReference,
+		metadata *v1.ResolverMeta,
+	) (DispatchCacheKey, []string) {
+		return planLookupSubjectsRequestToKey(&v1.DispatchQueryPlanRequest{
+				CanonicalKey: resourceRelation.Relation,
+				Resource:     ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+				PlanContext:  &v1.PlanContext{Revision: metadata.AtRevision},
+			}), []string{
+				resourceRelation.Relation,
+				resourceRelation.Namespace,
+				resourceIds[0],
 			}
 	},
 
@@ -521,7 +620,7 @@ var generatorFuncs = map[string]generatorFunc{
 				SubjectRelation:  subjectRelation,
 				ResourceIds:      resourceIds,
 				Metadata:         metadata,
-			}, computeBothHashes), append([]string{
+			}), append([]string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -562,39 +661,31 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 
 	dataCombinationSeen := mapz.NewSet[string]()
 	stableCacheKeysSeen := mapz.NewSet[string]()
-	unstableCacheKeysSeen := mapz.NewSet[uint64]()
 
 	// Ensure all key functions are generated.
 	require.Len(t, cachePrefixes, len(generatorFuncs))
 
 	for _, resourceIds := range allResourceIds {
-		resourceIds := resourceIds
 		t.Run(strings.Join(resourceIds, ","), func(t *testing.T) {
 			for _, subjectIds := range allSubjectIds {
-				subjectIds := subjectIds
 				t.Run(strings.Join(subjectIds, ","), func(t *testing.T) {
 					for _, resourceRelation := range resourceRelations {
-						resourceRelation := resourceRelation
 						t.Run(tuple.StringCoreRR(resourceRelation), func(t *testing.T) {
 							for _, subjectRelation := range subjectRelations {
-								subjectRelation := subjectRelation
 								t.Run(tuple.StringCoreRR(subjectRelation), func(t *testing.T) {
 									for _, revision := range revisions {
-										revision := revision
 										t.Run(revision, func(t *testing.T) {
 											metadata := &v1.ResolverMeta{
 												AtRevision: revision,
+												SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 											}
 
 											for prefix, f := range generatorFuncs {
-												prefix := prefix
-												f := f
 												t.Run(prefix, func(t *testing.T) {
 													generated, usedData := f(resourceIds, subjectIds, resourceRelation, subjectRelation, metadata)
 													usedDataString := fmt.Sprintf("%s:%s", prefix, strings.Join(usedData, ","))
 													if dataCombinationSeen.Add(usedDataString) {
 														require.True(t, stableCacheKeysSeen.Add(hex.EncodeToString((generated.StableSumAsBytes()))))
-														require.True(t, unstableCacheKeysSeen.Add(generated.processSpecificSum))
 													}
 												})
 											}
@@ -610,27 +701,15 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 	}
 }
 
-func TestComputeOnlyStableHash(t *testing.T) {
-	result := checkRequestToKey(&v1.DispatchCheckRequest{
-		ResourceRelation: RR("document", "view"),
-		ResourceIds:      []string{"foo", "bar"},
-		Subject:          ONR("user", "tom", "..."),
-		Metadata: &v1.ResolverMeta{
-			AtRevision: "1234",
-		},
-	}, computeOnlyStableHash)
-
-	require.Equal(t, uint64(0), result.processSpecificSum)
-}
-
 func TestComputeContextHash(t *testing.T) {
-	result := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+	result, err := lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
 		ResourceRelation: RR("document", "view"),
 		SubjectRelation:  RR("user", "..."),
 		SubjectIds:       []string{"mariah"},
 		TerminalSubject:  ONR("user", "mariah", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 		},
 		Context: func() *structpb.Struct {
 			v, _ := structpb.NewStruct(map[string]any{
@@ -646,7 +725,8 @@ func TestComputeContextHash(t *testing.T) {
 			})
 			return v
 		}(),
-	}, computeBothHashes)
+	})
 
-	require.Equal(t, "81aab1c790f0be947d", hex.EncodeToString(result.StableSumAsBytes()))
+	require.NoError(t, err)
+	require.Equal(t, "e49efdc8e1d99daca601", hex.EncodeToString(result.StableSumAsBytes()))
 }

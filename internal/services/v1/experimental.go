@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/ccoveille/go-safecast/v2"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -23,8 +24,8 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
+	"github.com/authzed/spicedb/internal/middleware/interceptorwrapper"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -33,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/v1/options"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -53,7 +55,7 @@ const (
 )
 
 // NewExperimentalServer creates a ExperimentalServiceServer instance.
-func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig PermissionsServerConfig, opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
+func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig PermissionsServerConfig, validator protovalidate.Validator, opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
 	config := options.NewExperimentalServerOptionsWithOptionsAndDefaults(opts...)
 	if config.DefaultExportBatchSize == 0 {
 		log.
@@ -96,13 +98,13 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(),
+				interceptorwrapper.WrapUnaryServerInterceptorWithSpans(grpcvalidate.UnaryServerInterceptor(validator), "protovalidate"),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(),
+				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
@@ -241,10 +243,10 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalService_BulkImportRelationshipsServer) error {
 	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
 
-	ds := datastoremw.MustFromContext(stream.Context())
+	dl := datalayer.MustFromContext(stream.Context())
 
 	var numWritten uint64
-	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	if _, err := dl.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		loadedNamespaces := make(map[string]*schema.Definition, 2)
 		loadedCaveats := make(map[string]*core.CaveatDefinition, 0)
 
@@ -256,47 +258,40 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			caveat:                 core.ContextualizedCaveat{},
 			caveatTypeSet:          es.caveatTypeSet,
 		}
-		resolver := schema.ResolverForDatastoreReader(rwt)
-		ts := schema.NewTypeSystem(resolver)
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
 
 		var streamWritten uint64
-		var err error
 		for ; adapter.err == nil && err == nil; streamWritten, err = rwt.BulkLoad(stream.Context(), adapter) {
 			numWritten += streamWritten
 
 			// The stream has terminated because we're awaiting namespace and/or caveat information
-			schemaReader, err := rwt.SchemaReader()
-			if err != nil {
-				return err
-			}
 			if len(adapter.awaitingNamespaces) > 0 {
-				foundDefs, err := schemaReader.LookupTypeDefinitionsByNames(stream.Context(), adapter.awaitingNamespaces)
+				foundDefs, err := sr.LookupTypeDefinitionsByNames(stream.Context(), adapter.awaitingNamespaces)
 				if err != nil {
 					return err
 				}
 
-				for _, def := range foundDefs {
-					if nsDef, ok := def.(*core.NamespaceDefinition); ok {
-						newDef, err := schema.NewDefinition(ts, nsDef)
-						if err != nil {
-							return err
-						}
-						loadedNamespaces[nsDef.Name] = newDef
+				for _, nsDef := range foundDefs {
+					newDef, err := schema.NewDefinition(nsDef)
+					if err != nil {
+						return err
 					}
+					loadedNamespaces[nsDef.Name] = newDef
 				}
 
 				adapter.awaitingNamespaces = nil
 			}
 			if len(adapter.awaitingCaveats) > 0 {
-				foundCaveatDefs, err := schemaReader.LookupCaveatDefinitionsByNames(stream.Context(), adapter.awaitingCaveats)
+				foundCaveatDefs, err := sr.LookupCaveatDefinitionsByNames(stream.Context(), adapter.awaitingCaveats)
 				if err != nil {
 					return err
 				}
 
-				for _, def := range foundCaveatDefs {
-					if caveatDef, ok := def.(*core.CaveatDefinition); ok {
-						loadedCaveats[caveatDef.Name] = caveatDef
-					}
+				for name, caveatDef := range foundCaveatDefs {
+					loadedCaveats[name] = caveatDef
 				}
 
 				adapter.awaitingCaveats = nil
@@ -327,36 +322,45 @@ func (es *experimentalServer) BulkExportRelationships(
 	ctx := resp.Context()
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return BulkExport(ctx, datastoremw.MustFromContext(ctx), es.maxBatchSize, req, atRevision, resp.Send)
+	return BulkExport(ctx, datalayer.MustFromContext(ctx), es.maxBatchSize, req, atRevision, schemaHash, resp.Send)
 }
 
-// BulkExport implements the BulkExportRelationships API functionality. Given a datastore.Datastore, it will
+// BulkExport implements the BulkExportRelationships API functionality. Given a datalayer.DataLayer, it will
 // export stream via the sender all relationships matched by the incoming request.
 // If no cursor is provided, it will fallback to the provided revision.
-func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
+func BulkExport(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, fallbackSchemaHash datalayer.SchemaHash, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
 	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
 		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
 	}
 
 	atRevision := fallbackRevision
+	schemaHash := fallbackSchemaHash
 	var curNamespace string
 	var cur dsoptions.Cursor
 	if req.OptionalCursor != nil {
-		var err error
-		atRevision, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
+		dc, err := decodeBulkExportCursor(dl, req.OptionalCursor)
 		if err != nil {
 			return shared.RewriteErrorWithoutConfig(ctx, err)
 		}
+		atRevision = dc.revision
+		curNamespace = dc.namespace
+		cur = dc.cursor
+		schemaHash = dc.schemaHash
 	}
 
-	reader := ds.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
-	namespaces, err := reader.LegacyListAllNamespaces(ctx)
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	namespaces, err := sr.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -515,7 +519,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	// Get the current schema.
-	schema, atRevision, err := loadCurrentSchema(ctx)
+	schema, atRevision, _, err := loadCurrentSchema(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -553,8 +557,8 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 		}
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	readAt, err := zedtoken.NewFromRevision(ctx, atRevision, ds)
+	dl := datalayer.MustFromContext(ctx)
+	readAt, err := zedtoken.NewFromRevision(ctx, atRevision, datalayer.NoSchemaHashInLegacyZedToken, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -569,7 +573,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v1.ExperimentalDiffSchemaRequest) (*v1.ExperimentalDiffSchemaResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, _, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -596,13 +600,17 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
+	sr, err := dl.ReadSchema(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -617,7 +625,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		}
 	}
 
-	allNamespaces, err := ds.LegacyListAllNamespaces(ctx)
+	allNamespaces, err := sr.ListAllTypeDefinitions(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -627,7 +635,7 @@ func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Cont
 		allDefinitions = append(allDefinitions, ns.Definition)
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  relationName,
@@ -679,13 +687,17 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 		}
 	})
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
+	sr, err := dl.ReadSchema(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 	vdef, err := ts.GetValidatedDefinition(ctx, req.DefinitionName)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -700,7 +712,7 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(ts)
 	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
 		Namespace: req.DefinitionName,
 		Relation:  req.PermissionName,
@@ -748,14 +760,19 @@ func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx contex
 		}
 	})
 
-	ds := datastoremw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	if req.Name == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
 
-	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
+
+		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, sr); err != nil {
 			return err
 		}
 
@@ -776,13 +793,13 @@ func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx cont
 		}
 	})
 
-	ds := datastoremw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	if req.Name == "" {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
 
-	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		return rwt.UnregisterCounter(ctx, req.Name)
 	})
 	if err != nil {
@@ -803,13 +820,13 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	headRev, err := ds.HeadRevision(ctx)
+	dl := datalayer.MustFromContext(ctx)
+	headRev, headSchemaHash, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	snapshotReader := ds.SnapshotReader(headRev)
+	snapshotReader := dl.SnapshotReader(headRev, headSchemaHash)
 	count, err := snapshotReader.CountRelationships(ctx, req.Name)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
@@ -820,7 +837,7 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 		return nil, spiceerrors.MustBugf("count should not be negative")
 	}
 
-	readAt, err := zedtoken.NewFromRevision(ctx, headRev, ds)
+	readAt, err := zedtoken.NewFromRevision(ctx, headRev, headSchemaHash, dl)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -837,7 +854,7 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 
 func queryForEach(
 	ctx context.Context,
-	reader datastore.Reader,
+	reader datalayer.RevisionedReader,
 	filter datastore.RelationshipsFilter,
 	fn func(rel tuple.Relationship),
 	opts ...dsoptions.QueryOptionsOption,
@@ -859,30 +876,47 @@ func queryForEach(
 	return cursor, nil
 }
 
-func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore.Revision, string, dsoptions.Cursor, error) {
+// decodedCursor holds the decoded components of a bulk export cursor.
+type decodedCursor struct {
+	revision   datastore.Revision
+	namespace  string
+	cursor     dsoptions.Cursor
+	schemaHash datalayer.SchemaHash
+}
+
+func decodeBulkExportCursor(dl datalayer.DataLayer, encoded *v1.Cursor) (decodedCursor, error) {
 	decoded, err := cursor.Decode(encoded)
 	if err != nil {
-		return datastore.NoRevision, "", nil, err
+		return decodedCursor{}, err
 	}
 
 	if decoded.GetV1() == nil {
-		return datastore.NoRevision, "", nil, errors.New("malformed cursor: no V1 in OneOf")
+		return decodedCursor{}, errors.New("malformed cursor: no V1 in OneOf")
 	}
 
 	if len(decoded.GetV1().Sections) != 2 {
-		return datastore.NoRevision, "", nil, errors.New("malformed cursor: wrong number of components")
+		return decodedCursor{}, errors.New("malformed cursor: wrong number of components")
 	}
 
-	atRevision, err := ds.RevisionFromString(decoded.GetV1().Revision)
+	atRevision, err := dl.RevisionFromString(decoded.GetV1().Revision)
 	if err != nil {
-		return datastore.NoRevision, "", nil, err
+		return decodedCursor{}, err
 	}
 
 	cur, err := tuple.Parse(decoded.GetV1().GetSections()[1])
 	if err != nil {
-		return datastore.NoRevision, "", nil, fmt.Errorf("malformed cursor: invalid encoded relation tuple: %w", err)
+		return decodedCursor{}, fmt.Errorf("malformed cursor: invalid encoded relation tuple: %w", err)
 	}
 
-	// Returns the current namespace and the cursor.
-	return atRevision, decoded.GetV1().GetSections()[0], dsoptions.ToCursor(cur), nil
+	schemaHash := datalayer.NoSchemaHashForLegacyCursor
+	if len(decoded.GetV1().SchemaHash) > 0 {
+		schemaHash = datalayer.SchemaHash(decoded.GetV1().SchemaHash)
+	}
+
+	return decodedCursor{
+		revision:   atRevision,
+		namespace:  decoded.GetV1().GetSections()[0],
+		cursor:     dsoptions.ToCursor(cur),
+		schemaHash: schemaHash,
+	}, nil
 }

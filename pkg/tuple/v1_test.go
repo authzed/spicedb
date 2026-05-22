@@ -50,7 +50,6 @@ func TestJoinSubjectRef(t *testing.T) {
 
 func TestBackAndForth(t *testing.T) {
 	for _, tc := range testCases {
-		tc := tc
 		if tc.stableCanonicalization == "" {
 			continue
 		}

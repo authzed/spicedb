@@ -12,10 +12,10 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 
 	log "github.com/authzed/spicedb/internal/logging"
-	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -49,7 +49,7 @@ type PopulatedValidationFile struct {
 
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
 // the validation file(s) specified.
-func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, caveatTypeSet *caveattypes.TypeSet, filePaths []string) (*PopulatedValidationFile, datastore.Revision, error) {
+func PopulateFromFiles(ctx context.Context, dl datalayer.DataLayer, caveatTypeSet *caveattypes.TypeSet, filePaths []string) (*PopulatedValidationFile, datastore.Revision, error) {
 	contents := map[string][]byte{}
 
 	for _, filePath := range filePaths {
@@ -61,12 +61,12 @@ func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, caveatTypeSe
 		contents[filePath] = fileContents
 	}
 
-	return PopulateFromFilesContents(ctx, ds, caveatTypeSet, contents)
+	return PopulateFromFilesContents(ctx, dl, caveatTypeSet, contents)
 }
 
 // PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
 // the validation file(s) contents specified.
-func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, caveatTypeSet *caveattypes.TypeSet, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
+func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, caveatTypeSet *caveattypes.TypeSet, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
 	var schemaBuilder strings.Builder
 	var objectDefs []*core.NamespaceDefinition
 	var caveatDefs []*core.CaveatDefinition
@@ -165,21 +165,17 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 	}
 
 	// Load the definitions and relationships into the datastore.
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		// Write the caveat definitions.
-		err := rwt.LegacyWriteCaveats(ctx, caveatDefs)
+	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+		resolver, err := schema.ResolverForSchemaReader(ctx, rwt)
 		if err != nil {
 			return err
 		}
-
-		res := schema.ResolverForDatastoreReader(rwt).WithPredefinedElements(schema.PredefinedElements{
+		ts := schema.NewTypeSystem(resolver.WithPredefinedElements(schema.PredefinedElements{
 			Definitions: objectDefs,
 			Caveats:     caveatDefs,
-		})
-		ts := schema.NewTypeSystem(res)
-		// Validate and write the object definitions.
+		}))
+		// Validate the object definitions.
 		for _, objectDef := range objectDefs {
-			ctx := dsctx.ContextWithDatastore(ctx, ds)
 			vts, terr := ts.GetValidatedDefinition(ctx, objectDef.GetName())
 			if terr != nil {
 				return terr
@@ -189,13 +185,23 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 			if aerr != nil {
 				return aerr
 			}
+		}
 
-			if err := rwt.LegacyWriteNamespaces(ctx, objectDef); err != nil {
-				return fmt.Errorf("error when loading object definition %s: %w", objectDef.Name, err)
+		// Write all definitions at once.
+		allDefs := make([]datastore.SchemaDefinition, 0, len(caveatDefs)+len(objectDefs))
+		for _, cd := range caveatDefs {
+			allDefs = append(allDefs, cd)
+		}
+		for _, od := range objectDefs {
+			allDefs = append(allDefs, od)
+		}
+		if len(allDefs) > 0 {
+			if _, err := rwt.WriteSchema(ctx, allDefs, "", caveatTypeSet); err != nil {
+				return err
 			}
 		}
 
-		return err
+		return nil
 	})
 
 	slicez.ForEachChunk(updates, 500, func(chunked []tuple.RelationshipUpdate) {
@@ -207,8 +213,12 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, cave
 		for _, update := range chunked {
 			chunkedRels = append(chunkedRels, update.Relationship)
 		}
-		revision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, caveatTypeSet, chunkedRels...)
+		revision, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+			sr, srErr := rwt.ReadSchema(ctx)
+			if srErr != nil {
+				return srErr
+			}
+			err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, sr, caveatTypeSet, chunkedRels...)
 			if err != nil {
 				return err
 			}

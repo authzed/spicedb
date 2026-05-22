@@ -368,8 +368,6 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 
 	// Schedule a task to be invoked for each item to be run.
 	for taskIndex, item := range itemsToRun {
-		taskIndex := taskIndex
-		item := item
 		tr.Add(func(ctx context.Context) error {
 			stream.lock.Lock()
 			if ci.limits.hasExhaustedLimit() {

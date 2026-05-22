@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 ---
 name: "CLA"
 on: # yamllint disable-line rule:truthy
@@ -17,6 +18,9 @@ permissions:
   contents: "read" # CLA signatures are stored in https://github.com/authzed/cla
   pull-requests: "write"
   statuses: "write"
+concurrency:
+  group: "spicedb-cla-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
 jobs:
   cla:
     name: "Check Signature"

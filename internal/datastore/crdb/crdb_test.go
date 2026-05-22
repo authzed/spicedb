@@ -1,4 +1,4 @@
-//go:build ci && docker
+//go:build datastore
 
 package crdb
 
@@ -17,6 +17,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,12 +57,7 @@ const (
 	veryLargeGCInterval = 90000 * time.Second
 )
 
-// Implement the TestableDatastore interface
-func (cds *crdbDatastore) ExampleRetryableError() error {
-	return &pgconn.PgError{
-		Code: pool.CrdbRetryErrCode,
-	}
-}
+var crdbFactory = test.NewTesterFactory(&pgconn.PgError{Code: pool.CrdbRetryErrCode})
 
 func crdbTestVersion() string {
 	ver := os.Getenv("CRDB_TEST_VERSION")
@@ -72,10 +69,9 @@ func crdbTestVersion() string {
 }
 
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
-	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
-		ctx := context.Background()
+	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
 				ctx,
@@ -94,7 +90,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		})
 
 		return ds, nil
-	}), false)
+	})))
 
 	t.Run("TestWatchStreaming", createDatastoreTest(
 		b,
@@ -117,7 +113,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(ctx, uri, options...)
 			require.NoError(t, err)
@@ -132,7 +128,6 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 }
 
 func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
-	t.Parallel()
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
@@ -144,8 +139,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	}
 	for _, quantization := range quantizationDurations {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ds := engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := NewCRDBDatastore(
@@ -172,13 +166,13 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 
 			// Revisions should be at least the follower read delay amount in the past
 			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {
-				testRevision, err := ds.OptimizedRevision(ctx)
+				testRevisionResult, err := ds.OptimizedRevision(ctx)
 				require.NoError(t, err)
 
-				nowRevision, err := ds.HeadRevision(ctx)
+				nowRevisionResult, err := ds.HeadRevision(ctx)
 				require.NoError(t, err)
 
-				diff := nowRevision.(revisions.HLCRevision).TimestampNanoSec() - testRevision.(revisions.HLCRevision).TimestampNanoSec()
+				diff := nowRevisionResult.Revision.(revisions.HLCRevision).TimestampNanoSec() - testRevisionResult.Revision.(revisions.HLCRevision).TimestampNanoSec()
 				require.Greater(t, diff, followerReadDelay.Nanoseconds())
 			}
 		})
@@ -198,11 +192,10 @@ var defaultKeyForTesting = proxy.KeyConfig{
 }
 
 func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
-	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
-		ctx := context.Background()
+	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
 				ctx,
@@ -225,10 +218,10 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 		})
 
 		return ds, nil
-	}), false)
+	})))
 
-	unwrappedTester := test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
-		ctx := context.Background()
+	unwrappedTester := test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
 				ctx,
@@ -256,7 +249,6 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 }
 
 func TestWatchFeatureDetection(t *testing.T) {
-	t.Parallel()
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 	cases := []struct {
@@ -301,8 +293,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 			adminConn, connStrings := newCRDBWithUser(t, pool)
 			require.NoError(t, err)
@@ -312,6 +303,10 @@ func TestWatchFeatureDetection(t *testing.T) {
 			require.NoError(t, crdbmigrations.CRDBMigrations.Run(ctx, migrationDriver, migrate.Head, migrate.LiveRun))
 
 			tt.postInit(ctx, adminConn)
+
+			// Grant SELECT on schema_revision to unprivileged user so HeadRevision can read schema hashes.
+			_, err = adminConn.Exec(ctx, `GRANT SELECT ON TABLE testspicedb.schema_revision TO unprivileged;`)
+			require.NoError(t, err)
 
 			ds, err := NewCRDBDatastore(ctx, connStrings[unprivileged], WithAcquireTimeout(5*time.Second))
 			require.NoError(t, err)
@@ -325,10 +320,10 @@ func TestWatchFeatureDetection(t *testing.T) {
 			require.Contains(t, features.Watch.Reason, tt.expectMessage)
 
 			if features.Watch.Status != datastore.FeatureSupported {
-				headRevision, err := ds.HeadRevision(ctx)
+				headRevisionResult, err := ds.HeadRevision(ctx)
 				require.NoError(t, err)
 
-				_, errChan := ds.Watch(ctx, headRevision, datastore.WatchJustRelationships(ds))
+				_, errChan := ds.Watch(ctx, headRevisionResult.Revision, datastore.WatchJustRelationships(ds))
 				err = <-errChan
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "watch is currently disabled")
@@ -453,7 +448,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 	require.NoError(t, rootCertFile.Close())
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "mirror.gcr.io/cockroachdb/cockroach",
+		Repository: "cockroachdb/cockroach",
 		Tag:        "v" + crdbTestVersion(),
 		Cmd:        []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
 		Mounts:     []string{certDir + ":/certs"},
@@ -466,7 +461,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 	port := resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
 	require.NoError(t, pool.Retry(func() error {
 		var err error
-		_, err = pgxpool.New(context.Background(), fmt.Sprintf("postgres://root@localhost:%[1]s/defaultdb?sslmode=verify-full&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir))
+		_, err = pgxpool.New(t.Context(), fmt.Sprintf("postgres://root@localhost:%[1]s/defaultdb?sslmode=verify-full&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir))
 		if err != nil {
 			t.Log(err)
 			return err
@@ -474,7 +469,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 		return nil
 	}))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	adminConnString := fmt.Sprintf("postgresql://root:unused@localhost:%[1]s?sslmode=require&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir)
 
@@ -502,11 +497,11 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
 
 	// Write a relationship with integrity information.
 	timestamp := time.Now().UTC()
@@ -525,8 +520,9 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require.NoError(err)
 
 	// Read the relationship back and ensure the integrity information is present.
-	headRev, err := ds.HeadRevision(ctx)
+	headRevResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRev := headRevResult.Revision
 
 	reader := ds.SnapshotReader(headRev)
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -565,11 +561,11 @@ func (f *fakeSource) Next(ctx context.Context) (*tuple.Relationship, error) {
 func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
 
 	// Write a relationship with integrity information.
 	timestamp := time.Now().UTC()
@@ -588,8 +584,9 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 	require.NoError(err)
 
 	// Read the relationship back and ensure the integrity information is present.
-	headRev, err := ds.HeadRevision(ctx)
+	headRevResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRev := headRevResult.Revision
 
 	reader := ds.SnapshotReader(headRev)
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -614,11 +611,11 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, rev := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	ctx := context.Background()
+	ds, rev := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
 
 	// Write a relationship with integrity information.
 	timestamp := time.Now().UTC()
@@ -666,7 +663,7 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 	require := require.New(t)
 
-	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		use expiration
 		definition user {}
 
@@ -676,8 +673,8 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 	`, []tuple.Relationship{
 		tuple.MustParse("resource:foo#viewer@user:tom"),
 		tuple.MustParse("resource:foo#viewer@user:fred"),
-	}, require)
-	ctx := context.Background()
+	})
+	ctx := t.Context()
 
 	cds := datastore.UnwrapAs[*crdbDatastore](ds)
 	require.NotNil(cds)
@@ -790,7 +787,7 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 	require := require.New(t)
 
-	ds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+	ds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
 		caveat somecaveat(somecondition int) {
 			somecondition == 42
 		}
@@ -813,8 +810,8 @@ func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
 	`, []tuple.Relationship{
 		tuple.MustParse("resource:foo#viewer@user:tom"),
 		tuple.MustParse("resource:foo#viewer@user:fred"),
-	}, require)
-	ctx := context.Background()
+	})
+	ctx := t.Context()
 
 	// Touch and delete some relationships, add a namespace and caveat and delete a namespace and caveat.
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -956,4 +953,40 @@ func TestRegisterPrometheusCollectors(t *testing.T) {
 	require.Equal(t, float64(writeMaxConns), poolWriteMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
 	require.NotNil(t, poolReadMetric)
 	require.Equal(t, float64(readMaxConns), poolReadMetric.GetGauge().GetValue()) //nolint:testifylint // we expect exact values
+}
+
+func TestVersionReading(t *testing.T) {
+	require := require.New(t)
+
+	expectedVersionList := strings.Split(crdbTestVersion(), ".")
+	expectedMajor, err := strconv.Atoi(expectedVersionList[0])
+	require.NoError(err)
+	expectedMinor, err := strconv.Atoi(expectedVersionList[1])
+	require.NoError(err)
+	expectedPatch, err := strconv.Atoi(expectedVersionList[2])
+	require.NoError(err)
+
+	var version crdbVersion
+
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	uri := b.NewDatabase(t)
+
+	// Set up a raw connection to the DB
+	initPoolConfig, err := pgxpool.ParseConfig(uri)
+	require.NoError(err)
+	checker, err := pool.NewNodeHealthChecker(uri)
+	require.NoError(err)
+	initPool, err := pool.NewRetryPool(t.Context(), "pool", initPoolConfig, checker, 18, 20)
+	require.NoError(err)
+	t.Cleanup(func() {
+		initPool.Close()
+	})
+
+	// Make the query for the server version
+	err = queryServerVersion(t.Context(), initPool, &version)
+	require.NoError(err)
+
+	require.Equal(expectedMajor, version.Major)
+	require.Equal(expectedMinor, version.Minor)
+	require.Equal(expectedPatch, version.Patch)
 }

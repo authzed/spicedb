@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	_ common.GarbageCollectableDatastore = (*pgDatastore)(nil)
-	_ common.GarbageCollector            = (*pgGarbageCollector)(nil)
+	_ datastore.GarbageCollectableDatastore = (*pgDatastore)(nil)
+	_ datastore.GarbageCollector            = (*pgGarbageCollector)(nil)
 
 	// we are using "tableoid" to globally identify the row through the "ctid" in partitioned environments
 	// as it's not guaranteed 2 rows in different partitions have different "ctid" values
@@ -32,7 +32,7 @@ type pgGarbageCollector struct {
 	isClosed bool
 }
 
-func (pgd *pgDatastore) BuildGarbageCollector(ctx context.Context) (common.GarbageCollector, error) {
+func (pgd *pgDatastore) BuildGarbageCollector(ctx context.Context) (datastore.GarbageCollector, error) {
 	conn, err := pgd.writePool.Acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -140,19 +140,19 @@ type exec interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (common.DeletionCounts, error) {
+func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (datastore.DeletionCounts, error) {
 	if pgg.isClosed {
-		return common.DeletionCounts{}, spiceerrors.MustBugf("pgGarbageCollector is closed")
+		return datastore.DeletionCounts{}, spiceerrors.MustBugf("pgGarbageCollector is closed")
 	}
 
 	return pgg.deleteBeforeTx(ctx, pgg.conn, txID)
 }
 
-func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, txID datastore.Revision) (common.DeletionCounts, error) {
+func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, txID datastore.Revision) (datastore.DeletionCounts, error) {
 	revision := txID.(postgresRevision)
 
 	minTxAlive := NewXid8(revision.snapshot.xmin)
-	removed := common.DeletionCounts{}
+	removed := datastore.DeletionCounts{}
 	var err error
 	// Delete any relationship rows that were already dead when this transaction started
 	removed.Relationships, err = pgg.batchDelete(

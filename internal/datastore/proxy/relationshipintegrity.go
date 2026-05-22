@@ -198,11 +198,11 @@ func (r *relationshipIntegrityProxy) OfflineFeatures() (*datastore.Features, err
 	return r.ds.OfflineFeatures()
 }
 
-func (r *relationshipIntegrityProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (r *relationshipIntegrityProxy) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	return r.ds.HeadRevision(ctx)
 }
 
-func (r *relationshipIntegrityProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (r *relationshipIntegrityProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	return r.ds.OptimizedRevision(ctx)
 }
 
@@ -389,10 +389,8 @@ func (r relationshipIntegrityReader) LegacyReadNamespaceByName(ctx context.Conte
 	return r.wrapped.LegacyReadNamespaceByName(ctx, nsName)
 }
 
-// SchemaReader returns a handle to the wrapped reader's SchemaReader, as this
-// proxy does not interact with schema methods.
-func (r relationshipIntegrityReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.wrapped.SchemaReader()
+func (r relationshipIntegrityReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return r.wrapped.ReadStoredSchema(ctx)
 }
 
 type relationshipIntegrityTx struct {

@@ -1,0 +1,12 @@
+use import
+
+import "apps.zed"
+import "caveat.zed"
+import "teams.zed"
+
+// iam
+definition iam {
+	relation apps: apps
+	relation d_caveat: d_caveat
+	relation teams: teams
+}

@@ -1,0 +1,347 @@
+package query
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestFormatAnalysisSimpleTree(t *testing.T) {
+	// Create a simple iterator tree
+	fixed := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "document", ObjectID: "doc1"},
+			Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		},
+		Path{
+			Resource: Object{ObjectType: "document", ObjectID: "doc2"},
+			Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "bob", Relation: "..."},
+		},
+	)
+
+	// Create analyze map with stats
+	analyze := map[CanonicalKey]AnalyzeStats{
+		fixed.CanonicalKey(): {
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 2,
+			},
+		},
+	}
+
+	// Format analysis
+	output := FormatAnalysis(fixed, analyze)
+
+	// Verify output contains expected info
+	require.Contains(t, output, "Fixed(2 paths)")
+	require.Contains(t, output, "Calls: Check=1, IterSubjects=0, IterResources=0")
+	require.Contains(t, output, "Results: Check=2, IterSubjects=0, IterResources=0")
+}
+
+func TestFormatAnalysisNestedTree(t *testing.T) {
+	// Create a nested iterator tree: Union with two FixedIterators
+	fixed1 := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "document", ObjectID: "doc1"},
+			Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		},
+	)
+
+	fixed2 := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "document", ObjectID: "doc2"},
+			Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "bob", Relation: "..."},
+		},
+	)
+
+	union := NewUnionIterator(fixed1, fixed2)
+
+	// Create analyze map with stats for all iterators
+	analyze := map[CanonicalKey]AnalyzeStats{
+		union.CanonicalKey(): {
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 2,
+			},
+		},
+		fixed1.CanonicalKey(): {
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 1,
+			},
+		},
+		fixed2.CanonicalKey(): {
+			CountStats: CountStats{
+				CheckCalls:   1,
+				CheckResults: 1,
+			},
+		},
+	}
+
+	// Format analysis
+	output := FormatAnalysis(union, analyze)
+
+	// Verify tree structure
+	require.Contains(t, output, "Union")
+	require.Contains(t, output, "├─")
+	require.Contains(t, output, "└─")
+	require.Contains(t, output, "Fixed(1 paths)")
+
+	// Verify stats are present for all nodes
+	lines := strings.Split(output, "\n")
+	callsCount := 0
+	resultsCount := 0
+	for _, line := range lines {
+		if strings.Contains(line, "Calls:") {
+			callsCount++
+		}
+		if strings.Contains(line, "Results:") {
+			resultsCount++
+		}
+	}
+	require.Equal(t, 3, callsCount, "Should have stats for 3 iterators")
+	require.Equal(t, 3, resultsCount, "Should have stats for 3 iterators")
+}
+
+func TestFormatAnalysisEdgeCases(t *testing.T) {
+	t.Run("nil tree", func(t *testing.T) {
+		output := FormatAnalysis(nil, map[CanonicalKey]AnalyzeStats{})
+		require.Equal(t, "No iterator tree provided", output)
+	})
+
+	t.Run("nil analyze map", func(t *testing.T) {
+		fixed := NewFixedIterator()
+		output := FormatAnalysis(fixed, nil)
+		require.Equal(t, "No analysis data available", output)
+	})
+
+	t.Run("empty analyze map", func(t *testing.T) {
+		fixed := NewFixedIterator()
+		output := FormatAnalysis(fixed, map[CanonicalKey]AnalyzeStats{})
+		require.Equal(t, "No analysis data available", output)
+	})
+}
+
+func TestAnalysisIntegration(t *testing.T) {
+	// Create a simple iterator
+	fixed := NewFixedIterator(
+		Path{
+			Resource: Object{ObjectType: "document", ObjectID: "doc1"},
+			Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		},
+		Path{
+			Resource: Object{ObjectType: "document", ObjectID: "doc2"},
+			Subject:  ObjectAndRelation{ObjectType: "user", ObjectID: "bob", Relation: "..."},
+		},
+	)
+
+	// Create a context with analysis enabled
+	analyze := NewAnalyzeObserver()
+	ctx := NewLocalContext(t.Context(),
+		WithObserver(analyze))
+
+	// Execute a Check operation
+	resource := Object{ObjectType: "document", ObjectID: "doc1"}
+	subject := ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
+	path, err := ctx.Check(fixed, resource, subject)
+	require.NoError(t, err)
+	require.NotNil(t, path)
+
+	// Verify stats were recorded
+	analyzeStats := analyze.GetStats()
+	stats, exists := analyzeStats[fixed.CanonicalKey()]
+	require.True(t, exists, "Stats should exist for iterator")
+	require.Equal(t, 1, stats.CheckCalls, "Should have 1 Check call")
+	require.Equal(t, 1, stats.CheckResults, "Should have 1 Check result")
+
+	// Format and verify analysis output
+	output := FormatAnalysis(fixed, analyzeStats)
+	require.Contains(t, output, "Fixed(2 paths)")
+	require.Contains(t, output, "Calls: Check=1")
+	require.Contains(t, output, "Results: Check=1")
+}
+
+func TestAggregateAnalyzeStats(t *testing.T) {
+	t.Run("empty map", func(t *testing.T) {
+		result := AggregateAnalyzeStats(map[CanonicalKey]AnalyzeStats{})
+		require.Equal(t, AnalyzeStats{}, result)
+	})
+
+	t.Run("single entry", func(t *testing.T) {
+		stats := map[CanonicalKey]AnalyzeStats{
+			"k1": {
+				CountStats: CountStats{
+					CheckCalls:           5,
+					IterSubjectsCalls:    3,
+					IterResourcesCalls:   2,
+					CheckResults:         10,
+					IterSubjectsResults:  6,
+					IterResourcesResults: 4,
+				},
+			},
+		}
+		result := AggregateAnalyzeStats(stats)
+		require.Equal(t, stats["k1"], result)
+	})
+
+	t.Run("multiple entries", func(t *testing.T) {
+		stats := map[CanonicalKey]AnalyzeStats{
+			"k1": {
+				CountStats: CountStats{
+					CheckCalls:           5,
+					IterSubjectsCalls:    3,
+					IterResourcesCalls:   2,
+					CheckResults:         10,
+					IterSubjectsResults:  6,
+					IterResourcesResults: 4,
+				},
+			},
+			"k2": {
+				CountStats: CountStats{
+					CheckCalls:           3,
+					IterSubjectsCalls:    2,
+					IterResourcesCalls:   1,
+					CheckResults:         6,
+					IterSubjectsResults:  4,
+					IterResourcesResults: 2,
+				},
+			},
+			"k3": {
+				CountStats: CountStats{
+					CheckCalls:           2,
+					IterSubjectsCalls:    1,
+					IterResourcesCalls:   1,
+					CheckResults:         4,
+					IterSubjectsResults:  2,
+					IterResourcesResults: 2,
+				},
+			},
+		}
+		result := AggregateAnalyzeStats(stats)
+		expected := AnalyzeStats{
+			CountStats: CountStats{
+				CheckCalls:           10,
+				IterSubjectsCalls:    6,
+				IterResourcesCalls:   4,
+				CheckResults:         20,
+				IterSubjectsResults:  12,
+				IterResourcesResults: 8,
+			},
+		}
+		require.Equal(t, expected, result)
+	})
+
+	t.Run("multiple entries with timing", func(t *testing.T) {
+		stats := map[CanonicalKey]AnalyzeStats{
+			"k1": {
+				CountStats: CountStats{
+					CheckCalls:           5,
+					IterSubjectsCalls:    3,
+					IterResourcesCalls:   2,
+					CheckResults:         10,
+					IterSubjectsResults:  6,
+					IterResourcesResults: 4,
+				},
+				CheckTime:         100 * time.Millisecond,
+				IterSubjectsTime:  50 * time.Millisecond,
+				IterResourcesTime: 25 * time.Millisecond,
+			},
+			"k2": {
+				CountStats: CountStats{
+					CheckCalls:           3,
+					IterSubjectsCalls:    2,
+					IterResourcesCalls:   1,
+					CheckResults:         6,
+					IterSubjectsResults:  4,
+					IterResourcesResults: 2,
+				},
+				CheckTime:         75 * time.Millisecond,
+				IterSubjectsTime:  30 * time.Millisecond,
+				IterResourcesTime: 15 * time.Millisecond,
+			},
+		}
+		result := AggregateAnalyzeStats(stats)
+		expected := AnalyzeStats{
+			CountStats: CountStats{
+				CheckCalls:           8,
+				IterSubjectsCalls:    5,
+				IterResourcesCalls:   3,
+				CheckResults:         16,
+				IterSubjectsResults:  10,
+				IterResourcesResults: 6,
+			},
+			CheckTime:         175 * time.Millisecond,
+			IterSubjectsTime:  80 * time.Millisecond,
+			IterResourcesTime: 40 * time.Millisecond,
+		}
+		require.Equal(t, expected, result)
+	})
+}
+
+func TestAnalyzeObserver(t *testing.T) {
+	t.Run("NewAnalyzeObserver", func(t *testing.T) {
+		obs := NewAnalyzeObserver()
+		require.NotNil(t, obs)
+		require.Empty(t, obs.GetStats())
+	})
+
+	t.Run("ObserveEnterIterator increments calls", func(t *testing.T) {
+		obs := NewAnalyzeObserver()
+		key := CanonicalKey("test-key")
+
+		obs.ObserveEnterIterator(OperationCheck, key)
+		obs.ObserveEnterIterator(OperationIterSubjects, key)
+		obs.ObserveEnterIterator(OperationIterResources, key)
+
+		// Need to call ObserveReturnIterator to finalize timing
+		obs.ObserveReturnIterator(OperationCheck, key)
+		obs.ObserveReturnIterator(OperationIterSubjects, key)
+		obs.ObserveReturnIterator(OperationIterResources, key)
+
+		stats := obs.GetStats()[key]
+		require.Equal(t, 1, stats.CheckCalls)
+		require.Equal(t, 1, stats.IterSubjectsCalls)
+		require.Equal(t, 1, stats.IterResourcesCalls)
+	})
+
+	t.Run("ObservePath increments results", func(t *testing.T) {
+		obs := NewAnalyzeObserver()
+		key := CanonicalKey("test-key")
+		path := Path{}
+
+		obs.ObservePath(OperationCheck, key, &path)
+		obs.ObservePath(OperationCheck, key, &path)
+		obs.ObservePath(OperationIterSubjects, key, &path)
+		obs.ObservePath(OperationIterResources, key, &path)
+
+		stats := obs.GetStats()[key]
+		require.Equal(t, 2, stats.CheckResults)
+		require.Equal(t, 1, stats.IterSubjectsResults)
+		require.Equal(t, 1, stats.IterResourcesResults)
+	})
+
+	t.Run("ObserveReturnIterator records timing", func(t *testing.T) {
+		obs := NewAnalyzeObserver()
+		key := CanonicalKey("test-key")
+
+		obs.ObserveEnterIterator(OperationCheck, key)
+		time.Sleep(time.Millisecond)
+		obs.ObserveReturnIterator(OperationCheck, key)
+
+		stats := obs.GetStats()[key]
+		require.Greater(t, stats.CheckTime, time.Duration(0))
+	})
+
+	t.Run("GetStats returns copy", func(t *testing.T) {
+		obs := NewAnalyzeObserver()
+		key := CanonicalKey("test-key")
+		obs.ObserveEnterIterator(OperationCheck, key)
+		obs.ObserveReturnIterator(OperationCheck, key)
+
+		stats1 := obs.GetStats()
+		stats2 := obs.GetStats()
+		require.Equal(t, stats1, stats2)
+	})
+}

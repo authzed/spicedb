@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -9,10 +8,7 @@ import (
 )
 
 func TestTraceLogger(t *testing.T) {
-	t.Parallel()
-
 	t.Run("NewTraceLogger", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		require.NotNil(logger)
@@ -22,17 +18,16 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("EnterIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
-		resources := []Object{NewObject("document", "doc1")}
+		resource := NewObject("document", "doc1")
 		subject := NewObject("user", "alice").WithEllipses()
 
 		// Create a test iterator with known Explain output
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
-		logger.EnterIterator(iterator, checkTraceString(resources, subject))
+		logger.EnterIterator(iterator, checkTraceString(resource, subject))
 
 		require.Len(logger.traces, 1)
 		require.Equal(1, logger.depth)
@@ -43,17 +38,16 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("ExitIterator", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Simulate entering the iterator first
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		paths := []Path{testPath}
+		paths := []*Path{testPath}
 		logger.ExitIterator(iterator, paths)
 
 		require.Equal(0, logger.depth)
@@ -64,11 +58,10 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("LogStep", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Add iterator to stack
 		logger.stack = append(logger.stack, iterator)
@@ -81,12 +74,11 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("LogStep_IteratorNotInStack", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		logger.depth = 3
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Don't add iterator to stack - should use current depth
 		logger.LogStep(iterator, "fallback message")
@@ -97,7 +89,6 @@ func TestTraceLogger(t *testing.T) {
 	})
 
 	t.Run("DumpTrace", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
 		logger.traces = []string{"line1", "line2", "line3"}
@@ -108,17 +99,14 @@ func TestTraceLogger(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	t.Parallel()
-
 	t.Run("TraceStep", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		ctx.TraceStep(iterator, "test message: %s", "data")
 
@@ -128,13 +116,12 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceStep_NoLogger", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No TraceLogger set
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Should not panic when no logger is set
 		require.NotPanics(func() {
@@ -143,48 +130,45 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("TraceEnter", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
-		resources := []Object{NewObject("document", "doc1")}
+		iterator := NewFixedIterator(*testPath)
+		resource := NewObject("document", "doc1")
 		subject := NewObject("user", "alice").WithEllipses()
 
-		ctx.TraceEnter(iterator, checkTraceString(resources, subject))
+		ctx.TraceEnter(iterator, checkTraceString(resource, subject))
 
 		require.Equal(1, logger.depth)
 		require.Len(logger.stack, 1)
 	})
 
 	t.Run("TraceExit", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Simulate having entered
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		ctx.TraceExit(iterator, []Path{testPath})
+		ctx.TraceExit(iterator, []*Path{testPath})
 
 		require.Equal(0, logger.depth)
 		require.Empty(logger.stack)
 	})
 
 	t.Run("shouldTrace", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		// With logger
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(NewTraceLogger()))
 		require.True(ctx.shouldTrace())
 
@@ -194,31 +178,29 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("Check_NoExecutor", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
 		// This test won't actually panic anymore, so we need to modify it
 		ctx.Executor = nil // Manually remove executor to test the panic path
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		require.Panics(func() {
-			_, _ = ctx.Check(iterator, []Object{NewObject("document", "doc1")}, NewObject("user", "alice").WithEllipses())
+			_, _ = ctx.Check(iterator, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())
 		})
 	})
 
 	t.Run("IterSubjects_NoExecutor", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
 		// This test won't actually panic anymore, so we need to modify it
 		ctx.Executor = nil // Manually remove executor to test the panic path
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		require.Panics(func() {
 			_, _ = ctx.IterSubjects(iterator, NewObject("document", "doc1"), NoObjectFilter())
@@ -226,15 +208,14 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("IterResources_NoExecutor", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No Executor set - but NewLocalContext always sets LocalExecutor
 		// This test won't actually panic anymore, so we need to modify it
 		ctx.Executor = nil // Manually remove executor to test the panic path
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		require.Panics(func() {
 			_, _ = ctx.IterResources(iterator, NewObject("user", "alice").WithEllipses(), NoObjectFilter())
@@ -242,15 +223,14 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_NoTracing", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
-		ctx := NewLocalContext(context.Background())
+		ctx := NewLocalContext(t.Context())
 		// No TraceLogger
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
-		originalSeq := func(yield func(Path, error) bool) {
+		originalSeq := func(yield func(*Path, error) bool) {
 			yield(testPath, nil)
 		}
 
@@ -267,20 +247,19 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_WithTracing", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 
 		// Simulate having entered the iterator
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1
 
-		originalSeq := func(yield func(Path, error) bool) {
+		originalSeq := func(yield func(*Path, error) bool) {
 			yield(testPath, nil)
 		}
 
@@ -301,20 +280,19 @@ func TestContext(t *testing.T) {
 	})
 
 	t.Run("wrapPathSeqForTracing_WithError", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		logger := NewTraceLogger()
-		ctx := NewLocalContext(context.Background(),
+		ctx := NewLocalContext(t.Context(),
 			WithTraceLogger(logger))
 
 		testPath := MustPathFromString("document:doc1#view@user:alice")
-		iterator := NewFixedIterator(testPath)
+		iterator := NewFixedIterator(*testPath)
 		logger.stack = append(logger.stack, iterator)
 		logger.depth = 1 // Set proper depth to avoid negative repeat count
 
 		expectedErr := errors.New("test error")
-		originalSeq := func(yield func(Path, error) bool) {
-			yield(Path{}, expectedErr)
+		originalSeq := func(yield func(*Path, error) bool) {
+			yield(nil, expectedErr)
 		}
 
 		wrappedSeq := ctx.wrapPathSeqForTracing(iterator, originalSeq)

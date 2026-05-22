@@ -103,6 +103,7 @@ func TestCheckOperation(t *testing.T) {
 				Line:    1,
 				Column:  1,
 				Context: "def",
+				Path:    []string{"schema"},
 			},
 			nil,
 		},
@@ -121,6 +122,7 @@ func TestCheckOperation(t *testing.T) {
 				Line:    3,
 				Column:  4,
 				Context: "}",
+				Path:    []string{"schema"},
 			},
 			nil,
 		},
@@ -131,11 +133,12 @@ func TestCheckOperation(t *testing.T) {
 			tuple.MustParse("somenamespace:someobj#anotherrel@user:foo"),
 			nil,
 			&devinterface.DeveloperError{
-				Message: "error in object definition fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+				Message: "error in object definition fo: validation error: name: does not match regex pattern `^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$`",
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
 				Line:    1,
 				Column:  1,
+				Path:    []string{"schema"},
 			},
 			nil,
 		},
@@ -157,6 +160,7 @@ func TestCheckOperation(t *testing.T) {
 				Line:    5,
 				Column:  6,
 				Context: "writer",
+				Path:    []string{"schema"},
 			},
 			nil,
 		},
@@ -710,7 +714,7 @@ assertFalse: garbage
 			},
 			false,
 			`document:somedoc#view:
-- '[user:jimmy] is <document:somedoc#writer>'
+    - '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -739,7 +743,7 @@ assertFalse: garbage
 			},
 			false,
 			`document:somedoc#view:
-- '[user:jimmy] is <document:somedoc#writer>'
+    - '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -819,7 +823,7 @@ assertFalse: garbage
 			},
 			false,
 			`document:somedoc#view:
-- '[user:jimmy] is <document:somedoc#writer>'
+    - '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -868,11 +872,11 @@ assertFalse:
 			nil,
 			false,
 			`document:somedoc#view:
-- '[user:fred[...]] is <document:somedoc#viewer>'
-- '[user:jake] is <document:somedoc#viewer>'
-- '[user:jimmy] is <document:somedoc#writer>'
-- '[user:sarah[...]] is <document:somedoc#viewer>'
-- '[user:tom[...]] is <document:somedoc#viewer>'
+    - '[user:fred[...]] is <document:somedoc#viewer>'
+    - '[user:jake] is <document:somedoc#viewer>'
+    - '[user:jimmy] is <document:somedoc#writer>'
+    - '[user:sarah[...]] is <document:somedoc#viewer>'
+    - '[user:tom[...]] is <document:somedoc#viewer>'
 `,
 		},
 		{
@@ -897,7 +901,7 @@ assertFalse:
 			nil,
 			false,
 			`document:somedoc#view:
-- '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
+    - '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
 `,
 		},
 		{
@@ -929,7 +933,7 @@ assertFalse:
 			},
 			false,
 			`document:somedoc#view:
-- '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
+    - '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
 `,
 		},
 		{
@@ -993,8 +997,8 @@ assertFalse:
 			nil,
 			false,
 			`document:somedoc#view:
-- '[user:*] is <document:somedoc#viewer>'
-- '[user:jimmy] is <document:somedoc#writer>'
+    - '[user:*] is <document:somedoc#viewer>'
+    - '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -1020,7 +1024,7 @@ assertFalse:
 			nil,
 			false,
 			`document:somedoc#view:
-- '[user:* - {user:jimmy}] is <document:somedoc#viewer>'
+    - '[user:* - {user:jimmy}] is <document:somedoc#viewer>'
 `,
 		},
 		{
@@ -1048,7 +1052,7 @@ assertFalse:
 			nil,
 			false,
 			`document:somedoc#view:
-- '[user:* - {user:fred, user:jimmy}] is <document:somedoc#viewer>'
+    - '[user:* - {user:fred, user:jimmy}] is <document:somedoc#viewer>'
 `,
 		},
 		{
@@ -1077,7 +1081,7 @@ assertFalse:
 			nil,
 			false,
 			`document:somedoc#view:
-- '[user:* - {user:jimmy, user:sarah}] is <document:somedoc#viewer>'
+    - '[user:* - {user:jimmy, user:sarah}] is <document:somedoc#viewer>'
 `,
 		},
 		{
@@ -1106,7 +1110,7 @@ assertFalse:
 - document:somedoc#empty@user:tom`,
 			nil,
 			false,
-			"document:somedoc#empty: []\ndocument:somedoc#view:\n- '[user:jill] is <document:somedoc#viewer>'\n- '[user:tom] is <document:somedoc#viewer>'\n",
+			"document:somedoc#empty: []\ndocument:somedoc#view:\n    - '[user:jill] is <document:somedoc#viewer>'\n    - '[user:tom] is <document:somedoc#viewer>'\n",
 		},
 		{
 			"no expected subject or relation",
@@ -1136,7 +1140,7 @@ assertFalse:
 				Column:  3,
 			},
 			false,
-			"document:somedoc#view:\n- '[user:jill] is <document:somedoc#viewer>'\n- '[user:tom] is <document:somedoc#viewer>'\n",
+			"document:somedoc#view:\n    - '[user:jill] is <document:somedoc#viewer>'\n    - '[user:tom] is <document:somedoc#viewer>'\n",
 		},
 
 		{
@@ -1176,7 +1180,7 @@ assertFalse:
 			},
 			false,
 			`document:somedoc#view:
-- '[user:sarah[...]] is <document:somedoc#viewer>'
+    - '[user:sarah[...]] is <document:somedoc#viewer>'
 `,
 		},
 	}

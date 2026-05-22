@@ -37,6 +37,11 @@ message DecodedZedToken {
     // datastore_unique_id_prefix is a prefix of the unique ID for the datastore that created
     // this token. Will be empty for legacy tokens.
     string datastore_unique_id_prefix = 2;
+
+    // schema_hash is the hash of the schema at the time the ZedToken was issued.
+    // Will be empty for legacy tokens issued before this field was added, and for
+    // tokens issued from code paths where the hash is not cheaply available.
+    bytes schema_hash = 3;
   }
   oneof version_oneof {
     V1Zookie deprecated_v1_zookie = 2;
@@ -71,6 +76,10 @@ message V1Cursor {
   // datastore_unique_id is the unique ID for the datastore. Will be empty for legacy
   // cursors.
   string datastore_unique_id = 6;
+
+  // schema_hash is the hash of the schema at the time the cursor was created. Will be
+  // empty for legacy cursors.
+  bytes schema_hash = 7;
 }
 
 message DocComment {

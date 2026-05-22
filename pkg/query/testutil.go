@@ -1,14 +1,33 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"fmt"
-
-	"github.com/google/uuid"
+	"io"
+	"testing"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// NewTestContext creates a fresh Context with a LocalExecutor for use in tests.
+// Each call returns an independent context — parallel subtests must each call
+// this rather than sharing a single context, because Context holds mutable
+// state (e.g. topLevelIterator) that is not safe for concurrent reuse.
+//
+// Pass the current *testing.T so that the Go context is tied to the test's
+// lifetime. Passing nil leaves Context.Context unset (callers must set it).
+func NewTestContext(t testing.TB) *Context {
+	var goCtx context.Context
+	if t != nil {
+		goCtx = t.Context()
+	}
+	return &Context{
+		Context:  goCtx,
+		Executor: LocalExecutor{},
+	}
+}
 
 // createRelation is a helper function to create a relation with the given parameters
 func createRelation(resourceType, resourceID, resourceRel, subjectType, subjectID, subjectRel string) tuple.Relationship {
@@ -56,7 +75,7 @@ func NewDocumentAccessFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -86,7 +105,7 @@ func NewFolderHierarchyFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -115,7 +134,7 @@ func NewMultiRoleFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -133,7 +152,7 @@ func NewSingleUserFixedIterator(userID string) *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
@@ -174,14 +193,13 @@ func NewLargeFixedIterator() *FixedIterator {
 
 	paths := make([]Path, len(relations))
 	for i, rel := range relations {
-		paths[i] = FromRelationship(rel)
+		paths[i] = *FromRelationship(rel)
 	}
 	return NewFixedIterator(paths...)
 }
 
 // FaultyIterator is a test helper that simulates iterator errors
 type FaultyIterator struct {
-	id                  string
 	shouldFailOnCheck   bool
 	shouldFailOnCollect bool
 	resourceType        ObjectType
@@ -190,18 +208,14 @@ type FaultyIterator struct {
 
 var _ Iterator = &FaultyIterator{}
 
-func (f *FaultyIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (f *FaultyIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	if f.shouldFailOnCheck {
 		return nil, errors.New("faulty iterator error")
 	}
-	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Path, error) bool) {
-			yield(Path{}, errors.New("faulty iterator collection error"))
-		}, nil
+		return nil, errors.New("faulty iterator collection error")
 	}
-	// Return empty sequence
-	return EmptyPathSeq(), nil
+	return nil, nil
 }
 
 func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
@@ -210,8 +224,8 @@ func (f *FaultyIterator) IterSubjectsImpl(ctx *Context, resource Object, filterS
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Path, error) bool) {
-			yield(Path{}, errors.New("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -224,8 +238,8 @@ func (f *FaultyIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelati
 	}
 	// Return a sequence that will fail during collection
 	if f.shouldFailOnCollect {
-		return func(yield func(Path, error) bool) {
-			yield(Path{}, errors.New("faulty iterator collection error"))
+		return func(yield func(*Path, error) bool) {
+			yield(nil, errors.New("faulty iterator collection error"))
 		}, nil
 	}
 	// Return empty sequence
@@ -237,7 +251,6 @@ func (f *FaultyIterator) Clone() Iterator {
 	copy(clonedSubjectTypes, f.subjectTypes)
 
 	return &FaultyIterator{
-		id:                  uuid.NewString(),
 		shouldFailOnCheck:   f.shouldFailOnCheck,
 		shouldFailOnCollect: f.shouldFailOnCollect,
 		resourceType:        f.resourceType,
@@ -246,7 +259,7 @@ func (f *FaultyIterator) Clone() Iterator {
 }
 
 func (f *FaultyIterator) Explain() Explain {
-	return Explain{Info: "FaultyIterator"}
+	return Explain{Info: "Faulty"}
 }
 
 func (f *FaultyIterator) Subiterators() []Iterator {
@@ -257,8 +270,8 @@ func (f *FaultyIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, erro
 	return nil, spiceerrors.MustBugf("Trying to replace a leaf FaultyIterator's subiterators")
 }
 
-func (f *FaultyIterator) ID() string {
-	return f.id
+func (f *FaultyIterator) CanonicalKey() CanonicalKey {
+	return "" // FaultyIterator is test-only and has no canonical key
 }
 
 func (f *FaultyIterator) ResourceType() ([]ObjectType, error) {
@@ -272,10 +285,13 @@ func (f *FaultyIterator) SubjectTypes() ([]ObjectType, error) {
 	return f.subjectTypes, nil
 }
 
+func (f *FaultyIterator) Serialize(io.Writer) error {
+	return errors.New("FaultyIterator does not support Serialize (test-only)")
+}
+
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions
 func NewFaultyIterator(shouldFailOnCheck, shouldFailOnCollect bool, resourceType ObjectType, subjectTypes []ObjectType) *FaultyIterator {
 	return &FaultyIterator{
-		id:                  uuid.NewString(),
 		shouldFailOnCheck:   shouldFailOnCheck,
 		shouldFailOnCollect: shouldFailOnCollect,
 		resourceType:        resourceType,

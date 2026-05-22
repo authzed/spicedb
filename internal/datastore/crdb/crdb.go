@@ -22,7 +22,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"resenje.org/singleflight"
 
-	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
@@ -196,6 +195,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
+	ds.SetNowOnlyFunc(ds.headRevisionInternalNoHash)
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
@@ -250,7 +250,7 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 type crdbDatastore struct {
@@ -483,20 +483,57 @@ func (cds *crdbDatastore) Close() error {
 	return errors.Join(errs...)
 }
 
-func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	return cds.headRevisionInternal(ctx)
-}
-
-func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, error) {
-	var hlcNow datastore.Revision
-
-	var fnErr error
-	hlcNow, fnErr = readCRDBNow(ctx, cds.readPool)
-	if fnErr != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, fnErr)
+func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	rev, schemaHash, err := cds.headRevisionWithSchemaHash(ctx)
+	if err != nil {
+		return datastore.RevisionWithSchemaHash{}, err
 	}
 
-	return hlcNow, fnErr
+	return datastore.RevisionWithSchemaHash{Revision: rev, SchemaHash: schemaHash}, nil
+}
+
+func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, string, error) {
+	return cds.headRevisionWithSchemaHash(ctx)
+}
+
+func (cds *crdbDatastore) headRevisionInternalNoHash(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "headRevisionInternalNoHash")
+	defer span.End()
+
+	var hlcNow decimal.Decimal
+	if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&hlcNow)
+	}, querySelectNow); err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	}
+
+	rev, err := revisions.NewForHLC(hlcNow)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	}
+	return rev, nil
+}
+
+const querySelectNowWithSchemaHash = "SELECT cluster_logical_timestamp(), COALESCE((SELECT hash FROM schema_revision WHERE name = 'current' LIMIT 1), ''::bytea)"
+
+func (cds *crdbDatastore) headRevisionWithSchemaHash(ctx context.Context) (datastore.Revision, string, error) {
+	ctx, span := tracer.Start(ctx, "headRevisionWithSchemaHash")
+	defer span.End()
+
+	var hlcNow decimal.Decimal
+	var schemaHash []byte
+	if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&hlcNow, &schemaHash)
+	}, querySelectNowWithSchemaHash); err != nil {
+		return datastore.NoRevision, "", fmt.Errorf(errRevision, err)
+	}
+
+	rev, err := revisions.NewForHLC(hlcNow)
+	if err != nil {
+		return datastore.NoRevision, "", fmt.Errorf(errRevision, err)
+	}
+
+	return rev, string(schemaHash), nil
 }
 
 func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
@@ -588,7 +625,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 			features.Watch.Status = datastore.FeatureUnsupported
 			features.Watch.Reason = "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: " + err.Error()
 			return nil
-		}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
+		}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head.Revision, "-1s"))
 	} else {
 		features.Watch.Status = datastore.FeatureUnsupported
 	}
@@ -604,20 +641,6 @@ func (cds *crdbDatastore) readTransactionCommitRev(ctx context.Context, reader p
 	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 		return row.Scan(&hlcNow)
 	}, cds.transactionNowQuery); err != nil {
-		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
-	}
-
-	return revisions.NewForHLC(hlcNow)
-}
-
-func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "readCRDBNow")
-	defer span.End()
-
-	var hlcNow decimal.Decimal
-	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-		return row.Scan(&hlcNow)
-	}, querySelectNow); err != nil {
 		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
 	}
 

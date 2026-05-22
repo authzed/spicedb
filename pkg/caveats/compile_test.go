@@ -189,7 +189,6 @@ func TestCompile(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			compiled, err := compileCaveat(tc.env, tc.exprString)
 			if len(tc.expectedErrors) == 0 {
@@ -219,7 +218,6 @@ func TestSerialization(t *testing.T) {
 	exprs := []string{"a == 1", "a + b == 2", "b - a == 4", "l.all(i, i > 42)"}
 
 	for _, expr := range exprs {
-		expr := expr
 		t.Run(expr, func(t *testing.T) {
 			vars := map[string]types.VariableType{
 				"a": types.Default.IntType,
@@ -368,7 +366,6 @@ func TestRewriteVariable(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(fmt.Sprintf("%s::%s->%s", tc.expr, tc.oldVarName, tc.newVarName), func(t *testing.T) {
 			env := MustEnvForVariablesWithDefaultTypeSet(tc.vars)
 

@@ -60,7 +60,6 @@ func TestOverlapKeyAddition(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			set := newKeySet(t.Context())
 			for _, n := range tt.namespaces {

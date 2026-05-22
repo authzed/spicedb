@@ -14,8 +14,8 @@ type ConfigOption func(c *Config)
 // NewConfigWithOptions creates a new Config with the passed in options set
 func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	c := &Config{}
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -24,8 +24,8 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 func NewConfigWithOptionsAndDefaults(opts ...ConfigOption) *Config {
 	c := &Config{}
 	defaults.MustSet(c)
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -54,10 +54,34 @@ func (c *Config) ToOption() ConfigOption {
 // DebugMap returns a map form of Config for debugging
 func (c *Config) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["GRPCServer"] = c.GRPCServer
-	debugMap["ReadOnlyGRPCServer"] = c.ReadOnlyGRPCServer
-	debugMap["HTTPGateway"] = c.HTTPGateway
-	debugMap["ReadOnlyHTTPGateway"] = c.ReadOnlyHTTPGateway
+	if dm, ok := any(&c.GRPCServer).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["GRPCServer"] = dm.DebugMap()
+	} else {
+		debugMap["GRPCServer"] = c.GRPCServer
+	}
+	if dm, ok := any(&c.ReadOnlyGRPCServer).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ReadOnlyGRPCServer"] = dm.DebugMap()
+	} else {
+		debugMap["ReadOnlyGRPCServer"] = c.ReadOnlyGRPCServer
+	}
+	if dm, ok := any(&c.HTTPGateway).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["HTTPGateway"] = dm.DebugMap()
+	} else {
+		debugMap["HTTPGateway"] = c.HTTPGateway
+	}
+	if dm, ok := any(&c.ReadOnlyHTTPGateway).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ReadOnlyHTTPGateway"] = dm.DebugMap()
+	} else {
+		debugMap["ReadOnlyHTTPGateway"] = c.ReadOnlyHTTPGateway
+	}
 	if c.LoadConfigs == nil {
 		debugMap["LoadConfigs"] = "nil"
 	} else {
@@ -71,7 +95,13 @@ func (c *Config) DebugMap() map[string]any {
 	debugMap["MaxDeleteRelationshipsLimit"] = c.MaxDeleteRelationshipsLimit
 	debugMap["MaxLookupResourcesLimit"] = c.MaxLookupResourcesLimit
 	debugMap["MaxBulkExportRelationshipsLimit"] = c.MaxBulkExportRelationshipsLimit
-	debugMap["ShutdownGracePeriod"] = c.ShutdownGracePeriod
+	if dm, ok := any(&c.ShutdownGracePeriod).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ShutdownGracePeriod"] = dm.DebugMap()
+	} else {
+		debugMap["ShutdownGracePeriod"] = c.ShutdownGracePeriod
+	}
 	return debugMap
 }
 
@@ -98,16 +128,16 @@ func (c *Config) FlatDebugMap() map[string]any {
 
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
 
 // WithOptions configures the receiver Config with the passed in options set
 func (c *Config) WithOptions(opts ...ConfigOption) *Config {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }

@@ -1,3 +1,0 @@
-definition foo {
-    permission bar = baz + meh + (a->b - c->d) + (maz & beh)
-}

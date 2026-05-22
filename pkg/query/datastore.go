@@ -1,66 +1,50 @@
 package query
 
 import (
+	"errors"
 	"fmt"
-	"iter"
+	"io"
 
-	"github.com/google/uuid"
-
-	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// convertRelationSeqToPathSeq converts an iter.Seq2[tuple.Relationship, error] from the datastore
-// into a PathSeq by transforming each tuple.Relationship into a Path using FromRelationship.
-func convertRelationSeqToPathSeq(relSeq iter.Seq2[tuple.Relationship, error]) PathSeq {
-	return func(yield func(Path, error) bool) {
-		for rel, err := range relSeq {
-			if err != nil {
-				if !yield(Path{}, err) {
-					return
-				}
-				continue
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: DatastoreIteratorType,
+		Name: "Datastore",
+		ConstructWithArgs: func(args *IteratorArgs, _ []Iterator, key CanonicalKey) (Iterator, error) {
+			if args == nil || args.Relation == nil {
+				return nil, errors.New("DatastoreIterator requires Relation in Args")
 			}
-
-			path := FromRelationship(rel)
-			if !yield(path, nil) {
-				return
-			}
-		}
-	}
+			ds := NewDatastoreIterator(args.Relation)
+			ds.canonicalKey = key
+			return ds, nil
+		},
+		Deserialize: deserializeDatastore,
+	})
 }
 
-// RelationIterator is a common leaf iterator. It represents the set of all
+// DatastoreIterator is a common leaf iterator. It represents the set of all
 // relationships of the given schema.BaseRelation, ie, relations that have a
 // known resource and subject type and may contain caveats or expiration.
 //
-// The RelationIterator, being the leaf, generates this set by calling the datastore.
-type RelationIterator struct {
-	id   string
-	base *schema.BaseRelation
+// The DatastoreIterator, being the leaf, generates this set by calling the datastore.
+type DatastoreIterator struct {
+	base         *schema.BaseRelation
+	canonicalKey CanonicalKey
 }
 
-var _ Iterator = &RelationIterator{}
+var _ Iterator = &DatastoreIterator{}
 
-func NewRelationIterator(base *schema.BaseRelation) *RelationIterator {
-	return &RelationIterator{
-		id:   uuid.NewString(),
+func NewDatastoreIterator(base *schema.BaseRelation) *DatastoreIterator {
+	return &DatastoreIterator{
 		base: base,
 	}
 }
 
-func (r *RelationIterator) buildSubjectRelationFilter() datastore.SubjectRelationFilter {
-	if r.base.Subrelation() == tuple.Ellipsis {
-		return datastore.SubjectRelationFilter{}.WithEllipsisRelation()
-	}
-	return datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(r.base.Subrelation())
-}
-
-func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	// For subrelations, we need to allow type mismatches because the subrelation might bridge different types
 	// For example, group:member -> group:member should find group:everyone#member@group:engineering#member
 	// and then that relationship should be used by the Arrow to check group:engineering#member for user subjects
@@ -69,202 +53,201 @@ func (r *RelationIterator) CheckImpl(ctx *Context, resources []Object, subject O
 	if subject.ObjectType != r.base.Type() && r.base.Subrelation() != "" && r.base.Subrelation() != tuple.Ellipsis && !r.base.Wildcard() {
 		// For non-wildcard, non-ellipsis subrelations, we proceed with the query even if types don't match
 		// This allows finding intermediate relationships that bridge type gaps
-		ctx.TraceStep(r, "subject type %s doesn't match base type %s, but proceeding due to subrelation %s",
-			subject.ObjectType, r.base.Type(), r.base.Subrelation())
+		if ctx.shouldTrace() {
+			ctx.TraceStep(r, "subject type %s doesn't match base type %s, but proceeding due to subrelation %s",
+				subject.ObjectType, r.base.Type(), r.base.Subrelation())
+		}
 	} else if subject.ObjectType != r.base.Type() {
 		// For non-subrelations, ellipsis, and all wildcard relations, strict type checking applies
-		ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
-		return EmptyPathSeq(), nil
+		if ctx.shouldTrace() {
+			ctx.TraceStep(r, "subject type %s doesn't match base type %s, returning empty", subject.ObjectType, r.base.Type())
+		}
+		return nil, nil
 	}
 
 	if r.base.Wildcard() {
-		return r.checkWildcardImpl(ctx, resources, subject)
+		return r.checkWildcardImpl(ctx, resource, subject)
 	}
-	return r.checkNormalImpl(ctx, resources, subject)
+	return r.checkNormalImpl(ctx, resource, subject)
 }
 
-func (r *RelationIterator) checkNormalImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
-	resourceIDs := make([]string, len(resources))
-	for i, res := range resources {
-		resourceIDs[i] = res.ObjectID
+func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.shouldTrace() {
+		ctx.TraceStep(r, "querying datastore for %s:%s with resource=%s:%s", r.base.Type(), r.base.RelationName(), resource.ObjectType, resource.ObjectID)
 	}
 
-	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceIds:      resourceIDs,
-		OptionalResourceRelation: r.base.RelationName(),
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: r.base.Type(),
-				OptionalSubjectIds:  []string{subject.ObjectID},
-				RelationFilter:      r.buildSubjectRelationFilter(),
-			},
-		},
-	}
-
-	ctx.TraceStep(r, "querying datastore for %s:%s with resources=%v", r.base.Type(), r.base.RelationName(), resourceIDs)
-
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
+	resourceType := ObjectType{Type: r.base.DefinitionName()}
+	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+		resourceType,
+		resource.ObjectID,
+		r.base.RelationName(),
+		subject,
+		r.base.Caveat() != "", r.base.Expiration(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+	// Collect results and return the first (there is at most one for a single resource).
+	// Eagerly collecting also terminates the database query immediately.
+	paths, err := CollectAll(pathSeq)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	return paths[0], nil
 }
 
-func (r *RelationIterator) checkWildcardImpl(ctx *Context, resources []Object, subject ObjectAndRelation) (PathSeq, error) {
+func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	// Invariant: wildcard subjects in the datastore are always stored with the ellipsis
+	// relation. The "*" is only ever an ObjectID; "type:*#relation" is syntactically
+	// invalid and cannot be written. Any caller passing a non-ellipsis relation here
+	// would cause us to query with the wrong relation filter and return a false negative.
+	if subject.Relation != tuple.Ellipsis {
+		return nil, spiceerrors.MustBugf("checkWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation", subject.Relation, subject.ObjectType, subject.ObjectID)
+	}
+
 	// Query the datastore for wildcard relationships (subject ObjectID = "*")
-	resourceIDs := make([]string, len(resources))
-	for i, res := range resources {
-		resourceIDs[i] = res.ObjectID
+	wildcardSubject := ObjectAndRelation{
+		ObjectType: subject.ObjectType,
+		ObjectID:   WildcardObjectID,
+		Relation:   tuple.Ellipsis,
 	}
 
-	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceIds:      resourceIDs,
-		OptionalResourceRelation: r.base.RelationName(),
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: r.base.Type(),
-				OptionalSubjectIds:  []string{tuple.PublicWildcard}, // Look for "*" subjects
-				RelationFilter:      r.buildSubjectRelationFilter(),
-			},
-		},
-	}
-
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
+	resourceType := ObjectType{Type: r.base.DefinitionName()}
+	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+		resourceType,
+		resource.ObjectID,
+		r.base.RelationName(),
+		wildcardSubject,
+		r.base.Caveat() != "", r.base.Expiration(),
 	)
 	if err != nil {
 		return nil, err
 	}
-	// We rewrite the subject to the concrete subject before returning the paths
-	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
+
+	// Rewrite subjects from wildcard back to the actual subject, collect, return first.
+	pathSeq = RewriteSubject(pathSeq, subject)
+	paths, err := CollectAll(pathSeq)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	return paths[0], nil
 }
 
-func (r *RelationIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+func (r *DatastoreIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	if r.base.Wildcard() {
 		return r.iterSubjectsWildcardImpl(ctx, resource)
 	}
 	return r.iterSubjectsNormalImpl(ctx, resource)
 }
 
-func (r *RelationIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
-	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceIds:      []string{resource.ObjectID},
-		OptionalResourceRelation: r.base.RelationName(),
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: r.base.Type(),
-				RelationFilter:      r.buildSubjectRelationFilter(),
-			},
-		},
+func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
+	subjectType := ObjectType{
+		Type:        r.base.Type(),
+		Subrelation: r.base.Subrelation(),
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Filter out wildcard subjects to match the behavior of LookupSubjects. Wildcards are not
-	// concrete enumerable subjects. They will be expanded to concrete subjects by the wildcard branch.
-	return FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))), nil
-}
-
-func (r *RelationIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
-	// When a relation contains a wildcard (e.g., user:*), it means "all subjects of that type"
-	// that have ANY relationship with this resource. We enumerate concrete subjects by:
-	// 1. First checking if a wildcard relationship actually exists for this resource
-	// 2. If yes, querying for all concrete subjects with relationships to this resource
-	//
-	// This avoids doing a full subject enumeration when no wildcard exists (the common case).
-	// When wildcards do exist, we do 2 queries in this branch, but that's the correct semantic
-	// behavior - we only enumerate when there's actually a wildcard to expand.
-
-	// First, check if there's actually a wildcard relationship for this resource
-	wildcardFilter := datastore.RelationshipsFilter{
-		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceIds:      []string{resource.ObjectID},
-		OptionalResourceRelation: r.base.RelationName(),
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: r.base.Type(),
-				OptionalSubjectIds:  []string{tuple.PublicWildcard}, // Look for "*" subjects
-				RelationFilter:      r.buildSubjectRelationFilter(),
-			},
-		},
-	}
-
-	wildcardIter, err := ctx.Reader.QueryRelationships(ctx, wildcardFilter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-		options.WithLimit(options.LimitOne), // We only need to know if one exists
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if any wildcard relationship exists
-	hasWildcard := false
-	for _, err := range wildcardIter {
+	// If pagination is not configured, do the simple eager collection
+	if ctx.PaginationLimit == nil {
+		pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+			resource,
+			r.base.RelationName(),
+			subjectType,
+			r.base.Caveat() != "", r.base.Expiration(),
+			QueryPage{},
+		)
 		if err != nil {
 			return nil, err
 		}
-		hasWildcard = true
-		break
+
+		// Eagerly collect (wildcards propagate through the tree and are stripped at the top level)
+		paths, err := CollectAll(pathSeq)
+		if err != nil {
+			return nil, err
+		}
+		return PathSeqFromSlice(paths), nil
 	}
 
-	// If no wildcard relationship exists, return empty - nothing to enumerate
-	if !hasWildcard {
-		return EmptyPathSeq(), nil
-	}
+	// Pagination is configured - return a PathSeq that fetches pages as needed
+	return func(yield func(*Path, error) bool) {
+		iteratorID := fmt.Sprintf("%016x:iter_subjects", r.CanonicalKey().Hash())
+		cursor := ctx.GetPaginationCursor(iteratorID)
 
-	// Wildcard exists, so enumerate all concrete subjects of the appropriate type.
-	// A wildcard (e.g., user:*) means "all subjects of that type", so we need to enumerate
-	// all defined subjects of that type in the datastore. This may return some of the same
-	// subjects as the non-wildcard branch (when both wildcard and concrete relationships exist),
-	// but the Union will deduplicate them.
-	//
-	// Note: We query for all subjects of the appropriate type, not just those with a relationship
-	// to this specific resource. This matches the semantics of wildcards, which grant access to
-	// ALL subjects of the type, regardless of whether they have other relationships.
-	allSubjectsFilter := datastore.RelationshipsFilter{
-		// Note: We intentionally omit OptionalResourceType and OptionalResourceIds to find
-		// all subjects of the appropriate type across all resources
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: r.base.Type(),
-				RelationFilter:      r.buildSubjectRelationFilter(),
-			},
-		},
-	}
+		for {
+			pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+				resource,
+				r.base.RelationName(),
+				subjectType,
+				r.base.Caveat() != "", r.base.Expiration(),
+				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
+			)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, allSubjectsFilter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-	)
-	if err != nil {
-		return nil, err
-	}
+			paths, err := CollectAll(pathSeq)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
 
-	// Filter out wildcard subjects from the results - we only want concrete subjects
-	return FilterWildcardSubjects(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter))), nil
+			if len(paths) == 0 {
+				return
+			}
+
+			lastPath := paths[len(paths)-1]
+			if rel, err := lastPath.ToRelationship(); err == nil {
+				cursor = &rel
+				ctx.SetPaginationCursor(iteratorID, cursor)
+			}
+
+			for _, path := range paths {
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			if uint64(len(paths)) < *ctx.PaginationLimit {
+				return
+			}
+		}
+	}, nil
 }
 
-func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Object) (PathSeq, error) {
+	// When a relation contains a wildcard (e.g., user:*[caveat]), it means "all subjects of that
+	// type are (conditionally) in this set". Rather than enumerating every concrete subject of
+	// that type across the entire store, we return the wildcard subject itself (user:*) as the
+	// found path. This matches the traditional LookupSubjects behavior and avoids a degenerate
+	// store-wide query with no resource filters.
+	//
+	// The IntersectionIterator and ExclusionIterator have wildcard-aware set operations that
+	// handle the expansion of wildcards when combined with concrete subjects from other branches.
+
+	wildcardSubject := ObjectAndRelation{
+		ObjectType: r.base.Type(),
+		ObjectID:   WildcardObjectID,
+		Relation:   r.base.Subrelation(),
+	}
+
+	resourceType := ObjectType{Type: r.base.DefinitionName()}
+	return ctx.Reader.CheckRelationships(ctx,
+		resourceType,
+		resource.ObjectID,
+		r.base.RelationName(),
+		wildcardSubject,
+		r.base.Caveat() != "", r.base.Expiration(),
+	)
+}
+
+func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	// If the types don't match, we don't even have to go to the datastore.
 	if subject.ObjectType != r.base.Type() {
 		return EmptyPathSeq(), nil
@@ -275,102 +258,205 @@ func (r *RelationIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRela
 		return r.iterResourcesWildcardImpl(ctx, subject)
 	}
 
+	// An empty Relation is always a bug in the caller: it must be either tuple.Ellipsis
+	// for direct membership or a specific subrelation string.
+	if subject.Relation == "" {
+		return nil, spiceerrors.MustBugf("IterResources called with empty subject.Relation for %s:%s; caller must use tuple.Ellipsis or a specific subrelation", subject.ObjectType, subject.ObjectID)
+	}
+
 	// Check if subject relation matches what this iterator expects.
-	// Both the schema's expected subrelation and the query's subject relation must match exactly.
-	// Ellipsis is a specific relation value, not a wildcard.
+	// When the schema uses ellipsis ("..."), callers should pass tuple.Ellipsis — the
+	// MustBugf above ensures "" never reaches here — but we match on the schema value directly.
 	if r.base.Subrelation() != subject.Relation {
 		return EmptyPathSeq(), nil
 	}
 
-	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceRelation: r.base.RelationName(),
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: subject.ObjectType,
-				OptionalSubjectIds:  []string{subject.ObjectID},
-				RelationFilter:      r.buildSubjectRelationFilter(),
-			},
-		},
+	if ctx.PaginationLimit == nil {
+		pathSeq, err := ctx.Reader.QueryResources(ctx,
+			r.base.DefinitionName(),
+			r.base.RelationName(),
+			subject,
+			r.base.Caveat() != "", r.base.Expiration(),
+			QueryPage{},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		paths, err := CollectAll(pathSeq)
+		if err != nil {
+			return nil, err
+		}
+		return PathSeqFromSlice(paths), nil
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
-	)
-	if err != nil {
-		return nil, err
-	}
+	return func(yield func(*Path, error) bool) {
+		iteratorID := fmt.Sprintf("%016x:iter_resources", r.CanonicalKey().Hash())
+		cursor := ctx.GetPaginationCursor(iteratorID)
 
-	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
+		for {
+			pathSeq, err := ctx.Reader.QueryResources(ctx,
+				r.base.DefinitionName(),
+				r.base.RelationName(),
+				subject,
+				r.base.Caveat() != "", r.base.Expiration(),
+				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
+			)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			paths, err := CollectAll(pathSeq)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if len(paths) == 0 {
+				return
+			}
+
+			lastPath := paths[len(paths)-1]
+			if rel, err := lastPath.ToRelationship(); err == nil {
+				cursor = &rel
+				ctx.SetPaginationCursor(iteratorID, cursor)
+			}
+
+			for _, path := range paths {
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			if uint64(len(paths)) < *ctx.PaginationLimit {
+				return
+			}
+		}
+	}, nil
 }
 
-func (r *RelationIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
-	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     r.base.DefinitionName(),
-		OptionalResourceRelation: r.base.RelationName(),
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: subject.ObjectType,
-				OptionalSubjectIds:  []string{tuple.PublicWildcard}, // Look for "*" subjects
-				RelationFilter:      r.buildSubjectRelationFilter(),
-			},
-		},
+func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject ObjectAndRelation) (PathSeq, error) {
+	// Invariant: wildcard subjects in the datastore are always stored with the ellipsis
+	// relation. The "*" is only ever an ObjectID; "type:*#relation" is syntactically
+	// invalid and cannot be written. Any caller passing a non-ellipsis relation here
+	// would cause us to query with the wrong relation filter and return a false negative.
+	if subject.Relation != tuple.Ellipsis {
+		return nil, spiceerrors.MustBugf("iterResourcesWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation", subject.Relation, subject.ObjectType, subject.ObjectID)
 	}
 
-	relIter, err := ctx.Reader.QueryRelationships(ctx, filter,
-		options.WithSkipCaveats(r.base.Caveat() == ""),
-		options.WithSkipExpiration(!r.base.Expiration()),
-		options.WithQueryShape(queryshape.AllSubjectsForResources),
-	)
-	if err != nil {
-		return nil, err
+	wildcardSubject := ObjectAndRelation{
+		ObjectType: subject.ObjectType,
+		ObjectID:   WildcardObjectID,
+		Relation:   tuple.Ellipsis,
 	}
 
-	// We rewrite the subject to the concrete subject before returning the paths
-	return RewriteSubject(convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), subject), nil
+	if ctx.PaginationLimit == nil {
+		pathSeq, err := ctx.Reader.QueryResources(ctx,
+			r.base.DefinitionName(),
+			r.base.RelationName(),
+			wildcardSubject,
+			r.base.Caveat() != "", r.base.Expiration(),
+			QueryPage{},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		pathSeq = RewriteSubject(pathSeq, subject)
+		paths, err := CollectAll(pathSeq)
+		if err != nil {
+			return nil, err
+		}
+		return PathSeqFromSlice(paths), nil
+	}
+
+	return func(yield func(*Path, error) bool) {
+		iteratorID := fmt.Sprintf("%016x:iter_resources_wildcard", r.CanonicalKey().Hash())
+		cursor := ctx.GetPaginationCursor(iteratorID)
+
+		for {
+			pathSeq, err := ctx.Reader.QueryResources(ctx,
+				r.base.DefinitionName(),
+				r.base.RelationName(),
+				wildcardSubject,
+				r.base.Caveat() != "", r.base.Expiration(),
+				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
+			)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			pathSeq = RewriteSubject(pathSeq, subject)
+			paths, err := CollectAll(pathSeq)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if len(paths) == 0 {
+				return
+			}
+
+			lastPath := paths[len(paths)-1]
+			if rel, err := lastPath.ToRelationship(); err == nil {
+				cursor = &rel
+				ctx.SetPaginationCursor(iteratorID, cursor)
+			}
+
+			for _, path := range paths {
+				if !yield(path, nil) {
+					return
+				}
+			}
+
+			if uint64(len(paths)) < *ctx.PaginationLimit {
+				return
+			}
+		}
+	}, nil
 }
 
-func (r *RelationIterator) Clone() Iterator {
-	return &RelationIterator{
-		id:   uuid.NewString(),
-		base: r.base,
+func (r *DatastoreIterator) Clone() Iterator {
+	return &DatastoreIterator{
+		canonicalKey: r.canonicalKey,
+		base:         r.base,
 	}
 }
 
-func (r *RelationIterator) Explain() Explain {
+func (r *DatastoreIterator) Explain() Explain {
 	relationName := r.base.Subrelation()
 	if r.base.Wildcard() {
 		relationName = "*"
 	}
 	return Explain{
-		Info: fmt.Sprintf("Relation(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
+		Info: fmt.Sprintf("Datastore(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
 			r.base.DefinitionName(), r.base.RelationName(), r.base.Type(), relationName,
 			r.base.Caveat() != "", r.base.Expiration()),
 	}
 }
 
-func (r *RelationIterator) Subiterators() []Iterator {
+func (r *DatastoreIterator) Subiterators() []Iterator {
 	return nil
 }
 
-func (r *RelationIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return nil, spiceerrors.MustBugf("Trying to replace a leaf RelationIterator's subiterators")
+func (r *DatastoreIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
+	return nil, spiceerrors.MustBugf("Trying to replace a leaf DatastoreIterator's subiterators")
 }
 
-func (r *RelationIterator) ID() string {
-	return r.id
+func (r *DatastoreIterator) CanonicalKey() CanonicalKey {
+	return r.canonicalKey
 }
 
-func (r *RelationIterator) ResourceType() ([]ObjectType, error) {
+func (r *DatastoreIterator) ResourceType() ([]ObjectType, error) {
 	return []ObjectType{{
 		Type:        r.base.DefinitionName(),
 		Subrelation: tuple.Ellipsis,
 	}}, nil
 }
 
-func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {
+func (r *DatastoreIterator) SubjectTypes() ([]ObjectType, error) {
 	// For wildcards, return the base type with no subrelation
 	if r.base.Wildcard() {
 		return []ObjectType{{
@@ -379,12 +465,12 @@ func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {
 		}}, nil
 	}
 
-	// For ellipsis, return the base type with empty subrelation
-	// Ellipsis means "any relation on this type"
+	// For ellipsis, preserve the ellipsis subrelation so callers that construct
+	// ObjectAndRelation values from SubjectTypes get the correct relation to query with.
 	if r.base.Subrelation() == tuple.Ellipsis {
 		return []ObjectType{{
 			Type:        r.base.Type(),
-			Subrelation: "",
+			Subrelation: tuple.Ellipsis,
 		}}, nil
 	}
 
@@ -393,4 +479,84 @@ func (r *RelationIterator) SubjectTypes() ([]ObjectType, error) {
 		Type:        r.base.Type(),
 		Subrelation: r.base.Subrelation(),
 	}}, nil
+}
+
+const (
+	dsFlagCaveat = iota
+	dsFlagExpiration
+	dsFlagWildcard
+)
+
+func (r *DatastoreIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, DatastoreIteratorType, r.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, dsFlagCaveat, r.base.Caveat() != "")
+		setFlag(&flags, dsFlagExpiration, r.base.Expiration())
+		setFlag(&flags, dsFlagWildcard, r.base.Wildcard())
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		// Always-present identifying fields.
+		if err := writeString(buf, r.base.DefinitionName()); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.base.RelationName()); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.base.Type()); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.base.Subrelation()); err != nil {
+			return err
+		}
+		if hasFlag(flags, dsFlagCaveat) {
+			if err := writeString(buf, r.base.Caveat()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func deserializeDatastore(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	if dctx == nil || dctx.Schema == nil {
+		return nil, errors.New("DatastoreIterator deserialize requires DeserializeContext with Schema")
+	}
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore flags: %w", err)
+	}
+	defName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore def: %w", err)
+	}
+	relName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore rel: %w", err)
+	}
+	subjectType, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore subjectType: %w", err)
+	}
+	subrelation, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("datastore subrelation: %w", err)
+	}
+	var caveat string
+	if hasFlag(flags, dsFlagCaveat) {
+		if caveat, err = readString(br); err != nil {
+			return nil, fmt.Errorf("datastore caveat: %w", err)
+		}
+	}
+	base, err := dctx.Schema.ResolveBaseRelation(
+		defName, relName, subjectType, subrelation, caveat,
+		hasFlag(flags, dsFlagExpiration), hasFlag(flags, dsFlagWildcard),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("datastore: %w", err)
+	}
+	ds := NewDatastoreIterator(base)
+	ds.canonicalKey = key
+	return ds, nil
 }

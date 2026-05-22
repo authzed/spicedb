@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
@@ -13,11 +14,11 @@ import (
 )
 
 // PathSeq is the intermediate iter closure that any of the planning calls return.
-type PathSeq iter.Seq2[Path, error]
+type PathSeq iter.Seq2[*Path, error]
 
 // EmptyPathSeq returns an empty iterator, that is error-free but empty.
 func EmptyPathSeq() PathSeq {
-	return func(yield func(Path, error) bool) {}
+	return func(yield func(*Path, error) bool) {}
 }
 
 // Path is an abstract notion of an individual relation. While tuple.Relation is what is stored under the hood,
@@ -32,6 +33,11 @@ type Path struct {
 	Caveat     *core.CaveatExpression
 	Expiration *time.Time
 	Integrity  []*core.RelationshipIntegrity
+
+	// ExcludedSubjects tracks concrete subjects excluded from a wildcard subject.
+	// Only meaningful when Subject.ObjectID == "*". Used to preserve exclusion
+	// information through nested exclusion operations (e.g., view = viewer - (banned - unbanned)).
+	ExcludedSubjects []*Path
 
 	Metadata map[string]any
 }
@@ -53,8 +59,12 @@ func (p Path) EndpointsKey() string {
 }
 
 // MergeOr combines the paths, ORing the caveats and expiration and metadata together.
-// Returns a new Path with the merged values.
-func (p Path) MergeOr(other Path) (Path, error) {
+// Mutates p in place and returns p. The other path is not modified.
+// If p is nil, returns other directly.
+func (p *Path) MergeOr(other *Path) (*Path, error) {
+	if p == nil {
+		return other, nil
+	}
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil && otherCaveat != nil {
 			return caveats.Or(pCaveat, otherCaveat)
@@ -66,8 +76,12 @@ func (p Path) MergeOr(other Path) (Path, error) {
 }
 
 // MergeAnd combines the paths, ANDing the caveats and expiration and metadata together.
-// Returns a new Path with the merged values.
-func (p Path) MergeAnd(other Path) (Path, error) {
+// Mutates p in place and returns p. The other path is not modified.
+// If p is nil, returns other directly.
+func (p *Path) MergeAnd(other *Path) (*Path, error) {
+	if p == nil {
+		return other, nil
+	}
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if pCaveat != nil {
 			if otherCaveat != nil {
@@ -81,8 +95,8 @@ func (p Path) MergeAnd(other Path) (Path, error) {
 }
 
 // MergeAndNot combines the paths, subtracting the caveats and expiration and metadata together.
-// Returns a new Path with the merged values.
-func (p Path) MergeAndNot(other Path) (Path, error) {
+// Mutates p in place and returns p. The other path is not modified.
+func (p *Path) MergeAndNot(other *Path) (*Path, error) {
 	return p.mergeFrom(other, func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression {
 		if otherCaveat != nil {
 			// If pCaveat is nil, this turns it into a negation (Invert() in caveats package)
@@ -94,52 +108,43 @@ func (p Path) MergeAndNot(other Path) (Path, error) {
 	})
 }
 
-func (p Path) mergeFrom(other Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) (Path, error) {
+func (p *Path) mergeFrom(other *Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) (*Path, error) {
 	// Check if they have the same Resource and Subject types and IDs
 	if !p.Resource.Equals(other.Resource) {
-		return Path{}, fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
+		return nil, fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)
 	}
 
 	pSubject := GetObject(p.Subject)
 	otherSubject := GetObject(other.Subject)
 	if !pSubject.Equals(otherSubject) {
-		return Path{}, fmt.Errorf("cannot merge paths with different subjects: %v vs %v", pSubject, otherSubject)
-	}
-
-	// Create a new Path with merged values
-	result := Path{
-		Resource: p.Resource,
-		Subject:  p.Subject,
+		return nil, fmt.Errorf("cannot merge paths with different subjects: %v vs %v", pSubject, otherSubject)
 	}
 
 	// Clear Relation unless both have the same Relation string
-	if p.Relation == other.Relation {
-		result.Relation = p.Relation
+	if p.Relation != other.Relation {
+		p.Relation = ""
 	}
 
 	// Combine caveats using the provided merger function
-	result.Caveat = caveatMerger(p.Caveat, other.Caveat)
+	p.Caveat = caveatMerger(p.Caveat, other.Caveat)
 
 	// Combine expiration (take the earlier time)
-	result.Expiration = combineExpiration(p.Expiration, other.Expiration)
+	p.Expiration = combineExpiration(p.Expiration, other.Expiration)
 
 	// Combine integrity (append all values)
-	result.Integrity = combineIntegrity(p.Integrity, other.Integrity)
+	p.Integrity = combineIntegrity(p.Integrity, other.Integrity)
 
 	// Merge the metadata by combining both maps
 	// WARNING: This is a simple overwrite strategy and may not be appropriate for all use cases.
 	// Better is probably to have a more structured Metadata type, with a Merge() function.
-	if p.Metadata != nil || other.Metadata != nil {
-		result.Metadata = make(map[string]any)
-		if p.Metadata != nil {
-			maps.Copy(result.Metadata, p.Metadata)
+	if other.Metadata != nil {
+		if p.Metadata == nil {
+			p.Metadata = make(map[string]any)
 		}
-		if other.Metadata != nil {
-			maps.Copy(result.Metadata, other.Metadata)
-		}
+		maps.Copy(p.Metadata, other.Metadata)
 	}
 
-	return result, nil
+	return p, nil
 }
 
 // combineExpiration returns the earlier (shorter) expiration time between two times.
@@ -180,7 +185,7 @@ func (p Path) IsExpired() bool {
 }
 
 // FromRelationship creates a new Path from a tuple.Relationship.
-func FromRelationship(rel tuple.Relationship) Path {
+func FromRelationship(rel tuple.Relationship) *Path {
 	resource := Object{
 		ObjectID:   rel.Resource.ObjectID,
 		ObjectType: rel.Resource.ObjectType,
@@ -196,7 +201,7 @@ func FromRelationship(rel tuple.Relationship) Path {
 		integrity = []*core.RelationshipIntegrity{rel.OptionalIntegrity}
 	}
 
-	return Path{
+	return &Path{
 		Resource:   resource,
 		Relation:   rel.Resource.Relation,
 		Subject:    rel.Subject,
@@ -251,7 +256,7 @@ func (p Path) ToRelationship() (tuple.Relationship, error) {
 // MustPathFromString is a helper function for tests that creates a Path from a relationship string.
 // It uses tuple.MustParse to parse the string and then converts it to a Path using FromRelationship.
 // Example: MustPathFromString("document:doc1#viewer@user:alice")
-func MustPathFromString(relationshipStr string) Path {
+func MustPathFromString(relationshipStr string) *Path {
 	rel := tuple.MustParse(relationshipStr)
 	return FromRelationship(rel)
 }
@@ -315,9 +320,153 @@ func (p Path) Equals(other Path) bool {
 	return true
 }
 
+// PathOrder defines ordering for Path objects
+// Returns -1 if a < b, 0 if a == b, 1 if a > b
+//
+// Compatible with slices.SortFunc.
+func PathOrder(a, b Path) int {
+	// Compare resource type
+	if a.Resource.ObjectType != b.Resource.ObjectType {
+		if a.Resource.ObjectType < b.Resource.ObjectType {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare resource ID
+	if a.Resource.ObjectID != b.Resource.ObjectID {
+		if a.Resource.ObjectID < b.Resource.ObjectID {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare relation
+	if a.Relation != b.Relation {
+		if a.Relation < b.Relation {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject type
+	if a.Subject.ObjectType != b.Subject.ObjectType {
+		if a.Subject.ObjectType < b.Subject.ObjectType {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject ID
+	if a.Subject.ObjectID != b.Subject.ObjectID {
+		if a.Subject.ObjectID < b.Subject.ObjectID {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare subject relation
+	if a.Subject.Relation != b.Subject.Relation {
+		if a.Subject.Relation < b.Subject.Relation {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare expiration
+	if (a.Expiration == nil) != (b.Expiration == nil) {
+		if a.Expiration == nil {
+			return -1
+		}
+		return 1
+	}
+	if a.Expiration != nil && b.Expiration != nil {
+		if a.Expiration.Before(*b.Expiration) {
+			return -1
+		}
+		if a.Expiration.After(*b.Expiration) {
+			return 1
+		}
+	}
+
+	// Compare caveat
+	if (a.Caveat == nil) != (b.Caveat == nil) {
+		if a.Caveat == nil {
+			return -1
+		}
+		return 1
+	}
+	if a.Caveat != nil && b.Caveat != nil {
+		aStr := a.Caveat.String()
+		bStr := b.Caveat.String()
+		if aStr != bStr {
+			if aStr < bStr {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	// Compare integrity length
+	if len(a.Integrity) != len(b.Integrity) {
+		if len(a.Integrity) < len(b.Integrity) {
+			return -1
+		}
+		return 1
+	}
+
+	// Compare integrity elements
+	for i := range a.Integrity {
+		aStr := a.Integrity[i].String()
+		bStr := b.Integrity[i].String()
+		if aStr != bStr {
+			if aStr < bStr {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	// Compare metadata: extract sorted key lists, compare keys first,
+	// then compare values key-by-key using the common sorted key order.
+	// nil maps are treated as empty.
+	aKeys := slices.Sorted(maps.Keys(a.Metadata))
+	bKeys := slices.Sorted(maps.Keys(b.Metadata))
+
+	for i, ak := range aKeys {
+		if i >= len(bKeys) {
+			return 1
+		}
+		bk := bKeys[i]
+		if ak != bk {
+			if ak < bk {
+				return -1
+			}
+			return 1
+		}
+	}
+	if len(aKeys) < len(bKeys) {
+		return -1
+	}
+
+	// Same keys; compare values in sorted-key order
+	for _, k := range aKeys {
+		aVal := fmt.Sprintf("%v", a.Metadata[k])
+		bVal := fmt.Sprintf("%v", b.Metadata[k])
+		if aVal != bVal {
+			if aVal < bVal {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	return 0
+}
+
 // CollectAll is a helper function to build read a complete PathSeq and turn it into a fully realized slice of Paths.
-func CollectAll(seq PathSeq) ([]Path, error) {
-	out := make([]Path, 0)
+func CollectAll(seq PathSeq) ([]*Path, error) {
+	out := make([]*Path, 0)
 	for x, err := range seq {
 		if err != nil {
 			return nil, err
@@ -327,27 +476,39 @@ func CollectAll(seq PathSeq) ([]Path, error) {
 	return out, nil
 }
 
+// PathSeqFromSlice creates a PathSeq that yields all paths from the given slice.
+func PathSeqFromSlice(paths []*Path) PathSeq {
+	return func(yield func(*Path, error) bool) {
+		for _, p := range paths {
+			if !yield(p, nil) {
+				return
+			}
+		}
+	}
+}
+
 // DeduplicatePathSeq returns a new PathSeq that deduplicates paths based on their
 // endpoints (resource and subject, excluding relation). Paths with the same endpoints
 // are merged using OR semantics (caveats are OR'd, no caveat wins over caveat).
 // This collects all paths first, deduplicates with merging, then yields results.
 func DeduplicatePathSeq(seq PathSeq) PathSeq {
-	return func(yield func(Path, error) bool) {
-		seen := make(map[string]Path)
+	return func(yield func(*Path, error) bool) {
+		seen := make(map[string]*Path)
 		for path, err := range seq {
 			if err != nil {
-				yield(Path{}, err)
+				yield(nil, err)
 				return
 			}
 
 			key := path.EndpointsKey()
 			if existing, exists := seen[key]; !exists {
-				seen[key] = path
+				pathCopy := *path
+				seen[key] = &pathCopy
 			} else {
 				// Merge with existing path using OR semantics
 				merged, err := existing.MergeOr(path)
 				if err != nil {
-					yield(Path{}, err)
+					yield(nil, err)
 					return
 				}
 				seen[key] = merged
@@ -364,19 +525,18 @@ func DeduplicatePathSeq(seq PathSeq) PathSeq {
 }
 
 func RewriteSubject(seq PathSeq, subject ObjectAndRelation) PathSeq {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
 			}
 
-			// Replace the wildcard subject with the concrete subject
+			// Replace the wildcard subject with the concrete subject (mutate in place)
 			path.Subject = subject
 
-			// Convert to Path
 			if !yield(path, nil) {
 				return
 			}
@@ -386,10 +546,10 @@ func RewriteSubject(seq PathSeq, subject ObjectAndRelation) PathSeq {
 
 // FilterWildcardSubjects filters out any paths with wildcard subjects.
 func FilterWildcardSubjects(seq PathSeq) PathSeq {
-	return func(yield func(Path, error) bool) {
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
@@ -410,18 +570,14 @@ func FilterWildcardSubjects(seq PathSeq) PathSeq {
 // FilterResourcesByType filters a PathSeq to only include paths where the resource
 // matches the specified ObjectType. If filter.Type is empty, no filtering is applied.
 func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
-	return func(yield func(Path, error) bool) {
+	if filter.Type == "" {
+		return seq
+	}
+
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
-					return
-				}
-				continue
-			}
-
-			// Empty Type means no filtering
-			if filter.Type == "" {
-				if !yield(path, nil) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
@@ -429,7 +585,7 @@ func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
 
 			// Check if resource matches the filter
 			if path.Resource.ObjectType != filter.Type {
-				continue // Skip this path
+				continue
 			}
 
 			// If Subrelation specified, check relation too
@@ -447,18 +603,14 @@ func FilterResourcesByType(seq PathSeq, filter ObjectType) PathSeq {
 // FilterSubjectsByType filters a PathSeq to only include paths where the subject
 // matches the specified ObjectType. If filter.Type is empty, no filtering is applied.
 func FilterSubjectsByType(seq PathSeq, filter ObjectType) PathSeq {
-	return func(yield func(Path, error) bool) {
+	if filter.Type == "" {
+		return seq
+	}
+
+	return func(yield func(*Path, error) bool) {
 		for path, err := range seq {
 			if err != nil {
-				if !yield(Path{}, err) {
-					return
-				}
-				continue
-			}
-
-			// Empty Type means no filtering
-			if filter.Type == "" {
-				if !yield(path, nil) {
+				if !yield(nil, err) {
 					return
 				}
 				continue

@@ -32,15 +32,13 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 		{testfixtures.UserNS.Name, options.BySubject},
 	}
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(fmt.Sprintf("%s-%d", tc.resourceType, tc.ordering), func(t *testing.T) {
 			require := require.New(t)
 			ctx := t.Context()
@@ -76,10 +74,10 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 		testfixtures.FolderNS.Name,
 	}
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, objectType := range testCases {
@@ -97,10 +95,7 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 
 					require.NoError(err)
 
-					expectedCount := limit
-					if expectedCount > len(expected) {
-						expectedCount = len(expected)
-					}
+					expectedCount := min(limit, len(expected))
 
 					tRequire.VerifyIteratorCount(iter, expectedCount)
 				})
@@ -176,10 +171,10 @@ var orderedTestCases = []struct {
 }
 
 func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range orderedTestCases {
@@ -214,10 +209,10 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 }
 
 func ResumeTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range orderedTestCases {
@@ -248,10 +243,7 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 
 						require.NoError(err)
 
-						upperBound := offset + batchSize
-						if upperBound > len(expected) {
-							upperBound = len(expected)
-						}
+						upperBound := min(offset+batchSize, len(expected))
 
 						cursor = tRequire.VerifyOrderedIteratorResults(iter, expected[offset:upperBound]...)
 					}
@@ -262,11 +254,11 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 }
 
 func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	// Create a datastore with the standard schema but no data.
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	// Add test relationships.
 	rev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -291,7 +283,7 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 
 			foundTuples := mapz.NewSet[string]()
 
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				iter, err := reader.ReverseQueryRelationships(
 					t.Context(),
 					datastore.SubjectsFilter{
@@ -329,11 +321,11 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 }
 
 func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	// Create a datastore with the standard schema but no data.
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	// Add test relationships.
 	rev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -358,7 +350,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 
 			foundTuples := mapz.NewSet[string]()
 
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				iter, err := reader.ReverseQueryRelationships(
 					t.Context(),
 					datastore.SubjectsFilter{

@@ -10,12 +10,10 @@ import (
 func TestWalkBasic(t *testing.T) {
 	// Create a simple tree: union with two fixed iterators
 	path1 := MustPathFromString("document:doc1#view@user:alice")
-	fixedIter1 := NewFixedIterator(path1)
+	fixedIter1 := NewFixedIterator(*path1)
 	fixedIter2 := NewEmptyFixedIterator()
 
-	union := NewUnion()
-	union.addSubIterator(fixedIter1)
-	union.addSubIterator(fixedIter2)
+	union := NewUnionIterator(fixedIter1, fixedIter2)
 
 	// Walk the tree and count the nodes
 	nodeCount := 0
@@ -42,16 +40,14 @@ func TestWalkNilRoot(t *testing.T) {
 
 func TestWalkWithTransformation(t *testing.T) {
 	// Create a tree with sentinels
-	sentinel1 := NewRecursiveSentinel("folder", "view", false)
-	sentinel2 := NewRecursiveSentinel("document", "edit", false)
+	sentinel1 := NewRecursiveSentinelIterator("folder", "view", false)
+	sentinel2 := NewRecursiveSentinelIterator("document", "edit", false)
 
-	union := NewUnion()
-	union.addSubIterator(sentinel1)
-	union.addSubIterator(sentinel2)
+	union := NewUnionIterator(sentinel1, sentinel2)
 
 	// Walk and replace all sentinels with empty fixed iterators
 	result, err := Walk(union, func(it Iterator) (Iterator, error) {
-		if _, isSentinel := it.(*RecursiveSentinel); isSentinel {
+		if _, isSentinel := it.(*RecursiveSentinelIterator); isSentinel {
 			return NewEmptyFixedIterator(), nil
 		}
 		return it, nil
@@ -61,7 +57,7 @@ func TestWalkWithTransformation(t *testing.T) {
 	require.NotNil(t, result)
 
 	// Verify sentinels were replaced
-	resultUnion := result.(*Union)
+	resultUnion := result.(*UnionIterator)
 	require.Len(t, resultUnion.Subiterators(), 2)
 
 	for _, sub := range resultUnion.Subiterators() {
@@ -72,13 +68,12 @@ func TestWalkWithTransformation(t *testing.T) {
 func TestWalkCallbackError(t *testing.T) {
 	// Create a simple tree
 	fixedIter := NewEmptyFixedIterator()
-	union := NewUnion()
-	union.addSubIterator(fixedIter)
+	union := NewUnionIterator(fixedIter)
 
 	// Walk with a callback that returns an error
 	expectedErr := fmt.Errorf("callback error")
 	result, err := Walk(union, func(it Iterator) (Iterator, error) {
-		if _, isUnion := it.(*Union); isUnion {
+		if _, isUnion := it.(*UnionIterator); isUnion {
 			return nil, expectedErr
 		}
 		return it, nil
@@ -94,12 +89,9 @@ func TestWalkRecursiveCallbackError(t *testing.T) {
 	fixedIter1 := NewEmptyFixedIterator()
 	fixedIter2 := NewEmptyFixedIterator()
 
-	innerUnion := NewUnion()
-	innerUnion.addSubIterator(fixedIter1)
+	innerUnion := NewUnionIterator(fixedIter1)
 
-	outerUnion := NewUnion()
-	outerUnion.addSubIterator(innerUnion)
-	outerUnion.addSubIterator(fixedIter2)
+	outerUnion := NewUnionIterator(innerUnion, fixedIter2)
 
 	// Walk with a callback that errors on the inner fixed iterator
 	expectedErr := fmt.Errorf("recursive callback error")
@@ -124,15 +116,13 @@ func TestWalkDeepTree(t *testing.T) {
 	path1 := MustPathFromString("document:doc1#view@user:alice")
 	path2 := MustPathFromString("document:doc2#view@user:bob")
 
-	fixedIter1 := NewFixedIterator(path1)
-	fixedIter2 := NewFixedIterator(path2)
+	fixedIter1 := NewFixedIterator(*path1)
+	fixedIter2 := NewFixedIterator(*path2)
 	fixedIter3 := NewEmptyFixedIterator()
 
-	union := NewUnion()
-	union.addSubIterator(fixedIter1)
-	union.addSubIterator(fixedIter2)
+	union := NewUnionIterator(fixedIter1, fixedIter2)
 
-	arrow := NewArrow(union, fixedIter3)
+	arrow := NewArrowIterator(union, fixedIter3)
 
 	// Walk and collect all iterator types
 	var iteratorTypes []string

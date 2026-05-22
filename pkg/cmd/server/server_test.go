@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -26,6 +29,7 @@ import (
 	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	dsmocks "github.com/authzed/spicedb/pkg/datastore/mocks"
@@ -78,6 +82,74 @@ func TestServerDefaultOptions(t *testing.T) {
 	cfg := NewConfigWithOptionsAndDefaults()
 
 	require.True(t, cfg.EnableRelationshipExpiration)
+}
+
+func TestExperimentalQueryPlanStringSliceMapping(t *testing.T) {
+	// These test cases mirror the slices.Contains logic in server.go's Complete(),
+	// ensuring every token maps to the correct ExperimentalQueryPlanConfig field.
+	cases := []struct {
+		name            string
+		tokens          []string
+		wantCheck       bool
+		wantLookupRes   bool
+		wantLookupSubjs bool
+	}{
+		{name: "empty", tokens: nil, wantCheck: false, wantLookupRes: false, wantLookupSubjs: false},
+		{name: "check only", tokens: []string{"check"}, wantCheck: true, wantLookupRes: false, wantLookupSubjs: false},
+		{name: "lr only", tokens: []string{"lr"}, wantCheck: false, wantLookupRes: true, wantLookupSubjs: false},
+		{name: "ls only", tokens: []string{"ls"}, wantCheck: false, wantLookupRes: false, wantLookupSubjs: true},
+		{name: "check and lr", tokens: []string{"check", "lr"}, wantCheck: true, wantLookupRes: true, wantLookupSubjs: false},
+		{name: "all three", tokens: []string{"check", "lr", "ls"}, wantCheck: true, wantLookupRes: true, wantLookupSubjs: true},
+		{name: "unknown token ignored", tokens: []string{"unknown"}, wantCheck: false, wantLookupRes: false, wantLookupSubjs: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{ExperimentalQueryPlan: tc.tokens}
+			got := v1svc.ExperimentalQueryPlanConfig{
+				Check:           slices.Contains(cfg.ExperimentalQueryPlan, "check"),
+				LookupResources: slices.Contains(cfg.ExperimentalQueryPlan, "lr"),
+				LookupSubjects:  slices.Contains(cfg.ExperimentalQueryPlan, "ls"),
+			}
+			require.Equal(t, tc.wantCheck, got.Check)
+			require.Equal(t, tc.wantLookupRes, got.LookupResources)
+			require.Equal(t, tc.wantLookupSubjs, got.LookupSubjects)
+		})
+	}
+}
+
+func TestWithExperimentalQueryPlanAppendsValues(t *testing.T) {
+	cfg := &Config{}
+
+	ConfigWithOptions(cfg, WithExperimentalQueryPlan("check"))
+	require.Equal(t, []string{"check"}, cfg.ExperimentalQueryPlan)
+
+	ConfigWithOptions(cfg, WithExperimentalQueryPlan("lr"))
+	require.Equal(t, []string{"check", "lr"}, cfg.ExperimentalQueryPlan)
+
+	ConfigWithOptions(cfg, WithExperimentalQueryPlan("ls"))
+	require.Equal(t, []string{"check", "lr", "ls"}, cfg.ExperimentalQueryPlan)
+}
+
+func TestSetExperimentalQueryPlanOverwritesValue(t *testing.T) {
+	cfg := &Config{}
+
+	ConfigWithOptions(cfg, WithExperimentalQueryPlan("check"))
+	require.Equal(t, []string{"check"}, cfg.ExperimentalQueryPlan)
+
+	// SetExperimentalQueryPlan replaces the whole slice
+	ConfigWithOptions(cfg, SetExperimentalQueryPlan([]string{"lr", "ls"}))
+	require.Equal(t, []string{"lr", "ls"}, cfg.ExperimentalQueryPlan)
+}
+
+func TestSetExperimentalQueryPlanWithNilClearsSlice(t *testing.T) {
+	cfg := &Config{}
+
+	ConfigWithOptions(cfg, WithExperimentalQueryPlan("check"))
+	require.Equal(t, []string{"check"}, cfg.ExperimentalQueryPlan)
+
+	ConfigWithOptions(cfg, SetExperimentalQueryPlan(nil))
+	require.Nil(t, cfg.ExperimentalQueryPlan)
 }
 
 func TestOTelReporting(t *testing.T) {
@@ -629,11 +701,48 @@ func TestBuildDispatchServer(t *testing.T) {
 
 			sampler := memoryprotection.NewNoopMemoryUsageProvider()
 
-			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, nil)
+			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, nil, nil)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 			require.Len(t, tc.config.DispatchUnaryMiddleware, tc.expectedDispatchUnnaryMiddleware)
 			require.Len(t, tc.config.DispatchStreamingMiddleware, tc.expectedDispatchStreamingMiddleware)
 		})
 	}
+}
+
+func TestDebugMapRedactsURI(t *testing.T) {
+	c := &Config{
+		DatastoreConfig: datastore.Config{
+			URI: "postgresql://root@localhost:26257/defaultdb",
+		},
+	}
+	out := fmt.Sprintln(c.FlatDebugMap())
+	require.NotContains(t, out, "postgresql://root@localhost:26257/defaultdb")
+}
+
+func TestHandleGRPCAuthn(t *testing.T) {
+	t.Run("empty configuration errors", func(t *testing.T) {
+		require.ErrorContains(t, (&Config{}).handleGrpcAuthn(t.Context()), "a preshared key must be provided")
+	})
+	t.Run("preshared key list with empty key errors", func(t *testing.T) {
+		require.ErrorContains(t, (&Config{PresharedSecureKey: []string{"foo", ""}}).handleGrpcAuthn(t.Context()), "is empty")
+	})
+	t.Run("if auth fn is provided it is used", func(t *testing.T) {
+		authFn := func(ctx context.Context) (context.Context, error) {
+			return ctx, nil
+		}
+		config := &Config{GRPCAuthFunc: authFn}
+		require.NoError(t, config.handleGrpcAuthn(t.Context()))
+		// Assert that the function objects are the same. this hackaround is necessary
+		// because of the way that golang treats function values.
+		require.Equal(t,
+			reflect.ValueOf(authFn).Pointer(),
+			reflect.ValueOf(config.GRPCAuthFunc).Pointer(),
+		)
+	})
+	t.Run("if auth fn is not provided, one is created", func(t *testing.T) {
+		config := &Config{PresharedSecureKey: []string{"foo"}}
+		require.NoError(t, config.handleGrpcAuthn(t.Context()))
+		require.NotNil(t, config.GRPCAuthFunc)
+	})
 }

@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,4 +43,15 @@ func TestPrefixedPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewImportResolutionContext(t *testing.T) {
+	nn, err := newImportResolutionContext(nil, &positionMapper{}, "")
+	require.Nil(t, nn)
+	require.ErrorContains(t, err, "import resolution context requires a non-nil filesystem")
+
+	testfs := fstest.MapFS{}
+	nn, err = newImportResolutionContext(testfs, nil, "")
+	require.Nil(t, nn)
+	require.ErrorContains(t, err, "import resolution context requires a non-nil position mapper")
 }

@@ -40,6 +40,8 @@ type Dispatcher struct {
 	lookupResourcesFromCacheCounter prometheus.Counter
 	lookupSubjectsTotalCounter      prometheus.Counter
 	lookupSubjectsFromCacheCounter  prometheus.Counter
+	queryPlanTotalCounter           *prometheus.CounterVec
+	queryPlanFromCacheCounter       *prometheus.CounterVec
 }
 
 func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
@@ -62,34 +64,53 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "check_total",
+		Help:      "Total number of CheckPermission dispatch requests processed.",
 	})
 	checkFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "check_from_cache_total",
+		Help:      "Total number of CheckPermission dispatch requests served directly from the dispatch cache, avoiding re-computation.",
 	})
 
 	lookupResourcesTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "lookup_resources_total",
+		Help:      "Total number of LookupResources dispatch requests processed.",
 	})
 	lookupResourcesFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "lookup_resources_from_cache_total",
+		Help:      "Total number of LookupResources dispatch requests served directly from the dispatch cache.",
 	})
 
 	lookupSubjectsTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "lookup_subjects_total",
+		Help:      "Total number of LookupSubjects dispatch requests processed.",
 	})
 	lookupSubjectsFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "lookup_subjects_from_cache_total",
+		Help:      "Total number of LookupSubjects dispatch requests served directly from the dispatch cache.",
 	})
+
+	queryPlanTotalCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "query_plan_total",
+		Help:      "Total number of DispatchQueryPlan requests processed, labelled by plan operation.",
+	}, []string{"operation"})
+	queryPlanFromCacheCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "query_plan_from_cache_total",
+		Help:      "Total number of DispatchQueryPlan requests served directly from the dispatch cache, labelled by plan operation.",
+	}, []string{"operation"})
 
 	if metricsEnabled && prometheusSubsystem != "" {
 		err := prometheus.Register(checkTotalCounter)
@@ -116,6 +137,14 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
+		err = prometheus.Register(queryPlanTotalCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+		err = prometheus.Register(queryPlanFromCacheCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
 	}
 
 	if keyHandler == nil {
@@ -132,6 +161,8 @@ func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], met
 		lookupResourcesFromCacheCounter: lookupResourcesFromCacheCounter,
 		lookupSubjectsTotalCounter:      lookupSubjectsTotalCounter,
 		lookupSubjectsFromCacheCounter:  lookupSubjectsFromCacheCounter,
+		queryPlanTotalCounter:           queryPlanTotalCounter,
+		queryPlanFromCacheCounter:       queryPlanFromCacheCounter,
 	}, nil
 }
 
@@ -398,13 +429,67 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 	return nil
 }
 
+func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	cd.queryPlanTotalCounter.WithLabelValues(dispatch.PlanOperationLabel(req.Operation)).Inc()
+
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		return cd.dispatchQueryPlanCheckCached(req, stream)
+	default:
+		// TODO: add caching for LookupResources and LookupSubjects
+		return cd.d.DispatchQueryPlan(req, stream)
+	}
+}
+
+func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	requestKey, err := cd.keyHandler.PlanCheckCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
+	if cachedPathRaw, found := cd.c.Get(requestKey); found {
+		var cachedPath v1.ResultPath
+		if err := cachedPath.UnmarshalVT(cachedPathRaw.([]byte)); err != nil {
+			return err
+		}
+		cd.queryPlanFromCacheCounter.WithLabelValues(dispatch.PlanOperationLabel(req.Operation)).Inc()
+		return stream.Publish(&v1.DispatchQueryPlanResponse{
+			Paths: []*v1.ResultPath{&cachedPath},
+		})
+	}
+
+	// Cache miss — collect the streamed result to cache the path.
+	// Check produces at most one response containing a single ResultPath.
+	collecting := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](stream.Context())
+	if err := cd.d.DispatchQueryPlan(req, collecting); err != nil {
+		return err
+	}
+
+	for _, resp := range collecting.Results() {
+		if len(resp.Paths) > 0 {
+			pathBytes, err := resp.Paths[0].MarshalVT()
+			if err == nil {
+				cd.c.Set(requestKey, pathBytes, sliceSize(pathBytes))
+			}
+		}
+
+		if err := stream.Publish(resp); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.checkTotalCounter)
 	prometheus.Unregister(cd.checkFromCacheCounter)
 	prometheus.Unregister(cd.lookupResourcesTotalCounter)
 	prometheus.Unregister(cd.lookupResourcesFromCacheCounter)
-	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
 	prometheus.Unregister(cd.lookupSubjectsTotalCounter)
+	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
+	prometheus.Unregister(cd.queryPlanTotalCounter)
+	prometheus.Unregister(cd.queryPlanFromCacheCounter)
 	if cache := cd.c; cache != nil {
 		cache.Close()
 	}

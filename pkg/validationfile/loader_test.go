@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
-	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -177,13 +178,12 @@ func TestPopulateFromFiles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, 0)
 			require.NoError(err)
 
-			parsed, _, err := PopulateFromFiles(t.Context(), ds, caveattypes.Default.TypeSet, tt.filePaths)
+			parsed, _, err := PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, tt.filePaths)
 			if tt.expectedError == nil {
 				require.NoError(err)
 
@@ -226,19 +226,117 @@ func TestPopulationChunking(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, 0)
 	require.NoError(err)
 
-	cs := txCountingDatastore{delegate: ds}
-	_, _, err = PopulateFromFiles(t.Context(), &cs, caveattypes.Default.TypeSet, []string{"testdata/requires_chunking.yaml"})
+	cs := &txCountingDataLayer{DataLayer: datalayer.NewDataLayer(ds)}
+	_, _, err = PopulateFromFiles(t.Context(), cs, caveattypes.Default.TypeSet, []string{"testdata/requires_chunking.yaml"})
 	require.NoError(err)
 	require.Equal(3, cs.count)
 }
 
-type txCountingDatastore struct {
-	proxy_test.MockDatastore
-	count    int
-	delegate datastore.Datastore
+type txCountingDataLayer struct {
+	datalayer.DataLayer
+	count int
 }
 
-func (c *txCountingDatastore) ReadWriteTx(ctx context.Context, userFunc datastore.TxUserFunc, option ...options.RWTOptionsOption) (datastore.Revision, error) {
+func (c *txCountingDataLayer) ReadWriteTx(ctx context.Context, fn datalayer.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	c.count++
-	return c.delegate.ReadWriteTx(ctx, userFunc, option...)
+	return c.DataLayer.ReadWriteTx(ctx, fn, opts...)
+}
+
+func TestLoadedNamespacesAreAnnotated(t *testing.T) {
+	tests := []struct {
+		name      string
+		filePaths []string
+		// Map of namespace name -> map of relation name -> expected annotations.
+		expectedAnnotations map[string]map[string]expectedRelAnnotation
+	}{
+		{
+			name:      "basic schema with alias and unions",
+			filePaths: []string{"testdata/loader_no_comment.yaml"},
+			expectedAnnotations: map[string]map[string]expectedRelAnnotation{
+				"example/project": {
+					"reader": {cacheKeyIsName: true},
+					"writer": {cacheKeyIsName: true},
+					"owner":  {cacheKeyIsName: true},
+					"admin":  {aliasingRelation: "owner", cacheKeyIsComputed: true},
+					"read":   {cacheKeyIsComputed: true},
+					"write":  {cacheKeyIsComputed: true},
+				},
+			},
+		},
+		{
+			name:      "schema loaded from schemaFile",
+			filePaths: []string{"testdata/loader_using_schemafile.yaml"},
+			expectedAnnotations: map[string]map[string]expectedRelAnnotation{
+				"example/project": {
+					"reader": {cacheKeyIsName: true},
+					"writer": {cacheKeyIsName: true},
+					"owner":  {cacheKeyIsName: true},
+					"admin":  {aliasingRelation: "owner", cacheKeyIsComputed: true},
+					"read":   {cacheKeyIsComputed: true},
+					"write":  {cacheKeyIsComputed: true},
+				},
+			},
+		},
+		{
+			name:      "schema with caveats",
+			filePaths: []string{"testdata/basic_caveats.yaml"},
+			expectedAnnotations: map[string]map[string]expectedRelAnnotation{
+				"resource": {
+					"reader": {cacheKeyIsName: true},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, 0)
+			require.NoError(err)
+
+			parsed, _, err := PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, tt.filePaths)
+			require.NoError(err)
+
+			for _, nsDef := range parsed.NamespaceDefinitions {
+				expectedRels, ok := tt.expectedAnnotations[nsDef.Name]
+				if !ok {
+					continue
+				}
+
+				for _, rel := range nsDef.Relation {
+					expected, ok := expectedRels[rel.Name]
+					if !ok {
+						continue
+					}
+
+					if expected.aliasingRelation != "" {
+						require.Equal(expected.aliasingRelation, rel.AliasingRelation,
+							"relation %s#%s should alias %s", nsDef.Name, rel.Name, expected.aliasingRelation)
+					} else {
+						require.Empty(rel.AliasingRelation,
+							"relation %s#%s should not be aliased", nsDef.Name, rel.Name)
+					}
+
+					require.NotEmpty(rel.CanonicalCacheKey,
+						"relation %s#%s should have a cache key", nsDef.Name, rel.Name)
+
+					if expected.cacheKeyIsName {
+						require.Equal(rel.Name, rel.CanonicalCacheKey,
+							"relation %s#%s should have its own name as cache key", nsDef.Name, rel.Name)
+					}
+
+					if expected.cacheKeyIsComputed {
+						require.True(strings.HasPrefix(rel.CanonicalCacheKey, "%"),
+							"relation %s#%s should have a computed cache key (starting with %%), got %q", nsDef.Name, rel.Name, rel.CanonicalCacheKey)
+					}
+				}
+			}
+		})
+	}
+}
+
+type expectedRelAnnotation struct {
+	aliasingRelation   string
+	cacheKeyIsName     bool
+	cacheKeyIsComputed bool
 }

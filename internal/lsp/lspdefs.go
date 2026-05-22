@@ -5,7 +5,7 @@ import (
 )
 
 type InitializeResult struct {
-	Capabilities ServerCapabilities `json:"capabilities,omitempty"`
+	Capabilities ServerCapabilities `json:"capabilities"`
 }
 
 type ServerCapabilities struct {
@@ -14,6 +14,7 @@ type ServerCapabilities struct {
 	DocumentFormattingProvider bool                                   `json:"documentFormattingProvider,omitempty"`
 	DiagnosticProvider         *DiagnosticOptions                     `json:"diagnosticProvider,omitempty"`
 	HoverProvider              bool                                   `json:"hoverProvider,omitempty"`
+	DefinitionProvider         bool                                   `json:"definitionProvider,omitempty"`
 }
 
 type DiagnosticOptions struct {
@@ -44,7 +45,7 @@ type InitializeParams struct {
 	RootPath string `json:"rootPath,omitempty"`
 
 	RootURI               baselsp.DocumentURI `json:"rootUri,omitempty"`
-	ClientInfo            baselsp.ClientInfo  `json:"clientInfo,omitempty"`
+	ClientInfo            baselsp.ClientInfo  `json:"clientInfo"`
 	Trace                 baselsp.Trace       `json:"trace,omitempty"`
 	InitializationOptions any                 `json:"initializationOptions,omitempty"`
 	Capabilities          ClientCapabilities  `json:"capabilities"`
@@ -53,13 +54,30 @@ type InitializeParams struct {
 }
 
 type ClientCapabilities struct {
-	Diagnostics DiagnosticWorkspaceClientCapabilities `json:"diagnostics,omitempty"`
+	TextDocument *TextDocumentClientCapabilities `json:"textDocument,omitempty"`
+	Workspace    *WorkspaceClientCapabilities    `json:"workspace,omitempty"`
+}
+
+type TextDocumentClientCapabilities struct {
+	Diagnostic *DiagnosticClientCapabilities `json:"diagnostic,omitempty"`
+}
+
+type DiagnosticClientCapabilities struct {
+	DynamicRegistration bool `json:"dynamicRegistration,omitempty"`
+}
+
+type WorkspaceClientCapabilities struct {
+	Diagnostics *DiagnosticWorkspaceClientCapabilities `json:"diagnostics,omitempty"`
 }
 
 type DiagnosticWorkspaceClientCapabilities struct {
-	// RefreshSupport indicates whether the client supports the new
-	// `textDocument/diagnostic` request.
 	RefreshSupport bool `json:"refreshSupport,omitempty"`
+}
+
+// SupportsPullDiagnostics returns true if the client indicated support for
+// pull-based diagnostics by including the textDocument.diagnostic capability.
+func (c ClientCapabilities) SupportsPullDiagnostics() bool {
+	return c.TextDocument != nil && c.TextDocument.Diagnostic != nil
 }
 
 type Hover struct {

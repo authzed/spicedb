@@ -15,7 +15,7 @@ func UseAfterCloseTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	// Create the datastore.
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	// Immediately close it.
@@ -28,10 +28,10 @@ func UseAfterCloseTest(t *testing.T, tester DatastoreTester) {
 }
 
 func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, revision := testfixtures.StandardDatastoreWithCaveatedData(rawDS, require.New(t))
+	ds, revision := testfixtures.StandardDatastoreWithCaveatedData(t, rawDS)
 	ctx := t.Context()
 
 	// Ensure at least a few relationships and namespaces exist.
@@ -61,10 +61,10 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Ensure there are no relationships or namespaces.
-	headRev, err := ds.HeadRevision(ctx)
+	headRevResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	reader = ds.SnapshotReader(headRev)
+	reader = ds.SnapshotReader(headRevResult.Revision)
 	afterNSDefs, err := reader.LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Empty(t, afterNSDefs, "namespace definitions still exist")
@@ -87,7 +87,7 @@ func UniqueIDTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	// Create the datastore.
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	// Ensure the unique ID is not empty.

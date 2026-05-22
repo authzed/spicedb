@@ -66,6 +66,9 @@ func ConvertContextToParameters(
 
 // ParameterTypeString returns the string form of the type reference.
 func ParameterTypeString(typeRef *core.CaveatTypeReference) string {
+	if typeRef == nil {
+		return ""
+	}
 	var sb strings.Builder
 	sb.WriteString(typeRef.TypeName)
 	if len(typeRef.ChildTypes) > 0 {

@@ -2,6 +2,8 @@
 package parser
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
@@ -68,6 +70,12 @@ Loop:
 		case p.isKeyword("caveat"):
 			hasSeenDefinition = true
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
+
+		case p.isKeyword("import"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeImport())
+
+		case p.isKeyword("partial"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumePartial())
 
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
@@ -259,7 +267,8 @@ func (p *sourceParser) consumeUseFlag(afterDefinition bool) AstNode {
 	}
 
 	if _, ok := lexer.Flags[useFlag]; !ok {
-		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, strings.Join(lexer.AllUseFlags, ", "))
+		opts := strings.Join(slices.Sorted(maps.Keys(lexer.Flags)), ", ")
+		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, opts)
 		return useNode
 	}
 
@@ -292,10 +301,39 @@ func (p *sourceParser) consumeDefinition() AstNode {
 
 	defNode.MustDecorate(dslshape.NodeDefinitionPredicateName, definitionName)
 
-	// {
-	_, ok = p.consume(lexer.TokenTypeLeftBrace)
+	p.consumeDefinitionOrPartialImpl(defNode)
+
+	return defNode
+}
+
+// consumePartial attempts to consume a single schema partial.
+// ```partial somepartial { ... }```
+func (p *sourceParser) consumePartial() AstNode {
+	partialNode := p.startNode(dslshape.NodeTypePartial)
+	defer p.mustFinishNode()
+
+	// partial ...
+	p.consumeKeyword("partial")
+	definitionName, ok := p.consumeTypePath()
 	if !ok {
-		return defNode
+		return partialNode
+	}
+
+	partialNode.MustDecorate(dslshape.NodePartialPredicateName, definitionName)
+
+	p.consumeDefinitionOrPartialImpl(partialNode)
+
+	return partialNode
+}
+
+// consumeDefinitionOrPartialImpl does the work of parsing and consuming
+// the internals of a given definition or partial.
+// Definitions and partials have the same set of allowable internals.
+func (p *sourceParser) consumeDefinitionOrPartialImpl(node AstNode) AstNode {
+	// {
+	_, ok := p.consume(lexer.TokenTypeLeftBrace)
+	if !ok {
+		return node
 	}
 
 	// Relations and permissions.
@@ -309,10 +347,13 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		// permission ...
 		switch {
 		case p.isKeyword("relation"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumeRelation())
+			node.Connect(dslshape.NodePredicateChild, p.consumeRelation())
 
 		case p.isKeyword("permission"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
+			node.Connect(dslshape.NodePredicateChild, p.consumePermission())
+
+		case p.isToken(lexer.TokenTypeEllipsis):
+			node.Connect(dslshape.NodePredicateChild, p.consumePartialReference())
 		}
 
 		ok := p.consumeStatementTerminator()
@@ -321,7 +362,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		}
 	}
 
-	return defNode
+	return node
 }
 
 // consumeRelation consumes a relation.
@@ -410,6 +451,12 @@ func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
 
 		// Decorate with the expiration trait.
 		specificNode.Connect(dslshape.NodeSpecificReferencePredicateTrait, traitNode)
+
+		// If `and` follows expiration, the user likely wrote the caveat and
+		// expiration in the wrong order.
+		if p.isKeyword("and") {
+			p.emitErrorf("Unexpected keyword after expiration: the caveat must come before expiration, e.g. `with <caveat_name> and expiration`")
+		}
 	}
 
 	return specificNode
@@ -481,6 +528,21 @@ func (p *sourceParser) consumeTypePath() (string, bool) {
 	}
 
 	return strings.Join(segments, "/"), true
+}
+
+func (p *sourceParser) consumePartialReference() AstNode {
+	partialReferenceNode := p.startNode(dslshape.NodeTypePartialReference)
+	defer p.mustFinishNode()
+
+	p.consume(lexer.TokenTypeEllipsis)
+	identifier, ok := p.consumeIdentifier()
+	if !ok {
+		return partialReferenceNode
+	}
+
+	partialReferenceNode.MustDecorate(dslshape.NodePartialReferencePredicateName, identifier)
+
+	return partialReferenceNode
 }
 
 // consumePermission consumes a permission.
@@ -716,4 +778,23 @@ func (p *sourceParser) tryConsumeSelfExpression() (AstNode, bool) {
 	p.consumeKeyword("self")
 	defer p.mustFinishNode()
 	return node, true
+}
+
+func (p *sourceParser) consumeImport() AstNode {
+	importNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	// import ...
+	// NOTE: error handling isn't necessary here because this function is only
+	// invoked if the `import` keyword is found in the function above.
+	p.consumeKeyword("import")
+
+	importPath, ok := p.consumeStringLiteral()
+	if !ok {
+		return importNode
+	}
+
+	importNode.MustDecorate(dslshape.NodeImportPredicatePath, importPath)
+
+	return importNode
 }

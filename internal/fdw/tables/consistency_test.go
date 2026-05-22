@@ -8,8 +8,6 @@ import (
 )
 
 func TestConsistencyFromFields(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name                    string
 		fields                  fieldMap[string]
@@ -37,7 +35,7 @@ func TestConsistencyFromFields(t *testing.T) {
 			},
 			expectedConsistencyType: "FullyConsistent",
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name: "at_least_as_fresh with token",
 			fields: fieldMap[string]{
 				"consistency": {value: "GhUKEzE3MzU2OTQzMDkwMDAwMDAwMDA="},
@@ -45,7 +43,7 @@ func TestConsistencyFromFields(t *testing.T) {
 			expectedConsistencyType: "AtLeastAsFresh",
 			expectedToken:           "GhUKEzE3MzU2OTQzMDkwMDAwMDAwMDA=",
 		},
-		{
+		{ //nolint:gosec  // this is a test file and test logic
 			name: "at_exact_snapshot with @ prefix",
 			fields: fieldMap[string]{
 				"consistency": {value: "@GhUKEzE3MzU2OTQzMDkwMDAwMDAwMDA="},
@@ -106,8 +104,6 @@ func TestConsistencyFromFields(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			consistency, err := consistencyFromFields(tc.fields, tc.parameters)
 
 			if tc.expectedError != "" {
@@ -147,8 +143,6 @@ func TestConsistencyFromFields(t *testing.T) {
 }
 
 func TestConsistencyConstants(t *testing.T) {
-	t.Parallel()
-
 	// Verify constants are defined correctly
 	require.Equal(t, "minimize_latency", consistencyMinimizeLatency)
 	require.Equal(t, "fully_consistent", consistencyFullyConsistent)
@@ -156,8 +150,6 @@ func TestConsistencyConstants(t *testing.T) {
 }
 
 func TestConsistencyField(t *testing.T) {
-	t.Parallel()
-
 	// Verify consistencyField is properly configured
 	require.Equal(t, "consistency", consistencyField.Name)
 	require.NotZero(t, consistencyField.Oid)

@@ -271,9 +271,9 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	}, limits, 1)
 	require.NoError(t, err)
 
-	items := []int{}
-	expected := []int{}
-	for i := 0; i < 500; i++ {
+	items := make([]int, 0, 500)    //nolint:prealloc  // for some reason prealloc thinks this should be doubled
+	expected := make([]int, 0, 500) //nolint:prealloc  // for some reason prealloc thinks this should be doubled
+	for i := range 500 {
 		items = append(items, i)
 		expected = append(expected, i*10)
 	}

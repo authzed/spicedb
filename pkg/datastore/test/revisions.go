@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -20,7 +22,6 @@ import (
 
 // RevisionQuantizationTest tests whether or not the requirements for revisions hold
 // for a particular datastore.
-// TODO: rewrite using synctest
 func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
 		quantizationRange        time.Duration
@@ -31,18 +32,18 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("quantization%s", tc.quantizationRange), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(tc.quantizationRange, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, tc.quantizationRange, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 
 			ctx := t.Context()
-			veryFirstRevision, err := ds.OptimizedRevision(ctx)
+			veryFirstRevisionResult, err := ds.OptimizedRevision(ctx)
 			require.NoError(err)
+			veryFirstRevision := veryFirstRevisionResult.Revision
 
-			postSetupRevision := setupDatastore(ds, require)
+			postSetupRevision := setupDatastore(t, ds)
 			require.True(postSetupRevision.GreaterThan(veryFirstRevision), "post-setup revision should be greater than the first revision")
 
 			// Create some revisions
@@ -55,16 +56,18 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			require.True(writtenAt.GreaterThan(postSetupRevision))
 
 			// Get the new now revision
-			nowRevision, err := ds.HeadRevision(ctx)
+			nowRevisionResult, err := ds.HeadRevision(ctx)
 			require.NoError(err)
+			nowRevision := nowRevisionResult.Revision
 
 			// Let the quantization window expire
 			time.Sleep(tc.quantizationRange)
 
 			// Now we should ONLY get revisions later than the now revision
 			for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
-				testRevision, err := ds.OptimizedRevision(ctx)
+				testRevisionResult, err := ds.OptimizedRevision(ctx)
 				require.NoError(err)
+				testRevision := testRevisionResult.Revision
 				require.True(nowRevision.LessThan(testRevision) || nowRevision.Equal(testRevision))
 			}
 		})
@@ -76,7 +79,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
@@ -86,12 +89,13 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	meta := dispatch.ResolverMeta{
+	meta := &dispatch.ResolverMeta{
 		AtRevision:     revToTest.String(),
 		DepthRemaining: 50,
 		TraversalBloom: dispatch.MustNewTraversalBloomFilter(50),
+		SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 	}
-	require.NoError(meta.Validate())
+	require.NoError(protovalidate.Validate(meta))
 }
 
 // GCProcessRunTest tests whether the custom GC process runs for the datastore.
@@ -102,7 +106,7 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	gcWindow := 300 * time.Millisecond
 	gcInterval := 500 * time.Millisecond
 
-	ds, err := tester.New(0, gcInterval, gcWindow, 1)
+	ds, err := tester.New(t, 0, gcInterval, gcWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -124,7 +128,7 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	gcable, ok := ds.(common.GarbageCollectableDatastore)
+	gcable, ok := ds.(datastore.GarbageCollectableDatastore)
 	if !ok {
 		return
 	}
@@ -147,7 +151,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	gcWindow := 300 * time.Millisecond
 
 	// NOTE: we disable the background GC process here and instead manually run it below.
-	ds, err := tester.New(0, veryLargeGCInterval, gcWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, gcWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -171,18 +175,20 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 
 	require.NoError(ds.CheckRevision(ctx, previousRev), "expected latest write revision to be within GC window")
 
-	head, err := ds.HeadRevision(ctx)
+	headResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	head := headResult.Revision
 	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
 
 	// Sleep to ensure we're past the GC window.
 	time.Sleep(gcWindow)
 
-	gcable, ok := ds.(common.GarbageCollectableDatastore)
+	gcable, ok := ds.(datastore.GarbageCollectableDatastore)
+	// NOTE: CRDB and Spanner both do garbage collection with row-level TTLs
 	if ok {
 		// Run garbage collection.
 		gcable.ResetGCCompleted()
-		err := common.RunGarbageCollection(ctx, gcable, gcWindow)
+		err := datastore.RunGarbageCollection(ctx, gcable, gcWindow)
 		require.NoError(err)
 		require.True(gcable.HasGCRun(), "GC was never run as expected")
 	}
@@ -199,9 +205,16 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// require.Error(err, "expected previously written schema to exist at out-of-GC window head")
 
 	// check freshly fetched head revision is valid after GC window elapsed
-	head, err = ds.HeadRevision(ctx)
+	headResult, err = ds.HeadRevision(ctx)
 	require.NoError(err)
+	head = headResult.Revision
 
+	// assert that recent call to head revision is also valid, even after a GC window cycle without writes elapsed
+	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
+
+	// TODO: these reads are taking a significant amount of time on CRDB, on the order
+	// of 100ms for a row read. We need to ascertain whether this is a test artifact
+	// or a performance regression.
 	// check that we can read a caveat whose revision has been garbage collectged
 	_, _, err = ds.SnapshotReader(head).LegacyReadCaveatByName(ctx, testCaveat.Name)
 	require.NoError(err, "expected previously written caveat should exist at head")
@@ -213,9 +226,6 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// state of the system is also consistent at a recent call to head
 	_, _, err = ds.SnapshotReader(head).LegacyReadNamespaceByName(ctx, "foo/bar")
 	require.NoError(err, "expected previously written schema to exist at head")
-
-	// and that recent call to head revision is also valid, even after a GC window cycle without writes elapsed
-	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
 
 	// write happens, we get a new head revision
 	newerRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -229,7 +239,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, 1000*time.Second, 300*time.Minute, 1)
+	ds, err := tester.New(t, 0, 1000*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -242,8 +252,9 @@ func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(ds.CheckRevision(ctx, writtenRev), "expected written revision to be valid in GC Window")
 
-	head, err := ds.HeadRevision(ctx)
+	headResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	head := headResult.Revision
 
 	// Check the head revision is valid
 	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
@@ -259,8 +270,9 @@ func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(ds.CheckRevision(ctx, head), "expected previous revision to be valid in GC Window")
 
 	// Get the updated head revision.
-	head, err = ds.HeadRevision(ctx)
+	headResult, err = ds.HeadRevision(ctx)
 	require.NoError(err)
+	head = headResult.Revision
 
 	// Check the new head revision is valid.
 	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
@@ -269,7 +281,7 @@ func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
+	ds, err := tester.New(t, 0, 10*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -277,8 +289,9 @@ func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 
 	var previous datastore.Revision
 	for range 50 {
-		head, err := ds.HeadRevision(ctx)
+		headResult, err := ds.HeadRevision(ctx)
 		require.NoError(err)
+		head := headResult.Revision
 		require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
 
 		if previous != nil {
@@ -292,7 +305,7 @@ func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
+	ds, err := tester.New(t, 0, 10*time.Second, 300*time.Minute, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -301,21 +314,23 @@ func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 	var wg sync.WaitGroup
 	wg.Add(10)
 
-	startingRev, err := ds.HeadRevision(ctx)
+	startingRevResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	startingRev := startingRevResult.Revision
 
 	errCh := make(chan error, 10*5)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			defer wg.Done()
 
-			for i := 0; i < 5; i++ {
-				head, err := ds.HeadRevision(ctx)
+			for range 5 {
+				headResult, err := ds.HeadRevision(ctx)
 				if err != nil {
 					errCh <- fmt.Errorf("HeadRevision error: %w", err)
 					continue
 				}
+				head := headResult.Revision
 				if err := ds.CheckRevision(ctx, head); err != nil {
 					errCh <- fmt.Errorf("CheckRevision error: %w", err)
 					continue

@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	schemautil "github.com/authzed/spicedb/internal/datastore/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -446,13 +445,7 @@ func filterFuncForFilters(
 		}
 
 		if len(optionalSubjectsSelectors) > 0 {
-			hasMatchingSelector := false
-			for _, selector := range optionalSubjectsSelectors {
-				if applySubjectSelector(selector) {
-					hasMatchingSelector = true
-					break
-				}
-			}
+			hasMatchingSelector := slices.ContainsFunc(optionalSubjectsSelectors, applySubjectSelector)
 
 			if !hasMatchingSelector {
 				return true
@@ -586,11 +579,6 @@ func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64
 			count++
 		}
 	}
-}
-
-// SchemaReader returns a SchemaReader for reading schema information.
-func (r *memdbReader) SchemaReader() (datastore.SchemaReader, error) {
-	return schemautil.NewLegacySchemaReaderAdapter(r), nil
 }
 
 var _ datastore.Reader = &memdbReader{}

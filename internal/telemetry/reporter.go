@@ -62,7 +62,7 @@ func writeTimeSeries(ctx context.Context, client *http.Client, endpoint string, 
 	r.Header.Add("Content-Encoding", "snappy")
 	r.Header.Set("Content-Type", "application/x-protobuf")
 
-	resp, err := client.Do(r)
+	resp, err := client.Do(r) //nolint:gosec  // re: SSRF: the only thing that's user-controllable is the endpoint, and that's through a config.
 	if err != nil {
 		return fmt.Errorf("failed to send Prometheus remote write: %w", err)
 	}

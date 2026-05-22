@@ -1,0 +1,75 @@
+NodeTypeFile
+  end-rune = 153
+  input-source = local imports test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 9
+      input-source = local imports test
+      start-rune = 0
+      use-flag-name = import
+    NodeTypeImport
+      end-rune = 36
+      import-path = path/to/user.zed
+      input-source = local imports test
+      start-rune = 12
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 152
+      input-source = local imports test
+      start-rune = 39
+      child-node =>
+        NodeTypeRelation
+          end-rune = 83
+          input-source = local imports test
+          relation-name = user
+          start-rune = 65
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 83
+              input-source = local imports test
+              start-rune = 80
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 83
+                  input-source = local imports test
+                  start-rune = 80
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 113
+          input-source = local imports test
+          relation-name = persona
+          start-rune = 89
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 113
+              input-source = local imports test
+              start-rune = 107
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 113
+                  input-source = local imports test
+                  start-rune = 107
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 150
+          input-source = local imports test
+          relation-name = view
+          start-rune = 119
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 150
+              input-source = local imports test
+              start-rune = 137
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 140
+                  identifier-value = user
+                  input-source = local imports test
+                  start-rune = 137
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 150
+                  identifier-value = persona
+                  input-source = local imports test
+                  start-rune = 144

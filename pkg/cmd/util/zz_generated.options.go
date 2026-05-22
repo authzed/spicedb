@@ -11,8 +11,8 @@ type GRPCServerConfigOption func(g *GRPCServerConfig)
 // NewGRPCServerConfigWithOptions creates a new GRPCServerConfig with the passed in options set
 func NewGRPCServerConfigWithOptions(opts ...GRPCServerConfigOption) *GRPCServerConfig {
 	g := &GRPCServerConfig{}
-	for _, o := range opts {
-		o(g)
+	for _, opt := range opts {
+		opt(g)
 	}
 	return g
 }
@@ -21,8 +21,8 @@ func NewGRPCServerConfigWithOptions(opts ...GRPCServerConfigOption) *GRPCServerC
 func NewGRPCServerConfigWithOptionsAndDefaults(opts ...GRPCServerConfigOption) *GRPCServerConfig {
 	g := &GRPCServerConfig{}
 	defaults.MustSet(g)
-	for _, o := range opts {
-		o(g)
+	for _, opt := range opts {
+		opt(g)
 	}
 	return g
 }
@@ -65,7 +65,13 @@ func (g *GRPCServerConfig) DebugMap() map[string]any {
 	} else {
 		debugMap["TLSKeyPath"] = g.TLSKeyPath
 	}
-	debugMap["MaxConnAge"] = g.MaxConnAge
+	if dm, ok := any(&g.MaxConnAge).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["MaxConnAge"] = dm.DebugMap()
+	} else {
+		debugMap["MaxConnAge"] = g.MaxConnAge
+	}
 	debugMap["Enabled"] = g.Enabled
 	debugMap["BufferSize"] = g.BufferSize
 	if g.ClientCAPath == "" {
@@ -100,16 +106,16 @@ func (g *GRPCServerConfig) FlatDebugMap() map[string]any {
 
 // GRPCServerConfigWithOptions configures an existing GRPCServerConfig with the passed in options set
 func GRPCServerConfigWithOptions(g *GRPCServerConfig, opts ...GRPCServerConfigOption) *GRPCServerConfig {
-	for _, o := range opts {
-		o(g)
+	for _, opt := range opts {
+		opt(g)
 	}
 	return g
 }
 
 // WithOptions configures the receiver GRPCServerConfig with the passed in options set
 func (g *GRPCServerConfig) WithOptions(opts ...GRPCServerConfigOption) *GRPCServerConfig {
-	for _, o := range opts {
-		o(g)
+	for _, opt := range opts {
+		opt(g)
 	}
 	return g
 }
@@ -182,8 +188,8 @@ type HTTPServerConfigOption func(h *HTTPServerConfig)
 // NewHTTPServerConfigWithOptions creates a new HTTPServerConfig with the passed in options set
 func NewHTTPServerConfigWithOptions(opts ...HTTPServerConfigOption) *HTTPServerConfig {
 	h := &HTTPServerConfig{}
-	for _, o := range opts {
-		o(h)
+	for _, opt := range opts {
+		opt(h)
 	}
 	return h
 }
@@ -192,8 +198,8 @@ func NewHTTPServerConfigWithOptions(opts ...HTTPServerConfigOption) *HTTPServerC
 func NewHTTPServerConfigWithOptionsAndDefaults(opts ...HTTPServerConfigOption) *HTTPServerConfig {
 	h := &HTTPServerConfig{}
 	defaults.MustSet(h)
-	for _, o := range opts {
-		o(h)
+	for _, opt := range opts {
+		opt(h)
 	}
 	return h
 }
@@ -253,16 +259,16 @@ func (h *HTTPServerConfig) FlatDebugMap() map[string]any {
 
 // HTTPServerConfigWithOptions configures an existing HTTPServerConfig with the passed in options set
 func HTTPServerConfigWithOptions(h *HTTPServerConfig, opts ...HTTPServerConfigOption) *HTTPServerConfig {
-	for _, o := range opts {
-		o(h)
+	for _, opt := range opts {
+		opt(h)
 	}
 	return h
 }
 
 // WithOptions configures the receiver HTTPServerConfig with the passed in options set
 func (h *HTTPServerConfig) WithOptions(opts ...HTTPServerConfigOption) *HTTPServerConfig {
-	for _, o := range opts {
-		o(h)
+	for _, opt := range opts {
+		opt(h)
 	}
 	return h
 }

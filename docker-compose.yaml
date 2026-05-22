@@ -33,21 +33,38 @@ services:
     command: "datastore migrate head"
     networks:
       - "default"
+  # Envoy is used instead of nginx for gRPC load balancing. nginx balances at the
+  # connection level: once a client opens an HTTP/2 connection, all RPCs on that
+  # connection go to the same backend. Envoy speaks HTTP/2 to the backends and
+  # balances individual RPCs across pods, which is required for even cache warming.
+  envoy:
+    image: "envoyproxy/envoy:v1.33-latest"
+    ports:
+      - "50051:50051" # grpc
+      - "8443:8443" # http
+    volumes:
+      - "./development/envoy.yaml:/etc/envoy/envoy.yaml"
+    command: "-c /etc/envoy/envoy.yaml"
+    depends_on:
+      spicedb-1:
+        condition: "service_healthy"
+      spicedb-2:
+        condition: "service_healthy"
   spicedb-1:
     container_name: "spicedb-1"
     build: "."
     command: "serve"
     restart: "no"
     ports:
-      - "9090:9090" # prometheus metrics
-      - "50051:50051" # grpc endpoint
-      - "8443:8443" # http endpoint
+      - "9090" # prometheus metrics
+      - "50051" # grpc endpoint
+      - "8443" # http endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
       - "SPICEDB_HTTP_ENABLED=true"
-      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_GRPC_PRESHARED_KEY=super-secret-key"
       - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
       - "SPICEDB_DATASTORE_CONN_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
@@ -59,13 +76,14 @@ services:
       - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
       - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+      - "SPICEDB_ENABLE_PERFORMANCE_INSIGHT_METRICS=true"
     depends_on:
       migrate:
         condition: "service_completed_successfully"
       otel-collector:
         condition: "service_started"
     healthcheck:
-      test: ["CMD", "/bin/grpc_health_probe", "-addr=spicedb:50051"]
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
       interval: "5s"
       timeout: "30s"
       retries: 3
@@ -77,12 +95,13 @@ services:
     ports:
       - "9090" # prometheus metrics
       - "50051" # grpc endpoint
+      - "8443" # http endpoint
       - "50053" # dispatch endpoint
     environment:
       - "SPICEDB_LOG_FORMAT=json"
       - "SPICEDB_LOG_LEVEL=info"
-      - "SPICEDB_HTTP_ENABLED=false"
-      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_HTTP_ENABLED=true"
+      - "SPICEDB_GRPC_PRESHARED_KEY=super-secret-key"
       - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
       - "SPICEDB_DATASTORE_CONN_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
@@ -94,16 +113,23 @@ services:
       - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
       - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+      - "SPICEDB_ENABLE_PERFORMANCE_INSIGHT_METRICS=true"
     depends_on:
       migrate:
         condition: "service_completed_successfully"
       otel-collector:
         condition: "service_started"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:50051"]
+      interval: "5s"
+      timeout: "30s"
+      retries: 3
   prometheus:
     image: "prom/prometheus:v2.47.0"
     command:
       - "--config.file=/etc/prometheus/prometheus.yaml"
       - "--storage.tsdb.path=/prometheus"
+      - "--enable-feature=native-histograms"
     volumes:
       - "./development/prometheus.yaml:/etc/prometheus/prometheus.yaml"
     ports:

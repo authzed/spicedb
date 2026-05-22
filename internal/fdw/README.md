@@ -4,6 +4,8 @@
 
 The SpiceDB Postgres FDW provides a Postgres-compatible interface for querying SpiceDB permissions and relationships data using standard SQL. This allows you to integrate SpiceDB with existing Postgres-based tools and applications through Foreign Data Wrapper support.
 
+<img src="fdw.png" alt="SpiceDB FDW Logo" width="200" />
+
 ## Overview
 
 The FDW proxy implements the Postgres wire protocol and translates SQL queries into SpiceDB API calls. It exposes virtual SQL tables that map to SpiceDB concepts:

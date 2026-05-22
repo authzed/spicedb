@@ -10,7 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -601,7 +601,7 @@ definition resource {
 				relationships = append(relationships, tuple.MustParse(rel))
 			}
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.startingSchema, relationships, require)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.startingSchema, relationships)
 
 			// Update the schema and ensure it works.
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -617,7 +617,8 @@ definition resource {
 
 			require.NoError(err)
 
-			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			dl := datalayer.NewDataLayer(ds)
+			_, err = dl.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 				applied, err := ApplySchemaChanges(t.Context(), rwt, caveattypes.Default.TypeSet, validated)
 				if tc.expectedError != "" {
 					require.EqualError(err, tc.expectedError)
@@ -625,6 +626,10 @@ definition resource {
 				}
 
 				require.NoError(err)
+				// SchemaHash depends on the DataLayer's schema mode; the default is
+				// legacy storage, which produces no unified hash.
+				require.Equal(datalayer.NoSchemaHashInLegacyMode, applied.SchemaHash)
+				applied.SchemaHash = ""
 				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
 				return nil
 			})
@@ -740,7 +745,7 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schemaInDB, nil, require)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, schemaInDB, nil)
 
 			// Update the schema and ensure it works.
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -757,7 +762,8 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 
 			require.NoError(err)
 
-			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			dl := datalayer.NewDataLayer(ds)
+			_, err = dl.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 				applied, err := ApplySchemaChangesOverExisting(
 					t.Context(),
 					rwt,
@@ -772,13 +778,17 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 				}
 
 				require.NoError(err)
+				// SchemaHash depends on the DataLayer's schema mode; the default is
+				// legacy storage, which produces no unified hash.
+				require.Equal(datalayer.NoSchemaHashInLegacyMode, applied.SchemaHash)
+				applied.SchemaHash = ""
 				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
 
-				reader, err := rwt.SchemaReader()
+				sr, err := rwt.ReadSchema(ctx)
 				require.NoError(err)
-				schema, err := reader.SchemaText()
+				schemaText, err := sr.SchemaText(t.Context())
 				require.NoError(err)
-				require.Equal(tc.expectedSchema, schema)
+				require.Equal(tc.expectedSchema, schemaText)
 				return nil
 			})
 			require.NoError(err)

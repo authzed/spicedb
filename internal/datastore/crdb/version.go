@@ -2,48 +2,33 @@ package crdb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
 const (
-	queryVersionJSON = "SELECT crdb_internal.active_version()::jsonb;"
-	queryVersion     = "SELECT version();"
-
-	errFunctionDoesNotExist = "42883"
+	queryVersion = "SELECT version();"
 )
 
 var versionRegex = regexp.MustCompile(`v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?`)
 
+// queryServerVersion reads the version() string out of CRDB
+// and then parses it using a regex to determine the semver.
 func queryServerVersion(ctx context.Context, db pgxcommon.DBFuncQuerier, version *crdbVersion) error {
+	var versionStr string
 	if err := db.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-		return row.Scan(version)
-	}, queryVersionJSON); err != nil {
-		var pgerr *pgconn.PgError
-		if !errors.As(err, &pgerr) || pgerr.Code != errFunctionDoesNotExist {
-			return err
-		}
-
-		// The crdb_internal.active_version() wasn't added until v22.1.X, try to parse the version
-		var versionStr string
-		if err := db.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-			return row.Scan(&versionStr)
-		}, queryVersion); err != nil {
-			return err
-		}
-
-		return parseVersionStringInto(versionStr, version)
+		return row.Scan(&versionStr)
+	}, queryVersion); err != nil {
+		return err
 	}
 
-	return nil
+	return parseVersionStringInto(versionStr, version)
 }
 
 func parseVersionStringInto(versionStr string, version *crdbVersion) error {

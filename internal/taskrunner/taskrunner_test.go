@@ -19,8 +19,7 @@ func TestTaskRunnerCompletesAllTasks(t *testing.T) {
 	tr := NewTaskRunner(t.Context(), 2)
 	completed := sync.Map{}
 
-	for i := 0; i < 5; i++ {
-		i := i
+	for i := range 5 {
 		tr.Schedule(func(ctx context.Context) error {
 			time.Sleep(time.Duration(i*10) * time.Millisecond)
 			completed.Store(i, true)
@@ -33,7 +32,7 @@ func TestTaskRunnerCompletesAllTasks(t *testing.T) {
 		require.NoError(t, err)
 	}, 5*time.Second)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		vle, ok := completed.Load(i)
 		require.True(t, ok)
 		require.True(t, vle.(bool))
@@ -50,8 +49,7 @@ func TestTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	tr := NewTaskRunner(ctx, 3)
 	completed := sync.Map{}
 
-	for i := 0; i < 10; i++ {
-		i := i
+	for i := range 10 {
 		tr.Schedule(func(ctx context.Context) error {
 			if i == 1 {
 				return fmt.Errorf("some error")
@@ -70,7 +68,7 @@ func TestTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	}, 5*time.Second)
 
 	count := 0
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if _, ok := completed.Load(i); ok {
 			count++
 		}
@@ -89,8 +87,7 @@ func TestTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	tr := NewTaskRunner(ctx, 3)
 	completed := sync.Map{}
 
-	for i := 0; i < 10; i++ {
-		i := i
+	for i := range 10 {
 		tr.Schedule(func(ctx context.Context) error {
 			if i == 1 {
 				cancel()
@@ -110,7 +107,7 @@ func TestTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	}, 5*time.Second)
 
 	count := 0
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if _, ok := completed.Load(i); ok {
 			count++
 		}

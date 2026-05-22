@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -35,8 +36,6 @@ definition resource {
 }`
 
 func TestValidateRelationshipOperations(t *testing.T) {
-	t.Parallel()
-
 	tcs := []struct {
 		name          string
 		schema        string
@@ -326,16 +325,16 @@ func TestValidateRelationshipOperations(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			req := require.New(t)
 
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
-			uds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, nil, req)
-			reader := uds.SnapshotReader(rev)
+			uds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, nil)
+			dl := datalayer.NewDataLayer(uds)
+			sr, err := dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
+			req.NoError(err)
 
 			op := tuple.Create
 			if tc.operation == core.RelationTupleUpdate_DELETE {
@@ -343,7 +342,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			}
 
 			// Validate update.
-			err = ValidateRelationshipUpdates(t.Context(), reader, caveattypes.Default.TypeSet, []tuple.RelationshipUpdate{
+			err = ValidateRelationshipUpdates(t.Context(), sr, caveattypes.Default.TypeSet, []tuple.RelationshipUpdate{
 				op(tuple.MustParse(tc.relationship)),
 			})
 			if tc.expectedError != "" {
@@ -354,7 +353,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 
 			// Validate create/touch.
 			if tc.operation != core.RelationTupleUpdate_DELETE {
-				err = ValidateRelationshipsForCreateOrTouch(t.Context(), reader, caveattypes.Default.TypeSet, tuple.MustParse(tc.relationship))
+				err = ValidateRelationshipsForCreateOrTouch(t.Context(), sr, caveattypes.Default.TypeSet, tuple.MustParse(tc.relationship))
 				if tc.expectedError != "" {
 					req.ErrorContains(err, tc.expectedError)
 				} else {

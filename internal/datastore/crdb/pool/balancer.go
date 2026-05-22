@@ -23,12 +23,12 @@ import (
 var (
 	connectionsPerCRDBNodeCountGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "crdb_connections_per_node",
-		Help: "the number of connections spicedb has to each crdb node",
+		Help: "The number of active connections SpiceDB holds to each CockroachDB node, by pool (read/write). Imbalanced values across nodes suggest the connection balancer is unable to redistribute connections evenly.",
 	}, []string{"pool", "node_id"})
 
 	pruningTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "crdb_pruning_duration",
-		Help:    "milliseconds spent on one iteration of pruning excess connections",
+		Help:    "Duration in milliseconds of one iteration of the CockroachDB connection balancer pruning excess connections from over-represented nodes. Elevated values indicate the balancer is struggling to rebalance connections.",
 		Buckets: []float64{.1, .2, .5, 1, 2, 5, 10, 20, 50, 100},
 	}, []string{"pool"})
 )

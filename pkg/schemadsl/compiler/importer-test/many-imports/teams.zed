@@ -1,0 +1,8 @@
+use import
+
+import "caveat.zed"
+
+// teams
+definition teams {
+	relation d_caveat: d_caveat
+}

@@ -1,3 +1,0 @@
-caveat expiration(someparam int) {
-	someparam == 42
-}

@@ -12,8 +12,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	log "github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -61,7 +61,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 		return nil, fmt.Errorf("failed to init datastore: %w", err)
 	}
 
-	_, _, err = validationfile.PopulateFromFiles(ctx, ds, m.caveatTypeSet, m.configFilePaths)
+	_, _, err = validationfile.PopulateFromFiles(ctx, datalayer.NewDataLayer(ds), m.caveatTypeSet, m.configFilePaths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config files: %w", err)
 	}
@@ -81,8 +81,8 @@ func (m *MiddlewareForTesting) UnaryServerInterceptor() grpc.UnaryServerIntercep
 			return nil, err
 		}
 
-		newCtx := datastoremw.ContextWithHandle(ctx)
-		if err := datastoremw.SetInContext(newCtx, tokenDatastore); err != nil {
+		newCtx := datalayer.ContextWithHandle(ctx)
+		if err := datalayer.SetInContext(newCtx, datalayer.NewDataLayer(tokenDatastore)); err != nil {
 			return nil, err
 		}
 
@@ -99,8 +99,8 @@ func (m *MiddlewareForTesting) StreamServerInterceptor() grpc.StreamServerInterc
 		}
 
 		wrapped := middleware.WrapServerStream(stream)
-		wrapped.WrappedContext = datastoremw.ContextWithHandle(wrapped.WrappedContext)
-		if err := datastoremw.SetInContext(wrapped.WrappedContext, tokenDatastore); err != nil {
+		wrapped.WrappedContext = datalayer.ContextWithHandle(wrapped.WrappedContext)
+		if err := datalayer.SetInContext(wrapped.WrappedContext, datalayer.NewDataLayer(tokenDatastore)); err != nil {
 			return err
 		}
 		return handler(srv, wrapped)

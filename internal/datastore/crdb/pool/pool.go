@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // pgxPool interface is the subset of pgxpool.Pool that RetryPool needs
@@ -30,7 +30,7 @@ type pgxPool interface {
 
 var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "crdb_client_resets",
-	Help:    "cockroachdb client-side tx reset distribution",
+	Help:    "Distribution of the number of client-side transaction restarts per transaction attempt. Restarts occur when CockroachDB returns a serialization failure (40001) and the driver retries the transaction from scratch. Sustained high values indicate transaction contention.",
 	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
 })
 
@@ -156,29 +156,20 @@ func (p *RetryPool) ID() string {
 // MaxConns returns the MaxConns configured on the underlying pool
 func (p *RetryPool) MaxConns() uint32 {
 	// This should be non-negative
-	maxConns, err := safecast.Convert[uint32](p.pool.Config().MaxConns)
-	if err != nil {
-		maxConns = 0
-	}
-	return maxConns
+	return spiceerrors.MustSafecast[uint32](p.pool.Config().MaxConns)
 }
 
 // MinConns returns the MinConns configured on the underlying pool
 func (p *RetryPool) MinConns() uint32 {
 	// This should be non-negative
-	minConns, err := safecast.Convert[uint32](p.pool.Config().MinConns)
-	if err != nil {
-		minConns = 0
-	}
-	return minConns
+	return spiceerrors.MustSafecast[uint32](p.pool.Config().MinConns)
 }
 
 // ExecFunc is a replacement for pgxpool.pgxPool.Exec that allows resetting the
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		tag, err := conn.Conn().Exec(ctx, sql, arguments...)
-		return tagFunc(ctx, tag, err)
+		return common.QuerierFuncsFor(conn.Conn()).ExecFunc(ctx, tagFunc, sql, arguments...)
 	})
 }
 
@@ -186,16 +177,7 @@ func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Conte
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		rows, err := conn.Conn().Query(ctx, sql, optionsAndArgs...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		err = rowsFunc(ctx, rows)
-		if err != nil {
-			return err
-		}
-		return rows.Err()
+		return common.QuerierFuncsFor(conn.Conn()).QueryFunc(ctx, rowsFunc, sql, optionsAndArgs...)
 	})
 }
 
@@ -203,7 +185,7 @@ func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Con
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return rowFunc(ctx, conn.Conn().QueryRow(ctx, sql, optionsAndArgs...))
+		return common.QuerierFuncsFor(conn.Conn()).QueryRowFunc(ctx, rowFunc, sql, optionsAndArgs...)
 	})
 }
 

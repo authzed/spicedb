@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"buf.build/go/protovalidate"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -61,7 +63,7 @@ func (vsr validatingSnapshotReader) LegacyListAllNamespaces(
 	}
 
 	for _, ns := range read {
-		err := ns.Definition.Validate()
+		err := protovalidate.Validate(ns.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -80,7 +82,7 @@ func (vsr validatingSnapshotReader) LegacyLookupNamespacesWithNames(
 	}
 
 	for _, ns := range read {
-		err := ns.Definition.Validate()
+		err := protovalidate.Validate(ns.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +120,7 @@ func (vsr validatingSnapshotReader) LegacyReadNamespaceByName(
 		return read, createdAt, err
 	}
 
-	err = read.Validate()
+	err = protovalidate.Validate(read)
 	return read, createdAt, err
 }
 
@@ -149,7 +151,7 @@ func (vsr validatingSnapshotReader) LegacyReadCaveatByName(ctx context.Context, 
 		return read, createdAt, err
 	}
 
-	err = read.Validate()
+	err = protovalidate.Validate(read)
 	return read, createdAt, err
 }
 
@@ -160,7 +162,7 @@ func (vsr validatingSnapshotReader) LegacyLookupCaveatsWithNames(ctx context.Con
 	}
 
 	for _, caveat := range read {
-		err := caveat.Definition.Validate()
+		err := protovalidate.Validate(caveat.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +178,7 @@ func (vsr validatingSnapshotReader) LegacyListAllCaveats(ctx context.Context) ([
 	}
 
 	for _, caveat := range read {
-		err := caveat.Definition.Validate()
+		err := protovalidate.Validate(caveat.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -185,8 +187,8 @@ func (vsr validatingSnapshotReader) LegacyListAllCaveats(ctx context.Context) ([
 	return read, err
 }
 
-func (vsr validatingSnapshotReader) SchemaReader() (datastore.SchemaReader, error) {
-	return vsr.delegate.SchemaReader()
+func (vsr validatingSnapshotReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return vsr.delegate.ReadStoredSchema(ctx)
 }
 
 type validatingReadWriteTransaction struct {
@@ -195,7 +197,7 @@ type validatingReadWriteTransaction struct {
 }
 
 func (vrwt validatingReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
-	if err := filter.Validate(); err != nil {
+	if err := protovalidate.Validate(filter); err != nil {
 		return err
 	}
 
@@ -212,7 +214,7 @@ func (vrwt validatingReadWriteTransaction) StoreCounterValue(ctx context.Context
 
 func (vrwt validatingReadWriteTransaction) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	for _, newConfig := range newConfigs {
-		if err := newConfig.Validate(); err != nil {
+		if err := protovalidate.Validate(newConfig); err != nil {
 			return err
 		}
 	}
@@ -240,7 +242,7 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 }
 
 func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
-	if err := filter.Validate(); err != nil {
+	if err := protovalidate.Validate(filter); err != nil {
 		return 0, false, err
 	}
 
@@ -255,12 +257,16 @@ func (vrwt validatingReadWriteTransaction) LegacyDeleteCaveats(ctx context.Conte
 	return vrwt.delegate.LegacyDeleteCaveats(ctx, names)
 }
 
-func (vrwt validatingReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
-	return vrwt.delegate.SchemaWriter()
-}
-
 func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return vrwt.delegate.BulkLoad(ctx, source)
+}
+
+func (vrwt validatingReadWriteTransaction) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return vrwt.delegate.ReadStoredSchema(ctx)
+}
+
+func (vrwt validatingReadWriteTransaction) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	return vrwt.delegate.WriteStoredSchema(ctx, schema)
 }
 
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.

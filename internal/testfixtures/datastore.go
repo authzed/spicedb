@@ -2,6 +2,7 @@ package testfixtures
 
 import (
 	"context"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -146,81 +147,86 @@ var StandardCaveatedRelationships = []string{
 }
 
 // EmptyDatastore returns an empty datastore for testing.
-func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-	rev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
-	return ds, rev
+func EmptyDatastore(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+	rev, err := ds.HeadRevision(t.Context())
+	require.NoError(t, err)
+	return ds, rev.Revision
 }
 
 // StandardDatastoreWithSchema returns a datastore populated with the standard test definitions.
-func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+func StandardDatastoreWithSchema(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+	t.Helper()
 	validating := NewValidatingDatastore(ds)
+
 	objectDefs := []*core.NamespaceDefinition{UserNS.CloneVT(), FolderNS.CloneVT(), DocumentNS.CloneVT()}
-	return validating, writeDefinitions(validating, require, objectDefs, []*core.CaveatDefinition{CaveatDef})
+	return validating, writeDefinitions(t, validating, objectDefs, []*core.CaveatDefinition{CaveatDef})
 }
 
 // StandardDatastoreWithData returns a datastore populated with both the standard test definitions
 // and relationships.
-func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-	ds, _ = StandardDatastoreWithSchema(ds, require)
-	ctx := context.Background()
+func StandardDatastoreWithData(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+	t.Helper()
+	ds, _ = StandardDatastoreWithSchema(t, ds)
+	ctx := t.Context()
 
 	rels := make([]tuple.Relationship, 0, len(StandardRelationships))
 	for _, tupleStr := range StandardRelationships {
 		rel, err := tuple.Parse(tupleStr)
-		require.NoError(err)
-		require.NotNil(rel)
+		require.NoError(t, err)
+		require.NotNil(t, rel)
 		rels = append(rels, rel)
 	}
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	return ds, revision
 }
 
 // StandardDatastoreWithCaveatedData returns a datastore populated with both the standard test definitions
 // and some caveated relationships.
-func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-	ds, _ = StandardDatastoreWithSchema(ds, require)
-	ctx := context.Background()
+func StandardDatastoreWithCaveatedData(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+	t.Helper()
+	ds, _ = StandardDatastoreWithSchema(t, ds)
+	ctx := t.Context()
 
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.LegacyWriteCaveats(ctx, createTestCaveat(require))
+		return tx.LegacyWriteCaveats(ctx, createTestCaveat(t))
 	})
-	require.NoError(err)
+	require.NoError(t, err)
 
 	rels := make([]tuple.Relationship, 0, len(StandardRelationships)+len(StandardCaveatedRelationships))
 	for _, tupleStr := range StandardRelationships {
 		rel, err := tuple.Parse(tupleStr)
-		require.NoError(err)
-		require.NotNil(rel)
+		require.NoError(t, err)
+		require.NotNil(t, rel)
 		rels = append(rels, rel)
 	}
 	for _, tupleStr := range StandardCaveatedRelationships {
 		rel, err := tuple.Parse(tupleStr)
-		require.NoError(err)
-		require.NotNil(rel)
+		require.NoError(t, err)
+		require.NotNil(t, rel)
 		rels = append(rels, rel)
 	}
 
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	return ds, revision
 }
 
-func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
+func createTestCaveat(t testing.TB) []*core.CaveatDefinition {
+	t.Helper()
 	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
 		"secret":         caveattypes.Default.StringType,
 		"expectedSecret": caveattypes.Default.StringType,
 	})
-	require.NoError(err)
+	require.NoError(t, err)
 
 	c, err := caveats.CompileCaveatWithName(env, "secret == expectedSecret", "test")
-	require.NoError(err)
+	require.NoError(t, err)
 
 	cBytes, err := c.Serialize()
-	require.NoError(err)
+	require.NoError(t, err)
 
 	return []*core.CaveatDefinition{{
 		Name:                 "test",
@@ -231,17 +237,18 @@ func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
 
 // DatastoreFromSchemaAndTestRelationships returns a validating datastore wrapping that specified,
 // loaded with the given schema and relationships.
-func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema string, relationships []tuple.Relationship, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-	ctx := context.Background()
+func DatastoreFromSchemaAndTestRelationships(t testing.TB, ds datastore.Datastore, schema string, relationships []tuple.Relationship) (datastore.Datastore, datastore.Revision) {
+	t.Helper()
+	ctx := t.Context()
 	validating := NewValidatingDatastore(ds)
 
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schema,
 	}, compiler.AllowUnprefixedObjectType())
-	require.NoError(err)
+	require.NoError(t, err)
 
-	_ = writeDefinitions(validating, require, compiled.ObjectDefinitions, compiled.CaveatDefinitions)
+	_ = writeDefinitions(t, validating, compiled.ObjectDefinitions, compiled.CaveatDefinitions)
 
 	newRevision, err := validating.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		mutations := make([]tuple.RelationshipUpdate, 0, len(relationships))
@@ -249,21 +256,22 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 			mutations = append(mutations, tuple.Create(rel))
 		}
 		err = rwt.WriteRelationships(ctx, mutations)
-		require.NoError(err)
+		require.NoError(t, err)
 
 		return nil
 	})
-	require.NoError(err)
+	require.NoError(t, err)
 
 	return validating, newRevision
 }
 
-func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objectDefs []*core.NamespaceDefinition, caveatDefs []*core.CaveatDefinition) datastore.Revision {
-	ctx := context.Background()
+func writeDefinitions(t testing.TB, ds datastore.Datastore, objectDefs []*core.NamespaceDefinition, caveatDefs []*core.CaveatDefinition) datastore.Revision {
+	t.Helper()
+	ctx := t.Context()
 	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if len(caveatDefs) > 0 {
 			err := rwt.LegacyWriteCaveats(ctx, caveatDefs)
-			require.NoError(err)
+			require.NoError(t, err)
 		}
 
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(rwt).WithPredefinedElements(schema.PredefinedElements{
@@ -272,18 +280,18 @@ func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objec
 		}))
 		for _, nsDef := range objectDefs {
 			vdef, err := ts.GetValidatedDefinition(ctx, nsDef.GetName())
-			require.NoError(err)
+			require.NoError(t, err)
 
 			aerr := namespace.AnnotateNamespace(vdef)
-			require.NoError(aerr)
+			require.NoError(t, aerr)
 
 			err = rwt.LegacyWriteNamespaces(ctx, nsDef)
-			require.NoError(err)
+			require.NoError(t, err)
 		}
 
 		return nil
 	})
-	require.NoError(err)
+	require.NoError(t, err)
 	return newRevision
 }
 

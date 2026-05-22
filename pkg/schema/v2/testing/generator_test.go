@@ -3,6 +3,7 @@ package testing
 import (
 	"testing"
 
+	"buf.build/go/protovalidate"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
@@ -21,15 +22,15 @@ func TestExampleRunWithSchemaForTesting(t *testing.T) {
 
 		definitions := make([]compiler.SchemaDefinition, 0, len(typeDefs)+len(caveatDefs))
 		for _, td := range typeDefs {
-			require.NoError(t, td.Validate())
+			require.NoError(t, protovalidate.Validate(td))
 			definitions = append(definitions, td)
 		}
 		for _, cd := range caveatDefs {
-			require.NoError(t, cd.Validate())
+			require.NoError(t, protovalidate.Validate(cd))
 			definitions = append(definitions, cd)
 		}
 
-		generated, _, err := generator.GenerateSchema(definitions)
+		generated, _, err := generator.GenerateSchema(t.Context(), definitions)
 		require.NoError(t, err)
 		t.Logf("Generated schema:\n%s", generated)
 

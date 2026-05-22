@@ -18,10 +18,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -266,9 +266,13 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 
 	// Build refs for the lookup resources operation. The lr3refs holds references to shared
 	// interfaces used by various suboperations of the lookup resources operation.
-	ds := datastoremw.MustFromContext(stream.Context())
-	reader := ds.SnapshotReader(req.Revision)
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))
+	dl := datalayer.MustFromContext(stream.Context())
+	reader := dl.SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return err
+	}
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 	caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
 
 	refs := lr3refs{
@@ -353,7 +357,7 @@ type lr3refs struct {
 	req ValidatedLookupResources3Request
 
 	// reader is the datastore reader used to perform the lookup resources operation.
-	reader datastore.Reader
+	reader datalayer.RevisionedReader
 
 	// ts is the type system used to resolve types and relations for the lookup resources operation.
 	ts *schema.TypeSystem
@@ -475,7 +479,7 @@ func (crr *CursoredLookupResources3) loadEntrypoints(ctx context.Context, refs l
 		return nil, err
 	}
 
-	rg := vdef.Reachability()
+	rg := vdef.Reachability(refs.ts)
 	return rg.FirstEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: refs.req.SubjectRelation.Namespace,
 		Relation:  refs.req.SubjectRelation.Relation,
@@ -809,6 +813,12 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 
 					// Start the new relationships chunk that we will fill as we iterate over the results.
 					// It starts at the given dbCursor, which may be nil/empty if this is the first chunk.
+					caveatSR, err := refs.reader.ReadSchema(ctx)
+					if err != nil {
+						yieldError(err)
+						return
+					}
+
 					rm := newRelationshipsChunk(int(crr.dispatchChunkSize), dbCursor)
 					for rel, err := range it {
 						if err != nil {
@@ -820,7 +830,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						var missingContextParameters []string
 						if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
 							caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-							runResult, err := refs.caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), refs.reader, caveats.RunCaveatExpressionNoDebugging)
+							runResult, err := refs.caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), caveatSR, caveats.RunCaveatExpressionNoDebugging)
 							if err != nil {
 								yieldError(err)
 								return
@@ -954,12 +964,17 @@ func (crr *CursoredLookupResources3) dispatchIter(
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     refs.req.Revision.String(),
 				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
+				SchemaHash:     refs.req.Metadata.SchemaHash,
 			},
-			OptionalCursor: currentCursor,
-			OptionalLimit:  refs.req.OptionalLimit,
-			Context:        refs.req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    refs.req.OptionalLimit,
+			Context:          refs.req.Context,
+			EnableDebugTrace: refs.req.EnableDebugTrace,
 		}, stream)
 		if err != nil && !stream.canceled {
+			if refs.req.EnableDebugTrace {
+				err = dispatch.HandleTraversalTrace(err, foundResourceType.Namespace, foundResourceType.Relation, subjectIDs)
+			}
 			_ = yield(result{}, err)
 			return
 		}
@@ -1011,6 +1026,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 		MaximumDepth:  refs.req.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
+		SchemaHash:    datalayer.SchemaHash(refs.req.Metadata.GetSchemaHash()),
 	}, resourceIDsToCheck, crr.dispatchChunkSize)
 	if err != nil {
 		return nil, err

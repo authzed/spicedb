@@ -8,7 +8,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast/v2"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -16,8 +15,8 @@ import (
 )
 
 var (
-	_ common.GarbageCollectableDatastore = (*mysqlDatastore)(nil)
-	_ common.GarbageCollector            = (*mysqlGarbageCollector)(nil)
+	_ datastore.GarbageCollectableDatastore = (*mysqlDatastore)(nil)
+	_ datastore.GarbageCollector            = (*mysqlGarbageCollector)(nil)
 )
 
 type mysqlGarbageCollector struct {
@@ -25,7 +24,7 @@ type mysqlGarbageCollector struct {
 	isClosed bool
 }
 
-func (mds *mysqlDatastore) BuildGarbageCollector(ctx context.Context) (common.GarbageCollector, error) {
+func (mds *mysqlDatastore) BuildGarbageCollector(ctx context.Context) (datastore.GarbageCollector, error) {
 	return &mysqlGarbageCollector{mds: mds, isClosed: false}, nil
 }
 
@@ -110,7 +109,7 @@ func (mcc *mysqlGarbageCollector) TxIDBefore(ctx context.Context, before time.Ti
 func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	ctx context.Context,
 	txID datastore.Revision,
-) (removed common.DeletionCounts, err error) {
+) (removed datastore.DeletionCounts, err error) {
 	if mcc.isClosed {
 		return removed, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
 	}

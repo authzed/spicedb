@@ -15,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -23,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/internal/telemetry"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
@@ -48,7 +48,7 @@ const maxBulkCheckCount = 10000
 func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
 	telemetry.LogicalChecks.Add(float64(len(req.Items)))
 
-	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +77,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 	// the dispatching system already internally supports this kind of batching for performance.
 	groupedItems, err := groupItems(ctx, groupingParameters{
 		atRevision:           atRevision,
+		schemaHash:           schemaHash,
 		maxCaveatContextSize: bc.maxCaveatContextSize,
 		maximumAPIDepth:      bc.maxAPIDepth,
 		withTracing:          req.WithTracing,
@@ -163,11 +164,16 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 		bulkResponseMutex.Lock()
 		defer bulkResponseMutex.Unlock()
 
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
+
+		sr, err := dl.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
 
 		schemaText := ""
 		if len(debugInfos) > 0 {
-			schema, err := getFullSchema(ctx, ds)
+			schema, err := getFullSchema(ctx, sr)
 			if err != nil {
 				return err
 			}
@@ -215,7 +221,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 					}
 
 					// Convert to debug information.
-					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, ds, bc.caveatTypeSet, schemaText)
+					dt, err := convertCheckDispatchDebugInformationWithSchema(ctx, params.CaveatContext, wrappedDebugInfo, sr, bc.caveatTypeSet, schemaText)
 					if err != nil {
 						return err
 					}
@@ -242,16 +248,19 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 	}
 
 	for _, group := range groupedItems {
-		group := group
-
 		slicez.ForEachChunk(group.resourceIDs, bc.dispatchChunkSize, func(resourceIDs []string) {
 			tr.Add(func(ctx context.Context) error {
 				startTime := time.Now()
 
-				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+				dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
+
+				sr, err := dl.ReadSchema(ctx)
+				if err != nil {
+					return appendResultsForError(group.params, resourceIDs, err)
+				}
 
 				// Ensure the check namespaces and relations are valid.
-				err := namespace.CheckNamespaceAndRelations(ctx,
+				err = namespace.CheckNamespaceAndRelations(ctx,
 					[]namespace.TypeAndRelationToCheck{
 						{
 							NamespaceName: group.params.ResourceType.ObjectType,
@@ -263,7 +272,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 							RelationName:  cmp.Or(group.params.Subject.Relation, graph.Ellipsis),
 							AllowEllipsis: true,
 						},
-					}, ds)
+					}, sr)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}

@@ -7,8 +7,6 @@ import (
 )
 
 func TestMustStruct(t *testing.T) {
-	t.Parallel()
-
 	cc := TransactionMetadata{"key": "value"}
 
 	ss := cc.MustStruct()
@@ -16,8 +14,6 @@ func TestMustStruct(t *testing.T) {
 }
 
 func TestScan(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name     string
 		initial  TransactionMetadata
@@ -50,8 +46,6 @@ func TestScan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			cc := tt.initial
 			err := cc.Scan(tt.val)
 

@@ -1,4 +1,4 @@
-//go:build ci && docker && pgbouncer
+//go:build datastore && pgbouncer
 
 package postgres
 
@@ -21,11 +21,9 @@ func pgbouncerTestVersion() string {
 var pgbouncerConfig = postgresTestConfig{"head", "", pgbouncerTestVersion(), true}
 
 func TestPostgresWithPgBouncerDatastore(t *testing.T) {
-	t.Parallel()
 	testPostgresDatastore(t, pgbouncerConfig)
 }
 
 func TestPostgresDatastoreWithPgBouncerWithoutCommitTimestamps(t *testing.T) {
-	t.Parallel()
 	testPostgresDatastoreWithoutCommitTimestamps(t, pgbouncerConfig)
 }

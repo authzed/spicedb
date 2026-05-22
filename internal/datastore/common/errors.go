@@ -14,7 +14,6 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // SerializationError is returned when there's been a serialization
@@ -89,60 +88,6 @@ func (err ReadOnlyTransactionError) GRPCStatus() *status.Status {
 func NewReadOnlyTransactionError(err error) error {
 	return ReadOnlyTransactionError{
 		fmt.Errorf("could not perform write operation, as the datastore is currently in read-only mode: %w. This may indicate that the datastore has been put into maintenance mode", err),
-	}
-}
-
-// CreateRelationshipExistsError is an error returned when attempting to CREATE an already-existing
-// relationship.
-type CreateRelationshipExistsError struct {
-	error
-
-	// Relationship is the relationship that caused the error. May be nil, depending on the datastore.
-	Relationship *tuple.Relationship
-}
-
-// GRPCStatus implements retrieving the gRPC status for the error.
-func (err CreateRelationshipExistsError) GRPCStatus() *status.Status {
-	if err.Relationship == nil {
-		return spiceerrors.WithCodeAndDetails(
-			err,
-			codes.AlreadyExists,
-			spiceerrors.ForReason(
-				v1.ErrorReason_ERROR_REASON_ATTEMPT_TO_RECREATE_RELATIONSHIP,
-				map[string]string{},
-			),
-		)
-	}
-
-	relationship := tuple.ToV1Relationship(*err.Relationship)
-	return spiceerrors.WithCodeAndDetails(
-		err,
-		codes.AlreadyExists,
-		spiceerrors.ForReason(
-			v1.ErrorReason_ERROR_REASON_ATTEMPT_TO_RECREATE_RELATIONSHIP,
-			map[string]string{
-				"relationship":       tuple.V1StringRelationshipWithoutCaveatOrExpiration(relationship),
-				"resource_type":      relationship.Resource.ObjectType,
-				"resource_object_id": relationship.Resource.ObjectId,
-				"resource_relation":  relationship.Relation,
-				"subject_type":       relationship.Subject.Object.ObjectType,
-				"subject_object_id":  relationship.Subject.Object.ObjectId,
-				"subject_relation":   relationship.Subject.OptionalRelation,
-			},
-		),
-	)
-}
-
-// NewCreateRelationshipExistsError creates a new CreateRelationshipExistsError.
-func NewCreateRelationshipExistsError(relationship *tuple.Relationship) error {
-	msg := "could not CREATE one or more relationships, as they already existed. If this is persistent, please switch to TOUCH operations or specify a precondition"
-	if relationship != nil {
-		msg = fmt.Sprintf("could not CREATE relationship `%s`, as it already existed. If this is persistent, please switch to TOUCH operations or specify a precondition", tuple.StringWithoutCaveatOrExpiration(*relationship))
-	}
-
-	return CreateRelationshipExistsError{
-		errors.New(msg),
-		relationship,
 	}
 }
 

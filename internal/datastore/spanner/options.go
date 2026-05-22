@@ -29,12 +29,6 @@ const (
 	// OpenTelemetry collector.
 	// This option is enabled by default.
 	DatastoreMetricsOptionOpenTelemetry = "otel"
-
-	// DatastoreMetricsOptionLegacyPrometheus enables the legacy Prometheus metrics that are emitted
-	// by the Spanner datastore. These metrics are emitted to the configured
-	// Prometheus server.
-	// This option is deprecated and will be removed in a future release.
-	DatastoreMetricsOptionLegacyPrometheus = "deprecated-prometheus"
 )
 
 type spannerOptions struct {
@@ -47,8 +41,6 @@ type spannerOptions struct {
 	disableStats                bool
 	readMaxOpen                 int
 	writeMaxOpen                int
-	minSessions                 uint64
-	maxSessions                 uint64
 	migrationPhase              string
 	allowedMigrations           []string
 	filterMaximumIDCount        uint16
@@ -99,8 +91,6 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		disableStats:                defaultDisableStats,
 		readMaxOpen:                 int(defaultNumberConnections),
 		writeMaxOpen:                int(defaultNumberConnections),
-		minSessions:                 100,
-		maxSessions:                 400,
 		migrationPhase:              "", // no migration
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		columnOptimizationOption:    defaultColumnOptimizationOption,
@@ -212,22 +202,6 @@ func ReadConnsMaxOpen(conns int) Option {
 // This value defaults to having 10 connections.
 func WriteConnsMaxOpen(conns int) Option {
 	return func(po *spannerOptions) { po.writeMaxOpen = conns }
-}
-
-// MinSessionCount minimum number of session the Spanner client can have
-// at a given time.
-//
-// Defaults to 100.
-func MinSessionCount(minSessions uint64) Option {
-	return func(po *spannerOptions) { po.minSessions = minSessions }
-}
-
-// MaxSessionCount maximum number of session the Spanner client can have
-// at a given time.
-//
-// Defaults to 400 sessions.
-func MaxSessionCount(maxSessions uint64) Option {
-	return func(po *spannerOptions) { po.maxSessions = maxSessions }
 }
 
 // MigrationPhase configures the spanner driver to the proper state of a

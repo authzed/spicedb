@@ -40,12 +40,26 @@ const (
         LIMIT 1
 	);`
 
+	// schemaHashForSelectedXID looks up the schema hash visible at `selected.xid`.
+	// When `selected.xid` is NULL, it falls back to the currently-live row (deleted_xid = max_xid8).
+	// Returns an empty bytea when no row matches.
+	schemaHashForSelectedXID = `
+	COALESCE(
+		(SELECT hash FROM schema_revision
+		 WHERE (selected.xid IS NOT NULL AND created_xid <= selected.xid AND deleted_xid > selected.xid)
+		    OR (selected.xid IS NULL AND deleted_xid = '9223372036854775807'::xid8)
+		 ORDER BY created_xid DESC LIMIT 1),
+		''::bytea
+	)`
+
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction (and its active xmin)
 	// after that. If there are no transactions newer than the quantization period,
 	// it just picks the latest transaction. It will also return the amount of
 	// nanoseconds until the next optimized revision would be selected server-side,
-	// for use with caching.
+	// for use with caching. It also returns the schema hash visible at the selected
+	// xid so the DataLayer's stored-schema cache can be consulted without a second
+	// round-trip.
 	//
 	//   %[1] Name of xid column
 	//   %[2] Relationship tuple transaction table
@@ -59,7 +73,8 @@ const (
 	) as xid)
 	SELECT selected.xid,
 	COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
-	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d
+	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d,
+	` + schemaHashForSelectedXID + `
 	FROM selected;`
 
 	// queryValidTransaction will return a single row with three values:
@@ -99,52 +114,62 @@ const (
 	) AS candidates
 	ORDER BY %[3]s ASC
 	LIMIT 1;`
-	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
+	// queryCurrentSnapshotWithHash returns the current snapshot alongside the schema hash
+	// visible at the current xid. Uses pg_current_xact_id_if_assigned() so a read-only
+	// HeadRevision call does not allocate a fresh xid.
+	queryCurrentSnapshotWithHash = `
+	WITH selected AS (
+		SELECT pg_current_xact_id_if_assigned() as xid, pg_current_snapshot() as snapshot
+	)
+	SELECT selected.snapshot, ` + schemaHashForSelectedXID + `
+	FROM selected;`
 
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
 
-func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
+func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration
+	var schemaHash []byte
 	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
-		Scan(&revision, &snapshot, &validForNanos); err != nil {
-		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+		Scan(&revision, &snapshot, &validForNanos, &schemaHash); err != nil {
+		return datastore.NoRevision, 0, "", fmt.Errorf(errRevision, err)
 	}
 
 	snapshot = snapshot.markComplete(revision.Uint64)
 
-	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, nil
+	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, string(schemaHash), nil
 }
 
-func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
-	result, err := pgd.getHeadRevision(ctx, pgd.readPool)
+	result, schemaHash, err := pgd.getHeadRevisionWithHash(ctx, pgd.readPool)
 	if err != nil {
-		return nil, err
+		return datastore.RevisionWithSchemaHash{}, err
 	}
 	if result == nil {
-		return datastore.NoRevision, nil
+		return datastore.RevisionWithSchemaHash{}, nil
 	}
 
-	return *result, nil
+	return datastore.RevisionWithSchemaHash{Revision: *result, SchemaHash: string(schemaHash)}, nil
 }
 
-func (pgd *pgDatastore) getHeadRevision(ctx context.Context, querier common.Querier) (*postgresRevision, error) {
+func (pgd *pgDatastore) getHeadRevisionWithHash(ctx context.Context, querier common.Querier) (*postgresRevision, []byte, error) {
 	var snapshot pgSnapshot
-	if err := querier.QueryRow(ctx, queryCurrentSnapshot).Scan(&snapshot); err != nil {
+	var schemaHash []byte
+	if err := querier.QueryRow(ctx, queryCurrentSnapshotWithHash).Scan(&snapshot, &schemaHash); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
+			return nil, nil, nil
 		}
 
-		return nil, fmt.Errorf(errRevision, err)
+		return nil, nil, fmt.Errorf(errRevision, err)
 	}
 
-	return &postgresRevision{snapshot: snapshot}, nil
+	return &postgresRevision{snapshot: snapshot}, schemaHash, nil
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {

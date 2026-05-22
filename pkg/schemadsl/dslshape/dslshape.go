@@ -38,6 +38,10 @@ const (
 	NodeTypeSelfExpression // A self keyword
 
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
+
+	NodeTypeImport
+	NodeTypePartial
+	NodeTypePartialReference // A location where a partial is referenced
 )
 
 const (
@@ -218,4 +222,19 @@ const (
 	//
 	NodeExpressionPredicateLeftExpr  = "left-expr"
 	NodeExpressionPredicateRightExpr = "right-expr"
+
+	//
+	// NodeTypeImport
+	//
+	NodeImportPredicatePath = "import-path"
+
+	//
+	// NodeTypePartial
+	//
+	NodePartialPredicateName = "partial-name"
+
+	//
+	// NodeTypePartialReference
+	//
+	NodePartialReferencePredicateName = "partial-reference-name"
 )

@@ -30,7 +30,6 @@ func TestPresharedKeys(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
-		testcase := testcase
 		t.Run(testcase.name, func(t *testing.T) {
 			f := MustRequirePresharedKey(testcase.presharedkeys)
 			ctx := t.Context()
@@ -84,7 +83,6 @@ func TestPresharedKeyEdgeCases(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
-		testcase := testcase
 		t.Run(testcase.name, func(t *testing.T) {
 			f := MustRequirePresharedKey(testcase.presharedkeys)
 			ctx := withTokenMetadata("bearer " + testcase.token)

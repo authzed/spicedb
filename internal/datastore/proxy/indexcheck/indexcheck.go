@@ -56,7 +56,7 @@ func (p *indexcheckingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 
@@ -64,7 +64,7 @@ func (p *indexcheckingProxy) CheckRevision(ctx context.Context, revision datasto
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
-func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (p *indexcheckingProxy) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	return p.delegate.HeadRevision(ctx)
 }
 
@@ -139,6 +139,10 @@ func (r *indexcheckingReader) LegacyReadNamespaceByName(ctx context.Context, nsN
 	return r.delegate.LegacyReadNamespaceByName(ctx, nsName)
 }
 
+func (r *indexcheckingReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return r.delegate.ReadStoredSchema(ctx)
+}
+
 func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) error {
 	// If no indexes are expected, there is nothing to check.
 	if len(expectedIndexes.ExpectedIndexNames) == 0 {
@@ -185,12 +189,6 @@ func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, sub
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
-// SchemaReader returns a reference to the wrapped reader, since this
-// proxy does not interact with schema methods.
-func (r *indexcheckingReader) SchemaReader() (datastore.SchemaReader, error) {
-	return r.delegate.SchemaReader()
-}
-
 type indexcheckingRWT struct {
 	*indexcheckingReader
 	delegate datastore.ReadWriteTransaction
@@ -228,16 +226,16 @@ func (rwt *indexcheckingRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames
 	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
-func (rwt *indexcheckingRWT) SchemaWriter() (datastore.SchemaWriter, error) {
-	return rwt.delegate.SchemaWriter()
-}
-
 func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
 
 func (rwt *indexcheckingRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	return rwt.delegate.BulkLoad(ctx, iter)
+}
+
+func (rwt *indexcheckingRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
+	return rwt.delegate.WriteStoredSchema(ctx, schema)
 }
 
 var (

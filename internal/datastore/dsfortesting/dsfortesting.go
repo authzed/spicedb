@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -37,6 +38,21 @@ func NewMemDBDatastoreForTesting(
 	})
 
 	return validatingDatastore{ds}, nil
+}
+
+// DataLayerForTesting creates a new in-memory DataLayer for testing
+// that is automatically closed when the test ends.
+func DataLayerForTesting(
+	t testing.TB,
+	watchBufferLength uint16,
+	revisionQuantization,
+	gcWindow time.Duration,
+) (datalayer.DataLayer, error) {
+	ds, err := NewMemDBDatastoreForTesting(t, watchBufferLength, revisionQuantization, gcWindow)
+	if err != nil {
+		return nil, err
+	}
+	return datalayer.NewDataLayer(ds), nil
 }
 
 type validatingDatastore struct {

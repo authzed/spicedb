@@ -1,4 +1,4 @@
-//go:build ci && docker && datastoreconsistency
+//go:build datastoreconsistency
 
 package integrationtesting_test
 
@@ -38,10 +38,6 @@ func TestConsistencyPerDatastore(t *testing.T) {
 
 	for _, engineID := range datastore.Engines {
 		t.Run(engineID, func(t *testing.T) {
-			// FIXME errors arise if spanner is run in parallel
-			if engineID != "spanner" {
-				t.Parallel()
-			}
 			for _, filePath := range consistencyTestFiles {
 				rde := testdatastore.RunDatastoreEngine(t, engineID)
 				baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
@@ -58,26 +54,22 @@ func TestConsistencyPerDatastore(t *testing.T) {
 				t.Cleanup(func() { dispatcher.Close() })
 				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
-				headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+				headRevisionResult, err := cad.DataStore.HeadRevision(cad.Ctx)
 				require.NoError(t, err)
 
 				// Run the assertions within each file.
-				testers := consistencytestutil.ServiceTesters(cad.Conn)
-				for _, tester := range testers {
-					tester := tester
-
-					vctx := validationContext{
-						clusterAndData:   cad,
-						accessibilitySet: accessibilitySet,
-						serviceTester:    tester,
-						revision:         headRevision,
-						dispatcher:       dispatcher,
-					}
-
-					t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
-						runAssertions(t, vctx)
-					})
+				tester := consistencytestutil.NewServiceTester(cad.Conn)
+				vctx := validationContext{
+					clusterAndData:   cad,
+					accessibilitySet: accessibilitySet,
+					serviceTester:    tester,
+					revision:         headRevisionResult.Revision,
+					dispatcher:       dispatcher,
 				}
+
+				t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
+					runAssertions(t, vctx)
+				})
 			}
 		})
 	}

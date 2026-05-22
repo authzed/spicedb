@@ -15,8 +15,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -25,8 +25,6 @@ import (
 )
 
 func TestSimpleLookupResources2(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		start                 tuple.RelationReference
 		target                tuple.ObjectAndRelation
@@ -100,8 +98,6 @@ func TestSimpleLookupResources2(t *testing.T) {
 
 		tc := tc
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 			ctx, dispatcher, revision := newLocalDispatcher(t)
 			defer dispatcher.Close()
@@ -115,6 +111,7 @@ func TestSimpleLookupResources2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -141,6 +138,7 @@ func TestSimpleLookupResources2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -158,8 +156,6 @@ func TestSimpleLookupResources2(t *testing.T) {
 }
 
 func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
-	t.Parallel()
-
 	for _, tc := range []struct {
 		subject        string
 		expectedFirst  []string
@@ -181,10 +177,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 			expectedSecond: []string{"companyplan", "masterplan"},
 		},
 	} {
-		tc := tc
 		t.Run(tc.subject, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 			ctx, dispatcher, revision := newLocalDispatcher(t)
 			defer dispatcher.Close()
@@ -200,6 +193,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: 1,
 			}, stream)
@@ -223,6 +217,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalCursor: cursor,
 				OptionalLimit:  2,
@@ -243,8 +238,6 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 }
 
 func TestLookupResourcesCursorStability2(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	ctx, dispatcher, revision := newLocalDispatcher(t)
 	defer dispatcher.Close()
@@ -260,6 +253,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		OptionalLimit: 2,
 	}, stream)
@@ -280,6 +274,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		OptionalLimit: 2,
 	}, stream)
@@ -311,20 +306,19 @@ func processResults2(stream *dispatch.CollectingDispatchStream[*v1.DispatchLooku
 }
 
 func TestMaxDepthLookup2(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
-	require.NoError(datastoremw.SetInContext(ctx, ds))
+	ctx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -335,6 +329,7 @@ func TestMaxDepthLookup2(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -342,7 +337,6 @@ func TestMaxDepthLookup2(t *testing.T) {
 }
 
 func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name                  string
 		schema                string
@@ -748,13 +742,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			for _, pageSize := range []int{0, 104, 1023} {
-				pageSize := pageSize
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
-					t.Parallel()
 					require := require.New(t)
 
 					dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -766,10 +756,10 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 					ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 					require.NoError(err)
 
-					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
-					ctx := datastoremw.ContextWithHandle(t.Context())
-					require.NoError(datastoremw.SetInContext(ctx, ds))
+					ctx := datalayer.ContextWithHandle(t.Context())
+					require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 					var currentCursor *v1.Cursor
 					foundResourceIDs := mapz.NewSet[string]()
@@ -794,6 +784,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 							Metadata: &v1.ResolverMeta{
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
+								SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 							},
 							OptionalLimit:  uintPageSize,
 							OptionalCursor: currentCursor,
@@ -835,24 +826,22 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 }
 
 func TestLookupResources2ImmediateTimeout(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
+	ctx := datalayer.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	defer cancel()
 
-	require.NoError(datastoremw.SetInContext(cctx, ds))
+	require.NoError(datalayer.SetInContext(cctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -863,6 +852,7 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -871,24 +861,22 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 }
 
 func TestLookupResources2WithError(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
 	defer dispatcher.Close()
 
-	ctx := datastoremw.ContextWithHandle(t.Context())
+	ctx := datalayer.ContextWithHandle(t.Context())
 	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	defer cancel()
 
-	require.NoError(datastoremw.SetInContext(cctx, ds))
+	require.NoError(datalayer.SetInContext(cctx, datalayer.NewDataLayer(ds)))
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -899,6 +887,7 @@ func TestLookupResources2WithError(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -907,8 +896,6 @@ func TestLookupResources2WithError(t *testing.T) {
 }
 
 func TestLookupResources2EnsureCheckHints(t *testing.T) {
-	t.Parallel()
-
 	tcs := []struct {
 		name          string
 		schema        string
@@ -1348,16 +1335,13 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, tc.relationships, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, tc.relationships)
 
 			checkingDS := disallowedWrapper{ds, tc.disallowedQueries}
 
@@ -1365,11 +1349,11 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			require.NoError(err)
 			defer dispatcher.Close()
 
-			ctx := datastoremw.ContextWithHandle(t.Context())
+			ctx := datalayer.ContextWithHandle(t.Context())
 			cctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 			defer cancel()
 
-			require.NoError(datastoremw.SetInContext(cctx, checkingDS))
+			require.NoError(datalayer.SetInContext(cctx, datalayer.NewDataLayer(checkingDS)))
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 			err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -1380,6 +1364,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 			if tc.expectedError != "" {
@@ -1460,7 +1445,7 @@ func genRels(resourceName string, relation string, subjectName string, subjectID
 
 func genSubjectRels(resourceName string, relation string, subjectName string, subjectRelation string, number int) []tuple.Relationship {
 	rels := make([]tuple.Relationship, 0, number)
-	for i := 0; i < number; i++ {
+	for i := range number {
 		rel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i), relation),
@@ -1479,7 +1464,7 @@ func genRelsWithCaveat(resourceName string, relation string, subjectName string,
 
 func genRelsWithCaveatAndSubjectRelation(resourceName string, relation string, subjectName string, subjectID string, subjectRelation string, caveatName string, context map[string]any, offset int, number int) []tuple.Relationship {
 	rels := make([]tuple.Relationship, 0, number)
-	for i := 0; i < number; i++ {
+	for i := range number {
 		rel := tuple.Relationship{
 			RelationshipReference: tuple.RelationshipReference{
 				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
@@ -1497,7 +1482,7 @@ func genRelsWithCaveatAndSubjectRelation(resourceName string, relation string, s
 
 func genResourceIds(resourceName string, number int) []string {
 	resourceIDs := make([]string, 0, number)
-	for i := 0; i < number; i++ {
+	for i := range number {
 		resourceIDs = append(resourceIDs, fmt.Sprintf("%s-%d", resourceName, i))
 	}
 	return resourceIDs

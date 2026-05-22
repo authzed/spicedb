@@ -45,7 +45,6 @@ func TestEncodeDecodeTypes(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.vtype.String(), func(t *testing.T) {
 			encoded := EncodeParameterType(tc.vtype)
 			decoded, err := DecodeParameterType(Default.TypeSet, encoded)

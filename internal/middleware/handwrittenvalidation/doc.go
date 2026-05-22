@@ -1,2 +1,2 @@
-// Package handwrittenvalidation defines middleware that runs custom-made validations on incoming requests.
+// Package handwrittenvalidation defines middleware that runs validations on incoming requests.
 package handwrittenvalidation

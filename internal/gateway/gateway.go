@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -162,20 +164,38 @@ func registerHandler(ctx context.Context, mux *runtime.ServeMux, endpoint string
 	return conn, nil
 }
 
-var defaultOtelOpts = []otelgrpc.Option{
-	otelgrpc.WithPropagators(otel.GetTextMapPropagator()),
-	otelgrpc.WithTracerProvider(otel.GetTracerProvider()),
-}
-
 // OtelAnnotator propagates the OpenTelemetry tracing context to the outgoing
 // gRPC metadata.
 func OtelAnnotator(ctx context.Context, r *http.Request) metadata.MD {
 	requestMetadata, _ := metadata.FromOutgoingContext(ctx)
 	metadataCopy := requestMetadata.Copy()
 
-	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
-	otelgrpc.Inject(ctx, &metadataCopy, defaultOtelOpts...) // nolint:staticcheck
+	carrier := metadataCarrier{mdata: &metadataCopy}
+
+	propagator := otel.GetTextMapPropagator()
+	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
+	propagator.Inject(ctx, carrier)
 	return metadataCopy
+}
+
+type metadataCarrier struct {
+	mdata *metadata.MD
+}
+
+func (mc metadataCarrier) Get(key string) string {
+	vals := mc.mdata.Get(key)
+	if len(vals) > 0 {
+		return vals[0]
+	}
+	return ""
+}
+
+func (mc metadataCarrier) Set(key, value string) {
+	mc.mdata.Set(key, value)
+}
+
+func (mc metadataCarrier) Keys() []string {
+	return slices.Collect(maps.Keys(*mc.mdata))
 }
 
 // forwardRequestIDTrailer copies the request ID from gRPC trailers to HTTP response headers.

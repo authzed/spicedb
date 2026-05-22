@@ -7,8 +7,8 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
@@ -58,8 +58,8 @@ func (ce *ConcurrentExpander) expandDirect(
 ) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
-		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+		it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: req.ResourceAndRelation.Relation,
@@ -243,8 +243,12 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
-	err := namespace.CheckNamespaceAndRelation(ctx, start.ObjectType, cu.Relation, true, ds)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+	sr, err := dl.ReadSchema(ctx)
+	if err != nil {
+		return expandError(err)
+	}
+	err = namespace.CheckNamespaceAndRelation(ctx, start.ObjectType, cu.Relation, true, sr)
 	if err != nil {
 		if errors.As(err, &namespace.RelationNotFoundError{}) {
 			return emptyExpansion(req.ResourceAndRelation)
@@ -277,8 +281,8 @@ func expandTupleToUserset[T relation](
 	expandFunc expandFunc,
 ) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
-		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+		it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
@@ -349,7 +353,7 @@ func expandSetOperation(
 	for _, resultChan := range resultChans {
 		select {
 		case result := <-resultChan:
-			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
 				return expandResultError(result.Err, responseMetadata)
 			}

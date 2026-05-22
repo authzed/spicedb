@@ -9,7 +9,7 @@ import (
 func TestLimitsPrepareForPublishing(t *testing.T) {
 	limits := newLimitTracker(10)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		result := limits.prepareForPublishing()
 		require.True(t, result)
 	}

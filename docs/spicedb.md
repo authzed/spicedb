@@ -99,7 +99,7 @@ spicedb datastore gc [flags]
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                          set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -115,11 +115,8 @@ spicedb datastore gc [flags]
       --datastore-relationship-integrity-expired-keys stringArray             config for expired keys for relationship integrity checks
       --datastore-revision-quantization-interval duration                     boundary interval to which to round the quantized revision (default 5s)
       --datastore-revision-quantization-max-staleness-percent float           float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
-      --datastore-spanner-credentials string                                  path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string                                URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
-      --datastore-spanner-max-sessions uint                                   maximum number of sessions across all Spanner gRPC connections the client can have at a given time (default 400)
-      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus") (default "otel")
-      --datastore-spanner-min-sessions uint                                   minimum number of sessions across all Spanner gRPC connections the client can have at a given time (default 100)
+      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
@@ -134,7 +131,7 @@ spicedb datastore gc [flags]
       --otel-trace-propagator string                                          OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string                                           local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
 ```
 
@@ -168,7 +165,7 @@ spicedb datastore head [flags]
       --otel-trace-propagator string   OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int   sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int   sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string    local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string    local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
 ```
 
 ### Options Inherited From Parent Flags
@@ -209,7 +206,7 @@ spicedb datastore migrate [revision] [flags]
       --otel-trace-propagator string                 OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                 sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                 sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string                  local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                  local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
 ```
 
 ### Options Inherited From Parent Flags
@@ -265,7 +262,7 @@ spicedb datastore repair [flags]
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                          set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -281,11 +278,8 @@ spicedb datastore repair [flags]
       --datastore-relationship-integrity-expired-keys stringArray             config for expired keys for relationship integrity checks
       --datastore-revision-quantization-interval duration                     boundary interval to which to round the quantized revision (default 5s)
       --datastore-revision-quantization-max-staleness-percent float           float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
-      --datastore-spanner-credentials string                                  path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string                                URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
-      --datastore-spanner-max-sessions uint                                   maximum number of sessions across all Spanner gRPC connections the client can have at a given time (default 400)
-      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus") (default "otel")
-      --datastore-spanner-min-sessions uint                                   minimum number of sessions across all Spanner gRPC connections the client can have at a given time (default 100)
+      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
@@ -300,7 +294,7 @@ spicedb datastore repair [flags]
       --otel-trace-propagator string                                          OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
-      --termination-log-path string                                           local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
 ```
 
@@ -452,7 +446,7 @@ spicedb serve [flags]
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                                    set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration             amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration                     maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration                     maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -469,11 +463,8 @@ spicedb serve [flags]
       --datastore-revision-quantization-interval duration                               boundary interval to which to round the quantized revision (default 5s)
       --datastore-revision-quantization-max-staleness-percent float                     float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
       --datastore-schema-watch-heartbeat duration                                       heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum. (default 1s)
-      --datastore-spanner-credentials string                                            path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string                                          URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
-      --datastore-spanner-max-sessions uint                                             maximum number of sessions across all Spanner gRPC connections the client can have at a given time (default 400)
-      --datastore-spanner-metrics string                                                configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus") (default "otel")
-      --datastore-spanner-min-sessions uint                                             minimum number of sessions across all Spanner gRPC connections the client can have at a given time (default 100)
+      --datastore-spanner-metrics string                                                configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-tx-overlap-key string                                                 static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                            strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
       --datastore-watch-buffer-length uint16                                            how large the watch buffer should be before blocking (default 1024)
@@ -484,14 +475,12 @@ spicedb serve [flags]
       --dispatch-cache-enabled                                                          enable caching of dispatch calls this server makes to other servers (default true)
       --dispatch-cache-max-cost string                                                  upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server makes to other servers (default "30%")
       --dispatch-cache-metrics                                                          enable metrics for the cache for dispatch calls this server makes to other servers (default true)
-      --dispatch-cache-num-counters int                                                 number of counters for tracking access frequency in the cache for dispatch calls this server makes to other servers. A higher number means more accurate eviction decisions but more memory usage (default 10000)
       --dispatch-check-permission-concurrency-limit uint16                              maximum number of parallel goroutines to create for each check request or subrequest. defaults to --dispatch-concurrency-limit
       --dispatch-chunk-size uint16                                                      maximum number of object IDs in a dispatched request (default 100)
       --dispatch-cluster-addr string                                                    address to listen on to serve dispatch (default ":50053")
       --dispatch-cluster-cache-enabled                                                  enable caching of dispatch calls this server receives from other servers (default true)
       --dispatch-cluster-cache-max-cost string                                          upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server receives from other servers (default "70%")
       --dispatch-cluster-cache-metrics                                                  enable metrics for the cache for dispatch calls this server receives from other servers (default true)
-      --dispatch-cluster-cache-num-counters int                                         number of counters for tracking access frequency in the cache for dispatch calls this server receives from other servers. A higher number means more accurate eviction decisions but more memory usage (default 100000)
       --dispatch-cluster-enabled                                                        enable dispatch gRPC server
       --dispatch-cluster-max-conn-age duration                                          how long a connection serving dispatch should be able to live (default 30s)
       --dispatch-cluster-max-workers uint32                                             set the number of workers for this server (0 value means 1 worker per request)
@@ -516,7 +505,8 @@ spicedb serve [flags]
       --experimental-dispatch-secondary-upstream-addrs stringToString                   secondary upstream addresses for dispatches, each with a name (default [])
       --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request (default [])
       --experimental-lookup-resources-version lr3                                       if non-empty, the version of the experimental lookup resources API to use: lr3 or empty
-      --experimental-query-plan check                                                   if non-empty, the version of the experimental query plan to use: check or empty
+      --experimental-query-plan check                                                   comma-separated list of operations to route through the experimental query plan engine; valid values are check, `lr` (LookupResources), and `ls` (LookupSubjects)
+      --experimental-schema-mode string                                                 schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new (default "read-legacy-write-legacy")
       --grpc-addr string                                                                address to listen on to serve gRPC (default ":50051")
       --grpc-enabled                                                                    enable gRPC gRPC server (default true)
       --grpc-log-requests-enabled                                                       enable logging of API request payloads
@@ -535,7 +525,6 @@ spicedb serve [flags]
       --lookup-resources-chunk-cache-enabled                                            enable caching of LookupResources3 chunks (default true)
       --lookup-resources-chunk-cache-max-cost string                                    upper bound (in bytes or as a percent of available memory) of the cache for LookupResources3 chunks (default "50MiB")
       --lookup-resources-chunk-cache-metrics                                            enable metrics for the cache for LookupResources3 chunks
-      --lookup-resources-chunk-cache-num-counters int                                   number of counters for tracking access frequency in the cache for LookupResources3 chunks. A higher number means more accurate eviction decisions but more memory usage (default 10000)
       --max-bulk-export-relationships-limit uint32                                      maximum number of relationships that can be exported in a single request (default 10000)
       --max-caveat-context-size int                                                     maximum allowed size of request caveat context in bytes. A value of zero or less means no limit (default 4096)
       --max-datastore-read-page-size uint                                               limit on the maximum page size that we will load into memory from the datastore at one time (default 1000)
@@ -551,7 +540,6 @@ spicedb serve [flags]
       --ns-cache-enabled                                                                enable caching of schema (default true)
       --ns-cache-max-cost string                                                        upper bound (in bytes or as a percent of available memory) of the cache for schema (default "32MiB")
       --ns-cache-metrics                                                                enable metrics for the cache for schema (default true)
-      --ns-cache-num-counters int                                                       number of counters for tracking access frequency in the cache for schema. A higher number means more accurate eviction decisions but more memory usage (default 1000)
       --otel-endpoint string                                                            OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
       --otel-insecure                                                                   connect to the OpenTelemetry collector in plaintext
       --otel-provider string                                                            OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
@@ -561,11 +549,14 @@ spicedb serve [flags]
       --pprof-block-profile-rate int                                                    sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                                    sets the mutex profile sampling rate (between 0 and 1)
       --schema-prefixes-required                                                        require prefixes on all object definitions in schemas
+      --stored-schema-cache-enabled                                                     enable caching of stored schema (default true)
+      --stored-schema-cache-max-cost string                                             upper bound (in bytes or as a percent of available memory) of the cache for stored schema (default "32MiB")
+      --stored-schema-cache-metrics                                                     enable metrics for the cache for stored schema (default true)
       --streaming-api-response-delay-timeout duration                                   maximum time that streaming APIs (LookupSubjects, LookupResources, ReadRelationships and ExportBulkRelationships) can be allowed to run but no response be sent to the client before the stream times out (default 30s)
       --telemetry-ca-override-path string                                               path to a custom CA to use with the telemetry endpoint
       --telemetry-endpoint string                                                       endpoint to which telemetry is reported, empty string to disable (default "https://telemetry.authzed.com")
       --telemetry-interval duration                                                     approximate period between telemetry reports, minimum 1 minute (default 1h0m0s)
-      --termination-log-path string                                                     local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                                                     local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --update-relationships-max-preconditions-per-call uint16                          maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls (default 1000)
       --watch-api-heartbeat duration                                                    heartbeat time on the watch in the API. 0 means to default to the datastore's minimum. (default 1s)
       --write-conn-acquisition-timeout duration                                         amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
@@ -631,7 +622,7 @@ spicedb serve-testing [flags]
       --readonly-http-enabled                                    enable http read-only HTTP server
       --readonly-http-tls-cert-path string                       local path to the TLS certificate used to serve read-only HTTP
       --readonly-http-tls-key-path string                        local path to the TLS key used to serve read-only HTTP
-      --termination-log-path string                              local path to the termination log file, which contains a JSON payload to surface as reason for termination
+      --termination-log-path string                              local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --update-relationships-max-preconditions-per-call uint16   maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls (default 1000)
       --write-relationships-max-updates-per-call uint16          maximum number of updates allowed for WriteRelationships calls (default 1000)
 ```

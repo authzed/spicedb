@@ -8,8 +8,8 @@ type ConcurrencyLimitsOption func(c *ConcurrencyLimits)
 // NewConcurrencyLimitsWithOptions creates a new ConcurrencyLimits with the passed in options set
 func NewConcurrencyLimitsWithOptions(opts ...ConcurrencyLimitsOption) *ConcurrencyLimits {
 	c := &ConcurrencyLimits{}
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -18,8 +18,8 @@ func NewConcurrencyLimitsWithOptions(opts ...ConcurrencyLimitsOption) *Concurren
 func NewConcurrencyLimitsWithOptionsAndDefaults(opts ...ConcurrencyLimitsOption) *ConcurrencyLimits {
 	c := &ConcurrencyLimits{}
 	defaults.MustSet(c)
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -67,16 +67,16 @@ func (c *ConcurrencyLimits) FlatDebugMap() map[string]any {
 
 // ConcurrencyLimitsWithOptions configures an existing ConcurrencyLimits with the passed in options set
 func ConcurrencyLimitsWithOptions(c *ConcurrencyLimits, opts ...ConcurrencyLimitsOption) *ConcurrencyLimits {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
 
 // WithOptions configures the receiver ConcurrencyLimits with the passed in options set
 func (c *ConcurrencyLimits) WithOptions(opts ...ConcurrencyLimitsOption) *ConcurrencyLimits {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }

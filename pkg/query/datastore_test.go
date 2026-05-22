@@ -17,137 +17,105 @@ var (
 	createTestWildcardBaseRelationWithFeatures = schema.NewTestWildcardBaseRelationWithFeatures
 )
 
-func TestRelationIterator(t *testing.T) {
-	t.Parallel()
-
+func TestDatastoreIterator(t *testing.T) {
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("SubjectTypeMismatchReturnsEmpty", func(t *testing.T) {
-		t.Parallel()
-
+		ctx := NewTestContext(t)
 		// Create a base relation that expects "user" type subjects (no subrelation for pure type checking)
 		baseRel := createTestBaseRelation("document", "viewer", "user", "")
-		relationIter := NewRelationIterator(baseRel)
+		relationIter := NewDatastoreIterator(baseRel)
 
-		// Test with mismatched subject type - this should return empty due to the bug fix
+		// Test with mismatched subject type - this should return nil due to the bug fix
 		// without hitting the datastore (early return)
-		relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), NewObject("group", "engineers").WithEllipses())
+		path, err := ctx.Check(relationIter, NewObject("document", "doc1"), NewObject("group", "engineers").WithEllipses())
 		require.NoError(err, "CheckImpl should not error on type mismatch")
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err, "Collecting empty sequence should not error")
-		require.Empty(rels, "Subject type mismatch should return empty results")
+		require.Nil(path, "Subject type mismatch should return nil")
 
 		// Test with another mismatched subject type
-		relSeq, err = ctx.Check(relationIter, NewObjects("document", "doc1"), NewObject("organization", "company").WithEllipses())
+		path, err = ctx.Check(relationIter, NewObject("document", "doc1"), NewObject("organization", "company").WithEllipses())
 		require.NoError(err, "CheckImpl should not error on type mismatch")
-
-		rels, err = CollectAll(relSeq)
-		require.NoError(err, "Collecting empty sequence should not error")
-		require.Empty(rels, "Subject type mismatch should return empty results")
+		require.Nil(path, "Subject type mismatch should return nil")
 
 		// Note: We don't test the matching case here because it requires a real datastore
 		// The important bug fix is the early return for type mismatches, which we've tested above
 	})
 
 	t.Run("Clone", func(t *testing.T) {
-		t.Parallel()
-
 		baseRel := createTestBaseRelation("document", "editor", "user", tuple.Ellipsis)
-		original := NewRelationIterator(baseRel)
+		original := NewDatastoreIterator(baseRel)
 		cloned := original.Clone()
 
 		require.NotSame(original, cloned, "cloned iterator should be a different object")
 
 		// Verify the cloned iterator has the same base relation
-		// Both should be RelationIterator instances with the same base
+		// Both should be DatastoreIterator instances with the same base
 		require.IsType(original, cloned, "cloned should be same type as original")
 
-		// Since both are RelationIterator, we can compare their Explain output which includes the base relation info
+		// Since both are DatastoreIterator, we can compare their Explain output which includes the base relation info
 		require.Equal(original.Explain().Info, cloned.Explain().Info, "cloned iterator should have same base relation")
 	})
 
 	t.Run("Explain", func(t *testing.T) {
-		t.Parallel()
-
 		t.Run("BasicRelation", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:viewer -> user:..., caveat: false, expiration: false)"
+			expected := "Datastore(document:viewer -> user:..., caveat: false, expiration: false)"
 			require.Equal(expected, explain.Info)
-			require.Empty(explain.SubExplain, "RelationIterator should have no sub-explains")
+			require.Empty(explain.SubExplain, "DatastoreIterator should have no sub-explains")
 		})
 
 		t.Run("RelationWithCaveat", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestBaseRelationWithFeatures("document", "conditional_viewer", "user", tuple.Ellipsis, "test_caveat", false)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:conditional_viewer -> user:..., caveat: true, expiration: false)"
+			expected := "Datastore(document:conditional_viewer -> user:..., caveat: true, expiration: false)"
 			require.Equal(expected, explain.Info)
 		})
 
 		t.Run("RelationWithExpiration", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestBaseRelationWithFeatures("document", "temp_viewer", "user", tuple.Ellipsis, "", true)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:temp_viewer -> user:..., caveat: false, expiration: true)"
+			expected := "Datastore(document:temp_viewer -> user:..., caveat: false, expiration: true)"
 			require.Equal(expected, explain.Info)
 		})
 
 		t.Run("RelationWithSpecificSubrelation", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestBaseRelation("document", "parent", "folder", "member")
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:parent -> folder:member, caveat: false, expiration: false)"
+			expected := "Datastore(document:parent -> folder:member, caveat: false, expiration: false)"
 			require.Equal(expected, explain.Info)
 		})
 
 		t.Run("WildcardRelation", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestWildcardBaseRelation("document", "viewer", "user")
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:viewer -> user:*, caveat: false, expiration: false)"
+			expected := "Datastore(document:viewer -> user:*, caveat: false, expiration: false)"
 			require.Equal(expected, explain.Info)
 		})
 
 		t.Run("WildcardRelationWithCaveatAndExpiration", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestWildcardBaseRelationWithFeatures("document", "admin", "user", "test_caveat", true)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:admin -> user:*, caveat: true, expiration: true)"
+			expected := "Datastore(document:admin -> user:*, caveat: true, expiration: true)"
 			require.Equal(expected, explain.Info)
 		})
 	})
 }
 
-func TestRelationIteratorSubjectTypeMismatchScenarios(t *testing.T) {
-	t.Parallel()
-
+func TestDatastoreIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 	require := require.New(t)
-
-	ctx := NewLocalContext(t.Context())
 
 	// Test only mismatched types since matching types require a real datastore
 	testCases := []struct {
@@ -183,56 +151,40 @@ func TestRelationIteratorSubjectTypeMismatchScenarios(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
+			ctx := NewTestContext(t)
 			// Use empty string instead of Ellipsis to test pure type mismatch without subrelation bridging
 			baseRel := createTestBaseRelation("document", "viewer", tc.expectedSubjectType, "")
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 
 			subject := NewObject(tc.actualSubjectType, "test_id").WithEllipses()
 
-			// All test cases are mismatched types that should return empty without hitting datastore
-			relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), subject)
+			// All test cases are mismatched types that should return nil without hitting datastore
+			path, err := ctx.Check(relationIter, NewObject("document", "doc1"), subject)
 			require.NoError(err, "CheckImpl should not error on type mismatch for case %s", tc.name)
-
-			rels, err := CollectAll(relSeq)
-			require.NoError(err, "CollectAll should not error for case %s", tc.name)
-			require.Empty(rels, "Should return empty for case %s", tc.name)
+			require.Nil(path, "Should return nil for case %s", tc.name)
 		})
 	}
 }
 
-func TestRelationIteratorWildcard(t *testing.T) {
-	t.Parallel()
-
+func TestDatastoreIteratorWildcard(t *testing.T) {
 	require := require.New(t)
 
-	// Create test context
-	ctx := NewLocalContext(t.Context())
-
 	t.Run("WildcardSubjectTypeMismatchReturnsEmpty", func(t *testing.T) {
-		t.Parallel()
-
+		ctx := NewTestContext(t)
 		// Create a wildcard base relation that expects "user" type subjects
 		baseRel := createTestWildcardBaseRelation("document", "viewer", "user")
-		relationIter := NewRelationIterator(baseRel)
+		relationIter := NewDatastoreIterator(baseRel)
 
-		// Test with mismatched subject type - should return empty due to early return
-		relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), NewObject("group", "engineers").WithEllipses())
+		// Test with mismatched subject type - should return nil due to early return
+		path, err := ctx.Check(relationIter, NewObject("document", "doc1"), NewObject("group", "engineers").WithEllipses())
 		require.NoError(err, "CheckImpl should not error on type mismatch")
-
-		rels, err := CollectAll(relSeq)
-		require.NoError(err, "Collecting empty sequence should not error")
-		require.Empty(rels, "Subject type mismatch should return empty results")
+		require.Nil(path, "Subject type mismatch should return nil")
 	})
 
 	t.Run("WildcardClone", func(t *testing.T) {
-		t.Parallel()
-
 		baseRel := createTestWildcardBaseRelation("document", "viewer", "user")
-		original := NewRelationIterator(baseRel)
+		original := NewDatastoreIterator(baseRel)
 		cloned := original.Clone()
 
 		require.NotSame(original, cloned, "cloned iterator should be a different object")
@@ -241,61 +193,47 @@ func TestRelationIteratorWildcard(t *testing.T) {
 	})
 
 	t.Run("WildcardExplain", func(t *testing.T) {
-		t.Parallel()
-
 		t.Run("BasicWildcardRelation", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestWildcardBaseRelation("document", "viewer", "user")
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:viewer -> user:*, caveat: false, expiration: false)"
+			expected := "Datastore(document:viewer -> user:*, caveat: false, expiration: false)"
 			require.Equal(expected, explain.Info)
-			require.Empty(explain.SubExplain, "RelationIterator should have no sub-explains")
+			require.Empty(explain.SubExplain, "DatastoreIterator should have no sub-explains")
 		})
 
 		t.Run("WildcardRelationWithCaveat", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestWildcardBaseRelationWithFeatures("document", "conditional_viewer", "user", "test_caveat", false)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:conditional_viewer -> user:*, caveat: true, expiration: false)"
+			expected := "Datastore(document:conditional_viewer -> user:*, caveat: true, expiration: false)"
 			require.Equal(expected, explain.Info)
 		})
 
 		t.Run("WildcardRelationWithExpiration", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestWildcardBaseRelationWithFeatures("document", "temp_viewer", "user", "", true)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:temp_viewer -> user:*, caveat: false, expiration: true)"
+			expected := "Datastore(document:temp_viewer -> user:*, caveat: false, expiration: true)"
 			require.Equal(expected, explain.Info)
 		})
 
 		t.Run("WildcardRelationWithBothFeatures", func(t *testing.T) {
-			t.Parallel()
-
 			baseRel := createTestWildcardBaseRelationWithFeatures("document", "admin", "user", "admin_caveat", true)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 			explain := relationIter.Explain()
 
-			expected := "Relation(document:admin -> user:*, caveat: true, expiration: true)"
+			expected := "Datastore(document:admin -> user:*, caveat: true, expiration: true)"
 			require.Equal(expected, explain.Info)
 		})
 	})
 }
 
-func TestRelationIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
-	t.Parallel()
-
+func TestDatastoreIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
 	require := require.New(t)
-
-	ctx := NewLocalContext(t.Context())
 
 	// Test wildcard relations with various subject type mismatches
 	testCases := []struct {
@@ -326,35 +264,27 @@ func TestRelationIteratorWildcardSubjectTypeMismatchScenarios(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
+			ctx := NewTestContext(t)
 			baseRel := createTestWildcardBaseRelation("document", "viewer", tc.expectedSubjectType)
-			relationIter := NewRelationIterator(baseRel)
+			relationIter := NewDatastoreIterator(baseRel)
 
 			subject := NewObject(tc.actualSubjectType, "test_id").WithEllipses()
 
-			// All test cases are mismatched types that should return empty without hitting datastore
-			relSeq, err := ctx.Check(relationIter, NewObjects("document", "doc1"), subject)
+			// All test cases are mismatched types that should return nil without hitting datastore
+			path, err := ctx.Check(relationIter, NewObject("document", "doc1"), subject)
 			require.NoError(err, "CheckImpl should not error on type mismatch for case %s", tc.name)
-
-			rels, err := CollectAll(relSeq)
-			require.NoError(err, "CollectAll should not error for case %s", tc.name)
-			require.Empty(rels, "Should return empty for case %s", tc.name)
+			require.Nil(path, "Should return nil for case %s", tc.name)
 		})
 	}
 }
 
-func TestRelationIterator_Types(t *testing.T) {
-	t.Parallel()
-
+func TestDatastoreIterator_Types(t *testing.T) {
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		baseRel := createTestBaseRelation("document", "viewer", "user", "")
-		relationIter := NewRelationIterator(baseRel)
+		relationIter := NewDatastoreIterator(baseRel)
 
 		resourceType, err := relationIter.ResourceType()
 		require.NoError(err)
@@ -364,11 +294,10 @@ func TestRelationIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_NoSubrelation", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		baseRel := createTestBaseRelation("document", "viewer", "user", "")
-		relationIter := NewRelationIterator(baseRel)
+		relationIter := NewDatastoreIterator(baseRel)
 
 		subjectTypes, err := relationIter.SubjectTypes()
 		require.NoError(err)
@@ -378,11 +307,10 @@ func TestRelationIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_WithSubrelation", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		baseRel := createTestBaseRelation("document", "viewer", "group", "member")
-		relationIter := NewRelationIterator(baseRel)
+		relationIter := NewDatastoreIterator(baseRel)
 
 		subjectTypes, err := relationIter.SubjectTypes()
 		require.NoError(err)
@@ -392,11 +320,10 @@ func TestRelationIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_Wildcard", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		baseRel := createTestWildcardBaseRelation("document", "viewer", "user")
-		relationIter := NewRelationIterator(baseRel)
+		relationIter := NewDatastoreIterator(baseRel)
 
 		subjectTypes, err := relationIter.SubjectTypes()
 		require.NoError(err)
@@ -406,16 +333,26 @@ func TestRelationIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes_Ellipsis", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		baseRel := createTestBaseRelation("document", "viewer", "user", tuple.Ellipsis)
-		relationIter := NewRelationIterator(baseRel)
+		relationIter := NewDatastoreIterator(baseRel)
 
 		subjectTypes, err := relationIter.SubjectTypes()
 		require.NoError(err)
 		require.Len(subjectTypes, 1)
 		require.Equal("user", subjectTypes[0].Type)
-		require.Empty(subjectTypes[0].Subrelation) // Ellipsis returns empty subrelation
+		require.Equal(tuple.Ellipsis, subjectTypes[0].Subrelation) // Ellipsis is preserved as-is
+	})
+}
+
+func TestDatastoreIterator_ReplaceSubiteratorsPanics(t *testing.T) {
+	baseRel := createTestBaseRelation("document", "viewer", "user", "")
+	iter := NewDatastoreIterator(baseRel)
+
+	require.Empty(t, iter.Subiterators(), "DatastoreIterator is a leaf and has no subiterators")
+
+	require.Panics(t, func() {
+		_, _ = iter.ReplaceSubiterators([]Iterator{NewEmptyFixedIterator()})
 	})
 }

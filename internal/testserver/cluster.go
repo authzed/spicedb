@@ -24,6 +24,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
@@ -137,20 +138,16 @@ func (r *SafeManualResolver) ResolveNow(_ resolver.ResolveNowOptions) {
 // Close implements the resolver.Resolver interface
 func (r *SafeManualResolver) Close() {}
 
-// TestClusterWithDispatch creates a cluster with `size` nodes
-// The cluster has a real dispatch stack that uses bufconn grpc connections
+// TestClusterWithDispatch creates a cluster with `size` nodes.
+// The cluster has a real dispatch stack that uses bufconn grpc connections.
+// All Caching is turned off.
 func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) ([]*grpc.ClientConn, func()) {
-	return TestClusterWithDispatchAndCacheConfig(t, size, ds, additionalServerOptions...)
-}
-
-// TestClusterWithDispatchAndCacheConfig creates a cluster with `size` nodes and with cache toggled.
-func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) ([]*grpc.ClientConn, func()) {
 	// each cluster gets a unique prefix since grpc resolution is process-global
 	prefix := getPrefix(t)
 
 	// make placeholder resolved addresses, 1 per node
 	addresses := make([]resolver.Address, 0, size)
-	for i := uint(0); i < size; i++ {
+	for i := range size {
 		addresses = append(addresses, resolver.Address{
 			Addr:       fmt.Sprintf("%s_%d", prefix, i),
 			ServerName: "",
@@ -162,10 +159,17 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 	conns := make([]*grpc.ClientConn, 0, size)
 	cancelFuncs := make([]func(), 0, size)
 
-	for i := uint(0); i < size; i++ {
+	for i := range size {
+		// One QueryPlanMetadata per node, shared between the node's dispatcher
+		// (so receiver-side DispatchQueryPlan augments + advises off it) and the
+		// permissions service (so the sender's advisor and the receiver's are
+		// consulting the same store).
+		queryPlanMetadata := query.NewQueryPlanMetadata()
+
 		dispatcherOptions := []combineddispatch.Option{
 			combineddispatch.UpstreamAddr("test://" + prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
+			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithDefaultServiceConfig(
 					(&consistent.BalancerConfig{
@@ -197,6 +201,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 		serverOptions := []server.ConfigOption{ //nolint: prealloc  // we're not worried about perf here
 			server.WithDatastore(ds),
 			server.WithDispatcher(dispatcher),
+			server.WithQueryPlanMetadata(queryPlanMetadata),
 			server.WithDispatchMaxDepth(50),
 			server.WithMaximumPreconditionCount(1000),
 			server.WithMaximumUpdatesPerWrite(1000),
@@ -220,7 +225,8 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 		serverOptions = append(serverOptions, additionalServerOptions...)
 
 		ctx, cancel := context.WithCancel(t.Context())
-		srv, err := server.NewConfigWithOptionsAndDefaults(serverOptions...).Complete(ctx)
+		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
+		srv, err := cfg.Complete(ctx)
 		require.NoError(t, err)
 
 		errCh := make(chan error, 1)

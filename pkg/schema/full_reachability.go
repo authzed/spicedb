@@ -118,7 +118,6 @@ func relationsReferencing(ctx context.Context, arrowSet *ArrowSet, res FullSchem
 	key := namespaceName + "#" + relationName
 	foundArrows, _ := arrowSet.arrowsByFullTuplesetRelation.Get(key)
 	for _, arrow := range foundArrows {
-		arrow := arrow
 		foundReferences = append(foundReferences, RelationReferenceInfo{
 			Relation: &core.RelationReference{
 				Namespace: namespaceName,

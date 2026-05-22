@@ -1,88 +1,70 @@
 package query
 
 import (
-	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestRecursiveSentinel(t *testing.T) {
-	sentinel := NewRecursiveSentinel("folder", "view", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 
 	require.Equal(t, "folder", sentinel.DefinitionName())
 	require.Equal(t, "view", sentinel.RelationName())
 	require.False(t, sentinel.WithSubRelations())
-	require.NotEmpty(t, sentinel.ID(), "ID should be a non-empty UUID")
+	// Canonical key not set on construction (needs compilation)
+	// Just verify the sentinel canonical key can be retrieved without panic
+	_ = sentinel.CanonicalKey()
 
 	// Test that sentinel returns empty sequences
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ctx := NewTestContext(t)
+
+	// CheckImpl should return nil (not found)
+	path, err := sentinel.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
 	require.NoError(t, err)
+	require.Nil(t, path)
 
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
-
-	// CheckImpl should return empty
-	seq, err := sentinel.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
+	// IterSubjectsImpl should return empty
+	seq, err := sentinel.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
 	require.NoError(t, err)
 
 	paths, err := CollectAll(seq)
 	require.NoError(t, err)
 	require.Empty(t, paths)
 
-	// IterSubjectsImpl should return empty
-	seq, err = sentinel.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
-	require.NoError(t, err)
-
-	paths, err = CollectAll(seq)
-	require.NoError(t, err)
-	require.Empty(t, paths)
-
-	// Test Clone - should generate a new UUID
+	// Test Clone - cloned sentinel shares the same canonical key
 	cloned := sentinel.Clone()
-	require.NotEqual(t, sentinel.ID(), cloned.(*RecursiveSentinel).ID())
-	require.NotEmpty(t, cloned.(*RecursiveSentinel).ID())
+	require.Equal(t, sentinel.CanonicalKey(), cloned.(*RecursiveSentinelIterator).CanonicalKey())
 }
 
 func TestRecursiveIteratorEmptyBaseCase(t *testing.T) {
 	// Create a simple tree with sentinel that will return empty on depth 0
-	sentinel := NewRecursiveSentinel("folder", "view", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 	emptyIterator := NewEmptyFixedIterator()
 
-	union := NewUnion()
-	union.addSubIterator(emptyIterator)
-	union.addSubIterator(sentinel)
+	union := NewUnionIterator(emptyIterator, sentinel)
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
+	ctx := NewLocalContext(t.Context())
 
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
-
-	// Execute - should terminate immediately with empty result
-	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
+	// Execute - should terminate immediately with nil (not found)
+	path, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
 	require.NoError(t, err)
-
-	paths, err := CollectAll(seq)
-	require.NoError(t, err)
-	require.Empty(t, paths)
+	require.Nil(t, path)
 }
 
 func TestReplaceSentinels(t *testing.T) {
-	sentinel := NewRecursiveSentinel("folder", "view", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 
 	// Create a tree with sentinel in various positions
-	union := NewUnion()
-	union.addSubIterator(NewEmptyFixedIterator())
-	union.addSubIterator(sentinel)
-
-	arrow := NewArrow(NewEmptyFixedIterator(), sentinel)
-	union.addSubIterator(arrow)
+	arrow := NewArrowIterator(NewEmptyFixedIterator(), sentinel)
+	union := NewUnionIterator(
+		NewEmptyFixedIterator(),
+		sentinel,
+		arrow,
+	)
 
 	// Create a replacement tree
 	replacementTree := NewEmptyFixedIterator()
@@ -95,24 +77,22 @@ func TestReplaceSentinels(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify sentinels were replaced
-	resultUnion := result.(*Union)
+	resultUnion := result.(*UnionIterator)
 
 	// Union's second child should now be FixedIterator
 	_, isFixed := resultUnion.subIts[1].(*FixedIterator)
 	require.True(t, isFixed, "Sentinel in union should be replaced with tree")
 
 	// Arrow's right side should be FixedIterator
-	arrowIter := resultUnion.subIts[2].(*Arrow)
+	arrowIter := resultUnion.subIts[2].(*ArrowIterator)
 	_, isFixed = arrowIter.right.(*FixedIterator)
 	require.True(t, isFixed, "Sentinel in arrow should be replaced with tree")
 }
 
 func TestRecursiveIteratorClone(t *testing.T) {
 	// Create a recursive iterator with a non-trivial tree
-	sentinel := NewRecursiveSentinel("folder", "view", false)
-	union := NewUnion()
-	union.addSubIterator(NewEmptyFixedIterator())
-	union.addSubIterator(sentinel)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
+	union := NewUnionIterator(NewEmptyFixedIterator(), sentinel)
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
@@ -135,10 +115,8 @@ func TestRecursiveIteratorClone(t *testing.T) {
 
 func TestRecursiveIteratorSubiteratorsAndReplace(t *testing.T) {
 	// Create a recursive iterator
-	sentinel := NewRecursiveSentinel("folder", "view", false)
-	union := NewUnion()
-	union.addSubIterator(NewEmptyFixedIterator())
-	union.addSubIterator(sentinel)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
+	union := NewUnionIterator(NewEmptyFixedIterator(), sentinel)
 
 	recursive := NewRecursiveIterator(union, "folder", "view")
 
@@ -161,27 +139,24 @@ func TestRecursiveIteratorSubiteratorsAndReplace(t *testing.T) {
 }
 
 func TestRecursiveIteratorExecutionError(t *testing.T) {
-	// Test error path: execute() returns an error (line 67-70 in iterativeDeepening)
 	// This tests when CheckImpl/IterSubjects/IterResources fails during execution
 
 	faultyIter := NewFaultyIterator(true, false, ObjectType{}, []ObjectType{}) // Fails on Check
 	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
+	ctx := NewLocalContext(t.Context())
 
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
-
-	// Test CheckImpl with a faulty iterator
-	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
-	require.NoError(t, err, "CheckImpl should return sequence without error")
-
-	// Error should occur during sequence iteration
-	paths, err := CollectAll(seq)
+	// Test CheckImpl with a faulty iterator - error occurs eagerly
+	_, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
 	require.Error(t, err, "Should get error from faulty iterator during execution")
-	require.Contains(t, err.Error(), "execution failed at depth", "Error should be wrapped with depth info")
-	require.Empty(t, paths)
+	// The error message depends on which strategy is used:
+	// - IterSubjects strategy: "IterSubjects failed... at depth" or "execution failed at ply" (from BFS)
+	// - Deepening strategy: "check failed at ply"
+	require.True(t,
+		strings.Contains(err.Error(), "execution failed at ply") ||
+			strings.Contains(err.Error(), "check failed at ply") ||
+			strings.Contains(err.Error(), "at depth"),
+		"Error should be wrapped with ply/depth info, got: %s", err.Error())
 }
 
 func TestRecursiveIteratorCollectionError(t *testing.T) {
@@ -191,21 +166,12 @@ func TestRecursiveIteratorCollectionError(t *testing.T) {
 	faultyIter := NewFaultyIterator(false, true, ObjectType{}, []ObjectType{}) // Fails on collection
 	recursive := NewRecursiveIterator(faultyIter, "folder", "view")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
+	ctx := NewTestContext(t)
 
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)))
-
-	// Test CheckImpl with a faulty iterator that fails on collection
-	seq, err := recursive.CheckImpl(ctx, []Object{{ObjectType: "folder", ObjectID: "folder1"}}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
-	require.NoError(t, err, "CheckImpl should return sequence without error")
-
-	// Error should occur during sequence iteration (collection)
-	paths, err := CollectAll(seq)
+	// Test CheckImpl with a faulty iterator that fails on collection - error occurs eagerly
+	_, err := recursive.CheckImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, ObjectAndRelation{ObjectType: "user", ObjectID: "tom", Relation: "..."})
 	require.Error(t, err, "Should get error during path collection")
 	require.Contains(t, err.Error(), "faulty iterator collection error", "Should get collection error")
-	require.Empty(t, paths)
 }
 
 // TestBFSEarlyTermination verifies that BFS terminates early when frontier is empty
@@ -213,14 +179,10 @@ func TestBFSEarlyTermination(t *testing.T) {
 	// Create a shallow graph (depth 2) and verify it terminates early, not at maxDepth
 	// folder1 -> (sentinel returns empty)
 
-	sentinel := NewRecursiveSentinel("folder", "parent", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "parent", false)
 	recursive := NewRecursiveIterator(sentinel, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(50)) // High max depth
 
 	// IterSubjects on a node with no children (sentinel returns empty)
@@ -260,15 +222,11 @@ func TestBFSCycleDetection(t *testing.T) {
 
 	// Create a union that returns different results based on which resource is queried
 	// This simulates the cycle: folder1 -> folder2 -> folder1
-	union := NewUnion(cyclicIter, folder2Iter)
+	union := NewUnionIterator(cyclicIter, folder2Iter)
 
 	recursive := NewRecursiveIterator(union, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(10))
 
 	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
@@ -297,11 +255,7 @@ func TestBFSSelfReferential(t *testing.T) {
 
 	recursive := NewRecursiveIterator(selfRefIter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(10))
 
 	seq, err := recursive.IterSubjectsImpl(ctx, Object{ObjectType: "folder", ObjectID: "folder1"}, NoObjectFilter())
@@ -339,11 +293,7 @@ func TestBFSResourcesWithEllipses(t *testing.T) {
 
 	recursive := NewRecursiveIterator(resourceIter, "folder", "parent")
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(t, err)
-
-	ctx := NewLocalContext(context.Background(),
-		WithReader(ds.SnapshotReader(datastore.NoRevision)),
+	ctx := NewLocalContext(t.Context(),
 		WithMaxRecursionDepth(5))
 
 	// Query IterResources - should find folder2
@@ -358,15 +308,12 @@ func TestBFSResourcesWithEllipses(t *testing.T) {
 }
 
 func TestRecursiveIterator_Types(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ResourceType", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a recursive iterator with a template tree
 		path := MustPathFromString("folder:folder1#parent@folder:folder2")
-		templateTree := NewFixedIterator(path)
+		templateTree := NewFixedIterator(*path)
 		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
 
 		resourceType, err := recursive.ResourceType()
@@ -376,12 +323,11 @@ func TestRecursiveIterator_Types(t *testing.T) {
 	})
 
 	t.Run("SubjectTypes", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 
 		// Create a recursive iterator with a template tree
 		path := MustPathFromString("folder:folder1#parent@folder:folder2")
-		templateTree := NewFixedIterator(path)
+		templateTree := NewFixedIterator(*path)
 		recursive := NewRecursiveIterator(templateTree, "folder", "parent")
 
 		subjectTypes, err := recursive.SubjectTypes()
@@ -393,10 +339,9 @@ func TestRecursiveIterator_Types(t *testing.T) {
 
 // TestRecursiveSentinel_ReplaceSubiterators tests that RecursiveSentinel panics
 func TestRecursiveSentinel_ReplaceSubiterators(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
-	sentinel := NewRecursiveSentinel("folder", "view", false)
+	sentinel := NewRecursiveSentinelIterator("folder", "view", false)
 
 	// Should panic - leaf node
 	require.Panics(func() {

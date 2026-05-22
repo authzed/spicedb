@@ -1,0 +1,80 @@
+NodeTypeFile
+  end-rune = 279
+  input-source = local imports with quotes within quotes on import test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 129
+      input-source = local imports with quotes within quotes on import test
+      start-rune = 120
+      use-flag-name = import
+      child-node =>
+        NodeTypeComment
+          comment-value = // NOTE: this is mostly to validate parser behavior; this path
+        NodeTypeComment
+          comment-value = // would be treated as invalid by the compiler/importer.
+    NodeTypeImport
+      end-rune = 162
+      import-path = path/to/'"user.zed
+      input-source = local imports with quotes within quotes on import test
+      start-rune = 132
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 278
+      input-source = local imports with quotes within quotes on import test
+      start-rune = 165
+      child-node =>
+        NodeTypeRelation
+          end-rune = 209
+          input-source = local imports with quotes within quotes on import test
+          relation-name = user
+          start-rune = 191
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 209
+              input-source = local imports with quotes within quotes on import test
+              start-rune = 206
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 209
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 206
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 239
+          input-source = local imports with quotes within quotes on import test
+          relation-name = persona
+          start-rune = 215
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 239
+              input-source = local imports with quotes within quotes on import test
+              start-rune = 233
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 239
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 233
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 276
+          input-source = local imports with quotes within quotes on import test
+          relation-name = view
+          start-rune = 245
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 276
+              input-source = local imports with quotes within quotes on import test
+              start-rune = 263
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 266
+                  identifier-value = user
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 263
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 276
+                  identifier-value = persona
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 270

@@ -89,8 +89,6 @@ func (tn *testNode) MustDecorateWithInt(property string, value int) AstNode {
 }
 
 func TestParser(t *testing.T) {
-	t.Parallel()
-
 	parserTests := []parserTest{
 		{"empty file test", "empty"},
 		{"basic definition test", "basic"},
@@ -144,12 +142,22 @@ func TestParser(t *testing.T) {
 		{"permission type annotation double colon test", "permission_type_annotation_double_colon"},
 		{"permission type annotation newline after colon test", "permission_type_annotation_newline_after_colon"},
 		{"permission type annotation just pipe test", "permission_type_annotation_just_pipe"},
+		{"top-level block with unrecognized keyword", "nonsense_top_level_block"},
+		{"local imports test", "localimport"},
+		{"local imports with singlequotes on import test", "localimport_with_singlequotes"},
+		{"local imports with quotes within quotes on import test", "localimport_with_quotes_in_quotes"},
+		{"local imports with unterminated string on import test", "localimport_with_unterminated_string"},
+		{"local imports with mismatched quotes on import test", "localimport_with_mismatched_quotes"},
+		{"local imports with keyword in import path test", "localimport_import_path_with_keyword"},
+		{"partials happy path", "partials"},
+		{"partials with malformed partial reference", "partials_with_malformed_partial_reference"},
+		{"partials with malformed reference splat", "partials_with_malformed_reference_splat"},
+		{"partials with malformed partial block", "partials_with_malformed_partial_block"},
+		{"expiration before caveat test", "expirationbeforecaveat"},
 	}
 
 	for _, test := range parserTests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 			root := Parse(createAstNode, input.Source(test.name), test.input())
 			parseTree := getParseTree((root).(*testNode), 0)
 			assert := assert.New(t)
@@ -169,10 +177,10 @@ func TestParser(t *testing.T) {
 }
 
 func getParseTree(currentNode *testNode, indentation int) string {
-	parseTree := ""
-	parseTree += strings.Repeat(" ", indentation)
-	parseTree += fmt.Sprintf("%v", currentNode.nodeType)
-	parseTree += "\n"
+	var parseTree strings.Builder
+	parseTree.WriteString(strings.Repeat(" ", indentation))
+	fmt.Fprintf(&parseTree, "%v", currentNode.nodeType)
+	parseTree.WriteString("\n")
 
 	keys := make([]string, 0, len(currentNode.properties))
 
@@ -183,9 +191,9 @@ func getParseTree(currentNode *testNode, indentation int) string {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		parseTree += strings.Repeat(" ", indentation+2)
-		parseTree += fmt.Sprintf("%s = %v", key, currentNode.properties[key])
-		parseTree += "\n"
+		parseTree.WriteString(strings.Repeat(" ", indentation+2))
+		fmt.Fprintf(&parseTree, "%s = %v", key, currentNode.properties[key])
+		parseTree.WriteString("\n")
 	}
 
 	keys = make([]string, 0, len(currentNode.children))
@@ -198,13 +206,13 @@ func getParseTree(currentNode *testNode, indentation int) string {
 
 	for _, key := range keys {
 		value := currentNode.children[key]
-		parseTree += fmt.Sprintf("%s%v =>", strings.Repeat(" ", indentation+2), key)
-		parseTree += "\n"
+		fmt.Fprintf(&parseTree, "%s%v =>", strings.Repeat(" ", indentation+2), key)
+		parseTree.WriteString("\n")
 
 		for e := value.Front(); e != nil; e = e.Next() {
-			parseTree += getParseTree(e.Value.(*testNode), indentation+4)
+			parseTree.WriteString(getParseTree(e.Value.(*testNode), indentation+4))
 		}
 	}
 
-	return parseTree
+	return parseTree.String()
 }

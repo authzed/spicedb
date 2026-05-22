@@ -49,6 +49,21 @@ func TestInvalidSchema(t *testing.T) {
 	require.Equal(t, "Unexpected token at root level: TokenTypeIdentifier", response.GetDeveloperErrors().InputErrors[0].Message)
 }
 
+func TestSchemaWithImportsGetsError(t *testing.T) {
+	response := run(t, &devinterface.DeveloperRequest{
+		Context: &devinterface.RequestContext{
+			Schema: `
+			use import
+
+			import "foo.zed"
+			`,
+		},
+	})
+	require.NotNil(t, response.GetDeveloperErrors())
+	require.Equal(t, 1, len(response.GetDeveloperErrors().InputErrors))
+	require.Equal(t, "import statements are not allowed in this context", response.GetDeveloperErrors().InputErrors[0].Message)
+}
+
 func TestInvalidRelationship(t *testing.T) {
 	response := run(t, &devinterface.DeveloperRequest{
 		Context: &devinterface.RequestContext{

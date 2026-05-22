@@ -126,7 +126,6 @@ func (bss BaseSubjectSet[T]) Subtract(toRemove T) {
 		updatedWildcard, concretesToAdd := subtractWildcardFromWildcard(existing, toRemove, bss.constructor)
 		bss.wildcard.setOrNil(updatedWildcard)
 		for _, concrete := range concretesToAdd {
-			concrete := concrete
 			bss.setConcrete(concrete.GetSubjectId(), &concrete)
 		}
 		return

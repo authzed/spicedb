@@ -13,9 +13,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	itestutil "github.com/authzed/spicedb/internal/testutil"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -29,8 +29,6 @@ var (
 )
 
 func TestSimpleLookupSubjects(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		resourceType     string
 		resourceID       string
@@ -130,10 +128,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -148,6 +143,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 
@@ -181,6 +177,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),
 						DepthRemaining: 50,
+						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 				})
 
@@ -193,16 +190,15 @@ func TestSimpleLookupSubjects(t *testing.T) {
 }
 
 func TestLookupSubjectsMaxDepth(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(t.Context()))
-	require.NoError(datastoremw.SetInContext(ctx, ds))
+	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	tpl := tuple.MustParse("folder:oops#owner@folder:oops#owner")
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
@@ -222,13 +218,13 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 	require.Error(err)
 }
 
 func TestLookupSubjectsDispatchCount(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		resourceType          string
 		resourceID            string
@@ -256,10 +252,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("dispatch-count-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -272,6 +265,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 
@@ -284,7 +278,6 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 }
 
 func TestLookupSubjectsOverSchema(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name          string
 		schema        string
@@ -999,10 +992,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require := require.New(t)
 
 			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -1014,10 +1004,10 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
-			ctx := datastoremw.ContextWithHandle(t.Context())
-			require.NoError(datastoremw.SetInContext(ctx, ds))
+			ctx := datalayer.ContextWithHandle(t.Context())
+			require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 			err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -1027,6 +1017,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 			require.NoError(err)

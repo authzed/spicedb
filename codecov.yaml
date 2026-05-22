@@ -1,8 +1,10 @@
 ---
 ignore:
-  - "**/zz_*.go"
+  # not production code
+  - "pkg/benchmarks/"
+  - "pkg/query/benchmarks/"
+  - "**/zz_generated*.go"
   - "**/*.pb.go"
-  - "**/*.pb.validate.go"
   - "**/*fortesting.go"
   - "**/testutil.go"
   - "**/testutil/*.go"

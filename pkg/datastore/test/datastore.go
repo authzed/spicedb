@@ -7,8 +7,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/namespace"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -23,20 +27,36 @@ const (
 // a particular datastore.
 type DatastoreTester interface {
 	// New creates a new datastore instance for a single test.
-	New(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+	New(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
-type DatastoreTesterFunc func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+type DatastoreTesterFunc func(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 
-func (f DatastoreTesterFunc) New(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return f(revisionQuantization, gcInterval, gcWindow, watchBufferLength)
+func (f DatastoreTesterFunc) New(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	return f(tb, revisionQuantization, gcInterval, gcWindow, watchBufferLength)
 }
 
-type TestableDatastore interface {
-	datastore.Datastore
-
-	ExampleRetryableError() error
+// TesterFactory creates DatastoreTesters with a known retryable error for use in RetryTest.
+type TesterFactory struct {
+	retryErr error
 }
+
+// NewTesterFactory creates a TesterFactory with the given retryable error.
+func NewTesterFactory(retryErr error) *TesterFactory {
+	return &TesterFactory{retryErr: retryErr}
+}
+
+// NewTester wraps a DatastoreTester and adds a retryable error for use in RetryTest.
+func (f *TesterFactory) NewTester(tester DatastoreTester) DatastoreTester {
+	return &retryableTester{DatastoreTester: tester, retryErr: f.retryErr}
+}
+
+type retryableTester struct {
+	DatastoreTester
+	retryErr error
+}
+
+func (r *retryableTester) RetryableError() error { return r.retryErr }
 
 type Categories map[string]struct{}
 
@@ -89,13 +109,6 @@ func WithCategories(cats ...string) Categories {
 	return c
 }
 
-func parallel(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
-	return func(t *testing.T) {
-		t.Parallel()
-		tt(t, tester)
-	}
-}
-
 func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
 	return func(t *testing.T) {
 		tt(t, tester)
@@ -104,11 +117,8 @@ func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester
 
 // AllWithExceptions runs all generic datastore tests on a DatastoreTester, except
 // those specified test categories
-func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, concurrent bool) {
+func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
 	runner := serial
-	if concurrent {
-		runner = parallel
-	}
 
 	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
 	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
@@ -165,7 +175,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestCheckRevisions", runner(tester, CheckRevisionsTest))
 
 	if !except.GC() {
-		OnlyGCTests(t, tester, concurrent)
+		OnlyGCTests(t, tester)
 	}
 
 	t.Run("TestBulkUpload", runner(tester, BulkUploadTest))
@@ -201,11 +211,16 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 
 	if !except.Watch() && !except.WatchSchema() {
 		t.Run("TestWatchSchema", runner(tester, WatchSchemaTest))
-		t.Run("TestWatchAll", runner(tester, WatchAllTest))
+		t.Run("TestWatchRelationshipsAndSchemaChanges", runner(tester, WatchRelationshipsAndSchemaChangesTest))
 	}
 
 	if !except.Watch() && !except.WatchCheckpoints() {
-		t.Run("TestWatchCheckpoints", runner(tester, WatchCheckpointsTest))
+		t.Run("TestWatchObservesEveryReturnedRevision", runner(tester, WatchObservesEveryReturnedRevisionTest))
+		t.Run("TestWatchEmitsCheckpointAfterWriteWithChanges", runner(tester, WatchEmitsCheckpointAfterWriteWithChangesTest))
+	}
+
+	if !except.Watch() && !except.WatchCheckpoints() && !except.WatchSchema() {
+		t.Run("TestWatchRelationshipsAndSchemaAndCheckpoints", runner(tester, WatchRelationshipsAndSchemaAndCheckpointsTest))
 	}
 
 	if !except.Transaction() {
@@ -218,13 +233,24 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
 	t.Run("TestRegisterRelationshipCountersInParallel", runner(tester, RegisterRelationshipCountersInParallelTest))
 	t.Run("TestRelationshipCountersWithOddFilter", runner(tester, RelationshipCountersWithOddFilterTest))
+
+	t.Run("TestStoredSchemaNotFound", runner(tester, StoredSchemaNotFoundTest))
+	t.Run("TestStoredSchemaWriteRead", runner(tester, StoredSchemaWriteReadTest))
+	t.Run("TestStoredSchemaRevision", runner(tester, StoredSchemaRevisionTest))
+	t.Run("TestStoredSchemaUpdate", runner(tester, StoredSchemaUpdateTest))
+	t.Run("TestStoredSchemaMultipleRevisions", runner(tester, StoredSchemaMultipleRevisionsTest))
+	if !except.Transaction() {
+		t.Run("TestStoredSchemaReadWithinTransaction", runner(tester, StoredSchemaReadWithinTransactionTest))
+	}
+	t.Run("TestStoredSchemaStableText", runner(tester, StoredSchemaStableTextTest))
+	t.Run("TestStoredSchemaLarge", runner(tester, StoredSchemaLargeTest))
+	t.Run("TestStoredSchemaPhaseMigration", runner(tester, StoredSchemaPhaseMigrationTest))
+	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
+	t.Run("TestOptimizedRevisionSchemaHash", runner(tester, OptimizedRevisionSchemaHashTest))
 }
 
-func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
+func OnlyGCTests(t *testing.T, tester DatastoreTester) {
 	runner := serial
-	if concurrent {
-		runner = parallel
-	}
 
 	t.Run("TestRevisionGC", runner(tester, RevisionGCTest))
 	t.Run("TestInvalidReads", runner(tester, InvalidReadsTest))
@@ -232,8 +258,8 @@ func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
-func All(t *testing.T, tester DatastoreTester, concurrent bool) {
-	AllWithExceptions(t, tester, noException, concurrent)
+func All(t *testing.T, tester DatastoreTester) {
+	AllWithExceptions(t, tester, noException)
 }
 
 var testResourceNS = namespace.Namespace(
@@ -265,13 +291,23 @@ func makeTestRel(resourceID, userID string) tuple.Relationship {
 	}
 }
 
-func setupDatastore(ds datastore.Datastore, require *require.Assertions) datastore.Revision {
-	ctx := context.Background()
+func setupDatastore(t *testing.T, ds datastore.Datastore) datastore.Revision {
+	ctx := t.Context()
 
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, testGroupNS, testResourceNS, testUserNS)
+	schemaDefinitions := []datastore.SchemaDefinition{testGroupNS.CloneVT(), testResourceNS.CloneVT(), testUserNS.CloneVT()}
+	compilerDefinitions := slicez.Map(schemaDefinitions, func(def datastore.SchemaDefinition) compiler.SchemaDefinition {
+		return def.(compiler.SchemaDefinition)
 	})
-	require.NoError(err)
+	// TODO: is this really necessary? Might be worth refactoring.
+	schemaText, _, err := generator.GenerateSchema(ctx, compilerDefinitions)
+
+	require.NoError(t, err)
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// TODO: add cache to this?
+		_, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, schemaDefinitions, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
 
 	return revision
 }

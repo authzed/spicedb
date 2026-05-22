@@ -5,7 +5,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/services/shared"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
@@ -31,7 +31,7 @@ func ValidateSchemaChangesWithCaveatTypeSet(
 // and the error itself (if any).
 func ApplySchemaChanges(
 	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	rwt datalayer.ReadWriteTransaction,
 	validated *shared.ValidatedSchemaChanges,
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
@@ -48,7 +48,7 @@ func ApplySchemaChanges(
 
 func ApplySchemaChangesWithCaveatTypeSet(
 	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	rwt datalayer.ReadWriteTransaction,
 	validated *shared.ValidatedSchemaChanges,
 	caveatTypeSet *caveattypes.TypeSet,
 	existingCaveats []*core.CaveatDefinition,

@@ -36,13 +36,14 @@ var (
 func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := t.Context()
 
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	startRevision := startRevisionResult.Revision
 
 	_, _, err = ds.SnapshotReader(startRevision).LegacyReadNamespaceByName(ctx, "unknown")
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
@@ -53,13 +54,14 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := t.Context()
 
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	startRevision := startRevisionResult.Revision
 
 	nsDefs, err := ds.SnapshotReader(startRevision).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
@@ -144,10 +146,10 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 	ctx := t.Context()
 
 	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
@@ -181,8 +183,9 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Definition.Name, "deleted namespace '%s' should not be in namespace list", ns.Definition.Name)
 	}
 
-	deletedRevision, err := ds.HeadRevision(ctx)
+	deletedRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	deletedRevision := deletedRevisionResult.Revision
 
 	iter, err := ds.SnapshotReader(deletedRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: testfixtures.DocumentNS.Name,
@@ -196,10 +199,10 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 func NamespaceDeleteNoRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 	ctx := t.Context()
 
 	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
@@ -230,10 +233,10 @@ func NamespaceDeleteNoRelationshipsTest(t *testing.T, tester DatastoreTester) {
 }
 
 func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 	ctx := t.Context()
 
 	namespaces, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
@@ -258,10 +261,10 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 	ctx := t.Context()
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -293,7 +296,7 @@ definition document {
 	require.Len(compiled.OrderedDefinitions, 2)
 
 	// Write the namespace definition to the datastore.
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -344,7 +347,7 @@ definition document {
 	require.Len(compiled.OrderedDefinitions, 2)
 
 	// Write the namespace definition to the datastore.
-	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -371,7 +374,7 @@ definition document {
 	testutil.RequireProtoEqual(t, caveatDef, readCaveatDef, "found changed caveat definition")
 
 	// Ensure the read namespace's string form matches the input as an extra check.
-	generated, _, err := generator.GenerateSchema([]compiler.SchemaDefinition{readCaveatDef, readNsDef})
+	generated, _, err := generator.GenerateSchema(ctx, []compiler.SchemaDefinition{readCaveatDef, readNsDef})
 	require.NoError(err)
 	require.Equal(schemaString, generated)
 }

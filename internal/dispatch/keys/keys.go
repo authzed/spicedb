@@ -3,8 +3,8 @@ package keys
 import (
 	"context"
 
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -39,44 +39,94 @@ type Handler interface {
 
 	// ExpandDispatchKey computes the dispatch key for an Expand operation.
 	ExpandDispatchKey(ctx context.Context, req *v1.DispatchExpandRequest) ([]byte, error)
+
+	// PlanCheckCacheKey computes the caching key for a plan Check operation.
+	PlanCheckCacheKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error)
+
+	// PlanCheckDispatchKey computes the dispatch key for a plan Check operation.
+	PlanCheckDispatchKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error)
+
+	// PlanLookupResourcesCacheKey computes the caching key for a plan LookupResources operation.
+	PlanLookupResourcesCacheKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error)
+
+	// PlanLookupResourcesDispatchKey computes the dispatch key for a plan LookupResources operation.
+	PlanLookupResourcesDispatchKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error)
+
+	// PlanLookupSubjectsCacheKey computes the caching key for a plan LookupSubjects operation.
+	PlanLookupSubjectsCacheKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error)
+
+	// PlanLookupSubjectsDispatchKey computes the dispatch key for a plan LookupSubjects operation.
+	PlanLookupSubjectsDispatchKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error)
 }
 
 type baseKeyHandler struct{}
 
 func (b baseKeyHandler) LookupResources2CacheKey(_ context.Context, req *v1.DispatchLookupResources2Request) (DispatchCacheKey, error) {
-	return lookupResourcesRequest2ToKey(req, computeBothHashes), nil
+	return lookupResourcesRequest2ToKey(req)
 }
 
 func (b baseKeyHandler) LookupResources3CacheKey(_ context.Context, req *v1.DispatchLookupResources3Request) (DispatchCacheKey, error) {
-	return lookupResourcesRequest3ToKey(req, computeBothHashes), nil
+	return lookupResourcesRequest3ToKey(req)
 }
 
 func (b baseKeyHandler) LookupSubjectsCacheKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) (DispatchCacheKey, error) {
-	return lookupSubjectsRequestToKey(req, computeBothHashes), nil
+	return lookupSubjectsRequestToKey(req), nil
 }
 
 func (b baseKeyHandler) ExpandCacheKey(_ context.Context, req *v1.DispatchExpandRequest) (DispatchCacheKey, error) {
-	return expandRequestToKey(req, computeBothHashes), nil
+	return expandRequestToKey(req), nil
 }
 
 func (b baseKeyHandler) CheckDispatchKey(_ context.Context, req *v1.DispatchCheckRequest) ([]byte, error) {
-	return checkRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+	return checkRequestToKey(req).StableSumAsBytes(), nil
 }
 
 func (b baseKeyHandler) LookupResources2DispatchKey(_ context.Context, req *v1.DispatchLookupResources2Request) ([]byte, error) {
-	return lookupResourcesRequest2ToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+	hash, err := lookupResourcesRequest2ToKey(req)
+	if err != nil {
+		return nil, err
+	}
+	return hash.StableSumAsBytes(), nil
 }
 
 func (b baseKeyHandler) LookupResources3DispatchKey(_ context.Context, req *v1.DispatchLookupResources3Request) ([]byte, error) {
-	return lookupResourcesRequest3ToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+	hash, err := lookupResourcesRequest3ToKey(req)
+	if err != nil {
+		return nil, err
+	}
+	return hash.StableSumAsBytes(), nil
 }
 
 func (b baseKeyHandler) LookupSubjectsDispatchKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) ([]byte, error) {
-	return lookupSubjectsRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+	return lookupSubjectsRequestToKey(req).StableSumAsBytes(), nil
 }
 
 func (b baseKeyHandler) ExpandDispatchKey(_ context.Context, req *v1.DispatchExpandRequest) ([]byte, error) {
-	return expandRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+	return expandRequestToKey(req).StableSumAsBytes(), nil
+}
+
+func (b baseKeyHandler) PlanCheckCacheKey(_ context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error) {
+	return planCheckRequestToKey(req), nil
+}
+
+func (b baseKeyHandler) PlanCheckDispatchKey(_ context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error) {
+	return planCheckRequestToKey(req).StableSumAsBytes(), nil
+}
+
+func (b baseKeyHandler) PlanLookupResourcesCacheKey(_ context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error) {
+	return planLookupResourcesRequestToKey(req), nil
+}
+
+func (b baseKeyHandler) PlanLookupResourcesDispatchKey(_ context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error) {
+	return planLookupResourcesRequestToKey(req).StableSumAsBytes(), nil
+}
+
+func (b baseKeyHandler) PlanLookupSubjectsCacheKey(_ context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error) {
+	return planLookupSubjectsRequestToKey(req), nil
+}
+
+func (b baseKeyHandler) PlanLookupSubjectsDispatchKey(_ context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error) {
+	return planLookupSubjectsRequestToKey(req).StableSumAsBytes(), nil
 }
 
 // DirectKeyHandler is a key handler that uses the relation name itself as the key.
@@ -85,7 +135,7 @@ type DirectKeyHandler struct {
 }
 
 func (d *DirectKeyHandler) CheckCacheKey(_ context.Context, req *v1.DispatchCheckRequest) (DispatchCacheKey, error) {
-	return checkRequestToKey(req, computeBothHashes), nil
+	return checkRequestToKey(req), nil
 }
 
 // CanonicalKeyHandler is a key handler which makes use of the canonical key for relations for
@@ -100,19 +150,24 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 	// a check for `somenamespace:someobject#somerel@somenamespace:someobject#somerel`.
 	if req.ResourceRelation.Namespace != req.Subject.Namespace {
 		// Load the relation to get its computed cache key, if any.
-		ds := datastoremw.MustFromContext(ctx)
+		dl := datalayer.MustFromContext(ctx)
 
-		revision, err := ds.RevisionFromString(req.Metadata.AtRevision)
+		revision, err := dl.RevisionFromString(req.Metadata.AtRevision)
 		if err != nil {
 			return emptyDispatchCacheKey, err
 		}
-		r := ds.SnapshotReader(revision)
+		r := dl.SnapshotReader(revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+
+		sr, err := r.ReadSchema(ctx)
+		if err != nil {
+			return emptyDispatchCacheKey, err
+		}
 
 		_, relation, err := namespace.ReadNamespaceAndRelation(
 			ctx,
 			req.ResourceRelation.Namespace,
 			req.ResourceRelation.Relation,
-			r,
+			sr,
 		)
 		if err != nil {
 			return emptyDispatchCacheKey, err
@@ -123,5 +178,5 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 		}
 	}
 
-	return checkRequestToKey(req, computeBothHashes), nil
+	return checkRequestToKey(req), nil
 }

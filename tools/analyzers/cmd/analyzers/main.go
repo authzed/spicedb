@@ -1,6 +1,10 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 
 	"github.com/authzed/spicedb/tools/analyzers/closeafterusagecheck"
@@ -12,12 +16,13 @@ import (
 	"github.com/authzed/spicedb/tools/analyzers/nilvaluecheck"
 	"github.com/authzed/spicedb/tools/analyzers/paniccheck"
 	"github.com/authzed/spicedb/tools/analyzers/protomarshalcheck"
+	"github.com/authzed/spicedb/tools/analyzers/singleflightcheck"
 	"github.com/authzed/spicedb/tools/analyzers/telemetryconvcheck"
 	"github.com/authzed/spicedb/tools/analyzers/zerologmarshalcheck"
 )
 
 func main() {
-	multichecker.Main(
+	analyzers := []*analysis.Analyzer{
 		mutexcheck.Analyzer(),
 		nilvaluecheck.Analyzer(),
 		exprstatementcheck.Analyzer(),
@@ -28,6 +33,18 @@ func main() {
 		lendowncastcheck.Analyzer(),
 		protomarshalcheck.Analyzer(),
 		zerologmarshalcheck.Analyzer(),
+		singleflightcheck.Analyzer(),
 		telemetryconvcheck.Analyzer(),
-	)
+	}
+
+	// multichecker disables all analyzers unless explicitly enabled via -<name> flags, which means forgetting to
+	// add the flag in lint.go silently skips the analyzer.
+	// so here we enable all analyzers by default.
+	enableFlags := make([]string, 0, len(analyzers))
+	for _, a := range analyzers {
+		enableFlags = append(enableFlags, fmt.Sprintf("-%s", a.Name))
+	}
+	os.Args = append(os.Args[:1], append(enableFlags, os.Args[1:]...)...)
+
+	multichecker.Main(analyzers...)
 }

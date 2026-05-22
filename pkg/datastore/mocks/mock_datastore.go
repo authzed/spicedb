@@ -239,6 +239,21 @@ func (mr *MockReaderMockRecorder) QueryRelationships(ctx, filter any, arg2 ...an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRelationships", reflect.TypeOf((*MockReader)(nil).QueryRelationships), varargs...)
 }
 
+// ReadStoredSchema mocks base method.
+func (m *MockReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadStoredSchema", ctx)
+	ret0, _ := ret[0].(*datastore.ReadOnlyStoredSchema)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadStoredSchema indicates an expected call of ReadStoredSchema.
+func (mr *MockReaderMockRecorder) ReadStoredSchema(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadStoredSchema", reflect.TypeOf((*MockReader)(nil).ReadStoredSchema), ctx)
+}
+
 // ReverseQueryRelationships mocks base method.
 func (m *MockReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, arg2 ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	m.ctrl.T.Helper()
@@ -257,21 +272,6 @@ func (mr *MockReaderMockRecorder) ReverseQueryRelationships(ctx, subjectsFilter 
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, subjectsFilter}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReverseQueryRelationships", reflect.TypeOf((*MockReader)(nil).ReverseQueryRelationships), varargs...)
-}
-
-// SchemaReader mocks base method.
-func (m *MockReader) SchemaReader() (datastore.SchemaReader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaReader")
-	ret0, _ := ret[0].(datastore.SchemaReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SchemaReader indicates an expected call of SchemaReader.
-func (mr *MockReaderMockRecorder) SchemaReader() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaReader", reflect.TypeOf((*MockReader)(nil).SchemaReader))
 }
 
 // MockReadWriteTransaction is a mock of ReadWriteTransaction interface.
@@ -537,6 +537,21 @@ func (mr *MockReadWriteTransactionMockRecorder) QueryRelationships(ctx, filter a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).QueryRelationships), varargs...)
 }
 
+// ReadStoredSchema mocks base method.
+func (m *MockReadWriteTransaction) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadStoredSchema", ctx)
+	ret0, _ := ret[0].(*datastore.ReadOnlyStoredSchema)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadStoredSchema indicates an expected call of ReadStoredSchema.
+func (mr *MockReadWriteTransactionMockRecorder) ReadStoredSchema(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadStoredSchema", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReadStoredSchema), ctx)
+}
+
 // RegisterCounter mocks base method.
 func (m *MockReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *corev1.RelationshipFilter) error {
 	m.ctrl.T.Helper()
@@ -569,36 +584,6 @@ func (mr *MockReadWriteTransactionMockRecorder) ReverseQueryRelationships(ctx, s
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, subjectsFilter}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReverseQueryRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReverseQueryRelationships), varargs...)
-}
-
-// SchemaReader mocks base method.
-func (m *MockReadWriteTransaction) SchemaReader() (datastore.SchemaReader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaReader")
-	ret0, _ := ret[0].(datastore.SchemaReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SchemaReader indicates an expected call of SchemaReader.
-func (mr *MockReadWriteTransactionMockRecorder) SchemaReader() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaReader", reflect.TypeOf((*MockReadWriteTransaction)(nil).SchemaReader))
-}
-
-// SchemaWriter mocks base method.
-func (m *MockReadWriteTransaction) SchemaWriter() (datastore.SchemaWriter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaWriter")
-	ret0, _ := ret[0].(datastore.SchemaWriter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SchemaWriter indicates an expected call of SchemaWriter.
-func (mr *MockReadWriteTransactionMockRecorder) SchemaWriter() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaWriter", reflect.TypeOf((*MockReadWriteTransaction)(nil).SchemaWriter))
 }
 
 // StoreCounterValue mocks base method.
@@ -641,6 +626,20 @@ func (m *MockReadWriteTransaction) WriteRelationships(ctx context.Context, mutat
 func (mr *MockReadWriteTransactionMockRecorder) WriteRelationships(ctx, mutations any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).WriteRelationships), ctx, mutations)
+}
+
+// WriteStoredSchema mocks base method.
+func (m *MockReadWriteTransaction) WriteStoredSchema(ctx context.Context, schema *corev1.StoredSchema) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteStoredSchema", ctx, schema)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteStoredSchema indicates an expected call of WriteStoredSchema.
+func (mr *MockReadWriteTransactionMockRecorder) WriteStoredSchema(ctx, schema any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteStoredSchema", reflect.TypeOf((*MockReadWriteTransaction)(nil).WriteStoredSchema), ctx, schema)
 }
 
 // MockBulkWriteRelationshipSource is a mock of BulkWriteRelationshipSource interface.
@@ -764,10 +763,10 @@ func (mr *MockReadOnlyDatastoreMockRecorder) Features(ctx any) *gomock.Call {
 }
 
 // HeadRevision mocks base method.
-func (m *MockReadOnlyDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockReadOnlyDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeadRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -809,10 +808,10 @@ func (mr *MockReadOnlyDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockReadOnlyDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockReadOnlyDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -994,10 +993,10 @@ func (mr *MockDatastoreMockRecorder) Features(ctx any) *gomock.Call {
 }
 
 // HeadRevision mocks base method.
-func (m *MockDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeadRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1039,10 +1038,10 @@ func (mr *MockDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1160,6 +1159,45 @@ func (m *MockDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 func (mr *MockDatastoreMockRecorder) Watch(ctx, afterRevision, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockDatastore)(nil).Watch), ctx, afterRevision, arg2)
+}
+
+// MockBulkExportPartitioner is a mock of BulkExportPartitioner interface.
+type MockBulkExportPartitioner struct {
+	ctrl     *gomock.Controller
+	recorder *MockBulkExportPartitionerMockRecorder
+	isgomock struct{}
+}
+
+// MockBulkExportPartitionerMockRecorder is the mock recorder for MockBulkExportPartitioner.
+type MockBulkExportPartitionerMockRecorder struct {
+	mock *MockBulkExportPartitioner
+}
+
+// NewMockBulkExportPartitioner creates a new mock instance.
+func NewMockBulkExportPartitioner(ctrl *gomock.Controller) *MockBulkExportPartitioner {
+	mock := &MockBulkExportPartitioner{ctrl: ctrl}
+	mock.recorder = &MockBulkExportPartitionerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockBulkExportPartitioner) EXPECT() *MockBulkExportPartitionerMockRecorder {
+	return m.recorder
+}
+
+// PlanPartitions mocks base method.
+func (m *MockBulkExportPartitioner) PlanPartitions(ctx context.Context, desiredCount uint32) ([]datastore.PartitionRange, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PlanPartitions", ctx, desiredCount)
+	ret0, _ := ret[0].([]datastore.PartitionRange)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PlanPartitions indicates an expected call of PlanPartitions.
+func (mr *MockBulkExportPartitionerMockRecorder) PlanPartitions(ctx, desiredCount any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlanPartitions", reflect.TypeOf((*MockBulkExportPartitioner)(nil).PlanPartitions), ctx, desiredCount)
 }
 
 // MockExplainable is a mock of Explainable interface.
@@ -1329,10 +1367,10 @@ func (mr *MockSQLDatastoreMockRecorder) Features(ctx any) *gomock.Call {
 }
 
 // HeadRevision mocks base method.
-func (m *MockSQLDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockSQLDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeadRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1374,10 +1412,10 @@ func (mr *MockSQLDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockSQLDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockSQLDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1608,10 +1646,10 @@ func (mr *MockStrictReadDatastoreMockRecorder) Features(ctx any) *gomock.Call {
 }
 
 // HeadRevision mocks base method.
-func (m *MockStrictReadDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockStrictReadDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeadRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1667,10 +1705,10 @@ func (mr *MockStrictReadDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockStrictReadDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockStrictReadDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1872,10 +1910,10 @@ func (mr *MockStartableDatastoreMockRecorder) Features(ctx any) *gomock.Call {
 }
 
 // HeadRevision mocks base method.
-func (m *MockStartableDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockStartableDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeadRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1917,10 +1955,10 @@ func (mr *MockStartableDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockStartableDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockStartableDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2136,10 +2174,10 @@ func (mr *MockRepairableDatastoreMockRecorder) Features(ctx any) *gomock.Call {
 }
 
 // HeadRevision mocks base method.
-func (m *MockRepairableDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockRepairableDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeadRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2181,10 +2219,10 @@ func (mr *MockRepairableDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockRepairableDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (m *MockRepairableDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

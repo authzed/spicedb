@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: "Update unreleased section in CHANGELOG"
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    types:
+      [
+        "opened",
+        "synchronize",
+        "reopened",
+        "ready_for_review",
+        "labeled",
+        "unlabeled",
+      ]
+
+permissions:
+  contents: "read"
+concurrency:
+  group: "spicedb-changelog-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    runs-on: "depot-ubuntu-24.04-small"
+    steps:
+      - uses: "dangoslen/changelog-enforcer@43d9d695c578fb444f2e5bd23c0e9ec7c97b1d37"
+        with:
+          skipLabels: "Skip-Changelog,dependencies,tests"
+          missingUpdateErrorMessage: "If your PR has a change that users might care about, please add an entry to CHANGELOG.md, run 'npx keep-a-changelog', and commit the changes. Otherwise, add the Skip-Changelog label to your PR."
+      - uses: "actions/checkout@v6"
+      - uses: "actions/setup-node@v6"
+      - run: "npx keep-a-changelog@2.8.0"
+      - run: |
+          files=$(git status --porcelain)
+          if [[ -n ${files}  ]]; then
+            >&2 echo "Please run \`npx keep-a-changelog\` and commit the changes."
+            >&2 echo ""
+            >&2 echo "${files}"
+            >&2 echo ""
+            exit 1
+          fi

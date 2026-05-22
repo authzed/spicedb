@@ -2,11 +2,16 @@ package generator
 
 import (
 	"bufio"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
 	"sort"
 	"strings"
+
+	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -18,18 +23,47 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
+var tracer = otel.Tracer("spicedb/pkg/schemadsl/generator")
+
 // Ellipsis is the relation name for terminal subjects.
 const Ellipsis = "..."
 
 // MaxSingleLineCommentLength sets the maximum length for a comment to made single line.
 const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
-func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
-	return GenerateSchemaWithCaveatTypeSet(definitions, caveattypes.Default.TypeSet)
+// GenerateSchema generates a DSL view of the given schema.
+// Definitions are output in the order provided. For canonical output, sort
+// definitions by name before calling.
+func GenerateSchema(ctx context.Context, definitions []compiler.SchemaDefinition) (string, bool, error) {
+	return GenerateSchemaWithCaveatTypeSet(ctx, definitions, caveattypes.Default.TypeSet)
+}
+
+// ComputeSchemaHash computes a SHA256 hash of the given schema definitions.
+// Definitions are sorted by name before generating the schema text for consistent ordering.
+func ComputeSchemaHash(definitions []compiler.SchemaDefinition) (string, error) {
+	sorted := make([]compiler.SchemaDefinition, len(definitions))
+	copy(sorted, definitions)
+
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].GetName() < sorted[j].GetName()
+	})
+
+	schemaText, _, err := GenerateSchema(context.Background(), sorted)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate schema for hashing: %w", err)
+	}
+
+	hash := sha256.Sum256([]byte(schemaText))
+	return hex.EncodeToString(hash[:]), nil
 }
 
 // GenerateSchemaWithCaveatTypeSet generates a DSL view of the given schema.
-func GenerateSchemaWithCaveatTypeSet(definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+// Definitions are output in the order provided. For canonical output, sort
+// definitions by name before calling.
+func GenerateSchemaWithCaveatTypeSet(ctx context.Context, definitions []compiler.SchemaDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+	_, span := tracer.Start(ctx, "GenerateSchemaWithCaveatTypeSet")
+	defer span.End()
+
 	generated := make([]string, 0, len(definitions))
 	flags := mapz.NewSet[string]()
 
@@ -74,13 +108,7 @@ func GenerateSchemaWithCaveatTypeSet(definitions []compiler.SchemaDefinition, ca
 
 // GenerateCaveatSource generates a DSL view of the given caveat definition.
 func GenerateCaveatSource(caveat *core.CaveatDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
-	generator := &sourceGenerator{
-		indentationLevel: 0,
-		hasNewline:       true,
-		hasBlankline:     true,
-		hasNewScope:      true,
-		caveatTypeSet:    caveatTypeSet,
-	}
+	generator := NewSourceGenerator(caveatTypeSet)
 
 	err := generator.emitCaveat(caveat)
 	if err != nil {
@@ -97,14 +125,7 @@ func GenerateSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveatty
 }
 
 func generateDefinitionSource(namespace *core.NamespaceDefinition, caveatTypeSet *caveattypes.TypeSet) (string, []string, bool, error) {
-	generator := &sourceGenerator{
-		indentationLevel: 0,
-		hasNewline:       true,
-		hasBlankline:     true,
-		hasNewScope:      true,
-		flags:            mapz.NewSet[string](),
-		caveatTypeSet:    caveatTypeSet,
-	}
+	generator := NewSourceGenerator(caveatTypeSet)
 
 	err := generator.emitNamespace(namespace)
 	if err != nil {
@@ -116,13 +137,7 @@ func generateDefinitionSource(namespace *core.NamespaceDefinition, caveatTypeSet
 
 // GenerateRelationSource generates a DSL view of the given relation definition.
 func GenerateRelationSource(relation *core.Relation, caveatTypeSet *caveattypes.TypeSet) (string, error) {
-	generator := &sourceGenerator{
-		indentationLevel: 0,
-		hasNewline:       true,
-		hasBlankline:     true,
-		hasNewScope:      true,
-		caveatTypeSet:    caveatTypeSet,
-	}
+	generator := NewSourceGenerator(caveatTypeSet)
 
 	err := generator.emitRelation(relation)
 	if err != nil {
@@ -396,8 +411,8 @@ func (sg *sourceGenerator) appendComment(comment string) {
 	case strings.HasPrefix(comment, "/*"):
 		stripped := strings.TrimSpace(comment)
 
-		if strings.HasPrefix(stripped, "/**") {
-			stripped = strings.TrimPrefix(stripped, "/**")
+		if after, ok := strings.CutPrefix(stripped, "/**"); ok {
+			stripped = after
 			sg.append("/**")
 		} else {
 			stripped = strings.TrimPrefix(stripped, "/*")

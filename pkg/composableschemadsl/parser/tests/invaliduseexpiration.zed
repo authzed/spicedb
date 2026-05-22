@@ -1,5 +1,0 @@
-use expiration
-
-definition resource {
-    relation editor: user with somecaveat expiration
-}

@@ -1,4 +1,4 @@
-//go:build !skipintegrationtests
+//go:build integration || datastoreconsistency
 
 package integrationtesting_test
 
@@ -12,8 +12,8 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
+	yamlv3 "go.yaml.in/yaml/v3"
 	"google.golang.org/protobuf/types/known/structpb"
-	yamlv2 "gopkg.in/yaml.v2"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/development"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -45,24 +46,24 @@ const testTimedelta = 1 * time.Second
 // both real-world schemas, as well as the full set of hand-constructed corner
 // cases so that the system can be fully exercised.
 func TestConsistency(t *testing.T) {
-	t.Parallel()
-
 	// List all the defined consistency test files.
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
 	require.NoError(t, err)
 
 	for _, filePath := range consistencyTestFiles {
-		filePath := filePath
-
 		t.Run(path.Base(filePath), func(t *testing.T) {
-			t.Parallel()
 			for _, dispatcherKind := range []string{"local", "caching"} {
-				dispatcherKind := dispatcherKind
-
 				t.Run(dispatcherKind, func(t *testing.T) {
+					// This t.Parallel, and the one inside runConsistencyTestSuiteForFile, actually help our parallelism.
+					// This is because there is an unbounded, and combinatoric, number of actual subtests we are going to run for each file
+					// depending on the data (since we validate all subjects and all resources and all reachability)
+					//
+					// Thus, running each of those in parallel, once we've built the datastore for each, is useful.
+					// But the files are done in serial.
+					t.Parallel()
+
 					for _, chunkSize := range []uint16{5, 10} {
 						t.Run(fmt.Sprintf("chunk-size-%d", chunkSize), func(t *testing.T) {
-							t.Parallel()
 							runConsistencyTestSuiteForFile(t, filePath, dispatcherKind == "caching", chunkSize)
 						})
 					}
@@ -85,8 +86,9 @@ func TestConsistency(t *testing.T) {
 		cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, "testconfigs/self.yaml.skip", testTimedelta, options...)
 
 		// Validate the type system for each namespace.
-		headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+		headRevisionResult, err := cad.DataStore.HeadRevision(cad.Ctx)
 		require.NoError(t, err)
+		headRevision := headRevisionResult.Revision
 
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
 
@@ -101,9 +103,7 @@ func TestConsistency(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		testers := consistencytestutil.ServiceTesters(cad.Conn)
-		tester := testers[0]
-		// Build an accessibility set.
+		tester := consistencytestutil.NewServiceTester(cad.Conn)
 		accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
 
 		dispatcher := consistencytestutil.CreateDispatcherForTesting(t, false)
@@ -239,6 +239,8 @@ func TestConsistency(t *testing.T) {
 }
 
 func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, chunkSize uint16) {
+	t.Parallel()
+
 	options := []server.ConfigOption{
 		server.WithDispatchChunkSize(chunkSize),
 		server.WithEnableExperimentalLookupResources(true),
@@ -248,8 +250,9 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
 
 	// Validate the type system for each namespace.
-	headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
+	headRevisionResult, err := cad.DataStore.HeadRevision(cad.Ctx)
 	require.NoError(t, err)
+	headRevision := headRevisionResult.Revision
 
 	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(cad.DataStore.SnapshotReader(headRevision)))
 
@@ -265,14 +268,10 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	}
 
 	// Run consistency tests.
-	testers := consistencytestutil.ServiceTesters(cad.Conn)
-	for _, tester := range testers {
-		tester := tester
-
-		t.Run(tester.Name(), func(t *testing.T) {
-			runConsistencyTestsWithServiceTester(t, cad, tester, headRevision, useCachingDispatcher)
-		})
-	}
+	tester := consistencytestutil.NewServiceTester(cad.Conn)
+	t.Run(tester.Name(), func(t *testing.T) {
+		runConsistencyTestsWithServiceTester(t, cad, tester, headRevision, useCachingDispatcher)
+	})
 }
 
 type validationContext struct {
@@ -342,7 +341,6 @@ func testForEachRelationship(
 	t.Helper()
 
 	for _, relationship := range vctx.clusterAndData.Populated.Relationships {
-		relationship := relationship
 		t.Run(fmt.Sprintf("%s_%s", prefix, tuple.MustString(relationship)),
 			func(t *testing.T) {
 				handler(t, relationship)
@@ -367,9 +365,7 @@ func testForEachResource(
 
 		resourceType := resourceType
 		for _, relation := range resourceType.Relation {
-			relation := relation
 			for _, resource := range resources {
-				resource := resource
 				t.Run(fmt.Sprintf("%s_%s_%s_%s", prefix, resourceType.Name, resource.ObjectID, relation.Name),
 					func(t *testing.T) {
 						handler(t, tuple.ObjectAndRelation{
@@ -391,9 +387,7 @@ func testForEachResourceType(
 	handler func(t *testing.T, resourceType tuple.RelationReference),
 ) {
 	for _, resourceType := range vctx.clusterAndData.Populated.NamespaceDefinitions {
-		resourceType := resourceType
 		for _, relation := range resourceType.Relation {
-			relation := relation
 			t.Run(fmt.Sprintf("%s_%s_%s_", prefix, resourceType.Name, relation.Name),
 				func(t *testing.T) {
 					handler(t, tuple.RelationReference{
@@ -467,6 +461,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 						AtRevision:     vctx.revision.String(),
 						DepthRemaining: 100,
 						TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
+						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 					ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 				})
@@ -523,10 +518,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 	testForEachResourceType(t, vctx, "validate_lookup_resources",
 		func(t *testing.T, resourceRelation tuple.RelationReference) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
-				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					for _, pageSize := range []uint32{0, 2} {
-						pageSize := pageSize
 						t.Run(fmt.Sprintf("pagesize-%d", pageSize), func(t *testing.T) {
 							accessibleResources := vctx.accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
 
@@ -534,7 +527,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							// Loop until all resources have been found or we've hit max iterations.
 							var currentCursor *v1.Cursor
 							resolvedResources := map[string]*v1.LookupResourcesResponse{}
-							for i := 0; i < 100; i++ {
+							for range 100 {
 								foundResources, lastCursor, err := vctx.serviceTester.LookupResources(t.Context(), resourceRelation, subject, vctx.revision, currentCursor, pageSize, nil)
 								require.NoError(t, err)
 
@@ -632,7 +625,6 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_lookup_subjects",
 		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			for _, subjectType := range vctx.accessibilitySet.SubjectTypes() {
-				subjectType := subjectType
 				t.Run(fmt.Sprintf("%s#%s", subjectType.ObjectType, subjectType.Relation),
 					func(t *testing.T) {
 						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(t.Context(), resource, subjectType, vctx.revision, nil)
@@ -816,7 +808,6 @@ func runAssertions(t *testing.T, vctx validationContext) {
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			} {
-				entry := entry
 				t.Run(entry.name, func(t *testing.T) {
 					bulkCheckItems := make([]*v1.BulkCheckPermissionRequestItem, 0, len(entry.assertions))
 
@@ -967,7 +958,6 @@ func validateDevelopmentChecks(t *testing.T, devContext *development.DevContext,
 	testForEachResource(t, vctx, "validate_check_watch",
 		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
-				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					require.NotNil(t, devContext)
 					cr, err := development.RunCheck(devContext, resource, subject, nil)
@@ -1012,7 +1002,7 @@ func validateDevelopmentAssertions(t *testing.T, devContext *development.DevCont
 		"assertCaveated": caveatedAssertions,
 		"assertFalse":    falseAssertions,
 	}
-	assertions, err := yamlv2.Marshal(assertionsMap)
+	assertions, err := yamlv3.Marshal(assertionsMap)
 	require.NoError(t, err, "Could not marshal assertions map")
 
 	// Run validation with the assertions and the updated YAML.
@@ -1039,7 +1029,7 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 		expectedMap[tuple.StringONR(relationship.Resource)] = []string{}
 	}
 
-	expectedRelations, err := yamlv2.Marshal(expectedMap)
+	expectedRelations, err := yamlv3.Marshal(expectedMap)
 	require.NoError(t, err, "Could not marshal expected relations map")
 
 	expectedRelationsMap, devErr := development.ParseExpectedRelationsYAML(string(expectedRelations))
@@ -1096,8 +1086,9 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 // validateReachableSubjectTypes validates that the reachable subject types are those expected.
 func validateReachableSubjectTypes(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_reachable_subject_types", func(t *testing.T, resource tuple.ObjectAndRelation) {
-		headRev, err := vctx.clusterAndData.DataStore.HeadRevision(t.Context())
+		headRevResult, err := vctx.clusterAndData.DataStore.HeadRevision(t.Context())
 		require.NoError(t, err)
+		headRev := headRevResult.Revision
 
 		reader := vctx.clusterAndData.DataStore.SnapshotReader(headRev)
 		ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(reader))

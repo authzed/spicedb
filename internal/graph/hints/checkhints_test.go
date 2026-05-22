@@ -104,7 +104,7 @@ func buildReachabilityGraph(t *testing.T, schemaStr string) *schema.DefinitionRe
 	vdef, err := ts.GetValidatedDefinition(t.Context(), "resource")
 	require.NoError(err)
 
-	return vdef.Reachability()
+	return vdef.Reachability(ts)
 }
 
 func TestCheckHintForComputedUserset(t *testing.T) {

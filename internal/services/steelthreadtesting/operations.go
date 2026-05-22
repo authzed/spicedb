@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"go.yaml.in/yaml/v3"
 	"google.golang.org/protobuf/types/known/structpb"
-	"gopkg.in/yaml.v3"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 

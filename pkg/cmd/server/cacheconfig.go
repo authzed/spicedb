@@ -10,37 +10,28 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/dustin/go-humanize"
-	"github.com/pbnjay/memory"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/pkg/cache"
+	pkgruntime "github.com/authzed/spicedb/pkg/runtime"
 )
 
 // Factor by which we will extend the maximum amount of expected needed TTL
 const ttlExtensionFactor = 2.0
 
-var (
-	// At startup, measure 75% of available free memory.
-	freeMemory uint64
-
-	errOverHundredPercent = errors.New("percentage greater than 100")
-)
-
-func init() {
-	freeMemory = memory.FreeMemory() / 100 * 75
-}
+var errOverHundredPercent = errors.New("percentage greater than 100")
 
 // CacheConfig defines the configuration various SpiceDB caches.
 //
 //go:generate go run github.com/ecordell/optgen -output zz_generated.cacheconfig.options.go . CacheConfig
 type CacheConfig struct {
-	Name                string        `debugmap:"visible"`
-	MaxCost             string        `debugmap:"visible"`
-	NumCounters         int64         `debugmap:"visible"`
-	Metrics             bool          `debugmap:"visible"`
-	Enabled             bool          `debugmap:"visible"`
-	defaultTTL          time.Duration `debugmap:"visible"`
-	CacheKindForTesting string        `debugmap:"visible"`
+	Name    string `debugmap:"visible"`
+	MaxCost string `debugmap:"visible"`
+	// Deprecated: NumCounters is no longer used with the current cache implementation.
+	NumCounters int64         `debugmap:"visible"`
+	Metrics     bool          `debugmap:"visible"`
+	Enabled     bool          `debugmap:"visible"`
+	defaultTTL  time.Duration `debugmap:"visible"`
 }
 
 // WithRevisionParameters configures a cache such that all entries are given a TTL
@@ -57,7 +48,7 @@ func (cc *CacheConfig) WithRevisionParameters(
 
 // CompleteCache translates the CLI cache config into a cache config.
 func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V], error) {
-	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" || cc.NumCounters == 0 {
+	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" {
 		return cache.NoopCache[K, V](), nil
 	}
 
@@ -67,7 +58,7 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 	)
 
 	if strings.HasSuffix(cc.MaxCost, "%") {
-		maxCost, err = parsePercent(cc.MaxCost, freeMemory)
+		maxCost, err = parsePercent(cc.MaxCost, pkgruntime.AvailableMemory())
 	} else {
 		maxCost, err = humanize.ParseBytes(cc.MaxCost)
 	}
@@ -80,46 +71,16 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 		return nil, errors.New("could not cast max cost to int64")
 	}
 
-	if cc.CacheKindForTesting != "" {
-		switch cc.CacheKindForTesting {
-		case "theine":
-			return cache.NewTheineCacheWithMetrics[K, V](cc.Name, &cache.Config{
-				MaxCost:     intMaxCost,
-				NumCounters: cc.NumCounters,
-				DefaultTTL:  cc.defaultTTL,
-			})
-
-		case "otter":
-			if cc.Metrics {
-				return cache.NewOtterCacheWithMetrics[K, V](cc.Name, &cache.Config{
-					MaxCost:     intMaxCost,
-					NumCounters: cc.NumCounters,
-					DefaultTTL:  cc.defaultTTL,
-				})
-			}
-			return cache.NewOtterCache[K, V](cc.Name, &cache.Config{
-				MaxCost:     intMaxCost,
-				NumCounters: cc.NumCounters,
-				DefaultTTL:  cc.defaultTTL,
-			})
-
-		default:
-			return nil, fmt.Errorf("unknown cache kind: %s", cc.CacheKindForTesting)
-		}
-	}
-
 	if cc.Metrics {
 		return cache.NewStandardCacheWithMetrics[K, V](cc.Name, &cache.Config{
-			MaxCost:     intMaxCost,
-			NumCounters: cc.NumCounters,
-			DefaultTTL:  cc.defaultTTL,
+			MaxCost:    intMaxCost,
+			DefaultTTL: cc.defaultTTL,
 		})
 	}
 
 	return cache.NewStandardCache[K, V](&cache.Config{
-		MaxCost:     intMaxCost,
-		NumCounters: cc.NumCounters,
-		DefaultTTL:  cc.defaultTTL,
+		MaxCost:    intMaxCost,
+		DefaultTTL: cc.defaultTTL,
 	})
 }
 
@@ -142,14 +103,13 @@ func RegisterCacheFlags(flags *pflag.FlagSet, flagPrefix, flagDescription string
 	config.Name = defaults.Name
 	flagPrefix = cmp.Or(flagPrefix, "cache")
 	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound (in bytes or as a percent of available memory) of the cache for "+flagDescription)
-	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaults.NumCounters, "number of counters for tracking access frequency in the cache for "+flagDescription+". A higher number means more accurate eviction decisions but more memory usage")
+	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", 0, "number of counters for tracking access frequency in the cache for "+flagDescription+". A higher number means more accurate eviction decisions but more memory usage")
+	err := flags.MarkDeprecated(flagPrefix+"-num-counters", "this flag is now unused")
+	if err != nil {
+		return err
+	}
 	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", defaults.Metrics, "enable metrics for the cache for "+flagDescription)
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaults.Enabled, "enable caching of "+flagDescription)
 
-	// Hidden flags.
-	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
-	if err := flags.MarkHidden(flagPrefix + "-kind-for-testing"); err != nil {
-		return err
-	}
 	return nil
 }

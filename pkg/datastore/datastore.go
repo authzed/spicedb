@@ -91,15 +91,15 @@ func (rc RevisionChanges) DebugString() string {
 	}
 
 	for _, def := range rc.ChangedDefinitions {
-		debugString.WriteString(fmt.Sprintf("Definition: %T:%s\n", def, def.GetName()))
+		fmt.Fprintf(&debugString, "Definition: %T:%s\n", def, def.GetName())
 	}
 
 	for _, ns := range rc.DeletedNamespaces {
-		debugString.WriteString(fmt.Sprintf("DeletedNamespace: %s\n", ns))
+		fmt.Fprintf(&debugString, "DeletedNamespace: %s\n", ns)
 	}
 
 	for _, caveat := range rc.DeletedCaveats {
-		debugString.WriteString(fmt.Sprintf("DeletedCaveat: %s\n", caveat))
+		fmt.Fprintf(&debugString, "DeletedCaveat: %s\n", caveat)
 	}
 
 	return debugString.String()
@@ -525,11 +525,35 @@ func (rd RevisionedDefinition[T]) GetLastWrittenRevision() Revision {
 // RevisionedNamespace is a revisioned version of a namespace definition.
 type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 
+// ReadOnlyStoredSchema wraps a *core.StoredSchema to indicate it is read-only
+// and must not be modified, as it may be shared across multiple callers via caching.
+type ReadOnlyStoredSchema struct {
+	schema *core.StoredSchema
+}
+
+// NewReadOnlyStoredSchema wraps a StoredSchema as read-only.
+// Returns nil if the provided schema is nil.
+func NewReadOnlyStoredSchema(schema *core.StoredSchema) *ReadOnlyStoredSchema {
+	if schema == nil {
+		return nil
+	}
+	return &ReadOnlyStoredSchema{schema: schema}
+}
+
+// Get returns the underlying StoredSchema. Callers must not modify the returned value.
+func (r *ReadOnlyStoredSchema) Get() *core.StoredSchema {
+	return r.schema
+}
+
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	LegacySchemaReader
-	SchemaReadable
 	CounterReader
+
+	// ReadStoredSchema reads the unified stored schema from the datastore.
+	// The returned ReadOnlyStoredSchema must not be modified, as it may be shared
+	// across callers via caching.
+	ReadStoredSchema(ctx context.Context) (*ReadOnlyStoredSchema, error)
 
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
@@ -546,10 +570,10 @@ type Reader interface {
 	) (RelationshipIterator, error)
 }
 
+// ReadWriteTransaction is an interface for reading and writing relationships in a transaction.
 type ReadWriteTransaction interface {
 	Reader
 	LegacySchemaWriter
-	SchemaWriteable
 	CounterRegisterer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
@@ -562,6 +586,9 @@ type ReadWriteTransaction interface {
 	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
 		options ...options.DeleteOptionsOption,
 	) (uint64, bool, error)
+
+	// WriteStoredSchema writes the unified stored schema to the datastore.
+	WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error
 
 	// BulkLoad takes a relationship source iterator, and writes all of the
 	// relationships to the backing datastore in an optimized fashion. This
@@ -794,11 +821,11 @@ type ReadOnlyDatastore interface {
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.
-	OptimizedRevision(ctx context.Context) (Revision, error)
+	OptimizedRevision(ctx context.Context) (RevisionWithSchemaHash, error)
 
 	// HeadRevision gets a revision that is guaranteed to be at least as fresh as
 	// right now.
-	HeadRevision(ctx context.Context) (Revision, error)
+	HeadRevision(ctx context.Context) (RevisionWithSchemaHash, error)
 
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.
@@ -858,6 +885,22 @@ type Datastore interface {
 	// ReadWriteTx starts a read/write transaction, which will be committed if no error is
 	// returned and rolled back if an error is returned.
 	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
+}
+
+// PartitionRange represents a non-overlapping portion of the relationship table
+// for parallel partitioned bulk export.
+type PartitionRange struct {
+	LowerBound options.Cursor // nil = start of table (exclusive)
+	UpperBound options.Cursor // nil = end of table (inclusive)
+}
+
+// BulkExportPartitioner is an optional interface that datastores can implement
+// to support parallel partitioned bulk export. PlanPartitions splits the
+// relationship table into non-overlapping ranges that can be exported in parallel.
+// The implementation may return fewer partitions than desiredCount if the
+// underlying data distribution does not support the requested number.
+type BulkExportPartitioner interface {
+	PlanPartitions(ctx context.Context, desiredCount uint32) ([]PartitionRange, error)
 }
 
 // ParsedExplain represents the parsed output of an EXPLAIN statement.
@@ -1097,6 +1140,14 @@ func (nilRevision) LessThan(_ Revision) bool {
 
 func (nilRevision) String() string {
 	return "nil"
+}
+
+// RevisionWithSchemaHash is a revision paired with the schema hash that was
+// active at that revision. The schema hash is returned as a raw string from
+// the datastore layer; the datalayer converts it to a typed SchemaHash.
+type RevisionWithSchemaHash struct {
+	Revision   Revision
+	SchemaHash string
 }
 
 // NoRevision is a zero type for the revision that will make changing the

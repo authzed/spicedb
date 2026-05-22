@@ -50,14 +50,12 @@ func TestBulkImportRelationships(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			for _, withCaveats := range []bool{true, false} {
-				withCaveats := withCaveats
 				t.Run(fmt.Sprintf("withCaveats=%t", withCaveats), func(t *testing.T) {
 					require := require.New(t)
 
-					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 					client := v1.NewExperimentalServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -71,7 +69,7 @@ func TestBulkImportRelationships(t *testing.T) {
 						batchSize := tc.batchSize()
 						batch := make([]*v1.Relationship, 0, batchSize)
 
-						for i := uint64(0); i < batchSize; i++ {
+						for i := range batchSize {
 							if withCaveats {
 								batch = append(batch, mustRelWithCaveatAndContext(
 									tf.DocumentNS.Name,
@@ -148,7 +146,7 @@ func randomBatch(minimum, maximum int) func() uint64 {
 
 func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewExperimentalServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -163,7 +161,7 @@ func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
 }
 
 func TestBulkExportRelationships(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 	client := v1.NewExperimentalServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -265,8 +263,6 @@ func TestBulkExportRelationships(t *testing.T) {
 }
 
 func TestBulkExportRelationshipsWithFilter(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name          string
 		filter        *v1.RelationshipFilter
@@ -313,12 +309,10 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 	batchSize := uint32(14)
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			require := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 			client := v1.NewExperimentalServiceClient(conn)
 			t.Cleanup(cleanup)
 
@@ -430,7 +424,7 @@ type bulkCheckTest struct {
 func TestBulkCheckPermission(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewExperimentalServiceClient(conn)
 	defer cleanup()
 
@@ -526,7 +520,7 @@ func TestBulkCheckPermission(t *testing.T) {
 			name: "chunking test",
 			requests: (func() []string {
 				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+5)
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
@@ -534,7 +528,7 @@ func TestBulkCheckPermission(t *testing.T) {
 			})(),
 			response: (func() []bulkCheckTest {
 				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+5)
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
@@ -550,7 +544,7 @@ func TestBulkCheckPermission(t *testing.T) {
 				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, `nondoc:masterplan#view@user:eng_lead`)
 
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
@@ -563,7 +557,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					err: namespace.NewNamespaceNotFoundErr("nondoc"),
 				})
 
-				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
+				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
@@ -593,7 +587,6 @@ func TestBulkCheckPermission(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			req := v1.BulkCheckPermissionRequest{
 				Consistency: &v1.Consistency{
@@ -687,7 +680,7 @@ func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
 }
 
 func TestExperimentalSchemaDiff(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	defer cleanup()
@@ -750,7 +743,6 @@ func TestExperimentalSchemaDiff(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the existing schema.
 			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -781,7 +773,7 @@ func TestExperimentalSchemaDiff(t *testing.T) {
 }
 
 func TestExperimentalReflectSchema(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	defer cleanup()
@@ -1164,7 +1156,6 @@ definition user {}`,
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Write the schema.
 			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -1391,9 +1382,8 @@ func TestExperimentalDependentRelations(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			expClient := v1.NewExperimentalServiceClient(conn)
 			schemaClient := v1.NewSchemaServiceClient(conn)
 			defer cleanup()
@@ -1591,9 +1581,8 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			expClient := v1.NewExperimentalServiceClient(conn)
 			schemaClient := v1.NewSchemaServiceClient(conn)
 			defer cleanup()
@@ -1631,7 +1620,7 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 }
 
 func TestExperimentalCountRelationships(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	permsClient := v1.NewPermissionsServiceClient(conn)

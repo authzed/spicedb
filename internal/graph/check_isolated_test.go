@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
 func TestTraitsForArrowRelation(t *testing.T) {
@@ -131,8 +132,9 @@ func TestTraitsForArrowRelation(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, require)
-			reader := ds.SnapshotReader(revision)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, nil)
+			dl := datalayer.NewDataLayer(ds)
+			reader := dl.SnapshotReader(revision, datalayer.NoSchemaHashForTesting)
 
 			traits, err := graph.TraitsForArrowRelation(t.Context(), reader, tc.namespaceName, tc.relationName)
 			if tc.expectedError != "" {

@@ -261,8 +261,12 @@ func (rr *strictReadReplicatedReader) LookupCounters(ctx context.Context) ([]dat
 	return counters, err
 }
 
-// SchemaReader returns the SchemaReader instance of the replica's SchemaReader at the
-// associated revision.
-func (rr *strictReadReplicatedReader) SchemaReader() (datastore.SchemaReader, error) {
-	return rr.replica.SnapshotReader(rr.rev).SchemaReader()
+func (rr *strictReadReplicatedReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	sr := rr.replica.SnapshotReader(rr.rev)
+	schema, err := sr.ReadStoredSchema(ctx)
+	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
+		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
+		return rr.primary.SnapshotReader(rr.rev).ReadStoredSchema(ctx)
+	}
+	return schema, err
 }

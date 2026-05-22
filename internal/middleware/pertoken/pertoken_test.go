@@ -15,8 +15,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -28,8 +28,8 @@ type testServer struct {
 
 func (t testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
 	// Verify that a datastore is available in context
-	ds := datastoremw.FromContext(ctx)
-	if ds == nil {
+	dl := datalayer.FromContext(ctx)
+	if dl == nil {
 		return nil, errors.New("no datastore in context")
 	}
 	return &testpb.PingEmptyResponse{}, nil
@@ -37,14 +37,14 @@ func (t testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (
 
 func (t testServer) Ping(ctx context.Context, req *testpb.PingRequest) (*testpb.PingResponse, error) {
 	// Verify that a datastore is available in context
-	ds := datastoremw.FromContext(ctx)
-	if ds == nil {
+	dl := datalayer.FromContext(ctx)
+	if dl == nil {
 		return nil, errors.New("no datastore in context")
 	}
 
 	if req.Value == "createrel" {
 		// Create a new relationship in the datastore
-		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, tx datalayer.ReadWriteTransaction) error {
 			return tx.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 				tuple.Create(tuple.MustParse("example/project:pied_piper#writer@example/user:tom")),
 			})
@@ -54,12 +54,12 @@ func (t testServer) Ping(ctx context.Context, req *testpb.PingRequest) (*testpb.
 		}
 	}
 
-	headRev, err := ds.HeadRevision(ctx)
+	headRev, schemaHash, err := dl.HeadRevision(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	reader := ds.SnapshotReader(headRev)
+	reader := dl.SnapshotReader(headRev, schemaHash)
 	if reader == nil {
 		return nil, errors.New("no snapshot reader available")
 	}
@@ -86,8 +86,8 @@ func (t testServer) PingError(ctx context.Context, _ *testpb.PingErrorRequest) (
 
 func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	// Verify that a datastore is available in context
-	ds := datastoremw.FromContext(server.Context())
-	if ds == nil {
+	dl := datalayer.FromContext(server.Context())
+	if dl == nil {
 		return errors.New("no datastore in context")
 	}
 	return server.Send(&testpb.PingListResponse{Value: "ping"})

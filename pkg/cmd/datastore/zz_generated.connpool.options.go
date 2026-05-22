@@ -11,8 +11,8 @@ type ConnPoolConfigOption func(c *ConnPoolConfig)
 // NewConnPoolConfigWithOptions creates a new ConnPoolConfig with the passed in options set
 func NewConnPoolConfigWithOptions(opts ...ConnPoolConfigOption) *ConnPoolConfig {
 	c := &ConnPoolConfig{}
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -21,8 +21,8 @@ func NewConnPoolConfigWithOptions(opts ...ConnPoolConfigOption) *ConnPoolConfig 
 func NewConnPoolConfigWithOptionsAndDefaults(opts ...ConnPoolConfigOption) *ConnPoolConfig {
 	c := &ConnPoolConfig{}
 	defaults.MustSet(c)
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -42,12 +42,36 @@ func (c *ConnPoolConfig) ToOption() ConnPoolConfigOption {
 // DebugMap returns a map form of ConnPoolConfig for debugging
 func (c *ConnPoolConfig) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["MaxIdleTime"] = c.MaxIdleTime
-	debugMap["MaxLifetime"] = c.MaxLifetime
-	debugMap["MaxLifetimeJitter"] = c.MaxLifetimeJitter
+	if dm, ok := any(&c.MaxIdleTime).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["MaxIdleTime"] = dm.DebugMap()
+	} else {
+		debugMap["MaxIdleTime"] = c.MaxIdleTime
+	}
+	if dm, ok := any(&c.MaxLifetime).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["MaxLifetime"] = dm.DebugMap()
+	} else {
+		debugMap["MaxLifetime"] = c.MaxLifetime
+	}
+	if dm, ok := any(&c.MaxLifetimeJitter).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["MaxLifetimeJitter"] = dm.DebugMap()
+	} else {
+		debugMap["MaxLifetimeJitter"] = c.MaxLifetimeJitter
+	}
 	debugMap["MaxOpenConns"] = c.MaxOpenConns
 	debugMap["MinOpenConns"] = c.MinOpenConns
-	debugMap["HealthCheckInterval"] = c.HealthCheckInterval
+	if dm, ok := any(&c.HealthCheckInterval).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["HealthCheckInterval"] = dm.DebugMap()
+	} else {
+		debugMap["HealthCheckInterval"] = c.HealthCheckInterval
+	}
 	return debugMap
 }
 
@@ -74,16 +98,16 @@ func (c *ConnPoolConfig) FlatDebugMap() map[string]any {
 
 // ConnPoolConfigWithOptions configures an existing ConnPoolConfig with the passed in options set
 func ConnPoolConfigWithOptions(c *ConnPoolConfig, opts ...ConnPoolConfigOption) *ConnPoolConfig {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
 
 // WithOptions configures the receiver ConnPoolConfig with the passed in options set
 func (c *ConnPoolConfig) WithOptions(opts ...ConnPoolConfigOption) *ConnPoolConfig {
-	for _, o := range opts {
-		o(c)
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }

@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"buf.build/go/protovalidate"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
@@ -18,8 +19,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
+	"github.com/authzed/spicedb/internal/middleware/interceptorwrapper"
 	"github.com/authzed/spicedb/internal/middleware/perfinsights"
 	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -29,6 +30,7 @@ import (
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/pagination"
@@ -37,6 +39,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -116,14 +119,33 @@ type PermissionsServerConfig struct {
 	// EnableExperimentalLookupResources3 is used to enable LookupResources v3 for testing.
 	EnableExperimentalLookupResources3 bool // TODO: remove when LookupResources v3 is fully enabled
 
-	// ExperimentalQueryPlan enables the experimental query plan for API calls.
-	ExperimentalQueryPlan bool
+	// ExperimentalQueryPlan configures which API operations use the experimental query plan.
+	ExperimentalQueryPlan ExperimentalQueryPlanConfig
+
+	// QueryPlanMetadata is the shared per-server stats store that drives the
+	// count-based plan advisor. When nil, NewPermissionsServer allocates a fresh
+	// instance. To share stats with a co-located dispatcher (so receiver-side
+	// dispatch can consult and update the same store), construct one externally
+	// and pass it both here and via graph.DispatcherParameters.
+	QueryPlanMetadata *query.QueryPlanMetadata
+}
+
+// ExperimentalQueryPlanConfig controls which API operations are routed through the
+// experimental query plan engine instead of the standard dispatcher.
+type ExperimentalQueryPlanConfig struct {
+	// Check enables the query plan for CheckPermission calls.
+	Check bool
+	// LookupResources enables the query plan for LookupResources calls.
+	LookupResources bool
+	// LookupSubjects enables the query plan for LookupSubjects calls.
+	LookupSubjects bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
 func NewPermissionsServer(
 	dispatch dispatch.Dispatcher,
 	config PermissionsServerConfig,
+	validator protovalidate.Validator,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
 		MaxPreconditionsCount:              defaultIfZero(config.MaxPreconditionsCount, 1000),
@@ -144,20 +166,23 @@ func NewPermissionsServer(
 		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
+		QueryPlanMetadata:                  config.QueryPlanMetadata,
 	}
-
+	if configWithDefaults.QueryPlanMetadata == nil {
+		configWithDefaults.QueryPlanMetadata = query.NewQueryPlanMetadata()
+	}
 	return &permissionServer{
 		dispatch: dispatch,
 		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(),
+				interceptorwrapper.WrapUnaryServerInterceptorWithSpans(grpcvalidate.UnaryServerInterceptor(validator), "protovalidate"),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 				perfinsights.UnaryServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(),
+				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
@@ -172,6 +197,7 @@ func NewPermissionsServer(
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
+		queryPlanMetadata: configWithDefaults.QueryPlanMetadata,
 	}
 }
 
@@ -182,7 +208,8 @@ type permissionServer struct {
 	dispatch dispatch.Dispatcher
 	config   PermissionsServerConfig
 
-	bulkChecker *bulkChecker
+	bulkChecker       *bulkChecker
+	queryPlanMetadata *query.QueryPlanMetadata
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
@@ -195,13 +222,17 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	ctx := resp.Context()
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-	if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, ds); err != nil {
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
+	sr, err := dl.ReadSchema(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+	if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, sr); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
@@ -210,7 +241,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	if err != nil {
 		return ps.rewriteError(ctx, fmt.Errorf("error filtering: %w", err))
 	}
-	ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds))
+	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 
 	// Determine the traits for the upcoming QueryRelationships call; this also checks
 	// if the filter is *impossible*, in which case an error is returned.
@@ -259,7 +290,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	it, err := pagination.NewPaginatedIterator(
 		ctx,
-		ds,
+		dl,
 		dsFilter,
 		pageSize,
 		options.ChooseEfficient,
@@ -298,7 +329,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 
 		dispatchCursor.Sections[0] = tuple.StringWithoutCaveatOrExpiration(rel)
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision, nil)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision, schemaHash, nil)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -322,7 +353,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 
 	span := trace.SpanFromContext(ctx)
 	// Ensure that the updates and preconditions are not over the configured limits.
@@ -379,17 +410,23 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+		// Extract schema reader for validation.
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
+
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
-			if err := validatePrecondition(ctx, precond, rwt); err != nil {
+			if err := validatePrecondition(ctx, precond, sr); err != nil {
 				return err
 			}
 		}
 		span.AddEvent(otelconv.EventRelationshipsPreconditionsValidated)
 
 		// Validate the updates.
-		err := relationships.ValidateRelationshipUpdates(ctx, rwt, ps.config.CaveatTypeSet, relUpdates)
+		err = relationships.ValidateRelationshipUpdates(ctx, sr, ps.config.CaveatTypeSet, relUpdates)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -429,7 +466,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		writeUpdateCounter.WithLabelValues(v1.RelationshipUpdate_Operation_name[int32(kind)]).Observe(float64(count))
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, ds)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -476,12 +513,18 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxDeleteRelationshipsLimit)))
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
+	dl := datalayer.MustFromContext(ctx)
 	deletionProgress := v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE
 
 	var deletedRelationshipCount uint64
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
+	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+		// Extract schema reader for validation.
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
+
+		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, sr); err != nil {
 			return err
 		}
 
@@ -496,7 +539,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		})
 
 		for _, precond := range req.OptionalPreconditions {
-			if err := validatePrecondition(ctx, precond, rwt); err != nil {
+			if err := validatePrecondition(ctx, precond, sr); err != nil {
 				return err
 			}
 		}
@@ -558,7 +601,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, ds)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -572,28 +615,28 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 
 var emptyPrecondition = &v1.Precondition{}
 
-func validatePrecondition(ctx context.Context, precond *v1.Precondition, reader datastore.Reader) error {
+func validatePrecondition(ctx context.Context, precond *v1.Precondition, sr datalayer.SchemaReader) error {
 	if precond.EqualVT(emptyPrecondition) || precond.Filter == nil {
 		return NewEmptyPreconditionErr()
 	}
 
-	return validateRelationshipsFilter(ctx, precond.Filter, reader)
+	return validateRelationshipsFilter(ctx, precond.Filter, sr)
 }
 
-func checkFilterComponent(ctx context.Context, objectType, optionalRelation string, ds datastore.Reader) error {
+func checkFilterComponent(ctx context.Context, objectType, optionalRelation string, sr datalayer.SchemaReader) error {
 	if objectType == "" {
 		return nil
 	}
 
 	relationToTest := cmp.Or(optionalRelation, datastore.Ellipsis)
 	allowEllipsis := optionalRelation == ""
-	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, ds)
+	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, sr)
 }
 
-func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFilter, ds datastore.Reader) error {
+func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFilter, sr datalayer.SchemaReader) error {
 	// ResourceType is optional, so only check the relation if it is specified.
 	if filter.ResourceType != "" {
-		if err := checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, ds); err != nil {
+		if err := checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, sr); err != nil {
 			return err
 		}
 	}
@@ -604,7 +647,7 @@ func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFil
 		if subjectFilter.OptionalRelation != nil {
 			subjectRelation = subjectFilter.OptionalRelation.Relation
 		}
-		if err := checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, ds); err != nil {
+		if err := checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, sr); err != nil {
 			return err
 		}
 	}

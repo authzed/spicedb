@@ -38,7 +38,6 @@ var onrTestCases = []struct {
 
 func TestSerializeONR(t *testing.T) {
 	for _, tc := range onrTestCases {
-		tc := tc
 		if tc.objectFormat.ObjectType == "" && tc.objectFormat.ObjectID == "" && tc.objectFormat.Relation == "" {
 			continue
 		}
@@ -53,7 +52,6 @@ func TestSerializeONR(t *testing.T) {
 
 func TestParseONR(t *testing.T) {
 	for _, tc := range onrTestCases {
-		tc := tc
 		t.Run(tc.serialized, func(t *testing.T) {
 			require := require.New(t)
 
@@ -110,7 +108,6 @@ var subjectOnrTestCases = []struct {
 
 func TestParseSubjectONR(t *testing.T) {
 	for _, tc := range subjectOnrTestCases {
-		tc := tc
 		t.Run(tc.serialized, func(t *testing.T) {
 			require := require.New(t)
 

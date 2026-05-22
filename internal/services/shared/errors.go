@@ -135,7 +135,7 @@ func RewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 	return rerr
 }
 
-func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error {
+func rewriteError(ctx context.Context, err error, _ *ConfigForErrors) error {
 	// Check if the error can be directly used.
 	if _, ok := status.FromError(err); ok {
 		return err

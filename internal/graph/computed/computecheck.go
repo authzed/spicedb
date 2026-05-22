@@ -5,8 +5,8 @@ import (
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -48,6 +48,7 @@ type CheckParameters struct {
 	MaximumDepth  uint32
 	DebugOption   DebugOption
 	CheckHints    []*v1.CheckHint
+	SchemaHash    datalayer.SchemaHash
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any
@@ -128,6 +129,7 @@ func computeCheck(ctx context.Context,
 				AtRevision:     params.AtRevision.String(),
 				DepthRemaining: params.MaximumDepth,
 				TraversalBloom: bf,
+				SchemaHash:     []byte(params.SchemaHash),
 			},
 			Debug:      debugging,
 			CheckHints: params.CheckHints,
@@ -177,10 +179,14 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 		return result, nil
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(params.AtRevision)
+	dl := datalayer.MustFromContext(ctx)
+	reader := dl.SnapshotReader(params.AtRevision, params.SchemaHash)
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	caveatResult, err := runner.RunCaveatExpression(ctx, result.Expression, params.CaveatContext, reader, cexpr.RunCaveatExpressionNoDebugging)
+	caveatResult, err := runner.RunCaveatExpression(ctx, result.Expression, params.CaveatContext, sr, cexpr.RunCaveatExpressionNoDebugging)
 	if err != nil {
 		return nil, err
 	}

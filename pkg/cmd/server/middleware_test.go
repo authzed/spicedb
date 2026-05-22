@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -78,7 +77,6 @@ func TestInvalidModification(t *testing.T) {
 			err: "duplicate names in middleware modification",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.mod.validate()
 			if tt.err != "" {
@@ -183,7 +181,6 @@ func TestChainValidate(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := mc.validate(tt.mod)
 			if tt.err != "" {
@@ -358,7 +355,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
 	})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,
@@ -394,7 +391,6 @@ func TestMiddlewareOrdering(t *testing.T) {
 	go func() {
 		errChan <- rs.Run(ctx)
 	}()
-	time.Sleep(100 * time.Millisecond)
 
 	req := &v1.CheckPermissionRequest{
 		Resource: &v1.ObjectReference{
@@ -410,7 +406,9 @@ func TestMiddlewareOrdering(t *testing.T) {
 		Permission: "read",
 	}
 
-	_, err = psc.CheckPermission(ctx, req)
+	// NOTE: using WaitForReady ensures that the connection is active
+	// and can accept RPCs, rather than returning an EOF error.
+	_, err = psc.CheckPermission(ctx, req, grpc.WaitForReady(true))
 	require.NoError(t, err)
 
 	lrreq := &v1.LookupResourcesRequest{
@@ -437,7 +435,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
 	})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	ds, err := datastore.NewDatastore(ctx,
@@ -504,7 +502,6 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	go func() {
 		errChan <- rs.Run(ctx)
 	}()
-	time.Sleep(100 * time.Millisecond)
 
 	req := &v1.CheckPermissionRequest{
 		Resource: &v1.ObjectReference{
@@ -520,7 +517,9 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 		Permission: "read",
 	}
 
-	_, err = psc.CheckPermission(ctx, req)
+	// NOTE: using WaitForReady ensures that the connection is active
+	// and can accept RPCs, rather than returning an EOF error.
+	_, err = psc.CheckPermission(ctx, req, grpc.WaitForReady(true))
 	require.ErrorContains(t, err, "expected interceptor does-not-exist to be already executed")
 
 	lrreq := &v1.LookupResourcesRequest{

@@ -7,7 +7,7 @@
 package corev1
 
 import (
-	_ "github.com/envoyproxy/protoc-gen-validate/validate"
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	anypb "google.golang.org/protobuf/types/known/anypb"
@@ -2592,6 +2592,81 @@ func (x *SubjectFilter) GetOptionalRelation() *SubjectFilter_RelationFilter {
 	return nil
 }
 
+// StoredSchema represents a stored schema in SpiceDB under the new, unified schema format.
+type StoredSchema struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Version uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	// Types that are valid to be assigned to VersionOneof:
+	//
+	//	*StoredSchema_V1
+	VersionOneof  isStoredSchema_VersionOneof `protobuf_oneof:"version_oneof"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StoredSchema) Reset() {
+	*x = StoredSchema{}
+	mi := &file_core_v1_core_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StoredSchema) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StoredSchema) ProtoMessage() {}
+
+func (x *StoredSchema) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StoredSchema.ProtoReflect.Descriptor instead.
+func (*StoredSchema) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *StoredSchema) GetVersion() uint32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *StoredSchema) GetVersionOneof() isStoredSchema_VersionOneof {
+	if x != nil {
+		return x.VersionOneof
+	}
+	return nil
+}
+
+func (x *StoredSchema) GetV1() *StoredSchema_V1StoredSchema {
+	if x != nil {
+		if x, ok := x.VersionOneof.(*StoredSchema_V1); ok {
+			return x.V1
+		}
+	}
+	return nil
+}
+
+type isStoredSchema_VersionOneof interface {
+	isStoredSchema_VersionOneof()
+}
+
+type StoredSchema_V1 struct {
+	V1 *StoredSchema_V1StoredSchema `protobuf:"bytes,2,opt,name=v1,proto3,oneof"`
+}
+
+func (*StoredSchema_V1) isStoredSchema_VersionOneof() {}
+
 type AllowedRelation_PublicWildcard struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2600,7 +2675,7 @@ type AllowedRelation_PublicWildcard struct {
 
 func (x *AllowedRelation_PublicWildcard) Reset() {
 	*x = AllowedRelation_PublicWildcard{}
-	mi := &file_core_v1_core_proto_msgTypes[36]
+	mi := &file_core_v1_core_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2612,7 +2687,7 @@ func (x *AllowedRelation_PublicWildcard) String() string {
 func (*AllowedRelation_PublicWildcard) ProtoMessage() {}
 
 func (x *AllowedRelation_PublicWildcard) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[36]
+	mi := &file_core_v1_core_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2653,7 +2728,7 @@ type SetOperation_Child struct {
 
 func (x *SetOperation_Child) Reset() {
 	*x = SetOperation_Child{}
-	mi := &file_core_v1_core_proto_msgTypes[37]
+	mi := &file_core_v1_core_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2665,7 +2740,7 @@ func (x *SetOperation_Child) String() string {
 func (*SetOperation_Child) ProtoMessage() {}
 
 func (x *SetOperation_Child) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[37]
+	mi := &file_core_v1_core_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2821,7 +2896,7 @@ type SetOperation_Child_This struct {
 
 func (x *SetOperation_Child_This) Reset() {
 	*x = SetOperation_Child_This{}
-	mi := &file_core_v1_core_proto_msgTypes[38]
+	mi := &file_core_v1_core_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2833,7 +2908,7 @@ func (x *SetOperation_Child_This) String() string {
 func (*SetOperation_Child_This) ProtoMessage() {}
 
 func (x *SetOperation_Child_This) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[38]
+	mi := &file_core_v1_core_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2857,7 +2932,7 @@ type SetOperation_Child_Nil struct {
 
 func (x *SetOperation_Child_Nil) Reset() {
 	*x = SetOperation_Child_Nil{}
-	mi := &file_core_v1_core_proto_msgTypes[39]
+	mi := &file_core_v1_core_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2869,7 +2944,7 @@ func (x *SetOperation_Child_Nil) String() string {
 func (*SetOperation_Child_Nil) ProtoMessage() {}
 
 func (x *SetOperation_Child_Nil) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[39]
+	mi := &file_core_v1_core_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2894,7 +2969,7 @@ type SetOperation_Child_Self struct {
 
 func (x *SetOperation_Child_Self) Reset() {
 	*x = SetOperation_Child_Self{}
-	mi := &file_core_v1_core_proto_msgTypes[40]
+	mi := &file_core_v1_core_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2906,7 +2981,7 @@ func (x *SetOperation_Child_Self) String() string {
 func (*SetOperation_Child_Self) ProtoMessage() {}
 
 func (x *SetOperation_Child_Self) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[40]
+	mi := &file_core_v1_core_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2931,7 +3006,7 @@ type TupleToUserset_Tupleset struct {
 
 func (x *TupleToUserset_Tupleset) Reset() {
 	*x = TupleToUserset_Tupleset{}
-	mi := &file_core_v1_core_proto_msgTypes[41]
+	mi := &file_core_v1_core_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2943,7 +3018,7 @@ func (x *TupleToUserset_Tupleset) String() string {
 func (*TupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *TupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[41]
+	mi := &file_core_v1_core_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2975,7 +3050,7 @@ type FunctionedTupleToUserset_Tupleset struct {
 
 func (x *FunctionedTupleToUserset_Tupleset) Reset() {
 	*x = FunctionedTupleToUserset_Tupleset{}
-	mi := &file_core_v1_core_proto_msgTypes[42]
+	mi := &file_core_v1_core_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2987,7 +3062,7 @@ func (x *FunctionedTupleToUserset_Tupleset) String() string {
 func (*FunctionedTupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *FunctionedTupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[42]
+	mi := &file_core_v1_core_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3019,7 +3094,7 @@ type SubjectFilter_RelationFilter struct {
 
 func (x *SubjectFilter_RelationFilter) Reset() {
 	*x = SubjectFilter_RelationFilter{}
-	mi := &file_core_v1_core_proto_msgTypes[43]
+	mi := &file_core_v1_core_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3031,7 +3106,7 @@ func (x *SubjectFilter_RelationFilter) String() string {
 func (*SubjectFilter_RelationFilter) ProtoMessage() {}
 
 func (x *SubjectFilter_RelationFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[43]
+	mi := &file_core_v1_core_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3054,31 +3129,105 @@ func (x *SubjectFilter_RelationFilter) GetRelation() string {
 	return ""
 }
 
+type StoredSchema_V1StoredSchema struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// schema_text is the text of the schema that was given to SpiceDB by the API caller.
+	SchemaText string `protobuf:"bytes,1,opt,name=schema_text,json=schemaText,proto3" json:"schema_text,omitempty"`
+	// schema_hash is the hash of the schema, for change detection.
+	SchemaHash string `protobuf:"bytes,2,opt,name=schema_hash,json=schemaHash,proto3" json:"schema_hash,omitempty"`
+	// namespace_definitions is a map of namespace name to NamespaceDefinition.
+	// Entries must have full metadata filled out.
+	NamespaceDefinitions map[string]*NamespaceDefinition `protobuf:"bytes,3,rep,name=namespace_definitions,json=namespaceDefinitions,proto3" json:"namespace_definitions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// caveat_definitions is a map of caveat name to CaveatDefinition.
+	// Entries must have full metadata filled out.
+	CaveatDefinitions map[string]*CaveatDefinition `protobuf:"bytes,4,rep,name=caveat_definitions,json=caveatDefinitions,proto3" json:"caveat_definitions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *StoredSchema_V1StoredSchema) Reset() {
+	*x = StoredSchema_V1StoredSchema{}
+	mi := &file_core_v1_core_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StoredSchema_V1StoredSchema) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StoredSchema_V1StoredSchema) ProtoMessage() {}
+
+func (x *StoredSchema_V1StoredSchema) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StoredSchema_V1StoredSchema.ProtoReflect.Descriptor instead.
+func (*StoredSchema_V1StoredSchema) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{33, 0}
+}
+
+func (x *StoredSchema_V1StoredSchema) GetSchemaText() string {
+	if x != nil {
+		return x.SchemaText
+	}
+	return ""
+}
+
+func (x *StoredSchema_V1StoredSchema) GetSchemaHash() string {
+	if x != nil {
+		return x.SchemaHash
+	}
+	return ""
+}
+
+func (x *StoredSchema_V1StoredSchema) GetNamespaceDefinitions() map[string]*NamespaceDefinition {
+	if x != nil {
+		return x.NamespaceDefinitions
+	}
+	return nil
+}
+
+func (x *StoredSchema_V1StoredSchema) GetCaveatDefinitions() map[string]*CaveatDefinition {
+	if x != nil {
+		return x.CaveatDefinitions
+	}
+	return nil
+}
+
 var File_core_v1_core_proto protoreflect.FileDescriptor
 
 const file_core_v1_core_proto_rawDesc = "" +
 	"\n" +
-	"\x12core/v1/core.proto\x12\acore.v1\x1a\x19google/protobuf/any.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17validate/validate.proto\"\x88\x03\n" +
-	"\rRelationTuple\x12X\n" +
-	"\x15resource_and_relation\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x13resourceAndRelation\x12>\n" +
-	"\asubject\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationB\b\xfaB\x05\x8a\x01\x02\x10\x01R\asubject\x12?\n" +
-	"\x06caveat\x18\x03 \x01(\v2\x1d.core.v1.ContextualizedCaveatB\b\xfaB\x05\x8a\x01\x02\x10\x00R\x06caveat\x12F\n" +
-	"\tintegrity\x18\x04 \x01(\v2\x1e.core.v1.RelationshipIntegrityB\b\xfaB\x05\x8a\x01\x02\x10\x00R\tintegrity\x12T\n" +
+	"\x12core/v1/core.proto\x12\acore.v1\x1a\x1bbuf/validate/validate.proto\x1a\x19google/protobuf/any.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x80\x03\n" +
+	"\rRelationTuple\x12V\n" +
+	"\x15resource_and_relation\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\x13resourceAndRelation\x12<\n" +
+	"\asubject\x18\x02 \x01(\v2\x1a.core.v1.ObjectAndRelationB\x06\xbaH\x03\xc8\x01\x01R\asubject\x12=\n" +
+	"\x06caveat\x18\x03 \x01(\v2\x1d.core.v1.ContextualizedCaveatB\x06\xbaH\x03\xc8\x01\x00R\x06caveat\x12D\n" +
+	"\tintegrity\x18\x04 \x01(\v2\x1e.core.v1.RelationshipIntegrityB\x06\xbaH\x03\xc8\x01\x00R\tintegrity\x12T\n" +
 	"\x18optional_expiration_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x16optionalExpirationTime\"{\n" +
 	"\x15RelationshipIntegrity\x12\x15\n" +
 	"\x06key_id\x18\x01 \x01(\tR\x05keyId\x12\x12\n" +
 	"\x04hash\x18\x02 \x01(\fR\x04hash\x127\n" +
-	"\thashed_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bhashedAt\"\xab\x01\n" +
+	"\thashed_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bhashedAt\"\xa9\x01\n" +
 	"\x14ContextualizedCaveat\x12V\n" +
-	"\vcaveat_name\x18\x01 \x01(\tB5\xfaB2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\n" +
-	"caveatName\x12;\n" +
-	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructB\b\xfaB\x05\x8a\x01\x02\x10\x00R\acontext\"\xd4\x03\n" +
+	"\vcaveat_name\x18\x01 \x01(\tB5\xbaH2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\n" +
+	"caveatName\x129\n" +
+	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructB\x06\xbaH\x03\xc8\x01\x00R\acontext\"\xd4\x03\n" +
 	"\x10CaveatDefinition\x12I\n" +
-	"\x04name\x18\x01 \x01(\tB5\xfaB2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\x04name\x12?\n" +
+	"\x04name\x18\x01 \x01(\tB5\xbaH2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\x04name\x12?\n" +
 	"\x15serialized_expression\x18\x02 \x01(\fB\n" +
-	"\xfaB\az\x05\x10\x00\x18\x80 R\x14serializedExpression\x12b\n" +
+	"\xbaH\az\x05\x10\x00\x18\x80 R\x14serializedExpression\x12b\n" +
 	"\x0fparameter_types\x18\x03 \x03(\v2-.core.v1.CaveatDefinition.ParameterTypesEntryB\n" +
-	"\xfaB\a\x9a\x01\x04\b\x01\x10\x14R\x0eparameterTypes\x12-\n" +
+	"\xbaH\a\x9a\x01\x04\b\x01\x10\x14R\x0eparameterTypes\x12-\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x1a_\n" +
 	"\x13ParameterTypesEntry\x12\x10\n" +
@@ -3087,20 +3236,20 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x13CaveatTypeReference\x12\x1b\n" +
 	"\ttype_name\x18\x01 \x01(\tR\btypeName\x12I\n" +
 	"\vchild_types\x18\x02 \x03(\v2\x1c.core.v1.CaveatTypeReferenceB\n" +
-	"\xfaB\a\x92\x01\x04\b\x00\x10\x01R\n" +
+	"\xbaH\a\x92\x01\x04\b\x00\x10\x01R\n" +
 	"childTypes\"\x91\x02\n" +
 	"\x11ObjectAndRelation\x12f\n" +
-	"\tnamespace\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12F\n" +
-	"\tobject_id\x18\x02 \x01(\tB)\xfaB&r$(\x80\b2\x1f^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$R\bobjectId\x12L\n" +
-	"\brelation\x18\x03 \x01(\tB0\xfaB-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"\xc9\x01\n" +
+	"\tnamespace\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12F\n" +
+	"\tobject_id\x18\x02 \x01(\tB)\xbaH&r$(\x80\b2\x1f^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$R\bobjectId\x12L\n" +
+	"\brelation\x18\x03 \x01(\tB0\xbaH-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"\xc9\x01\n" +
 	"\x11RelationReference\x12f\n" +
-	"\tnamespace\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12L\n" +
-	"\brelation\x18\x03 \x01(\tB0\xfaB-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"'\n" +
+	"\tnamespace\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12L\n" +
+	"\brelation\x18\x03 \x01(\tB0\xbaH-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$R\brelation\"'\n" +
 	"\x06Zookie\x12\x1d\n" +
-	"\x05token\x18\x01 \x01(\tB\a\xfaB\x04r\x02 \x01R\x05token\"\xda\x01\n" +
+	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02 \x01R\x05token\"\xd8\x01\n" +
 	"\x13RelationTupleUpdate\x12N\n" +
-	"\toperation\x18\x01 \x01(\x0e2&.core.v1.RelationTupleUpdate.OperationB\b\xfaB\x05\x82\x01\x02\x10\x01R\toperation\x126\n" +
-	"\x05tuple\x18\x02 \x01(\v2\x16.core.v1.RelationTupleB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x05tuple\";\n" +
+	"\toperation\x18\x01 \x01(\x0e2&.core.v1.RelationTupleUpdate.OperationB\b\xbaH\x05\x82\x01\x02\x10\x01R\toperation\x124\n" +
+	"\x05tuple\x18\x02 \x01(\v2\x16.core.v1.RelationTupleB\x06\xbaH\x03\xc8\x01\x01R\x05tuple\";\n" +
 	"\tOperation\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
 	"\n" +
@@ -3127,16 +3276,16 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\asubject\x18\x01 \x01(\v2\x1a.core.v1.ObjectAndRelationR\asubject\x12F\n" +
 	"\x11caveat_expression\x18\x02 \x01(\v2\x19.core.v1.CaveatExpressionR\x10caveatExpression\"D\n" +
 	"\x0eDirectSubjects\x122\n" +
-	"\bsubjects\x18\x01 \x03(\v2\x16.core.v1.DirectSubjectR\bsubjects\"\xb8\x01\n" +
-	"\bMetadata\x12\xab\x01\n" +
-	"\x10metadata_message\x18\x01 \x03(\v2\x14.google.protobuf.AnyBj\xfaBg\x92\x01d\b\x01\"`\x8a\x01\x02\x10\x01\xa2\x01X\b\x01\x12&type.googleapis.com/impl.v1.DocComment\x12,type.googleapis.com/impl.v1.RelationMetadataR\x0fmetadataMessage\"\x93\x02\n" +
+	"\bsubjects\x18\x01 \x03(\v2\x16.core.v1.DirectSubjectR\bsubjects\"\xb7\x01\n" +
+	"\bMetadata\x12\xaa\x01\n" +
+	"\x10metadata_message\x18\x01 \x03(\v2\x14.google.protobuf.AnyBi\xbaHf\xc8\x01\x01\x92\x01`\b\x01\"\\\xc8\x01\x01\xa2\x01V\x12&type.googleapis.com/impl.v1.DocComment\x12,type.googleapis.com/impl.v1.RelationMetadataR\x0fmetadataMessage\"\x93\x02\n" +
 	"\x13NamespaceDefinition\x12\\\n" +
-	"\x04name\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12-\n" +
+	"\x04name\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12-\n" +
 	"\brelation\x18\x02 \x03(\v2\x11.core.v1.RelationR\brelation\x12-\n" +
 	"\bmetadata\x18\x03 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
 	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\"\x9c\x03\n" +
 	"\bRelation\x12;\n" +
-	"\x04name\x18\x01 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12@\n" +
+	"\x04name\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12@\n" +
 	"\x0fuserset_rewrite\x18\x02 \x01(\v2\x17.core.v1.UsersetRewriteR\x0eusersetRewrite\x12C\n" +
 	"\x10type_information\x18\x03 \x01(\v2\x18.core.v1.TypeInformationR\x0ftypeInformation\x12-\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
@@ -3173,8 +3322,8 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0fTypeInformation\x12R\n" +
 	"\x18allowed_direct_relations\x18\x01 \x03(\v2\x18.core.v1.AllowedRelationR\x16allowedDirectRelations\"\x95\x04\n" +
 	"\x0fAllowedRelation\x12f\n" +
-	"\tnamespace\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12N\n" +
-	"\brelation\x18\x03 \x01(\tB0\xfaB-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$H\x00R\brelation\x12R\n" +
+	"\tnamespace\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12N\n" +
+	"\brelation\x18\x03 \x01(\tB0\xbaH-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$H\x00R\brelation\x12R\n" +
 	"\x0fpublic_wildcard\x18\x04 \x01(\v2'.core.v1.AllowedRelation.PublicWildcardH\x00R\x0epublicWildcard\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12?\n" +
 	"\x0frequired_caveat\x18\x06 \x01(\v2\x16.core.v1.AllowedCaveatR\x0erequiredCaveat\x12I\n" +
@@ -3184,51 +3333,52 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0fExpirationTrait\"0\n" +
 	"\rAllowedCaveat\x12\x1f\n" +
 	"\vcaveat_name\x18\x01 \x01(\tR\n" +
-	"caveatName\"\xad\x02\n" +
-	"\x0eUsersetRewrite\x127\n" +
-	"\x05union\x18\x01 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x05union\x12E\n" +
-	"\fintersection\x18\x02 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\fintersection\x12?\n" +
-	"\texclusion\x18\x03 \x01(\v2\x15.core.v1.SetOperationB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\texclusion\x12@\n" +
-	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePositionB\x18\n" +
-	"\x11rewrite_operation\x12\x03\xf8B\x01\"\xf3\x05\n" +
-	"\fSetOperation\x12B\n" +
-	"\x05child\x18\x01 \x03(\v2\x1b.core.v1.SetOperation.ChildB\x0f\xfaB\f\x92\x01\t\b\x01\"\x05\x8a\x01\x02\x10\x01R\x05child\x1a\x9e\x05\n" +
+	"caveatName\"\x91\x02\n" +
+	"\x0eUsersetRewrite\x12-\n" +
+	"\x05union\x18\x01 \x01(\v2\x15.core.v1.SetOperationH\x00R\x05union\x12;\n" +
+	"\fintersection\x18\x02 \x01(\v2\x15.core.v1.SetOperationH\x00R\fintersection\x125\n" +
+	"\texclusion\x18\x03 \x01(\v2\x15.core.v1.SetOperationH\x00R\texclusion\x12@\n" +
+	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePositionB\x1a\n" +
+	"\x11rewrite_operation\x12\x05\xbaH\x02\b\x01\"\xcb\x05\n" +
+	"\fSetOperation\x12@\n" +
+	"\x05child\x18\x01 \x03(\v2\x1b.core.v1.SetOperation.ChildB\r\xbaH\n" +
+	"\x92\x01\a\b\x01\"\x03\xc8\x01\x01R\x05child\x1a\xf8\x04\n" +
 	"\x05Child\x127\n" +
-	"\x05_this\x18\x01 \x01(\v2 .core.v1.SetOperation.Child.ThisH\x00R\x04This\x12O\n" +
-	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0fcomputedUserset\x12M\n" +
-	"\x10tuple_to_userset\x18\x03 \x01(\v2\x17.core.v1.TupleToUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0etupleToUserset\x12L\n" +
-	"\x0fuserset_rewrite\x18\x04 \x01(\v2\x17.core.v1.UsersetRewriteB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x0eusersetRewrite\x12l\n" +
-	"\x1bfunctioned_tuple_to_userset\x18\b \x01(\v2!.core.v1.FunctionedTupleToUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01H\x00R\x18functionedTupleToUserset\x124\n" +
+	"\x05_this\x18\x01 \x01(\v2 .core.v1.SetOperation.Child.ThisH\x00R\x04This\x12E\n" +
+	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetH\x00R\x0fcomputedUserset\x12C\n" +
+	"\x10tuple_to_userset\x18\x03 \x01(\v2\x17.core.v1.TupleToUsersetH\x00R\x0etupleToUserset\x12B\n" +
+	"\x0fuserset_rewrite\x18\x04 \x01(\v2\x17.core.v1.UsersetRewriteH\x00R\x0eusersetRewrite\x12b\n" +
+	"\x1bfunctioned_tuple_to_userset\x18\b \x01(\v2!.core.v1.FunctionedTupleToUsersetH\x00R\x18functionedTupleToUserset\x124\n" +
 	"\x04_nil\x18\x06 \x01(\v2\x1f.core.v1.SetOperation.Child.NilH\x00R\x03Nil\x127\n" +
 	"\x05_self\x18\t \x01(\v2 .core.v1.SetOperation.Child.SelfH\x00R\x04Self\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12%\n" +
 	"\x0eoperation_path\x18\a \x03(\rR\roperationPath\x1a\x06\n" +
 	"\x04This\x1a\x05\n" +
 	"\x03Nil\x1a\x06\n" +
-	"\x04SelfB\x11\n" +
+	"\x04SelfB\x13\n" +
 	"\n" +
-	"child_type\x12\x03\xf8B\x01\"\xba\x02\n" +
-	"\x0eTupleToUserset\x12F\n" +
-	"\btupleset\x18\x01 \x01(\v2 .core.v1.TupleToUserset.TuplesetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\btupleset\x12M\n" +
-	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fcomputedUserset\x12@\n" +
+	"child_type\x12\x05\xbaH\x02\b\x01\"\xb6\x02\n" +
+	"\x0eTupleToUserset\x12D\n" +
+	"\btupleset\x18\x01 \x01(\v2 .core.v1.TupleToUserset.TuplesetB\x06\xbaH\x03\xc8\x01\x01R\btupleset\x12K\n" +
+	"\x10computed_userset\x18\x02 \x01(\v2\x18.core.v1.ComputedUsersetB\x06\xbaH\x03\xc8\x01\x01R\x0fcomputedUserset\x12@\n" +
 	"\x0fsource_position\x18\x03 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x1aO\n" +
 	"\bTupleset\x12C\n" +
-	"\brelation\x18\x01 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"\xec\x03\n" +
+	"\brelation\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"\xe8\x03\n" +
 	"\x18FunctionedTupleToUserset\x12R\n" +
 	"\bfunction\x18\x01 \x01(\x0e2*.core.v1.FunctionedTupleToUserset.FunctionB\n" +
-	"\xfaB\a\x82\x01\x04\x10\x01 \x00R\bfunction\x12P\n" +
-	"\btupleset\x18\x02 \x01(\v2*.core.v1.FunctionedTupleToUserset.TuplesetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\btupleset\x12M\n" +
-	"\x10computed_userset\x18\x03 \x01(\v2\x18.core.v1.ComputedUsersetB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x0fcomputedUserset\x12@\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bfunction\x12N\n" +
+	"\btupleset\x18\x02 \x01(\v2*.core.v1.FunctionedTupleToUserset.TuplesetB\x06\xbaH\x03\xc8\x01\x01R\btupleset\x12K\n" +
+	"\x10computed_userset\x18\x03 \x01(\v2\x18.core.v1.ComputedUsersetB\x06\xbaH\x03\xc8\x01\x01R\x0fcomputedUserset\x12@\n" +
 	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x1aO\n" +
 	"\bTupleset\x12C\n" +
-	"\brelation\x18\x01 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"H\n" +
+	"\brelation\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\"H\n" +
 	"\bFunction\x12\x18\n" +
 	"\x14FUNCTION_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fFUNCTION_ANY\x10\x01\x12\x10\n" +
 	"\fFUNCTION_ALL\x10\x02\"\x91\x02\n" +
 	"\x0fComputedUserset\x12A\n" +
-	"\x06object\x18\x01 \x01(\x0e2\x1f.core.v1.ComputedUserset.ObjectB\b\xfaB\x05\x82\x01\x02\x10\x01R\x06object\x12C\n" +
-	"\brelation\x18\x02 \x01(\tB'\xfaB$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\x12@\n" +
+	"\x06object\x18\x01 \x01(\x0e2\x1f.core.v1.ComputedUserset.ObjectB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06object\x12C\n" +
+	"\brelation\x18\x02 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\brelation\x12@\n" +
 	"\x0fsource_position\x18\x03 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\"4\n" +
 	"\x06Object\x12\x10\n" +
 	"\fTUPLE_OBJECT\x10\x00\x12\x18\n" +
@@ -3249,17 +3399,34 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x03AND\x10\x02\x12\a\n" +
 	"\x03NOT\x10\x03\"\xee\x03\n" +
 	"\x12RelationshipFilter\x12p\n" +
-	"\rresource_type\x18\x01 \x01(\tBK\xfaBHrF(\x80\x012A^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$R\fresourceType\x12W\n" +
-	"\x14optional_resource_id\x18\x02 \x01(\tB%\xfaB\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x12optionalResourceId\x12d\n" +
-	"\x1boptional_resource_id_prefix\x18\x05 \x01(\tB%\xfaB\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x18optionalResourceIdPrefix\x12W\n" +
-	"\x11optional_relation\x18\x03 \x01(\tB*\xfaB'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\x10optionalRelation\x12N\n" +
+	"\rresource_type\x18\x01 \x01(\tBK\xbaHHrF(\x80\x012A^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$R\fresourceType\x12W\n" +
+	"\x14optional_resource_id\x18\x02 \x01(\tB%\xbaH\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x12optionalResourceId\x12d\n" +
+	"\x1boptional_resource_id_prefix\x18\x05 \x01(\tB%\xbaH\"r (\x80\b2\x1b^([a-zA-Z0-9/_|\\-=+]{1,})?$R\x18optionalResourceIdPrefix\x12W\n" +
+	"\x11optional_relation\x18\x03 \x01(\tB*\xbaH'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\x10optionalRelation\x12N\n" +
 	"\x17optional_subject_filter\x18\x04 \x01(\v2\x16.core.v1.SubjectFilterR\x15optionalSubjectFilter\"\x86\x03\n" +
 	"\rSubjectFilter\x12k\n" +
-	"\fsubject_type\x18\x01 \x01(\tBH\xfaBErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\vsubjectType\x12Z\n" +
-	"\x13optional_subject_id\x18\x02 \x01(\tB*\xfaB'r%(\x80\b2 ^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)?$R\x11optionalSubjectId\x12R\n" +
+	"\fsubject_type\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\vsubjectType\x12Z\n" +
+	"\x13optional_subject_id\x18\x02 \x01(\tB*\xbaH'r%(\x80\b2 ^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)?$R\x11optionalSubjectId\x12R\n" +
 	"\x11optional_relation\x18\x03 \x01(\v2%.core.v1.SubjectFilter.RelationFilterR\x10optionalRelation\x1aX\n" +
 	"\x0eRelationFilter\x12F\n" +
-	"\brelation\x18\x01 \x01(\tB*\xfaB'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\brelationB\x8a\x01\n" +
+	"\brelation\x18\x01 \x01(\tB*\xbaH'r%(@2!^([a-z][a-z0-9_]{1,62}[a-z0-9])?$R\brelation\"\xef\x04\n" +
+	"\fStoredSchema\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\rR\aversion\x126\n" +
+	"\x02v1\x18\x02 \x01(\v2$.core.v1.StoredSchema.V1StoredSchemaH\x00R\x02v1\x1a\xfb\x03\n" +
+	"\x0eV1StoredSchema\x12\x1f\n" +
+	"\vschema_text\x18\x01 \x01(\tR\n" +
+	"schemaText\x12\x1f\n" +
+	"\vschema_hash\x18\x02 \x01(\tR\n" +
+	"schemaHash\x12s\n" +
+	"\x15namespace_definitions\x18\x03 \x03(\v2>.core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntryR\x14namespaceDefinitions\x12j\n" +
+	"\x12caveat_definitions\x18\x04 \x03(\v2;.core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntryR\x11caveatDefinitions\x1ae\n" +
+	"\x19NamespaceDefinitionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
+	"\x05value\x18\x02 \x01(\v2\x1c.core.v1.NamespaceDefinitionR\x05value:\x028\x01\x1a_\n" +
+	"\x16CaveatDefinitionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12/\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.core.v1.CaveatDefinitionR\x05value:\x028\x01B\x0f\n" +
+	"\rversion_oneofB\x8a\x01\n" +
 	"\vcom.core.v1B\tCoreProtoP\x01Z3github.com/authzed/spicedb/pkg/proto/core/v1;corev1\xa2\x02\x03CXX\xaa\x02\aCore.V1\xca\x02\aCore\\V1\xe2\x02\x13Core\\V1\\GPBMetadata\xea\x02\bCore::V1b\x06proto3"
 
 var (
@@ -3275,7 +3442,7 @@ func file_core_v1_core_proto_rawDescGZIP() []byte {
 }
 
 var file_core_v1_core_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
+var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_core_v1_core_proto_goTypes = []any{
 	(RelationTupleUpdate_Operation)(0),                     // 0: core.v1.RelationTupleUpdate.Operation
 	(SetOperationUserset_Operation)(0),                     // 1: core.v1.SetOperationUserset.Operation
@@ -3317,30 +3484,34 @@ var file_core_v1_core_proto_goTypes = []any{
 	(*CaveatOperation)(nil),                                // 37: core.v1.CaveatOperation
 	(*RelationshipFilter)(nil),                             // 38: core.v1.RelationshipFilter
 	(*SubjectFilter)(nil),                                  // 39: core.v1.SubjectFilter
-	nil,                                                    // 40: core.v1.CaveatDefinition.ParameterTypesEntry
-	nil,                                                    // 41: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
-	nil,                                                    // 42: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
-	(*AllowedRelation_PublicWildcard)(nil),                 // 43: core.v1.AllowedRelation.PublicWildcard
-	(*SetOperation_Child)(nil),                             // 44: core.v1.SetOperation.Child
-	(*SetOperation_Child_This)(nil),                        // 45: core.v1.SetOperation.Child.This
-	(*SetOperation_Child_Nil)(nil),                         // 46: core.v1.SetOperation.Child.Nil
-	(*SetOperation_Child_Self)(nil),                        // 47: core.v1.SetOperation.Child.Self
-	(*TupleToUserset_Tupleset)(nil),                        // 48: core.v1.TupleToUserset.Tupleset
-	(*FunctionedTupleToUserset_Tupleset)(nil),              // 49: core.v1.FunctionedTupleToUserset.Tupleset
-	(*SubjectFilter_RelationFilter)(nil),                   // 50: core.v1.SubjectFilter.RelationFilter
-	(*timestamppb.Timestamp)(nil),                          // 51: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),                                // 52: google.protobuf.Struct
-	(*anypb.Any)(nil),                                      // 53: google.protobuf.Any
+	(*StoredSchema)(nil),                                   // 40: core.v1.StoredSchema
+	nil,                                                    // 41: core.v1.CaveatDefinition.ParameterTypesEntry
+	nil,                                                    // 42: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	nil,                                                    // 43: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	(*AllowedRelation_PublicWildcard)(nil),                 // 44: core.v1.AllowedRelation.PublicWildcard
+	(*SetOperation_Child)(nil),                             // 45: core.v1.SetOperation.Child
+	(*SetOperation_Child_This)(nil),                        // 46: core.v1.SetOperation.Child.This
+	(*SetOperation_Child_Nil)(nil),                         // 47: core.v1.SetOperation.Child.Nil
+	(*SetOperation_Child_Self)(nil),                        // 48: core.v1.SetOperation.Child.Self
+	(*TupleToUserset_Tupleset)(nil),                        // 49: core.v1.TupleToUserset.Tupleset
+	(*FunctionedTupleToUserset_Tupleset)(nil),              // 50: core.v1.FunctionedTupleToUserset.Tupleset
+	(*SubjectFilter_RelationFilter)(nil),                   // 51: core.v1.SubjectFilter.RelationFilter
+	(*StoredSchema_V1StoredSchema)(nil),                    // 52: core.v1.StoredSchema.V1StoredSchema
+	nil,                                                    // 53: core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry
+	nil,                                                    // 54: core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry
+	(*timestamppb.Timestamp)(nil),                          // 55: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                                // 56: google.protobuf.Struct
+	(*anypb.Any)(nil),                                      // 57: google.protobuf.Any
 }
 var file_core_v1_core_proto_depIdxs = []int32{
 	12, // 0: core.v1.RelationTuple.resource_and_relation:type_name -> core.v1.ObjectAndRelation
 	12, // 1: core.v1.RelationTuple.subject:type_name -> core.v1.ObjectAndRelation
 	9,  // 2: core.v1.RelationTuple.caveat:type_name -> core.v1.ContextualizedCaveat
 	8,  // 3: core.v1.RelationTuple.integrity:type_name -> core.v1.RelationshipIntegrity
-	51, // 4: core.v1.RelationTuple.optional_expiration_time:type_name -> google.protobuf.Timestamp
-	51, // 5: core.v1.RelationshipIntegrity.hashed_at:type_name -> google.protobuf.Timestamp
-	52, // 6: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
-	40, // 7: core.v1.CaveatDefinition.parameter_types:type_name -> core.v1.CaveatDefinition.ParameterTypesEntry
+	55, // 4: core.v1.RelationTuple.optional_expiration_time:type_name -> google.protobuf.Timestamp
+	55, // 5: core.v1.RelationshipIntegrity.hashed_at:type_name -> google.protobuf.Timestamp
+	56, // 6: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
+	41, // 7: core.v1.CaveatDefinition.parameter_types:type_name -> core.v1.CaveatDefinition.ParameterTypesEntry
 	20, // 8: core.v1.CaveatDefinition.metadata:type_name -> core.v1.Metadata
 	35, // 9: core.v1.CaveatDefinition.source_position:type_name -> core.v1.SourcePosition
 	11, // 10: core.v1.CaveatTypeReference.child_types:type_name -> core.v1.CaveatTypeReference
@@ -3355,7 +3526,7 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	12, // 19: core.v1.DirectSubject.subject:type_name -> core.v1.ObjectAndRelation
 	36, // 20: core.v1.DirectSubject.caveat_expression:type_name -> core.v1.CaveatExpression
 	18, // 21: core.v1.DirectSubjects.subjects:type_name -> core.v1.DirectSubject
-	53, // 22: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
+	57, // 22: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
 	22, // 23: core.v1.NamespaceDefinition.relation:type_name -> core.v1.Relation
 	20, // 24: core.v1.NamespaceDefinition.metadata:type_name -> core.v1.Metadata
 	35, // 25: core.v1.NamespaceDefinition.source_position:type_name -> core.v1.SourcePosition
@@ -3363,15 +3534,15 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	26, // 27: core.v1.Relation.type_information:type_name -> core.v1.TypeInformation
 	20, // 28: core.v1.Relation.metadata:type_name -> core.v1.Metadata
 	35, // 29: core.v1.Relation.source_position:type_name -> core.v1.SourcePosition
-	41, // 30: core.v1.ReachabilityGraph.entrypoints_by_subject_type:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
-	42, // 31: core.v1.ReachabilityGraph.entrypoints_by_subject_relation:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	42, // 30: core.v1.ReachabilityGraph.entrypoints_by_subject_type:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	43, // 31: core.v1.ReachabilityGraph.entrypoints_by_subject_relation:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
 	25, // 32: core.v1.ReachabilityEntrypoints.entrypoints:type_name -> core.v1.ReachabilityEntrypoint
 	13, // 33: core.v1.ReachabilityEntrypoints.subject_relation:type_name -> core.v1.RelationReference
 	2,  // 34: core.v1.ReachabilityEntrypoint.kind:type_name -> core.v1.ReachabilityEntrypoint.ReachabilityEntrypointKind
 	13, // 35: core.v1.ReachabilityEntrypoint.target_relation:type_name -> core.v1.RelationReference
 	3,  // 36: core.v1.ReachabilityEntrypoint.result_status:type_name -> core.v1.ReachabilityEntrypoint.EntrypointResultStatus
 	27, // 37: core.v1.TypeInformation.allowed_direct_relations:type_name -> core.v1.AllowedRelation
-	43, // 38: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
+	44, // 38: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
 	35, // 39: core.v1.AllowedRelation.source_position:type_name -> core.v1.SourcePosition
 	29, // 40: core.v1.AllowedRelation.required_caveat:type_name -> core.v1.AllowedCaveat
 	28, // 41: core.v1.AllowedRelation.required_expiration:type_name -> core.v1.ExpirationTrait
@@ -3379,12 +3550,12 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	31, // 43: core.v1.UsersetRewrite.intersection:type_name -> core.v1.SetOperation
 	31, // 44: core.v1.UsersetRewrite.exclusion:type_name -> core.v1.SetOperation
 	35, // 45: core.v1.UsersetRewrite.source_position:type_name -> core.v1.SourcePosition
-	44, // 46: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
-	48, // 47: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
+	45, // 46: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
+	49, // 47: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
 	34, // 48: core.v1.TupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
 	35, // 49: core.v1.TupleToUserset.source_position:type_name -> core.v1.SourcePosition
 	4,  // 50: core.v1.FunctionedTupleToUserset.function:type_name -> core.v1.FunctionedTupleToUserset.Function
-	49, // 51: core.v1.FunctionedTupleToUserset.tupleset:type_name -> core.v1.FunctionedTupleToUserset.Tupleset
+	50, // 51: core.v1.FunctionedTupleToUserset.tupleset:type_name -> core.v1.FunctionedTupleToUserset.Tupleset
 	34, // 52: core.v1.FunctionedTupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
 	35, // 53: core.v1.FunctionedTupleToUserset.source_position:type_name -> core.v1.SourcePosition
 	5,  // 54: core.v1.ComputedUserset.object:type_name -> core.v1.ComputedUserset.Object
@@ -3394,23 +3565,28 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	6,  // 58: core.v1.CaveatOperation.op:type_name -> core.v1.CaveatOperation.Operation
 	36, // 59: core.v1.CaveatOperation.children:type_name -> core.v1.CaveatExpression
 	39, // 60: core.v1.RelationshipFilter.optional_subject_filter:type_name -> core.v1.SubjectFilter
-	50, // 61: core.v1.SubjectFilter.optional_relation:type_name -> core.v1.SubjectFilter.RelationFilter
-	11, // 62: core.v1.CaveatDefinition.ParameterTypesEntry.value:type_name -> core.v1.CaveatTypeReference
-	24, // 63: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
-	24, // 64: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
-	45, // 65: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
-	34, // 66: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
-	32, // 67: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
-	30, // 68: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
-	33, // 69: core.v1.SetOperation.Child.functioned_tuple_to_userset:type_name -> core.v1.FunctionedTupleToUserset
-	46, // 70: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
-	47, // 71: core.v1.SetOperation.Child._self:type_name -> core.v1.SetOperation.Child.Self
-	35, // 72: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
-	73, // [73:73] is the sub-list for method output_type
-	73, // [73:73] is the sub-list for method input_type
-	73, // [73:73] is the sub-list for extension type_name
-	73, // [73:73] is the sub-list for extension extendee
-	0,  // [0:73] is the sub-list for field type_name
+	51, // 61: core.v1.SubjectFilter.optional_relation:type_name -> core.v1.SubjectFilter.RelationFilter
+	52, // 62: core.v1.StoredSchema.v1:type_name -> core.v1.StoredSchema.V1StoredSchema
+	11, // 63: core.v1.CaveatDefinition.ParameterTypesEntry.value:type_name -> core.v1.CaveatTypeReference
+	24, // 64: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	24, // 65: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	46, // 66: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
+	34, // 67: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
+	32, // 68: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
+	30, // 69: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
+	33, // 70: core.v1.SetOperation.Child.functioned_tuple_to_userset:type_name -> core.v1.FunctionedTupleToUserset
+	47, // 71: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
+	48, // 72: core.v1.SetOperation.Child._self:type_name -> core.v1.SetOperation.Child.Self
+	35, // 73: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
+	53, // 74: core.v1.StoredSchema.V1StoredSchema.namespace_definitions:type_name -> core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry
+	54, // 75: core.v1.StoredSchema.V1StoredSchema.caveat_definitions:type_name -> core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry
+	21, // 76: core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry.value:type_name -> core.v1.NamespaceDefinition
+	10, // 77: core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry.value:type_name -> core.v1.CaveatDefinition
+	78, // [78:78] is the sub-list for method output_type
+	78, // [78:78] is the sub-list for method input_type
+	78, // [78:78] is the sub-list for extension type_name
+	78, // [78:78] is the sub-list for extension extendee
+	0,  // [0:78] is the sub-list for field type_name
 }
 
 func init() { file_core_v1_core_proto_init() }
@@ -3435,7 +3611,10 @@ func file_core_v1_core_proto_init() {
 		(*CaveatExpression_Operation)(nil),
 		(*CaveatExpression_Caveat)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[37].OneofWrappers = []any{
+	file_core_v1_core_proto_msgTypes[33].OneofWrappers = []any{
+		(*StoredSchema_V1)(nil),
+	}
+	file_core_v1_core_proto_msgTypes[38].OneofWrappers = []any{
 		(*SetOperation_Child_XThis)(nil),
 		(*SetOperation_Child_ComputedUserset)(nil),
 		(*SetOperation_Child_TupleToUserset)(nil),
@@ -3450,7 +3629,7 @@ func file_core_v1_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_v1_core_proto_rawDesc), len(file_core_v1_core_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   44,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

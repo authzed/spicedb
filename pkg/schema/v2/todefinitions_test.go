@@ -13,8 +13,6 @@ import (
 )
 
 func TestToDefinitionsBasic(t *testing.T) {
-	t.Parallel()
-
 	type testcase struct {
 		name               string
 		schemaText         string
@@ -119,7 +117,6 @@ func TestToDefinitionsBasic(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			t.Parallel()
 
 			// Compile schema
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -147,11 +144,7 @@ func TestToDefinitionsBasic(t *testing.T) {
 }
 
 func TestToDefinitionsMetadataPreservation(t *testing.T) {
-	t.Parallel()
-
 	t.Run("definition metadata is preserved", func(t *testing.T) {
-		t.Parallel()
-
 		// Create a definition with metadata
 		docComment := &implv1.DocComment{
 			Comment: "This is a test definition",
@@ -186,8 +179,6 @@ func TestToDefinitionsMetadataPreservation(t *testing.T) {
 	})
 
 	t.Run("relation metadata with comments is preserved", func(t *testing.T) {
-		t.Parallel()
-
 		// Create relation with doc comment
 		docComment := &implv1.DocComment{
 			Comment: "This is a viewer relation",
@@ -259,8 +250,6 @@ func TestToDefinitionsMetadataPreservation(t *testing.T) {
 	})
 
 	t.Run("caveat metadata is preserved", func(t *testing.T) {
-		t.Parallel()
-
 		// Create caveat with metadata
 		docComment := &implv1.DocComment{
 			Comment: "This checks IP addresses",
@@ -296,8 +285,6 @@ func TestToDefinitionsMetadataPreservation(t *testing.T) {
 }
 
 func TestToDefinitionsRelationsHaveProperMetadata(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		definition user {}
 
@@ -339,8 +326,6 @@ func TestToDefinitionsRelationsHaveProperMetadata(t *testing.T) {
 }
 
 func TestToDefinitionsPermissionsHaveProperMetadata(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		definition user {}
 
@@ -428,8 +413,6 @@ func TestToDefinitionsPermissionsHaveProperMetadata(t *testing.T) {
 }
 
 func TestToDefinitionsFlattenedSchema(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		definition user {}
 
@@ -489,8 +472,6 @@ func TestToDefinitionsFlattenedSchema(t *testing.T) {
 }
 
 func TestToDefinitionsResolvedSchema(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		definition user {}
 
@@ -550,8 +531,6 @@ func TestToDefinitionsResolvedSchema(t *testing.T) {
 }
 
 func TestToDefinitionsComplexSchema(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		caveat ip_check(ip string) {
 			ip == "127.0.0.1"
@@ -622,8 +601,6 @@ func TestToDefinitionsComplexSchema(t *testing.T) {
 }
 
 func TestToDefinitionsRoundTrip(t *testing.T) {
-	t.Parallel()
-
 	schemaText := `
 		caveat expiration(expires_at timestamp, current_time timestamp) {
 			expires_at > current_time
@@ -697,8 +674,6 @@ func TestToDefinitionsRoundTrip(t *testing.T) {
 }
 
 func TestToDefinitionsNilSchema(t *testing.T) {
-	t.Parallel()
-
 	var nilSchema *Schema
 	defs, caveats, err := nilSchema.ToDefinitions()
 	require.Error(t, err)
@@ -708,8 +683,6 @@ func TestToDefinitionsNilSchema(t *testing.T) {
 }
 
 func TestToDefinitionsEmptySchema(t *testing.T) {
-	t.Parallel()
-
 	schema := &Schema{
 		definitions: make(map[string]*Definition),
 		caveats:     make(map[string]*Caveat),

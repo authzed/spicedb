@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,8 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -22,8 +20,6 @@ import (
 // the wildcard branch should only enumerate subjects from its own relation, not
 // from other relations on the same resource.
 func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
-	t.Parallel()
-
 	require := require.New(t)
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -38,7 +34,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 		}
 	`
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Compile the schema
 	compiled, err := compiler.Compile(compiler.InputSchema{
@@ -48,9 +44,7 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 	require.NoError(err)
 
 	// Write the schema
-	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
-	})
+	_, err = datalayer.WriteStoredSchemaForTest(ctx, rawDS, schemaText)
 	require.NoError(err)
 
 	// Write test data:
@@ -73,15 +67,14 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 
 	// Test the wildcard branch for viewer
 	t.Run("WildcardBranchEnumeratesAllDefinedSubjects", func(t *testing.T) {
-		t.Parallel()
 		// The wildcard branch should enumerate ALL subjects of the appropriate type that are
 		// defined in the datastore, not just those with a relationship to this specific resource.
 		// This is the intended behavior: when a wildcard (e.g., user:*) exists on a relation,
 		// it grants access to "all subjects of that type", so we enumerate all defined subjects.
-		wildcardBranch := NewRelationIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
+		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
 		queryCtx := NewLocalContext(ctx,
-			WithReader(rawDS.SnapshotReader(revision)),
+			WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)),
 			WithTraceLogger(NewTraceLogger())) // Enable tracing for debugging
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("document", "publicdoc"), NoObjectFilter())
 		require.NoError(err)
@@ -94,25 +87,23 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 			t.Logf("Trace:\n%s", queryCtx.TraceLogger.DumpTrace())
 		}
 
-		// Should get both tom and fred because they are both defined subjects in the datastore:
-		// - tom has a concrete relationship on viewer for this resource
-		// - fred has a concrete relationship on banned for this resource
-		// The wildcard means "all users", so we enumerate all defined users
-		require.Len(paths, 2, "Should return all defined subjects of the appropriate type")
-		subjectIDs := slicez.Map(paths, func(p Path) string { return p.Subject.ObjectID })
-		require.ElementsMatch([]string{"tom", "fred"}, subjectIDs, "Should include both tom and fred")
+		// The wildcard branch now returns the wildcard path itself (user:*), which
+		// is stripped at the top level by FilterWildcardSubjects. The caller sees
+		// no concrete results — wildcards propagate internally for intersection/exclusion
+		// semantics and are removed before reaching the service layer.
+		require.Empty(paths, "Wildcard paths are filtered at the top level")
 	})
 
 	// Test the Union (combined behavior) - this is what happens in the actual query plan
 	t.Run("UnionDeduplicatesSubjects", func(t *testing.T) {
-		t.Parallel()
 		// The Union of both branches should return all subjects with deduplication
-		union := NewUnion()
-		union.addSubIterator(NewRelationIterator(viewerRel.BaseRelations()[0])) // user (non-wildcard)
-		union.addSubIterator(NewRelationIterator(viewerRel.BaseRelations()[1])) // user:* (wildcard)
+		union := NewUnionIterator(
+			NewDatastoreIterator(viewerRel.BaseRelations()[0]), // user (non-wildcard)
+			NewDatastoreIterator(viewerRel.BaseRelations()[1]), // user:* (wildcard)
+		)
 
 		queryCtx := NewLocalContext(ctx,
-			WithReader(rawDS.SnapshotReader(revision)),
+			WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)),
 			WithTraceLogger(NewTraceLogger())) // Enable tracing for debugging
 		subjects, err := queryCtx.IterSubjects(union, NewObject("document", "publicdoc"), NoObjectFilter())
 		require.NoError(err)
@@ -125,12 +116,10 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 			t.Logf("Trace:\n%s", queryCtx.TraceLogger.DumpTrace())
 		}
 
-		// Should get both tom and fred:
-		// - tom from both branches (non-wildcard has concrete tom on viewer, wildcard enumerates tom)
-		// - fred from wildcard branch (has relationship on banned)
-		// The Union should deduplicate tom
-		require.Len(paths, 2, "Should return both subjects with deduplication")
-		subjectIDs := slicez.Map(paths, func(p Path) string { return p.Subject.ObjectID })
-		require.ElementsMatch([]string{"tom", "fred"}, subjectIDs, "Should include both tom and fred")
+		// The non-wildcard branch returns concrete subjects (tom on viewer).
+		// The wildcard branch returns user:* which is filtered at the top level.
+		// Only concrete subjects from explicit relationships are returned.
+		require.Len(paths, 1, "Should return concrete subjects only; wildcard is filtered at top level")
+		require.Equal("tom", paths[0].Subject.ObjectID)
 	})
 }

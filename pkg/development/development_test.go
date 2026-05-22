@@ -109,7 +109,7 @@ definition document {
 	generated, err := GenerateValidation(ms)
 	require.NoError(t, err)
 
-	require.Equal(t, "document:somedoc#viewer:\n- '[user:someuser[...]] is <document:somedoc#viewer>'\n", generated)
+	require.Equal(t, "document:somedoc#viewer:\n    - '[user:someuser[...]] is <document:somedoc#viewer>'\n", generated)
 }
 
 func TestDevContextV1Service(t *testing.T) {

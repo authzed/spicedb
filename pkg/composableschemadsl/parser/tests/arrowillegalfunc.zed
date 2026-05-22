@@ -1,3 +1,0 @@
-definition resource {
-    permission view = a.foo(bar)
-}

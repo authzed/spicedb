@@ -1,9 +1,55 @@
 package schema
 
 import (
+	"fmt"
+	"maps"
+	"slices"
+
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
+
+// Parented is an interface for schema elements that have a parent.
+// It allows traversing up the schema hierarchy without type assertions.
+type Parented interface {
+	// Parent returns the parent element in the schema hierarchy.
+	// Returns nil for top-level elements (Schema).
+	Parent() Parented
+
+	// setParent sets the parent element. This is unexported to enforce that
+	// only code within this package can modify the parent relationships.
+	setParent(Parented)
+}
+
+// FindParent traverses up the parent hierarchy from the given element
+// and returns the first parent of the specified type T.
+// Returns the zero value of T if no parent of that type is found.
+//
+// Example usage:
+//
+//	// Find the Permission that owns an operation
+//	perm := schema.FindParent[*schema.Permission](operation)
+//
+//	// Find the Definition containing a relation
+//	def := schema.FindParent[*schema.Definition](relation)
+//
+//	// Find the Schema from any element
+//	s := schema.FindParent[*schema.Schema](element)
+func FindParent[T Parented](elem Parented) T {
+	var zero T
+	if elem == nil {
+		return zero
+	}
+
+	current := elem.Parent()
+	for current != nil {
+		if typed, ok := current.(T); ok {
+			return typed
+		}
+		current = current.Parent()
+	}
+	return zero
+}
 
 // schemaUnit is an interface for schema elements that can be cloned without a parent.
 type schemaUnit[T any] interface {
@@ -21,6 +67,16 @@ type Schema struct {
 	caveats     map[string]*Caveat
 }
 
+// Parent returns nil for Schema as it's the top-level element.
+func (s *Schema) Parent() Parented {
+	return nil
+}
+
+// setParent is a no-op for Schema since it's the top-level element.
+func (s *Schema) setParent(p Parented) {
+	// Schema has no parent
+}
+
 // Definitions returns the definitions in the schema.
 func (s *Schema) Definitions() map[string]*Definition {
 	return s.definitions
@@ -36,6 +92,31 @@ func (s *Schema) Caveats() map[string]*Caveat {
 func (s *Schema) GetTypeDefinition(name string) (*Definition, bool) {
 	def, ok := s.definitions[name]
 	return def, ok
+}
+
+// ResolveBaseRelation walks definition → relation → base relations to find the
+// *BaseRelation matching the given identifying tuple. Used by iterator deserialization
+// to rebind a wire-serialized DatastoreIterator to a live schema object.
+func (s *Schema) ResolveBaseRelation(defName, relName, subjectType, subrelation, caveat string, expiration, wildcard bool) (*BaseRelation, error) {
+	def, ok := s.definitions[defName]
+	if !ok {
+		return nil, fmt.Errorf("schema: definition %q not found", defName)
+	}
+	rel, ok := def.relations[relName]
+	if !ok {
+		return nil, fmt.Errorf("schema: relation %q not found in definition %q", relName, defName)
+	}
+	for _, br := range rel.baseRelations {
+		if br.subjectType == subjectType &&
+			br.subrelation == subrelation &&
+			br.caveat == caveat &&
+			br.expiration == expiration &&
+			br.wildcard == wildcard {
+			return br, nil
+		}
+	}
+	return nil, fmt.Errorf("schema: no base relation on %s#%s matching subjectType=%q subrelation=%q caveat=%q expiration=%t wildcard=%t",
+		defName, relName, subjectType, subrelation, caveat, expiration, wildcard)
 }
 
 // clone creates a deep copy of the Schema.
@@ -74,8 +155,16 @@ type Definition struct {
 }
 
 // Parent returns the parent schema.
-func (d *Definition) Parent() *Schema {
+func (d *Definition) Parent() Parented {
 	return d.parent
+}
+
+func (d *Definition) setParent(p Parented) {
+	if s, ok := p.(*Schema); ok {
+		d.parent = s
+	}
+	// Note: We silently ignore non-Schema parents since this is an internal method
+	// and should only be called with correct types from within this package.
 }
 
 // Name returns the name of the definition.
@@ -162,8 +251,14 @@ type Caveat struct {
 }
 
 // Parent returns the parent schema.
-func (c *Caveat) Parent() *Schema {
+func (c *Caveat) Parent() Parented {
 	return c.parent
+}
+
+func (c *Caveat) setParent(p Parented) {
+	if s, ok := p.(*Schema); ok {
+		c.parent = s
+	}
 }
 
 // Name returns the name of the caveat.
@@ -222,8 +317,19 @@ type SyntheticPermission struct {
 }
 
 // Parent returns the parent definition.
-func (p *Permission) Parent() *Definition {
+func (p *Permission) Parent() Parented {
 	return p.parent
+}
+
+// Definition returns the parent definition with its concrete type.
+func (p *Permission) Definition() *Definition {
+	return p.parent
+}
+
+func (p *Permission) setParent(parent Parented) {
+	if d, ok := parent.(*Definition); ok {
+		p.parent = d
+	}
 }
 
 // Name returns the name of the permission.
@@ -244,11 +350,20 @@ func (p *Permission) cloneWithParent(parentDefinition *Definition) *Permission {
 		return nil
 	}
 
-	return &Permission{
+	var clonedOp Operation
+	if p.operation != nil {
+		clonedOp = p.operation.clone()
+	}
+
+	newPerm := &Permission{
 		parent:    parentDefinition,
 		name:      p.name,
-		operation: p.operation.clone(),
+		operation: clonedOp,
 	}
+
+	clonedOp.setParent(newPerm)
+
+	return newPerm
 }
 
 // IsSynthetic returns true if this permission was synthesized by the schema system.
@@ -279,8 +394,19 @@ type Relation struct {
 }
 
 // Parent returns the parent definition.
-func (r *Relation) Parent() *Definition {
+func (r *Relation) Parent() Parented {
 	return r.parent
+}
+
+// Definition returns the parent definition with its concrete type.
+func (r *Relation) Definition() *Definition {
+	return r.parent
+}
+
+func (r *Relation) setParent(p Parented) {
+	if d, ok := p.(*Definition); ok {
+		r.parent = d
+	}
 }
 
 // Name returns the name of the relation.
@@ -337,8 +463,14 @@ type BaseRelation struct {
 }
 
 // Parent returns the parent relation.
-func (b *BaseRelation) Parent() *Relation {
+func (b *BaseRelation) Parent() Parented {
 	return b.parent
+}
+
+func (b *BaseRelation) setParent(p Parented) {
+	if r, ok := p.(*Relation); ok {
+		b.parent = r
+	}
 }
 
 // Type returns the subject type of the base relation.
@@ -392,6 +524,83 @@ func (b *BaseRelation) cloneWithParent(parentRelation *Relation) *BaseRelation {
 	}
 }
 
+// Compare compares two BaseRelations, returning -1 if b < other, 0 if b == other, 1 if b > other.
+// Comparison is done lexicographically by: definition name, relation name, type, subrelation, caveat, expiration.
+func (b *BaseRelation) Compare(other *BaseRelation) int {
+	if b == nil && other == nil {
+		return 0
+	}
+	if b == nil {
+		return -1
+	}
+	if other == nil {
+		return 1
+	}
+
+	// Compare by definition name first
+	if b.DefinitionName() != other.DefinitionName() {
+		if b.DefinitionName() < other.DefinitionName() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then relation name
+	if b.RelationName() != other.RelationName() {
+		if b.RelationName() < other.RelationName() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then type
+	if b.Type() != other.Type() {
+		if b.Type() < other.Type() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then subrelation
+	if b.Subrelation() != other.Subrelation() {
+		if b.Subrelation() < other.Subrelation() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then caveat
+	if b.Caveat() != other.Caveat() {
+		if b.Caveat() < other.Caveat() {
+			return -1
+		}
+		return 1
+	}
+
+	// Then wildcard
+	if b.Wildcard() != other.Wildcard() {
+		if b.Wildcard() {
+			return 1
+		}
+		return -1
+	}
+
+	// Finally expiration
+	if b.Expiration() != other.Expiration() {
+		if b.Expiration() {
+			return 1
+		}
+		return -1
+	}
+
+	return 0
+}
+
+// Equal checks if two BaseRelations are equal.
+func (b *BaseRelation) Equal(other *BaseRelation) bool {
+	return b.Compare(other) == 0
+}
+
 var _ schemaUnitWithParent[*BaseRelation, *Relation] = &BaseRelation{}
 
 // BuildSchemaFromCompiledSchema generates a Schema view from a CompiledSchema.
@@ -425,4 +634,15 @@ func BuildSchemaFromDefinitions(objectDefs []*corev1.NamespaceDefinition, caveat
 	}
 
 	return out, nil
+}
+
+// BuildSchemaFromStoredSchema generates a Schema view from a StoredSchema.
+// TODO: is this the right abstraction?
+func BuildSchemaFromStoredSchema(storedSchema *corev1.StoredSchema) (*Schema, error) {
+	v1 := storedSchema.GetV1()
+
+	namespaceDefintions := slices.Collect(maps.Values(v1.GetNamespaceDefinitions()))
+	caveatDefintions := slices.Collect(maps.Values(v1.GetCaveatDefinitions()))
+
+	return BuildSchemaFromDefinitions(namespaceDefintions, caveatDefintions)
 }
