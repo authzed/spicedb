@@ -45,30 +45,40 @@ func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext, dis
 	}
 }
 
-// shouldDispatch reports whether the iterator is a DispatchIterator the
-// executor should ship over RPC vs run locally. The wrap is the authoritative
-// dispatch boundary — the dispatch-wrap optimizer
-// (internal/dispatch/dispatch_optimizer.go) decides which alias positions get
-// a wrap and excludes unsafe sentinel positions at planning time; this
-// predicate just checks for the marker.
+// shouldDispatch reports whether to ship this iterator over RPC vs run it
+// locally. Two conditions must hold:
+//
+//  1. The iterator is a DispatchIterator — the optimizer's authoritative
+//     dispatch boundary (see internal/dispatch/dispatch_optimizer.go).
+//
+//  2. currentOp matches ctx.TopLevelOperation — the request type at this
+//     wrap matches the user-facing request type that started the work. The
+//     receiver-side executor only knows how to drive one operation per
+//     dispatch (the request's op == top-level op by construction at the
+//     edge), so dispatching a wrap reached via a *different* sub-operation
+//     (e.g. Arrow(RTL) drives IterResources on its right subtree while the
+//     user request is Check) would launch an RPC whose results we then
+//     re-process locally — pure overhead. Stay local; let CheckImpl drive.
 //
 // No runtime cycle-break: the compiler emits RecursiveIterator +
 // RecursiveSentinelIterator for every cyclic schema, so the compiled tree is
 // finite by construction and a dispatch chain can't loop on the same key.
-func (e *DispatchExecutor) shouldDispatch(it query.Iterator) bool {
-	_, ok := it.(*DispatchIterator)
-	return ok
+func (e *DispatchExecutor) shouldDispatch(ctx *query.Context, it query.Iterator, currentOp query.Operation) bool {
+	if _, ok := it.(*DispatchIterator); !ok {
+		return false
+	}
+	return currentOp == ctx.TopLevelOperation
 }
 
 func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*query.Path, error) {
-	if e.shouldDispatch(it) {
+	if e.shouldDispatch(ctx, it, query.OperationCheck) {
 		return e.dispatchCheck(ctx, it, resource, subject)
 	}
 	return it.CheckImpl(ctx, resource, subject)
 }
 
 func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterator, resource query.Object, subjects []query.ObjectAndRelation) ([]*query.Path, error) {
-	if !e.shouldDispatch(it) {
+	if !e.shouldDispatch(ctx, it, query.OperationCheck) {
 		out := make([]*query.Path, len(subjects))
 		for i, s := range subjects {
 			p, err := it.CheckImpl(ctx, resource, s)
@@ -83,7 +93,7 @@ func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterat
 }
 
 func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Iterator, resources []query.Object, subject query.ObjectAndRelation) ([]*query.Path, error) {
-	if !e.shouldDispatch(it) {
+	if !e.shouldDispatch(ctx, it, query.OperationCheck) {
 		out := make([]*query.Path, len(resources))
 		for i, r := range resources {
 			p, err := it.CheckImpl(ctx, r, subject)
@@ -98,7 +108,7 @@ func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Itera
 }
 
 func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
-	if e.shouldDispatch(it) {
+	if e.shouldDispatch(ctx, it, query.OperationIterSubjects) {
 		return e.dispatchIterSubjects(ctx, it, resource, filterSubjectType)
 	}
 	pathSeq, err := it.IterSubjectsImpl(ctx, resource, filterSubjectType)
@@ -109,7 +119,7 @@ func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, r
 }
 
 func (e *DispatchExecutor) IterResources(ctx *query.Context, it query.Iterator, subject query.ObjectAndRelation, filterResourceType query.ObjectType) (query.PathSeq, error) {
-	if e.shouldDispatch(it) {
+	if e.shouldDispatch(ctx, it, query.OperationIterResources) {
 		return e.dispatchIterResources(ctx, it, subject, filterResourceType)
 	}
 	pathSeq, err := it.IterResourcesImpl(ctx, subject, filterResourceType)

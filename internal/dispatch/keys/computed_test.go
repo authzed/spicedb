@@ -556,7 +556,7 @@ var generatorFuncs = map[string]generatorFunc{
 		return planCheckRequestToKey(&v1.DispatchQueryPlanRequest{
 				Resource: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
 				Subject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				Plan: []byte(resourceRelation.Relation),
+				Plan:     []byte(resourceRelation.Relation),
 				PlanContext: &v1.PlanContext{
 					Revision: metadata.AtRevision,
 				},
@@ -580,7 +580,7 @@ var generatorFuncs = map[string]generatorFunc{
 	) (DispatchCacheKey, []string) {
 		return planLookupResourcesRequestToKey(&v1.DispatchQueryPlanRequest{
 				Subject: ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				Plan: []byte(resourceRelation.Relation),
+				Plan:    []byte(resourceRelation.Relation),
 				PlanContext: &v1.PlanContext{
 					Revision: metadata.AtRevision,
 				},
@@ -602,7 +602,7 @@ var generatorFuncs = map[string]generatorFunc{
 	) (DispatchCacheKey, []string) {
 		return planLookupSubjectsRequestToKey(&v1.DispatchQueryPlanRequest{
 				Resource: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
-				Plan: []byte(resourceRelation.Relation),
+				Plan:     []byte(resourceRelation.Relation),
 				PlanContext: &v1.PlanContext{
 					Revision: metadata.AtRevision,
 				},
