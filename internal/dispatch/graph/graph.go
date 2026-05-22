@@ -532,6 +532,14 @@ func (ld *localDispatcher) DispatchQueryPlan(
 		return err
 	}
 
+	// Re-advise against the receiver's locally accumulated stats. The sender
+	// baked its hint choices (arrow direction) into the wire bytes against its
+	// own stats; this call gives the receiver a chance to refine those choices
+	// using whatever counts it has observed. Structurally inert — the iterator
+	// tree shape (and therefore its canonical key, and therefore the cache key
+	// the upstream caching layer computed from req.Plan) does not change.
+	ld.queryPlanMetadata.ReAdviseIterator(it)
+
 	// Use DispatchExecutor so nested alias boundaries in the subtree re-dispatch
 	// through the full dispatch chain.
 	dl := datalayer.MustFromContext(ctx)
