@@ -248,60 +248,11 @@ func TestDispatchExecutor_IterResources_NonAliasLocal(t *testing.T) {
 	require.Empty(t, receiver.planCalls)
 }
 
-func TestDispatchExecutor_Check_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	// AliasIterator wrapping a RecursiveSentinel — should NOT dispatch
-	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("", "viewer", sentinel)
-
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
-	require.NoError(t, err)
-	// RecursiveSentinel.CheckImpl returns nil
-	require.Nil(t, path)
-
-	// Verify NO dispatch was called
-	require.Empty(t, receiver.planCalls)
-}
-
-func TestDispatchExecutor_IterSubjects_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("", "viewer", sentinel)
-
-	pathSeq, err := sender.IterSubjects(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
-	require.NoError(t, err)
-
-	paths, err := query.CollectAll(pathSeq)
-	require.NoError(t, err)
-	require.Empty(t, paths)
-	require.Empty(t, receiver.planCalls)
-}
-
-func TestDispatchExecutor_IterResources_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("", "viewer", sentinel)
-
-	pathSeq, err := sender.IterResources(ctx, NewDispatchIterator(alias), query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
-	require.NoError(t, err)
-
-	paths, err := query.CollectAll(pathSeq)
-	require.NoError(t, err)
-	require.Empty(t, paths)
-	require.Empty(t, receiver.planCalls)
-}
+// Sentinel-skip behavior is now enforced by the dispatch-wrap optimizer
+// (containsUnmatchedRecursiveSentinelOutline in dispatch_optimizer.go) at
+// planning time — the executor trusts the wrap and dispatches whenever one
+// is present. The optimizer's outline-level check has its own coverage in
+// dispatch_optimizer_test.go.
 
 func TestDispatchExecutor_Check_AliasWithSentinelInsideRecursiveDispatches(t *testing.T) {
 	receiver := &testDispatcher{
@@ -397,28 +348,6 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 	require.Equal(t, "doc1", paths[0].Resource.ObjectID)
 
 	require.Len(t, receiver.planCalls, 1)
-}
-
-func TestDispatchExecutor_Check_DoubleRecursionUnmatchedSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	// Double recursion: RecursiveIterator for "folder#viewer" contains a
-	// RecursiveSentinelIterator for "document#reader" in its subtree.
-	// The document#reader sentinel is unmatched (no RecursiveIterator for it),
-	// so dispatch should be blocked.
-	documentSentinel := query.NewRecursiveSentinelIterator("document", "reader", false)
-	folderRecursive := query.NewRecursiveIterator(documentSentinel, "folder", "viewer")
-	alias := query.NewAliasIterator("", "viewer", folderRecursive)
-
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
-	require.NoError(t, err)
-	require.Nil(t, path)
-
-	// Verify NO dispatch was called — unmatched sentinel blocks dispatch
-	require.Empty(t, receiver.planCalls)
 }
 
 func TestDispatchExecutor_Check_DoubleRecursionBothMatchedDispatches(t *testing.T) {

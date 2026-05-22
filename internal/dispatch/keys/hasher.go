@@ -21,6 +21,7 @@ type hashableValue interface {
 
 type hasherInterface interface {
 	WriteString(value string)
+	Write(p []byte)
 }
 
 type hashableRelationReference struct {
@@ -68,6 +69,18 @@ type hashableString string
 
 func (hs hashableString) AppendToHash(hasher hasherInterface) {
 	hasher.WriteString(string(hs))
+}
+
+// hashableBytes feeds raw bytes into the cache-key hash. Used for Plan-Check
+// keys, where the serialized iterator subtree is the dispatch identity —
+// hashing the bytes directly avoids needing any parallel "canonical key"
+// string alongside.
+type hashableBytes []byte
+
+func (hb hashableBytes) AppendToHash(hasher hasherInterface) {
+	if len(hb) > 0 {
+		hasher.Write(hb)
+	}
 }
 
 type hashableLimit uint32
@@ -175,6 +188,17 @@ func newDispatchCacheKeyHasher(prefix cachePrefix) *dispatchCacheKeyHasher {
 // WriteString writes a single string to the hasher.
 func (h *dispatchCacheKeyHasher) WriteString(value string) {
 	h.mustWriteString(value)
+}
+
+// Write feeds raw bytes into the underlying xxhash digest. Used by
+// hashableBytes so callers (e.g., Plan-Check keys hashing the serialized
+// iterator) don't have to round-trip through string conversion.
+func (h *dispatchCacheKeyHasher) Write(p []byte) {
+	// xxhash.Digest.Write never returns an error; mirror mustWriteString.
+	_, err := h.stableHasher.Write(p)
+	if err != nil {
+		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))
+	}
 }
 
 func (h *dispatchCacheKeyHasher) mustWriteString(value string) {
