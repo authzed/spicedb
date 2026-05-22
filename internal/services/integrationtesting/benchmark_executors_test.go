@@ -169,6 +169,15 @@ func compileAdvisedCheckIterator(
 	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(params), params)
 	require.NoError(b, err)
 
+	// Match the production pipeline (see graph.DispatchQueryPlan and
+	// permissions_queryplan): every dispatch-eligible alias gets a
+	// DispatchIterator wrap. Without this the queryplan_dispatch variant
+	// would never dispatch — the DispatchExecutor pivots on the wrap, not
+	// on bare aliases — and the benchmark would silently measure the
+	// local path under a dispatch label.
+	optimized, err = dispatch.ApplyDispatchWrap(optimized, params)
+	require.NoError(b, err)
+
 	warmIt, err := optimized.Compile()
 	require.NoError(b, err)
 
