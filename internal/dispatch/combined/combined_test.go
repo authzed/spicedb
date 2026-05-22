@@ -65,11 +65,11 @@ func TestCombinedRecursiveCall(t *testing.T) {
 	require.ErrorContains(t, err, "max depth exceeded")
 }
 
-// TestNewDispatcher_AppliesAllOptions_NoUpstream exercises the previously
-// uncovered option setters on the no-upstream branch and verifies the
-// dispatcher constructs successfully.
+// TestNewDispatcher_AppliesAllOptions_NoUpstream verifies that every option
+// setter writes to the expected optionState field and that NewDispatcher
+// successfully wires those options through on the no-upstream branch.
 func TestNewDispatcher_AppliesAllOptions_NoUpstream(t *testing.T) {
-	cfg := &cache.Config{
+	cacheConfig := &cache.Config{
 		NumCounters: 100,
 		MaxCost:     1024,
 		DefaultTTL:  1 * time.Second,
@@ -82,22 +82,38 @@ func TestNewDispatcher_AppliesAllOptions_NoUpstream(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dispatcher, err := NewDispatcher(
+	concurrencyLimits := graph.ConcurrencyLimits{Check: 10, LookupResources: 5}
+
+	options := []Option{
 		MetricsEnabled(true),
 		PrometheusSubsystem("test_subsystem"),
 		DispatchChunkSize(50),
-		RelationshipChunkCacheConfig(cfg),
+		RelationshipChunkCacheConfig(cacheConfig),
 		CaveatTypeSet(caveattypes.Default.TypeSet),
 		Cache(dispatchCache),
-		ConcurrencyLimits(graph.ConcurrencyLimits{Check: 10, LookupResources: 5}),
-	)
+		ConcurrencyLimits(concurrencyLimits),
+	}
+
+	// Field-level assertions: each setter wrote to the right slot.
+	opts := newOptions(options...)
+	require.True(t, opts.metricsEnabled)
+	require.Equal(t, "test_subsystem", opts.prometheusSubsystem)
+	require.Equal(t, uint16(50), opts.dispatchChunkSize)
+	require.Same(t, cacheConfig, opts.relationshipChunkCacheConfig)
+	require.Same(t, caveattypes.Default.TypeSet, opts.caveatTypeSet)
+	require.Same(t, dispatchCache, opts.cache)
+	require.Equal(t, concurrencyLimits, opts.concurrencyLimits)
+
+	dispatcher, err := NewDispatcher(options...)
 	require.NoError(t, err)
 	require.NotNil(t, dispatcher)
-	t.Cleanup(func() { dispatcher.Close() })
+	t.Cleanup(func() { _ = dispatcher.Close() })
 }
 
 // TestNewDispatcher_WithProvidedRelationshipChunkCache hits the branch where
 // the caller supplies a pre-built relationship chunk cache instead of a config.
+// It asserts the option is bound to the right field and that no config was
+// inferred in its place.
 func TestNewDispatcher_WithProvidedRelationshipChunkCache(t *testing.T) {
 	c, err := cache.NewStandardCache[cache.StringKey, any](&cache.Config{
 		NumCounters: 100,
@@ -106,28 +122,44 @@ func TestNewDispatcher_WithProvidedRelationshipChunkCache(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dispatcher, err := NewDispatcher(
+	options := []Option{
 		RelationshipChunkCache(c),
-	)
+	}
+
+	opts := newOptions(options...)
+	require.Same(t, c, opts.relationshipChunkCache)
+	require.Nil(t, opts.relationshipChunkCacheConfig)
+
+	dispatcher, err := NewDispatcher(options...)
 	require.NoError(t, err)
 	require.NotNil(t, dispatcher)
-	t.Cleanup(func() { dispatcher.Close() })
+	t.Cleanup(func() { _ = dispatcher.Close() })
 }
 
 // TestNewDispatcher_WithUpstream exercises the upstream branch using an
 // insecure preshared-key setup. grpc.DialContext is lazy, so a bogus but
-// syntactically valid address is acceptable.
+// syntactically valid address is acceptable. It also asserts each option
+// bound to the right optionState field.
 func TestNewDispatcher_WithUpstream(t *testing.T) {
-	dispatcher, err := NewDispatcher(
+	options := []Option{
 		UpstreamAddr("localhost:0"),
 		GrpcPresharedKey("test-key"),
-		RemoteDispatchTimeout(5*time.Second),
-		StartingPrimaryHedgingDelay(10*time.Millisecond),
+		RemoteDispatchTimeout(5 * time.Second),
+		StartingPrimaryHedgingDelay(10 * time.Millisecond),
 		GrpcDialOpts(),
-	)
+	}
+
+	opts := newOptions(options...)
+	require.Equal(t, "localhost:0", opts.upstreamAddr)
+	require.Equal(t, "test-key", opts.grpcPresharedKey)
+	require.Equal(t, 5*time.Second, opts.remoteDispatchTimeout)
+	require.Equal(t, 10*time.Millisecond, opts.startingPrimaryHedgingDelay)
+	require.Empty(t, opts.grpcDialOpts)
+
+	dispatcher, err := NewDispatcher(options...)
 	require.NoError(t, err)
 	require.NotNil(t, dispatcher)
-	t.Cleanup(func() { dispatcher.Close() })
+	t.Cleanup(func() { _ = dispatcher.Close() })
 }
 
 // TestNewDispatcher_UpstreamCAPathMissing exercises the TLS branch by pointing
