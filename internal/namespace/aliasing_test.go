@@ -196,8 +196,9 @@ func TestAliasing(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(t.Context())
+			lastRevisionResult, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
+			lastRevision := lastRevisionResult.Revision
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 

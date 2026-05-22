@@ -4,10 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: CaveatIteratorType,
+		Name: "Caveat",
+		ConstructWithArgs: func(args *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 1 {
+				return nil, fmt.Errorf("CaveatIterator requires exactly 1 subiterator, got %d", len(subs))
+			}
+			if args == nil || args.Caveat == nil {
+				return nil, errors.New("CaveatIterator requires Caveat in Args")
+			}
+			caveat := NewCaveatIterator(subs[0], args.Caveat)
+			caveat.canonicalKey = key
+			return caveat, nil
+		},
+		Deserialize: deserializeCaveat,
+	})
+}
 
 // CaveatIterator wraps another iterator and applies caveat evaluation to its results.
 // It checks caveat conditions on relationships during iteration and only yields
@@ -285,4 +305,48 @@ func (c *CaveatIterator) buildExplainInfo() string {
 
 	info += ")"
 	return info
+}
+
+const caveatFlagHasCaveat = 0
+
+func (c *CaveatIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, CaveatIteratorType, c.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, caveatFlagHasCaveat, c.caveat != nil)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if hasFlag(flags, caveatFlagHasCaveat) {
+			if err := writeProto(buf, c.caveat); err != nil {
+				return fmt.Errorf("caveat proto: %w", err)
+			}
+		}
+		return c.subiterator.Serialize(buf)
+	})
+}
+
+func deserializeCaveat(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("caveat flags: %w", err)
+	}
+	var caveat *core.ContextualizedCaveat
+	if hasFlag(flags, caveatFlagHasCaveat) {
+		c := &core.ContextualizedCaveat{}
+		if err := readProto(br, c); err != nil {
+			return nil, fmt.Errorf("caveat proto: %w", err)
+		}
+		caveat = c
+	}
+	sub, err := Deserialize(br, dctx)
+	if err != nil {
+		return nil, fmt.Errorf("caveat sub: %w", err)
+	}
+	if caveat == nil {
+		return nil, errors.New("CaveatIterator requires non-nil caveat")
+	}
+	ci := NewCaveatIterator(sub, caveat)
+	ci.canonicalKey = key
+	return ci, nil
 }

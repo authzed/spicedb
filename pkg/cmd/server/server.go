@@ -45,9 +45,11 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -87,25 +89,30 @@ type Config struct {
 	SchemaWatchHeartbeat                   time.Duration `debugmap:"visible"`
 	NamespaceCacheConfig                   CacheConfig   `debugmap:"visible"`
 
+	// Stored schema hash cache
+	StoredSchemaCacheConfig CacheConfig `debugmap:"visible"`
+
 	// Schema options
-	SchemaPrefixesRequired bool `debugmap:"visible"`
+	SchemaPrefixesRequired bool   `debugmap:"visible"`
+	ExperimentalSchemaMode string `debugmap:"visible"`
 
 	// Dispatch options
-	DispatchServer                    util.GRPCServerConfig   `debugmap:"visible"`
-	DispatchMaxDepth                  uint32                  `debugmap:"visible"`
-	GlobalDispatchConcurrencyLimit    uint16                  `debugmap:"visible"`
-	DispatchConcurrencyLimits         graph.ConcurrencyLimits `debugmap:"visible"`
-	DispatchUpstreamAddr              string                  `debugmap:"visible"`
-	DispatchUpstreamCAPath            string                  `debugmap:"visible"`
-	DispatchUpstreamTimeout           time.Duration           `debugmap:"visible"`
-	DispatchClientMetricsEnabled      bool                    `debugmap:"visible"`
-	DispatchClientMetricsPrefix       string                  `debugmap:"visible"`
-	DispatchClusterMetricsEnabled     bool                    `debugmap:"visible"`
-	DispatchClusterMetricsPrefix      string                  `debugmap:"visible"`
-	Dispatcher                        dispatch.Dispatcher     `debugmap:"visible"`
-	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
-	DispatchHashringSpread            uint8                   `debugmap:"visible"`
-	DispatchChunkSize                 uint16                  `debugmap:"visible" default:"100"`
+	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
+	DispatchMaxDepth                  uint32                   `debugmap:"visible"`
+	GlobalDispatchConcurrencyLimit    uint16                   `debugmap:"visible"`
+	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
+	DispatchUpstreamAddr              string                   `debugmap:"visible"`
+	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
+	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible"`
+	DispatchClientMetricsEnabled      bool                     `debugmap:"visible"`
+	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
+	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible"`
+	DispatchClusterMetricsPrefix      string                   `debugmap:"visible"`
+	Dispatcher                        dispatch.Dispatcher      `debugmap:"visible"`
+	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
+	DispatchHashringReplicationFactor uint16                   `debugmap:"visible"`
+	DispatchHashringSpread            uint8                    `debugmap:"visible"`
+	DispatchChunkSize                 uint16                   `debugmap:"visible" default:"100"`
 
 	DispatchSecondaryUpstreamAddrs               map[string]string `debugmap:"visible"`
 	DispatchSecondaryUpstreamExprs               map[string]string `debugmap:"visible"`
@@ -177,23 +184,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		}
 	}()
 
-	if len(c.PresharedSecureKey) < 1 && c.GRPCAuthFunc == nil {
-		return nil, errors.New("a preshared key must be provided to authenticate API requests")
-	}
-
-	if c.GRPCAuthFunc == nil {
-		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedSecureKey)).Msg("using gRPC auth with preshared key(s)")
-		for index, presharedKey := range c.PresharedSecureKey {
-			if len(presharedKey) == 0 {
-				return nil, fmt.Errorf("preshared key #%d is empty", index+1)
-			}
-
-			log.Ctx(ctx).Trace().Int("preshared-key-"+strconv.Itoa(index+1)+"-length", len(presharedKey)).Msg("preshared key configured")
-		}
-
-		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedSecureKey)
-	} else {
-		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
+	err = c.handleGrpcAuthn(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
@@ -206,7 +199,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if ds == nil {
 		var err error
 		c.supportOldAndNewReadReplicaConnectionPoolFlags()
-		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption(),
+		ds, err = datastorecfg.NewDatastore(ctx, c.DatastoreConfig.ToOption(),
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
@@ -225,6 +218,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&c.StoredSchemaCacheConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
+	}
+	log.Ctx(ctx).Info().EmbedObject(storedSchemaCache).Msg("configured stored schema cache")
+	closeables.AddWithoutError(storedSchemaCache.Close)
+
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	ds = proxy.NewSingleflightDatastoreProxy(ds)
 	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode, c.SchemaWatchHeartbeat)
@@ -232,6 +232,15 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
 	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
+
+	// Single QueryPlanMetadata instance shared by the in-process dispatcher and
+	// the permissions service so receiver-side stats accumulate into the same
+	// store the sender consults via the count-based advisor. Callers may inject
+	// their own to share with an externally-constructed dispatcher.
+	queryPlanMetadata := c.QueryPlanMetadata
+	if queryPlanMetadata == nil {
+		queryPlanMetadata = query.NewQueryPlanMetadata()
+	}
 
 	// Create LR3 resource chunk cache (used by both dispatcher types)
 	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&c.LR3ResourceChunkCacheConfig)
@@ -254,6 +263,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		closeables.AddWithoutError(cc.Close)
 		log.Ctx(ctx).Info().EmbedObject(cc).Msg("configured dispatch cache")
 
+		// TODO: is there a circumstance under which this could be empty?
 		dispatchPresharedKey := ""
 		if len(c.PresharedSecureKey) > 0 {
 			dispatchPresharedKey = c.PresharedSecureKey[0]
@@ -291,6 +301,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
+			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -322,6 +333,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
 			clusterdispatch.RelationshipChunkCache(lr3ChunkCache),
+			clusterdispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
@@ -352,25 +364,23 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		serverName = "spicedb"
 	}
 
-	var mismatchZedTokenOption consistency.MismatchingTokenOption
-	switch c.MismatchZedTokenBehavior {
-	case "":
-		fallthrough
-
-	case "full-consistency":
-		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsFullConsistency
-
-	case "min-latency":
-		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsMinLatency
-
-	case "error":
-		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsError
-
-	default:
-		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
+	mismatchZedTokenOption, err := c.handleMismatchZedTokenOption()
+	if err != nil {
+		return nil, err
 	}
 
 	memoryUsageProvider := c.BuildMemoryUsageProvider()
+
+	// Parse schema mode for datalayer construction
+	var dlOpts []datalayer.DataLayerOption
+	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
+	if c.ExperimentalSchemaMode != "" {
+		schemaMode, smErr := datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
+		if smErr != nil {
+			return nil, smErr
+		}
+		dlOpts = append(dlOpts, datalayer.WithSchemaMode(schemaMode))
+	}
 
 	opts := MiddlewareOption{
 		Logger:                    log.Logger,
@@ -384,7 +394,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MismatchingZedTokenOption: mismatchZedTokenOption,
 		MemoryUsageProvider:       memoryUsageProvider,
 	}
-	opts = opts.WithDatastore(ds)
+	opts = opts.WithDatastore(ds, dlOpts...)
 
 	// Build OTel stats handler options (shared by both gRPC servers)
 	// Always disable health check tracing to reduce trace volume
@@ -392,7 +402,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
 	}
 
-	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, statsHandlerOpts)
+	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, statsHandlerOpts, dlOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -455,6 +465,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			LookupResources: slices.Contains(c.ExperimentalQueryPlan, "lr"),
 			LookupSubjects:  slices.Contains(c.ExperimentalQueryPlan, "ls"),
 		},
+		QueryPlanMetadata: queryPlanMetadata,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)
@@ -542,6 +553,48 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}, nil
 }
 
+func (c *Config) handleGrpcAuthn(ctx context.Context) error {
+	if len(c.PresharedSecureKey) < 1 && c.GRPCAuthFunc == nil {
+		return errors.New("a preshared key must be provided to authenticate API requests")
+	}
+
+	if c.GRPCAuthFunc == nil {
+		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedSecureKey)).Msg("using gRPC auth with preshared key(s)")
+		for index, presharedKey := range c.PresharedSecureKey {
+			if len(presharedKey) == 0 {
+				return fmt.Errorf("preshared key #%d is empty", index+1)
+			}
+
+			log.Ctx(ctx).Trace().Int("preshared-key-"+strconv.Itoa(index+1)+"-length", len(presharedKey)).Msg("preshared key configured")
+		}
+
+		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedSecureKey)
+	} else {
+		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
+	}
+	return nil
+}
+
+func (c *Config) handleMismatchZedTokenOption() (consistency.MismatchingTokenOption, error) {
+	switch c.MismatchZedTokenBehavior {
+	case "":
+		fallthrough
+
+	case "full-consistency":
+		return consistency.TreatMismatchingTokensAsFullConsistency, nil
+
+	case "min-latency":
+		return consistency.TreatMismatchingTokensAsMinLatency, nil
+
+	case "error":
+		return consistency.TreatMismatchingTokensAsError, nil
+
+	default:
+		var zero consistency.MismatchingTokenOption
+		return zero, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
+	}
+}
+
 func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider {
 	if c.EnableMemoryProtectionMiddleware {
 		if DefaultMemoryUsageProvider != nil {
@@ -554,12 +607,12 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
-func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option) (util.RunnableGRPCServer, error) {
+func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		}
 	}
 

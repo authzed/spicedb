@@ -1,13 +1,34 @@
 package query
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: RecursiveIteratorType,
+		Name: "Recursive",
+		ConstructWithArgs: func(args *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 1 {
+				return nil, fmt.Errorf("RecursiveIterator requires exactly 1 subiterator, got %d", len(subs))
+			}
+			if args == nil || args.DefinitionName == "" || args.RelationName == "" {
+				return nil, errors.New("RecursiveIterator requires DefinitionName and RelationName in Args")
+			}
+			recursive := NewRecursiveIterator(subs[0], args.DefinitionName, args.RelationName)
+			recursive.canonicalKey = key
+			return recursive, nil
+		},
+		Deserialize: deserializeRecursive,
+	})
+}
 
 // frontierEntry is a lightweight frontier node for BFS IterSubjects.
 // It carries only the fields needed to combine with the next hop's path —
@@ -54,6 +75,16 @@ func NewRecursiveIterator(templateTree Iterator, definitionName, relationName st
 		relationName:   relationName,
 		checkStrategy:  recursiveCheckIterSubjects, // default strategy
 	}
+}
+
+// DefinitionName returns the definition name this iterator is recursing on
+func (r *RecursiveIterator) DefinitionName() string {
+	return r.definitionName
+}
+
+// RelationName returns the relation name this iterator is recursing on
+func (r *RecursiveIterator) RelationName() string {
+	return r.relationName
 }
 
 // findMatchingSentinels walks the template tree and returns canonical key hashes of sentinels that match
@@ -690,4 +721,61 @@ func (r *RecursiveIterator) recursiveCheckIterResources(ctx *Context, resource O
 		ctx.TraceStep(r, "Check via IterResources: completed, found=%v", result != nil)
 	}
 	return result, nil
+}
+
+const recursiveFlagStrategy = 0 // strategy byte follows if set (default == iter-subjects)
+
+func (r *RecursiveIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, RecursiveIteratorType, r.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		nonDefault := r.checkStrategy != recursiveCheckIterSubjects
+		setFlag(&flags, recursiveFlagStrategy, nonDefault)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.definitionName); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.relationName); err != nil {
+			return err
+		}
+		if nonDefault {
+			if _, err := buf.Write([]byte{byte(r.checkStrategy)}); err != nil {
+				return err
+			}
+		}
+		return r.templateTree.Serialize(buf)
+	})
+}
+
+func deserializeRecursive(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("recursive flags: %w", err)
+	}
+	defName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("recursive def: %w", err)
+	}
+	relName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("recursive rel: %w", err)
+	}
+	strategy := recursiveCheckIterSubjects
+	if hasFlag(flags, recursiveFlagStrategy) {
+		b, err := br.ReadByte()
+		if err != nil {
+			return nil, fmt.Errorf("recursive strategy: %w", err)
+		}
+		strategy = recursiveCheckStrategy(b)
+	}
+	sub, err := Deserialize(br, dctx)
+	if err != nil {
+		return nil, fmt.Errorf("recursive template: %w", err)
+	}
+	ri := NewRecursiveIterator(sub, defName, relName)
+	ri.checkStrategy = strategy
+	ri.canonicalKey = key
+	return ri, nil
 }

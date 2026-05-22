@@ -5,10 +5,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Query Planner: fast serialize/deserialize for query plans (https://github.com/authzed/spicedb/pull/3122)
+
+### Changed
+- Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
+
+### Fixed
+- Watch consumers that request `WatchCheckpoints` now eventually observe every revision returned by `WriteRelationships` as a checkpoint. MemDB regressed this in https://github.com/authzed/spicedb/pull/2578 for no-op writes and MySQL never emitted checkpoints at all prior to now. Both now emit a checkpoint at the new revision. (https://github.com/authzed/spicedb/pull/3114)
+- When Query Planner evaluates a union, short-circuit if one of the branches yields a positive un-caveated result (https://github.com/authzed/spicedb/pull/3120)
+- DispatchQueryPlan previously did not try to use the singleflight middleware for check calls. (https://github.com/authzed/spicedb/pull/3119)
+- Fixed regression introduced in 1.53.0. Postgres `HeadRevision` no longer allocates a new transaction ID on every call (https://github.com/authzed/spicedb/pull/3127)
+- Fixed regression introduced in 1.53.0 for MySQL migration scripts (https://github.com/authzed/spicedb/pull/3129)
+
+## [1.53.0] - 2026-05-13
+### Added
+- Add DispatchExecutor, a query plan executor that is Dispatch-aware and sends subproblems on Alias boundaries (https://github.com/authzed/spicedb/pull/3074)
+- Implement Dispatch caching for query plan execution (https://github.com/authzed/spicedb/pull/3079)
+- Add new optimizer to query planner based on set theory laws for simplifications (https://github.com/authzed/spicedb/pull/3051)
+- Experimental: Add unified schema storage with `ReadStoredSchema/WriteStoredSchema` APIs for improved schema read performance (https://github.com/authzed/spicedb/pull/2924)
+
+  This feature stores the entire schema as a single serialized proto rather than reading individual namespace and caveat definitions separately, significantly improving schema read performance.
+
+  Migration to unified schema storage is controlled by the `--experimental-schema-mode` flag, which supports a 4-phase rolling migration:
+
+  1. `read-legacy-write-legacy` (default) - No change; reads and writes use legacy per-definition storage.
+  2. `read-legacy-write-both` - Reads from legacy storage, writes to both legacy and unified storage. This is the first migration step and backfills the unified schema table.
+  3. `read-new-write-both` - Reads from unified storage, writes to both. Validates the new read path while maintaining backward compatibility.
+  4. `read-new-write-new` - Reads and writes only unified storage. This is the final migration target.
+
+  Deployment:
+  - *With the SpiceDB Operator:** Configure the operator to roll through stages 1 through 4 in sequence. The operator handles the rolling update of SpiceDB instances at each stage.
+  - *Without the operator:** Progress through the stages manually by updating the `--experimental-schema-mode` flag and performing a rolling restart at each stage. You can also take the system down briefly and move directly from stage 1 to stage 4, which runs the full migration in one step.
+
+### Changed
+- Build: strip quarantine attribute for MacOS (https://github.com/authzed/spicedb/pull/3082)
+
+### Fixed
+- Query plan contexts are written to during recursive calls -- for now, disble dispatch inside recursive calls (https://github.com/authzed/spicedb/pull/3078)
+
+## [1.52.0] - 2026-04-30
+### Added
 - Added support for YAML-based validation files in DevContext (https://github.com/authzed/spicedb/pull/3024)
 - Added support for YAML-based validation files in the Language Server (https://github.com/authzed/spicedb/pull/3024)
 - Enable statistics-based optimizations when `--experimental-query-plan` is enabled. (https://github.com/authzed/spicedb/pull/3052)
 - Added missing implementations of cursoring for LookupResource, LookupSubjects and ReadRelationships calls in FDW (https://github.com/authzed/spicedb/pull/3016)
+- Add new gRPC Dispatch API and messages for dispatching query plans (https://github.com/authzed/spicedb/pull/3072)
+- Support new `withDebug` flag in LookupResources calls to identify cycles (https://github.com/authzed/spicedb/pull/3070)
 
 ### Changed
 - Removed MySQL metrics prefixed with `go_sql_stats_connections_*` in favor of those prefixed with `go_sql_*` (https://github.com/authzed/spicedb/pull/2980)
@@ -17,10 +59,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reduce memory consumption of Watch API (https://github.com/authzed/spicedb/pull/2578)
 
 ### Fixed
+- Improved error message when expiration is written before caveat in a relationship (https://github.com/authzed/spicedb/pull/3071)
 - On a Postgres setup with read replicas, some requests may silently swallow errors of sort "revision not found in replica" (https://github.com/authzed/spicedb/pull/2979)
 - Use cgroup-aware memory detection for cache and watch buffer sizing in containerized environments (https://github.com/authzed/spicedb/pull/3000)
 - Upgraded the spanner client, which changed the internal implementation to not use a session pool. This means that the `--datastore-spanner-max-sessions` and `--datastore-spanner-min-sessions` flags are now deprecated and no-op. We also strongly recommend using [Application Default Credentials](https://docs.cloud.google.com/docs/authentication/client-libraries#adc) in favor of a credentials file. (https://github.com/authzed/spicedb/pull/3038)
 - Query Planner: error `"ERROR: index \"pk_relation_tuple\" cannot be used for this query (SQLSTATE 42809)"` returned when using wildcards (https://github.com/authzed/spicedb/pull/3039)
+- Providing one of (`--grpc-tls-cert-path`, `--grpc-tls-key-path`) but not the other is now considered an error state, as both are necessary if you want to use TLS.
+- In a caveat context that uses nested lists of lists, the hashes generated for cache keys could collide because of an issue with the serialization logic. The serialization now uses deterministic protobuf serialization which avoids this issue (https://github.com/authzed/spicedb/pull/3065)
 
 ## [1.51.1] - 2026-04-14
 ### Fixed
@@ -3584,7 +3629,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.51.1...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.53.0...HEAD
+[1.53.0]: https://github.com/authzed/spicedb/compare/v1.52.0...v1.53.0
+[1.52.0]: https://github.com/authzed/spicedb/compare/v1.51.1...v1.52.0
 [1.51.1]: https://github.com/authzed/spicedb/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/authzed/spicedb/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/authzed/spicedb/compare/v1.49.2...v1.50.0

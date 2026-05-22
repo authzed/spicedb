@@ -267,7 +267,7 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 	// Build refs for the lookup resources operation. The lr3refs holds references to shared
 	// interfaces used by various suboperations of the lookup resources operation.
 	dl := datalayer.MustFromContext(stream.Context())
-	reader := dl.SnapshotReader(req.Revision)
+	reader := dl.SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return err
@@ -964,12 +964,17 @@ func (crr *CursoredLookupResources3) dispatchIter(
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     refs.req.Revision.String(),
 				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
+				SchemaHash:     refs.req.Metadata.SchemaHash,
 			},
-			OptionalCursor: currentCursor,
-			OptionalLimit:  refs.req.OptionalLimit,
-			Context:        refs.req.Context,
+			OptionalCursor:   currentCursor,
+			OptionalLimit:    refs.req.OptionalLimit,
+			Context:          refs.req.Context,
+			EnableDebugTrace: refs.req.EnableDebugTrace,
 		}, stream)
 		if err != nil && !stream.canceled {
+			if refs.req.EnableDebugTrace {
+				err = dispatch.HandleTraversalTrace(err, foundResourceType.Namespace, foundResourceType.Relation, subjectIDs)
+			}
 			_ = yield(result{}, err)
 			return
 		}
@@ -1021,6 +1026,7 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 		MaximumDepth:  refs.req.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
+		SchemaHash:    datalayer.SchemaHash(refs.req.Metadata.GetSchemaHash()),
 	}, resourceIDsToCheck, crr.dispatchChunkSize)
 	if err != nil {
 		return nil, err

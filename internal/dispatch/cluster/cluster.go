@@ -11,6 +11,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/query"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -26,6 +27,15 @@ type optionState struct {
 	caveatTypeSet                *caveattypes.TypeSet
 	relationshipChunkCacheConfig *cache.Config
 	relationshipChunkCache       cache.Cache[cache.StringKey, any]
+	queryPlanMetadata            *query.QueryPlanMetadata
+}
+
+// QueryPlanMetadata sets the shared count-stats store for the receiver-side
+// query plan dispatcher built by NewClusterDispatcher.
+func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
+	return func(state *optionState) {
+		state.queryPlanMetadata = m
+	}
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -138,6 +148,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		TypeSet:                cts,
 		DispatchChunkSize:      opts.dispatchChunkSize,
 		RelationshipChunkCache: relationshipChunkCache,
+		QueryPlanMetadata:      opts.queryPlanMetadata,
 	}
 	clusterDispatch, err := graph.NewDispatcher(dispatch, params)
 	if err != nil {

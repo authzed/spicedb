@@ -1,11 +1,30 @@
 package query
 
 import (
+	"fmt"
+	"io"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: IntersectionArrowIteratorType,
+		Name: "IntersectionArrow",
+		ConstructWithArgs: func(_ *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 2 {
+				return nil, fmt.Errorf("IntersectionArrowIterator requires exactly 2 subiterators, got %d", len(subs))
+			}
+			ia := NewIntersectionArrowIterator(subs[0], subs[1])
+			ia.canonicalKey = key
+			return ia, nil
+		},
+		Deserialize: deserializeIntersectionArrow,
+	})
+}
 
 // IntersectionArrowIterator is an iterator that represents the set of relations that
 // follow from a walk in the graph where ALL subjects on the left must satisfy
@@ -44,19 +63,43 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resource Object, su
 	// 4. Combine all (leftCaveat AND rightCaveat) pairs with AND logic
 
 	validResults := make([]*Path, 0)
-	for path, err := range subit {
-		if err != nil {
-			return nil, err
+	if ctx.BatchedArrows {
+		var (
+			leftPaths    []*Path
+			concreteRes  []Object
+			concreteIdxs []int
+			wildcardIdxs []int
+		)
+		for path, err := range subit {
+			if err != nil {
+				return nil, err
+			}
+			leftPaths = append(leftPaths, path)
+			if path.Subject.ObjectID == tuple.PublicWildcard {
+				wildcardIdxs = append(wildcardIdxs, len(leftPaths)-1)
+			} else {
+				concreteIdxs = append(concreteIdxs, len(leftPaths)-1)
+				concreteRes = append(concreteRes, GetObject(path.Subject))
+			}
 		}
 
-		// If the left side returned a wildcard, use IterResources inversion on the right
-		// to check if the subject appears in any resource of the matching type.
-		var checkPath *Path
-		if path.Subject.ObjectID == tuple.PublicWildcard {
-			if ctx.shouldTrace() {
-				ctx.TraceStep(ia, "left returned wildcard %s:*, using IterResources inversion", path.Subject.ObjectType)
+		checkResults := make([]*Path, len(leftPaths))
+		if len(concreteRes) > 0 {
+			batched, err := ctx.CheckManyResources(ia.right, concreteRes, subject)
+			if err != nil {
+				return nil, err
 			}
-			rightSeq, err := ctx.IterResources(ia.right, subject, ObjectType{Type: path.Subject.ObjectType})
+			for i, idx := range concreteIdxs {
+				checkResults[idx] = batched[i]
+			}
+		}
+		// Wildcards still go through IterResources inversion individually.
+		for _, idx := range wildcardIdxs {
+			lp := leftPaths[idx]
+			if ctx.shouldTrace() {
+				ctx.TraceStep(ia, "left returned wildcard %s:*, using IterResources inversion", lp.Subject.ObjectType)
+			}
+			rightSeq, err := ctx.IterResources(ia.right, subject, ObjectType{Type: lp.Subject.ObjectType})
 			if err != nil {
 				return nil, err
 			}
@@ -64,43 +107,90 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resource Object, su
 				if err != nil {
 					return nil, err
 				}
-				checkPath = rp
-				break // any match suffices
+				checkResults[idx] = rp
+				break
 			}
-		} else {
-			checkPath, err = ctx.Check(ia.right, GetObject(path.Subject), subject)
+		}
+
+		for i, leftPath := range leftPaths {
+			checkPath := checkResults[i]
+			if checkPath == nil {
+				if ctx.shouldTrace() {
+					ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
+						leftPath.Subject.ObjectType, leftPath.Subject.ObjectID)
+				}
+				return nil, nil
+			}
+			combinedCaveat := caveats.And(leftPath.Caveat, checkPath.Caveat)
+			validResults = append(validResults, &Path{
+				Resource:   leftPath.Resource,
+				Relation:   leftPath.Relation,
+				Subject:    checkPath.Subject,
+				Caveat:     combinedCaveat,
+				Expiration: combineExpiration(leftPath.Expiration, checkPath.Expiration),
+				Integrity:  combineIntegrity(leftPath.Integrity, checkPath.Integrity),
+				Metadata:   checkPath.Metadata,
+			})
+		}
+	} else {
+		for path, err := range subit {
 			if err != nil {
 				return nil, err
 			}
-		}
 
-		if checkPath == nil {
+			// If the left side returned a wildcard, use IterResources inversion on the right
+			// to check if the subject appears in any resource of the matching type.
+			var checkPath *Path
+			if path.Subject.ObjectID == tuple.PublicWildcard {
+				if ctx.shouldTrace() {
+					ctx.TraceStep(ia, "left returned wildcard %s:*, using IterResources inversion", path.Subject.ObjectType)
+				}
+				rightSeq, err := ctx.IterResources(ia.right, subject, ObjectType{Type: path.Subject.ObjectType})
+				if err != nil {
+					return nil, err
+				}
+				for rp, err := range rightSeq {
+					if err != nil {
+						return nil, err
+					}
+					checkPath = rp
+					break // any match suffices
+				}
+			} else {
+				checkPath, err = ctx.Check(ia.right, GetObject(path.Subject), subject)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if checkPath == nil {
+				if ctx.shouldTrace() {
+					ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
+						path.Subject.ObjectType, path.Subject.ObjectID)
+				}
+				// One left subject failed — intersection fails entirely
+				return nil, nil
+			}
+
 			if ctx.shouldTrace() {
-				ctx.TraceStep(ia, "left subject %s:%s did NOT connect on the right side",
+				ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
 					path.Subject.ObjectType, path.Subject.ObjectID)
 			}
-			// One left subject failed — intersection fails entirely
-			return nil, nil
-		}
 
-		if ctx.shouldTrace() {
-			ctx.TraceStep(ia, "left subject %s:%s connects with the right side",
-				path.Subject.ObjectType, path.Subject.ObjectID)
-		}
+			// Combine this path's left caveat with the right caveat
+			combinedCaveat := caveats.And(path.Caveat, checkPath.Caveat)
 
-		// Combine this path's left caveat with the right caveat
-		combinedCaveat := caveats.And(path.Caveat, checkPath.Caveat)
-
-		combinedPath := &Path{
-			Resource:   path.Resource,
-			Relation:   path.Relation,
-			Subject:    checkPath.Subject,
-			Caveat:     combinedCaveat,
-			Expiration: combineExpiration(path.Expiration, checkPath.Expiration),
-			Integrity:  combineIntegrity(path.Integrity, checkPath.Integrity),
-			Metadata:   checkPath.Metadata,
+			combinedPath := &Path{
+				Resource:   path.Resource,
+				Relation:   path.Relation,
+				Subject:    checkPath.Subject,
+				Caveat:     combinedCaveat,
+				Expiration: combineExpiration(path.Expiration, checkPath.Expiration),
+				Integrity:  combineIntegrity(path.Integrity, checkPath.Integrity),
+				Metadata:   checkPath.Metadata,
+			}
+			validResults = append(validResults, combinedPath)
 		}
-		validResults = append(validResults, combinedPath)
 	}
 
 	if len(validResults) == 0 {
@@ -374,4 +464,33 @@ func (ia *IntersectionArrowIterator) ResourceType() ([]ObjectType, error) {
 func (ia *IntersectionArrowIterator) SubjectTypes() ([]ObjectType, error) {
 	// IntersectionArrow's subjects come from the right side
 	return ia.right.SubjectTypes()
+}
+
+func (ia *IntersectionArrowIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, IntersectionArrowIteratorType, ia.canonicalKey, func(buf io.Writer) error {
+		if err := writeUvarint(buf, 0); err != nil {
+			return err
+		}
+		if err := ia.left.Serialize(buf); err != nil {
+			return fmt.Errorf("left: %w", err)
+		}
+		if err := ia.right.Serialize(buf); err != nil {
+			return fmt.Errorf("right: %w", err)
+		}
+		return nil
+	})
+}
+
+func deserializeIntersectionArrow(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	if _, err := readUvarint(br); err != nil {
+		return nil, fmt.Errorf("intersection_arrow flags: %w", err)
+	}
+	subs, err := readNSubs(br, 2, dctx)
+	if err != nil {
+		return nil, err
+	}
+	ia := NewIntersectionArrowIterator(subs[0], subs[1])
+	ia.canonicalKey = key
+	return ia, nil
 }

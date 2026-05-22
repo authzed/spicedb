@@ -28,6 +28,13 @@ type Context struct {
 	// Iterators may inspect it to skip work that is irrelevant for the current operation type.
 	TopLevelOperation Operation
 
+	// BatchedArrows enables the batched arrow check path: arrows drain their
+	// left/right side into a slice and issue a single CheckMany call instead of
+	// one Check per element. Always set when running with DispatchExecutor so
+	// arrow fanout collapses into a single RPC per alias boundary; left off in
+	// LocalExecutor by default to keep the simpler path.
+	BatchedArrows bool
+
 	// Pagination options for IterSubjects and IterResources
 	PaginationCursors map[string]*tuple.Relationship // Cursors for pagination, keyed by iterator ID
 	PaginationLimit   *uint64                        // Limit for pagination (max number of results to return)
@@ -48,17 +55,22 @@ type Context struct {
 	topLevelOnce     sync.Once
 }
 
-// NewLocalContext creates a new query execution context with a LocalExecutor.
-// This is a convenience constructor for tests and local execution scenarios.
-func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context {
+// NewQueryContext builds a query plan exection context with the given executor implementation.
+func NewQueryContext(stdContext context.Context, executor Executor, opts ...ContextOption) *Context {
 	ctx := &Context{
 		Context:  stdContext,
-		Executor: LocalExecutor{},
+		Executor: executor,
 	}
 	for _, opt := range opts {
 		opt(ctx)
 	}
 	return ctx
+}
+
+// NewLocalContext creates a new query execution context with a LocalExecutor.
+// This is a convenience constructor for tests and local execution scenarios.
+func NewLocalContext(stdContext context.Context, opts ...ContextOption) *Context {
+	return NewQueryContext(stdContext, LocalExecutor{}, opts...)
 }
 
 // ContextOption is a function that configures a Context.
@@ -98,6 +110,11 @@ func WithCaveatContext(caveatCtx map[string]any) ContextOption {
 // WithMaxRecursionDepth sets the maximum recursion depth for the context.
 func WithMaxRecursionDepth(depth int) ContextOption {
 	return func(ctx *Context) { ctx.MaxRecursionDepth = depth }
+}
+
+// WithBatchedArrows enables the batched arrow check path on the context.
+func WithBatchedArrows(enabled bool) ContextOption {
+	return func(ctx *Context) { ctx.BatchedArrows = enabled }
 }
 
 // WithPaginationLimit sets the pagination limit for the context.
@@ -219,10 +236,7 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		ctx.TopLevelOperation = OperationCheck
-	})
+	ctx.MarkAsOperation(it, OperationCheck)
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
@@ -239,6 +253,85 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 	ctx.traceCheckResult(tracedIterator, path)
 	ctx.notifyCheckResult(key, path)
 	return path, nil
+}
+
+// MarkAsOperation records the top-level iterator and operation for this
+// context, idempotently. The first caller "wins" and gets isTopLevel=true; all
+// subsequent calls are no-ops and return false. This is used in two ways:
+//
+//  1. By Context.{Check,IterSubjects,IterResources,CheckManyX}, which call it
+//     on entry so that any nested calls into the same context know they are
+//     not the top-level — and so that the entry path can apply API-boundary
+//     wrappers (FilterWildcardSubjects / DeduplicatePathSeq) only when truly
+//     at the top.
+//
+//  2. By dispatch receivers, which pre-seal it so that the first inner
+//     ctx.IterX call on the body is NOT mistaken for the top-level. Without
+//     pre-sealing, the receiver's first inner call applies FilterWildcardSubjects
+//     to a sub-iterator's results, silently dropping wildcards that should
+//     propagate back to the sender's intersection/exclusion logic.
+//
+// It also sets TopLevelOperation so iterators that consult it (e.g.
+// AliasIterator.shouldIncludeSelfEdge) see the right value.
+func (ctx *Context) MarkAsOperation(it Iterator, op Operation) (isTopLevel bool) {
+	ctx.topLevelOnce.Do(func() {
+		ctx.topLevelIterator = it
+		ctx.TopLevelOperation = op
+		isTopLevel = true
+	})
+	return
+}
+
+// CheckManySubjects tests resource against each subject in subjects. Returns a
+// parallel slice of paths (result[i] matches subjects[i], nil if no match).
+func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error) {
+	if ctx.Executor == nil {
+		return nil, spiceerrors.MustBugf("no executor has been set")
+	}
+	if len(subjects) == 0 {
+		return nil, nil
+	}
+
+	ctx.MarkAsOperation(it, OperationCheck)
+
+	key := it.CanonicalKey()
+	ctx.notifyEnterIterator(OperationCheck, key)
+
+	paths, err := ctx.Executor.CheckManySubjects(ctx, it, resource, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range paths {
+		ctx.notifyCheckResult(key, p)
+	}
+	return paths, nil
+}
+
+// CheckManyResources tests each resource in resources against subject. Returns a
+// parallel slice of paths (result[i] matches resources[i], nil if no match).
+func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error) {
+	if ctx.Executor == nil {
+		return nil, spiceerrors.MustBugf("no executor has been set")
+	}
+	if len(resources) == 0 {
+		return nil, nil
+	}
+
+	ctx.MarkAsOperation(it, OperationCheck)
+
+	key := it.CanonicalKey()
+	ctx.notifyEnterIterator(OperationCheck, key)
+
+	paths, err := ctx.Executor.CheckManyResources(ctx, it, resources, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range paths {
+		ctx.notifyCheckResult(key, p)
+	}
+	return paths, nil
 }
 
 // wrapPathSeqForTracing wraps a PathSeq to collect results for exit tracing if tracing is enabled,
@@ -280,12 +373,7 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	isTopLevel := false
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		isTopLevel = true
-		ctx.TopLevelOperation = OperationIterSubjects
-	})
+	isTopLevel := ctx.MarkAsOperation(it, OperationIterSubjects)
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
@@ -319,12 +407,7 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
 
-	isTopLevel := false
-	ctx.topLevelOnce.Do(func() {
-		ctx.topLevelIterator = it
-		isTopLevel = true
-		ctx.TopLevelOperation = OperationIterResources
-	})
+	isTopLevel := ctx.MarkAsOperation(it, OperationIterResources)
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
@@ -354,6 +437,16 @@ type Executor interface {
 	// Check tests if the given resource is connected to subject.
 	// Returns the matching Path if found, or nil if not found.
 	Check(ctx *Context, it Iterator, resource Object, subject ObjectAndRelation) (*Path, error)
+
+	// CheckManySubjects tests resource against each subject in the slice.
+	// Returns a parallel slice of paths: result[i] is the matching Path for
+	// subjects[i], or nil if subjects[i] does not match.
+	CheckManySubjects(ctx *Context, it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error)
+
+	// CheckManyResources tests each resource in the slice against subject.
+	// Returns a parallel slice of paths: result[i] is the matching Path for
+	// resources[i], or nil if resources[i] does not match.
+	CheckManyResources(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error)
 
 	// IterSubjects returns a sequence of all the relations in this set that match the given resource.
 	// The filterSubjectType parameter filters results to only include subjects matching the

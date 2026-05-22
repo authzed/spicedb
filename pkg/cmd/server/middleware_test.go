@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -392,7 +391,6 @@ func TestMiddlewareOrdering(t *testing.T) {
 	go func() {
 		errChan <- rs.Run(ctx)
 	}()
-	time.Sleep(100 * time.Millisecond)
 
 	req := &v1.CheckPermissionRequest{
 		Resource: &v1.ObjectReference{
@@ -408,7 +406,9 @@ func TestMiddlewareOrdering(t *testing.T) {
 		Permission: "read",
 	}
 
-	_, err = psc.CheckPermission(ctx, req)
+	// NOTE: using WaitForReady ensures that the connection is active
+	// and can accept RPCs, rather than returning an EOF error.
+	_, err = psc.CheckPermission(ctx, req, grpc.WaitForReady(true))
 	require.NoError(t, err)
 
 	lrreq := &v1.LookupResourcesRequest{
@@ -502,7 +502,6 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	go func() {
 		errChan <- rs.Run(ctx)
 	}()
-	time.Sleep(100 * time.Millisecond)
 
 	req := &v1.CheckPermissionRequest{
 		Resource: &v1.ObjectReference{
@@ -518,7 +517,9 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 		Permission: "read",
 	}
 
-	_, err = psc.CheckPermission(ctx, req)
+	// NOTE: using WaitForReady ensures that the connection is active
+	// and can accept RPCs, rather than returning an EOF error.
+	_, err = psc.CheckPermission(ctx, req, grpc.WaitForReady(true))
 	require.ErrorContains(t, err, "expected interceptor does-not-exist to be already executed")
 
 	lrreq := &v1.LookupResourcesRequest{

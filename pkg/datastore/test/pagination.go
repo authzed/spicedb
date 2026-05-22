@@ -35,7 +35,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range testCases {
@@ -77,7 +77,7 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, objectType := range testCases {
@@ -174,7 +174,7 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range orderedTestCases {
@@ -212,7 +212,7 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
 	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range orderedTestCases {
@@ -258,7 +258,7 @@ func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester Datas
 	require.NoError(t, err)
 
 	// Create a datastore with the standard schema but no data.
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	// Add test relationships.
 	rev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -325,7 +325,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	// Create a datastore with the standard schema but no data.
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	// Add test relationships.
 	rev, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

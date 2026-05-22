@@ -622,12 +622,12 @@ func (f fakeDatastore) ReadWriteTx(_ context.Context, _ TxUserFunc, _ ...options
 	return nil, nil
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (Revision, error) {
-	return nil, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (RevisionWithSchemaHash, error) {
+	return RevisionWithSchemaHash{}, nil
 }
 
-func (f fakeDatastore) HeadRevision(_ context.Context) (Revision, error) {
-	return nil, nil
+func (f fakeDatastore) HeadRevision(_ context.Context) (RevisionWithSchemaHash, error) {
+	return RevisionWithSchemaHash{}, nil
 }
 
 func (f fakeDatastore) CheckRevision(_ context.Context, _ Revision) error {

@@ -19,7 +19,7 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ = testfixtures.StandardDatastoreWithData(ds, require)
+	ds, _ = testfixtures.StandardDatastoreWithData(t, ds)
 
 	for retryCount := statsRetryCount; retryCount >= 0; retryCount-- {
 		stats, err := ds.Statistics(ctx)

@@ -13,29 +13,29 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
-func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Revision, error) {
+func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Revision, datalayer.SchemaHash, error) {
 	dl := datalayer.MustFromContext(ctx)
 
-	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
-		return nil, atRevision, err
+		return nil, atRevision, "", err
 	}
 
 	namespacesAndRevs, err := sr.ListAllTypeDefinitions(ctx)
 	if err != nil {
-		return nil, atRevision, err
+		return nil, atRevision, "", err
 	}
 
 	caveatsAndRevs, err := sr.ListAllCaveatDefinitions(ctx)
 	if err != nil {
-		return nil, atRevision, err
+		return nil, atRevision, "", err
 	}
 
 	namespaces := make([]*core.NamespaceDefinition, 0, len(namespacesAndRevs))
@@ -51,11 +51,11 @@ func loadCurrentSchema(ctx context.Context) (*diff.DiffableSchema, datastore.Rev
 	return &diff.DiffableSchema{
 		ObjectDefinitions: namespaces,
 		CaveatDefinitions: caveats,
-	}, atRevision, nil
+	}, atRevision, schemaHash, nil
 }
 
 func schemaDiff(ctx context.Context, comparisonSchemaString string, caveatTypeSet *caveattypes.TypeSet) (*diff.SchemaDiff, *diff.DiffableSchema, *diff.DiffableSchema, error) {
-	existingSchema, _, err := loadCurrentSchema(ctx)
+	existingSchema, _, _, err := loadCurrentSchema(ctx)
 	if err != nil {
 		return nil, nil, nil, err
 	}

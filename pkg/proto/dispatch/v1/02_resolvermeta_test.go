@@ -5,6 +5,8 @@ import (
 
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
 func TestRecordTraversal(t *testing.T) {
@@ -12,15 +14,23 @@ func TestRecordTraversal(t *testing.T) {
 	_, err := rm.RecordTraversal("test")
 	require.ErrorContains(t, err, "missing")
 
-	rm = &ResolverMeta{}
+	rm = &ResolverMeta{
+		SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
+	}
 	_, err = rm.RecordTraversal("test")
 	require.ErrorContains(t, err, "missing")
 
-	rm = &ResolverMeta{TraversalBloom: []byte("")}
+	rm = &ResolverMeta{
+		TraversalBloom: []byte(""),
+		SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+	}
 	_, err = rm.RecordTraversal("test")
 	require.ErrorContains(t, err, "missing")
 
-	rm = &ResolverMeta{TraversalBloom: []byte("foo")}
+	rm = &ResolverMeta{
+		TraversalBloom: []byte("foo"),
+		SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+	}
 	_, err = rm.RecordTraversal("test")
 	require.ErrorContains(t, err, "unmarshall")
 

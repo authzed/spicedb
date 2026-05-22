@@ -31,7 +31,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 			rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 
-			ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+			ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 			bulkSource := testfixtures.NewBulkRelationshipGenerator(
 				testfixtures.DocumentNS.Name,
 				"viewer",
@@ -51,10 +51,10 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
 
-			head, err := ds.HeadRevision(ctx)
+			headResult, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 
-			iter, err := ds.SnapshotReader(head).QueryRelationships(ctx, datastore.RelationshipsFilter{
+			iter, err := ds.SnapshotReader(headResult.Revision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType: testfixtures.DocumentNS.Name,
 			}, options.WithQueryShape(queryshape.FindResourceOfType))
 			require.NoError(err)
@@ -71,7 +71,7 @@ func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		inserted, err := rwt.BulkLoad(ctx, &onlyErrorSource{})
@@ -91,7 +91,7 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
@@ -130,7 +130,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 	bulkSource := testfixtures.NewBulkRelationshipGenerator(
 		testfixtures.DocumentNS.Name,
 		"caveated_viewer",
@@ -172,7 +172,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 	bulkSource := testfixtures.NewBulkRelationshipGenerator(
 		testfixtures.DocumentNS.Name,
 		"expired_viewer",
@@ -210,7 +210,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 	bulkSource := testfixtures.NewBulkRelationshipGenerator(
 		testfixtures.DocumentNS.Name,
 		"caveated_viewer",
@@ -276,7 +276,7 @@ func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	// Bulk write a single relationship.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -63,9 +61,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(t, err)
 
-	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
-	})
+	_, err = datalayer.WriteStoredSchemaForTest(ctx, rawDS, schemaText)
 	require.NoError(t, err)
 
 	relationships := make([]tuple.Relationship, 0,
@@ -110,7 +106,7 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	resource := NewObject("file", "file0")
 	subject := NewObject("user", "user42").WithEllipses()
 
-	readerOpt := WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
+	readerOpt := WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting))
 
 	// ---- plain (LTR) ----
 

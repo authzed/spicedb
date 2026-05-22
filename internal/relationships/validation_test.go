@@ -331,9 +331,9 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
-			uds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, nil, req)
+			uds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, nil)
 			dl := datalayer.NewDataLayer(uds)
-			sr, err := dl.SnapshotReader(rev).ReadSchema(t.Context())
+			sr, err := dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 			req.NoError(err)
 
 			op := tuple.Create

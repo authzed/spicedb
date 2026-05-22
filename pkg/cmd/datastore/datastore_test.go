@@ -27,10 +27,10 @@ func TestLoadDatastoreFromFileContents(t *testing.T) {
 		ds.Close()
 	})
 
-	revision, err := ds.HeadRevision(ctx)
+	revisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	namespaces, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+	namespaces, err := ds.SnapshotReader(revisionResult.Revision).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 1)
 	require.Equal(t, "user", namespaces[0].Definition.Name)
@@ -51,10 +51,10 @@ func TestLoadDatastoreFromFile(t *testing.T) {
 		ds.Close()
 	})
 
-	revision, err := ds.HeadRevision(ctx)
+	revisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	namespaces, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+	namespaces, err := ds.SnapshotReader(revisionResult.Revision).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 1)
 	require.Equal(t, "user", namespaces[0].Definition.Name)
@@ -93,10 +93,10 @@ relationships: |-
 		ds.Close()
 	})
 
-	revision, err := ds.HeadRevision(ctx)
+	revisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	namespaces, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+	namespaces, err := ds.SnapshotReader(revisionResult.Revision).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 2)
 	require.Equal(t, "organization", namespaces[0].Definition.Name)
@@ -115,10 +115,10 @@ func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 		WithEngine(MemoryEngine))
 	require.NoError(t, err)
 
-	revision, err := ds.HeadRevision(ctx)
+	revisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	namespaces, err := ds.SnapshotReader(revision).LegacyListAllNamespaces(ctx)
+	namespaces, err := ds.SnapshotReader(revisionResult.Revision).LegacyListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 2)
 	namespaceNames := []string{namespaces[0].Definition.Name, namespaces[1].Definition.Name}

@@ -165,13 +165,14 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			req.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, req)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, nil)
 
-			rev, err := ds.HeadRevision(t.Context())
+			revResult, err := ds.HeadRevision(t.Context())
 			require.NoError(t, err)
+			rev := revResult.Revision
 
 			dl := datalayer.NewDataLayer(ds)
-			sr, err := dl.SnapshotReader(rev).ReadSchema(t.Context())
+			sr, err := dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
 			require.NoError(t, err)
 
 			err = namespace.CheckNamespaceAndRelations(t.Context(), tc.checks, sr)

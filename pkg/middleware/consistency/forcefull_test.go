@@ -43,7 +43,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "", TreatMismatchingTokensAsFullConsistency)
 		require.NoError(t, err)
 
-		rev, _, err := RevisionFromContext(ctx)
+		rev, _, _, err := RevisionFromContext(ctx)
 		require.Error(t, err)
 		require.Nil(t, rev)
 	})
@@ -54,7 +54,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
 		mockRev := mocks.NewMockRevision(ctrl)
 		mockRev.EXPECT().String().Return("a revision").Times(1)
-		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, datalayer.NoSchemaHashInLegacyMode, nil).Times(1)
 		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
 
 		ctx := ContextWithHandle(t.Context())
@@ -63,7 +63,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "somelabel", TreatMismatchingTokensAsFullConsistency)
 		require.NoError(t, err)
 
-		rev, _, err := RevisionFromContext(ctx)
+		rev, _, _, err := RevisionFromContext(ctx)
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
 	})
@@ -74,7 +74,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
 		mockRev := mocks.NewMockRevision(ctrl)
 		mockRev.EXPECT().String().Return("a revision").Times(1)
-		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, datalayer.NoSchemaHashInLegacyMode, nil).Times(1)
 		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
 
 		ctx := ContextWithHandle(t.Context())
@@ -83,7 +83,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		err := setFullConsistencyRevisionToContext(ctx, &requestWithConsistency{}, dl, "", TreatMismatchingTokensAsFullConsistency)
 		require.NoError(t, err)
 
-		rev, _, err := RevisionFromContext(ctx)
+		rev, _, _, err := RevisionFromContext(ctx)
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
 	})
@@ -103,7 +103,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
-		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, errors.New("some error")).Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, datalayer.NoSchemaHashInLegacyMode, errors.New("some error")).Times(1)
 
 		ctx := ContextWithHandle(t.Context())
 		ctx = datalayer.ContextWithDataLayer(ctx, dl)
@@ -121,7 +121,7 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
 		mockRev := mocks.NewMockRevision(ctrl)
 		mockRev.EXPECT().String().Return("a revision").Times(1)
-		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, datalayer.NoSchemaHashInLegacyMode, nil).Times(1)
 		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
 		interceptor := ForceFullConsistencyUnaryServerInterceptor("somelabel")
 		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
@@ -141,7 +141,7 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "response", resp)
 
-		rev, _, err := RevisionFromContext(capturedCtx)
+		rev, _, _, err := RevisionFromContext(capturedCtx)
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
 	})
@@ -150,7 +150,7 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
-		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, errors.New("some error")).Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, datalayer.NoSchemaHashInLegacyMode, errors.New("some error")).Times(1)
 
 		interceptor := ForceFullConsistencyUnaryServerInterceptor("somelabel")
 		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
@@ -218,7 +218,7 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
 		mockRev := mocks.NewMockRevision(ctrl)
 		mockRev.EXPECT().String().Return("a revision").Times(1)
-		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, nil).Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(mockRev, datalayer.NoSchemaHashInLegacyMode, nil).Times(1)
 		dl.EXPECT().UniqueID(gomock.Any()).Return("uniqueid", nil).Times(1)
 
 		interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
@@ -245,7 +245,7 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 		err = wrapper.RecvMsg(&requestWithConsistency{})
 		require.NoError(t, err)
 
-		rev, _, err := RevisionFromContext(wrapper.Context())
+		rev, _, _, err := RevisionFromContext(wrapper.Context())
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
 	})
@@ -254,7 +254,7 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		dl := mock_datalayer.NewMockDataLayer(ctrl)
-		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, errors.New("some error")).Times(1)
+		dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, datalayer.NoSchemaHashInLegacyMode, errors.New("some error")).Times(1)
 
 		interceptor := ForceFullConsistencyStreamServerInterceptor("somelabel")
 		ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
@@ -337,7 +337,7 @@ func TestForceFullConsistencyUnaryBypassWhitelist(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "bypassed", resp)
 
-			rev, _, err := RevisionFromContext(capturedCtx)
+			rev, _, _, err := RevisionFromContext(capturedCtx)
 			require.Error(t, err)
 			require.Nil(t, rev)
 		})
@@ -379,7 +379,7 @@ func TestSetFullConsistencyRevisionToContextWithReadonlyError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dl := mock_datalayer.NewMockDataLayer(ctrl)
-	dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, datastore.NewReadonlyErr()).Times(1)
+	dl.EXPECT().HeadRevision(gomock.Any()).Return(nil, datalayer.NoSchemaHashInLegacyMode, datastore.NewReadonlyErr()).Times(1)
 
 	ctx := ContextWithHandle(t.Context())
 	ctx = datalayer.ContextWithDataLayer(ctx, dl)

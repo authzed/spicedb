@@ -28,6 +28,7 @@ func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, m
 	config.DispatchCacheConfig.Metrics = false
 	config.ClusterDispatchCacheConfig.Metrics = false
 	config.NamespaceCacheConfig.Metrics = false
+	config.StoredSchemaCacheConfig.Metrics = false
 
 	cmd.SetArgs(args)
 

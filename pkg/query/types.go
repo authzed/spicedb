@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -70,6 +71,13 @@ type Iterator interface {
 	// SubjectTypes returns all the ObjectTypes for this iterator tree.
 	// Returns an error if subject types cannot be determined.
 	SubjectTypes() ([]ObjectType, error)
+
+	// Serialize writes a binary representation of this iterator and its
+	// subtree to w. The wire format is the IteratorType byte (used by
+	// package-level Deserialize for registry dispatch) followed by a
+	// length-prefixed canonical key and a length-prefixed body produced by
+	// the iterator's registered Deserialize counterpart.
+	Serialize(w io.Writer) error
 }
 
 type ObjectType struct {

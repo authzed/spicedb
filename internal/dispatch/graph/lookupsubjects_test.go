@@ -143,6 +143,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 
@@ -176,6 +177,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),
 						DepthRemaining: 50,
+						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 				})
 
@@ -193,7 +195,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
 	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
@@ -216,6 +218,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 	require.Error(err)
@@ -262,6 +265,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 
@@ -1000,7 +1004,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
 			ctx := datalayer.ContextWithHandle(t.Context())
 			require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
@@ -1013,6 +1017,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 			require.NoError(err)

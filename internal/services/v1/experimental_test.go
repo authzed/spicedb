@@ -55,7 +55,7 @@ func TestBulkImportRelationships(t *testing.T) {
 				t.Run(fmt.Sprintf("withCaveats=%t", withCaveats), func(t *testing.T) {
 					require := require.New(t)
 
-					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 					client := v1.NewExperimentalServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -146,7 +146,7 @@ func randomBatch(minimum, maximum int) func() uint64 {
 
 func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewExperimentalServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -161,7 +161,7 @@ func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
 }
 
 func TestBulkExportRelationships(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 	client := v1.NewExperimentalServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -312,7 +312,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 			client := v1.NewExperimentalServiceClient(conn)
 			t.Cleanup(cleanup)
 
@@ -424,7 +424,7 @@ type bulkCheckTest struct {
 func TestBulkCheckPermission(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewExperimentalServiceClient(conn)
 	defer cleanup()
 
@@ -680,7 +680,7 @@ func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
 }
 
 func TestExperimentalSchemaDiff(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	defer cleanup()
@@ -773,7 +773,7 @@ func TestExperimentalSchemaDiff(t *testing.T) {
 }
 
 func TestExperimentalReflectSchema(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	defer cleanup()
@@ -1383,7 +1383,7 @@ func TestExperimentalDependentRelations(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			expClient := v1.NewExperimentalServiceClient(conn)
 			schemaClient := v1.NewSchemaServiceClient(conn)
 			defer cleanup()
@@ -1582,7 +1582,7 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			expClient := v1.NewExperimentalServiceClient(conn)
 			schemaClient := v1.NewSchemaServiceClient(conn)
 			defer cleanup()
@@ -1620,7 +1620,7 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 }
 
 func TestExperimentalCountRelationships(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	permsClient := v1.NewPermissionsServiceClient(conn)

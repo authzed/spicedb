@@ -9,8 +9,15 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// RemoteNowFunction queries the datastore to get a current revision.
-type RemoteNowFunction func(context.Context) (datastore.Revision, error)
+// RemoteNowFunction queries the datastore to get a current revision and the
+// schema hash visible at that revision. Implementations that do not have a
+// schema hash on this code path may return "".
+type RemoteNowFunction func(context.Context) (datastore.Revision, string, error)
+
+// RemoteNowOnlyFunction queries the datastore to get a current revision only,
+// without reading the schema hash. Used by CheckRevision where the hash is
+// not needed; allows backends to skip a schema_revision subquery.
+type RemoteNowOnlyFunction func(context.Context) (datastore.Revision, error)
 
 // RemoteClockRevisions handles revision calculation for datastores that provide
 // their own clocks.
@@ -19,6 +26,7 @@ type RemoteClockRevisions struct {
 
 	gcWindowNanos          int64
 	nowFunc                RemoteNowFunction
+	nowOnlyFunc            RemoteNowOnlyFunction
 	followerReadDelayNanos int64
 	quantizationNanos      int64
 }
@@ -48,19 +56,19 @@ func NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, followerReadDelay, 
 	return revisions
 }
 
-func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
-	nowRev, err := rcr.nowFunc(ctx)
+func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+	nowRev, schemaHash, err := rcr.nowFunc(ctx)
 	if err != nil {
-		return datastore.NoRevision, 0, err
+		return datastore.NoRevision, 0, "", err
 	}
 
 	if nowRev == datastore.NoRevision {
-		return datastore.NoRevision, 0, datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
+		return datastore.NoRevision, 0, "", datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
 	}
 
 	nowTS, ok := nowRev.(WithTimestampRevision)
 	if !ok {
-		return datastore.NoRevision, 0, spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
+		return datastore.NoRevision, 0, "", spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
 	}
 
 	delayedNow := nowTS.TimestampNanoSec() - rcr.followerReadDelayNanos
@@ -77,12 +85,20 @@ func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (dat
 		Int64("totalSkew", nowTS.TimestampNanoSec()-quantized).
 		Msg("revision skews")
 
-	return nowTS.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond, nil
+	return nowTS.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond, schemaHash, nil
 }
 
 // SetNowFunc sets the function used to determine the head revision
 func (rcr *RemoteClockRevisions) SetNowFunc(nowFunc RemoteNowFunction) {
 	rcr.nowFunc = nowFunc
+}
+
+// SetNowOnlyFunc sets a timestamp-only revision function used by CheckRevision.
+// Datastores that implement this can elide a schema-hash subquery on
+// revision-validation paths. If unset, CheckRevision falls back to nowFunc and
+// discards the hash.
+func (rcr *RemoteClockRevisions) SetNowOnlyFunc(nowOnlyFunc RemoteNowOnlyFunction) {
+	rcr.nowOnlyFunc = nowOnlyFunc
 }
 
 func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision datastore.Revision) error {
@@ -95,8 +111,15 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision d
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
-	// Make sure the system time indicated is within the software GC window
-	now, err := rcr.nowFunc(ctx)
+	// Make sure the system time indicated is within the software GC window.
+	// Use nowOnlyFunc when available to avoid reading the schema hash unnecessarily.
+	var now datastore.Revision
+	var err error
+	if rcr.nowOnlyFunc != nil {
+		now, err = rcr.nowOnlyFunc(ctx)
+	} else {
+		now, _, err = rcr.nowFunc(ctx)
+	}
 	if err != nil {
 		return err
 	}

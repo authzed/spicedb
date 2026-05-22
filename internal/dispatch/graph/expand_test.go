@@ -172,6 +172,7 @@ func TestExpand(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				ExpansionMode: tc.expansionMode,
 			})
@@ -278,7 +279,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	tpl := tuple.MustParse("folder:oops#parent@folder:oops")
 	ctx := datalayer.ContextWithHandle(t.Context())
@@ -298,6 +299,7 @@ func TestMaxDepthExpand(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
 	})
@@ -904,6 +906,7 @@ func TestExpandOverSchema(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				ExpansionMode: tc.expansionMode,
 			})

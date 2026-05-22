@@ -226,7 +226,7 @@ func TestLRHashStability(t *testing.T) {
 				},
 				OptionalLimit: 1000,
 			},
-			"f5c7ca6296253717",
+			"cf1d767007d04edc",
 		},
 		{
 			"different LR subject",
@@ -246,7 +246,7 @@ func TestLRHashStability(t *testing.T) {
 				},
 				OptionalLimit: 1000,
 			},
-			"aa8b67b886ecf3fd",
+			"3aecab574a273b45",
 		},
 		{
 			"different LR resource",
@@ -266,7 +266,7 @@ func TestLRHashStability(t *testing.T) {
 				},
 				OptionalLimit: 1000,
 			},
-			"fb16e4dd9395864a",
+			"67a8f4c53250f14a",
 		},
 		{
 			"different LR resource permission",
@@ -286,7 +286,7 @@ func TestLRHashStability(t *testing.T) {
 				},
 				OptionalLimit: 1000,
 			},
-			"593e60bf77f8bdb4",
+			"63d0ca03f244fc44",
 		},
 		{
 			"different limit LR",
@@ -306,7 +306,7 @@ func TestLRHashStability(t *testing.T) {
 				},
 				OptionalLimit: 999,
 			},
-			"0097cf2ee303ec31",
+			"b26e38746b7dd856",
 		},
 		{
 			"LR with different consistency",
@@ -326,7 +326,7 @@ func TestLRHashStability(t *testing.T) {
 				},
 				OptionalLimit: 1000,
 			},
-			"d8b707db35cb7043",
+			"77f27e2d566ebfbe",
 		},
 		{
 			"basic LR with caveat context",
@@ -353,7 +353,7 @@ func TestLRHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"d40193c84ec59e6f",
+			"cbaa1004df7bd467",
 		},
 		{
 			"basic LR with different caveat context",
@@ -380,7 +380,7 @@ func TestLRHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"a5af756163998c88",
+			"1afac87f34a901c4",
 		},
 	}
 
@@ -417,7 +417,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"f518629690bd9dc0",
+			"1bb4418571995a32",
 		},
 		{
 			"different resource ID, should still be the same hash",
@@ -434,7 +434,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"f518629690bd9dc0",
+			"1bb4418571995a32",
 		},
 		{
 			"basic bulk check item - transcribed letter",
@@ -451,7 +451,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"60f1e177297e915e",
+			"aa035599b6525b1d",
 		},
 		{
 			"different resource type",
@@ -468,7 +468,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"5117abaee3adf638",
+			"3cedf7fb7805705d",
 		},
 		{
 			"different permission",
@@ -485,7 +485,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"716f7be27e600292",
+			"4497a1419274b340",
 		},
 		{
 			"different subject type",
@@ -502,7 +502,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"7cb5945314ccbdce",
+			"89c6106d825c579a",
 		},
 		{
 			"different subject id",
@@ -519,7 +519,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"b24ecacf87fd0bb8",
+			"af0b171b98c325aa",
 		},
 		{
 			"different subject relation",
@@ -537,7 +537,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					OptionalRelation: "foo",
 				},
 			},
-			"ee8c34ab206c80d7",
+			"624b6989fcd41287",
 		},
 		{
 			"with context",
@@ -562,7 +562,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"7a5b1fec3cbed446",
+			"b52787f4dcfda909",
 		},
 		{
 			"with different context",
@@ -587,7 +587,7 @@ func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"f17da513a6207c30",
+			"01890cb311887418",
 		},
 	}
 
@@ -624,7 +624,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"5edbb3bbb8079754",
+			"afdf81991b9fea82",
 		},
 		{
 			"different resource ID, should be a different hash",
@@ -641,7 +641,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"e6711064500e65ba",
+			"aef33bb5fef05e09",
 		},
 		{
 			"basic bulk check item - transcribed letter",
@@ -658,7 +658,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"8cda00b7188572b7",
+			"b46fcb0d87f7878a",
 		},
 		{
 			"different resource type",
@@ -675,7 +675,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"51df43a69e51d3b0",
+			"eeec3e95226dc10b",
 		},
 		{
 			"different permission",
@@ -692,7 +692,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"62aaa50b2821130d",
+			"4470347cbcd50f28",
 		},
 		{
 			"different subject type",
@@ -709,7 +709,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"82a445d3ffc0823a",
+			"4c8a61948de1f861",
 		},
 		{
 			"different subject id",
@@ -726,7 +726,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"d3d624a310fa7781",
+			"15390b3ad12e998a",
 		},
 		{
 			"different subject relation",
@@ -744,7 +744,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					OptionalRelation: "foo",
 				},
 			},
-			"a9d96f0572caef89",
+			"beeba065b897035f",
 		},
 		{
 			"with context",
@@ -769,7 +769,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"94dea3fccff039ed",
+			"a2379564a6a20756",
 		},
 		{
 			"with different context",
@@ -794,7 +794,7 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"7ffdedbe12d578ee",
+			"779beae0e00a7427",
 		},
 	}
 

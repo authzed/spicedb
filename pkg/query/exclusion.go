@@ -1,9 +1,28 @@
 package query
 
 import (
+	"fmt"
+	"io"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: ExclusionIteratorType,
+		Name: "Exclusion",
+		ConstructWithArgs: func(_ *IteratorArgs, subs []Iterator, key CanonicalKey) (Iterator, error) {
+			if len(subs) != 2 {
+				return nil, fmt.Errorf("ExclusionIterator requires exactly 2 subiterators, got %d", len(subs))
+			}
+			exclusion := NewExclusionIterator(subs[0], subs[1])
+			exclusion.canonicalKey = key
+			return exclusion, nil
+		},
+		Deserialize: deserializeExclusion,
+	})
+}
 
 // ExclusionIterator represents the set of relations that are in the mainSet but not in the excluded set.
 // This is equivalent to `permission foo = bar - baz`
@@ -394,4 +413,33 @@ func (e *ExclusionIterator) SubjectTypes() ([]ObjectType, error) {
 	// Exclusion's subjects come from the main set only
 	// (excluded set is subtracted, doesn't add new types)
 	return e.mainSet.SubjectTypes()
+}
+
+func (e *ExclusionIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, ExclusionIteratorType, e.canonicalKey, func(buf io.Writer) error {
+		if err := writeUvarint(buf, 0); err != nil {
+			return err
+		}
+		if err := e.mainSet.Serialize(buf); err != nil {
+			return fmt.Errorf("mainSet: %w", err)
+		}
+		if err := e.excluded.Serialize(buf); err != nil {
+			return fmt.Errorf("excluded: %w", err)
+		}
+		return nil
+	})
+}
+
+func deserializeExclusion(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	if _, err := readUvarint(br); err != nil {
+		return nil, fmt.Errorf("exclusion flags: %w", err)
+	}
+	subs, err := readNSubs(br, 2, dctx)
+	if err != nil {
+		return nil, err
+	}
+	ex := NewExclusionIterator(subs[0], subs[1])
+	ex.canonicalKey = key
+	return ex, nil
 }

@@ -132,6 +132,7 @@ func TestSimpleCheck(t *testing.T) {
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,
+							SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 						},
 					})
 
@@ -156,7 +157,7 @@ func TestMaxDepth(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
 	mutation := tuple.Create(tuple.MustParse("folder:oops#parent@folder:oops"))
 
@@ -180,6 +181,7 @@ func TestMaxDepth(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	})
 
@@ -272,6 +274,7 @@ func TestCheckMetadata(t *testing.T) {
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,
+							SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 						},
 					})
 
@@ -1420,7 +1423,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
 			ctx := datalayer.ContextWithHandle(t.Context())
 			require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
@@ -1432,6 +1435,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				ResultsSetting: v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 			})
@@ -1557,6 +1561,7 @@ func TestCheckDebugging(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				Debug: v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING,
 			})
@@ -1922,7 +1927,7 @@ func TestCheckWithHints(t *testing.T) {
 			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
 			ctx := datalayer.ContextWithHandle(t.Context())
 			require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
@@ -1935,6 +1940,7 @@ func TestCheckWithHints(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				CheckHints: tc.hints,
 			})
@@ -1963,7 +1969,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, `
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, `
 		definition user {}
 
 		definition document {
@@ -1973,7 +1979,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 
 	`, []tuple.Relationship{
 		tuple.MustParse("document:somedoc#viewer@user:tom"),
-	}, require)
+	})
 
 	ctx := datalayer.ContextWithHandle(t.Context())
 	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
@@ -1986,6 +1992,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		CheckHints: []*v1.CheckHint{
 			hints.CheckHintForComputedUserset("document", "anotherdoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -2012,7 +2019,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, `
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, `
 		definition user {}
 
 		definition organization {
@@ -2027,7 +2034,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	`, []tuple.Relationship{
 		tuple.MustParse("document:somedoc#org@organization:someorg"),
 		tuple.MustParse("organization:someorg#member@user:tom"),
-	}, require)
+	})
 
 	ctx := datalayer.ContextWithHandle(t.Context())
 	require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
@@ -2040,6 +2047,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		CheckHints: []*v1.CheckHint{
 			hints.CheckHintForArrow("document", "anotherdoc", "org", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -2058,7 +2066,7 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(t, err)
@@ -2083,7 +2091,7 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, rels, require.New(t))
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, schema, rels)
 
 	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(t, err)

@@ -57,7 +57,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	go func() {
-		_ = watcher1.Start(ctx1)
+		watcher1.Start(ctx1)
 	}()
 	cancel1()
 
@@ -67,7 +67,7 @@ func TestCertWatcherSequentialMetricRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	go func() {
-		_ = watcher2.Start(ctx2)
+		watcher2.Start(ctx2)
 	}()
 	cancel2()
 }
@@ -91,8 +91,10 @@ func setupWatcher(t *testing.T, ip string) (certPath, keyPath string, watcher *C
 
 	startWatcher = func(interval time.Duration) {
 		go func() {
-			_ = watcher.WithWatchInterval(interval).Start(t.Context())
+			watcher.WithWatchInterval(interval).Start(t.Context())
 		}()
+		err := <-watcher.Started()
+		assert.NoError(t, err)
 		assert.NoError(t, watcher.ReadCertificate())
 	}
 

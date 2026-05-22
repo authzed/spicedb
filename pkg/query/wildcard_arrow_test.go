@@ -53,7 +53,7 @@ func TestArrowIterator_WildcardInversion_Check(t *testing.T) {
 	arrow := NewArrowIterator(left, right)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 		WithTraceLogger(NewTraceLogger()),
 	)
 
@@ -88,7 +88,7 @@ func TestArrowIterator_WildcardInversion_Check_NoConcreteMatch(t *testing.T) {
 	arrow := NewArrowIterator(left, right)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
 	// bob has no viewer relationship on any folder.
@@ -150,7 +150,7 @@ func TestIntersectionArrowIterator_WildcardInversion_Check(t *testing.T) {
 	iarrow := NewIntersectionArrowIterator(left, right)
 
 	ctx := NewLocalContext(t.Context(),
-		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev)),
+		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
 	path, err := ctx.Check(iarrow, NewObject("document", "doc1"), NewObject("user", "alice").WithEllipses())

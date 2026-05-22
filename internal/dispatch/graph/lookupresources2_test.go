@@ -111,6 +111,7 @@ func TestSimpleLookupResources2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -137,6 +138,7 @@ func TestSimpleLookupResources2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: veryLargeLimit,
 			}, stream)
@@ -191,6 +193,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalLimit: 1,
 			}, stream)
@@ -214,6 +217,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 				OptionalCursor: cursor,
 				OptionalLimit:  2,
@@ -249,6 +253,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		OptionalLimit: 2,
 	}, stream)
@@ -269,6 +274,7 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 		OptionalLimit: 2,
 	}, stream)
@@ -305,7 +311,7 @@ func TestMaxDepthLookup2(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
@@ -323,6 +329,7 @@ func TestMaxDepthLookup2(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -749,7 +756,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 					ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 					require.NoError(err)
 
-					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
 					ctx := datalayer.ContextWithHandle(t.Context())
 					require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
@@ -777,6 +784,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 							Metadata: &v1.ResolverMeta{
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
+								SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 							},
 							OptionalLimit:  uintPageSize,
 							OptionalCursor: currentCursor,
@@ -823,7 +831,7 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
@@ -844,6 +852,7 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -857,7 +866,7 @@ func TestLookupResources2WithError(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
 	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(err)
@@ -878,6 +887,7 @@ func TestLookupResources2WithError(t *testing.T) {
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}, stream)
 
@@ -1331,7 +1341,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, tc.relationships, require)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, tc.relationships)
 
 			checkingDS := disallowedWrapper{ds, tc.disallowedQueries}
 
@@ -1354,6 +1364,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			}, stream)
 			if tc.expectedError != "" {

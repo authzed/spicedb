@@ -1,8 +1,12 @@
 package keys
 
 import (
-	"sort"
+	"fmt"
+	"slices"
 	"strconv"
+
+	"github.com/cespare/xxhash/v2"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -39,7 +43,7 @@ func (hid hashableIds) AppendToHash(hasher hasherInterface) {
 	// with others accessing the slice.
 	c := make([]string, len(hid))
 	copy(c, hid)
-	sort.Strings(c)
+	slices.Sort(c)
 
 	for _, id := range c {
 		hasher.WriteString(id)
@@ -95,8 +99,70 @@ func (hc hashableCursorSections) AppendToHash(hasher hasherInterface) {
 	}
 }
 
-type hashableContext struct{ caveats.HashableContext }
+type hashableContextString string
+
+func (hc hashableContextString) AppendToHash(hasher hasherInterface) {
+	hasher.WriteString(string(hc))
+}
+
+type hashableContext struct {
+	*structpb.Struct
+}
 
 func (hc hashableContext) AppendToHash(hasher hasherInterface) {
-	hc.HashableContext.AppendToHash(hasher)
+	if hc.Struct == nil {
+		return
+	}
+	stable, err := caveats.StableContextStringForHashing(hc.Struct)
+	if err != nil {
+		return
+	}
+	hasher.WriteString(stable)
+}
+
+// dispatchCacheKeyHash computes a DispatchCheckKey for the given prefix and any hashable values.
+func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, args ...hashableValue) DispatchCacheKey {
+	hasher := newDispatchCacheKeyHasher(prefix)
+
+	for _, arg := range args {
+		arg.AppendToHash(hasher)
+		hasher.WriteString("@")
+	}
+
+	hasher.WriteString(atRevision)
+	return hasher.BuildKey()
+}
+
+type dispatchCacheKeyHasher struct {
+	stableHasher *xxhash.Digest
+}
+
+func newDispatchCacheKeyHasher(prefix cachePrefix) *dispatchCacheKeyHasher {
+	h := &dispatchCacheKeyHasher{
+		stableHasher: xxhash.New(),
+	}
+
+	prefixString := string(prefix)
+	h.WriteString(prefixString)
+	h.WriteString("/")
+	return h
+}
+
+// WriteString writes a single string to the hasher.
+func (h *dispatchCacheKeyHasher) WriteString(value string) {
+	h.mustWriteString(value)
+}
+
+func (h *dispatchCacheKeyHasher) mustWriteString(value string) {
+	// NOTE: xxhash doesn't seem to ever return an error for WriteString, but we check it just
+	// to be on the safe side.
+	_, err := h.stableHasher.WriteString(value)
+	if err != nil {
+		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))
+	}
+}
+
+// BuildKey returns the constructed DispatchCheckKey.
+func (h *dispatchCacheKeyHasher) BuildKey() DispatchCacheKey {
+	return DispatchCacheKey(h.stableHasher.Sum64())
 }

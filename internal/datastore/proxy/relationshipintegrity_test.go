@@ -92,10 +92,10 @@ func TestReadWithMissingIntegrity(t *testing.T) {
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
 	require.NoError(t, err)
 
-	headRev, err := pds.HeadRevision(t.Context())
+	headRevResult, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := pds.SnapshotReader(headRev)
+	reader := pds.SnapshotReader(headRevResult.Revision)
 	iter, err := reader.QueryRelationships(
 		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
@@ -141,10 +141,10 @@ func TestBasicIntegrityFailureDueToInvalidHashVersion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read them back and ensure the read fails.
-	headRev, err := pds.HeadRevision(t.Context())
+	headRevResult, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := pds.SnapshotReader(headRev)
+	reader := pds.SnapshotReader(headRevResult.Revision)
 	iter, err := reader.QueryRelationships(
 		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
@@ -190,10 +190,10 @@ func TestBasicIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read them back and ensure the read fails.
-	headRev, err := pds.HeadRevision(t.Context())
+	headRevResult, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := pds.SnapshotReader(headRev)
+	reader := pds.SnapshotReader(headRevResult.Revision)
 	iter, err := reader.QueryRelationships(
 		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
@@ -229,10 +229,10 @@ func TestBasicIntegrityFailureDueToWriteWithExpiredKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read them back and ensure the read fails.
-	headRev, err := pds.HeadRevision(t.Context())
+	headRevResult, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := pds.SnapshotReader(headRev)
+	reader := pds.SnapshotReader(headRevResult.Revision)
 	iter, err := reader.QueryRelationships(
 		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
@@ -248,13 +248,13 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
-	headRev, err := ds.HeadRevision(t.Context())
+	headRevResult, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
 	require.NoError(t, err)
 
-	watchEvents, errChan := pds.Watch(t.Context(), headRev, datastore.WatchJustRelationships())
+	watchEvents, errChan := pds.Watch(t.Context(), headRevResult.Revision, datastore.WatchJustRelationships())
 
 	// Insert an invalid integrity hash for one of the relationships to be invalid by bypassing
 	// the proxy.
@@ -396,8 +396,9 @@ func TestRelationshipIntegrityProxyPassThroughs(t *testing.T) {
 	headRev, err := pds.HeadRevision(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, headRev)
+	require.NotEmpty(t, headRev.Revision)
 
-	require.NoError(t, pds.CheckRevision(ctx, headRev))
+	require.NoError(t, pds.CheckRevision(ctx, headRev.Revision))
 
 	optRev, err := pds.OptimizedRevision(ctx)
 	require.NoError(t, err)
@@ -407,9 +408,9 @@ func TestRelationshipIntegrityProxyPassThroughs(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, readyState.IsReady)
 
-	roundTripped, err := pds.RevisionFromString(headRev.String())
+	roundTripped, err := pds.RevisionFromString(headRev.Revision.String())
 	require.NoError(t, err)
-	require.True(t, roundTripped.Equal(headRev))
+	require.Equal(t, roundTripped, headRev.Revision)
 
 	_, err = pds.Statistics(ctx)
 	require.NoError(t, err)
@@ -431,7 +432,7 @@ func TestRelationshipIntegrityReaderPassThroughs(t *testing.T) {
 	headRev, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := pds.SnapshotReader(headRev)
+	reader := pds.SnapshotReader(headRev.Revision)
 
 	// Each of these simply delegates to the wrapped reader; memdb returns
 	// empty/zero results at head on a fresh database.
@@ -497,7 +498,7 @@ func TestRelationshipIntegrityReverseQueryValidatesHash(t *testing.T) {
 	headRev, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := pds.SnapshotReader(headRev)
+	reader := pds.SnapshotReader(headRev.Revision)
 	iter, err := reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{
 		SubjectType: "user",
 	})
@@ -548,7 +549,7 @@ func TestRelationshipIntegrityBulkLoad(t *testing.T) {
 	headRev, err := pds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	iter, err := pds.SnapshotReader(headRev).QueryRelationships(
+	iter, err := pds.SnapshotReader(headRev.Revision).QueryRelationships(
 		t.Context(),
 		datastore.RelationshipsFilter{OptionalResourceType: "resource"},
 	)
@@ -603,8 +604,9 @@ func BenchmarkQueryRelsWithIntegrity(b *testing.B) {
 			})
 			require.NoError(b, err)
 
-			headRev, err := pds.HeadRevision(b.Context())
+			headRevResult, err := pds.HeadRevision(b.Context())
 			require.NoError(b, err)
+			headRev := headRevResult.Revision
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

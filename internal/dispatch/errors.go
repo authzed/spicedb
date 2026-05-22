@@ -3,6 +3,7 @@ package dispatch
 import (
 	"errors"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -26,6 +27,28 @@ func NewMaxDepthExceededError(req DispatchableRequest) error {
 		errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency. See " + sharederrors.MaxDepthErrorLink),
 		req,
 	}
+}
+
+// IsMaxDepthExceeded returns true if err represents a max-depth-exceeded condition,
+// whether it is an in-process MaxDepthExceededError or a gRPC status error that crossed
+// a network boundary (identified by ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED in ErrorInfo).
+func IsMaxDepthExceeded(err error) bool {
+	var maxDepthErr MaxDepthExceededError
+	if errors.As(err, &maxDepthErr) {
+		return true
+	}
+	s, ok := status.FromError(err)
+	if !ok || s.Code() != codes.FailedPrecondition {
+		return false
+	}
+	for _, detail := range s.Details() {
+		if errInfo, ok := detail.(*errdetails.ErrorInfo); ok {
+			if errInfo.Reason == v1.ErrorReason_ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED.String() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.

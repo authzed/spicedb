@@ -3,11 +3,11 @@ package v1
 import (
 	"cmp"
 	"context"
-	"sync"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	caveatsimpl "github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -17,71 +17,16 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// QueryPlanMetadata aggregates CountStats for iterator canonical keys across multiple queries.
-// This allows tracking which parts of query plans are used most frequently.
-type QueryPlanMetadata struct {
-	mu    sync.Mutex
-	stats map[query.CanonicalKey]query.CountStats // GUARDED_BY(mu)
-}
-
-// NewQueryPlanMetadata creates a new QueryPlanMetadata tracker.
-func NewQueryPlanMetadata() *QueryPlanMetadata {
-	return &QueryPlanMetadata{
-		stats: make(map[query.CanonicalKey]query.CountStats),
-	}
-}
-
-// MergeCountStats merges CountStats from a query execution into the aggregated metadata.
-func (m *QueryPlanMetadata) MergeCountStats(counts map[query.CanonicalKey]query.CountStats) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for key, newStats := range counts {
-		existing := m.stats[key]
-		existing.CheckCalls += newStats.CheckCalls
-		existing.IterSubjectsCalls += newStats.IterSubjectsCalls
-		existing.IterResourcesCalls += newStats.IterResourcesCalls
-		existing.CheckResults += newStats.CheckResults
-		existing.IterSubjectsResults += newStats.IterSubjectsResults
-		existing.IterResourcesResults += newStats.IterResourcesResults
-		m.stats[key] = existing
-	}
-}
-
-// GetStats returns a copy of all aggregated stats.
-func (m *QueryPlanMetadata) GetStats() map[query.CanonicalKey]query.CountStats {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	result := make(map[query.CanonicalKey]query.CountStats, len(m.stats))
-	for k, v := range m.stats {
-		result[k] = v
-	}
-	return result
-}
-
-// ApplyAdvisor applies a CountAdvisor to the outline if accumulated stats are
-// available. If no stats have been collected yet, the outline is returned
-// unmodified.
-func (m *QueryPlanMetadata) ApplyAdvisor(co query.CanonicalOutline) (query.CanonicalOutline, error) {
-	stats := m.GetStats()
-	if len(stats) == 0 {
-		return co, nil
-	}
-	advisor := query.NewCountAdvisor(stats)
-	return query.ApplyAdvisor(co, advisor)
-}
-
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
 func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
-	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load all namespace and caveat definitions to build the schema
 	// TODO: Better schema caching
@@ -116,10 +61,12 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+	queryParams := queryopt.RequestParams{
+		Operation:       query.OperationCheck,
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: req.Subject.OptionalRelation,
-	})
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -144,11 +91,15 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	// Create count observer to track query execution statistics
 	countObserver := query.NewCountObserver()
 
-	// Create query context with count observer
-	qctx := query.NewLocalContext(ctx,
-		query.WithReader(query.NewQueryDatastoreReader(reader)),
-		query.WithCaveatContext(caveatContext),
-		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+	// Create query context backed by a DispatchExecutor.
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	qctx := dispatch.NewQueryContext(
+		ctx,
+		ps.dispatch,
+		planContext,
+		query.NewQueryDatastoreReader(reader),
+		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 
@@ -207,13 +158,13 @@ func convertPathToPermissionship(path *query.Path) (v1.CheckPermissionResponse_P
 func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load schema
 	sr, err := reader.ReadSchema(ctx)
@@ -245,10 +196,12 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+	queryParams := queryopt.RequestParams{
+		Operation:       query.OperationIterResources,
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: normalizeSubjectRelation(req.Subject),
-	})
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -272,10 +225,14 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 
 	countObserver := query.NewCountObserver()
 
-	qctx := query.NewLocalContext(ctx,
-		query.WithReader(query.NewQueryDatastoreReader(reader)),
-		query.WithCaveatContext(caveatContext),
-		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	qctx := dispatch.NewQueryContext(
+		ctx,
+		ps.dispatch,
+		planContext,
+		query.NewQueryDatastoreReader(reader),
+		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 
@@ -329,13 +286,13 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
 	ctx := resp.Context()
 
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
 	dl := datalayer.MustFromContext(ctx)
-	reader := dl.SnapshotReader(atRevision)
+	reader := dl.SnapshotReader(atRevision, schemaHash)
 
 	// Load schema
 	sr, err := reader.ReadSchema(ctx)
@@ -367,10 +324,12 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{
+	queryParams := queryopt.RequestParams{
+		Operation:       query.OperationIterSubjects,
 		SubjectType:     req.SubjectObjectType,
 		SubjectRelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
-	})
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -394,10 +353,14 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 
 	countObserver := query.NewCountObserver()
 
-	qctx := query.NewLocalContext(ctx,
-		query.WithReader(query.NewQueryDatastoreReader(reader)),
-		query.WithCaveatContext(caveatContext),
-		query.WithCaveatRunner(caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)),
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	qctx := dispatch.NewQueryContext(
+		ctx,
+		ps.dispatch,
+		planContext,
+		query.NewQueryDatastoreReader(reader),
+		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
+		ps.config.DispatchChunkSize,
 		query.WithObserver(countObserver),
 	)
 

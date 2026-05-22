@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -282,6 +283,10 @@ func (f *FaultyIterator) ResourceType() ([]ObjectType, error) {
 
 func (f *FaultyIterator) SubjectTypes() ([]ObjectType, error) {
 	return f.subjectTypes, nil
+}
+
+func (f *FaultyIterator) Serialize(io.Writer) error {
+	return errors.New("FaultyIterator does not support Serialize (test-only)")
 }
 
 // NewFaultyIterator creates a new FaultyIterator for testing error conditions

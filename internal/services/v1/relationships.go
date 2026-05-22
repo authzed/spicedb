@@ -39,6 +39,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -120,6 +121,13 @@ type PermissionsServerConfig struct {
 
 	// ExperimentalQueryPlan configures which API operations use the experimental query plan.
 	ExperimentalQueryPlan ExperimentalQueryPlanConfig
+
+	// QueryPlanMetadata is the shared per-server stats store that drives the
+	// count-based plan advisor. When nil, NewPermissionsServer allocates a fresh
+	// instance. To share stats with a co-located dispatcher (so receiver-side
+	// dispatch can consult and update the same store), construct one externally
+	// and pass it both here and via graph.DispatcherParameters.
+	QueryPlanMetadata *query.QueryPlanMetadata
 }
 
 // ExperimentalQueryPlanConfig controls which API operations are routed through the
@@ -158,6 +166,10 @@ func NewPermissionsServer(
 		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
+		QueryPlanMetadata:                  config.QueryPlanMetadata,
+	}
+	if configWithDefaults.QueryPlanMetadata == nil {
+		configWithDefaults.QueryPlanMetadata = query.NewQueryPlanMetadata()
 	}
 	return &permissionServer{
 		dispatch: dispatch,
@@ -185,7 +197,7 @@ func NewPermissionsServer(
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
-		queryPlanMetadata: NewQueryPlanMetadata(),
+		queryPlanMetadata: configWithDefaults.QueryPlanMetadata,
 	}
 }
 
@@ -197,7 +209,7 @@ type permissionServer struct {
 	config   PermissionsServerConfig
 
 	bulkChecker       *bulkChecker
-	queryPlanMetadata *QueryPlanMetadata
+	queryPlanMetadata *query.QueryPlanMetadata
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
@@ -210,12 +222,12 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	ctx := resp.Context()
-	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision)
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(atRevision, schemaHash)
 	sr, err := dl.ReadSchema(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
@@ -317,7 +329,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 
 		dispatchCursor.Sections[0] = tuple.StringWithoutCaveatOrExpiration(rel)
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision, nil)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision, schemaHash, nil)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -454,7 +466,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		writeUpdateCounter.WithLabelValues(v1.RelationshipUpdate_Operation_name[int32(kind)]).Observe(float64(count))
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -589,7 +601,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

@@ -37,7 +37,7 @@ func TestPreconditions(t *testing.T) {
 	uninitialized, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)
+	ds, _ := testfixtures.StandardDatastoreWithData(t, uninitialized)
 
 	ctx := t.Context()
 	dl := datalayer.NewDataLayer(ds)

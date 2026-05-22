@@ -210,7 +210,7 @@ var allScenarios = []benchmarkScenario{
 				Relation:   "viewer",
 			}, tuple.ObjectAndRelation{
 				ObjectType: "user",
-				ObjectID:   "user181",
+				ObjectID:   "user214",
 				Relation:   tuple.Ellipsis,
 			}, revision, nil)
 			require.Equal(b, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result)
@@ -340,7 +340,7 @@ func BenchmarkServices(b *testing.B) {
 
 						rev, err := ds.HeadRevision(b.Context())
 						require.NoError(b, err)
-						revision = rev
+						revision = rev.Revision
 					}
 
 					// Set up dispatch server (default path).

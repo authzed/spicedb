@@ -41,7 +41,7 @@ func TestHealthCheck(t *testing.T) {
 				dsconfig.WithReadConnPool(*connPoolConfig),
 				dsconfig.WithWriteConnPool(*connPoolConfig),
 				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
-			ds, _ = tf.StandardDatastoreWithData(ds, require)
+			ds, _ = tf.StandardDatastoreWithData(t, ds)
 
 			dispatchConns, cleanup := testserver.TestClusterWithDispatch(t, 2, ds)
 			t.Cleanup(cleanup)
@@ -52,7 +52,7 @@ func TestHealthCheck(t *testing.T) {
 
 	require := require.New(t)
 	// Check server without dispatching
-	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 	runHealthChecks(require, conn)
 }

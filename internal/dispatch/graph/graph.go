@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -24,6 +26,10 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt"
+	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -88,6 +94,13 @@ type DispatcherParameters struct {
 	DispatchChunkSize      uint16
 	TypeSet                *caveattypes.TypeSet
 	RelationshipChunkCache cache.Cache[cache.StringKey, any]
+
+	// QueryPlanMetadata is the shared count-stats store consulted and updated
+	// by the receiver-side DispatchQueryPlan handler (advisor at compile,
+	// observer-driven merge after execution). When nil, the dispatcher
+	// allocates a fresh per-instance store; to share stats with the calling
+	// permissions service, pass the same instance to both.
+	QueryPlanMetadata *query.QueryPlanMetadata
 }
 
 func (dp *DispatcherParameters) validate() error {
@@ -146,7 +159,10 @@ func NewLocalOnlyDispatcher(parameters DispatcherParameters) (dispatch.Dispatche
 		return nil, err
 	}
 
-	d := &localDispatcher{}
+	d := &localDispatcher{
+		dispatchChunkSize: parameters.DispatchChunkSize,
+		queryPlanMetadata: queryPlanMetadataOrNew(parameters.QueryPlanMetadata),
+	}
 
 	typeSet := parameters.TypeSet
 	concurrencyLimits := limitsOrDefaults(parameters.ConcurrencyLimits, defaultConcurrencyLimit)
@@ -192,7 +208,16 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, parameters DispatcherParame
 		lookupSubjectsHandler:   lookupSubjectsHandler,
 		lookupResourcesHandler2: lookupResourcesHandler2,
 		lookupResourcesHandler3: lr3,
+		dispatchChunkSize:       chunkSize,
+		queryPlanMetadata:       queryPlanMetadataOrNew(parameters.QueryPlanMetadata),
 	}, nil
+}
+
+func queryPlanMetadataOrNew(m *query.QueryPlanMetadata) *query.QueryPlanMetadata {
+	if m != nil {
+		return m
+	}
+	return query.NewQueryPlanMetadata()
 }
 
 type localDispatcher struct {
@@ -201,10 +226,12 @@ type localDispatcher struct {
 	lookupSubjectsHandler   *graph.ConcurrentLookupSubjects
 	lookupResourcesHandler2 *graph.CursoredLookupResources2
 	lookupResourcesHandler3 *graph.CursoredLookupResources3
+	dispatchChunkSize       uint16
+	queryPlanMetadata       *query.QueryPlanMetadata
 }
 
-func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, error) {
-	reader := datalayer.MustFromContext(ctx).SnapshotReader(revision)
+func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision, schemaHash datalayer.SchemaHash) (*core.NamespaceDefinition, error) {
+	reader := datalayer.MustFromContext(ctx).SnapshotReader(revision, schemaHash)
 
 	// Load namespace and relation from the datastore
 	schemaReader, err := reader.ReadSchema(ctx)
@@ -286,7 +313,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ResourceRelation.Namespace, revision)
+	ns, err := ld.loadNamespace(ctx, req.ResourceRelation.Namespace, revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
@@ -352,7 +379,7 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ResourceAndRelation.Namespace, revision)
+	ns, err := ld.loadNamespace(ctx, req.ResourceAndRelation.Namespace, revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
@@ -469,6 +496,262 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 		},
 		dispatch.StreamWithContext(ctx, stream),
 	)
+}
+
+// DispatchQueryPlan implements dispatch.Plan interface.
+// It loads the schema, compiles the plan, finds the subtree by canonical key,
+// and executes it locally. The Impl method is called directly on the found
+// iterator to avoid re-triggering the executor's dispatch decision on the
+// same alias boundary that was already dispatched by the caller.
+func (ld *localDispatcher) DispatchQueryPlan(
+	req *v1.DispatchQueryPlanRequest,
+	stream dispatch.PlanStream,
+) error {
+	ctx := stream.Context()
+
+	planCtx := req.PlanContext
+	if planCtx == nil {
+		return errors.New("DispatchQueryPlan: missing plan_context")
+	}
+
+	revision, err := ld.parseRevision(ctx, planCtx.Revision)
+	if err != nil {
+		return err
+	}
+
+	schemaHash := datalayer.SchemaHash(planCtx.GetSchemaHash())
+
+	// Load schema at the requested revision and rebuild the iterator subtree
+	// for the (definition, relation) pair encoded in CanonicalKey.
+	// TODO: use cached compiled plans instead of recompiling each time.
+	it, err := ld.compileIteratorForDispatchKey(ctx, revision, schemaHash, req)
+	if err != nil {
+		return err
+	}
+
+	// Use DispatchExecutor so nested alias boundaries in the subtree re-dispatch
+	// through the full dispatch chain.
+	dl := datalayer.MustFromContext(ctx)
+	executor := dispatch.NewDispatchExecutor(ld, planCtx, ld.dispatchChunkSize)
+
+	// Attach a CountObserver so the receiver augments the shared metadata with
+	// stats from the iterator subtree it executes. After the operation
+	// completes, results merge back so the next sender or receiver advisor
+	// pass picks up data-driven hints (e.g. arrow direction reversal) for
+	// nodes only this hop has visibility into.
+	countObserver := query.NewCountObserver()
+	qctx := query.NewQueryContext(ctx, executor,
+		query.WithReader(query.NewQueryDatastoreReader(dl.SnapshotReader(revision, schemaHash))),
+		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
+		query.WithCaveatContext(dispatch.CaveatContextFromPlanContext(planCtx)),
+		query.WithBatchedArrows(true),
+		query.WithObserver(countObserver),
+	)
+	defer func() {
+		ld.queryPlanMetadata.MergeCountStats(countObserver.GetStats())
+	}()
+
+	resource := query.Object{ObjectType: req.Resource.Namespace, ObjectID: req.Resource.ObjectId}
+	subject := query.ObjectAndRelation{
+		ObjectType: req.Subject.Namespace,
+		ObjectID:   req.Subject.ObjectId,
+		Relation:   req.Subject.Relation,
+	}
+
+	// Call Impl directly — the dispatch boundary has already been crossed.
+	// Pre-seal qctx's topLevelOnce with the user-facing operation that started
+	// the dispatch chain (carried on PlanContext) so the first inner ctx.IterX
+	// call inside the body is NOT treated as the API-boundary top-level — that
+	// wrap strips wildcards, and on a receiver we must propagate them back to
+	// the sender.
+	topLevelOp, err := planOperationToQueryOperation(req.PlanContext.GetTopLevelOperation())
+	if err != nil {
+		return err
+	}
+	qctx.MarkAsOperation(it, topLevelOp)
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		path, err := it.CheckImpl(qctx, resource, subject)
+		if err != nil {
+			return err
+		}
+		if path != nil {
+			return stream.Publish(&v1.DispatchQueryPlanResponse{
+				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+			})
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		// TODO: implement caching for LookupResources results
+		pathSeq, err := it.IterResourcesImpl(qctx, subject, query.NoObjectFilter())
+		if err != nil {
+			return err
+		}
+		for path, err := range pathSeq {
+			if err != nil {
+				return err
+			}
+			if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		// TODO: implement caching for LookupSubjects results
+		pathSeq, err := it.IterSubjectsImpl(qctx, resource, query.NoObjectFilter())
+		if err != nil {
+			return err
+		}
+		for path, err := range pathSeq {
+			if err != nil {
+				return err
+			}
+			if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES:
+		// Iterate CheckImpl directly: dispatch boundary already crossed for this
+		// alias. qctx still uses DispatchExecutor, so nested aliases re-dispatch.
+		for _, res := range req.Many {
+			resource := query.Object{ObjectType: res.Namespace, ObjectID: res.ObjectId}
+			path, err := it.CheckImpl(qctx, resource, subject)
+			if err != nil {
+				return err
+			}
+			if path != nil {
+				if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+					Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+				}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+
+	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
+		for _, sub := range req.Many {
+			subject := query.ObjectAndRelation{
+				ObjectType: sub.Namespace,
+				ObjectID:   sub.ObjectId,
+				Relation:   sub.Relation,
+			}
+			path, err := it.CheckImpl(qctx, resource, subject)
+			if err != nil {
+				return err
+			}
+			if path != nil {
+				if err := stream.Publish(&v1.DispatchQueryPlanResponse{
+					Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
+				}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("DispatchQueryPlan: unknown operation %v", req.Operation)
+	}
+}
+
+// compileIteratorForDispatchKey loads the schema at the given revision, parses
+// the dispatch key (currently encoded as "definition#relation"), builds the
+// outline standalone for that pair, applies the same optimizers the sender
+// would have used, and compiles to an iterator. The returned iterator's outer
+// node is the *AliasIterator for the requested (definition, relation); callers
+// invoke its Impl method directly so the alias's rewrite + self-edge logic
+// runs without re-triggering the executor's dispatch decision at this level.
+func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, req *v1.DispatchQueryPlanRequest) (query.Iterator, error) {
+	defName, relName, ok := strings.Cut(req.CanonicalKey, "#")
+	if !ok || defName == "" || relName == "" {
+		return nil, fmt.Errorf("DispatchQueryPlan: invalid dispatch key %q (expected \"definition#relation\")", req.CanonicalKey)
+	}
+
+	dl := datalayer.MustFromContext(ctx)
+	reader := dl.SnapshotReader(revision, schemaHash)
+
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to read schema: %w", err)
+	}
+
+	nsDefs, err := sr.ListAllTypeDefinitions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to list type definitions: %w", err)
+	}
+
+	caveatDefs, err := sr.ListAllCaveatDefinitions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to list caveat definitions: %w", err)
+	}
+
+	fullSchema, err := schema.BuildSchemaFromDefinitions(
+		datastore.DefinitionsOf(nsDefs),
+		datastore.DefinitionsOf(caveatDefs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to build schema: %w", err)
+	}
+
+	co, err := query.BuildOutlineFromSchema(fullSchema, defName, relName)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to build outline for %s#%s: %w", defName, relName, err)
+	}
+
+	operation, err := planOperationToQueryOperation(req.Operation)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: %w", err)
+	}
+
+	params := queryopt.RequestParams{
+		Operation:       operation,
+		SubjectType:     req.Subject.GetNamespace(),
+		SubjectRelation: req.Subject.GetRelation(),
+	}
+	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(params), params)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to optimize outline for %s#%s: %w", defName, relName, err)
+	}
+
+	// Apply the count-based advisor using the shared QueryPlanMetadata so the
+	// receiver-side compile benefits from stats accumulated by prior runs on
+	// either side of the dispatch boundary.
+	optimized, err = ld.queryPlanMetadata.ApplyAdvisor(optimized)
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to apply advisor for %s#%s: %w", defName, relName, err)
+	}
+
+	it, err := optimized.Compile()
+	if err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to compile outline for %s#%s: %w", defName, relName, err)
+	}
+	return it, nil
+}
+
+// planOperationToQueryOperation maps the proto PlanOperation enum to the
+// corresponding query.Operation used by the optimizer-selection logic.
+func planOperationToQueryOperation(op v1.PlanOperation) (query.Operation, error) {
+	switch op {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK,
+		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES,
+		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
+		return query.OperationCheck, nil
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		return query.OperationIterResources, nil
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		return query.OperationIterSubjects, nil
+	default:
+		return query.OperationUnset, spiceerrors.MustBugf("unhandled plan operation type")
+	}
 }
 
 func (ld *localDispatcher) Close() error {

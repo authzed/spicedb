@@ -33,7 +33,7 @@ func BenchmarkCheck(b *testing.B) {
 			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(b, err)
 			b.Cleanup(func() {
-				require.NoError(b, rawDS.Close())
+				_ = rawDS.Close()
 			})
 
 			queries, err := benchmark.Setup(ctx, rawDS)
@@ -45,7 +45,7 @@ func BenchmarkCheck(b *testing.B) {
 			revision, err := rawDS.HeadRevision(ctx)
 			require.NoError(b, err)
 
-			dsSchema, err := bm.ReadSchema(ctx, rawDS, revision)
+			dsSchema, err := bm.ReadSchema(ctx, rawDS, revision.Revision)
 			require.NoError(b, err)
 
 			canonicalOutline, err := query.BuildOutlineFromSchema(dsSchema, check.ResourceType, check.Permission)
@@ -54,7 +54,7 @@ func BenchmarkCheck(b *testing.B) {
 			resource := query.NewObject(check.ResourceType, check.ResourceID)
 			subject := query.NewObject(check.SubjectType, check.SubjectID).WithEllipses()
 
-			qReader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision))
+			qReader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision.Revision, datalayer.SchemaHash(revision.SchemaHash)))
 			delayReader := query.NewDelayReader(networkDelay, qReader)
 
 			var ctxOpts []query.ContextOption
@@ -126,6 +126,12 @@ func BenchmarkCheck(b *testing.B) {
 					require.NotNil(b, path)
 				}
 			})
+
+			if *includeClassic {
+				b.Run("classic", func(b *testing.B) {
+					runClassicCheck(b, ctx, rawDS, revision, check, classicDepth(queries))
+				})
+			}
 
 			if *includeDelay {
 				if *includePlain {

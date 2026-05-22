@@ -16,19 +16,19 @@ type readonlyDataLayer struct {
 	delegate DataLayer
 }
 
-func (r *readonlyDataLayer) SnapshotReader(rev datastore.Revision) RevisionedReader {
-	return r.delegate.SnapshotReader(rev)
+func (r *readonlyDataLayer) SnapshotReader(rev datastore.Revision, schemaHash SchemaHash) RevisionedReader {
+	return r.delegate.SnapshotReader(rev, schemaHash)
 }
 
 func (r *readonlyDataLayer) ReadWriteTx(_ context.Context, _ TxUserFunc, _ ...options.RWTOptionsOption) (datastore.Revision, error) {
 	return datastore.NoRevision, datastore.NewReadonlyErr()
 }
 
-func (r *readonlyDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (r *readonlyDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
 	return r.delegate.OptimizedRevision(ctx)
 }
 
-func (r *readonlyDataLayer) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (r *readonlyDataLayer) HeadRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
 	return r.delegate.HeadRevision(ctx)
 }
 

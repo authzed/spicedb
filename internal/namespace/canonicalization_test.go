@@ -526,8 +526,9 @@ func TestCanonicalization(t *testing.T) {
 
 			ctx := t.Context()
 
-			lastRevision, err := ds.HeadRevision(t.Context())
+			lastRevisionResult, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
+			lastRevision := lastRevisionResult.Revision
 
 			ts := schema.NewTypeSystem(schema.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 
@@ -661,8 +662,9 @@ func TestCanonicalizationComparison(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			lastRevision, err := ds.HeadRevision(t.Context())
+			lastRevisionResult, err := ds.HeadRevision(t.Context())
 			require.NoError(err)
+			lastRevision := lastRevisionResult.Revision
 
 			def, err := schema.NewDefinition(compiled.ObjectDefinitions[0])
 			require.NoError(err)

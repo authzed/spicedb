@@ -1,11 +1,30 @@
 package query
 
 import (
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterIterator(IteratorSpec{
+		Type: RecursiveSentinelIteratorType,
+		Name: "RecursiveSentinel",
+		ConstructWithArgs: func(args *IteratorArgs, _ []Iterator, key CanonicalKey) (Iterator, error) {
+			if args == nil || args.DefinitionName == "" || args.RelationName == "" {
+				return nil, errors.New("RecursiveSentinelIterator requires DefinitionName and RelationName in Args")
+			}
+			// withSubRelations defaults to false; the outline does not yet carry it.
+			sentinel := NewRecursiveSentinelIterator(args.DefinitionName, args.RelationName, false)
+			sentinel.canonicalKey = key
+			return sentinel, nil
+		},
+		Deserialize: deserializeRecursiveSentinel,
+	})
+}
 
 var _ Iterator = &RecursiveSentinelIterator{}
 
@@ -134,4 +153,39 @@ func (r *RecursiveSentinelIterator) SubjectTypes() ([]ObjectType, error) {
 		Type:        r.definitionName,
 		Subrelation: subrel,
 	}}, nil
+}
+
+const sentinelFlagWithSubRelations = 0
+
+func (r *RecursiveSentinelIterator) Serialize(w io.Writer) error {
+	return serializeWithHeader(w, RecursiveSentinelIteratorType, r.canonicalKey, func(buf io.Writer) error {
+		var flags uint64
+		setFlag(&flags, sentinelFlagWithSubRelations, r.withSubRelations)
+		if err := writeUvarint(buf, flags); err != nil {
+			return err
+		}
+		if err := writeString(buf, r.definitionName); err != nil {
+			return err
+		}
+		return writeString(buf, r.relationName)
+	})
+}
+
+func deserializeRecursiveSentinel(body io.Reader, key CanonicalKey, _ *DeserializeContext) (Iterator, error) {
+	br := asByteReader(body)
+	flags, err := readUvarint(br)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel flags: %w", err)
+	}
+	defName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel def: %w", err)
+	}
+	relName, err := readString(br)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel rel: %w", err)
+	}
+	s := NewRecursiveSentinelIterator(defName, relName, hasFlag(flags, sentinelFlagWithSubRelations))
+	s.canonicalKey = key
+	return s, nil
 }

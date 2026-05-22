@@ -90,6 +90,7 @@ type ClusterClient interface {
 	DispatchLookupResources2(ctx context.Context, in *v1.DispatchLookupResources2Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources2Client, error)
 	DispatchLookupResources3(ctx context.Context, in *v1.DispatchLookupResources3Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources3Client, error)
 	DispatchLookupSubjects(ctx context.Context, in *v1.DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupSubjectsClient, error)
+	DispatchQueryPlan(ctx context.Context, in *v1.DispatchQueryPlanRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchQueryPlanClient, error)
 }
 
 type ClusterDispatcherConfig struct {
@@ -849,6 +850,58 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupSubjectsResponse], error) {
 			return client.DispatchLookupSubjects(ctx, req)
 		})
+}
+
+func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	var requestKey []byte
+	var err error
+
+	// Select dispatch key based on operation type.
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK:
+		requestKey, err = cr.keyHandler.PlanCheckDispatchKey(stream.Context(), req)
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+		requestKey, err = cr.keyHandler.PlanLookupResourcesDispatchKey(stream.Context(), req)
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+		requestKey, err = cr.keyHandler.PlanLookupSubjectsDispatchKey(stream.Context(), req)
+	default:
+		return fmt.Errorf("unknown plan operation: %v", req.Operation)
+	}
+	if err != nil {
+		return err
+	}
+
+	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
+
+	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	defer cancelFn()
+
+	client, err := cr.clusterClient.DispatchQueryPlan(withTimeout, req)
+	if err != nil {
+		return err
+	}
+
+	// TODO: route through dispatchStreamingRequest once DispatchQueryPlanRequest
+	// implements streamingRequestMessage, so plan can also benefit from hedging
+	// and secondary-dispatch.
+	reqKind := "queryplan_" + dispatch.PlanOperationLabel(req.Operation)
+	firstResult := true
+	for {
+		resp, err := client.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if firstResult {
+			dispatchCounter.WithLabelValues(reqKind, primaryDispatcher).Inc()
+			firstResult = false
+		}
+		if err := stream.Publish(resp); err != nil {
+			return err
+		}
+	}
 }
 
 func (cr *clusterDispatcher) Close() error {

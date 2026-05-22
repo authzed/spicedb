@@ -13,14 +13,16 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	resp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -32,7 +34,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -46,7 +48,7 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidNamespace(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -64,7 +66,7 @@ func TestSchemaWriteInvalidNamespace(t *testing.T) {
 // NOTE: imports must be handled by precompilation;
 // a write of a schema with an import statement is an error.
 func TestSchemaWriteImportsDisallowed(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -83,7 +85,7 @@ func TestSchemaWriteImportsDisallowed(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -106,8 +108,45 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	require.NotEmpty(t, readback.ReadAt.Token)
 }
 
+func TestSchemaWriteReturnsSchemaHashInZedToken(t *testing.T) {
+	config := testserver.DefaultTestServerConfig
+	config.DataLayerOpts = []datalayer.DataLayerOption{
+		datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
+	}
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true, config, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	writeResp, err := client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+	permission view = viewer
+}`,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, writeResp.WrittenAt)
+
+	// The ZedToken returned from WriteSchema must carry the real schema hash,
+	// not a bypass sentinel (which encodes as an empty SchemaHash field).
+	writeDecoded, err := zedtoken.Decode(writeResp.WrittenAt)
+	require.NoError(t, err)
+	writeHash := writeDecoded.GetV1().GetSchemaHash()
+	require.NotEmpty(t, writeHash, "WriteSchema ZedToken should carry a real schema hash")
+	require.Len(t, writeHash, 64, "schema hash should be a hex-encoded SHA256")
+
+	// A read immediately after the write must observe the same schema hash.
+	readResp, err := client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
+	require.NoError(t, err)
+	readDecoded, err := zedtoken.Decode(readResp.ReadAt)
+	require.NoError(t, err)
+	require.Equal(t, writeHash, readDecoded.GetV1().GetSchemaHash(),
+		"schema hash in WriteSchema token should match the hash observed by ReadSchema")
+}
+
 func TestSchemaDeleteRelation(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -175,7 +214,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 }
 
 func TestSchemaDeletePermission(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -213,7 +252,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 }
 
 func TestSchemaChangeRelationToPermission(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -272,7 +311,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 }
 
 func TestSchemaDeleteDefinition(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -323,7 +362,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 }
 
 func TestSchemaRemoveWildcard(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -384,7 +423,7 @@ definition example/user {}`
 }
 
 func TestSchemaEmpty(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -436,7 +475,7 @@ func TestSchemaEmpty(t *testing.T) {
 }
 
 func TestSchemaTypeRedefined(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -457,7 +496,7 @@ func TestSchemaTypeRedefined(t *testing.T) {
 }
 
 func TestSchemaTypeInvalid(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, false, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -474,7 +513,7 @@ func TestSchemaTypeInvalid(t *testing.T) {
 }
 
 func TestSchemaRemoveCaveat(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -544,7 +583,7 @@ definition user {}`
 }
 
 func TestSchemaUnchangedNamespaces(t *testing.T) {
-	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, ds, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 
 	client := v1.NewSchemaServiceClient(conn)
@@ -571,10 +610,10 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure the `user` definition was not modified.
-	rev, err := ds.HeadRevision(t.Context())
+	revResult, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
 
-	reader := ds.SnapshotReader(rev)
+	reader := ds.SnapshotReader(revResult.Revision)
 
 	_, userRevision, err := reader.LegacyReadNamespaceByName(t.Context(), "user")
 	require.NoError(t, err)
@@ -586,7 +625,7 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 }
 
 func TestSchemaInvalid(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, false, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -608,7 +647,7 @@ func TestSchemaInvalid(t *testing.T) {
 }
 
 func TestSchemaChangeExpiration(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -682,7 +721,7 @@ func TestSchemaChangeExpiration(t *testing.T) {
 }
 
 func TestSchemaChangeExpirationAllowed(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -725,7 +764,7 @@ func TestSchemaChangeExpirationAllowed(t *testing.T) {
 }
 
 func TestSchemaDiff(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	defer cleanup()
 
@@ -817,7 +856,7 @@ func TestSchemaDiff(t *testing.T) {
 }
 
 func TestReflectSchema(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	defer cleanup()
 
@@ -1426,7 +1465,7 @@ func TestDependentRelations(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			schemaClient := v1.NewSchemaServiceClient(conn)
 			defer cleanup()
 
@@ -1624,7 +1663,7 @@ func TestComputablePermissions(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
 			schemaClient := v1.NewSchemaServiceClient(conn)
 			defer cleanup()
 

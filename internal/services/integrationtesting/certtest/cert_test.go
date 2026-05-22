@@ -119,7 +119,7 @@ func TestCertRotation(t *testing.T) {
 	// start a server with an initial set of certs
 	emptyDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 10, time.Duration(90_000_000_000_000))
 	require.NoError(t, err)
-	ds, revision := tf.StandardDatastoreWithData(emptyDS, require.New(t))
+	ds, revision := tf.StandardDatastoreWithData(t, emptyDS)
 
 	dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(t, err)
@@ -217,7 +217,7 @@ func TestCertRotation(t *testing.T) {
 	_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 			},
 		},
 		Resource:   rel.Resource,
@@ -270,7 +270,7 @@ func TestCertRotation(t *testing.T) {
 		_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{
 				Requirement: &v1.Consistency_AtLeastAsFresh{
-					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 				},
 			},
 			Resource:   rel.Resource,

@@ -601,7 +601,7 @@ definition resource {
 				relationships = append(relationships, tuple.MustParse(rel))
 			}
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.startingSchema, relationships, require)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.startingSchema, relationships)
 
 			// Update the schema and ensure it works.
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -626,6 +626,10 @@ definition resource {
 				}
 
 				require.NoError(err)
+				// SchemaHash depends on the DataLayer's schema mode; the default is
+				// legacy storage, which produces no unified hash.
+				require.Equal(datalayer.NoSchemaHashInLegacyMode, applied.SchemaHash)
+				applied.SchemaHash = ""
 				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
 				return nil
 			})
@@ -741,7 +745,7 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
-			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schemaInDB, nil, require)
+			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, schemaInDB, nil)
 
 			// Update the schema and ensure it works.
 			compiled, err := compiler.Compile(compiler.InputSchema{
@@ -774,6 +778,10 @@ func TestApplySchemaChangesOverExisting(t *testing.T) {
 				}
 
 				require.NoError(err)
+				// SchemaHash depends on the DataLayer's schema mode; the default is
+				// legacy storage, which produces no unified hash.
+				require.Equal(datalayer.NoSchemaHashInLegacyMode, applied.SchemaHash)
+				applied.SchemaHash = ""
 				require.Equal(tc.expectedAppliedSchemaChanges, *applied)
 
 				sr, err := rwt.ReadSchema(ctx)

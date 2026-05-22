@@ -175,6 +175,17 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				MigrationPhase(config.migrationPhase),
 			))
 
+			t.Run("HeadRevisionDoesNotConsumeXID", createDatastoreTest(
+				b,
+				HeadRevisionDoesNotConsumeXIDTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				GCInterval(veryLargeGCInterval),
+				WatchBufferLength(1),
+				MigrationPhase(config.migrationPhase),
+				WithRevisionHeartbeat(false),
+			))
+
 			t.Run("ConcurrentRevisionWatch", createDatastoreTest(
 				b,
 				ConcurrentRevisionWatchTest,
@@ -1034,7 +1045,7 @@ func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastor
 	var snapshot pgSnapshot
 	pgDS, ok := ds.(*pgDatastore)
 	require.True(t, ok)
-	rev, _, err := pgDS.optimizedRevisionFunc(ctx)
+	rev, _, _, err := pgDS.optimizedRevisionFunc(ctx)
 	require.NoError(t, err)
 
 	pgRev, ok := rev.(postgresRevision)
@@ -1113,8 +1124,9 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	require.False(commitFirstRev.Equal(commitLastRev))
 
 	// Ensure a call to HeadRevision now reflects both sets of data applied.
-	headRev, err := ds.HeadRevision(ctx)
+	headRevResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRev := headRevResult.Revision
 
 	reader := ds.SnapshotReader(headRev)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -1125,6 +1137,32 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	found, err := datastore.IteratorToSlice(it)
 	require.NoError(err)
 	require.Len(found, 2, "missing relationships in %v", found)
+}
+
+// HeadRevisionDoesNotConsumeXIDTest verifies that calling HeadRevision does not allocate a
+// new Postgres transaction ID.
+func HeadRevisionDoesNotConsumeXIDTest(t *testing.T, ds datastore.Datastore) {
+	pds := ds.(*pgDatastore)
+	ctx := t.Context()
+
+	nextXID := func() uint64 {
+		var x uint64
+		// pg_snapshot_xmax returns the first not-yet-assigned xid at the time the snapshot
+		// was taken; reading it observes the xid counter without consuming an xid itself.
+		err := pds.readPool.QueryRow(ctx, `SELECT pg_snapshot_xmax(pg_current_snapshot())::text::bigint`).Scan(&x)
+		require.NoError(t, err)
+		return x
+	}
+
+	const iterations = 10
+	before := nextXID()
+	for i := 0; i < iterations; i++ {
+		_, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+	}
+	after := nextXID()
+
+	require.Equal(t, before, after, "HeadRevision burned %d xid(s) over %d calls; expected 0", after-before, iterations)
 }
 
 // ConcurrentRevisionWatchTest uses goroutines and channels to intentionally set up a pair of
@@ -1250,8 +1288,9 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 
-	rev, err := ds.HeadRevision(ctx)
+	revResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	rev := revResult.Revision
 
 	pds := ds.(*pgDatastore)
 	require.True(pds.watchEnabled)
@@ -1447,7 +1486,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 	})
 	defer ds.Close()
 
-	ds, revision := testfixtures.StandardDatastoreWithData(ds, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(t, ds)
 	_, errChan := ds.Watch(
 		t.Context(),
 		revision,
@@ -1478,7 +1517,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 		ds.Close()
 	})
 
-	ds, _ = testfixtures.StandardDatastoreWithData(ds, require)
+	ds, _ = testfixtures.StandardDatastoreWithData(t, ds)
 
 	// Write namespaces and a few thousand relationships.
 	ctx := t.Context()
@@ -1627,8 +1666,9 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngin
 
 	// Get the head revision.
 	ctx := t.Context()
-	revision, err := ds.HeadRevision(ctx)
+	revisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	revision := revisionResult.Revision
 
 	casted := datastore.UnwrapAs[*pgDatastore](ds)
 	require.NotNil(casted)
@@ -1753,8 +1793,9 @@ func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unw
 	require.NoError(err)
 
 	// Get the HEAD revision.
-	lowestRevision, err := primaryDS.HeadRevision(ctx)
+	lowestRevisionResult, err := primaryDS.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Wrap the replica DS.
 	replicaDS, err := proxy.NewStrictReplicatedDatastore(primaryDS, unwrappedReplicaDS.(datastore.StrictReadDatastore))
@@ -1807,8 +1848,9 @@ func StrictReadModeTest(t *testing.T, primaryDS datastore.Datastore, replicaDS d
 	require.NoError(err)
 
 	// Get the HEAD revision.
-	lowestRevision, err := primaryDS.HeadRevision(ctx)
+	lowestRevisionResult, err := primaryDS.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Perform a read at the head revision, which should succeed.
 	reader := replicaDS.SnapshotReader(lowestRevision)
@@ -1850,8 +1892,9 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
@@ -1921,8 +1964,9 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
@@ -1985,8 +2029,9 @@ func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	lowestRevision, err := ds.HeadRevision(ctx)
+	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
@@ -2043,8 +2088,9 @@ func ExceedInsertQuerySizeTest(t *testing.T, ds datastore.Datastore) {
 	require.Error(err)
 	require.ErrorContains(err, "exceeds the maximum size supported by this datastore")
 
-	headRev, err := ds.HeadRevision(ctx)
+	headRevResult2, err := ds.HeadRevision(ctx)
 	require.NoError(err)
+	headRev := headRevResult2.Revision
 	iter, err := ds.SnapshotReader(headRev).QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})

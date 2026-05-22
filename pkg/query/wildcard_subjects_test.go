@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,7 +9,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -43,9 +41,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 	require.NoError(err)
 
 	// Write the schema
-	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
-	})
+	_, err = datalayer.WriteStoredSchemaForTest(ctx, rawDS, schemaText)
 	require.NoError(err)
 
 	// Write test data:
@@ -69,7 +65,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		// The non-wildcard branch should only return concrete subjects, filtering out wildcards
 		nonWildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
@@ -88,7 +84,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 		// at the top level by FilterWildcardSubjects. So the caller sees no results.
 		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
@@ -108,7 +104,7 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 			NewDatastoreIterator(viewerRel.BaseRelations()[1]), // user:*
 		)
 
-		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(union, NewObject("resource", "first"), NoObjectFilter())
 		require.NoError(err)
 
@@ -148,9 +144,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 	require.NoError(err)
 
 	// Write the schema
-	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...)
-	})
+	_, err = datalayer.WriteStoredSchemaForTest(ctx, rawDS, schemaText)
 	require.NoError(err)
 
 	// Write test data with ONLY concrete users, NO wildcard
@@ -172,7 +166,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 		// The wildcard branch should return empty because there's no wildcard relationship
 		wildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[1]) // user:* (wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(wildcardBranch, NewObject("resource", "second"), NoObjectFilter())
 		require.NoError(err)
 
@@ -187,7 +181,7 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 	t.Run("NonWildcardBranchWorksNormally", func(t *testing.T) {
 		nonWildcardBranch := NewDatastoreIterator(viewerRel.BaseRelations()[0]) // user (non-wildcard)
 
-		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision)))
+		queryCtx := NewLocalContext(ctx, WithRevisionedReader(datalayer.NewDataLayer(rawDS).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		subjects, err := queryCtx.IterSubjects(nonWildcardBranch, NewObject("resource", "second"), NoObjectFilter())
 		require.NoError(err)
 

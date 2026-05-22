@@ -52,7 +52,7 @@ type queryPlanConsistencyHandle struct {
 
 func (q *queryPlanConsistencyHandle) buildContext(t *testing.T) *query.Context {
 	return query.NewLocalContext(t.Context(),
-		query.WithRevisionedReader(datalayer.NewDataLayer(q.ds).SnapshotReader(q.revision)),
+		query.WithRevisionedReader(datalayer.NewDataLayer(q.ds).SnapshotReader(q.revision, datalayer.NoSchemaHashForTesting)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 		query.WithTraceLogger(query.NewTraceLogger())) // Enable tracing for debugging
 }
@@ -65,8 +65,9 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{filePath})
 	require.NoError(err)
 
-	headRevision, err := ds.HeadRevision(t.Context())
+	headRevisionResult, err := ds.HeadRevision(t.Context())
 	require.NoError(err)
+	headRevision := headRevisionResult.Revision
 
 	schemaView, err := schema.BuildSchemaFromDefinitions(populated.NamespaceDefinitions, populated.CaveatDefinitions)
 	require.NoError(err)
@@ -141,7 +142,12 @@ func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
 
 									// Apply static optimizations if requested
 									if optimizationMode.optimize {
-										co, err = queryopt.ApplyOptimizations(co, queryopt.StandardOptimzations, queryopt.RequestParams{SubjectType: rel.Subject.ObjectType, SubjectRelation: rel.Subject.Relation})
+										queryParams := queryopt.RequestParams{
+											Operation:       query.OperationCheck,
+											SubjectType:     rel.Subject.ObjectType,
+											SubjectRelation: rel.Subject.Relation,
+										}
+										co, err = queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 										require.NoError(err)
 									}
 

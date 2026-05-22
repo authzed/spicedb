@@ -1,0 +1,57 @@
+NodeTypeFile
+  end-rune = 78
+  input-source = expiration before caveat test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 13
+      input-source = expiration before caveat test
+      start-rune = 0
+      use-flag-name = expiration
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 78
+      input-source = expiration before caveat test
+      start-rune = 16
+      child-node =>
+        NodeTypeRelation
+          end-rune = 78
+          input-source = expiration before caveat test
+          relation-name = editor
+          start-rune = 42
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 78
+              input-source = expiration before caveat test
+              start-rune = 59
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 78
+                  input-source = expiration before caveat test
+                  start-rune = 59
+                  type-name = user
+                  child-node =>
+                    NodeTypeError
+                      end-rune = 78
+                      error-message = Unexpected keyword after expiration: the caveat must come before expiration, e.g. `with <caveat_name> and expiration`
+                      error-source = and
+                      input-source = expiration before caveat test
+                      start-rune = 80
+                  trait =>
+                    NodeTypeTraitReference
+                      end-rune = 78
+                      input-source = expiration before caveat test
+                      start-rune = 69
+                      trait-name = expiration
+        NodeTypeError
+          end-rune = 78
+          error-message = Expected end of statement or definition, found: TokenTypeKeyword
+          error-source = and
+          input-source = expiration before caveat test
+          start-rune = 80
+    NodeTypeError
+      end-rune = 78
+      error-message = Unexpected token at root level: TokenTypeKeyword
+      error-source = and
+      input-source = expiration before caveat test
+      start-rune = 80

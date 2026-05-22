@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -19,6 +18,7 @@ import (
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -41,7 +41,7 @@ func TestBurst(t *testing.T) {
 				dsconfig.WithRevisionQuantization(10),
 				dsconfig.WithMaxRetries(50),
 				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
-			ds, revision := tf.StandardDatastoreWithData(ds, require.New(t))
+			ds, revision := tf.StandardDatastoreWithData(t, ds)
 
 			conns, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 			t.Cleanup(cleanup)
@@ -58,7 +58,7 @@ func TestBurst(t *testing.T) {
 					_, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
 							},
 						},
 						Resource:   rel.Resource,

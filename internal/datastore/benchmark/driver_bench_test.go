@@ -77,7 +77,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			ctx := b.Context()
 
 			// Write the standard schema
-			ds, _ = testfixtures.StandardDatastoreWithSchema(ds, require.New(b))
+			ds, _ = testfixtures.StandardDatastoreWithSchema(b, ds)
 
 			// Write a fair amount of data, much more than a functional test
 			for docNum := range numDocuments {
@@ -95,8 +95,9 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			// Sleep to give the datastore time to stabilize after all the writes
 			time.Sleep(1 * time.Second)
 
-			headRev, err := ds.HeadRevision(ctx)
+			headRevResult, err := ds.HeadRevision(ctx)
 			require.NoError(b, err)
+			headRev := headRevResult.Revision
 
 			b.StartTimer()
 

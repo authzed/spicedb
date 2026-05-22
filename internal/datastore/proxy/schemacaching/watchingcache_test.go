@@ -472,7 +472,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 			headRevision, err := fakeDS.HeadRevision(t.Context())
 			headRevisionErrors <- err
 
-			nsDef, _, err := wcache.SnapshotReader(headRevision).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+			nsDef, _, err := wcache.SnapshotReader(headRevision.Revision).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 			snapshotReaderErrors <- err
 			namespaceNames <- nsDef.Name
 		}
@@ -541,7 +541,7 @@ func TestOldWatchingCacheParallelReaderWriter(t *testing.T) {
 			headRevision, err := fakeDS.HeadRevision(t.Context())
 			headRevisionErrors <- err
 
-			nsDef, _, err := wcache.SnapshotReader(headRevision).LegacyReadNamespaceByName(t.Context(), "somenamespace")
+			nsDef, _, err := wcache.SnapshotReader(headRevision.Revision).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 			snapshotReaderErrors <- err
 			namespaceNames <- nsDef.Name
 		}
@@ -578,9 +578,8 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     10000,
-		DefaultTTL:  10000 * time.Second,
+		MaxCost:    10000,
+		DefaultTTL: 10000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -623,9 +622,8 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     10000,
-		DefaultTTL:  10000 * time.Second,
+		MaxCost:    10000,
+		DefaultTTL: 10000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -682,9 +680,8 @@ func TestOldWatchingCachePrepopulated(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     1000,
-		DefaultTTL:  1000 * time.Second,
+		MaxCost:    1000,
+		DefaultTTL: 1000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -728,9 +725,8 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 	}
 
 	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     1000,
-		DefaultTTL:  1000 * time.Second,
+		MaxCost:    1000,
+		DefaultTTL: 1000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -918,11 +914,11 @@ func (fds *fakeDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	return &fakeSnapshotReader{fds, rev}
 }
 
-func (fds *fakeDatastore) HeadRevision(context.Context) (datastore.Revision, error) {
+func (fds *fakeDatastore) HeadRevision(context.Context) (datastore.RevisionWithSchemaHash, error) {
 	fds.lock.RLock()
 	defer fds.lock.RUnlock()
 
-	return fds.headRevision, nil
+	return datastore.RevisionWithSchemaHash{Revision: fds.headRevision}, nil
 }
 
 func (*fakeDatastore) ReadWriteTx(context.Context, datastore.TxUserFunc, ...options.RWTOptionsOption) (datastore.Revision, error) {
@@ -945,8 +941,8 @@ func (*fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.Revision, error) {
-	return nil, fmt.Errorf("not implemented")
+func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.RevisionWithSchemaHash, error) {
+	return datastore.RevisionWithSchemaHash{}, fmt.Errorf("not implemented")
 }
 
 func (*fakeDatastore) ReadyState(context.Context) (datastore.ReadyState, error) {
@@ -1032,4 +1028,8 @@ func (*fakeSnapshotReader) QueryRelationships(context.Context, datastore.Relatio
 
 func (*fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (*fakeSnapshotReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	return nil, nil
 }

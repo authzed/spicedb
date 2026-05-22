@@ -33,10 +33,10 @@ func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := t.Context()
 
-	startRevision, err := ds.HeadRevision(ctx)
+	startRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	_, _, err = ds.SnapshotReader(startRevision).LegacyReadCaveatByName(ctx, "unknown")
+	_, _, err = ds.SnapshotReader(startRevisionResult.Revision).LegacyReadCaveatByName(ctx, "unknown")
 	require.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 }
 
@@ -135,7 +135,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	skipIfNotCaveatStorer(t, ds)
 
 	req.NoError(err)
-	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
+	sds, _ := testfixtures.StandardDatastoreWithSchema(t, ds)
 
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
@@ -211,7 +211,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	skipIfNotCaveatStorer(t, ds)
 
 	req.NoError(err)
-	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
+	sds, _ := testfixtures.StandardDatastoreWithSchema(t, ds)
 
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
@@ -303,8 +303,9 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	// test relationship with caveat and context
 	relWithContext := createTestCaveatedRel(t, "document:a#parent@folder:company#...", coreCaveat.Name)
 
-	revBeforeWrite, err := ds.HeadRevision(ctx)
+	revBeforeWriteResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
+	revBeforeWrite := revBeforeWriteResult.Revision
 
 	writeRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, relWithContext)
 	require.NoError(t, err)
@@ -319,8 +320,9 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	tupleWithEmptyContext.OptionalCaveat.Context = strct
 
-	secondRevBeforeWrite, err := ds.HeadRevision(ctx)
+	secondRevBeforeWriteResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
+	secondRevBeforeWrite := secondRevBeforeWriteResult.Revision
 
 	secondWriteRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tupleWithEmptyContext)
 	require.NoError(t, err)
@@ -332,8 +334,9 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	tupleWithNilContext := createTestCaveatedRel(t, "document:c#parent@folder:company#...", coreCaveat.Name)
 	tupleWithNilContext.OptionalCaveat.Context = nil
 
-	thirdRevBeforeWrite, err := ds.HeadRevision(ctx)
+	thirdRevBeforeWriteResult, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
+	thirdRevBeforeWrite := thirdRevBeforeWriteResult.Revision
 
 	thirdWriteRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tupleWithNilContext)
 	req.NoError(err)
