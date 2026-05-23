@@ -8,12 +8,9 @@ import (
 	"iter"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/dustin/go-humanize"
-	"github.com/pbnjay/memory"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -23,13 +20,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-// At startup, measure 75% of available free memory.
-var freeMemory uint64
-
-func init() {
-	freeMemory = memory.FreeMemory() / 100 * 75
-}
 
 var Engines []string
 
@@ -697,110 +687,16 @@ const (
 
 // WatchJustRelationships returns watch options for just relationships.
 func WatchJustRelationships(ds Datastore) WatchOptions {
-	v, _ := BuildAndValidateWatchOptions(
-		ServerWatchOptions{},
-		ClientWatchOptions{Content: WatchRelationships},
-		ds.DefaultsWatchOptions(),
-	)
-	return v
+	options := ds.DefaultsWatchOptions()
+	options.Content = WatchRelationships
+	return options
 }
 
 // WatchJustSchema returns watch options for just schema.
 func WatchJustSchema(ds ReadOnlyDatastore) WatchOptions {
-	v, _ := BuildAndValidateWatchOptions(
-		ServerWatchOptions{},
-		ClientWatchOptions{Content: WatchSchema},
-		ds.DefaultsWatchOptions(),
-	)
-	return v
-}
-
-var errOverHundredPercent = errors.New("percentage greater than 100")
-
-func parsePercent(str string, freeMem uint64) (uint64, error) {
-	percent := strings.TrimSuffix(str, "%")
-	parsedPercent, err := strconv.ParseUint(percent, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse percentage: %w", err)
-	}
-
-	if parsedPercent > 100 {
-		return 0, errOverHundredPercent
-	}
-
-	return freeMem / 100 * parsedPercent, nil
-}
-
-// watchBufferSize takes a string and interprets it as
-// either a percentage of memory (as a percentage of
-// 75% of free memory as measured on startup)
-// or a humanized byte string and returns the number of
-// bytes or an error if the value cannot be interpreted.
-// Returns 0 on an empty string.
-func watchBufferSize(sizeString string) (size uint64, err error) {
-	if sizeString == "" {
-		return 0, nil
-	}
-
-	if strings.HasSuffix(sizeString, "%") {
-		size, err := parsePercent(sizeString, freeMemory)
-		if err != nil {
-			return 0, fmt.Errorf("could not parse %s as percentage: %w", sizeString, err)
-		}
-		return size, nil
-	}
-
-	size, err = humanize.ParseBytes(sizeString)
-	if err != nil {
-		return 0, fmt.Errorf("could not parse %s as a number of bytes: %w", sizeString, err)
-	}
-	return size, nil
-}
-
-// BuildAndValidateWatchOptions constructs complete WatchOptions by merging server options,
-// client options, and datastore defaults.
-// Datastore defaults take precedence over server options.
-// Client options cannot be overridden.
-func BuildAndValidateWatchOptions(
-	serverOptions ServerWatchOptions,
-	clientOptions ClientWatchOptions,
-	datastoreDefaults WatchOptions,
-) (WatchOptions, error) {
-	watchChangeBufferMaximumSize, err := watchBufferSize(serverOptions.MaximumBufferedChangesByteSize)
-	if err != nil {
-		return WatchOptions{}, err
-	}
-
-	options := WatchOptions{
-		Content:                        clientOptions.Content,
-		EmissionStrategy:               clientOptions.EmissionStrategy,
-		CheckpointInterval:             serverOptions.CheckpointInterval,
-		WatchBufferLength:              serverOptions.WatchBufferLength,
-		WatchBufferWriteTimeout:        serverOptions.WatchBufferWriteTimeout,
-		WatchConnectTimeout:            serverOptions.WatchConnectTimeout,
-		MaximumBufferedChangesByteSize: watchChangeBufferMaximumSize,
-	}
-
-	if datastoreDefaults.CheckpointInterval > 0 {
-		options.CheckpointInterval = datastoreDefaults.CheckpointInterval
-	}
-	if options.CheckpointInterval < 0 {
-		return WatchOptions{}, errors.New("invalid checkpoint interval given")
-	}
-	if datastoreDefaults.WatchBufferLength > 0 {
-		options.WatchBufferLength = datastoreDefaults.WatchBufferLength
-	}
-	if datastoreDefaults.WatchBufferWriteTimeout > 0 {
-		options.WatchBufferWriteTimeout = datastoreDefaults.WatchBufferWriteTimeout
-	}
-	if datastoreDefaults.WatchConnectTimeout > 0 {
-		options.WatchConnectTimeout = datastoreDefaults.WatchConnectTimeout
-	}
-	if datastoreDefaults.MaximumBufferedChangesByteSize > 0 {
-		options.MaximumBufferedChangesByteSize = datastoreDefaults.MaximumBufferedChangesByteSize
-	}
-
-	return options, nil
+	options := ds.DefaultsWatchOptions()
+	options.Content = WatchSchema
+	return options
 }
 
 // ReadOnlyDatastore is an interface for reading relationships from the datastore.

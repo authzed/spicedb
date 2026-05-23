@@ -115,12 +115,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		WatchConnectTimeout:            ws.serverConfig.WatchConnectTimeout,
 		MaximumBufferedChangesByteSize: ws.serverConfig.MaximumBufferedChangesByteSize,
 	}
-	watchOptions, err := datastore.BuildAndValidateWatchOptions(dsConfig, clientRequest, dl.DefaultsWatchOptions())
-	if err != nil {
-		return err
-	}
-
-	updates, errchan := dl.Watch(ctx, afterRevision, watchOptions)
+	updates, errchan := dl.Watch(ctx, afterRevision, dsConfig, clientRequest)
 	for {
 		select {
 		case update, ok := <-updates:

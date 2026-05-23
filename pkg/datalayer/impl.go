@@ -2,6 +2,13 @@ package datalayer
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/dustin/go-humanize"
+	"github.com/pbnjay/memory"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -12,6 +19,101 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// At startup, measure 75% of available free memory.
+var freeMemory uint64
+
+func init() {
+	freeMemory = memory.FreeMemory() / 100 * 75
+}
+
+var errOverHundredPercent = errors.New("percentage greater than 100")
+
+func parsePercent(str string, freeMem uint64) (uint64, error) {
+	percent := strings.TrimSuffix(str, "%")
+	parsedPercent, err := strconv.ParseUint(percent, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse percentage: %w", err)
+	}
+
+	if parsedPercent > 100 {
+		return 0, errOverHundredPercent
+	}
+
+	return freeMem / 100 * parsedPercent, nil
+}
+
+// watchBufferSize takes a string and interprets it as
+// either a percentage of memory (as a percentage of
+// 75% of free memory as measured on startup)
+// or a humanized byte string and returns the number of
+// bytes or an error if the value cannot be interpreted.
+// Returns 0 on an empty string.
+func watchBufferSize(sizeString string) (size uint64, err error) {
+	if sizeString == "" {
+		return 0, nil
+	}
+
+	if strings.HasSuffix(sizeString, "%") {
+		size, err := parsePercent(sizeString, freeMemory)
+		if err != nil {
+			return 0, fmt.Errorf("could not parse %s as percentage: %w", sizeString, err)
+		}
+		return size, nil
+	}
+
+	size, err = humanize.ParseBytes(sizeString)
+	if err != nil {
+		return 0, fmt.Errorf("could not parse %s as a number of bytes: %w", sizeString, err)
+	}
+	return size, nil
+}
+
+// buildAndValidateWatchOptions constructs complete WatchOptions by merging server options,
+// client options, and datastore defaults.
+// Datastore defaults take precedence over server options.
+// Client options cannot be overridden.
+func buildAndValidateWatchOptions(
+	serverOptions datastore.ServerWatchOptions,
+	clientOptions datastore.ClientWatchOptions,
+	datastoreDefaults datastore.WatchOptions,
+) (datastore.WatchOptions, error) {
+	watchChangeBufferMaximumSize, err := watchBufferSize(serverOptions.MaximumBufferedChangesByteSize)
+	if err != nil {
+		return datastore.WatchOptions{}, err
+	}
+
+	merged := datastore.WatchOptions{
+		Content:                        clientOptions.Content,
+		EmissionStrategy:               clientOptions.EmissionStrategy,
+		CheckpointInterval:             serverOptions.CheckpointInterval,
+		WatchBufferLength:              serverOptions.WatchBufferLength,
+		WatchBufferWriteTimeout:        serverOptions.WatchBufferWriteTimeout,
+		WatchConnectTimeout:            serverOptions.WatchConnectTimeout,
+		MaximumBufferedChangesByteSize: watchChangeBufferMaximumSize,
+	}
+
+	if datastoreDefaults.CheckpointInterval > 0 {
+		merged.CheckpointInterval = datastoreDefaults.CheckpointInterval
+	}
+	if merged.CheckpointInterval < 0 {
+		return datastore.WatchOptions{}, errors.New("invalid checkpoint interval given")
+	}
+	if datastoreDefaults.WatchBufferLength > 0 {
+		merged.WatchBufferLength = datastoreDefaults.WatchBufferLength
+	}
+	if datastoreDefaults.WatchBufferWriteTimeout > 0 {
+		merged.WatchBufferWriteTimeout = datastoreDefaults.WatchBufferWriteTimeout
+	}
+	if datastoreDefaults.WatchConnectTimeout > 0 {
+		merged.WatchConnectTimeout = datastoreDefaults.WatchConnectTimeout
+	}
+	if datastoreDefaults.MaximumBufferedChangesByteSize > 0 {
+		merged.MaximumBufferedChangesByteSize = datastoreDefaults.MaximumBufferedChangesByteSize
+	}
+
+	return merged, nil
+}
 
 // storedSchemaCache caches stored schemas by hash.
 type storedSchemaCache interface {
@@ -124,12 +226,14 @@ func (d *defaultDataLayer) RevisionFromString(serialized string) (datastore.Revi
 	return d.ds.RevisionFromString(serialized)
 }
 
-func (d *defaultDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+func (d *defaultDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, serverOptions datastore.ServerWatchOptions, clientOptions datastore.ClientWatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	opts, err := buildAndValidateWatchOptions(serverOptions, clientOptions, d.ds.DefaultsWatchOptions())
+	if err != nil {
+		errs := make(chan error, 1)
+		errs <- err
+		return nil, errs
+	}
 	return d.ds.Watch(ctx, afterRevision, opts)
-}
-
-func (d *defaultDataLayer) DefaultsWatchOptions() datastore.WatchOptions {
-	return d.ds.DefaultsWatchOptions()
 }
 
 func (d *defaultDataLayer) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
@@ -357,12 +461,14 @@ func (r *readOnlyDatastoreAdapter) RevisionFromString(serialized string) (datast
 	return r.ds.RevisionFromString(serialized)
 }
 
-func (r *readOnlyDatastoreAdapter) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+func (r *readOnlyDatastoreAdapter) Watch(ctx context.Context, afterRevision datastore.Revision, serverOptions datastore.ServerWatchOptions, clientOptions datastore.ClientWatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	opts, err := buildAndValidateWatchOptions(serverOptions, clientOptions, r.ds.DefaultsWatchOptions())
+	if err != nil {
+		errs := make(chan error, 1)
+		errs <- err
+		return nil, errs
+	}
 	return r.ds.Watch(ctx, afterRevision, opts)
-}
-
-func (r *readOnlyDatastoreAdapter) DefaultsWatchOptions() datastore.WatchOptions {
-	return r.ds.DefaultsWatchOptions()
 }
 
 func (r *readOnlyDatastoreAdapter) ReadyState(ctx context.Context) (datastore.ReadyState, error) {

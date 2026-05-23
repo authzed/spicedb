@@ -160,20 +160,6 @@ func (mr *MockDataLayerMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataLayer)(nil).Close))
 }
 
-// DefaultsWatchOptions mocks base method.
-func (m *MockDataLayer) DefaultsWatchOptions() datastore.WatchOptions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DefaultsWatchOptions")
-	ret0, _ := ret[0].(datastore.WatchOptions)
-	return ret0
-}
-
-// DefaultsWatchOptions indicates an expected call of DefaultsWatchOptions.
-func (mr *MockDataLayerMockRecorder) DefaultsWatchOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultsWatchOptions", reflect.TypeOf((*MockDataLayer)(nil).DefaultsWatchOptions))
-}
-
 // Features mocks base method.
 func (m *MockDataLayer) Features(ctx context.Context) (*datastore.Features, error) {
 	m.ctrl.T.Helper()
@@ -346,18 +332,18 @@ func (mr *MockDataLayerMockRecorder) UniqueID(ctx any) *gomock.Call {
 }
 
 // Watch mocks base method.
-func (m *MockDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, arg2 datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+func (m *MockDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, serverOptions datastore.ServerWatchOptions, clientOptions datastore.ClientWatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Watch", ctx, afterRevision, arg2)
+	ret := m.ctrl.Call(m, "Watch", ctx, afterRevision, serverOptions, clientOptions)
 	ret0, _ := ret[0].(<-chan datastore.RevisionChanges)
 	ret1, _ := ret[1].(<-chan error)
 	return ret0, ret1
 }
 
 // Watch indicates an expected call of Watch.
-func (mr *MockDataLayerMockRecorder) Watch(ctx, afterRevision, arg2 any) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) Watch(ctx, afterRevision, serverOptions, clientOptions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockDataLayer)(nil).Watch), ctx, afterRevision, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockDataLayer)(nil).Watch), ctx, afterRevision, serverOptions, clientOptions)
 }
 
 // MockSchemaReader is a mock of SchemaReader interface.

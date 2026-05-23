@@ -34,8 +34,7 @@ type DataLayer interface {
 	HeadRevision(ctx context.Context) (datastore.Revision, SchemaHash, error)
 	CheckRevision(ctx context.Context, revision datastore.Revision) error
 	RevisionFromString(serialized string) (datastore.Revision, error)
-	Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error)
-	DefaultsWatchOptions() datastore.WatchOptions
+	Watch(ctx context.Context, afterRevision datastore.Revision, serverOptions datastore.ServerWatchOptions, clientOptions datastore.ClientWatchOptions) (<-chan datastore.RevisionChanges, <-chan error)
 	ReadyState(ctx context.Context) (datastore.ReadyState, error)
 	Features(ctx context.Context) (*datastore.Features, error)
 	OfflineFeatures() (*datastore.Features, error)

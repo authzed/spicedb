@@ -119,7 +119,7 @@ func TestDefaultDataLayer_PassThroughs(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, roundTripped.Equal(rev))
 
-	watchCh, errCh := dl.Watch(ctx, rev, datastore.WatchOptions{Content: datastore.WatchRelationships})
+	watchCh, errCh := dl.Watch(ctx, rev, datastore.ServerWatchOptions{}, datastore.ClientWatchOptions{Content: datastore.WatchRelationships})
 	require.NotNil(t, watchCh)
 	require.NotNil(t, errCh)
 
@@ -1114,7 +1114,7 @@ func TestNewReadOnlyDataLayer_RejectsWrite(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, rtr.Equal(rev))
 
-	watchCh, errCh := ro.Watch(ctx, rev, datastore.WatchOptions{Content: datastore.WatchRelationships})
+	watchCh, errCh := ro.Watch(ctx, rev, datastore.ServerWatchOptions{}, datastore.ClientWatchOptions{Content: datastore.WatchRelationships})
 	require.NotNil(t, watchCh)
 	require.NotNil(t, errCh)
 

@@ -17,6 +17,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -583,7 +584,12 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema(ds))
+	dl := datalayer.NewDataLayer(ds)
+
+	changes, errchan := dl.Watch(ctx, lowestRevision,
+		datastore.ServerWatchOptions{},
+		datastore.ClientWatchOptions{Content: datastore.WatchSchema},
+	)
 	require.Empty(errchan)
 
 	// Addition
@@ -676,13 +682,11 @@ func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	watchOpts, err := datastore.BuildAndValidateWatchOptions(
+	changes, errchan := datalayer.NewDataLayer(ds).Watch(ctx, lowestRevision,
 		datastore.ServerWatchOptions{},
 		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchSchema},
-		ds.DefaultsWatchOptions(),
 	)
 	require.NoError(err)
-	changes, errchan := ds.Watch(ctx, lowestRevision, watchOpts)
 	require.Empty(errchan)
 
 	// Write an updated schema.
@@ -943,13 +947,11 @@ func WatchObservesEveryReturnedRevisionTest(t *testing.T, tester DatastoreTester
 	require.NoError(t, err)
 
 	// Start watching from after the create.
-	watchOpts, err := datastore.BuildAndValidateWatchOptions(
+	changes, errchan := datalayer.NewDataLayer(ds).Watch(t.Context(), afterCreateRevision,
 		datastore.ServerWatchOptions{CheckpointInterval: 100 * time.Millisecond},
 		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchCheckpoints},
-		ds.DefaultsWatchOptions(),
 	)
 	require.NoError(t, err)
-	changes, errchan := ds.Watch(t.Context(), afterCreateRevision, watchOpts)
 	require.Empty(t, errchan)
 
 	// Second TOUCH of the same relationship is a no-op (no actual changes),
@@ -996,13 +998,11 @@ func WatchEmitsCheckpointAfterWriteWithChangesTest(t *testing.T, tester Datastor
 	require.NoError(t, err)
 	startingRevision := startingRevisionResult.Revision
 
-	watchOpts, err := datastore.BuildAndValidateWatchOptions(
+	changes, errchan := datalayer.NewDataLayer(ds).Watch(t.Context(), startingRevision,
 		datastore.ServerWatchOptions{CheckpointInterval: 100 * time.Millisecond},
 		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchCheckpoints},
-		ds.DefaultsWatchOptions(),
 	)
 	require.NoError(t, err)
-	changes, errchan := ds.Watch(t.Context(), startingRevision, watchOpts)
 	require.Empty(t, errchan)
 
 	// A TOUCH that produces a real change.

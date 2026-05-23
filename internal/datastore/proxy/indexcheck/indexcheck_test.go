@@ -120,13 +120,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("Watch", func(t *testing.T) {
-		watchOptions, err := datastore.BuildAndValidateWatchOptions(
-			datastore.ServerWatchOptions{},
-			datastore.ClientWatchOptions{},
-			proxy.DefaultsWatchOptions(),
-		)
-		require.NoError(t, err)
-		changes, errs := proxy.Watch(t.Context(), nil, watchOptions)
+		changes, errs := proxy.Watch(t.Context(), nil, datastore.WatchOptions{})
 		require.Nil(t, changes)
 		require.Nil(t, errs)
 	})
