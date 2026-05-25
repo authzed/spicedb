@@ -2,6 +2,7 @@ package schemacaching
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -606,6 +608,94 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
+}
+
+// Common transient Postgres errors observed in production that are NOT
+// matched by common.IsResettableError, so the schema watch routes them as
+// terminal and the watching cache enters permanent fallback.
+var transientPostgresWatchErrors = []struct {
+	name string
+	err  error
+}{
+	// SQLSTATE 57P01 — admin shutdown, failover, replica promotion.
+	{"admin_shutdown", fmt.Errorf("transaction error: %w", errors.New("FATAL: terminating connection due to administrator command (SQLSTATE 57P01)"))},
+	// SQLSTATE 53300 — too many connections on the server.
+	{"too_many_connections", fmt.Errorf("transaction error: %w", errors.New("FATAL: sorry, too many clients already (SQLSTATE 53300)"))},
+	// pgxpool client-side acquisition timeout.
+	{"pool_acquire_timeout", fmt.Errorf("transaction error: %w", errors.New("timeout: failed to send context cancellation request"))},
+	// TCP-level read/write timeout on the watch connection.
+	{"tcp_io_timeout", fmt.Errorf("unable to load new revisions: %w", errors.New("read tcp 10.0.0.1:54321->10.0.0.2:5432: i/o timeout"))},
+	// Server-side close emitted by upstream poolers (PgBouncer, RDS Proxy).
+	{"server_closed_connection_unexpectedly", fmt.Errorf("transaction error: %w", errors.New("server closed the connection unexpectedly"))},
+}
+
+// Transient Postgres errors should be classified as resettable so the schema
+// watch retries instead of dropping into permanent fallback.
+func TestPostgresTransientErrorsAreResettable(t *testing.T) {
+	for _, tc := range transientPostgresWatchErrors {
+		t.Run(tc.name, func(t *testing.T) {
+			require.True(t, common.IsResettableError(tc.err),
+				"%q must be classified as resettable; otherwise the schema watch treats it as terminal and the cache enters permanent fallback: %v",
+				tc.name, tc.err,
+			)
+		})
+	}
+}
+
+// A transient watch error puts the cache into fallback mode and it never
+// recovers: subsequent valid schema changes are not applied because the
+// watch goroutine has returned. Only a process restart restores the cache.
+func TestWatchingCachePermanentlyFallsBackOnTransientError(t *testing.T) {
+	fakeDS := &fakeDatastore{
+		headRevision: rev("0"),
+		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:   make(chan datastore.RevisionChanges, 16),
+		errChan:      make(chan error, 1),
+	}
+
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		NumCounters: 1000,
+		MaxCost:     10000,
+		DefaultTTL:  10000 * time.Second,
+	})
+	require.NoError(t, err)
+
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
+	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() { wcache.Close() })
+
+	// Wait for the cache to come out of its initial fallback state after prepopulation.
+	require.Eventually(t, func() bool {
+		wcache.namespaceCache.lock.RLock()
+		defer wcache.namespaceCache.lock.RUnlock()
+		return !wcache.namespaceCache.inFallbackMode
+	}, 2*time.Second, 5*time.Millisecond)
+
+	// Emit a transient error not recognized by common.IsResettableError.
+	fakeDS.errChan <- fmt.Errorf("transaction error: %w",
+		errors.New("FATAL: terminating connection due to administrator command (SQLSTATE 57P01)"))
+
+	// The cache transitions into fallback.
+	require.Eventually(t, func() bool {
+		wcache.namespaceCache.lock.RLock()
+		defer wcache.namespaceCache.lock.RUnlock()
+		return wcache.namespaceCache.inFallbackMode
+	}, 2*time.Second, 5*time.Millisecond, "cache should enter fallback after a transient watch error")
+
+	// Datastore is healthy again — publish a valid schema change. A working
+	// cache would observe it and exit fallback.
+	fakeDS.updateNamespace("ns_after_recovery",
+		&corev1.NamespaceDefinition{Name: "ns_after_recovery"}, rev("1"))
+	time.Sleep(200 * time.Millisecond)
+
+	// Current behavior: the cache stays in fallback forever. Flip this
+	// assertion to require.False once the recovery path is implemented.
+	wcache.namespaceCache.lock.RLock()
+	stillInFallback := wcache.namespaceCache.inFallbackMode
+	wcache.namespaceCache.lock.RUnlock()
+	require.True(t, stillInFallback,
+		"the cache does not recover from a transient watch error without a process restart")
 }
 
 func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
