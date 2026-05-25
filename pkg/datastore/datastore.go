@@ -685,20 +685,6 @@ const (
 	EmitImmediatelyStrategy
 )
 
-// WatchJustRelationships returns watch options for just relationships.
-func WatchJustRelationships(ds Datastore) WatchOptions {
-	options := ds.DefaultsWatchOptions()
-	options.Content = WatchRelationships
-	return options
-}
-
-// WatchJustSchema returns watch options for just schema.
-func WatchJustSchema(ds ReadOnlyDatastore) WatchOptions {
-	options := ds.DefaultsWatchOptions()
-	options.Content = WatchSchema
-	return options
-}
-
 // ReadOnlyDatastore is an interface for reading relationships from the datastore.
 type ReadOnlyDatastore interface {
 	// MetricsID returns an identifier for the datastore for use in metrics.

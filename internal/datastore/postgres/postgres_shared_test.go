@@ -1170,8 +1170,11 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	seenWatchRevisions := make([]datastore.Revision, 0)
 	seenWatchRevisionsLock := sync.Mutex{}
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	go func() {
-		changes, _ := ds.Watch(withCancel, rev, datastore.WatchJustRelationships(ds))
+		changes, _ := ds.Watch(withCancel, rev, watchJustRelationships)
 
 		waitForWatch <- struct{}{}
 
@@ -1339,8 +1342,11 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	})
 	require.NoError(err)
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	// Call watch and ensure it terminates with having only read the two expected sets of changes.
-	changes, errChan := ds.Watch(ctx, rev, datastore.WatchJustRelationships(ds))
+	changes, errChan := ds.Watch(ctx, rev, watchJustRelationships)
 	transactionCount := 0
 loop:
 	for {
@@ -1462,11 +1468,14 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 	})
 	defer ds.Close()
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	ds, revision := testfixtures.StandardDatastoreWithData(t, ds)
 	_, errChan := ds.Watch(
 		t.Context(),
 		revision,
-		datastore.WatchJustRelationships(ds),
+		watchJustRelationships,
 	)
 	err := <-errChan
 	require.Error(err)
@@ -1872,7 +1881,9 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships(ds))
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	// Manually insert a relationship with a NULL caveat. This is allowed, but can only happen due to

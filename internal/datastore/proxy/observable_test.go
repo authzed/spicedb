@@ -168,7 +168,10 @@ func TestObservableProxy_DatastorePassthroughMethods(t *testing.T) {
 		dsMock.On("Watch", testRev).Return(changesCh, errCh).Once()
 		sut := NewObservableDatastoreProxy(dsMock)
 
-		gotChanges, gotErr := sut.Watch(t.Context(), testRev, datastore.WatchJustRelationships(sut))
+		watchJustRelationships := sut.DefaultsWatchOptions()
+		watchJustRelationships.Content = datastore.WatchRelationships
+
+		gotChanges, gotErr := sut.Watch(t.Context(), testRev, watchJustRelationships)
 		require.Equal(t, changesCh, gotChanges)
 		require.Equal(t, errCh, gotErr)
 		dsMock.AssertExpectations(t)

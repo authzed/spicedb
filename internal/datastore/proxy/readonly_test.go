@@ -129,7 +129,10 @@ func TestWatchPassthrough(t *testing.T) {
 		make(<-chan error),
 	).Times(1)
 
-	ds.Watch(ctx, expectedRevision, datastore.WatchJustRelationships(ds))
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
+	ds.Watch(ctx, expectedRevision, watchJustRelationships)
 	delegate.AssertExpectations(t)
 }
 

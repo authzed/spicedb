@@ -314,6 +314,9 @@ func TestWatchFeatureDetection(t *testing.T) {
 				_ = ds.Close()
 			})
 
+			watchJustRelationships := ds.DefaultsWatchOptions()
+			watchJustRelationships.Content = datastore.WatchRelationships
+
 			features, err := ds.Features(ctx)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectEnabled, features.Watch.Status == datastore.FeatureSupported)
@@ -323,7 +326,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 				headRevisionResult, err := ds.HeadRevision(ctx)
 				require.NoError(t, err)
 
-				_, errChan := ds.Watch(ctx, headRevisionResult.Revision, datastore.WatchJustRelationships(ds))
+				_, errChan := ds.Watch(ctx, headRevisionResult.Revision, watchJustRelationships)
 				err = <-errChan
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "watch is currently disabled")
