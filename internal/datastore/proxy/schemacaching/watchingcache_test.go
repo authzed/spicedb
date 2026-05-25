@@ -9,16 +9,26 @@ import (
 	"testing"
 	"time"
 
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 )
+
+// assertEventuallyFallback waits for wcache's namespace fallback flag to match want.
+func assertEventuallyFallback(t *testing.T, wcache *watchingCachingProxy, want bool) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		wcache.namespaceCache.lock.RLock()
+		defer wcache.namespaceCache.lock.RUnlock()
+		return wcache.namespaceCache.inFallbackMode == want
+	}, 5*time.Second, 5*time.Millisecond, "cache did not reach inFallbackMode=%v", want)
+}
 
 func TestWatchingCachingProxyUnwrap(t *testing.T) {
 	fakeDS := &fakeDatastore{
@@ -49,6 +59,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -153,6 +164,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -257,6 +269,7 @@ func TestOldWatchingCacheParallelOperations(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -350,6 +363,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -443,6 +457,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -512,6 +527,7 @@ func TestOldWatchingCacheParallelReaderWriter(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -587,6 +603,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -610,42 +627,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 }
 
-// Common transient Postgres errors observed in production that are NOT
-// matched by common.IsResettableError, so the schema watch routes them as
-// terminal and the watching cache enters permanent fallback.
-var transientPostgresWatchErrors = []struct {
-	name string
-	err  error
-}{
-	// SQLSTATE 57P01 — admin shutdown, failover, replica promotion.
-	{"admin_shutdown", fmt.Errorf("transaction error: %w", errors.New("FATAL: terminating connection due to administrator command (SQLSTATE 57P01)"))},
-	// SQLSTATE 53300 — too many connections on the server.
-	{"too_many_connections", fmt.Errorf("transaction error: %w", errors.New("FATAL: sorry, too many clients already (SQLSTATE 53300)"))},
-	// pgxpool client-side acquisition timeout.
-	{"pool_acquire_timeout", fmt.Errorf("transaction error: %w", errors.New("timeout: failed to send context cancellation request"))},
-	// TCP-level read/write timeout on the watch connection.
-	{"tcp_io_timeout", fmt.Errorf("unable to load new revisions: %w", errors.New("read tcp 10.0.0.1:54321->10.0.0.2:5432: i/o timeout"))},
-	// Server-side close emitted by upstream poolers (PgBouncer, RDS Proxy).
-	{"server_closed_connection_unexpectedly", fmt.Errorf("transaction error: %w", errors.New("server closed the connection unexpectedly"))},
-}
-
-// Transient Postgres errors should be classified as resettable so the schema
-// watch retries instead of dropping into permanent fallback.
-func TestPostgresTransientErrorsAreResettable(t *testing.T) {
-	for _, tc := range transientPostgresWatchErrors {
-		t.Run(tc.name, func(t *testing.T) {
-			require.True(t, common.IsResettableError(tc.err),
-				"%q must be classified as resettable; otherwise the schema watch treats it as terminal and the cache enters permanent fallback: %v",
-				tc.name, tc.err,
-			)
-		})
-	}
-}
-
-// A transient watch error puts the cache into fallback mode and it never
-// recovers: subsequent valid schema changes are not applied because the
-// watch goroutine has returned. Only a process restart restores the cache.
-func TestWatchingCachePermanentlyFallsBackOnTransientError(t *testing.T) {
+func TestWatchingCacheRecoversFromTransientError(t *testing.T) {
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
@@ -665,37 +647,17 @@ func TestWatchingCachePermanentlyFallsBackOnTransientError(t *testing.T) {
 	require.NoError(t, wcache.startSync(t.Context()))
 	t.Cleanup(func() { wcache.Close() })
 
-	// Wait for the cache to come out of its initial fallback state after prepopulation.
-	require.Eventually(t, func() bool {
-		wcache.namespaceCache.lock.RLock()
-		defer wcache.namespaceCache.lock.RUnlock()
-		return !wcache.namespaceCache.inFallbackMode
-	}, 2*time.Second, 5*time.Millisecond)
+	assertEventuallyFallback(t, wcache, false)
 
-	// Emit a transient error not recognized by common.IsResettableError.
 	fakeDS.errChan <- fmt.Errorf("transaction error: %w",
 		errors.New("FATAL: terminating connection due to administrator command (SQLSTATE 57P01)"))
 
-	// The cache transitions into fallback.
-	require.Eventually(t, func() bool {
-		wcache.namespaceCache.lock.RLock()
-		defer wcache.namespaceCache.lock.RUnlock()
-		return wcache.namespaceCache.inFallbackMode
-	}, 2*time.Second, 5*time.Millisecond, "cache should enter fallback after a transient watch error")
+	assertEventuallyFallback(t, wcache, true)
 
-	// Datastore is healthy again — publish a valid schema change. A working
-	// cache would observe it and exit fallback.
 	fakeDS.updateNamespace("ns_after_recovery",
 		&corev1.NamespaceDefinition{Name: "ns_after_recovery"}, rev("1"))
-	time.Sleep(200 * time.Millisecond)
 
-	// Current behavior: the cache stays in fallback forever. Flip this
-	// assertion to require.False once the recovery path is implemented.
-	wcache.namespaceCache.lock.RLock()
-	stillInFallback := wcache.namespaceCache.inFallbackMode
-	wcache.namespaceCache.lock.RUnlock()
-	require.True(t, stillInFallback,
-		"the cache does not recover from a transient watch error without a process restart")
+	assertEventuallyFallback(t, wcache, false)
 }
 
 func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
@@ -719,6 +681,7 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -777,6 +740,7 @@ func TestOldWatchingCachePrepopulated(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -822,6 +786,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 
 	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
+	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
 		wcache.Close()
 	})
@@ -1122,4 +1087,235 @@ func (*fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.
 
 func (*fakeSnapshotReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
 	return nil, nil
+}
+
+func TestWatchingCacheTerminatesOnWatchDisabled(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
+	fakeDS := &fakeDatastore{
+		headRevision: rev("0"),
+		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:   make(chan datastore.RevisionChanges, 16),
+		errChan:      make(chan error, 1),
+	}
+
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		NumCounters: 1000, MaxCost: 10000, DefaultTTL: 10000 * time.Second,
+	})
+	require.NoError(t, err)
+
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
+	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() { wcache.Close() })
+
+	stable := promtestutil.ToFloat64(cycleRestartsCounter)
+	fakeDS.errChan <- datastore.NewWatchDisabledErr("test-disabled")
+
+	assertEventuallyFallback(t, wcache, true)
+
+	require.Never(t, func() bool {
+		return promtestutil.ToFloat64(cycleRestartsCounter) > stable
+	}, 300*time.Millisecond, 10*time.Millisecond,
+		"cycleRestartsCounter must not advance after a terminal WatchDisabledError")
+}
+
+func TestWatchingCacheTerminatesOnContextCancellation(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
+	fakeDS := &fakeDatastore{
+		headRevision: rev("0"),
+		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:   make(chan datastore.RevisionChanges, 16),
+		errChan:      make(chan error, 1),
+	}
+
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		NumCounters: 1000, MaxCost: 10000, DefaultTTL: 10000 * time.Second,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
+	require.NoError(t, wcache.startSync(ctx))
+
+	assertEventuallyFallback(t, wcache, false)
+
+	cancel()
+	// Witness that the supervisor processed the cancellation via its terminal
+	// path (which sets fallback) before Close() runs and would set it anyway.
+	assertEventuallyFallback(t, wcache, true)
+	require.NoError(t, wcache.Close())
+}
+
+func TestWatchingCacheRecoversAcrossMultipleErrors(t *testing.T) {
+	fakeDS := &fakeDatastore{
+		headRevision: rev("0"),
+		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:   make(chan datastore.RevisionChanges, 16),
+		errChan:      make(chan error, 1),
+	}
+
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		NumCounters: 1000, MaxCost: 10000, DefaultTTL: 10000 * time.Second,
+	})
+	require.NoError(t, err)
+
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
+	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() { wcache.Close() })
+
+	// With backoff Reset() working each restart starts at InitialInterval
+	// (~100 ms) so 5 iterations finish under 2 s; without it the 5th
+	// iteration's backoff alone is ~1.6 s and the total exceeds 3 s.
+	const iterations = 5
+	startCount := promtestutil.ToFloat64(cycleRestartsCounter)
+	startTime := time.Now()
+
+	for i := 0; i < iterations; i++ {
+		before := promtestutil.ToFloat64(cycleRestartsCounter)
+		fakeDS.updateNamespace(fmt.Sprintf("ns_%d", i),
+			&corev1.NamespaceDefinition{Name: fmt.Sprintf("ns_%d", i)}, rev(fmt.Sprintf("%d", i+1)))
+		fakeDS.errChan <- fmt.Errorf("transient %d", i)
+
+		require.Eventually(t, func() bool {
+			return promtestutil.ToFloat64(cycleRestartsCounter) > before
+		}, 5*time.Second, 5*time.Millisecond, "supervisor should restart after error %d", i)
+	}
+
+	elapsed := time.Since(startTime)
+	require.GreaterOrEqual(t,
+		promtestutil.ToFloat64(cycleRestartsCounter)-startCount, float64(iterations),
+		"expected at least %d cycle restarts", iterations)
+	require.Less(t, elapsed, 2*time.Second,
+		"5 restarts took %s; backoff is not being reset on successful events", elapsed)
+}
+
+func TestWatchingCacheUpdatesLastEventTimestamp(t *testing.T) {
+	fakeDS := &fakeDatastore{
+		headRevision: rev("0"),
+		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:   make(chan datastore.RevisionChanges, 16),
+		errChan:      make(chan error, 1),
+	}
+
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		NumCounters: 1000, MaxCost: 10000, DefaultTTL: 10000 * time.Second,
+	})
+	require.NoError(t, err)
+
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
+	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() { wcache.Close() })
+
+	assertEventuallyFallback(t, wcache, false)
+
+	before := promtestutil.ToFloat64(lastEventTimestampGauge)
+	fakeDS.updateNamespace("ns", &corev1.NamespaceDefinition{Name: "ns"}, rev("1"))
+
+	require.Eventually(t, func() bool {
+		return promtestutil.ToFloat64(lastEventTimestampGauge) > before
+	}, 5*time.Second, 10*time.Millisecond, "lastEventTimestampGauge should advance after a schema event")
+}
+
+func TestWatchingCacheIncrementsCycleRestartsOnRecovery(t *testing.T) {
+	fakeDS := &fakeDatastore{
+		headRevision: rev("0"),
+		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:   make(chan datastore.RevisionChanges, 16),
+		errChan:      make(chan error, 1),
+	}
+
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		NumCounters: 1000, MaxCost: 10000, DefaultTTL: 10000 * time.Second,
+	})
+	require.NoError(t, err)
+
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
+	require.NoError(t, wcache.startSync(t.Context()))
+	t.Cleanup(func() { wcache.Close() })
+
+	before := promtestutil.ToFloat64(cycleRestartsCounter)
+	fakeDS.errChan <- errors.New("transient")
+
+	require.Eventually(t, func() bool {
+		return promtestutil.ToFloat64(cycleRestartsCounter) > before
+	}, 5*time.Second, 10*time.Millisecond, "cycleRestartsCounter should increment after a transient error")
+}
+
+func TestNewSupervisorBackoff(t *testing.T) {
+	bo := newSupervisorBackoff()
+	require.Equal(t, 100*time.Millisecond, bo.InitialInterval)
+	require.InEpsilon(t, 2.0, bo.Multiplier, 1e-9)
+	require.InEpsilon(t, 0.5, bo.RandomizationFactor, 1e-9)
+	require.Equal(t, 30*time.Second, bo.MaxInterval)
+
+	bo.NextBackOff()
+	bo.NextBackOff()
+	bo.Reset()
+	d := bo.NextBackOff()
+	require.LessOrEqual(t, d, 150*time.Millisecond) // 100ms +50% jitter
+	require.GreaterOrEqual(t, d, 50*time.Millisecond)
+}
+
+func TestSleepHelper(t *testing.T) {
+	t.Run("returns true after duration", func(t *testing.T) {
+		ok := sleep(t.Context(), 10*time.Millisecond)
+		require.True(t, ok)
+	})
+
+	t.Run("returns false when context already canceled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		ok := sleep(ctx, time.Second)
+		require.False(t, ok)
+	})
+
+	t.Run("returns false when canceled while sleeping", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			time.Sleep(5 * time.Millisecond)
+			cancel()
+		}()
+		ok := sleep(ctx, time.Second)
+		require.False(t, ok)
+	})
+
+	t.Run("non-positive duration short-circuits", func(t *testing.T) {
+		start := time.Now()
+		ok := sleep(t.Context(), 0)
+		require.True(t, ok)
+		require.Less(t, time.Since(start), 5*time.Millisecond)
+	})
+}
+
+func TestIsTerminalWatchError(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		terminal bool
+	}{
+		{"nil", nil, false},
+		{"watch_canceled", datastore.NewWatchCanceledErr(), true},
+		{"watch_disabled", datastore.NewWatchDisabledErr("test"), true},
+		{"context_canceled", context.Canceled, true},
+		{"context_deadline_exceeded", context.DeadlineExceeded, true},
+		{"wrapped_context_canceled", fmt.Errorf("transaction: %w", context.Canceled), true},
+		{"watch_retryable", datastore.NewWatchTemporaryErr(errors.New("transient")), false},
+		{"watch_disconnected", datastore.NewWatchDisconnectedErr(), false},
+		{"bare_error", errors.New("FATAL: terminating connection"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.terminal, isTerminalWatchError(tc.err))
+		})
+	}
 }
