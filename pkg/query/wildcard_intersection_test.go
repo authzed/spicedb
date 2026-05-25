@@ -181,6 +181,73 @@ func TestIntersectSubjectSets(t *testing.T) {
 		// Caveat should be AND(a, b) — not involving either wildcard caveat.
 		require.Equal(t, "AND", merged.Caveat.GetOperation().GetOp().String())
 	})
+
+	// withExclusions returns a wildcard path carrying the given concrete subjects in
+	// its ExcludedSubjects, mirroring what `viewer:* - banned` produces in IterSubjects.
+	withExclusions := func(caveat string, excludedIDs ...string) *Path {
+		wc := wildcard(caveat)
+		for _, id := range excludedIDs {
+			wc.ExcludedSubjects = append(wc.ExcludedSubjects, concretePath(id, ""))
+		}
+		return wc
+	}
+
+	t.Run("WildcardWithExclusion_DropsExcludedConcrete_CurrWildcard", func(t *testing.T) {
+		// curr = (* - bob); prev = {alice, bob, charlie}.
+		// bob was excluded from the wildcard, so it must NOT survive the intersection.
+		alice := concretePath("alice", "")
+		bob := concretePath("bob", "")
+		charlie := concretePath("charlie", "")
+		prev := map[string]*Path{keyOf(alice): alice, keyOf(bob): bob, keyOf(charlie): charlie}
+
+		result, resultWildcard, err := intersectSubjectSets(prev, nil, nil, withExclusions("", "bob"))
+		require.NoError(t, err)
+		require.Nil(t, resultWildcard)
+		require.NotContains(t, result, keyOf(bob), "bob is excluded from the wildcard and must be dropped")
+		require.Contains(t, result, keyOf(alice))
+		require.Contains(t, result, keyOf(charlie))
+		require.Len(t, result, 2)
+	})
+
+	t.Run("WildcardWithExclusion_DropsExcludedConcrete_PrevWildcard", func(t *testing.T) {
+		// Symmetric case: prev = (* - bob); curr = {alice, bob}.
+		alice := concretePath("alice", "")
+		bob := concretePath("bob", "")
+		curr := map[string]*Path{keyOf(alice): alice, keyOf(bob): bob}
+
+		result, resultWildcard, err := intersectSubjectSets(nil, withExclusions("", "bob"), curr, nil)
+		require.NoError(t, err)
+		require.Nil(t, resultWildcard)
+		require.NotContains(t, result, keyOf(bob))
+		require.Contains(t, result, keyOf(alice))
+		require.Len(t, result, 1)
+	})
+
+	t.Run("WildcardWithCaveatedExclusion_ConditionsSubject", func(t *testing.T) {
+		// prev = (* - bob{under exclusion_caveat}); curr = {bob}.
+		// A caveated exclusion does not drop bob outright: bob survives but only when
+		// the exclusion caveat is false, i.e. with caveat NOT(exclusion_caveat).
+		wc := wildcard("")
+		wc.ExcludedSubjects = []*Path{concretePath("bob", "exclusion_caveat")}
+
+		bob := concretePath("bob", "")
+		curr := map[string]*Path{keyOf(bob): bob}
+
+		result, _, err := intersectSubjectSets(nil, wc, curr, nil)
+		require.NoError(t, err)
+		require.Contains(t, result, keyOf(bob), "caveated exclusion must not drop bob outright")
+		require.NotNil(t, result[keyOf(bob)].Caveat)
+	})
+
+	t.Run("WildcardIntersectWildcard_UnionsExclusions", func(t *testing.T) {
+		// (* - bob) ∩ (* - charlie) = * - {bob, charlie}: both exclusions must survive
+		// on the resulting wildcard so neither subject leaks downstream.
+		_, resultWildcard, err := intersectSubjectSets(nil, withExclusions("", "bob"), nil, withExclusions("", "charlie"))
+		require.NoError(t, err)
+		require.NotNil(t, resultWildcard)
+		excludedIDs := slicez.Map(resultWildcard.ExcludedSubjects, func(p *Path) string { return p.Subject.ObjectID })
+		require.ElementsMatch(t, []string{"bob", "charlie"}, excludedIDs)
+	})
 }
 
 // TestIntersectionIterator_WildcardBehavior exercises IterSubjectsImpl end-to-end
@@ -243,6 +310,27 @@ func TestIntersectionIterator_WildcardBehavior(t *testing.T) {
 
 		paths := collectIntersectionPaths(t, it, resource)
 		require.Empty(t, paths)
+	})
+
+	t.Run("WildcardMinusExclusion_IntersectConcrete_DropsExcluded", func(t *testing.T) {
+		// Regression: a subject excluded from a wildcard must not be re-admitted by an
+		// intersection on the other branch.
+		//   limited = viewer:* - banned   (banned = {bob})
+		//   p       = limited & reader     (reader  = {alice, bob, charlie})
+		// bob is banned from `limited`, so LookupSubjects(p) must be {alice, charlie}.
+		// Previously bob leaked because intersectSubjectSets ignored the wildcard's
+		// ExcludedSubjects.
+		limited := NewExclusionIterator(
+			NewFixedIterator(makeWildcard()),
+			NewFixedIterator(makeConcrete("bob")),
+		)
+		reader := NewFixedIterator(makeConcrete("alice"), makeConcrete("bob"), makeConcrete("charlie"))
+		it := NewIntersectionIterator(limited, reader)
+
+		paths := collectIntersectionPaths(t, it, resource)
+		ids := slicez.Map(paths, func(p *Path) string { return p.Subject.ObjectID })
+		require.ElementsMatch(t, []string{"alice", "charlie"}, ids,
+			"banned subject bob must not be enumerated as a subject of (viewer:* - banned) & reader")
 	})
 }
 
