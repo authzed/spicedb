@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
-	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
@@ -23,14 +23,14 @@ var namespacesFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_namespaces_fallback_mode",
-	Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
+	Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the underlying datastore's schema watch becomes unavailable; in this state lookups bypass the watch-backed cache and are served from a standard caching proxy that reads from the datastore on miss.",
 })
 
 var caveatsFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_caveats_fallback_mode",
-	Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
+	Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the underlying datastore's schema watch becomes unavailable; in this state lookups bypass the watch-backed cache and are served from a standard caching proxy that reads from the datastore on miss.",
 })
 
 var schemaCacheRevisionGauge = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -54,10 +54,80 @@ var definitionsReadTotalCounter = prometheus.NewCounterVec(prometheus.CounterOpt
 	Help:      "total number of definitions read from the watching cache",
 }, []string{"definition_kind"})
 
-const maximumRetryCount = 10
+var cycleRestartsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "datastore",
+	Name:      "watching_schema_cache_cycle_restarts_total",
+	Help:      "Times the watching schema cache restarted its watch cycle (initial cycle excluded). A high or growing rate indicates a flapping watch.",
+})
+
+var lastEventTimestampGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	Namespace: "spicedb",
+	Subsystem: "datastore",
+	Name:      "watching_schema_cache_last_event_timestamp_seconds",
+	Help:      "UNIX timestamp (fractional seconds) of the last event consumed from the schema watch. Use `time() - <metric>` for time-since-last-event.",
+})
 
 func init() {
-	prometheus.MustRegister(namespacesFallbackModeGauge, caveatsFallbackModeGauge, schemaCacheRevisionGauge, definitionsReadCachedCounter, definitionsReadTotalCounter)
+	prometheus.MustRegister(
+		namespacesFallbackModeGauge,
+		caveatsFallbackModeGauge,
+		schemaCacheRevisionGauge,
+		definitionsReadCachedCounter,
+		definitionsReadTotalCounter,
+		cycleRestartsCounter,
+		lastEventTimestampGauge,
+	)
+}
+
+// isTerminalWatchError reports whether err represents intentional shutdown
+// (caller cancellation or watch-unsupported); everything else is recoverable.
+func isTerminalWatchError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var canceled datastore.WatchCanceledError
+	if errors.As(err, &canceled) {
+		return true
+	}
+
+	var disabled datastore.WatchDisabledError
+	if errors.As(err, &disabled) {
+		return true
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	return false
+}
+
+// Do NOT switch to backoff.Retry: its default 15-minute MaxElapsedTime would
+// silently stop the supervisor.
+func newSupervisorBackoff() *backoff.ExponentialBackOff {
+	return &backoff.ExponentialBackOff{
+		InitialInterval:     100 * time.Millisecond,
+		Multiplier:          2.0,
+		RandomizationFactor: 0.5,
+		MaxInterval:         30 * time.Second,
+	}
+}
+
+// sleep returns false if ctx is canceled before d elapses.
+func sleep(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // watchingCachingProxy is a datastore proxy that caches schema (namespaces and caveat definitions)
@@ -78,6 +148,14 @@ type watchingCachingProxy struct {
 
 func (p *watchingCachingProxy) Unwrap() datastore.Datastore {
 	return p.Datastore
+}
+
+// enterFallback puts both schema caches (namespaces and caveats) into fallback
+// mode so reads route through the standard definition-caching proxy until the
+// next successful watch cycle.
+func (p *watchingCachingProxy) enterFallback() {
+	p.namespaceCache.setFallbackMode()
+	p.caveatCache.setFallbackMode()
 }
 
 // createWatchingCacheProxy creates and returns a watching cache proxy.
@@ -152,19 +230,9 @@ func (p *watchingCachingProxy) Start(ctx context.Context) error {
 
 func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	log.Info().Msg("starting watching cache")
-	headRevWithHash, err := p.HeadRevision(context.Background())
-	if err != nil {
-		p.namespaceCache.setFallbackMode()
-		p.caveatCache.setFallbackMode()
-		log.Warn().Err(err).Msg("received error in schema watch")
-		return err
-	}
-	headRev := headRevWithHash.Revision
 
-	// Start watching for expired entries to be GCed.
-	go (func() {
-		log.Debug().Str("revision", headRev.String()).Msg("starting watching cache GC goroutine")
-
+	go func() {
+		log.Debug().Msg("starting watching cache GC goroutine")
 		for {
 			select {
 			case <-ctx.Done():
@@ -182,185 +250,186 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 				log.Debug().Msg("schema watch gc operation completed")
 			}
 		}
-	})()
+	}()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	go func() {
+		bo := newSupervisorBackoff()
+		firstCycle := true
 
-	// Start watching for schema changes.
-	go (func() {
-		retryCount := uint8(0)
+		for ctx.Err() == nil {
+			if !firstCycle {
+				cycleRestartsCounter.Inc()
+			}
+			firstCycle = false
 
-	restartWatch:
-		for {
-			p.namespaceCache.reset()
-			p.caveatCache.reset()
-
-			log.Debug().Str("revision", headRev.String()).Msg("starting watching cache watch operation")
-			reader := p.Datastore.SnapshotReader(headRev)
-
-			// Populate the cache with all definitions at the head revision.
-			log.Info().Str("revision", headRev.String()).Msg("prepopulating namespace watching cache")
-			namespaces, err := reader.LegacyListAllNamespaces(ctx)
+			headRevWithHash, err := p.HeadRevision(ctx)
 			if err != nil {
-				p.namespaceCache.setFallbackMode()
-				p.caveatCache.setFallbackMode()
-				log.Warn().Err(err).Msg("received error in schema watch")
-				wg.Done()
+				p.enterFallback()
+				if isTerminalWatchError(err) {
+					log.Warn().Err(err).Msg("schema watch HEAD lookup ended terminally; staying in fallback")
+					return
+				}
+				log.Warn().Err(err).Msg("schema watch HEAD lookup failed; backing off")
+				if !sleep(ctx, bo.NextBackOff()) {
+					return
+				}
+				continue
+			}
+
+			cycleErr, consumedEvent := p.runWatchOnce(ctx, headRevWithHash.Revision)
+			if cycleErr != nil {
+				p.enterFallback()
+				if isTerminalWatchError(cycleErr) {
+					log.Info().Err(cycleErr).Msg("schema watch ended terminally; staying in fallback")
+					return
+				}
+				log.Warn().Err(cycleErr).Msg("schema watch cycle ended; backing off")
+			}
+			if consumedEvent {
+				bo.Reset()
+			}
+			if !sleep(ctx, bo.NextBackOff()) {
 				return
-			}
-
-			for _, namespaceDef := range namespaces {
-				err := p.namespaceCache.updateDefinition(namespaceDef.Definition.Name, namespaceDef.Definition, false, headRev)
-				if err != nil {
-					p.namespaceCache.setFallbackMode()
-					p.caveatCache.setFallbackMode()
-					log.Warn().Err(err).Msg("received error in schema watch")
-					wg.Done()
-					return
-				}
-			}
-			log.Info().Str("revision", headRev.String()).Int("count", len(namespaces)).Msg("populated namespace watching cache")
-
-			log.Info().Str("revision", headRev.String()).Msg("prepopulating caveat watching cache")
-			caveats, err := reader.LegacyListAllCaveats(ctx)
-			if err != nil {
-				p.namespaceCache.setFallbackMode()
-				p.caveatCache.setFallbackMode()
-				log.Warn().Err(err).Msg("received error in schema watch")
-				wg.Done()
-				return
-			}
-
-			for _, caveatDef := range caveats {
-				err := p.caveatCache.updateDefinition(caveatDef.Definition.Name, caveatDef.Definition, false, headRev)
-				if err != nil {
-					p.namespaceCache.setFallbackMode()
-					p.caveatCache.setFallbackMode()
-					log.Warn().Err(err).Msg("received error in schema watch")
-					wg.Done()
-					return
-				}
-			}
-			log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
-
-			log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
-			ssc, serrc := p.Watch(ctx, headRev, datastore.WatchOptions{
-				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
-				CheckpointInterval: p.watchHeartbeat,
-			})
-			spiceerrors.DebugAssertNotNilf(ssc, "ssc is nil")
-			spiceerrors.DebugAssertNotNilf(serrc, "serrc is nil")
-
-			log.Debug().Msg("schema watch started")
-
-			p.namespaceCache.startAtRevision(headRev)
-			p.caveatCache.startAtRevision(headRev)
-
-			wg.Done()
-
-			for {
-				select {
-				case <-ctx.Done():
-					log.Debug().Msg("schema watch closed due to context cancelation")
-					return
-
-				case <-p.closed:
-					log.Debug().Msg("schema watch closed")
-					return
-
-				case ss, ok := <-ssc:
-					if !ok {
-						return
-					}
-					log.Trace().
-						Bool("is-checkpoint", ss.IsCheckpoint).
-						Int("changed-definition-count", len(ss.ChangedDefinitions)).
-						Int("deleted-namespace-count", len(ss.DeletedNamespaces)).
-						Int("deleted-caveat-count", len(ss.DeletedCaveats)).
-						Msg("received update from schema watch")
-
-					if ss.IsCheckpoint {
-						if converted, ok := ss.Revision.(revisions.WithInexactFloat64); ok {
-							schemaCacheRevisionGauge.Set(converted.InexactFloat64())
-						}
-
-						p.namespaceCache.setCheckpointRevision(ss.Revision)
-						p.caveatCache.setCheckpointRevision(ss.Revision)
-						continue
-					}
-
-					// Apply the change to the interval tree entry.
-					for _, changeDef := range ss.ChangedDefinitions {
-						switch t := changeDef.(type) {
-						case *core.NamespaceDefinition:
-							err := p.namespaceCache.updateDefinition(t.Name, t, false, ss.Revision)
-							if err != nil {
-								p.namespaceCache.setFallbackMode()
-								log.Warn().Err(err).Msg("received error in schema watch")
-							}
-
-						case *core.CaveatDefinition:
-							err := p.caveatCache.updateDefinition(t.Name, t, false, ss.Revision)
-							if err != nil {
-								p.caveatCache.setFallbackMode()
-								log.Warn().Err(err).Msg("received error in schema watch")
-							}
-
-						default:
-							p.namespaceCache.setFallbackMode()
-							p.caveatCache.setFallbackMode()
-							log.Error().Msg("unknown change definition type")
-							return
-						}
-					}
-
-					for _, deletedNamespaceName := range ss.DeletedNamespaces {
-						err := p.namespaceCache.updateDefinition(deletedNamespaceName, nil, true, ss.Revision)
-						if err != nil {
-							p.namespaceCache.setFallbackMode()
-							log.Warn().Err(err).Msg("received error in schema watch")
-							break
-						}
-					}
-
-					for _, deletedCaveatName := range ss.DeletedCaveats {
-						err := p.caveatCache.updateDefinition(deletedCaveatName, nil, true, ss.Revision)
-						if err != nil {
-							p.caveatCache.setFallbackMode()
-							log.Warn().Err(err).Msg("received error in schema watch")
-							break
-						}
-					}
-
-				case err := <-serrc:
-					var retryable datastore.WatchRetryableError
-					if errors.As(err, &retryable) && retryCount <= maximumRetryCount {
-						log.Warn().Err(err).Msg("received retryable error in schema watch; sleeping for a bit and restarting watch")
-						retryCount++
-						wg.Add(1)
-						pgxcommon.SleepOnErr(ctx, err, retryCount)
-						continue restartWatch
-					}
-
-					p.namespaceCache.setFallbackMode()
-					p.caveatCache.setFallbackMode()
-					log.Warn().Err(err).Msg("received terminal error in schema watch; setting to permanent fallback mode")
-					return
-				}
 			}
 		}
-	})()
+	}()
 
-	wg.Wait()
 	return nil
+}
+
+// runWatchOnce performs one prepopulate-then-watch cycle. The boolean is true
+// if any event (change or checkpoint) was read from the watch channel — the
+// caller uses it to decide whether the next cycle should reset its backoff.
+func (p *watchingCachingProxy) runWatchOnce(ctx context.Context, headRev datastore.Revision) (error, bool) {
+	p.namespaceCache.reset()
+	p.caveatCache.reset()
+
+	log.Debug().Str("revision", headRev.String()).Msg("starting watching cache watch operation")
+	reader := p.Datastore.SnapshotReader(headRev)
+
+	log.Info().Str("revision", headRev.String()).Msg("prepopulating namespace watching cache")
+	namespaces, err := reader.LegacyListAllNamespaces(ctx)
+	if err != nil {
+		p.enterFallback()
+		return err, false
+	}
+	for _, namespaceDef := range namespaces {
+		if err := p.namespaceCache.updateDefinition(namespaceDef.Definition.Name, namespaceDef.Definition, false, headRev); err != nil {
+			p.enterFallback()
+			return err, false
+		}
+	}
+	log.Info().Str("revision", headRev.String()).Int("count", len(namespaces)).Msg("populated namespace watching cache")
+
+	log.Info().Str("revision", headRev.String()).Msg("prepopulating caveat watching cache")
+	caveats, err := reader.LegacyListAllCaveats(ctx)
+	if err != nil {
+		p.enterFallback()
+		return err, false
+	}
+	for _, caveatDef := range caveats {
+		if err := p.caveatCache.updateDefinition(caveatDef.Definition.Name, caveatDef.Definition, false, headRev); err != nil {
+			p.enterFallback()
+			return err, false
+		}
+	}
+	log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
+
+	log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
+	ssc, serrc := p.Watch(ctx, headRev, datastore.WatchOptions{
+		Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
+		CheckpointInterval: p.watchHeartbeat,
+	})
+	spiceerrors.DebugAssertNotNilf(ssc, "ssc is nil")
+	spiceerrors.DebugAssertNotNilf(serrc, "serrc is nil")
+
+	p.namespaceCache.startAtRevision(headRev)
+	p.caveatCache.startAtRevision(headRev)
+	log.Debug().Msg("schema watch started")
+
+	var consumedEvent bool
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err(), consumedEvent
+
+		case <-p.closed:
+			// Close()'s contract is that ctx is canceled first, but signal
+			// terminal even if it isn't.
+			return datastore.NewWatchCanceledErr(), consumedEvent
+
+		case ss, ok := <-ssc:
+			if !ok {
+				// Channel closed without an error: recoverable, restart.
+				return nil, consumedEvent
+			}
+			consumedEvent = true
+			lastEventTimestampGauge.Set(time.Since(time.Unix(0, 0)).Seconds())
+
+			log.Trace().
+				Bool("is-checkpoint", ss.IsCheckpoint).
+				Int("changed-definition-count", len(ss.ChangedDefinitions)).
+				Int("deleted-namespace-count", len(ss.DeletedNamespaces)).
+				Int("deleted-caveat-count", len(ss.DeletedCaveats)).
+				Msg("received update from schema watch")
+
+			if ss.IsCheckpoint {
+				if converted, ok := ss.Revision.(revisions.WithInexactFloat64); ok {
+					schemaCacheRevisionGauge.Set(converted.InexactFloat64())
+				}
+
+				p.namespaceCache.setCheckpointRevision(ss.Revision)
+				p.caveatCache.setCheckpointRevision(ss.Revision)
+				continue
+			}
+
+			for _, changeDef := range ss.ChangedDefinitions {
+				switch t := changeDef.(type) {
+				case *core.NamespaceDefinition:
+					if err := p.namespaceCache.updateDefinition(t.Name, t, false, ss.Revision); err != nil {
+						p.namespaceCache.setFallbackMode()
+						log.Warn().Err(err).Msg("received error in schema watch")
+					}
+
+				case *core.CaveatDefinition:
+					if err := p.caveatCache.updateDefinition(t.Name, t, false, ss.Revision); err != nil {
+						p.caveatCache.setFallbackMode()
+						log.Warn().Err(err).Msg("received error in schema watch")
+					}
+
+				default:
+					p.enterFallback()
+					log.Error().Msg("unknown change definition type")
+					return errors.New("unknown change definition type"), consumedEvent
+				}
+			}
+
+			for _, deletedNamespaceName := range ss.DeletedNamespaces {
+				if err := p.namespaceCache.updateDefinition(deletedNamespaceName, nil, true, ss.Revision); err != nil {
+					p.namespaceCache.setFallbackMode()
+					log.Warn().Err(err).Msg("received error in schema watch")
+					break
+				}
+			}
+
+			for _, deletedCaveatName := range ss.DeletedCaveats {
+				if err := p.caveatCache.updateDefinition(deletedCaveatName, nil, true, ss.Revision); err != nil {
+					p.caveatCache.setFallbackMode()
+					log.Warn().Err(err).Msg("received error in schema watch")
+					break
+				}
+			}
+
+		case err := <-serrc:
+			return err, consumedEvent
+		}
+	}
 }
 
 // Close stops all resources.
 // The caller must have canceled the context passed to Start.
 func (p *watchingCachingProxy) Close() error {
-	p.caveatCache.setFallbackMode()
-	p.namespaceCache.setFallbackMode()
+	p.enterFallback()
 
 	// Close both goroutines
 	p.closed <- true
@@ -479,12 +548,27 @@ func (swc *schemaWatchCache[T]) setFallbackMode() {
 	swc.fallbackGauge.Set(1)
 }
 
+// isInFallback returns the current fallback flag under the read lock.
+// Callers outside this type MUST use this rather than reading
+// inFallbackMode directly; the supervisor goroutine writes it under
+// swc.lock and the race detector will flag any unsynchronized read.
+func (swc *schemaWatchCache[T]) isInFallback() bool {
+	swc.lock.RLock()
+	defer swc.lock.RUnlock()
+
+	return swc.inFallbackMode
+}
+
+// reset clears the cache state in preparation for a new watch cycle.
+// inFallbackMode stays true until startAtRevision flips it off after
+// prepopulate completes — readers must not be told the cache is ready
+// while entries are still empty and the checkpoint revision is nil.
 func (swc *schemaWatchCache[T]) reset() {
 	swc.lock.Lock()
 	defer swc.lock.Unlock()
 
-	swc.inFallbackMode = false
-	swc.fallbackGauge.Set(0)
+	swc.inFallbackMode = true
+	swc.fallbackGauge.Set(1)
 	swc.entries = map[string]*intervalTracker[revisionedEntry[T]]{}
 	swc.checkpointRevision = nil
 }

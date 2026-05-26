@@ -11,12 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
 
 ### Fixed
+- The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)
 - Watch consumers that request `WatchCheckpoints` now eventually observe every revision returned by `WriteRelationships` as a checkpoint. MemDB regressed this in https://github.com/authzed/spicedb/pull/2578 for no-op writes and MySQL never emitted checkpoints at all prior to now. Both now emit a checkpoint at the new revision. (https://github.com/authzed/spicedb/pull/3114)
 - When Query Planner evaluates a union, short-circuit if one of the branches yields a positive un-caveated result (https://github.com/authzed/spicedb/pull/3120)
 - DispatchQueryPlan previously did not try to use the singleflight middleware for check calls. (https://github.com/authzed/spicedb/pull/3119)
 - Fixed regression introduced in 1.53.0. Postgres `HeadRevision` no longer allocates a new transaction ID on every call (https://github.com/authzed/spicedb/pull/3127)
 - Fixed regression introduced in 1.53.0 for MySQL migration scripts (https://github.com/authzed/spicedb/pull/3129)
 - Query Planner: `LookupSubjects` no longer returns a subject excluded from a wildcard (e.g. `viewer:* - banned`) when the exclusion feeds an intersection (experimental `--experimental-query-plan ls`) (https://github.com/authzed/spicedb/pull/3136)
+- Tracing: When server is shutting down, flush traces. Also, elide the need for setting `OTEL_EXPORTER_OTLP_ENDPOINT`. (https://github.com/authzed/spicedb/pull/3108)
 
 ## [1.53.0] - 2026-05-13
 ### Added

@@ -9,7 +9,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil/v2"
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/telemetry"
@@ -214,11 +213,8 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("could not register stored schema cache flags: %w", err)
 	}
 
-	tracingFlags := nfs.FlagSet(BoldBlue("Tracing"))
 	// Flags for tracing
-	// NOTE: cobraotel.New takes service name as an arg rather than command name.
-	otel := cobraotel.New("spicedb")
-	otel.RegisterFlags(tracingFlags)
+	server.RegisterOTelFlags(cmd, &config.OTel)
 
 	loggingFlagSet := nfs.FlagSet(BoldBlue("Logging"))
 	loggingFlagSet.BoolVar(&config.EnableRequestLogs, "grpc-log-requests-enabled", false, "enable logging of API request payloads")
@@ -260,14 +256,14 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 		Long:    "start a SpiceDB server",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			server, err := config.Complete(cmd.Context())
+			srv, err := config.Complete(cmd.Context())
 			if err != nil {
 				return err
 			}
 			signalctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
-			return server.Run(signalctx)
+			return srv.Run(signalctx)
 		}),
 		Example: server.ServeExample(programName),
 	}

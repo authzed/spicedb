@@ -19,7 +19,6 @@ import (
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/selector"
 	"github.com/jzelinskie/cobrautil/v2"
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/cobrautil/v2/cobraproclimits"
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -66,8 +65,8 @@ func ServeExample(programName string) string {
 	)
 }
 
-// DefaultPreRunE sets up viper, zerolog, and OpenTelemetry flag handling for a
-// command.
+// DefaultPreRunE sets up viper dotenv loading, zerolog, memory and process
+// limits, release version checks, and runtime instrumentation for a command.
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
 		cobrautil.SyncViperDotEnvPreRunE(programName, "spicedb.env", zerologr.New(&logging.Logger)),
@@ -82,9 +81,6 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 		// and zero under the same load and 0.9
 		cobraproclimits.SetMemLimitRunE(memlimit.WithRatio(0.9)),
 		cobraproclimits.SetProcLimitRunE(),
-		cobraotel.New("spicedb",
-			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
-		).RunE(),
 		releases.CheckAndLogRunE(),
 		runtime.RunE(),
 	)

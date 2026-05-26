@@ -111,6 +111,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.OTel = c.OTel
 		to.EnableRequestLogs = c.EnableRequestLogs
 		to.EnableResponseLogs = c.EnableResponseLogs
 		to.DisableGRPCLatencyHistogram = c.DisableGRPCLatencyHistogram
@@ -381,6 +382,13 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["TelemetryInterval"] = dm.DebugMap()
 	} else {
 		debugMap["TelemetryInterval"] = c.TelemetryInterval
+	}
+	if dm, ok := any(&c.OTel).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["OTel"] = dm.DebugMap()
+	} else {
+		debugMap["OTel"] = c.OTel
 	}
 	debugMap["EnableRequestLogs"] = c.EnableRequestLogs
 	debugMap["EnableResponseLogs"] = c.EnableResponseLogs
@@ -996,6 +1004,13 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithOTel returns an option that can set OTel on a Config
+func WithOTel(oTel OTelConfig) ConfigOption {
+	return func(c *Config) {
+		c.OTel = oTel
 	}
 }
 
