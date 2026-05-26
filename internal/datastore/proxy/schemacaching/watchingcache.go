@@ -23,14 +23,14 @@ var namespacesFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_namespaces_fallback_mode",
-	Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
+	Help:      "Whether the watching schema cache for namespace definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the underlying datastore's schema watch becomes unavailable; in this state lookups bypass the watch-backed cache and are served from a standard caching proxy that reads from the datastore on miss.",
 })
 
 var caveatsFallbackModeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
 	Name:      "watching_schema_cache_caveats_fallback_mode",
-	Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the CockroachDB changefeed used to track schema updates becomes unavailable; in this state every schema lookup hits the datastore directly.",
+	Help:      "Whether the watching schema cache for caveat definitions is in fallback mode (1) or normal mode (0). Fallback is triggered when the underlying datastore's schema watch becomes unavailable; in this state lookups bypass the watch-backed cache and are served from a standard caching proxy that reads from the datastore on miss.",
 })
 
 var schemaCacheRevisionGauge = prometheus.NewGauge(prometheus.GaugeOpts{
