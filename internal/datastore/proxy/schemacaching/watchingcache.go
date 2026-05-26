@@ -273,12 +273,10 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			if cycleErr != nil {
 				p.namespaceCache.setFallbackMode()
 				p.caveatCache.setFallbackMode()
-			}
-			if isTerminalWatchError(cycleErr) {
-				log.Info().Err(cycleErr).Msg("schema watch ended terminally; staying in fallback")
-				return
-			}
-			if cycleErr != nil {
+				if isTerminalWatchError(cycleErr) {
+					log.Info().Err(cycleErr).Msg("schema watch ended terminally; staying in fallback")
+					return
+				}
 				log.Warn().Err(cycleErr).Msg("schema watch cycle ended; backing off")
 			}
 			if consumedEvent {
