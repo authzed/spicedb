@@ -123,12 +123,6 @@ spicedb datastore gc [flags]
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                     how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
       --datastore-watch-connect-timeout duration                              how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
-      --otel-endpoint string                                                  OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
-      --otel-insecure                                                         connect to the OpenTelemetry collector in plaintext
-      --otel-provider string                                                  OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
-      --otel-sample-ratio float                                               ratio of traces that are sampled (default 0.01)
-      --otel-service-name string                                              service name for trace data (default "spicedb")
-      --otel-trace-propagator string                                          OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
@@ -157,12 +151,6 @@ spicedb datastore head [flags]
 
 ```
       --datastore-engine string        type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "postgres")
-      --otel-endpoint string           OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
-      --otel-insecure                  connect to the OpenTelemetry collector in plaintext
-      --otel-provider string           OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
-      --otel-sample-ratio float        ratio of traces that are sampled (default 0.01)
-      --otel-service-name string       service name for trace data (default "spicedb")
-      --otel-trace-propagator string   OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int   sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int   sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string    local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
@@ -198,12 +186,6 @@ spicedb datastore migrate [revision] [flags]
       --datastore-spanner-emulator-host string       URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
       --migration-backfill-batch-size uint           number of items to migrate per iteration of a datastore backfill (default 1000)
       --migration-timeout duration                   defines a timeout for the execution of the migration, set to 1 hour by default (default 1h0m0s)
-      --otel-endpoint string                         OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
-      --otel-insecure                                connect to the OpenTelemetry collector in plaintext
-      --otel-provider string                         OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
-      --otel-sample-ratio float                      ratio of traces that are sampled (default 0.01)
-      --otel-service-name string                     service name for trace data (default "spicedb")
-      --otel-trace-propagator string                 OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                 sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                 sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string                  local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
@@ -286,12 +268,6 @@ spicedb datastore repair [flags]
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                     how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
       --datastore-watch-connect-timeout duration                              how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
-      --otel-endpoint string                                                  OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
-      --otel-insecure                                                         connect to the OpenTelemetry collector in plaintext
-      --otel-provider string                                                  OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
-      --otel-sample-ratio float                                               ratio of traces that are sampled (default 0.01)
-      --otel-service-name string                                              service name for trace data (default "spicedb")
-      --otel-trace-propagator string                                          OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
@@ -603,12 +579,6 @@ spicedb serve-testing [flags]
       --max-lookup-resources-limit uint32                        maximum number of resources that can be looked up in a single request (default 1000)
       --max-read-relationships-limit uint32                      maximum number of relationships that can be read in a single request (default 1000)
       --max-relationship-context-size int                        maximum allowed size of the context to be stored in a relationship (default 25000)
-      --otel-endpoint string                                     OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
-      --otel-insecure                                            connect to the OpenTelemetry collector in plaintext
-      --otel-provider string                                     OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
-      --otel-sample-ratio float                                  ratio of traces that are sampled (default 0.01)
-      --otel-service-name string                                 service name for trace data (default "spicedb")
-      --otel-trace-propagator string                             OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                             sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                             sets the mutex profile sampling rate (between 0 and 1)
       --readonly-grpc-addr string                                address to listen on to serve read-only gRPC (default ":50052")

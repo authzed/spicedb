@@ -163,6 +163,9 @@ type Config struct {
 	TelemetryEndpoint        string        `debugmap:"visible"`
 	TelemetryInterval        time.Duration `debugmap:"visible"`
 
+	// OpenTelemetry tracing
+	OTel OTelConfig `debugmap:"visible"`
+
 	// Logs
 	EnableRequestLogs  bool `debugmap:"visible"`
 	EnableResponseLogs bool `debugmap:"visible"`
@@ -543,6 +546,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
 	}
 	closeables.AddWithoutError(metricsServer.Close)
+
+	otelShutdown, err := InitOTelProvider(ctx, c.OTel)
+	if err != nil {
+		return nil, fmt.Errorf("initializing OTel provider: %w", err)
+	}
+	closeables.AddWithError(otelShutdown)
 
 	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 

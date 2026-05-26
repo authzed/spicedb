@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	_ "github.com/mostynb/go-grpc-compression/experimental/s2" // Register Snappy S2 compression
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -439,8 +438,6 @@ func (d *disabledHTTPServer) Close() {}
 // so that they were shared across all commands, but this
 // made it difficult to organize the flags, so we lifted them here.
 func RegisterCommonFlags(cmd *cobra.Command) {
-	otel := cobraotel.New("spicedb")
-	otel.RegisterFlags(cmd.Flags())
 	termination.RegisterFlags(cmd.Flags())
 	runtime.RegisterFlags(cmd.Flags())
 }
