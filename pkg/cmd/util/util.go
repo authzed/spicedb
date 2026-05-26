@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"time"
 
-
 	_ "github.com/mostynb/go-grpc-compression/experimental/s2" // Register Snappy S2 compression
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -439,16 +438,6 @@ func (d *disabledHTTPServer) Close() {}
 // so that they were shared across all commands, but this
 // made it difficult to organize the flags, so we lifted them here.
 func RegisterCommonFlags(cmd *cobra.Command) {
-	f := cmd.Flags()
-	f.String("otel-provider", "none", `OpenTelemetry provider for tracing ("none", "otlpgrpc", "otlphttp")`)
-	f.String("otel-endpoint", "", `OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables`)
-	f.String("otel-service-name", "spicedb", `service name for trace data`)
-	f.String("otel-trace-propagator", "w3c", `OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma.`)
-	f.Bool("otel-insecure", false, `connect to the OpenTelemetry collector in plaintext`)
-	f.StringToString("otel-headers", nil, `key=value pairs sent as headers to the OTel provider`)
-	f.Float64("otel-sample-ratio", 0.01, `ratio of traces that are sampled`)
-
 	termination.RegisterFlags(cmd.Flags())
 	runtime.RegisterFlags(cmd.Flags())
 }
-

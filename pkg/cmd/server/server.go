@@ -164,9 +164,6 @@ type Config struct {
 	TelemetryInterval        time.Duration `debugmap:"visible"`
 
 	// OpenTelemetry tracing
-	// Populated from Cobra flags by PopulateOTelConfig in serve RunE.
-	// Setting this field programmatically allows embedded users of SpiceDB to
-	// configure OTel without going through Cobra (requested by reviewer miparnisari).
 	OTel OTelConfig `debugmap:"visible"`
 
 	// Logs
@@ -544,23 +541,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithoutError(metricsServer.Close)
 
-	// Initialize the OpenTelemetry provider from config.
-	// The provider is registered with closeables so Shutdown and ForceFlush
-	// are called automatically on server shutdown — this addresses the issue
-	// where cobraotel owned the provider with no lifecycle hook for the signal handler.
-	if c.OTel.Provider != "none" && c.OTel.Provider != "" {
-		otelProvider, err := InitOTelProvider(ctx, c.OTel)
-		if err != nil {
-			return nil, fmt.Errorf("initializing OTel provider: %w", err)
-		}
-		if otelProvider != nil {
-			closeables.AddWithError(func() error {
-				shutCtx, cancel := context.WithTimeout(context.Background(), OTelShutdownTimeout)
-				defer cancel()
-				return ShutdownOTelProvider(shutCtx, otelProvider)
-			})
-		}
+	otelShutdown, err := InitOTelProvider(ctx, c.OTel)
+	if err != nil {
+		return nil, fmt.Errorf("initializing OTel provider: %w", err)
 	}
+	closeables.AddWithError(otelShutdown)
 
 	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 

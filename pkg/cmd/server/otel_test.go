@@ -57,12 +57,11 @@ func makeTestCmd() *cobra.Command {
 // RegisterOTelFlags
 // ---------------------------------------------------------------------------
 
-
 // TestRegisterOTelFlags_AllFlagsPresent verifies all OTel flags are
 // registered with correct names after calling RegisterOTelFlags.
 func TestRegisterOTelFlags_AllFlagsPresent(t *testing.T) {
 	cmd := makeTestCmd()
-	RegisterOTelFlags(cmd)
+	RegisterOTelFlags(cmd, &OTelConfig{})
 
 	for _, name := range []string{
 		"otel-provider",
@@ -70,7 +69,6 @@ func TestRegisterOTelFlags_AllFlagsPresent(t *testing.T) {
 		"otel-service-name",
 		"otel-trace-propagator",
 		"otel-insecure",
-		"otel-headers",
 	} {
 		assert.NotNil(t, cmd.Flags().Lookup(name),
 			"expected flag %q to be registered", name)
@@ -80,30 +78,30 @@ func TestRegisterOTelFlags_AllFlagsPresent(t *testing.T) {
 // TestRegisterOTelFlags_ProviderDefault verifies otel-provider defaults to "none".
 func TestRegisterOTelFlags_ProviderDefault(t *testing.T) {
 	cmd := makeTestCmd()
-	RegisterOTelFlags(cmd)
-	val, err := cmd.Flags().GetString("otel-provider")
-	require.NoError(t, err)
-	assert.Equal(t, "none", val)
+	cfg := &OTelConfig{}
+	RegisterOTelFlags(cmd, cfg)
+	assert.Equal(t, "none", cfg.Provider)
 }
 
 // ---------------------------------------------------------------------------
 // InitOTelProvider
 // ---------------------------------------------------------------------------
 
-// TestInitOTelProvider_NoneSkipsInit verifies provider=none returns (nil, nil)
-// without attempting any network connection.
+// TestInitOTelProvider_NoneSkipsInit verifies provider=none returns a no-op
+// shutdown closure without attempting any network connection.
 func TestInitOTelProvider_NoneSkipsInit(t *testing.T) {
 	cfg := OTelConfig{Provider: "none"}
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
-	assert.Nil(t, provider)
+	require.NotNil(t, shutdown)
+	assert.NoError(t, shutdown())
 }
 
 // TestInitOTelProvider_UnknownProviderReturnsError verifies an unrecognized
 // provider string returns a non-nil error containing the bad value.
 func TestInitOTelProvider_UnknownProviderReturnsError(t *testing.T) {
 	cfg := OTelConfig{Provider: "bogusprovider", ServiceName: "test", TracePropagator: "w3c"}
-	_, err := InitOTelProvider(context.Background(), cfg)
+	_, err := InitOTelProvider(t.Context(), cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bogusprovider")
 }
@@ -120,10 +118,10 @@ func TestInitOTelProvider_OtlpGrpc_ValidEndpoint(t *testing.T) {
 		Insecure:        true,
 		SampleRatio:     0.01,
 	}
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
-	assert.NotNil(t, provider)
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	require.NotNil(t, shutdown)
+	t.Cleanup(func() { _ = shutdown() })
 }
 
 // TestInitOTelProvider_OtlpHttp_ValidEndpoint verifies otlphttp initializes
@@ -137,10 +135,10 @@ func TestInitOTelProvider_OtlpHttp_ValidEndpoint(t *testing.T) {
 		Insecure:        true,
 		SampleRatio:     0.01,
 	}
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
-	assert.NotNil(t, provider)
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	require.NotNil(t, shutdown)
+	t.Cleanup(func() { _ = shutdown() })
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +147,7 @@ func TestInitOTelProvider_OtlpHttp_ValidEndpoint(t *testing.T) {
 
 // TestShutdownOTelProvider_NilProvider_NoError verifies nil provider is safe.
 func TestShutdownOTelProvider_NilProvider_NoError(t *testing.T) {
-	err := ShutdownOTelProvider(context.Background(), nil)
+	err := ShutdownOTelProvider(t.Context(), nil)
 	assert.NoError(t, err)
 }
 
@@ -159,7 +157,7 @@ func TestShutdownOTelProvider_CallsFlushThenShutdown(t *testing.T) {
 	callOrder := []string{}
 	provider := &callOrderShutdowner{callLog: &callOrder}
 
-	err := ShutdownOTelProvider(context.Background(), provider)
+	err := ShutdownOTelProvider(t.Context(), provider)
 	require.NoError(t, err)
 	require.Len(t, callOrder, 2)
 	assert.Equal(t, "ForceFlush", callOrder[0], "ForceFlush must be called before Shutdown")
@@ -170,7 +168,7 @@ func TestShutdownOTelProvider_CallsFlushThenShutdown(t *testing.T) {
 // from Shutdown is returned to the caller.
 func TestShutdownOTelProvider_ShutdownErrorPropagated(t *testing.T) {
 	mock := &mockShutdowner{shutdownErr: fmt.Errorf("shutdown failed")}
-	err := ShutdownOTelProvider(context.Background(), mock)
+	err := ShutdownOTelProvider(t.Context(), mock)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "shutdown failed")
 }
@@ -179,7 +177,7 @@ func TestShutdownOTelProvider_ShutdownErrorPropagated(t *testing.T) {
 // a ForceFlush error does not prevent Shutdown from being called.
 func TestShutdownOTelProvider_ForceFlushErrorContinuesToShutdown(t *testing.T) {
 	mock := &mockShutdowner{forceFlushErr: fmt.Errorf("flush failed")}
-	_ = ShutdownOTelProvider(context.Background(), mock)
+	_ = ShutdownOTelProvider(t.Context(), mock)
 	assert.True(t, mock.shutdownCalled,
 		"Shutdown must be called even when ForceFlush errors")
 }
@@ -187,7 +185,7 @@ func TestShutdownOTelProvider_ForceFlushErrorContinuesToShutdown(t *testing.T) {
 // TestShutdownOTelProvider_ContextCancelled verifies a cancelled context
 // produces no panic. The shutdown error (if any) is returned normally.
 func TestShutdownOTelProvider_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	mock := &mockShutdowner{shutdownErr: context.Canceled}
 	err := ShutdownOTelProvider(ctx, mock)

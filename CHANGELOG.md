@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - DispatchQueryPlan previously did not try to use the singleflight middleware for check calls. (https://github.com/authzed/spicedb/pull/3119)
 - Fixed regression introduced in 1.53.0. Postgres `HeadRevision` no longer allocates a new transaction ID on every call (https://github.com/authzed/spicedb/pull/3127)
 - Fixed regression introduced in 1.53.0 for MySQL migration scripts (https://github.com/authzed/spicedb/pull/3129)
+- Tracing: When server is shutting down, flush traces. Also, elide the need for setting `OTEL_EXPORTER_OTLP_ENDPOINT`. (https://github.com/authzed/spicedb/pull/3108)
 
 ## [1.53.0] - 2026-05-13
 ### Added

@@ -19,7 +19,6 @@ import (
 	"github.com/authzed/spicedb/pkg/runtime"
 )
 
-
 const PresharedKeyFlag = "grpc-preshared-key"
 
 var (
@@ -215,7 +214,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	}
 
 	// Flags for tracing
-	server.RegisterOTelFlags(cmd)
+	server.RegisterOTelFlags(cmd, &config.OTel)
 
 	loggingFlagSet := nfs.FlagSet(BoldBlue("Logging"))
 	loggingFlagSet.BoolVar(&config.EnableRequestLogs, "grpc-log-requests-enabled", false, "enable logging of API request payloads")
@@ -257,14 +256,6 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 		Long:    "start a SpiceDB server",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
-			// Populate OTel config from flags before calling Complete so that
-			// embedded callers can also set config.OTel programmatically.
-			otelCfg, err := server.PopulateOTelConfig(cmd)
-			if err != nil {
-				return err
-			}
-			config.OTel = otelCfg
-
 			srv, err := config.Complete(cmd.Context())
 			if err != nil {
 				return err
@@ -272,12 +263,8 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 			signalctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
-			// OTel provider shutdown is handled by closeables inside Complete().
-			// No explicit defer needed here.
-
 			return srv.Run(signalctx)
 		}),
 		Example: server.ServeExample(programName),
 	}
 }
-

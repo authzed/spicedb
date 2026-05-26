@@ -65,8 +65,8 @@ func ServeExample(programName string) string {
 	)
 }
 
-// DefaultPreRunE sets up viper, zerolog, and OpenTelemetry flag handling for a
-// command.
+// DefaultPreRunE sets up viper dotenv loading, zerolog, memory and process
+// limits, release version checks, and runtime instrumentation for a command.
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
 		cobrautil.SyncViperDotEnvPreRunE(programName, "spicedb.env", zerologr.New(&logging.Logger)),
@@ -81,13 +81,10 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 		// and zero under the same load and 0.9
 		cobraproclimits.SetMemLimitRunE(memlimit.WithRatio(0.9)),
 		cobraproclimits.SetProcLimitRunE(),
-		// OTelPreRunE removed: OTel initialization now happens in Config.Complete()
-		// so that the provider lifecycle is tied to the closeables stack.
 		releases.CheckAndLogRunE(),
 		runtime.RunE(),
 	)
 }
-
 
 // MetricsHandler sets up an HTTP server that handles serving Prometheus
 // metrics and pprof endpoints.

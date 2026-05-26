@@ -93,22 +93,17 @@ func TestOTelSystem_SpansDeliveredToCollector(t *testing.T) {
 		Insecure:        true,
 		SampleRatio:     1.0,
 	}
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(context.Background(), cfg)
 	require.NoError(t, err)
-	require.NotNil(t, provider)
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = ShutdownOTelProvider(ctx, provider)
-	})
+	require.NotNil(t, shutdown)
 
 	tracer := otel.Tracer("system-test")
 	_, span := tracer.Start(context.Background(), "test-span")
 	span.End()
 
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer flushCancel()
-	require.NoError(t, provider.ForceFlush(flushCtx))
+	// The shutdown closure performs ForceFlush before Shutdown, so by the
+	// time it returns the span must have been delivered to the collector.
+	require.NoError(t, shutdown())
 
 	require.Eventually(t,
 		func() bool { return collector.ReceivedSpanCount() >= 1 },
@@ -134,9 +129,9 @@ func TestOTelSystem_SpansNotDroppedOnShutdown(t *testing.T) {
 		Insecure:        true,
 		SampleRatio:     1.0,
 	}
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(context.Background(), cfg)
 	require.NoError(t, err)
-	require.NotNil(t, provider)
+	require.NotNil(t, shutdown)
 
 	tracer := otel.Tracer("shutdown-test")
 	for i := 0; i < spanCount; i++ {
@@ -145,10 +140,7 @@ func TestOTelSystem_SpansNotDroppedOnShutdown(t *testing.T) {
 	}
 
 	// Shut down immediately — spans must be flushed before exit.
-	shutCtx, shutCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer shutCancel()
-	require.NoError(t, ShutdownOTelProvider(shutCtx, provider),
-		"ShutdownOTelProvider must not error")
+	require.NoError(t, shutdown(), "shutdown closure must not error")
 
 	assert.GreaterOrEqual(t, collector.ReceivedSpanCount(), spanCount,
 		"all buffered spans must be delivered before Shutdown returns")

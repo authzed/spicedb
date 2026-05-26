@@ -25,22 +25,18 @@ func TestOTelIntegration_FullChain_EnvToProvider(t *testing.T) {
 		SampleRatio:     0.01,
 	}
 
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
-	require.NotNil(t, provider, "TracerProvider must be non-nil after InitOTelProvider")
+	require.NotNil(t, shutdown, "shutdown closure must be non-nil after InitOTelProvider")
 
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = ShutdownOTelProvider(ctx, provider)
-	})
+	t.Cleanup(func() { _ = shutdown() })
 }
 
 // TestOTelIntegration_ShutdownOnSignal verifies that ShutdownOTelProvider
 // completes without error when called as a signal handler would call it.
 func TestOTelIntegration_ShutdownOnSignal(t *testing.T) {
 	mock := &mockShutdowner{}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	err := ShutdownOTelProvider(ctx, mock)
@@ -55,7 +51,7 @@ func TestOTelIntegration_FlushBeforeShutdown(t *testing.T) {
 	callOrder := []string{}
 	provider := &callOrderShutdowner{callLog: &callOrder}
 
-	err := ShutdownOTelProvider(context.Background(), provider)
+	err := ShutdownOTelProvider(t.Context(), provider)
 	require.NoError(t, err)
 	require.Len(t, callOrder, 2)
 	assert.Equal(t, "ForceFlush", callOrder[0],
@@ -64,17 +60,15 @@ func TestOTelIntegration_FlushBeforeShutdown(t *testing.T) {
 }
 
 // TestOTelIntegration_NoneProvider_SafeShutdown verifies that when
-// provider=none, InitOTelProvider returns nil and nil can be passed to
-// ShutdownOTelProvider without error.
+// provider=none, InitOTelProvider returns a no-op shutdown closure that can
+// be invoked safely.
 func TestOTelIntegration_NoneProvider_SafeShutdown(t *testing.T) {
 	cfg := OTelConfig{Provider: "none"}
 
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
-	assert.Nil(t, provider)
-
-	err = ShutdownOTelProvider(context.Background(), provider)
-	assert.NoError(t, err)
+	require.NotNil(t, shutdown)
+	assert.NoError(t, shutdown())
 }
 
 // TestOTelConfig_EnvVarConfiguresUnsetFlag verifies that when a flag is not
@@ -93,15 +87,11 @@ func TestOTelConfig_EnvVarConfiguresUnsetFlag(t *testing.T) {
 		// Endpoint intentionally left empty — SDK should read OTEL_EXPORTER_OTLP_ENDPOINT
 	}
 
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
-	require.NotNil(t, provider, "provider must be non-nil when OTEL_EXPORTER_OTLP_ENDPOINT is set")
+	require.NotNil(t, shutdown, "shutdown closure must be non-nil when OTEL_EXPORTER_OTLP_ENDPOINT is set")
 
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = ShutdownOTelProvider(ctx, provider)
-	})
+	t.Cleanup(func() { _ = shutdown() })
 }
 
 // TestOTelConfig_ExplicitFlagOverridesEnvVar verifies that when both the
@@ -122,13 +112,9 @@ func TestOTelConfig_ExplicitFlagOverridesEnvVar(t *testing.T) {
 	// We verify this does not error — the explicit endpoint is used.
 	// The actual routing cannot be asserted without a live collector,
 	// but the contract (flag > env) is documented here for future reference.
-	provider, err := InitOTelProvider(context.Background(), cfg)
+	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
-	require.NotNil(t, provider)
+	require.NotNil(t, shutdown)
 
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = ShutdownOTelProvider(ctx, provider)
-	})
+	t.Cleanup(func() { _ = shutdown() })
 }
