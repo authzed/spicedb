@@ -150,6 +150,14 @@ func (p *watchingCachingProxy) Unwrap() datastore.Datastore {
 	return p.Datastore
 }
 
+// enterFallback puts both schema caches (namespaces and caveats) into fallback
+// mode so reads route through the standard definition-caching proxy until the
+// next successful watch cycle.
+func (p *watchingCachingProxy) enterFallback() {
+	p.namespaceCache.setFallbackMode()
+	p.caveatCache.setFallbackMode()
+}
+
 // createWatchingCacheProxy creates and returns a watching cache proxy.
 func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry], gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
 	fallbackCache := &definitionCachingProxy{
@@ -256,8 +264,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 
 			headRevWithHash, err := p.HeadRevision(ctx)
 			if err != nil {
-				p.namespaceCache.setFallbackMode()
-				p.caveatCache.setFallbackMode()
+				p.enterFallback()
 				if isTerminalWatchError(err) {
 					log.Warn().Err(err).Msg("schema watch HEAD lookup ended terminally; staying in fallback")
 					return
@@ -271,8 +278,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 
 			cycleErr, consumedEvent := p.runWatchOnce(ctx, headRevWithHash.Revision)
 			if cycleErr != nil {
-				p.namespaceCache.setFallbackMode()
-				p.caveatCache.setFallbackMode()
+				p.enterFallback()
 				if isTerminalWatchError(cycleErr) {
 					log.Info().Err(cycleErr).Msg("schema watch ended terminally; staying in fallback")
 					return
@@ -304,14 +310,12 @@ func (p *watchingCachingProxy) runWatchOnce(ctx context.Context, headRev datasto
 	log.Info().Str("revision", headRev.String()).Msg("prepopulating namespace watching cache")
 	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
-		p.namespaceCache.setFallbackMode()
-		p.caveatCache.setFallbackMode()
+		p.enterFallback()
 		return err, false
 	}
 	for _, namespaceDef := range namespaces {
 		if err := p.namespaceCache.updateDefinition(namespaceDef.Definition.Name, namespaceDef.Definition, false, headRev); err != nil {
-			p.namespaceCache.setFallbackMode()
-			p.caveatCache.setFallbackMode()
+			p.enterFallback()
 			return err, false
 		}
 	}
@@ -320,14 +324,12 @@ func (p *watchingCachingProxy) runWatchOnce(ctx context.Context, headRev datasto
 	log.Info().Str("revision", headRev.String()).Msg("prepopulating caveat watching cache")
 	caveats, err := reader.LegacyListAllCaveats(ctx)
 	if err != nil {
-		p.namespaceCache.setFallbackMode()
-		p.caveatCache.setFallbackMode()
+		p.enterFallback()
 		return err, false
 	}
 	for _, caveatDef := range caveats {
 		if err := p.caveatCache.updateDefinition(caveatDef.Definition.Name, caveatDef.Definition, false, headRev); err != nil {
-			p.namespaceCache.setFallbackMode()
-			p.caveatCache.setFallbackMode()
+			p.enterFallback()
 			return err, false
 		}
 	}
@@ -396,8 +398,7 @@ func (p *watchingCachingProxy) runWatchOnce(ctx context.Context, headRev datasto
 					}
 
 				default:
-					p.namespaceCache.setFallbackMode()
-					p.caveatCache.setFallbackMode()
+					p.enterFallback()
 					log.Error().Msg("unknown change definition type")
 					return errors.New("unknown change definition type"), consumedEvent
 				}
@@ -428,8 +429,7 @@ func (p *watchingCachingProxy) runWatchOnce(ctx context.Context, headRev datasto
 // Close stops all resources.
 // The caller must have canceled the context passed to Start.
 func (p *watchingCachingProxy) Close() error {
-	p.caveatCache.setFallbackMode()
-	p.namespaceCache.setFallbackMode()
+	p.enterFallback()
 
 	// Close both goroutines
 	p.closed <- true
