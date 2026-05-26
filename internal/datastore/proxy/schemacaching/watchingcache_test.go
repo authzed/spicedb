@@ -625,6 +625,65 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	require.False(t, wcache.namespaceCache.isInFallback())
 }
 
+// While a watch cycle is in flight — entries are reset and prepopulate has
+// not finished — the cache must report as in fallback, because reads from
+// the watch-backed cache would otherwise see an empty tracker and return
+// spurious not-found errors for definitions that exist in the datastore.
+// Gating LegacyListAllNamespaces holds the supervisor inside runWatchOnce
+// past reset() but before startAtRevision, making this assertion deterministic.
+func TestWatchingCacheStaysInFallbackDuringPrepopulate(t *testing.T) {
+	listGate := make(chan struct{})
+	fakeDS := &fakeDatastore{
+		headRevision:       rev("4"),
+		namespaces:         map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
+		caveats:            map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
+		schemaChan:         make(chan datastore.RevisionChanges, 1),
+		errChan:            make(chan error, 1),
+		listNamespacesGate: listGate,
+		existingNamespaces: []datastore.RevisionedNamespace{
+			datastore.RevisionedDefinition[*corev1.NamespaceDefinition]{
+				Definition:          &corev1.NamespaceDefinition{Name: "somenamespace"},
+				LastWrittenRevision: rev("1"),
+			},
+		},
+	}
+
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		NumCounters: 1000, MaxCost: 10000, DefaultTTL: 10000 * time.Second,
+	})
+	require.NoError(t, err)
+
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
+	require.NoError(t, wcache.startSync(t.Context()))
+
+	// Ensure cleanup completes even if the assertion fails — close the gate
+	// so the supervisor can exit through Close().
+	gateClosed := false
+	releaseGate := func() {
+		if !gateClosed {
+			close(listGate)
+			gateClosed = true
+		}
+	}
+	t.Cleanup(func() {
+		releaseGate()
+		wcache.Close()
+	})
+
+	// The supervisor is now blocked inside LegacyListAllNamespaces. While
+	// prepopulate is in flight, isInFallback() must report true for the
+	// entire 200ms observation window.
+	require.Never(t, func() bool {
+		return !wcache.namespaceCache.isInFallback()
+	}, 200*time.Millisecond, 10*time.Millisecond,
+		"cache must stay in fallback while prepopulate is in flight")
+
+	// Release prepopulate and confirm the cache exits fallback after
+	// startAtRevision runs.
+	releaseGate()
+	assertEventuallyFallback(t, wcache, false)
+}
+
 func TestWatchingCacheRecoversFromTransientError(t *testing.T) {
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -807,6 +866,12 @@ type fakeDatastore struct {
 	errChan    chan error
 
 	existingNamespaces []datastore.RevisionedNamespace
+
+	// listNamespacesGate, if non-nil, makes LegacyListAllNamespaces block
+	// until the channel is closed (or receives a value). Tests use it to
+	// hold the supervisor inside prepopulate so they can observe in-flight
+	// cache state deterministically.
+	listNamespacesGate chan struct{}
 }
 
 func (fds *fakeDatastore) MetricsID() (string, error) {
@@ -1067,7 +1132,15 @@ func (*fakeSnapshotReader) LegacyListAllCaveats(context.Context) ([]datastore.Re
 	return []datastore.RevisionedDefinition[*corev1.CaveatDefinition]{}, nil
 }
 
-func (fsr *fakeSnapshotReader) LegacyListAllNamespaces(context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+func (fsr *fakeSnapshotReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
+	if gate := fsr.fds.listNamespacesGate; gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
 	if fsr.fds.existingNamespaces != nil {
 		return fsr.fds.existingNamespaces, nil
 	}

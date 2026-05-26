@@ -559,12 +559,16 @@ func (swc *schemaWatchCache[T]) isInFallback() bool {
 	return swc.inFallbackMode
 }
 
+// reset clears the cache state in preparation for a new watch cycle.
+// inFallbackMode stays true until startAtRevision flips it off after
+// prepopulate completes — readers must not be told the cache is ready
+// while entries are still empty and the checkpoint revision is nil.
 func (swc *schemaWatchCache[T]) reset() {
 	swc.lock.Lock()
 	defer swc.lock.Unlock()
 
-	swc.inFallbackMode = false
-	swc.fallbackGauge.Set(0)
+	swc.inFallbackMode = true
+	swc.fallbackGauge.Set(1)
 	swc.entries = map[string]*intervalTracker[revisionedEntry[T]]{}
 	swc.checkpointRevision = nil
 }
