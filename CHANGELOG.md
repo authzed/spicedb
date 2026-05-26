@@ -64,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Build: strip quarantine attribute for MacOS (https://github.com/authzed/spicedb/pull/3082)
 
 ### Fixed
+- Validate partial schema bodies at definition time so type errors surface during schema compile instead of when the partial is referenced (https://github.com/authzed/spicedb/pull/3115)
 - Query plan contexts are written to during recursive calls -- for now, disble dispatch inside recursive calls (https://github.com/authzed/spicedb/pull/3078)
 
 ## [1.52.0] - 2026-04-30
