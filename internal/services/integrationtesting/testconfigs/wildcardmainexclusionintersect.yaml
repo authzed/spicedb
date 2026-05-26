@@ -1,0 +1,39 @@
+---
+# Tests a wildcard-main exclusion feeding an intersection:
+# permission viewable = (viewer:* - banned) & reader
+# where the exclusion's MAIN set is a wildcard. The banned subject is also a
+# reader, so the intersection must not re-admit it. This is the companion to
+# wildcardintersectionexclusion.yaml, whose exclusion operates on a CONCRETE main
+# set ((viewer & reader) - banned) and therefore does not exercise the
+# wildcard-with-ExcludedSubjects path through intersection.
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user | test/user:*
+    relation banned: test/user
+    relation reader: test/user
+    permission limited = viewer - banned
+    permission viewable = limited & reader
+  }
+relationships: |
+  test/resource:first#viewer@test/user:*
+  test/resource:first#banned@test/user:bob
+  test/resource:first#reader@test/user:alice
+  test/resource:first#reader@test/user:bob
+  test/resource:first#reader@test/user:charlie
+assertions:
+  assertTrue:
+    # alice is a reader and not banned; viewer is * → has viewable
+    - "test/resource:first#viewable@test/user:alice"
+    # charlie is a reader and not banned; viewer is * → has viewable
+    - "test/resource:first#viewable@test/user:charlie"
+    # alice is in limited (viewer:* minus banned)
+    - "test/resource:first#limited@test/user:alice"
+  assertFalse:
+    # bob is a reader but is banned → excluded from limited → no viewable
+    - "test/resource:first#viewable@test/user:bob"
+    # bob is banned from limited even though viewer is *
+    - "test/resource:first#limited@test/user:bob"
+    # randomuser is not a reader → no viewable (even though viewer is *)
+    - "test/resource:first#viewable@test/user:randomuser"
