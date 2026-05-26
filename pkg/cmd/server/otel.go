@@ -20,27 +20,22 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
+//go:generate go run github.com/ecordell/optgen -output zz_generated.oteloptions.go . OTelConfig
+
 const OTelShutdownTimeout = 5 * time.Second
 
-// otelShutdowner is the interface satisfied by *sdktrace.TracerProvider.
-// Using a local interface instead of the concrete type makes
-// ShutdownOTelProvider testable with a mock without importing sdktrace.
 type otelShutdowner interface {
 	Shutdown(ctx context.Context) error
 	ForceFlush(ctx context.Context) error
 }
 
-// OTelConfig holds the configuration for the OpenTelemetry provider.
-// It is bound to Cobra flags by RegisterOTelFlags and lives on server.Config
-// so the provider can be constructed during Complete().
-// Embedded callers may set it programmatically.
 type OTelConfig struct {
-	Provider        string
-	Endpoint        string
-	ServiceName     string
-	TracePropagator string
-	Insecure        bool
-	SampleRatio     float64
+	Provider        string  `debugmap:"visible"`
+	Endpoint        string  `debugmap:"visible"`
+	ServiceName     string  `debugmap:"visible"`
+	TracePropagator string  `debugmap:"visible"`
+	UsePlaintext    bool    `debugmap:"visible"`
+	SampleRatio     float64 `debugmap:"visible"`
 }
 
 // RegisterOTelFlags registers all OpenTelemetry flags on cmd, binding them directly into cfg.
@@ -50,7 +45,7 @@ func RegisterOTelFlags(cmd *cobra.Command, cfg *OTelConfig) {
 	f.StringVar(&cfg.Endpoint, "otel-endpoint", "", `OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables`)
 	f.StringVar(&cfg.ServiceName, "otel-service-name", "spicedb", `service name for trace data`)
 	f.StringVar(&cfg.TracePropagator, "otel-trace-propagator", "w3c", `OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma.`)
-	f.BoolVar(&cfg.Insecure, "otel-insecure", false, `connect to the OpenTelemetry collector in plaintext`)
+	f.BoolVar(&cfg.UsePlaintext, "otel-insecure", false, `connect to the OpenTelemetry collector in plaintext`)
 	f.Float64Var(&cfg.SampleRatio, "otel-sample-ratio", 0.01, `ratio of traces that are sampled`)
 }
 
@@ -82,7 +77,7 @@ func InitOTelProvider(ctx context.Context, cfg OTelConfig) (func() error, error)
 		if cfg.Endpoint != "" {
 			opts = append(opts, otlptracegrpc.WithEndpoint(cfg.Endpoint))
 		}
-		if cfg.Insecure {
+		if cfg.UsePlaintext {
 			opts = append(opts, otlptracegrpc.WithInsecure())
 		}
 		exp, err := otlptracegrpc.New(ctx, opts...)
@@ -96,7 +91,7 @@ func InitOTelProvider(ctx context.Context, cfg OTelConfig) (func() error, error)
 		if cfg.Endpoint != "" {
 			opts = append(opts, otlptracehttp.WithEndpoint(cfg.Endpoint))
 		}
-		if cfg.Insecure {
+		if cfg.UsePlaintext {
 			opts = append(opts, otlptracehttp.WithInsecure())
 		}
 		exp, err := otlptracehttp.New(ctx, opts...)

@@ -103,7 +103,7 @@ func TestInitOTelProvider_OtlpGrpc_ValidEndpoint(t *testing.T) {
 		Endpoint:        "localhost:4317",
 		ServiceName:     "spicedb-test",
 		TracePropagator: "w3c",
-		Insecure:        true,
+		UsePlaintext:    true,
 		SampleRatio:     0.01,
 	}
 	shutdown, err := InitOTelProvider(t.Context(), cfg)
@@ -120,7 +120,7 @@ func TestInitOTelProvider_OtlpHttp_ValidEndpoint(t *testing.T) {
 		Endpoint:        "localhost:4318",
 		ServiceName:     "spicedb-test",
 		TracePropagator: "w3c",
-		Insecure:        true,
+		UsePlaintext:    true,
 		SampleRatio:     0.01,
 	}
 	shutdown, err := InitOTelProvider(t.Context(), cfg)
