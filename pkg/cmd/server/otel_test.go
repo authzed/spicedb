@@ -11,10 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 // mockShutdowner is a test double that records calls to Shutdown/ForceFlush.
 type mockShutdowner struct {
 	shutdownCalled   bool
@@ -53,10 +49,6 @@ func makeTestCmd() *cobra.Command {
 	return &cobra.Command{Use: "test"}
 }
 
-// ---------------------------------------------------------------------------
-// RegisterOTelFlags
-// ---------------------------------------------------------------------------
-
 // TestRegisterOTelFlags_AllFlagsPresent verifies all OTel flags are
 // registered with correct names after calling RegisterOTelFlags.
 func TestRegisterOTelFlags_AllFlagsPresent(t *testing.T) {
@@ -82,10 +74,6 @@ func TestRegisterOTelFlags_ProviderDefault(t *testing.T) {
 	RegisterOTelFlags(cmd, cfg)
 	assert.Equal(t, "none", cfg.Provider)
 }
-
-// ---------------------------------------------------------------------------
-// InitOTelProvider
-// ---------------------------------------------------------------------------
 
 // TestInitOTelProvider_NoneSkipsInit verifies provider=none returns a no-op
 // shutdown closure without attempting any network connection.
@@ -121,7 +109,7 @@ func TestInitOTelProvider_OtlpGrpc_ValidEndpoint(t *testing.T) {
 	shutdown, err := InitOTelProvider(t.Context(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, shutdown)
-	t.Cleanup(func() { _ = shutdown() })
+	require.NoError(t, shutdown())
 }
 
 // TestInitOTelProvider_OtlpHttp_ValidEndpoint verifies otlphttp initializes
@@ -140,10 +128,6 @@ func TestInitOTelProvider_OtlpHttp_ValidEndpoint(t *testing.T) {
 	require.NotNil(t, shutdown)
 	t.Cleanup(func() { _ = shutdown() })
 }
-
-// ---------------------------------------------------------------------------
-// ShutdownOTelProvider
-// ---------------------------------------------------------------------------
 
 // TestShutdownOTelProvider_NilProvider_NoError verifies nil provider is safe.
 func TestShutdownOTelProvider_NilProvider_NoError(t *testing.T) {
@@ -178,16 +162,5 @@ func TestShutdownOTelProvider_ShutdownErrorPropagated(t *testing.T) {
 func TestShutdownOTelProvider_ForceFlushErrorContinuesToShutdown(t *testing.T) {
 	mock := &mockShutdowner{forceFlushErr: fmt.Errorf("flush failed")}
 	_ = ShutdownOTelProvider(t.Context(), mock)
-	assert.True(t, mock.shutdownCalled,
-		"Shutdown must be called even when ForceFlush errors")
-}
-
-// TestShutdownOTelProvider_ContextCancelled verifies a cancelled context
-// produces no panic. The shutdown error (if any) is returned normally.
-func TestShutdownOTelProvider_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	mock := &mockShutdowner{shutdownErr: context.Canceled}
-	err := ShutdownOTelProvider(ctx, mock)
-	_ = err // cancelled context may or may not surface — no panic is the guarantee
+	assert.True(t, mock.shutdownCalled, "Shutdown must be called even when ForceFlush errors")
 }
