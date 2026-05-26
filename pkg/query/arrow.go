@@ -196,12 +196,14 @@ func (a *ArrowIterator) checkRightToLeft(ctx *Context, resource Object, subject 
 
 		// rightPath.Resource is an intermediate object from the right side.
 		// Check if our input resource connects to this intermediate via the left side.
-		// Use tuple.Ellipsis as the relation since the left side stores subjects with "..."
-		// (the canonical relation for direct membership with no subrelation).
+		// The subject relation must match what the left side stores, which differs
+		// between schema arrows (left stores subjects with Ellipsis) and subrelation
+		// arrows (left stores subjects with a specific subject_relation, e.g. `member`).
+		// Derive it from the left's SubjectTypes for the intermediate's type.
 		intermediateAsSubject := ObjectAndRelation{
 			ObjectType: rightPath.Resource.ObjectType,
 			ObjectID:   rightPath.Resource.ObjectID,
-			Relation:   tuple.Ellipsis,
+			Relation:   a.intermediateSubjectRelation(rightPath.Resource.ObjectType),
 		}
 
 		leftPath, err := ctx.Check(a.left, resource, intermediateAsSubject)
@@ -232,6 +234,32 @@ func (a *ArrowIterator) checkRightToLeft(ctx *Context, resource Object, subject 
 		ctx.TraceStep(a, "arrow (right-to-left) completed: %d right paths, found=%v", rightPathCount, result != nil)
 	}
 	return result, nil
+}
+
+// intermediateSubjectRelation returns the subject_relation that the LEFT side's
+// datastore expects for subjects of the given type. Schema arrows store
+// subjects with Ellipsis (no subject_relation in the schema's allowed type),
+// while subrelation arrows store subjects with a specific relation (e.g.
+// team:foo#member). Passing the wrong relation silently misses datastore rows.
+//
+// Implementation derives the expected relation from a.left.SubjectTypes(),
+// falling back to Ellipsis if the type isn't reflected there (e.g. constructed
+// iterator without metadata).
+func (a *ArrowIterator) intermediateSubjectRelation(intermediateType string) string {
+	subjectTypes, err := a.left.SubjectTypes()
+	if err != nil {
+		return tuple.Ellipsis
+	}
+	for _, st := range subjectTypes {
+		if st.Type != intermediateType {
+			continue
+		}
+		if st.Subrelation == "" {
+			return tuple.Ellipsis
+		}
+		return st.Subrelation
+	}
+	return tuple.Ellipsis
 }
 
 // checkLeftToRightBatch is the batched variant of checkLeftToRight: it drains
@@ -333,7 +361,7 @@ func (a *ArrowIterator) checkRightToLeftBatch(ctx *Context, resource Object, sub
 		intermediates[i] = ObjectAndRelation{
 			ObjectType: rightPath.Resource.ObjectType,
 			ObjectID:   rightPath.Resource.ObjectID,
-			Relation:   tuple.Ellipsis,
+			Relation:   a.intermediateSubjectRelation(rightPath.Resource.ObjectType),
 		}
 	}
 

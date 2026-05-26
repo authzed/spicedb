@@ -649,6 +649,25 @@ func (r *RecursiveIterator) recursiveCheckIterSubjects(ctx *Context, resource Ob
 		ctx.TraceStep(r, "Check via IterSubjects: processing resource %s:%s", resource.ObjectType, resource.ObjectID)
 	}
 
+	// Reflexive identity fast path: if the target subject is the resource itself,
+	// the templateTree's Check (alias self-edge synthesis) resolves it without the
+	// datastore probe that IterSubjects-based BFS would trigger. This matches the
+	// dispatcher's MEMBER-when-resource-equals-subject behavior for relations that
+	// allow themselves as subjects (e.g. `relation member: user | group#member`)
+	// without paying the cost of full BFS enumeration just to look up identity.
+	if resource.ObjectType == subject.ObjectType && resource.ObjectID == subject.ObjectID {
+		path, err := ctx.Check(r.templateTree, resource, subject)
+		if err != nil {
+			return nil, err
+		}
+		if path != nil {
+			if ctx.shouldTrace() {
+				ctx.TraceStep(r, "Check via IterSubjects: matched reflexive identity, skipping BFS")
+			}
+			return path, nil
+		}
+	}
+
 	// Get subject type for filtering (type only, not relation - ellipsis is not a real relation)
 	filterSubjectType := ObjectType{Type: subject.ObjectType}
 
