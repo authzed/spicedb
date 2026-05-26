@@ -548,6 +548,17 @@ func (swc *schemaWatchCache[T]) setFallbackMode() {
 	swc.fallbackGauge.Set(1)
 }
 
+// isInFallback returns the current fallback flag under the read lock.
+// Callers outside this type MUST use this rather than reading
+// inFallbackMode directly; the supervisor goroutine writes it under
+// swc.lock and the race detector will flag any unsynchronized read.
+func (swc *schemaWatchCache[T]) isInFallback() bool {
+	swc.lock.RLock()
+	defer swc.lock.RUnlock()
+
+	return swc.inFallbackMode
+}
+
 func (swc *schemaWatchCache[T]) reset() {
 	swc.lock.Lock()
 	defer swc.lock.Unlock()

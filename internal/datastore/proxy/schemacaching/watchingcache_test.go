@@ -24,9 +24,7 @@ import (
 func assertEventuallyFallback(t *testing.T, wcache *watchingCachingProxy, want bool) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		wcache.namespaceCache.lock.RLock()
-		defer wcache.namespaceCache.lock.RUnlock()
-		return wcache.namespaceCache.inFallbackMode == want
+		return wcache.namespaceCache.isInFallback() == want
 	}, 5*time.Second, 5*time.Millisecond, "cache did not reach inFallbackMode=%v", want)
 }
 
@@ -67,7 +65,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 	// Ensure no namespaces are found.
 	_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 
 	// Ensure a re-read also returns not found, even before a checkpoint is received.
 	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
@@ -103,7 +101,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 
 	// Checkpoint to rev 4.
 	fakeDS.sendCheckpoint(rev("4"))
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 
 	// Disable reads.
 	fakeDS.disableReads()
@@ -172,7 +170,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	// Ensure no namespaces are found.
 	_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 
 	// Ensure a re-read also returns not found, even before a checkpoint is received.
 	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
@@ -208,7 +206,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 
 	// Checkpoint to rev 4.
 	fakeDS.sendCheckpoint(rev("4"))
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 
 	// Disable reads.
 	fakeDS.disableReads()
@@ -291,7 +289,7 @@ func TestOldWatchingCacheParallelOperations(t *testing.T) {
 		// Read somenamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 		firstErrs <- err
-		firstFallbackModes <- wcache.namespaceCache.inFallbackMode
+		firstFallbackModes <- wcache.namespaceCache.isInFallback()
 
 		// Write somenamespace.
 		fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
@@ -308,12 +306,12 @@ func TestOldWatchingCacheParallelOperations(t *testing.T) {
 		// Read anothernamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
 		secondErrs <- err
-		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
+		secondFallbackModes <- wcache.namespaceCache.isInFallback()
 
 		// Read again (which should still not be found)
 		_, _, err = wcache.SnapshotReader(rev("3")).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
 		secondErrs <- err
-		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
+		secondFallbackModes <- wcache.namespaceCache.isInFallback()
 	})()
 
 	wg.Wait()
@@ -385,7 +383,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		// Read somenamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 		firstErrs <- err
-		firstFallbackModes <- wcache.namespaceCache.inFallbackMode
+		firstFallbackModes <- wcache.namespaceCache.isInFallback()
 
 		// Write somenamespace.
 		fakeDS.updateNamespace("somenamespace", &corev1.NamespaceDefinition{Name: "somenamespace"}, rev("2"))
@@ -402,12 +400,12 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		// Read anothernamespace (which should not be found)
 		_, _, err := wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
 		secondErrs <- err
-		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
+		secondFallbackModes <- wcache.namespaceCache.isInFallback()
 
 		// Read again (which should still not be found)
 		_, _, err = wcache.SnapshotReader(rev("3")).LegacyReadNamespaceByName(t.Context(), "anothernamespace")
 		secondErrs <- err
-		secondFallbackModes <- wcache.namespaceCache.inFallbackMode
+		secondFallbackModes <- wcache.namespaceCache.isInFallback()
 	})()
 
 	wg.Wait()
@@ -612,7 +610,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	r := rev("1")
 	_, _, err = wcache.SnapshotReader(r).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 
 	expectedKey := cache.StringKey("n:somenamespace@" + r.String())
 	entry, ok := c.Get(expectedKey)
@@ -624,7 +622,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 }
 
 func TestWatchingCacheRecoversFromTransientError(t *testing.T) {
@@ -690,7 +688,7 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 	r := rev("1")
 	_, _, err = wcache.SnapshotReader(r).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 
 	expectedKey := cache.StringKey("n:somenamespace@" + r.String())
 	entry, ok := c.Get(expectedKey)
@@ -702,7 +700,7 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	_, _, err = wcache.SnapshotReader(rev("1")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.NamespaceNotFoundError{})
-	require.False(t, wcache.namespaceCache.inFallbackMode)
+	require.False(t, wcache.namespaceCache.isInFallback())
 }
 
 func TestOldWatchingCachePrepopulated(t *testing.T) {
