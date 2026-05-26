@@ -75,7 +75,8 @@ services:
       - "SPICEDB_GRPC_LOG_REQUESTS_ENABLED=false"
       - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
-      - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+      - "SPICEDB_OTEL_ENDPOINT=otel-collector:4317"
+      - "SPICEDB_OTEL_INSECURE=true"
       - "SPICEDB_ENABLE_PERFORMANCE_INSIGHT_METRICS=true"
     depends_on:
       migrate:
@@ -112,7 +113,8 @@ services:
       - "SPICEDB_GRPC_LOG_REQUESTS_ENABLED=true"
       - "SPICEDB_GRPC_LOG_RESPONSES_ENABLED=false"
       - "SPICEDB_STREAMING_API_RESPONSE_DELAY_TIMEOUT=0s"
-      - "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317"
+      - "SPICEDB_OTEL_ENDPOINT=otel-collector:4317"
+      - "SPICEDB_OTEL_INSECURE=true"
       - "SPICEDB_ENABLE_PERFORMANCE_INSIGHT_METRICS=true"
     depends_on:
       migrate:
