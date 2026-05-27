@@ -129,7 +129,7 @@ func (s *SelfIterator) SubjectTypes() ([]ObjectType, error) {
 }
 
 func (s *SelfIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, SelfIteratorType, s.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, SelfIteratorType, s.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}

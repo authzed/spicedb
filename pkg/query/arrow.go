@@ -705,7 +705,7 @@ const (
 )
 
 func (a *ArrowIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, ArrowIteratorType, a.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, ArrowIteratorType, a.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, arrowFlagSchemaArrow, a.isSchemaArrow)
 		setFlag(&flags, arrowFlagRightToLeft, a.direction == rightToLeft)

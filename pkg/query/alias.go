@@ -345,7 +345,7 @@ func (a *AliasIterator) SubjectTypes() ([]ObjectType, error) {
 const aliasFlagHasAliasedAs = 0
 
 func (a *AliasIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, AliasIteratorType, a.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, AliasIteratorType, a.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, aliasFlagHasAliasedAs, len(a.aliasedAs) > 0)
 		if err := writeUvarint(buf, flags); err != nil {

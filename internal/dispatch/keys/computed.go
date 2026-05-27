@@ -1,7 +1,10 @@
 package keys
 
 import (
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/authzed/spicedb/pkg/caveats"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -115,18 +118,48 @@ func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) DispatchC
 
 // planCheckRequestToKey converts a plan check request into a cache key
 func planCheckRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
-	return dispatchCacheKeyHash(planCheckPrefix, req.PlanContext.Revision,
-		hashableString(req.CanonicalKey),
-		hashableOnr{req.Resource},
-		hashableOnr{req.Subject},
-		hashableContext{Struct: req.PlanContext.CaveatContext},
+	return PlanCheckLookupKey(
+		req.PlanContext.Revision,
+		currentDispatchKey(req.PlanContext),
+		req.Resource,
+		req.Subject,
+		req.PlanContext.CaveatContext,
+	)
+}
+
+// currentDispatchKey returns the canonical "def#rel" key for the dispatch
+// currently being processed. By contract — see planContextForDispatch in
+// internal/dispatch/executor.go — the sender appends the current dispatch's
+// key to PlanContext.InProgressKeys before sending, so the last entry is
+// always the current dispatch's key. Returns "" if InProgressKeys is empty,
+// which is invalid for a Plan-dispatched request but is tolerated to keep
+// this helper safe to call on partial test fixtures.
+func currentDispatchKey(pc *v1.PlanContext) string {
+	if pc == nil || len(pc.InProgressKeys) == 0 {
+		return ""
+	}
+	return pc.InProgressKeys[len(pc.InProgressKeys)-1]
+}
+
+// PlanCheckLookupKey computes the same Plan-Check cache key as
+// planCheckRequestToKey, but takes the inputs directly so callers can probe the
+// cache without first having to construct a DispatchQueryPlanRequest (which
+// forces iterator serialization). The hashed component set must stay identical
+// to planCheckRequestToKey or the cache-hit fast path and the DispatchQueryPlan
+// slow path will end up on different cache entries.
+func PlanCheckLookupKey(revision string, canonicalKey string, resource, subject *core.ObjectAndRelation, caveatContext *structpb.Struct) DispatchCacheKey {
+	return dispatchCacheKeyHash(planCheckPrefix, revision,
+		hashableString(canonicalKey),
+		hashableOnr{resource},
+		hashableOnr{subject},
+		hashableContext{Struct: caveatContext},
 	)
 }
 
 // planLookupResourcesRequestToKey converts a plan lookup resources request into a cache key
 func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return dispatchCacheKeyHash(planLookupResourcesPrefix, req.PlanContext.Revision,
-		hashableString(req.CanonicalKey),
+		hashableString(currentDispatchKey(req.PlanContext)),
 		hashableOnr{req.Subject},
 		hashableContext{Struct: req.PlanContext.CaveatContext},
 	)
@@ -135,7 +168,7 @@ func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchC
 // planLookupSubjectsRequestToKey converts a plan lookup subjects request into a cache key
 func planLookupSubjectsRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return dispatchCacheKeyHash(planLookupSubjectsPrefix, req.PlanContext.Revision,
-		hashableString(req.CanonicalKey),
+		hashableString(currentDispatchKey(req.PlanContext)),
 		hashableOnr{req.Resource},
 		hashableContext{Struct: req.PlanContext.CaveatContext},
 	)

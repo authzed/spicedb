@@ -726,7 +726,7 @@ func (r *RecursiveIterator) recursiveCheckIterResources(ctx *Context, resource O
 const recursiveFlagStrategy = 0 // strategy byte follows if set (default == iter-subjects)
 
 func (r *RecursiveIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, RecursiveIteratorType, r.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, RecursiveIteratorType, r.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		nonDefault := r.checkStrategy != recursiveCheckIterSubjects
 		setFlag(&flags, recursiveFlagStrategy, nonDefault)

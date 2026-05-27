@@ -429,6 +429,43 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 	return nil
 }
 
+// LookupPlanCheck probes the cache for a Plan-Check answer using a lightweight
+// descriptor. This is the cache-hit fast path that avoids serializing the
+// iterator subtree on the sender side: the executor calls this first, and only
+// builds a full DispatchQueryPlanRequest (which is what forces plan
+// serialization) when this misses.
+//
+// On a hit we increment both queryPlanTotal and queryPlanFromCache so the cache
+// hit ratio across LookupPlanCheck + DispatchQueryPlan stays sensible; on a
+// miss we *do not* increment queryPlanTotal here — the caller will issue the
+// full DispatchQueryPlan next, which counts the dispatch itself.
+//
+// We also forward to the delegate on miss so a chain of caching dispatchers
+// (rare today, but allowed by the layering) all get probed.
+func (cd *Dispatcher) LookupPlanCheck(ctx context.Context, lookup dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	if lookup.PlanContext == nil {
+		return cd.d.LookupPlanCheck(ctx, lookup)
+	}
+	cacheKey := keys.PlanCheckLookupKey(
+		lookup.PlanContext.Revision,
+		lookup.CanonicalKey,
+		lookup.Resource,
+		lookup.Subject,
+		lookup.PlanContext.CaveatContext,
+	)
+	if cachedRaw, found := cd.c.Get(cacheKey); found {
+		var cachedPath v1.ResultPath
+		if err := cachedPath.UnmarshalVT(cachedRaw.([]byte)); err != nil {
+			return nil, false, err
+		}
+		op := dispatch.PlanOperationLabel(v1.PlanOperation_PLAN_OPERATION_CHECK)
+		cd.queryPlanTotalCounter.WithLabelValues(op).Inc()
+		cd.queryPlanFromCacheCounter.WithLabelValues(op).Inc()
+		return &cachedPath, true, nil
+	}
+	return cd.d.LookupPlanCheck(ctx, lookup)
+}
+
 func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	cd.queryPlanTotalCounter.WithLabelValues(dispatch.PlanOperationLabel(req.Operation)).Inc()
 

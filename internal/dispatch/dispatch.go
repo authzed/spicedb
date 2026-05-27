@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -83,6 +84,19 @@ type LookupSubjects interface {
 // PlanStream is an alias for the stream to which plan results will be written.
 type PlanStream = Stream[*v1.DispatchQueryPlanResponse]
 
+// PlanCheckLookup is the small, cheap-to-construct descriptor a caller passes
+// to LookupPlanCheck to consult dispatcher caches before paying to serialize a
+// full iterator subtree into a DispatchQueryPlanRequest. The fields mirror the
+// inputs the Plan-Check cache key hashes over (see keys.PlanCheckLookupKey):
+// callers that produce identical descriptors for the same underlying problem
+// will hit the same cache entry as the corresponding DispatchQueryPlan call.
+type PlanCheckLookup struct {
+	CanonicalKey string
+	Resource     *core.ObjectAndRelation
+	Subject      *core.ObjectAndRelation
+	PlanContext  *v1.PlanContext
+}
+
 // Plan interface describes the methods required to dispatch plan-based query planner requests.
 type Plan interface {
 	// DispatchQueryPlan submits a plan-based query request, writing its results to the specified stream.
@@ -90,6 +104,15 @@ type Plan interface {
 		req *v1.DispatchQueryPlanRequest,
 		stream PlanStream,
 	) error
+
+	// LookupPlanCheck consults any caches in the dispatcher chain for a
+	// Plan-Check answer matching lookup, without forcing the caller to
+	// serialize the iterator subtree first. Returns (path, true, nil) on a
+	// cache hit; (nil, false, nil) on a miss (caller should proceed to
+	// DispatchQueryPlan); error on a cache I/O failure. Implementations that
+	// hold no cache return (nil, false, nil) and should forward to any wrapped
+	// delegate so chained caches all get probed.
+	LookupPlanCheck(ctx context.Context, lookup PlanCheckLookup) (*v1.ResultPath, bool, error)
 }
 
 // DispatchableRequest is an interface for requests.

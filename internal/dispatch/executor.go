@@ -1,7 +1,9 @@
 package dispatch
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"slices"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -90,16 +92,42 @@ func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext, dis
 	}
 }
 
-// shouldDispatchAlias reports whether the iterator is an AliasIterator that the
-// executor should ship over RPC, vs. running locally. Two reasons to refuse:
-//   - the alias contains a sentinel whose matching RecursiveIterator lives
+// wrappedAlias extracts the AliasIterator wrapped by a DispatchIterator. The
+// dispatch-wrap optimizer (internal/dispatch/dispatch_optimizer.go) always
+// builds DispatchIterator(Alias(...)), so the assertion is normally safe; we
+// still return ok=false for any other shape so a future caller handing us an
+// odd tree doesn't panic the executor.
+func wrappedAlias(it query.Iterator) (*query.AliasIterator, bool) {
+	disp, ok := it.(*DispatchIterator)
+	if !ok {
+		return nil, false
+	}
+	subs := disp.Subiterators()
+	if len(subs) != 1 {
+		return nil, false
+	}
+	alias, ok := subs[0].(*query.AliasIterator)
+	if !ok {
+		return nil, false
+	}
+	return alias, true
+}
+
+// shouldDispatch reports whether the iterator is a DispatchIterator-wrapped
+// alias that the executor should ship over RPC, vs. running locally. Two
+// reasons to refuse:
+//   - the wrap contains a sentinel whose matching RecursiveIterator lives
 //     outside its own subtree (sentinel-based recursion guard, ancestor case).
 //   - the alias's canonical key is already in the active dispatch chain
 //     (in-progress guard, cross-relation cycle case). Without this, a standalone
 //     plan that re-expands the same key in a sibling subtree produces an
 //     infinite dispatch loop.
-func (e *DispatchExecutor) shouldDispatchAlias(it query.Iterator) (string, bool) {
-	alias, ok := it.(*query.AliasIterator)
+//
+// The wrap itself is the authoritative dispatch boundary — bare AliasIterators
+// produced by the planner are intentionally not dispatched. The optimizer
+// decides which alias positions get a wrap; this predicate just consults it.
+func (e *DispatchExecutor) shouldDispatch(it query.Iterator) (string, bool) {
+	alias, ok := wrappedAlias(it)
 	if !ok {
 		return "", false
 	}
@@ -116,14 +144,14 @@ func (e *DispatchExecutor) shouldDispatchAlias(it query.Iterator) (string, bool)
 }
 
 func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*query.Path, error) {
-	if _, ok := e.shouldDispatchAlias(it); ok {
+	if _, ok := e.shouldDispatch(it); ok {
 		return e.dispatchCheck(ctx, it, resource, subject)
 	}
 	return it.CheckImpl(ctx, resource, subject)
 }
 
 func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterator, resource query.Object, subjects []query.ObjectAndRelation) ([]*query.Path, error) {
-	if _, ok := e.shouldDispatchAlias(it); !ok {
+	if _, ok := e.shouldDispatch(it); !ok {
 		out := make([]*query.Path, len(subjects))
 		for i, s := range subjects {
 			p, err := it.CheckImpl(ctx, resource, s)
@@ -138,7 +166,7 @@ func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterat
 }
 
 func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Iterator, resources []query.Object, subject query.ObjectAndRelation) ([]*query.Path, error) {
-	if _, ok := e.shouldDispatchAlias(it); !ok {
+	if _, ok := e.shouldDispatch(it); !ok {
 		out := make([]*query.Path, len(resources))
 		for i, r := range resources {
 			p, err := it.CheckImpl(ctx, r, subject)
@@ -153,7 +181,7 @@ func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Itera
 }
 
 func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := e.shouldDispatchAlias(it); ok {
+	if _, ok := e.shouldDispatch(it); ok {
 		return e.dispatchIterSubjects(ctx, it, resource, filterSubjectType)
 	}
 	pathSeq, err := it.IterSubjectsImpl(ctx, resource, filterSubjectType)
@@ -164,7 +192,7 @@ func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, r
 }
 
 func (e *DispatchExecutor) IterResources(ctx *query.Context, it query.Iterator, subject query.ObjectAndRelation, filterResourceType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := e.shouldDispatchAlias(it); ok {
+	if _, ok := e.shouldDispatch(it); ok {
 		return e.dispatchIterResources(ctx, it, subject, filterResourceType)
 	}
 	pathSeq, err := it.IterResourcesImpl(ctx, subject, filterResourceType)
@@ -178,7 +206,38 @@ func (e *DispatchExecutor) dispatchCheck(ctx *query.Context, it query.Iterator, 
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK, it, resource, subject)
+	// Probe the dispatcher chain for a cached Plan-Check answer before paying
+	// to serialize the iterator. The lookup descriptor is cheap to build —
+	// just the wrapped alias's (def, rel) plus the resource/subject ONRs and
+	// parent plan context — and the cache key it produces is identical to the
+	// one DispatchQueryPlan would compute (see keys.PlanCheckLookupKey), so a
+	// hit here is the same hit the slow path would have found.
+	alias, _ := wrappedAlias(it)
+	canonicalKey := alias.DefinitionName() + "#" + alias.Relation()
+	resourceONR := &core.ObjectAndRelation{
+		Namespace: resource.ObjectType,
+		ObjectId:  resource.ObjectID,
+	}
+	subjectONR := &core.ObjectAndRelation{
+		Namespace: subject.ObjectType,
+		ObjectId:  subject.ObjectID,
+		Relation:  subject.Relation,
+	}
+	if path, ok, err := e.dispatcher.LookupPlanCheck(subCtx, PlanCheckLookup{
+		CanonicalKey: canonicalKey,
+		Resource:     resourceONR,
+		Subject:      subjectONR,
+		PlanContext:  e.planContext,
+	}); err != nil {
+		return nil, err
+	} else if ok {
+		return resultPathToQueryPath(path), nil
+	}
+
+	req, err := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK, it, resource, subject)
+	if err != nil {
+		return nil, err
+	}
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 		return nil, err
@@ -202,10 +261,13 @@ func (e *DispatchExecutor) dispatchIterSubjects(ctx *query.Context, it query.Ite
 	// filter to apply the same reachability/optimizer decisions the sender
 	// would have applied. The actual receiver-side iteration uses NoObjectFilter
 	// since the sender filters the returned paths itself.
-	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, it, resource, query.ObjectAndRelation{
+	req, err := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, it, resource, query.ObjectAndRelation{
 		ObjectType: filterSubjectType.Type,
 		Relation:   filterSubjectType.Subrelation,
 	})
+	if err != nil {
+		return nil, err
+	}
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 		return nil, err
@@ -219,10 +281,13 @@ func (e *DispatchExecutor) dispatchIterResources(ctx *query.Context, it query.It
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES, it, query.Object{
+	req, err := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES, it, query.Object{
 		ObjectType: subject.ObjectType,
 		ObjectID:   subject.ObjectID,
 	}, subject)
+	if err != nil {
+		return nil, err
+	}
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 		return nil, err
@@ -239,7 +304,10 @@ func (e *DispatchExecutor) dispatchCheckManySubjects(ctx *query.Context, it quer
 	out := make([]*query.Path, len(subjects))
 	idx := 0
 	for chunk := range slices.Chunk(subjects, int(e.dispatchChunkSize)) {
-		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, chunk)
+		req, err := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, chunk)
+		if err != nil {
+			return nil, err
+		}
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -267,7 +335,10 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 	out := make([]*query.Path, len(resources))
 	idx := 0
 	for chunk := range slices.Chunk(resources, int(e.dispatchChunkSize)) {
-		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, chunk, nil)
+		req, err := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, chunk, nil)
+		if err != nil {
+			return nil, err
+		}
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -292,12 +363,26 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 // Exactly one of (manyResources, manySubjects) is non-nil; the corresponding
 // singular field (resource for CHECK_MANY_RESOURCES, subject for CHECK_MANY_SUBJECTS)
 // must be left zero — the receiver inspects `many` for those operations.
-func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
-	alias := it.(*query.AliasIterator)
+func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) (*v1.DispatchQueryPlanRequest, error) {
+	// it is a *DispatchIterator wrapping the alias the executor decided to
+	// ship — see shouldDispatch. Serialize only the inner alias subtree: the
+	// receiver runs it locally (its executor won't re-dispatch a bare alias),
+	// and we save a small handful of header bytes per request.
+	alias, ok := wrappedAlias(it)
+	if !ok {
+		return nil, fmt.Errorf("DispatchQueryPlan: buildManyRequest expected DispatchIterator(Alias), got %T", it)
+	}
 	key := alias.DefinitionName() + "#" + alias.Relation()
+	plan, err := serializePlan(alias)
+	if err != nil {
+		return nil, err
+	}
+	// The current dispatch's canonical key rides on PlanContext.InProgressKeys
+	// (appended by planContextForDispatch). Receiver-side cache key computation
+	// reads it back from the last entry there; there is no top-level
+	// canonical_key field on the request anymore.
 	req := &v1.DispatchQueryPlanRequest{
-		Operation:    op,
-		CanonicalKey: key,
+		Operation: op,
 		Resource: &core.ObjectAndRelation{
 			Namespace: resource.ObjectType,
 			ObjectId:  resource.ObjectID,
@@ -308,6 +393,7 @@ func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperat
 			Relation:  subject.Relation,
 		},
 		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
+		Plan:        plan,
 	}
 	if len(manyResources) > 0 {
 		req.Many = make([]*core.ObjectAndRelation, len(manyResources))
@@ -328,19 +414,39 @@ func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperat
 			}
 		}
 	}
-	return req
+	return req, nil
 }
 
-func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
-	// dispatch{Check,IterSubjects,IterResources} only enter buildRequest when
-	// it is a *query.AliasIterator, so the type assertion is safe. The dispatch
-	// boundary is always the (definition, relation) the alias represents; we
-	// encode that as "definition#relation" in the canonical_key field.
-	alias := it.(*query.AliasIterator)
+// serializePlan emits the iterator subtree using the pkg/query wire format so
+// the receiver can deserialize and execute it directly without rebuilding from
+// the (definition, relation) canonical key.
+func serializePlan(it query.Iterator) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := it.Serialize(&buf); err != nil {
+		return nil, fmt.Errorf("DispatchQueryPlan: serialize plan: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*v1.DispatchQueryPlanRequest, error) {
+	// dispatch{Check,IterSubjects,IterResources} only enter buildRequest after
+	// shouldDispatch accepted `it` as a DispatchIterator(Alias). Unwrap the
+	// wrap and serialize the inner alias — the receiver runs it locally without
+	// re-dispatching, and we keep the wire shape identical to what shipped
+	// before the wrap became authoritative. The dispatch boundary's "def#rel"
+	// is appended to PlanContext.InProgressKeys via planContextForDispatch;
+	// receiver-side cache key computation pulls it back out of that slice.
+	alias, ok := wrappedAlias(it)
+	if !ok {
+		return nil, fmt.Errorf("DispatchQueryPlan: buildRequest expected DispatchIterator(Alias), got %T", it)
+	}
 	key := alias.DefinitionName() + "#" + alias.Relation()
+	plan, err := serializePlan(alias)
+	if err != nil {
+		return nil, err
+	}
 	return &v1.DispatchQueryPlanRequest{
-		Operation:    op,
-		CanonicalKey: key,
+		Operation: op,
 		Resource: &core.ObjectAndRelation{
 			Namespace: resource.ObjectType,
 			ObjectId:  resource.ObjectID,
@@ -351,7 +457,8 @@ func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation,
 			Relation:  subject.Relation,
 		},
 		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
-	}
+		Plan:        plan,
+	}, nil
 }
 
 // planContextForDispatch returns a shallow copy of pc with `key` appended to

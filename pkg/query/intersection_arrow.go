@@ -467,7 +467,7 @@ func (ia *IntersectionArrowIterator) SubjectTypes() ([]ObjectType, error) {
 }
 
 func (ia *IntersectionArrowIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, IntersectionArrowIteratorType, ia.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, IntersectionArrowIteratorType, ia.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}

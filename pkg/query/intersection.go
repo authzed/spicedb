@@ -491,7 +491,7 @@ func (i *IntersectionIterator) SubjectTypes() ([]ObjectType, error) {
 }
 
 func (i *IntersectionIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, IntersectionIteratorType, i.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, IntersectionIteratorType, i.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}
