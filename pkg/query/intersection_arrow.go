@@ -264,10 +264,15 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 		return EmptyPathSeq(), nil
 	}
 
-	// For intersection arrow, we need ALL left subjects to satisfy the right side
-	// Track all valid results
-	var validResults []*Path
-	unsatisfied := false
+	// For intersection arrow (e.g. `team.all(member)`), a subject qualifies only
+	// when it appears in the right-hand side for EVERY left subject. Accumulate
+	// the per-left subject sets and intersect by subject key, AND'ing caveats
+	// across the per-left contributions and OR'ing the left-path caveats (since
+	// any matching combination across all lefts is sufficient for that left).
+	var (
+		accumulated      map[string]*Path
+		nonWildcardLefts int
+	)
 
 	for _, leftPath := range leftPaths {
 		// If the left side returned a wildcard, we can't use it as a resource for the
@@ -278,6 +283,7 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 			}
 			continue
 		}
+		nonWildcardLefts++
 
 		leftSubjectAsResource := GetObject(leftPath.Subject)
 		if ctx.shouldTrace() {
@@ -298,19 +304,16 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 			if ctx.shouldTrace() {
 				ctx.TraceStep(ia, "left subject %s:%s did NOT satisfy right side", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
 			}
-			unsatisfied = true
-			break
+			return EmptyPathSeq(), nil
 		}
 
 		if ctx.shouldTrace() {
 			ctx.TraceStep(ia, "left subject %s:%s satisfied with %d right subjects", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID, len(rightPaths))
 		}
 
-		// Collect all valid combinations
+		current := make(map[string]*Path, len(rightPaths))
 		for _, rightPath := range rightPaths {
-			// Combine caveats from left and right with AND logic
 			combinedCaveat := caveats.And(leftPath.Caveat, rightPath.Caveat)
-
 			combinedPath := &Path{
 				Resource:   leftPath.Resource,
 				Relation:   leftPath.Relation,
@@ -320,23 +323,52 @@ func (ia *IntersectionArrowIterator) IterSubjectsImpl(ctx *Context, resource Obj
 				Integrity:  combineIntegrity(leftPath.Integrity, rightPath.Integrity),
 				Metadata:   make(map[string]any),
 			}
-			validResults = append(validResults, combinedPath)
+			key := ObjectAndRelationKey(rightPath.Subject)
+			if existing, ok := current[key]; ok {
+				// Multiple right paths to the same subject from this left:
+				// any of them satisfies "this left has the subject", so OR.
+				if _, err := existing.MergeOr(combinedPath); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			current[key] = combinedPath
+		}
+
+		if accumulated == nil {
+			accumulated = current
+			continue
+		}
+		// Intersect: keep only subjects present in both, AND'ing caveats so all
+		// per-left conditions must hold for the subject to remain.
+		next := make(map[string]*Path, len(current))
+		for key, accPath := range accumulated {
+			currPath, ok := current[key]
+			if !ok {
+				continue
+			}
+			merged := *accPath
+			if _, err := merged.MergeAnd(currPath); err != nil {
+				return nil, err
+			}
+			next[key] = &merged
+		}
+		accumulated = next
+		if len(accumulated) == 0 {
+			return EmptyPathSeq(), nil
 		}
 	}
 
-	if unsatisfied {
-		if ctx.shouldTrace() {
-			ctx.TraceStep(ia, "intersection arrow FAILED - not all left subjects satisfied")
-		}
+	if nonWildcardLefts == 0 || accumulated == nil {
 		return EmptyPathSeq(), nil
 	}
 
 	if ctx.shouldTrace() {
-		ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final subjects", len(validResults))
+		ctx.TraceStep(ia, "intersection arrow SUCCESS - returning %d final subjects", len(accumulated))
 	}
 
 	return func(yield func(*Path, error) bool) {
-		for _, path := range validResults {
+		for _, path := range accumulated {
 			if !yield(path, nil) {
 				return
 			}

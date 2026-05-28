@@ -168,6 +168,12 @@ func validateQueryPlanLookupResources(
 // pair the query plan handler returns at least the subjects the accessibility
 // set defines as directly accessible. Wildcard exclusion checking is omitted
 // because the query plan handler does not yet populate ExcludedSubjects.
+//
+// It additionally enforces a Check ↔ LookupSubjects consistency invariant:
+// every concrete (non-wildcard) subject returned with HAS_PERMISSION must also
+// pass CheckPermission against the same resource. This catches cases where
+// LookupSubjects re-admits a subject that an upstream wildcard exclusion had
+// removed (e.g. wildcard-main exclusion intersected with a concrete set).
 func validateQueryPlanLookupSubjects(
 	t *testing.T,
 	cad consistencytestutil.ConsistencyClusterAndData,
@@ -191,6 +197,28 @@ func validateQueryPlanLookupSubjects(
 								slices.Collect(maps.Keys(resolvedSubjects)),
 								slices.Collect(maps.Keys(expectedDefinedSubjects)),
 							)
+
+							// Cross-check every concrete (non-wildcard) subject returned with
+							// HAS_PERMISSION against CheckPermission. LookupSubjects must not
+							// claim permission for a subject that Check denies.
+							for subjectID, resp := range resolvedSubjects {
+								if subjectID == tuple.PublicWildcard {
+									continue
+								}
+								if resp.Subject.Permissionship != v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION {
+									continue
+								}
+								subjectONR := tuple.ObjectAndRelation{
+									ObjectType: subjectType.ObjectType,
+									ObjectID:   subjectID,
+									Relation:   subjectType.Relation,
+								}
+								permissionship, err := tester.Check(t.Context(), resource, subjectONR, revision, nil)
+								require.NoError(t, err)
+								require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, permissionship,
+									"LookupSubjects returned %s as a subject of %s#%s with HAS_PERMISSION, but Check returned %s",
+									subjectID, resource.ObjectType, resource.Relation, permissionship)
+							}
 						})
 				}
 			})
