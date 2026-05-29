@@ -36,6 +36,7 @@ func (c *ConnPoolConfig) ToOption() ConnPoolConfigOption {
 		to.MaxOpenConns = c.MaxOpenConns
 		to.MinOpenConns = c.MinOpenConns
 		to.HealthCheckInterval = c.HealthCheckInterval
+		to.PingTimeout = c.PingTimeout
 	}
 }
 
@@ -71,6 +72,13 @@ func (c *ConnPoolConfig) DebugMap() map[string]any {
 		debugMap["HealthCheckInterval"] = dm.DebugMap()
 	} else {
 		debugMap["HealthCheckInterval"] = c.HealthCheckInterval
+	}
+	if dm, ok := any(&c.PingTimeout).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["PingTimeout"] = dm.DebugMap()
+	} else {
+		debugMap["PingTimeout"] = c.PingTimeout
 	}
 	return debugMap
 }
@@ -151,5 +159,12 @@ func WithMinOpenConns(minOpenConns int) ConnPoolConfigOption {
 func WithHealthCheckInterval(healthCheckInterval time.Duration) ConnPoolConfigOption {
 	return func(c *ConnPoolConfig) {
 		c.HealthCheckInterval = healthCheckInterval
+	}
+}
+
+// WithPingTimeout returns an option that can set PingTimeout on a ConnPoolConfig
+func WithPingTimeout(pingTimeout time.Duration) ConnPoolConfigOption {
+	return func(c *ConnPoolConfig) {
+		c.PingTimeout = pingTimeout
 	}
 }

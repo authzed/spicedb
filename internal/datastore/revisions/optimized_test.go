@@ -3,6 +3,7 @@ package revisions
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -215,10 +216,12 @@ func TestSingleFlightError(t *testing.T) {
 	mock := trackingRevisionFunction{}
 	or.SetOptimizedRevisionFunc(mock.optimizedRevisionFunc)
 
+	// The shared attempt fails, and the direct retry (on the caller's context)
+	// fails too, so the call returns an error. Both attempts invoke the function.
 	mock.
 		On("optimizedRevisionFunc").
 		Return(one, time.Duration(0), "", errors.New("fail")).
-		Once()
+		Twice()
 
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
@@ -226,4 +229,80 @@ func TestSingleFlightError(t *testing.T) {
 	_, err := or.OptimizedRevision(ctx)
 	req.Error(err)
 	mock.AssertExpectations(t)
+}
+
+// TestOptimizedRevisionRetriesAfterSharedFailure ensures that when the shared,
+// singleflighted computation fails, the request is retried directly so it can
+// still succeed rather than surfacing the transient failure to the caller.
+func TestOptimizedRevisionRetriesAfterSharedFailure(t *testing.T) {
+	req := require.New(t)
+
+	or := NewCachedOptimizedRevisions(0)
+
+	var calls atomic.Int32
+	or.SetOptimizedRevisionFunc(func(_ context.Context) (datastore.Revision, time.Duration, string, error) {
+		// Fail the first (shared) attempt; succeed on the direct retry.
+		if calls.Add(1) == 1 {
+			return datastore.NoRevision, 0, "", errors.New("transient failure")
+		}
+		return one, 0, "", nil
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	res, err := or.OptimizedRevision(ctx)
+	req.NoError(err)
+	req.True(one.Equal(res.Revision), "expected the direct retry to succeed")
+	req.Equal(int32(2), calls.Load(), "expected one shared attempt and one direct retry")
+}
+
+// TestOptimizedRevisionTimeout ensures that a datastore revision call that hangs
+// cannot wedge OptimizedRevision indefinitely. The shared attempt is bounded by
+// the (low) optimized-revision timeout, and the direct retry is bounded by the
+// caller's deadline (or the fallback timeout for deadline-less callers), so the
+// call always returns rather than blocking forever.
+func TestOptimizedRevisionTimeout(t *testing.T) {
+	req := require.New(t)
+
+	or := NewCachedOptimizedRevisions(0)
+	or.SetOptimizedRevisionTimeout(10 * time.Millisecond)
+	or.SetOptimizedRevisionFallbackTimeout(50 * time.Millisecond)
+
+	var calls atomic.Int32
+	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+		calls.Add(1)
+		// Simulate a hung datastore call that only unblocks when its context is
+		// cancelled (as pgx does once a deadline is present on the context).
+		<-ctx.Done()
+		return datastore.NoRevision, 0, "", ctx.Err()
+	})
+
+	// The caller intentionally has no deadline of its own; the shared timeout and
+	// the fallback timeout must together bound the call.
+	done := make(chan error, 1)
+	go func() {
+		_, err := or.OptimizedRevision(t.Context())
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		req.Error(err, "hung revision call must return an error rather than block forever")
+	case <-time.After(5 * time.Second):
+		t.Fatal("OptimizedRevision blocked despite the internal timeouts")
+	}
+
+	// Both the shared attempt and the direct retry must have been attempted.
+	req.GreaterOrEqual(calls.Load(), int32(2))
+
+	// The singleflight key must have been released so a subsequent call computes a
+	// fresh result rather than re-attaching to the dead one.
+	or.SetOptimizedRevisionFunc(func(_ context.Context) (datastore.Revision, time.Duration, string, error) {
+		return one, 0, "", nil
+	})
+
+	res, err := or.OptimizedRevision(t.Context())
+	req.NoError(err)
+	req.True(one.Equal(res.Revision), "expected a fresh successful call after the hung call timed out")
 }
