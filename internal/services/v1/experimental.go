@@ -107,7 +107,17 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
-				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
+				streamtimeout.MustStreamServerInterceptor(
+					config.StreamReadTimeout,
+					// Bulk export/import are designed to run for arbitrarily long
+					// periods on large datasets; their inter-batch gaps regularly
+					// exceed the streaming-api timeout that catches hung clients
+					// on the bounded streaming reads.
+					streamtimeout.WithExemptMethods(
+						v1.ExperimentalService_BulkExportRelationships_FullMethodName,
+						v1.ExperimentalService_BulkImportRelationships_FullMethodName,
+					),
+				),
 				perfinsights.StreamServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 		},
