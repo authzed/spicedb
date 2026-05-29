@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -525,7 +526,10 @@ func TestSingleFlight(t *testing.T) {
 
 		assert := assert.New(t)
 
-		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+		// Use a NoopCache: a real (otter-backed) cache spawns a background
+		// periodicCleanUp goroutine that otter/v2 provides no way to stop,
+		// which deadlocks the synctest bubble.
+		ds := NewCachingDatastoreProxy(dsMock, cache.NoopCache[cache.StringKey, CacheEntry](), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 		snapshotReader := ds.SnapshotReader(one)
 
 		readNamespace := func() {
@@ -556,6 +560,7 @@ func TestSingleFlight(t *testing.T) {
 
 		// Clean up
 		synctest.Wait()
+
 		dsMock.AssertExpectations(t)
 		oneReader.AssertExpectations(t)
 	})
@@ -786,7 +791,10 @@ func TestSingleFlightCancelled(t *testing.T) {
 
 		dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
 
-		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+		// Use a NoopCache: a real (otter-backed) cache spawns a background
+		// periodicCleanUp goroutine that otter/v2 provides no way to stop,
+		// which deadlocks the synctest bubble.
+		ds := NewCachingDatastoreProxy(dsMock, cache.NoopCache[cache.StringKey, CacheEntry](), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 		snapshotReader := ds.SnapshotReader(one)
 
 		var nsDef *core.NamespaceDefinition
