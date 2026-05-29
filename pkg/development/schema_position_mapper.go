@@ -92,9 +92,10 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 	if importPath, ok := r.importReferenceChain(nodeChain); ok {
 		importSource := input.Source(importPath)
 		return &SchemaReference{
-			ReferenceType:  ReferenceTypeImport,
-			Source:         source,
-			Position:       position,
+			ReferenceType: ReferenceTypeImport,
+			Source:        source,
+			Position:      position,
+			// TODO: is this the path pointed at by the import, or is it the position of the import reference itself?
 			TargetSource:   &importSource,
 			TargetPosition: &input.Position{LineNumber: 0, ColumnPosition: 0},
 			Text:           importPath,
@@ -294,16 +295,6 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 	}
 
 	return nil, nil
-}
-
-// resolveTargetSource returns the input.Source for the file where a definition or caveat
-// is defined. For imported definitions, this will be the imported file path. For definitions
-// in the root schema, this returns the fallback source.
-func (r *SchemaPositionMapper) resolveTargetSource(name string, fallback input.Source) input.Source {
-	if defSource := r.schema.GetPathToDefinitionOrPartialOrCaveat(name); defSource != "" {
-		return input.Source(defSource)
-	}
-	return fallback
 }
 
 func (r *SchemaPositionMapper) lookupCaveat(caveatName string) (*core.CaveatDefinition, bool) {

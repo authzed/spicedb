@@ -334,7 +334,6 @@ func getDevError(cverr error, compiled *compiler.CompiledSchema, definitionOrCav
 	if cverr == nil || compiled == nil || definitionOrCaveat == nil {
 		return nil
 	}
-	path := compiled.GetPathToDefinitionOrPartialOrCaveat(definitionOrCaveat.GetName())
 	errWithSource, ok := spiceerrors.AsWithSourceError(cverr)
 	if ok {
 		// NOTE: zeroes are fine here to mean "unknown"
@@ -354,7 +353,7 @@ func getDevError(cverr error, compiled *compiler.CompiledSchema, definitionOrCav
 			Context: errWithSource.SourceCodeString,
 			Line:    lineNumber,
 			Column:  columnPosition,
-			Path:    []string{path},
+			Path:    []string{errWithSource.FileName},
 		}
 	}
 	return &devinterface.DeveloperError{
@@ -362,7 +361,8 @@ func getDevError(cverr error, compiled *compiler.CompiledSchema, definitionOrCav
 		Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 		Source:  devinterface.DeveloperError_SCHEMA,
 		Context: definitionOrCaveat.GetName(),
-		Path:    []string{path},
+		// TODO: do we have any additional context here?
+		Path: []string{""},
 	}
 }
 
