@@ -87,3 +87,56 @@ func (s *testSuite) TestStreamTimeout() {
 		s.Require().LessOrEqual(maxCounter, int32(6), "stream was not properly canceled: %d", maxCounter)
 	}
 }
+
+type exemptTestServer struct {
+	testpb.UnimplementedTestServiceServer
+}
+
+func (t exemptTestServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
+	// Sleep well past the 50ms timeout before sending anything. If the
+	// interceptor exemption works, the handler receives the original stream
+	// whose context is not bound to the timer, so Context().Err() stays nil.
+	// If the exemption is broken, the interceptor wraps the stream with a
+	// cancelable context that fires at 50ms — Context().Err() then returns
+	// the DeadlineExceeded cause and this test fails (the smoking gun that
+	// distinguishes the fix from a no-op).
+	time.Sleep(150 * time.Millisecond)
+	if err := server.Context().Err(); err != nil {
+		return fmt.Errorf("expected uncanceled context on exempt method, got %w", err)
+	}
+	if err := server.Send(&testpb.PingListResponse{Counter: 1}); err != nil {
+		return err
+	}
+	return nil
+}
+
+type exemptTestSuite struct {
+	*testpb.InterceptorTestSuite
+}
+
+func TestStreamTimeoutExemptedMethods(t *testing.T) {
+	s := &exemptTestSuite{
+		InterceptorTestSuite: &testpb.InterceptorTestSuite{
+			TestService: &exemptTestServer{},
+			ServerOpts: []grpc.ServerOption{
+				grpc.StreamInterceptor(MustStreamServerInterceptor(
+					50*time.Millisecond,
+					WithExemptMethods(testpb.TestService_PingList_FullMethodName),
+				)),
+			},
+		},
+	}
+	suite.Run(t, s)
+}
+
+func (s *exemptTestSuite) TestExemptedMethodIsNotCanceled() {
+	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{Value: "exempt"})
+	s.Require().NoError(err)
+
+	resp, err := stream.Recv()
+	s.Require().NoError(err, "exempt method must not be canceled by streamtimeout")
+	s.Require().Equal(int32(1), resp.Counter)
+
+	_, err = stream.Recv()
+	s.Require().ErrorContains(err, "EOF")
+}
