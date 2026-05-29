@@ -2,12 +2,19 @@ package proxy
 
 import (
 	"context"
+	"time"
 
 	"resenje.org/singleflight"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 )
+
+// singleflightTimeout is the maximum time that a caller of a singleflighted method
+// will wait before giving up on the singleflight executor.
+// This prevents a possible deadlock when all datastore connections are held by goroutines waiting on the
+// singleflight while the singleflight executor is blocked waiting for a connection.
+const singleFlightTimeout = 1 * time.Second
 
 // NewSingleflightDatastoreProxy creates a new Datastore proxy which
 // deduplicates calls to Datastore methods that can share results.
@@ -19,6 +26,7 @@ type singleflightProxy struct {
 	headRevGroup  singleflight.Group[string, datastore.RevisionWithSchemaHash]
 	checkRevGroup singleflight.Group[string, string]
 	statsGroup    singleflight.Group[string, datastore.Stats]
+	featuresGroup singleflight.Group[string, *datastore.Features]
 	delegate      datastore.Datastore
 }
 
@@ -43,10 +51,18 @@ func (p *singleflightProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserF
 func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 	// NOTE: Optimized revisions are singleflighted by the underlying datastore via the
 	// CachedOptimizedRevisions struct.
+	ctx, span := tracer.Start(ctx, "singleflightProxy.OptimizedRevision")
+	defer span.End()
 	return p.delegate.OptimizedRevision(ctx)
 }
 
 func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.CheckRevision")
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(ctx, singleFlightTimeout)
+	defer cancel()
+
 	_, _, err := p.checkRevGroup.Do(ctx, revision.String(), func(ctx context.Context) (string, error) {
 		return "", p.delegate.CheckRevision(ctx, revision)
 	})
@@ -54,6 +70,12 @@ func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastor
 }
 
 func (p *singleflightProxy) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.HeadRevision")
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(ctx, singleFlightTimeout)
+	defer cancel()
+
 	rev, _, err := p.headRevGroup.Do(ctx, "", func(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 		return p.delegate.HeadRevision(ctx)
 	})
@@ -69,6 +91,12 @@ func (p *singleflightProxy) Watch(ctx context.Context, afterRevision datastore.R
 }
 
 func (p *singleflightProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.Statistics")
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(ctx, singleFlightTimeout)
+	defer cancel()
+
 	stats, _, err := p.statsGroup.Do(ctx, "", func(ctx context.Context) (datastore.Stats, error) {
 		return p.delegate.Statistics(ctx)
 	})
@@ -76,7 +104,16 @@ func (p *singleflightProxy) Statistics(ctx context.Context) (datastore.Stats, er
 }
 
 func (p *singleflightProxy) Features(ctx context.Context) (*datastore.Features, error) {
-	return p.delegate.Features(ctx)
+	ctx, span := tracer.Start(ctx, "singleflightProxy.Features")
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(ctx, singleFlightTimeout)
+	defer cancel()
+
+	features, _, err := p.featuresGroup.Do(ctx, "", func(ctx context.Context) (*datastore.Features, error) {
+		return p.delegate.Features(ctx)
+	})
+	return features, err
 }
 
 func (p *singleflightProxy) OfflineFeatures() (*datastore.Features, error) {

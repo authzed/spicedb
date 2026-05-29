@@ -20,7 +20,6 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
-	"resenje.org/singleflight"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
@@ -279,7 +278,6 @@ type crdbDatastore struct {
 	beginChangefeedQuery string
 	transactionNowQuery  string
 
-	featuresGroup  singleflight.Group[string, *datastore.Features]
 	cachedFeatures *datastore.Features // GUARDED_BY(featuresLock)
 	featuresLock   sync.Mutex
 
@@ -581,9 +579,7 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 		return cached, nil
 	}
 
-	features, _, err := cds.featuresGroup.Do(ctx, "", func(ictx context.Context) (*datastore.Features, error) {
-		return cds.features(ictx)
-	})
+	features, err := cds.features(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -592,7 +588,7 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	cds.cachedFeatures = features
 	cds.featuresLock.Unlock()
 
-	return features, err
+	return features, nil
 }
 
 func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, error) {

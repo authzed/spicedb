@@ -46,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - Query plan contexts are written to during recursive calls -- for now, disble dispatch inside recursive calls (https://github.com/authzed/spicedb/pull/3078)
+- Add a timeout to callers of singeflighted code (https://github.com/authzed/spicedb/pull/3048)
 
 ## [1.52.0] - 2026-04-30
 ### Added
