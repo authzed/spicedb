@@ -720,6 +720,10 @@ func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
 		c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval != defaultReadConnPoolCfg.HealthCheckInterval {
 		c.DatastoreConfig.ReadReplicaConnPool.HealthCheckInterval = c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval
 	}
+	if c.DatastoreConfig.ReadReplicaConnPool.PingTimeout == defaultReadConnPoolCfg.PingTimeout &&
+		c.DatastoreConfig.OldReadReplicaConnPool.PingTimeout != defaultReadConnPoolCfg.PingTimeout {
+		c.DatastoreConfig.ReadReplicaConnPool.PingTimeout = c.DatastoreConfig.OldReadReplicaConnPool.PingTimeout
+	}
 }
 
 func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.UnaryServerInterceptor]) ([]grpc.UnaryServerInterceptor, error) {
