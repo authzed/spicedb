@@ -349,10 +349,10 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 func expectRelChange(t *testing.T, ds datastore.Datastore, revBeforeWrite datastore.Revision, expectedRel tuple.Relationship) {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
 
-	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite, datastore.WatchJustRelationships())
+	chanRevisionChanges, chanErr := ds.Watch(t.Context(), revBeforeWrite, watchJustRelationships)
 	require.Empty(t, chanErr)
 
 	changeWait := time.NewTimer(waitForChangesTimeout)

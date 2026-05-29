@@ -122,10 +122,10 @@ func TestReadonlyDL_Watch_Delegates(t *testing.T) {
 	defer ctrl.Finish()
 
 	dl := mock_datalayer.NewMockDataLayer(ctrl)
-	dl.EXPECT().Watch(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+	dl.EXPECT().Watch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 
 	rdl := datalayer.NewReadonlyDataLayer(dl)
-	ch, errCh := rdl.Watch(t.Context(), fakeRevision("r1"), datastore.WatchOptions{})
+	ch, errCh := rdl.Watch(t.Context(), fakeRevision("r1"), datastore.ServerWatchOptions{}, datastore.ClientWatchOptions{})
 	require.Nil(t, ch)
 	require.Nil(t, errCh)
 }

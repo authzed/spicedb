@@ -2,6 +2,13 @@ package datalayer
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/dustin/go-humanize"
+	"github.com/pbnjay/memory"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -12,6 +19,55 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// At startup, measure 75% of available free memory.
+var freeMemory uint64
+
+func init() {
+	freeMemory = memory.FreeMemory() / 100 * 75
+}
+
+var errOverHundredPercent = errors.New("percentage greater than 100")
+
+func parsePercent(str string, freeMem uint64) (uint64, error) {
+	percent := strings.TrimSuffix(str, "%")
+	parsedPercent, err := strconv.ParseUint(percent, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse percentage: %w", err)
+	}
+
+	if parsedPercent > 100 {
+		return 0, errOverHundredPercent
+	}
+
+	return freeMem / 100 * parsedPercent, nil
+}
+
+// watchBufferSize takes a string and interprets it as
+// either a percentage of memory (as a percentage of
+// 75% of free memory as measured on startup)
+// or a humanized byte string and returns the number of
+// bytes or an error if the value cannot be interpreted.
+// Returns 0 on an empty string.
+func watchBufferSize(sizeString string) (size uint64, err error) {
+	if sizeString == "" {
+		return 0, nil
+	}
+
+	if strings.HasSuffix(sizeString, "%") {
+		size, err := parsePercent(sizeString, freeMemory)
+		if err != nil {
+			return 0, fmt.Errorf("could not parse %s as percentage: %w", sizeString, err)
+		}
+		return size, nil
+	}
+
+	size, err = humanize.ParseBytes(sizeString)
+	if err != nil {
+		return 0, fmt.Errorf("could not parse %s as a number of bytes: %w", sizeString, err)
+	}
+	return size, nil
+}
 
 // storedSchemaCache caches stored schemas by hash.
 type storedSchemaCache interface {
@@ -124,7 +180,13 @@ func (d *defaultDataLayer) RevisionFromString(serialized string) (datastore.Revi
 	return d.ds.RevisionFromString(serialized)
 }
 
-func (d *defaultDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+func (d *defaultDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, serverOptions datastore.ServerWatchOptions, clientOptions datastore.ClientWatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	opts, err := mergeWatchOptions(serverOptions, clientOptions, d.ds.DefaultsWatchOptions())
+	if err != nil {
+		errs := make(chan error, 1)
+		errs <- err
+		return nil, errs
+	}
 	return d.ds.Watch(ctx, afterRevision, opts)
 }
 
@@ -353,7 +415,13 @@ func (r *readOnlyDatastoreAdapter) RevisionFromString(serialized string) (datast
 	return r.ds.RevisionFromString(serialized)
 }
 
-func (r *readOnlyDatastoreAdapter) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+func (r *readOnlyDatastoreAdapter) Watch(ctx context.Context, afterRevision datastore.Revision, serverOptions datastore.ServerWatchOptions, clientOptions datastore.ClientWatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	opts, err := mergeWatchOptions(serverOptions, clientOptions, r.ds.DefaultsWatchOptions())
+	if err != nil {
+		errs := make(chan error, 1)
+		errs <- err
+		return nil, errs
+	}
 	return r.ds.Watch(ctx, afterRevision, opts)
 }
 

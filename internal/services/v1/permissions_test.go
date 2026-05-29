@@ -491,6 +491,10 @@ type readStoredSchemaCounter struct {
 	callCount atomic.Int32
 }
 
+func (c *readStoredSchemaCounter) DefaultsWatchOptions() datastore.WatchOptions {
+	return c.ds.DefaultsWatchOptions()
+}
+
 func (c *readStoredSchemaCounter) wrap(ds datastore.Datastore) datastore.Datastore {
 	c.ds = ds
 	return c

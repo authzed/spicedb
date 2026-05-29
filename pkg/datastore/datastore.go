@@ -619,37 +619,55 @@ const (
 	WatchCheckpoints   WatchContent = 1 << 2
 )
 
-// WatchOptions are options for a Watch call.
-type WatchOptions struct {
-	// Content is the content to watch.
-	Content WatchContent
-
+// ServerWatchOptions contains server-level configuration for Watch operations.
+// These values do NOT change during the lifetime of a server.
+type ServerWatchOptions struct {
 	// CheckpointInterval is the interval to use for checkpointing in the watch.
-	// If given the zero value, the datastore's default will be used. If smaller
-	// than the datastore's minimum, the minimum will be used.
 	CheckpointInterval time.Duration
 
-	// WatchBufferLength is the length of the buffer for the watch channel. If
-	// given the zero value, the datastore's default will be used.
+	// WatchBufferLength is the length of the buffer for the watch channel.
 	WatchBufferLength uint16
 
 	// WatchBufferWriteTimeout is the timeout for writing to the watch channel.
-	// If given the zero value, the datastore's default will be used.
 	WatchBufferWriteTimeout time.Duration
 
 	// WatchConnectTimeout is the timeout for connecting to the watch channel.
-	// If given the zero value, the datastore's default will be used.
-	// May not be supported by the datastore.
 	WatchConnectTimeout time.Duration
 
 	// MaximumBufferedChangesByteSize is the maximum byte size of the buffered changes struct.
-	// If unspecified, no maximum will be enforced. If the maximum is reached before
+	// If the maximum is reached before
 	// the changes can be sent, the watch will be closed with an error.
-	MaximumBufferedChangesByteSize uint64
+	MaximumBufferedChangesByteSize string
+}
 
-	// EmissionStrategy defines when are changes streamed to the client. If unspecified, changes will be buffered until
-	// they can be checkpointed, which is the default behavior.
+// ClientWatchOptions contains client-specified options for a Watch operation.
+// These values come from the client API request.
+type ClientWatchOptions struct {
+	// Content is the content to watch.
+	Content WatchContent
+
+	// EmissionStrategy defines when are changes streamed to the client.
+	// If unspecified, changes will be buffered until they can be checkpointed, which is the default behavior.
 	EmissionStrategy EmissionStrategy
+}
+
+// WatchOptions are ALL options for a Watch call.
+// Some datastore implementations may ignore one or more of these.
+type WatchOptions struct {
+	// See ClientWatchOptions.Content
+	Content WatchContent
+	// See ClientWatchOptions.EmissionStrategy
+	EmissionStrategy EmissionStrategy
+	// See ServerWatchOptions.CheckpointInterval
+	CheckpointInterval time.Duration
+	// See ServerWatchOptions.WatchBufferLength
+	WatchBufferLength uint16
+	// See ServerWatchOptions.WatchBufferWriteTimeout
+	WatchBufferWriteTimeout time.Duration
+	// See ServerWatchOptions.WatchConnectTimeout
+	WatchConnectTimeout time.Duration
+	// See ServerWatchOptions.MaximumBufferedChangesByteSize
+	MaximumBufferedChangesByteSize uint64
 }
 
 // EmissionStrategy describes when changes are emitted to the client.
@@ -666,29 +684,6 @@ const (
 	// EmitImmediatelyStrategy without Checkpoints will return an error.
 	EmitImmediatelyStrategy
 )
-
-// WatchJustRelationships returns watch options for just relationships.
-func WatchJustRelationships() WatchOptions {
-	return WatchOptions{
-		Content: WatchRelationships,
-	}
-}
-
-// WatchJustSchema returns watch options for just schema.
-func WatchJustSchema() WatchOptions {
-	return WatchOptions{
-		Content: WatchSchema,
-	}
-}
-
-// WithCheckpointInterval sets the checkpoint interval on a watch options, returning
-// an updated options struct.
-func (wo WatchOptions) WithCheckpointInterval(interval time.Duration) WatchOptions {
-	return WatchOptions{
-		Content:            wo.Content,
-		CheckpointInterval: interval,
-	}
-}
 
 // ReadOnlyDatastore is an interface for reading relationships from the datastore.
 type ReadOnlyDatastore interface {
@@ -723,7 +718,8 @@ type ReadOnlyDatastore interface {
 	RevisionFromString(serialized string) (Revision, error)
 
 	// Watch notifies the caller about changes to the datastore, based on the specified options.
-	//
+	// The specified options must be built and validated by the caller.
+	// Some datastores may intentionally ignore some options.
 	// All events following afterRevision will be sent to the caller. Changes made *in* afterRevision will not be included.
 	//
 	// When the changes channel is closed, callers MUST discard any changes received (they will be the zero value).
@@ -737,6 +733,11 @@ type ReadOnlyDatastore interface {
 	//                            the watch cannot be retried.
 	// - Other errors 			- the watch should not be retried due to a fatal error.
 	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan RevisionChanges, <-chan error)
+
+	// DefaultsWatchOptions returns the default watch options for this datastore.
+	// These defaults are used when building WatchOptions from ServerWatchOptions and ClientWatchOptions.
+	// Each datastore should return appropriate defaults based on its capabilities and constraints.
+	DefaultsWatchOptions() WatchOptions
 
 	// ReadyState returns a state indicating whether the datastore is ready to accept data.
 	// Datastores that require database schema creation will return not-ready until the migrations

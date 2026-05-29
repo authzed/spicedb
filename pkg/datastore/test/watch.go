@@ -17,6 +17,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -245,8 +246,11 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 
 	startWatchRevision := setupDatastore(t, ds)
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	ctx, cancel := context.WithCancel(t.Context())
-	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, startWatchRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, makeTestRel("test", "test"))
@@ -298,8 +302,11 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	// TOUCH a relationship and ensure watch sees it.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	afterTouchRevision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
@@ -328,7 +335,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with no changes and ensure it does *not* appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom"))
@@ -347,7 +354,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with a caveat name change and ensure it does appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	afterNameChange, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]"))
@@ -368,7 +375,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with a caveat context change and ensure it does appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterNameChange, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterNameChange, watchJustRelationships)
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))
@@ -404,7 +411,10 @@ func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	metadata, err := structpb.NewStruct(map[string]any{"somekey": "somevalue"})
@@ -450,7 +460,10 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	metadata, err := structpb.NewStruct(map[string]any{"somekey": "somevalue"})
@@ -490,8 +503,11 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	// TOUCH a relationship and ensure watch sees it.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	afterTouchRevision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
@@ -520,7 +536,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// DELETE the relationship
-	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationDelete, tuple.MustParse("document:firstdoc#viewer@user:tom"))
@@ -583,7 +599,12 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
+	dl := datalayer.NewDataLayer(ds)
+
+	changes, errchan := dl.Watch(ctx, lowestRevision,
+		datastore.ServerWatchOptions{},
+		datastore.ClientWatchOptions{Content: datastore.WatchSchema},
+	)
 	require.Empty(errchan)
 
 	// Addition
@@ -676,9 +697,11 @@ func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
-		Content: datastore.WatchRelationships | datastore.WatchSchema,
-	})
+	changes, errchan := datalayer.NewDataLayer(ds).Watch(ctx, lowestRevision,
+		datastore.ServerWatchOptions{},
+		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchSchema},
+	)
+	require.NoError(err)
 	require.Empty(errchan)
 
 	// Write an updated schema.
@@ -812,6 +835,7 @@ func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester Datastor
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships | datastore.WatchSchema,
 		CheckpointInterval: 100 * time.Millisecond,
+		WatchBufferLength:  1000,
 	})
 	require.Empty(errchan)
 
@@ -938,10 +962,11 @@ func WatchObservesEveryReturnedRevisionTest(t *testing.T, tester DatastoreTester
 	require.NoError(t, err)
 
 	// Start watching from after the create.
-	changes, errchan := ds.Watch(t.Context(), afterCreateRevision, datastore.WatchOptions{
-		Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
-		CheckpointInterval: 100 * time.Millisecond,
-	})
+	changes, errchan := datalayer.NewDataLayer(ds).Watch(t.Context(), afterCreateRevision,
+		datastore.ServerWatchOptions{CheckpointInterval: 100 * time.Millisecond},
+		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchCheckpoints},
+	)
+	require.NoError(t, err)
 	require.Empty(t, errchan)
 
 	// Second TOUCH of the same relationship is a no-op (no actual changes),
@@ -988,10 +1013,11 @@ func WatchEmitsCheckpointAfterWriteWithChangesTest(t *testing.T, tester Datastor
 	require.NoError(t, err)
 	startingRevision := startingRevisionResult.Revision
 
-	changes, errchan := ds.Watch(t.Context(), startingRevision, datastore.WatchOptions{
-		Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
-		CheckpointInterval: 100 * time.Millisecond,
-	})
+	changes, errchan := datalayer.NewDataLayer(ds).Watch(t.Context(), startingRevision,
+		datastore.ServerWatchOptions{CheckpointInterval: 100 * time.Millisecond},
+		datastore.ClientWatchOptions{Content: datastore.WatchRelationships | datastore.WatchCheckpoints},
+	)
+	require.NoError(t, err)
 	require.Empty(t, errchan)
 
 	// A TOUCH that produces a real change.

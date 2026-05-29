@@ -18,6 +18,10 @@ func NewSeparatingContextDatastoreProxy(d Datastore) StrictReadDatastore {
 
 type ctxProxy struct{ delegate Datastore }
 
+func (p *ctxProxy) DefaultsWatchOptions() WatchOptions {
+	return p.delegate.DefaultsWatchOptions()
+}
+
 func (p *ctxProxy) MetricsID() (string, error) {
 	return p.delegate.MetricsID()
 }

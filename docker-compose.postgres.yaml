@@ -21,6 +21,8 @@ services:
       -c max_wal_senders=10
       -c max_replication_slots=10
       -c hot_standby=on
+      -c track_commit_timestamp=on
+    # above is for watch api to work
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U spicedb"]
       interval: "3s"

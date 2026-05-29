@@ -15,10 +15,6 @@ type crdbOptions struct {
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
 	connectRate                 time.Duration
 
-	watchBufferLength              uint16
-	watchChangeBufferMaximumSize   uint64
-	watchBufferWriteTimeout        time.Duration
-	watchConnectTimeout            time.Duration
 	revisionQuantization           time.Duration
 	followerReadDelay              time.Duration
 	maxRevisionStalenessPercent    float64
@@ -76,9 +72,6 @@ type Option func(*crdbOptions)
 func generateConfig(options []Option) (crdbOptions, error) {
 	computed := crdbOptions{
 		gcWindow:                       24 * time.Hour,
-		watchBufferLength:              defaultWatchBufferLength,
-		watchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
-		watchConnectTimeout:            defaultWatchConnectTimeout,
 		revisionQuantization:           defaultRevisionQuantization,
 		followerReadDelay:              defaultFollowerReadDelay,
 		maxRevisionStalenessPercent:    defaultMaxRevisionStalenessPercent,
@@ -249,34 +242,6 @@ func ReadConnsMaxOpen(conns int) Option {
 // This value defaults to having no maximum.
 func WriteConnsMaxOpen(conns int) Option {
 	return func(po *crdbOptions) { po.writePoolOpts.MaxOpenConns = &conns }
-}
-
-// WatchBufferLength is the number of entries that can be stored in the watch
-// buffer while awaiting read by the client.
-//
-// This value defaults to 128.
-func WatchBufferLength(watchBufferLength uint16) Option {
-	return func(po *crdbOptions) { po.watchBufferLength = watchBufferLength }
-}
-
-// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
-// after which the caller to the watch will be disconnected.
-func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
-	return func(po *crdbOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
-}
-
-// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
-// If this value is exceeded the caller will receive an error.
-func WatchChangeBufferMaximumSize(maxSize uint64) Option {
-	return func(po *crdbOptions) { po.watchChangeBufferMaximumSize = maxSize }
-}
-
-// WatchConnectTimeout is the maximum timeout for connecting the watch stream
-// to the datastore.
-//
-// This value defaults to 1 second.
-func WatchConnectTimeout(watchConnectTimeout time.Duration) Option {
-	return func(po *crdbOptions) { po.watchConnectTimeout = watchConnectTimeout }
 }
 
 // RevisionQuantization is the time bucket size to which advertised revisions

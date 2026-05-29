@@ -33,29 +33,26 @@ const (
 )
 
 type mysqlOptions struct {
-	revisionQuantization         time.Duration
-	gcWindow                     time.Duration
-	gcInterval                   time.Duration
-	gcMaxOperationTime           time.Duration
-	maxRevisionStalenessPercent  float64
-	followerReadDelay            time.Duration
-	watchBufferLength            uint16
-	watchChangeBufferMaximumSize uint64
-	watchBufferWriteTimeout      time.Duration
-	tablePrefix                  string
-	enablePrometheusStats        bool
-	maxOpenConns                 int
-	connMaxIdleTime              time.Duration
-	connMaxLifetime              time.Duration
-	analyzeBeforeStats           bool
-	maxRetries                   uint8
-	lockWaitTimeoutSeconds       *uint8
-	gcEnabled                    bool
-	credentialsProviderName      string
-	filterMaximumIDCount         uint16
-	allowedMigrations            []string
-	columnOptimizationOption     common.ColumnOptimizationOption
-	watchDisabled                bool
+	revisionQuantization        time.Duration
+	gcWindow                    time.Duration
+	gcInterval                  time.Duration
+	gcMaxOperationTime          time.Duration
+	maxRevisionStalenessPercent float64
+	followerReadDelay           time.Duration
+	tablePrefix                 string
+	enablePrometheusStats       bool
+	maxOpenConns                int
+	connMaxIdleTime             time.Duration
+	connMaxLifetime             time.Duration
+	analyzeBeforeStats          bool
+	maxRetries                  uint8
+	lockWaitTimeoutSeconds      *uint8
+	gcEnabled                   bool
+	credentialsProviderName     string
+	filterMaximumIDCount        uint16
+	allowedMigrations           []string
+	columnOptimizationOption    common.ColumnOptimizationOption
+	watchDisabled               bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -67,8 +64,6 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		gcWindow:                    defaultGarbageCollectionWindow,
 		gcInterval:                  defaultGarbageCollectionInterval,
 		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:           defaultWatchBufferLength,
-		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
 		maxOpenConns:                defaultMaxOpenConns,
 		connMaxIdleTime:             defaultConnMaxIdleTime,
 		connMaxLifetime:             defaultConnMaxLifetime,
@@ -103,28 +98,6 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 	}
 
 	return computed, nil
-}
-
-// WatchBufferLength is the number of entries that can be stored in the watch
-// buffer while awaiting read by the client.
-//
-// This value defaults to 128.
-func WatchBufferLength(watchBufferLength uint16) Option {
-	return func(mo *mysqlOptions) {
-		mo.watchBufferLength = watchBufferLength
-	}
-}
-
-// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
-// after which the caller to the watch will be disconnected.
-func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
-	return func(mo *mysqlOptions) { mo.watchBufferWriteTimeout = watchBufferWriteTimeout }
-}
-
-// WatchBufferMaximumSize is the maximum size in bytes of the watch buffer.
-// If this value is exceeded the caller will receive an error.
-func WatchChangeBufferMaximumSize(maxSize uint64) Option {
-	return func(mo *mysqlOptions) { mo.watchChangeBufferMaximumSize = maxSize }
 }
 
 // RevisionQuantization is the time bucket size to which advertised
