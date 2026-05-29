@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 	"unsafe"
 
 	"resenje.org/singleflight"
@@ -23,8 +24,15 @@ type definitionCachingProxy struct {
 	readGroup singleflight.Group[string, *cacheEntry]
 }
 
-func (p *definitionCachingProxy) Unwrap() datastore.Datastore {
-	return p.Datastore
+func NewDefinitionCachingProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry]) *definitionCachingProxy {
+	if c == nil {
+		c, _ = cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+			MaxCost:    10000,
+			DefaultTTL: 10000 * time.Second,
+		})
+	}
+
+	return &definitionCachingProxy{Datastore: delegate, c: c}
 }
 
 func (p *definitionCachingProxy) Close() error {
