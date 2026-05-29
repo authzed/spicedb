@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,4 +75,32 @@ func TestQueryFuncSurfacesErrorFromSecondStatement(t *testing.T) {
 	}, "SELECT 1")
 
 	require.ErrorIs(t, err, assertErr)
+}
+
+// TestConfigurePgxSetsPingTimeout ensures pools get a bounded acquire-time Ping so
+// a half-open connection cannot hang the acquiring caller forever. pgxpool leaves
+// PingTimeout unset by default, which is what allowed the deadline-stripped
+// optimized-revision Ping to block indefinitely.
+func TestConfigurePgxSetsPingTimeout(t *testing.T) {
+	req := require.New(t)
+
+	cfg, err := pgxpool.ParseConfig("postgres://localhost:5432/db")
+	req.NoError(err)
+	req.Zero(cfg.PingTimeout, "precondition: pgxpool does not set a ping timeout by default")
+
+	req.NoError(PoolOptions{}.ConfigurePgx(cfg, false))
+	req.Equal(defaultPingTimeout, cfg.PingTimeout)
+}
+
+// TestConfigurePgxAppliesPingTimeoutOption ensures the configured ConnPingTimeout
+// option overrides the default.
+func TestConfigurePgxAppliesPingTimeoutOption(t *testing.T) {
+	req := require.New(t)
+
+	cfg, err := pgxpool.ParseConfig("postgres://localhost:5432/db")
+	req.NoError(err)
+
+	pingTimeout := 17 * time.Second
+	req.NoError(PoolOptions{ConnPingTimeout: &pingTimeout}.ConfigurePgx(cfg, false))
+	req.Equal(pingTimeout, cfg.PingTimeout)
 }

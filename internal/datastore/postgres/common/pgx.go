@@ -29,6 +29,22 @@ func NewPGXQueryRelationshipsExecutor(querier DBFuncQuerier, explainable datasto
 	}
 }
 
+// defaultPingTimeout bounds the liveness Ping that pgxpool performs when handing
+// out a connection that has been idle (see pgxpool.Config.PingTimeout, applied in
+// (*Pool).Acquire). This is the only place pgxpool pings a connection for
+// liveness; if it is left unset, the Ping inherits the acquiring caller's context
+// verbatim, and when that context has had its deadline stripped — as happens for
+// the optimized-revision computation, which runs under singleflight with
+// context.WithoutCancel — a Ping against a half-open connection (e.g. one silently
+// dropped by a load balancer after an idle period) blocks forever. Because every
+// API request needs an optimized revision and all of them de-duplicate onto that
+// one call, the entire server wedges.
+//
+// Setting PingTimeout bounds that Ping entirely in-process at the pgx layer: on
+// timeout pgxpool destroys the dead connection and retries acquisition on the
+// next one, with no global or kernel-level socket configuration involved.
+const defaultPingTimeout = 5 * time.Second
+
 // ParseConfigWithInstrumentation returns a pgx.ConnConfig that has been instrumented for observability
 func ParseConfigWithInstrumentation(url string) (*pgx.ConnConfig, error) {
 	connConfig, err := pgx.ParseConfig(url)
@@ -213,6 +229,7 @@ type PoolOptions struct {
 	ConnMaxLifetime         *time.Duration
 	ConnMaxLifetimeJitter   *time.Duration
 	ConnHealthCheckInterval *time.Duration
+	ConnPingTimeout         *time.Duration
 	MinOpenConns            *int
 	MaxOpenConns            *int
 }
@@ -257,6 +274,15 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config, includeQueryPara
 		pgxConfig.MaxConnLifetimeJitter = *opts.ConnMaxLifetimeJitter
 	} else if opts.ConnMaxLifetime != nil {
 		pgxConfig.MaxConnLifetimeJitter = time.Duration(0.2 * float64(*opts.ConnMaxLifetime))
+	}
+
+	// Bound the liveness Ping pgxpool issues on acquire so a half-open connection
+	// cannot hang the acquiring caller indefinitely. See defaultPingTimeout. The
+	// default is applied as a safety net even when the option is unset, so every
+	// pool gets a bounded ping.
+	pgxConfig.PingTimeout = defaultPingTimeout
+	if opts.ConnPingTimeout != nil {
+		pgxConfig.PingTimeout = *opts.ConnPingTimeout
 	}
 
 	ConfigurePGXLogger(pgxConfig.ConnConfig)
