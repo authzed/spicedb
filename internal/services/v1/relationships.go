@@ -185,7 +185,17 @@ func NewPermissionsServer(
 				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
-				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
+				streamtimeout.MustStreamServerInterceptor(
+					configWithDefaults.StreamingAPITimeout,
+					// Bulk export/import are designed to run for arbitrarily long
+					// periods on large datasets; their inter-batch gaps regularly
+					// exceed the streaming-api timeout that catches hung clients
+					// on the bounded streaming reads.
+					streamtimeout.WithExemptMethods(
+						v1.PermissionsService_ExportBulkRelationships_FullMethodName,
+						v1.PermissionsService_ImportBulkRelationships_FullMethodName,
+					),
+				),
 				perfinsights.StreamServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
 			),
 		},
