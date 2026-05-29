@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -42,14 +43,6 @@ func (mds *mysqlDatastore) ResetGCCompleted() {
 
 func (mcc *mysqlGarbageCollector) Close() {
 	mcc.isClosed = true
-}
-
-func (mcc *mysqlGarbageCollector) LockForGCRun(ctx context.Context) (bool, error) {
-	return mcc.mds.tryAcquireLock(ctx, gcRunLock)
-}
-
-func (mcc *mysqlGarbageCollector) UnlockAfterGCRun() error {
-	return mcc.mds.releaseLock(context.Background(), gcRunLock)
 }
 
 func (mcc *mysqlGarbageCollector) Now(ctx context.Context) (time.Time, error) {
@@ -105,7 +98,9 @@ func (mcc *mysqlGarbageCollector) TxIDBefore(ctx context.Context, before time.Ti
 	return revisions.NewForTransactionID(uintValue), nil
 }
 
-// - implementation misses metrics
+// NOTE: MySQL uses GET_LOCK/RELEASE_LOCK (session-level) rather than per-batch
+// transaction-level locks like PostgreSQL, because MySQL lacks xact-level advisory
+// locks. The lock is held for the entire method, so preemption is coarser-grained.
 func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	ctx context.Context,
 	txID datastore.Revision,
@@ -113,6 +108,19 @@ func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	if mcc.isClosed {
 		return removed, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
 	}
+
+	acquired, err := mcc.mds.tryAcquireLock(ctx, gcRunLock)
+	if err != nil {
+		return removed, fmt.Errorf("error acquiring gc lock: %w", err)
+	}
+	if !acquired {
+		return removed, datastore.ErrGCPreempted
+	}
+	defer func() {
+		if releaseErr := mcc.mds.releaseLock(context.Background(), gcRunLock); releaseErr != nil {
+			log.Warn().Err(releaseErr).Msg("error releasing gc lock")
+		}
+	}()
 
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	removed.Relationships, err = mcc.batchDelete(ctx, mcc.mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
@@ -138,6 +146,19 @@ func (mcc *mysqlGarbageCollector) DeleteExpiredRels(ctx context.Context) (int64,
 	if mcc.mds.schema.ExpirationDisabled {
 		return 0, nil
 	}
+
+	acquired, err := mcc.mds.tryAcquireLock(ctx, gcRunLock)
+	if err != nil {
+		return 0, fmt.Errorf("error acquiring gc lock: %w", err)
+	}
+	if !acquired {
+		return 0, datastore.ErrGCPreempted
+	}
+	defer func() {
+		if releaseErr := mcc.mds.releaseLock(context.Background(), gcRunLock); releaseErr != nil {
+			log.Warn().Err(releaseErr).Msg("error releasing gc lock")
+		}
+	}()
 
 	now, err := mcc.Now(ctx)
 	if err != nil {

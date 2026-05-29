@@ -7,7 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -56,14 +56,6 @@ func (pgd *pgDatastore) ResetGCCompleted() {
 func (pgg *pgGarbageCollector) Close() {
 	pgg.isClosed = true
 	pgg.conn.Release()
-}
-
-func (pgg *pgGarbageCollector) LockForGCRun(ctx context.Context) (bool, error) {
-	return pgg.pgd.tryAcquireLock(ctx, pgg.conn, gcRunLock)
-}
-
-func (pgg *pgGarbageCollector) UnlockAfterGCRun() error {
-	return pgg.pgd.releaseLock(context.Background(), pgg.conn, gcRunLock)
 }
 
 func (pgg *pgGarbageCollector) Now(ctx context.Context) (time.Time, error) {
@@ -136,10 +128,6 @@ func (pgg *pgGarbageCollector) DeleteExpiredRels(ctx context.Context) (int64, er
 	)
 }
 
-type exec interface {
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
-
 func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (datastore.DeletionCounts, error) {
 	if pgg.isClosed {
 		return datastore.DeletionCounts{}, spiceerrors.MustBugf("pgGarbageCollector is closed")
@@ -148,16 +136,22 @@ func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastor
 	return pgg.deleteBeforeTx(ctx, pgg.conn, txID)
 }
 
-func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, txID datastore.Revision) (datastore.DeletionCounts, error) {
+// txBeginner is satisfied by *pgxpool.Conn (used in production) and by any
+// ConnPooler (used in tests to route batch transactions through the
+// QueryInterceptor).
+type txBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, beginner txBeginner, txID datastore.Revision) (datastore.DeletionCounts, error) {
 	revision := txID.(postgresRevision)
 
 	minTxAlive := NewXid8(revision.snapshot.xmin)
 	removed := datastore.DeletionCounts{}
 	var err error
-	// Delete any relationship rows that were already dead when this transaction started
 	removed.Relationships, err = pgg.batchDelete(
 		ctx,
-		conn,
+		beginner,
 		schema.TableTuple,
 		gcPKCols,
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
@@ -167,13 +161,9 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 		return removed, fmt.Errorf("failed to GC relationships table: %w", err)
 	}
 
-	// Delete all transaction rows with ID < the transaction ID.
-	//
-	// We don't delete the transaction itself to ensure there is always at least
-	// one transaction present.
 	removed.Transactions, err = pgg.batchDelete(
 		ctx,
-		conn,
+		beginner,
 		schema.TableTransaction,
 		gcPKCols,
 		sq.Lt{schema.ColXID: minTxAlive},
@@ -183,10 +173,9 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 		return removed, fmt.Errorf("failed to GC transactions table: %w", err)
 	}
 
-	// Delete any namespace rows with deleted_transaction <= the transaction ID.
 	removed.Namespaces, err = pgg.batchDelete(
 		ctx,
-		conn,
+		beginner,
 		schema.TableNamespace,
 		gcPKCols,
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
@@ -201,7 +190,7 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 
 func (pgg *pgGarbageCollector) batchDelete(
 	ctx context.Context,
-	conn exec,
+	beginner txBeginner,
 	tableName string,
 	pkCols []string,
 	filter sqlFilter,
@@ -212,7 +201,6 @@ func (pgg *pgGarbageCollector) batchDelete(
 		return -1, err
 	}
 	if index != nil {
-		// Force the proper index for the GC operation.
 		sql = "/*+ IndexOnlyScan(" + tableName + " " + index.Name + ") */" + sql
 	}
 
@@ -224,9 +212,30 @@ func (pgg *pgGarbageCollector) batchDelete(
 
 	var deletedCount int64
 	for {
-		cr, err := conn.Exec(ctx, query, args...)
+		tx, err := beginner.Begin(ctx)
 		if err != nil {
+			return deletedCount, fmt.Errorf("error starting transaction for gc batch: %w", err)
+		}
+
+		locked, err := pgg.pgd.tryAcquireXactLock(ctx, tx, gcRunLock)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			return deletedCount, fmt.Errorf("error acquiring gc lock: %w", err)
+		}
+
+		if !locked {
+			_ = tx.Rollback(ctx)
+			return deletedCount, datastore.ErrGCPreempted
+		}
+
+		cr, err := tx.Exec(ctx, query, args...)
+		if err != nil {
+			_ = tx.Rollback(ctx)
 			return deletedCount, err
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return deletedCount, fmt.Errorf("error committing gc batch: %w", err)
 		}
 
 		rowsDeleted := cr.RowsAffected()
