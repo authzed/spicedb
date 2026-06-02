@@ -114,8 +114,7 @@ func (s *Node) Connect(ctx context.Context, out io.Writer) error {
 	addr := net.JoinHostPort("localhost", strconv.Itoa(s.GrpcPort))
 	e2e.WaitForServerReady(addr, out)
 
-	conn, err := grpchelpers.DialAndWait(
-		ctx,
+	conn, err := grpchelpers.Dial(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken(s.PresharedKey),

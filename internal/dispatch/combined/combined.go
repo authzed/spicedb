@@ -1,7 +1,6 @@
 package combined
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -275,14 +274,14 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		// we can enable it only for non-streaming rpcs.
 		// opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("s2")))
 
-		conn, err := grpchelpers.Dial(context.Background(), opts.upstreamAddr, opts.grpcDialOpts...)
+		conn, err := grpchelpers.Dial(opts.upstreamAddr, opts.grpcDialOpts...)
 		if err != nil {
 			return nil, err
 		}
 
 		secondaryClients := make(map[string]remote.SecondaryDispatch, len(opts.secondaryUpstreamAddrs))
 		for name, addr := range opts.secondaryUpstreamAddrs {
-			secondaryConn, err := grpchelpers.Dial(context.Background(), addr, opts.grpcDialOpts...)
+			secondaryConn, err := grpchelpers.Dial(addr, opts.grpcDialOpts...)
 			if err != nil {
 				return nil, err
 			}

@@ -142,9 +142,8 @@ func TestOverlapKeysFromContext(t *testing.T) {
 			_ = s.Serve(listener)
 		}()
 
-		conn, err := grpchelpers.DialAndWait(
-			t.Context(),
-			"",
+		conn, err := grpchelpers.Dial(
+			"passthrough:///localhost",
 			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 				return listener.Dial()
 			}),

@@ -210,9 +210,8 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		}
 	}()
 
-	conn, err := grpchelpers.DialAndWait(
-		context.Background(),
-		"",
+	conn, err := grpchelpers.Dial(
+		"passthrough:///devcontext",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return listener.Dial()
 		}),

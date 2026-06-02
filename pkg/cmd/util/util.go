@@ -122,6 +122,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 }
 
 func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialFunc, error) {
+	// This branch is only invoked in testing.
 	if c.Network == BufferedNetwork {
 		bl := bufconn.Listen(c.BufferSize)
 		return bl, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -129,7 +130,7 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 					return bl.DialContext(ctx)
 				}))
 
-				return grpchelpers.Dial(ctx, BufferedNetwork, opts...)
+				return grpchelpers.Dial("passthrough:///"+BufferedNetwork, opts...)
 			}, func(ctx context.Context, s string) (net.Conn, error) {
 				return bl.DialContext(ctx)
 			}, nil
@@ -139,7 +140,7 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 		return nil, nil, nil, err
 	}
 	return l, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		return grpchelpers.Dial(ctx, c.Address, opts...)
+		return grpchelpers.Dial(c.Address, opts...)
 	}, nil, nil
 }
 
@@ -214,6 +215,8 @@ type completedGRPCServer struct {
 	listener          net.Listener
 	svcRegistrationFn func(*grpc.Server)
 	dial              func(context.Context, ...grpc.DialOption) (*grpc.ClientConn, error)
+	// netDial is used to provide a direct handle on the net.Conn associated with an in-memory
+	// dispatch address
 	netDial           func(ctx context.Context, s string) (net.Conn, error)
 	creds             credentials.TransportCredentials
 	certWatcher       *x509util.CertWatcher
@@ -240,7 +243,8 @@ func (c *completedGRPCServer) DialContext(ctx context.Context, opts ...grpc.Dial
 	return c.dial(ctx, opts...)
 }
 
-// NetDialContext returns a low level net.Conn connection to the server
+// NetDialContext returns a low level net.Conn connection to the server; used specifically
+// in test logic to allow for connections to multiple in-process in-memory dispatch servers.
 func (c *completedGRPCServer) NetDialContext(ctx context.Context, s string) (net.Conn, error) {
 	return c.netDial(ctx, s)
 }

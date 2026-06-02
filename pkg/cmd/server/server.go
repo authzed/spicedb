@@ -762,7 +762,11 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 // RunnableServer is a spicedb service set ready to run
 type RunnableServer interface {
 	Run(ctx context.Context) error
+	// TODO
+	// GRPCDialContext is used in test code to provide a handle on a connection to this server.
 	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	// DispatchNetDialContext is used in test code to provide a handle on the net.Conns associated
+	// with in-memory in-process dispatch servers.
 	DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error)
 }
 
