@@ -3,7 +3,6 @@ package crdb
 import (
 	"context"
 	"maps"
-	"net"
 	"slices"
 	"sort"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -142,13 +140,7 @@ func TestOverlapKeysFromContext(t *testing.T) {
 			_ = s.Serve(listener)
 		}()
 
-		conn, err := grpchelpers.Dial(
-			"passthrough:///localhost",
-			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-				return listener.Dial()
-			}),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
+		conn, err := grpchelpers.DialBuffered(listener)
 		require.NoError(t, err)
 
 		t.Cleanup(func() {

@@ -180,13 +180,7 @@ func TestDispatchTimeout(t *testing.T) {
 				_ = s.Serve(listener)
 			}()
 
-			conn, err := grpchelpers.Dial(
-				"passthrough:///localhost",
-				grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-					return listener.Dial()
-				}),
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-			)
+			conn, err := grpchelpers.DialBuffered(listener)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {

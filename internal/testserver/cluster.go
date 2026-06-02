@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"
 
 	"github.com/authzed/consistent"
@@ -243,13 +242,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 			return listeners.Dispatch.DialContext(ctx)
 		})
 
-		conn, err := grpchelpers.Dial(
-			"passthrough:///localhost",
-			grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-				return listeners.GRPC.DialContext(ctx)
-			}),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
+		conn, err := grpchelpers.DialBuffered(listeners.GRPC)
 		require.NoError(t, err)
 		conns = append(conns, conn)
 	}

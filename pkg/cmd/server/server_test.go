@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"reflect"
 	"slices"
 	"testing"
@@ -19,7 +18,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 
@@ -191,13 +189,7 @@ func TestOTelReporting(t *testing.T) {
 	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.Dial(
-		"passthrough:///localhost",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listeners.GRPC.DialContext(ctx)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	conn, err := grpchelpers.DialBuffered(listeners.GRPC)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -269,13 +261,7 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.Dial(
-		"passthrough:///localhost",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listeners.GRPC.DialContext(ctx)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	conn, err := grpchelpers.DialBuffered(listeners.GRPC)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -412,12 +398,7 @@ func TestRetryPolicy(t *testing.T) {
 	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.Dial(
-		"passthrough:///localhost",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listeners.GRPC.DialContext(ctx)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	conn, err := grpchelpers.DialBuffered(listeners.GRPC,
 		grpc.WithDefaultServiceConfig(`{
                   "methodConfig": [
                     {

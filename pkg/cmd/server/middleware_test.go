@@ -2,13 +2,11 @@ package server
 
 import (
 	"context"
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
@@ -383,14 +381,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 	rs, listeners, err := c.CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := grpchelpers.Dial(
-		"passthrough:///localhost",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listeners.GRPC.DialContext(ctx)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpcutil.WithInsecureBearerToken("psk"),
-	)
+	clientConn, err := grpchelpers.DialBuffered(listeners.GRPC, grpcutil.WithInsecureBearerToken("psk"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()
@@ -501,13 +492,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	rs, listeners, err := c.CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := grpchelpers.Dial(
-		"passthrough:///localhost",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listeners.GRPC.DialContext(ctx)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	clientConn, err := grpchelpers.DialBuffered(listeners.GRPC)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()

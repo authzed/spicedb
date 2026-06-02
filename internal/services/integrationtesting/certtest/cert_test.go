@@ -11,7 +11,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -199,12 +198,9 @@ func TestCertRotation(t *testing.T) {
 
 	// If previous code takes more than initialValidDuration*2 to execute, the cert
 	// would have expired, and Dial would retry indefinitely, hence the context timeout
-	conn, err := grpchelpers.Dial(
-		// "buffnet" matches the DNSNames in the TLS certificate issued above
-		"passthrough:///buffnet",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listeners.GRPC.DialContext(ctx)
-		}),
+	// "buffnet" matches the DNSNames in the TLS certificate issued above; WithAuthority
+	// sets the SNI so TLS verification succeeds even though the dial target is localhost.
+	conn, err := grpchelpers.DialBuffered(listeners.GRPC,
 		tlsCreds,
 		grpc.WithAuthority("buffnet"),
 		grpc.WithConnectParams(grpc.ConnectParams{
