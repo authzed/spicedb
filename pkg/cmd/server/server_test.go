@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"slices"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 
@@ -27,6 +29,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
@@ -185,10 +188,16 @@ func TestOTelReporting(t *testing.T) {
 		WithEnableMemoryProtectionMiddleware(false),
 	}
 
-	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := srv.GRPCDialContext(ctx)
+	conn, err := grpchelpers.Dial(
+		"passthrough:///localhost",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.GRPC.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -257,10 +266,16 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 		WithDatastore(ds),
 	}
 
-	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := srv.GRPCDialContext(ctx)
+	conn, err := grpchelpers.Dial(
+		"passthrough:///localhost",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.GRPC.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -394,10 +409,15 @@ func TestRetryPolicy(t *testing.T) {
 		}),
 	}
 
-	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := srv.GRPCDialContext(ctx,
+	conn, err := grpchelpers.Dial(
+		"passthrough:///localhost",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.GRPC.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(`{
                   "methodConfig": [
                     {
@@ -418,7 +438,8 @@ func TestRetryPolicy(t *testing.T) {
                       }
                     }
                   ]
-                }`))
+                }`),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = conn.Close()

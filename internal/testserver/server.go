@@ -2,14 +2,17 @@ package testserver
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -95,7 +98,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
 
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	srv, listeners, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
@@ -163,15 +166,20 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 				},
 			},
 		}),
-	).Complete(ctx)
+	).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
 	go func() {
 		_ = srv.Run(ctx)
 	}()
 
-	// TODO: move off of WithBlock
-	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock()) // nolint: staticcheck
+	conn, err := grpchelpers.Dial(
+		"passthrough:///localhost",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.GRPC.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 
 	return conn, func() {

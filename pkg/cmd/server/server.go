@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -24,7 +23,6 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
 
 	"github.com/authzed/consistent"
-	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
@@ -178,6 +176,10 @@ type Config struct {
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
+	return c.complete(ctx)
+}
+
+func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	closeables := util.CloseableStack{}
 	var err error
 	defer func() {
@@ -555,7 +557,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dispatchGRPCServer: dispatchGrpcServer,
 		gatewayServer:      gatewayServer,
 		metricsServer:      metricsServer,
-		presharedKeys:      c.PresharedSecureKey,
 		telemetryReporter:  reporter,
 		healthManager:      healthManager,
 		closeFunc:          closeables.Close,
@@ -759,15 +760,9 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	return gatewayServer, closeableGatewayHandler, nil
 }
 
-// RunnableServer is a spicedb service set ready to run
+// RunnableServer is a spicedb service set ready to run.
 type RunnableServer interface {
 	Run(ctx context.Context) error
-	// TODO
-	// GRPCDialContext is used in test code to provide a handle on a connection to this server.
-	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
-	// DispatchNetDialContext is used in test code to provide a handle on the net.Conns associated
-	// with in-memory in-process dispatch servers.
-	DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error)
 }
 
 // completedServerConfig holds the full configuration to run a spicedb server,
@@ -783,24 +778,7 @@ type completedServerConfig struct {
 	telemetryReporter  telemetry.Reporter
 	healthManager      health.Manager
 
-	presharedKeys []string
-	closeFunc     func() error
-}
-
-func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	if len(c.presharedKeys) == 0 {
-		return c.gRPCServer.DialContext(ctx, opts...)
-	}
-	if c.gRPCServer.Insecure() {
-		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKeys[0]))
-	} else {
-		opts = append(opts, grpcutil.WithBearerToken(c.presharedKeys[0]))
-	}
-	return c.gRPCServer.DialContext(ctx, opts...)
-}
-
-func (c *completedServerConfig) DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error) {
-	return c.dispatchGRPCServer.NetDialContext(ctx, s)
+	closeFunc func() error
 }
 
 func (c *completedServerConfig) Run(ctx context.Context) error {

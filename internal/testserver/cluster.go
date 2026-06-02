@@ -9,18 +9,18 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/balancer"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"
 
 	"github.com/authzed/consistent"
 
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -226,7 +226,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 		ctx, cancel := context.WithCancel(t.Context())
 		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
-		srv, err := cfg.Complete(ctx)
+		srv, listeners, err := cfg.CompleteForTesting(ctx)
 		require.NoError(t, err)
 
 		errCh := make(chan error, 1)
@@ -239,19 +239,17 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 			require.NoError(t, err)
 		})
 
-		dialers = append(dialers, srv.DispatchNetDialContext)
+		dialers = append(dialers, func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.Dispatch.DialContext(ctx)
+		})
 
-		// TODO: move off of WithBlock and WithReturnConnectionError
-		conn, err := srv.GRPCDialContext(ctx,
-			grpc.WithReturnConnectionError(), // nolint: staticcheck
-			grpc.WithBlock(),                 // nolint: staticcheck
-			grpc.WithConnectParams(grpc.ConnectParams{
-				Backoff: backoff.Config{
-					BaseDelay:  1 * time.Second,
-					Multiplier: 2,
-					MaxDelay:   15 * time.Second,
-				},
-			}))
+		conn, err := grpchelpers.Dial(
+			"passthrough:///localhost",
+			grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+				return listeners.GRPC.DialContext(ctx)
+			}),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
 		require.NoError(t, err)
 		conns = append(conns, conn)
 	}

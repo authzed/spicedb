@@ -53,8 +53,6 @@ type Config struct {
 
 type RunnableTestServer interface {
 	Run(ctx context.Context) error
-	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
-	ReadOnlyGRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
 type datastoreReady struct{}
@@ -64,6 +62,10 @@ func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, er
 }
 
 func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
+	return c.complete(ctx)
+}
+
+func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 	closeables := util.CloseableStack{}
 	var err error
@@ -248,12 +250,4 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (c *completedTestServer) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	return c.gRPCServer.DialContext(ctx, opts...)
-}
-
-func (c *completedTestServer) ReadOnlyGRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	return c.readOnlyGRPCServer.DialContext(ctx, opts...)
 }

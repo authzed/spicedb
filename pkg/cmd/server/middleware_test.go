@@ -2,14 +2,18 @@ package server
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -376,10 +380,17 @@ func TestMiddlewareOrdering(t *testing.T) {
 			Enabled: true,
 		}),
 	)
-	rs, err := c.Complete(ctx)
+	rs, listeners, err := c.CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := rs.GRPCDialContext(ctx)
+	clientConn, err := grpchelpers.Dial(
+		"passthrough:///localhost",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.GRPC.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpcutil.WithInsecureBearerToken("psk"),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()
@@ -487,10 +498,16 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 			},
 		}),
 	)
-	rs, err := c.Complete(ctx)
+	rs, listeners, err := c.CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := rs.GRPCDialContext(ctx)
+	clientConn, err := grpchelpers.Dial(
+		"passthrough:///localhost",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.GRPC.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()

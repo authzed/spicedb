@@ -11,6 +11,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,9 +23,11 @@ import (
 	"google.golang.org/grpc/backoff"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -125,7 +128,7 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	srv, listeners, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),
@@ -182,7 +185,7 @@ func TestCertRotation(t *testing.T) {
 				},
 			},
 		}),
-	).Complete(ctx)
+	).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
 	wait := make(chan error, 1)
@@ -191,11 +194,19 @@ func TestCertRotation(t *testing.T) {
 		wait <- err
 	}()
 
+	tlsCreds, err := grpcutil.WithCustomCerts(grpcutil.SkipVerifyCA, caFile.Name())
+	require.NoError(t, err)
+
 	// If previous code takes more than initialValidDuration*2 to execute, the cert
 	// would have expired, and Dial would retry indefinitely, hence the context timeout
-	dialCtx, cancelDial := context.WithTimeout(ctx, initialValidDuration*2)
-	conn, err := srv.GRPCDialContext(dialCtx,
-		grpc.WithReturnConnectionError(),
+	conn, err := grpchelpers.Dial(
+		// "buffnet" matches the DNSNames in the TLS certificate issued above
+		"passthrough:///buffnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.GRPC.DialContext(ctx)
+		}),
+		tlsCreds,
+		grpc.WithAuthority("buffnet"),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1 * time.Second,
@@ -282,7 +293,6 @@ func TestCertRotation(t *testing.T) {
 	}
 
 	cancel()
-	cancelDial()
 	select {
 	case err := <-wait:
 		require.NoError(t, err)
