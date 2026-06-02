@@ -208,7 +208,7 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		}
 	}()
 
-	conn, err := grpchelpers.DialBuffered(listener)
+	conn, err := grpchelpers.NewBufferedClient(listener)
 	return conn, func() {
 		conn.Close()
 		listener.Close()

@@ -15,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/dispatch/singleflight"
-	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -274,14 +273,14 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		// we can enable it only for non-streaming rpcs.
 		// opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("s2")))
 
-		conn, err := grpchelpers.Dial(opts.upstreamAddr, opts.grpcDialOpts...)
+		conn, err := grpc.NewClient(opts.upstreamAddr, opts.grpcDialOpts...)
 		if err != nil {
 			return nil, err
 		}
 
 		secondaryClients := make(map[string]remote.SecondaryDispatch, len(opts.secondaryUpstreamAddrs))
 		for name, addr := range opts.secondaryUpstreamAddrs {
-			secondaryConn, err := grpchelpers.Dial(addr, opts.grpcDialOpts...)
+			secondaryConn, err := grpc.NewClient(addr, opts.grpcDialOpts...)
 			if err != nil {
 				return nil, err
 			}

@@ -11,17 +11,12 @@ import (
 
 const waitForReadyConfig = `{"methodConfig": [{"name": [{}], "waitForReady": true}]}`
 
-// Dial creates a new client connection to the target.
-func Dial(target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	return grpc.NewClient(target, opts...)
-}
-
-// DialBuffered creates a client connection to an in-memory bufconn listener. Insecure
+// NewBufferedClient creates a client connection to an in-memory bufconn listener. Insecure
 // transport credentials are used by default; pass grpc.WithTransportCredentials to override.
 // RPCs will wait for the connection to be ready, handling the startup race between server
 // and client in tests. Additional opts are applied after the defaults, so caller-provided
 // options take precedence.
-func DialBuffered(listener *bufconn.Listener, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+func NewBufferedClient(listener *bufconn.Listener, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opts = append([]grpc.DialOption{
 		grpc.WithDefaultServiceConfig(waitForReadyConfig),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
@@ -29,5 +24,5 @@ func DialBuffered(listener *bufconn.Listener, opts ...grpc.DialOption) (*grpc.Cl
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}, opts...)
-	return Dial("passthrough:///localhost", opts...)
+	return grpc.NewClient("passthrough:///localhost", opts...)
 }

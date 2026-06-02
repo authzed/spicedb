@@ -140,7 +140,7 @@ func TestOverlapKeysFromContext(t *testing.T) {
 			_ = s.Serve(listener)
 		}()
 
-		conn, err := grpchelpers.DialBuffered(listener)
+		conn, err := grpchelpers.NewBufferedClient(listener)
 		require.NoError(t, err)
 
 		t.Cleanup(func() {

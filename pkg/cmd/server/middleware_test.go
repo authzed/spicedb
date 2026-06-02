@@ -381,7 +381,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 	rs, listeners, err := c.CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := grpchelpers.DialBuffered(listeners.GRPC, grpcutil.WithInsecureBearerToken("psk"))
+	clientConn, err := grpchelpers.NewBufferedClient(listeners.GRPC, grpcutil.WithInsecureBearerToken("psk"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()
@@ -492,7 +492,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	rs, listeners, err := c.CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := grpchelpers.DialBuffered(listeners.GRPC)
+	clientConn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()

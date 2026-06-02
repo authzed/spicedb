@@ -200,7 +200,7 @@ func TestCertRotation(t *testing.T) {
 	// would have expired, and Dial would retry indefinitely, hence the context timeout
 	// "buffnet" matches the DNSNames in the TLS certificate issued above; WithAuthority
 	// sets the SNI so TLS verification succeeds even though the dial target is localhost.
-	conn, err := grpchelpers.DialBuffered(listeners.GRPC,
+	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC,
 		tlsCreds,
 		grpc.WithAuthority("buffnet"),
 		grpc.WithConnectParams(grpc.ConnectParams{

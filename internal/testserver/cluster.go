@@ -94,6 +94,9 @@ func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.Cl
 		addrs:  addrs,
 	}
 	b.resolvers.Store(target.URL.Hostname(), r)
+	// Push addresses immediately so the gRPC channel can proceed without
+	// requiring a separate ResolveNow call after the resolver is built.
+	r.ResolveNow(resolver.ResolveNowOptions{})
 	return r, nil
 }
 
@@ -170,6 +173,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 			combineddispatch.GrpcDialOpts(
+				grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
 				grpc.WithDefaultServiceConfig(
 					(&consistent.BalancerConfig{
 						ReplicationFactor: 1500,
@@ -242,7 +246,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 			return listeners.Dispatch.DialContext(ctx)
 		})
 
-		conn, err := grpchelpers.DialBuffered(listeners.GRPC)
+		conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
 		require.NoError(t, err)
 		conns = append(conns, conn)
 	}

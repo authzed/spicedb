@@ -171,7 +171,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 		_ = srv.Run(ctx)
 	}()
 
-	conn, err := grpchelpers.DialBuffered(listeners.GRPC)
+	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
 	require.NoError(t, err)
 
 	return conn, func() {

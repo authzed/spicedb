@@ -189,7 +189,7 @@ func TestOTelReporting(t *testing.T) {
 	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.DialBuffered(listeners.GRPC)
+	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -261,7 +261,7 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.DialBuffered(listeners.GRPC)
+	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -398,7 +398,7 @@ func TestRetryPolicy(t *testing.T) {
 	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.DialBuffered(listeners.GRPC,
+	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC,
 		grpc.WithDefaultServiceConfig(`{
                   "methodConfig": [
                     {
