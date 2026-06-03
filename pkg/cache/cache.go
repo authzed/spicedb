@@ -51,28 +51,43 @@ func (c *Config) MarshalZerologObject(e *zerolog.Event) {
 		Dur("defaultTTL", c.DefaultTTL)
 }
 
-// Cache defines an interface for a generic cache.
+// Cache defines an interface for a generic cache. Method semantics follow
+// Ristretto, the original implementation; the current implementation is
+// backed by Otter (see NewOtterCache).
 type Cache[K KeyString, V any] interface {
-	// Get returns the value for the given key in the cache, if it exists.
+	// Get returns the value for the given key and true if it is present;
+	// otherwise it returns the zero value of V and false.
 	Get(key K) (V, bool)
 
-	// GetTTL returns the TTL of entries in the cache.
-	// If zero is used, entries are not deleted.
+	// GetTTL returns the TTL configured for entries in this cache.
+	// If zero, entries never expire. The current Otter-backed
+	// implementation refreshes the TTL on access.
 	GetTTL() time.Duration
 
-	// Set is a best-effort attempt to set a value for the key in the cache, with the given cost.
-	// If GetTTL returns zero, the entry never expires.
-	// Returns true if the value could be set, false if the cost was too high.
+	// Set attempts to store an entry for key, overwriting any existing entry,
+	// and returns true if the write was accepted for processing. cost is
+	// passed to the eviction policy and weighed against Config.MaxCost;
+	// the Otter implementation saturates cost at math.MaxUint32.
+	// A false return means the implementation did not enqueue the write
+	// (as Ristretto may do under pressure); the Otter-backed implementation
+	// always returns true. A true return does not guarantee retention —
+	// the entry may still be dropped or evicted by the underlying
+	// implementation, so writes are best-effort.
 	Set(key K, entry V, cost int64) bool
 
-	// Wait waits for the cache to process and apply updates.
+	// Wait blocks until buffered Set calls have been processed by the
+	// underlying implementation. Required for read-your-own-writes
+	// semantics with implementations that buffer writes (e.g. Ristretto);
+	// a no-op on the current Otter-backed implementation, which applies
+	// writes synchronously.
 	Wait()
 
-	// Close closes the cache's background workers (if any).
+	// Close stops the cache's background workers (if any) and tears down
+	// associated metrics registration, if one was set up.
 	Close()
 
 	// GetMetrics returns the metrics block for the cache.
-	// Some implementations may chose to not return some of these metrics.
+	// Some implementations may choose to not return some of these metrics.
 	GetMetrics() Metrics
 
 	zerolog.LogObjectMarshaler
