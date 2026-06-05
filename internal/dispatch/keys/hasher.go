@@ -2,7 +2,6 @@ package keys
 
 import (
 	"encoding/hex"
-	"fmt"
 	"slices"
 	"strconv"
 
@@ -198,7 +197,7 @@ func (h *dispatchCacheKeyHasher) Write(p []byte) {
 	// xxhash.Digest.Write never returns an error; mirror mustWriteString.
 	_, err := h.stableHasher.Write(p)
 	if err != nil {
-		spiceerrors.MustPanicf("got an error from writing to the stable hasher: %w", err)
+		spiceerrors.MustPanicf("got an error from writing to the stable hasher: %s", err)
 	}
 }
 
@@ -207,7 +206,7 @@ func (h *dispatchCacheKeyHasher) mustWriteString(value string) {
 	// to be on the safe side.
 	_, err := h.stableHasher.WriteString(value)
 	if err != nil {
-		spiceerrors.MustPanicf("got an error from writing to the stable hasher: %w", err)
+		spiceerrors.MustPanicf("got an error from writing to the stable hasher: %s", err)
 	}
 }
 
