@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - MySQL: MySQL deadlocks on `WriteRelationships` (https://github.com/authzed/spicedb/pull/3187)
 - Datastore: a hung datastore round-trip while computing the optimized revision can no longer wedge the server. The revision is computed under singleflight, which detaches the work from the caller's context (stripping its gRPC deadline); a stuck computation (e.g. a half-open connection silently dropped by a load balancer) therefore pinned the latency of *every* concurrent caller and inflated whole-system P99. The shared computation is now aggressively bounded (2s), with a direct, deadline-respecting retry outside singleflight on failure so a transient wedge does not fail the request. Applies to all datastores. (https://github.com/authzed/spicedb/pull/3142)
 - Postgres & CockroachDB: pooled connections that have gone idle are now liveness-pinged with a bounded timeout (default 5s) before being handed to a query, so a half-open connection is discarded and replaced instead of hanging the acquiring request. (https://github.com/authzed/spicedb/pull/3142)
+- `StreamingAPITimeout` no longer cancels bulk export/import streams during long gaps between batches (https://github.com/authzed/spicedb/pull/3143)
 
 ## [1.54.0] - 2026-06-18
 ### Added
