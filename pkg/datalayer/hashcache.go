@@ -16,10 +16,10 @@ import (
 
 var tracer = otel.Tracer("spicedb/pkg/datalayer")
 
-// singleflightTimeout is the maximum time to wait for a singleflight peer to
-// load a schema before falling back to a direct load. This prevents a possible
-// deadlock when all connections in a pool are held by goroutines waiting on the
-// singleflight while the singleflight leader is blocked waiting for a connection.
+// singleflightTimeout is the maximum time that a caller of a singleflighted method
+// will wait before giving up on the singleflight executor.
+// This prevents a possible deadlock when all datastore connections are held by goroutines waiting on the
+// singleflight while the singleflight executor is blocked waiting for a connection.
 //
 //nolint:revive // var instead of const to allow test overrides
 var singleflightTimeout = 1 * time.Second
