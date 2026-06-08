@@ -11,7 +11,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 
-	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -378,10 +377,10 @@ func TestMiddlewareOrdering(t *testing.T) {
 			Enabled: true,
 		}),
 	)
-	rs, listeners, err := c.CompleteForTesting(ctx)
+	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := grpchelpers.NewBufferedClient(listeners.GRPC, grpcutil.WithInsecureBearerToken("psk"))
+	clientConn, err := rs.NewClient(grpcutil.WithInsecureBearerToken("psk"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()
@@ -489,10 +488,10 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 			},
 		}),
 	)
-	rs, listeners, err := c.CompleteForTesting(ctx)
+	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
+	clientConn, err := rs.NewClient()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()

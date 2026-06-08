@@ -10,7 +10,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
-	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -96,7 +95,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
 
-	srv, listeners, err := server.NewConfigWithOptionsAndDefaults(
+	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
@@ -164,14 +163,14 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 				},
 			},
 		}),
-	).CompleteForTesting(ctx)
+	).Complete(ctx)
 	require.NoError(t, err)
 
 	go func() {
 		_ = srv.Run(ctx)
 	}()
 
-	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
+	conn, err := srv.NewClient()
 	require.NoError(t, err)
 
 	return conn, func() {

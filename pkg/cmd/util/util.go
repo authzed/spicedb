@@ -178,10 +178,16 @@ func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, erro
 }
 
 type RunnableGRPCServer interface {
+	// Listen runs a configured server
 	Listen(ctx context.Context) error
+	// BufferedListener returns the in-memory listener if the server is running in BufferedNetwork
+	// mode, or nil for real network servers.
 	BufferedListener() *bufconn.Listener
+	// Insecure returns true if the server is configured without TLS enabled
 	Insecure() bool
+	// GracefulStop stops a running server, allowing cleanup actions to complete
 	GracefulStop()
+	// ForceStop brings down the running server immediately without waiting for cleanup
 	ForceStop()
 }
 
@@ -208,14 +214,11 @@ func (c *completedGRPCServer) Listen(ctx context.Context) error {
 	return c.srv.Serve(c.listener)
 }
 
-// BufferedListener returns the in-memory listener if the server is running in BufferedNetwork
-// mode, or nil for real network servers.
 func (c *completedGRPCServer) BufferedListener() *bufconn.Listener {
 	bl, _ := c.listener.(*bufconn.Listener)
 	return bl
 }
 
-// Insecure returns true if the server is configured without TLS enabled
 func (c *completedGRPCServer) Insecure() bool {
 	return c.creds.Info().SecurityProtocol == "insecure"
 }
@@ -231,19 +234,16 @@ func (c *completedGRPCServer) ForceStop() {
 
 type disabledGrpcServer struct{}
 
-// Listen runs a configured server
 func (d *disabledGrpcServer) Listen(_ context.Context) error {
 	return nil
 }
 
-// Insecure returns true if the server is configured without TLS enabled
 func (d *disabledGrpcServer) Insecure() bool {
 	return true
 }
 
 func (d *disabledGrpcServer) BufferedListener() *bufconn.Listener { return nil }
 
-// GracefulStop stops a running server
 func (d *disabledGrpcServer) GracefulStop() {}
 
 func (d *disabledGrpcServer) ForceStop() {

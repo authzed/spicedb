@@ -26,7 +26,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
-	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -127,7 +126,7 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	srv, listeners, err := server.NewConfigWithOptionsAndDefaults(
+	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),
@@ -184,7 +183,7 @@ func TestCertRotation(t *testing.T) {
 				},
 			},
 		}),
-	).CompleteForTesting(ctx)
+	).Complete(ctx)
 	require.NoError(t, err)
 
 	wait := make(chan error, 1)
@@ -193,14 +192,12 @@ func TestCertRotation(t *testing.T) {
 		wait <- err
 	}()
 
-	tlsCreds, err := grpcutil.WithCustomCerts(grpcutil.SkipVerifyCA, caFile.Name())
+	tlsCreds, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, caFile.Name())
 	require.NoError(t, err)
 
-	// If previous code takes more than initialValidDuration*2 to execute, the cert
-	// would have expired, and Dial would retry indefinitely, hence the context timeout
 	// "buffnet" matches the DNSNames in the TLS certificate issued above; WithAuthority
 	// sets the SNI so TLS verification succeeds even though the dial target is localhost.
-	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC,
+	conn, err := srv.NewClient(
 		tlsCreds,
 		grpc.WithAuthority("buffnet"),
 		grpc.WithConnectParams(grpc.ConnectParams{

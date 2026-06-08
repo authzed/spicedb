@@ -51,17 +51,15 @@ type Config struct {
 	ShutdownGracePeriod             time.Duration         `debugmap:"visible"`
 }
 
-type RunnableTestServer interface {
-	Run(ctx context.Context) error
-}
-
 type datastoreReady struct{}
+
+var _ health.DatastoreChecker = &datastoreReady{}
 
 func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, error) {
 	return datastore.ReadyState{IsReady: true}, nil
 }
 
-func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
+func (c *Config) Complete(ctx context.Context) (server.RunnableServer, error) {
 	return c.complete(ctx)
 }
 
@@ -200,6 +198,7 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 
 	return &completedTestServer{
 		gRPCServer:            gRPCSrv,
+		grpcAddr:              c.GRPCServer.Address,
 		readOnlyGRPCServer:    readOnlyGRPCSrv,
 		gatewayServer:         gatewayServer,
 		readOnlyGatewayServer: readOnlyGatewayServer,
@@ -209,6 +208,8 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 }
 
 type completedTestServer struct {
+	grpcAddr string
+
 	gRPCServer         util.RunnableGRPCServer
 	readOnlyGRPCServer util.RunnableGRPCServer
 
@@ -218,6 +219,8 @@ type completedTestServer struct {
 	healthManager health.Manager
 	closeFunc     func() error
 }
+
+var _ server.RunnableServer = &completedTestServer{}
 
 func (c *completedTestServer) Run(ctx context.Context) error {
 	g := errgroup.Group{}
@@ -250,4 +253,12 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *completedTestServer) NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	// NOTE: NewClient as implemented by TestServer just provides a handle on the address,
+	// under the assumption that most folks won't be running this in a context where
+	// running through a buffcon is necessary, as opposed to the implementation in
+	// pkg/cmd/server/server.go
+	return grpc.NewClient(c.grpcAddr, opts...)
 }

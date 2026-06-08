@@ -33,6 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/services"
@@ -554,6 +555,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	return &completedServerConfig{
 		ds:                 ds,
 		gRPCServer:         grpcServer,
+		grpcAddr:           c.GRPCServer.Address,
 		dispatchGRPCServer: dispatchGrpcServer,
 		gatewayServer:      gatewayServer,
 		metricsServer:      metricsServer,
@@ -762,7 +764,10 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 
 // RunnableServer is a spicedb service set ready to run.
 type RunnableServer interface {
+	// Run takes the runnable server configuration and starts the server.
 	Run(ctx context.Context) error
+	// NewClient returns a grpc client set up to connect to the server.
+	NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
 // completedServerConfig holds the full configuration to run a spicedb server,
@@ -770,6 +775,9 @@ type RunnableServer interface {
 // It offers limited options for mutation before Run() starts the services.
 type completedServerConfig struct {
 	ds datastore.Datastore
+	// grpcAddr carries the address for the gRPC server
+	// so that `NewClient` can reference it
+	grpcAddr string
 
 	gRPCServer         util.RunnableGRPCServer
 	dispatchGRPCServer util.RunnableGRPCServer
@@ -780,6 +788,8 @@ type completedServerConfig struct {
 
 	closeFunc func() error
 }
+
+var _ RunnableServer = &completedServerConfig{}
 
 func (c *completedServerConfig) Run(ctx context.Context) error {
 	log.Ctx(ctx).Info().Type("datastore", c.ds).Msg("running server")
@@ -823,4 +833,12 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *completedServerConfig) NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	bufferedListener := c.gRPCServer.BufferedListener()
+	if bufferedListener != nil {
+		return grpchelpers.NewBufferedClient(bufferedListener, opts...)
+	}
+	return grpc.NewClient(c.grpcAddr, opts...)
 }

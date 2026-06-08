@@ -16,6 +16,8 @@ type TestListeners struct {
 
 // CompleteForTesting completes server configuration and additionally returns TestListeners
 // for constructing client connections in tests.
+// This is currently used only by `internal/testserver/cluster.go`; all other test code
+// uses `NewClient` on the `RunnableServer` to get a handle.
 func (c *Config) CompleteForTesting(ctx context.Context) (RunnableServer, TestListeners, error) {
 	s, err := c.complete(ctx)
 	if err != nil {

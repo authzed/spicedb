@@ -27,7 +27,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
-	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
@@ -186,10 +185,10 @@ func TestOTelReporting(t *testing.T) {
 		WithEnableMemoryProtectionMiddleware(false),
 	}
 
-	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
+	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
+	conn, err := srv.NewClient()
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -258,10 +257,10 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 		WithDatastore(ds),
 	}
 
-	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
+	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
+	conn, err := srv.NewClient()
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -395,10 +394,10 @@ func TestRetryPolicy(t *testing.T) {
 		}),
 	}
 
-	srv, listeners, err := NewConfigWithOptionsAndDefaults(configOpts...).CompleteForTesting(ctx)
+	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
 	require.NoError(t, err)
 
-	conn, err := grpchelpers.NewBufferedClient(listeners.GRPC,
+	conn, err := srv.NewClient(
 		grpc.WithDefaultServiceConfig(`{
                   "methodConfig": [
                     {
