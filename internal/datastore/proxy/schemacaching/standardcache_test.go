@@ -511,6 +511,7 @@ func TestSingleFlight(t *testing.T) {
 		dsMock := &proxy_test.MockDatastore{}
 
 		oneReader := &proxy_test.MockReader{}
+		dsMock.On("Close").Return(nil).Once()
 		dsMock.On("SnapshotReader", one).Return(oneReader)
 		oneReader.
 			On("LegacyReadNamespaceByName", nsA).
@@ -556,6 +557,8 @@ func TestSingleFlight(t *testing.T) {
 
 		// Clean up
 		synctest.Wait()
+
+		_ = ds.Close()
 		dsMock.AssertExpectations(t)
 		oneReader.AssertExpectations(t)
 	})
@@ -784,6 +787,7 @@ func TestSingleFlightCancelled(t *testing.T) {
 		// Note that ctx2 will not be cancelled
 		ctx2 := t.Context()
 
+		dsMock.On("Close").Return(nil).Once()
 		dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
 
 		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
@@ -815,6 +819,7 @@ func TestSingleFlightCancelled(t *testing.T) {
 		assert.Equal(t, nsA, nsDef.GetName())
 		assert.Equal(t, caveatA, caveatDef.GetName())
 
+		_ = ds.Close()
 		dsMock.AssertExpectations(t)
 	})
 }

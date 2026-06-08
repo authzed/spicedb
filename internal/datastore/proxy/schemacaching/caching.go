@@ -38,17 +38,12 @@ type CacheEntry = *cacheEntry
 // NewCachingDatastoreProxy creates a new datastore proxy which caches definitions that
 // are loaded at specific datastore revisions.
 func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, CacheEntry], gcWindow time.Duration, cachingMode CachingMode, watchHeartbeat time.Duration) datastore.Datastore {
-	if c == nil {
-		c = cache.NoopCache[cache.StringKey, CacheEntry]()
-	}
+	standardCachingProxy := NewDefinitionCachingProxy(delegate, c)
 
 	if cachingMode == JustInTimeCaching {
 		log.Info().Msg("schema watch explicitly disabled")
-		return &definitionCachingProxy{
-			Datastore: delegate,
-			c:         c,
-		}
+		return standardCachingProxy
 	}
 
-	return createWatchingCacheProxy(delegate, c, gcWindow, watchHeartbeat)
+	return NewWatchingCacheProxy(delegate, standardCachingProxy, gcWindow, watchHeartbeat)
 }
