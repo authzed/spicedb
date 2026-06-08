@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Query Planner: `LookupSubjects` no longer returns a subject excluded from a wildcard (e.g. `viewer:* - banned`) when the exclusion feeds an intersection (experimental `--experimental-query-plan ls`) (https://github.com/authzed/spicedb/pull/3136)
 - Tracing: When server is shutting down, flush traces. Also, elide the need for setting `OTEL_EXPORTER_OTLP_ENDPOINT`. (https://github.com/authzed/spicedb/pull/3108)
 - Fixed a LookupSubjects issue in the query planner around the handling of wildcards in compound permissions (https://github.com/authzed/spicedb/pull/3140)
+- LSP: hover and go-to-definition now resolve identifiers on the right-hand side of arrow expressions (`->`, `.any(...)`, `.all(...)`) (https://github.com/authzed/spicedb/pull/3157)
 
 ## [1.53.0] - 2026-05-13
 ### Added

@@ -712,6 +712,49 @@ func TestHoverNoReferenceFound(t *testing.T) {
 	require.Nil(t, resp)
 }
 
+func TestHoverArrowRHSMultiTargetLHS(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	sendAndReceive[any](tester, "textDocument/didOpen", lsp.DidOpenTextDocumentParams{
+		TextDocument: lsp.TextDocumentItem{
+			URI:        lsp.DocumentURI("file:///test"),
+			LanguageID: "test",
+			Version:    1,
+			Text: `definition user {}
+definition somethingelse {}
+
+definition org {
+	relation member: user
+}
+
+definition team {
+	relation member: somethingelse
+}
+
+definition document {
+	relation parent: org | team
+	permission viewable = parent->member
+}
+`,
+		},
+	})
+
+	// Hover on "member" in `parent->member`. The LHS `parent` allows both org
+	// and team and the RHS name resolves on each with a different signature.
+	// Hover content should surface both definitions so the reader sees every
+	// namespace the arrow can resolve to, not just the first match.
+	resp, _ := sendAndReceive[Hover](tester, "textDocument/hover", lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: lsp.DocumentURI("file:///test"),
+		},
+		Position: lsp.Position{Line: 13, Character: 33},
+	})
+
+	require.Equal(t, "spicedb", resp.Contents.Language)
+	require.Equal(t, "// from org\nrelation member: user\n\n// from team\nrelation member: somethingelse\n", resp.Contents.Value)
+}
+
 func TestHoverDuplicateDefinitionAcrossFiles(t *testing.T) {
 	tester := newLSPTester(t)
 	tester.initialize()

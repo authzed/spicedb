@@ -122,63 +122,10 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 		}, nil
 	}
 
-	relationReference := func(relation *core.Relation, def *schema.Definition) (*SchemaReference, error) {
-		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, err := safecast.Convert[int](relation.SourcePosition.ZeroIndexedLineNumber)
-		if err != nil {
-			log.Err(err).Msg("could not cast lineNumber to uint32")
-		}
-		columnPosition, err := safecast.Convert[int](relation.SourcePosition.ZeroIndexedColumnPosition)
-		if err != nil {
-			log.Err(err).Msg("could not cast columnPosition to uint32")
-		}
-		relationPosition := input.Position{
-			LineNumber:     lineNumber,
-			ColumnPosition: columnPosition,
-		}
-
-		targetSourceCode, err := generator.GenerateRelationSource(relation, caveattypes.Default.TypeSet)
-		if err != nil {
-			return nil, err
-		}
-
-		targetSource := r.resolveTargetSource(relation.Name, source)
-
-		if def.IsPermission(relation.Name) {
-			return &SchemaReference{
-				Source:   source,
-				Position: position,
-				Text:     relation.Name,
-
-				ReferenceType:     ReferenceTypePermission,
-				ReferenceMarkdown: "permission " + relation.Name,
-
-				TargetSource:             &targetSource,
-				TargetPosition:           &relationPosition,
-				TargetSourceCode:         targetSourceCode,
-				TargetNamePositionOffset: len("permission "),
-			}, nil
-		}
-
-		return &SchemaReference{
-			Source:   source,
-			Position: position,
-			Text:     relation.Name,
-
-			ReferenceType:     ReferenceTypeRelation,
-			ReferenceMarkdown: "relation " + relation.Name,
-
-			TargetSource:             &targetSource,
-			TargetPosition:           &relationPosition,
-			TargetSourceCode:         targetSourceCode,
-			TargetNamePositionOffset: len("relation "),
-		}, nil
-	}
-
 	// Type reference.
 	if ts, relation, ok := r.typeReferenceChain(nodeChain); ok {
 		if relation != nil {
-			return relationReference(relation, ts)
+			return r.buildRelationReference(source, position, relation, ts)
 		}
 
 		def := ts.Namespace()
@@ -271,9 +218,16 @@ func (r *SchemaPositionMapper) ReferenceAtPosition(source input.Source, position
 		}, nil
 	}
 
+	// Arrow RHS reference. Must run before the generic relation path so the
+	// RHS identifier is resolved against the LHS target namespace(s), not the
+	// parent definition.
+	if ref, ok, err := r.arrowRHSReferenceChain(nodeChain, source, position); ok {
+		return ref, err
+	}
+
 	// Relation reference.
 	if relation, ts, ok := r.relationReferenceChain(nodeChain); ok {
-		return relationReference(relation, ts)
+		return r.buildRelationReference(source, position, relation, ts)
 	}
 
 	// Caveat parameter used in expression.
@@ -462,18 +416,6 @@ func (r *SchemaPositionMapper) relationReferenceChain(nodeChain *compiler.NodeCh
 		return nil, nil, false
 	}
 
-	if arrowExpr := nodeChain.FindNodeOfType(dslshape.NodeTypeArrowExpression); arrowExpr != nil {
-		// Ensure this on the left side of the arrow.
-		rightExpr, err := arrowExpr.Lookup(dslshape.NodeExpressionPredicateRightExpr)
-		if err != nil {
-			return nil, nil, false
-		}
-
-		if rightExpr == nodeChain.Head() {
-			return nil, nil, false
-		}
-	}
-
 	relationName, err := nodeChain.Head().GetString(dslshape.NodeIdentiferPredicateValue)
 	if err != nil {
 		return nil, nil, false
@@ -490,6 +432,204 @@ func (r *SchemaPositionMapper) relationReferenceChain(nodeChain *compiler.NodeCh
 	}
 
 	return r.lookupRelation(defName, relationName)
+}
+
+// arrowRHSReferenceChain resolves a reference when the cursor sits on the RHS of
+// an arrow expression (e.g. `parent->member`, `parent.any(member)`).
+//
+// The RHS names a relation or permission on the target namespace(s) pointed to
+// by the LHS, not on the parent definition. The LHS may allow multiple subject
+// types, and each may define the RHS name with a different signature. When more
+// than one match exists, all of them are surfaced in the hover content so the
+// reader can see every namespace the arrow can resolve to.
+//
+// When matches span both relations and permissions across namespaces, the
+// top-level ReferenceType, ReferenceMarkdown, and TargetPosition fields
+// reflect the first match. The combined TargetSourceCode still shows every
+// signature, so the hover content remains complete; only go-to-definition
+// collapses to the first target.
+//
+// The bool return distinguishes "not an arrow RHS, try other paths" (false)
+// from "is an arrow RHS, stop here" (true, possibly with a nil reference if
+// no allowed type defines the RHS name). The error return is reserved for
+// failures from the relation-reference builder and source-code generator;
+// AST-traversal and type-system lookup failures are swallowed silently and
+// terminate the chain with a nil reference, matching the behavior of the
+// surrounding chain methods.
+func (r *SchemaPositionMapper) arrowRHSReferenceChain(nodeChain *compiler.NodeChain, source input.Source, position input.Position) (*SchemaReference, bool, error) {
+	if !nodeChain.HasHeadType(dslshape.NodeTypeIdentifier) {
+		return nil, false, nil
+	}
+
+	arrowExpr := nodeChain.FindNodeOfType(dslshape.NodeTypeArrowExpression)
+	if arrowExpr == nil {
+		return nil, false, nil
+	}
+
+	rightExpr, err := arrowExpr.Lookup(dslshape.NodeExpressionPredicateRightExpr)
+	if err != nil {
+		return nil, false, nil
+	}
+	if rightExpr != nodeChain.Head() {
+		return nil, false, nil
+	}
+
+	relationName, err := nodeChain.Head().GetString(dslshape.NodeIdentiferPredicateValue)
+	if err != nil {
+		return nil, true, nil
+	}
+
+	parentDefNode := nodeChain.FindNodeOfType(dslshape.NodeTypeDefinition)
+	if parentDefNode == nil {
+		return nil, true, nil
+	}
+
+	defName, err := parentDefNode.GetString(dslshape.NodeDefinitionPredicateName)
+	if err != nil {
+		return nil, true, nil
+	}
+
+	leftExpr, err := arrowExpr.Lookup(dslshape.NodeExpressionPredicateLeftExpr)
+	if err != nil {
+		return nil, true, nil
+	}
+
+	lhsRelationName, err := leftExpr.GetString(dslshape.NodeIdentiferPredicateValue)
+	if err != nil {
+		return nil, true, nil
+	}
+
+	parentDef, err := r.typeSystem.GetDefinition(context.Background(), defName)
+	if err != nil {
+		return nil, true, nil
+	}
+
+	allowedSubjects, err := parentDef.AllowedSubjectRelations(lhsRelationName)
+	if err != nil {
+		return nil, true, nil
+	}
+
+	type rhsMatch struct {
+		rel *core.Relation
+		def *schema.Definition
+	}
+	// Dedup by target namespace: `AllowedSubjectRelations` returns one entry
+	// per allowed direct subject (so `parent: org | org#admin` yields two
+	// entries on `org`) but we resolve the RHS name on the namespace alone, so
+	// without dedup the same block would appear multiple times in the hover.
+	seen := make(map[string]struct{}, len(allowedSubjects))
+	var matches []rhsMatch
+	for _, subject := range allowedSubjects {
+		if _, dup := seen[subject.Namespace]; dup {
+			continue
+		}
+		seen[subject.Namespace] = struct{}{}
+		if rel, ts, ok := r.lookupRelation(subject.Namespace, relationName); ok {
+			matches = append(matches, rhsMatch{rel: rel, def: ts})
+		}
+	}
+
+	if len(matches) == 0 {
+		return nil, true, nil
+	}
+
+	if len(matches) == 1 {
+		ref, err := r.buildRelationReference(source, position, matches[0].rel, matches[0].def)
+		if err != nil {
+			return nil, true, err
+		}
+		return ref, true, nil
+	}
+
+	sourceBlocks := make([]string, 0, len(matches))
+	for _, m := range matches {
+		relSource, err := generator.GenerateRelationSource(m.rel, caveattypes.Default.TypeSet)
+		if err != nil {
+			return nil, true, err
+		}
+		sourceBlocks = append(sourceBlocks, fmt.Sprintf("// from %s\n%s", m.def.Namespace().Name, relSource))
+	}
+	combinedSource := strings.Join(sourceBlocks, "\n")
+
+	first := matches[0]
+	lineNumber, err := safecast.Convert[int](first.rel.SourcePosition.ZeroIndexedLineNumber)
+	if err != nil {
+		log.Err(err).Msg("could not cast lineNumber to uint32")
+	}
+	columnPosition, err := safecast.Convert[int](first.rel.SourcePosition.ZeroIndexedColumnPosition)
+	if err != nil {
+		log.Err(err).Msg("could not cast columnPosition to uint32")
+	}
+	targetSource := r.resolveTargetSource(first.rel.Name, source)
+
+	refType := ReferenceTypeRelation
+	refMarkdown := "relation " + first.rel.Name
+	namePosOffset := len("relation ")
+	if first.def.IsPermission(first.rel.Name) {
+		refType = ReferenceTypePermission
+		refMarkdown = "permission " + first.rel.Name
+		namePosOffset = len("permission ")
+	}
+
+	return &SchemaReference{
+		Source:                   source,
+		Position:                 position,
+		Text:                     first.rel.Name,
+		ReferenceType:            refType,
+		ReferenceMarkdown:        refMarkdown,
+		TargetSource:             &targetSource,
+		TargetPosition:           &input.Position{LineNumber: lineNumber, ColumnPosition: columnPosition},
+		TargetSourceCode:         combinedSource,
+		TargetNamePositionOffset: namePosOffset,
+	}, true, nil
+}
+
+// buildRelationReference renders a SchemaReference for a single relation or
+// permission. It is the shared builder used by the type-reference and relation-
+// reference paths, as well as the single-match branch of arrow RHS resolution.
+func (r *SchemaPositionMapper) buildRelationReference(source input.Source, position input.Position, relation *core.Relation, def *schema.Definition) (*SchemaReference, error) {
+	lineNumber, err := safecast.Convert[int](relation.SourcePosition.ZeroIndexedLineNumber)
+	if err != nil {
+		log.Err(err).Msg("could not cast lineNumber to uint32")
+	}
+	columnPosition, err := safecast.Convert[int](relation.SourcePosition.ZeroIndexedColumnPosition)
+	if err != nil {
+		log.Err(err).Msg("could not cast columnPosition to uint32")
+	}
+	relationPosition := input.Position{LineNumber: lineNumber, ColumnPosition: columnPosition}
+
+	targetSourceCode, err := generator.GenerateRelationSource(relation, caveattypes.Default.TypeSet)
+	if err != nil {
+		return nil, err
+	}
+
+	targetSource := r.resolveTargetSource(relation.Name, source)
+
+	if def.IsPermission(relation.Name) {
+		return &SchemaReference{
+			Source:                   source,
+			Position:                 position,
+			Text:                     relation.Name,
+			ReferenceType:            ReferenceTypePermission,
+			ReferenceMarkdown:        "permission " + relation.Name,
+			TargetSource:             &targetSource,
+			TargetPosition:           &relationPosition,
+			TargetSourceCode:         targetSourceCode,
+			TargetNamePositionOffset: len("permission "),
+		}, nil
+	}
+
+	return &SchemaReference{
+		Source:                   source,
+		Position:                 position,
+		Text:                     relation.Name,
+		ReferenceType:            ReferenceTypeRelation,
+		ReferenceMarkdown:        "relation " + relation.Name,
+		TargetSource:             &targetSource,
+		TargetPosition:           &relationPosition,
+		TargetSourceCode:         targetSourceCode,
+		TargetNamePositionOffset: len("relation "),
+	}, nil
 }
 
 func (r *SchemaPositionMapper) importReferenceChain(nodeChain *compiler.NodeChain) (string, bool) {
