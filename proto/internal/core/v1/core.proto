@@ -542,6 +542,7 @@ message ComputedUserset {
 message SourcePosition {
   uint64 zero_indexed_line_number = 1;
   uint64 zero_indexed_column_position = 2;
+  string file_name = 3;
 }
 
 message CaveatExpression {
