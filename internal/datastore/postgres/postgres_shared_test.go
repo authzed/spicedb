@@ -1162,7 +1162,11 @@ func HeadRevisionDoesNotConsumeXIDTest(t *testing.T, ds datastore.Datastore) {
 	}
 	after := nextXID()
 
-	require.Equal(t, before, after, "HeadRevision burned %d xid(s) over %d calls; expected 0", after-before, iterations)
+	// NOTE: we're expecting <= 1 here because there's a heartbeat goroutine that increments
+	// the xid over time. this may or may not fire once during the test.
+	// We still want to assert that it doesn't happen 10 times, because that was the regression
+	// that this test was intended to catch.
+	require.LessOrEqual(t, after-before, uint64(0), "HeadRevision burned %d xid(s) over %d calls; expected <=1", after-before, iterations)
 }
 
 // ConcurrentRevisionWatchTest uses goroutines and channels to intentionally set up a pair of
