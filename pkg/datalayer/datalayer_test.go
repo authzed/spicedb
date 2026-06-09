@@ -709,12 +709,12 @@ func TestStoredSchemaReaderAdapterEmptySchema(t *testing.T) {
 
 	// Test the storedSchemaReaderAdapter when schema is empty (no definitions).
 	adapter := &storedSchemaReaderAdapter{
-		storedSchema: datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
+		cached: NewCachedSchema(datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
 			Version: 1,
 			VersionOneof: &core.StoredSchema_V1{
 				V1: &core.StoredSchema_V1StoredSchema{},
 			},
-		}),
+		})),
 		lastWrittenRevision: datastore.NoRevision,
 	}
 
@@ -765,9 +765,9 @@ func TestStoredSchemaReaderAdapterV1Nil(t *testing.T) {
 
 	// Test the v1() fallback path when VersionOneof is nil.
 	adapter := &storedSchemaReaderAdapter{
-		storedSchema: datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
+		cached: NewCachedSchema(datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
 			Version: 1,
-		}),
+		})),
 		lastWrittenRevision: datastore.NoRevision,
 	}
 
@@ -882,21 +882,21 @@ func TestWriteSchemaDeletesRemovedDefinitions(t *testing.T) {
 // testSchemaCache is a simple in-memory cache satisfying SchemaCache for tests.
 type testSchemaCache struct {
 	mu    sync.Mutex
-	items map[SchemaCacheKey]*datastore.ReadOnlyStoredSchema // GUARDED_BY(mu)
+	items map[SchemaCacheKey]*CachedSchema // GUARDED_BY(mu)
 }
 
 func newTestSchemaCache() *testSchemaCache {
-	return &testSchemaCache{items: make(map[SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}
+	return &testSchemaCache{items: make(map[SchemaCacheKey]*CachedSchema)}
 }
 
-func (c *testSchemaCache) Get(key SchemaCacheKey) (*datastore.ReadOnlyStoredSchema, bool) {
+func (c *testSchemaCache) Get(key SchemaCacheKey) (*CachedSchema, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	v, ok := c.items[key]
 	return v, ok
 }
 
-func (c *testSchemaCache) Set(key SchemaCacheKey, entry *datastore.ReadOnlyStoredSchema, _ int64) bool {
+func (c *testSchemaCache) Set(key SchemaCacheKey, entry *CachedSchema, _ int64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.items[key] = entry

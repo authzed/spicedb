@@ -425,7 +425,7 @@ func TestLegacyAdapter_LookupCaveatDefinitionsByNames_Error(t *testing.T) {
 
 func newStoredAdapter(nsDefs map[string]*core.NamespaceDefinition, cavDefs map[string]*core.CaveatDefinition, schemaText string) *storedSchemaReaderAdapter {
 	return &storedSchemaReaderAdapter{
-		storedSchema: datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
+		cached: NewCachedSchema(datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
 			Version: 1,
 			VersionOneof: &core.StoredSchema_V1{
 				V1: &core.StoredSchema_V1StoredSchema{
@@ -434,7 +434,7 @@ func newStoredAdapter(nsDefs map[string]*core.NamespaceDefinition, cavDefs map[s
 					CaveatDefinitions:    cavDefs,
 				},
 			},
-		}),
+		})),
 		lastWrittenRevision: testRevision,
 	}
 }
@@ -628,7 +628,7 @@ func TestStoredAdapter_V1NilFallback(t *testing.T) {
 	t.Parallel()
 	// When VersionOneof is nil, v1() should return an empty struct without panicking.
 	adapter := &storedSchemaReaderAdapter{
-		storedSchema:        datastore.NewReadOnlyStoredSchema(&core.StoredSchema{Version: 1}),
+		cached:              NewCachedSchema(datastore.NewReadOnlyStoredSchema(&core.StoredSchema{Version: 1})),
 		lastWrittenRevision: testRevision,
 	}
 
@@ -873,12 +873,12 @@ func TestSchemaReaderFromLegacy_ReturnsSchemaReader(t *testing.T) {
 type fakeSchemaCache struct {
 	loaded      int
 	setCount    int
-	cachedValue *datastore.ReadOnlyStoredSchema
+	cachedValue *CachedSchema
 }
 
 func (m *fakeSchemaCache) GetOrLoad(ctx context.Context, _ datastore.Revision, _ SchemaHash,
-	loader func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error),
-) (*datastore.ReadOnlyStoredSchema, error) {
+	loader func(ctx context.Context) (*CachedSchema, error),
+) (*CachedSchema, error) {
 	m.loaded++
 	if m.cachedValue != nil {
 		return m.cachedValue, nil
@@ -886,7 +886,7 @@ func (m *fakeSchemaCache) GetOrLoad(ctx context.Context, _ datastore.Revision, _
 	return loader(ctx)
 }
 
-func (m *fakeSchemaCache) Set(_ SchemaHash, schema *datastore.ReadOnlyStoredSchema) error {
+func (m *fakeSchemaCache) Set(_ SchemaHash, schema *CachedSchema) error {
 	m.setCount++
 	m.cachedValue = schema
 	return nil
@@ -906,7 +906,7 @@ func TestNewStoredSchemaReaderAdapter_UsesCache(t *testing.T) {
 		},
 	})
 
-	cache := &fakeSchemaCache{cachedValue: schema}
+	cache := &fakeSchemaCache{cachedValue: NewCachedSchema(schema)}
 	reader := &fakeStoredSchemaReader{err: errors.New("should not be called")}
 
 	adapter, err := newStoredSchemaReaderAdapter(t.Context(), reader, "hash1", testRevision, cache)

@@ -32,17 +32,17 @@ type SchemaCacheKey string
 func (k SchemaCacheKey) KeyString() string { return string(k) }
 
 // SchemaCache defines the interface for the backing cache used by schemaHashCache.
-// This is satisfied by cache.Cache[SchemaCacheKey, *datastore.ReadOnlyStoredSchema].
+// This is satisfied by cache.Cache[SchemaCacheKey, *CachedSchema].
 type SchemaCache interface {
-	Get(key SchemaCacheKey) (*datastore.ReadOnlyStoredSchema, bool)
-	Set(key SchemaCacheKey, entry *datastore.ReadOnlyStoredSchema, cost int64) bool
+	Get(key SchemaCacheKey) (*CachedSchema, bool)
+	Set(key SchemaCacheKey, entry *CachedSchema, cost int64) bool
 	Wait()
 }
 
 // latestSchemaEntry holds the most recent schema entry for fast-path lookups.
 type latestSchemaEntry struct {
 	hash   SchemaHash
-	schema *datastore.ReadOnlyStoredSchema
+	schema *CachedSchema
 }
 
 // schemaHashCache is a thread-safe cache for schemas indexed by hash.
@@ -54,7 +54,7 @@ type latestSchemaEntry struct {
 type schemaHashCache struct {
 	cache        SchemaCache
 	latest       atomic.Pointer[latestSchemaEntry] // Fast path for latest schema
-	singleflight singleflight.Group[string, *datastore.ReadOnlyStoredSchema]
+	singleflight singleflight.Group[string, *CachedSchema]
 }
 
 // newSchemaHashCache creates a new hash-based schema cache wrapping the given cache.
@@ -71,7 +71,7 @@ var _ storedSchemaCache = (*schemaHashCache)(nil)
 // Slow path: Check the cache.
 // Returns (nil, nil) if the hash is a bypass sentinel (NoSchemaHashInTransaction or NoSchemaHashForTesting).
 // Returns error if hash is empty string (indicates a bug where schema hash wasn't properly provided).
-func (c *schemaHashCache) get(schemaHash SchemaHash) (*datastore.ReadOnlyStoredSchema, error) {
+func (c *schemaHashCache) get(schemaHash SchemaHash) (*CachedSchema, error) {
 	// Check for bypass sentinels - these intentionally skip the cache
 	if schemaHash.IsBypassSentinel() {
 		return nil, nil
@@ -100,7 +100,7 @@ func (c *schemaHashCache) get(schemaHash SchemaHash) (*datastore.ReadOnlyStoredS
 // Adds to the cache and updates the atomic latest entry.
 // No-ops if hash is a bypass sentinel (NoSchemaHashInTransaction or NoSchemaHashForTesting).
 // Returns error if hash is empty string (indicates a bug where it wasn't properly provided).
-func (c *schemaHashCache) Set(schemaHash SchemaHash, schema *datastore.ReadOnlyStoredSchema) error {
+func (c *schemaHashCache) Set(schemaHash SchemaHash, schema *CachedSchema) error {
 	if schemaHash.IsBypassSentinel() {
 		return nil
 	}
@@ -125,8 +125,8 @@ func (c *schemaHashCache) GetOrLoad(
 	ctx context.Context,
 	rev datastore.Revision,
 	schemaHash SchemaHash,
-	loader func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error),
-) (*datastore.ReadOnlyStoredSchema, error) {
+	loader func(ctx context.Context) (*CachedSchema, error),
+) (*CachedSchema, error) {
 	// Check for bypass sentinels - load directly without caching
 	if schemaHash.IsBypassSentinel() {
 		schema, err := loader(ctx)
@@ -163,7 +163,7 @@ func (c *schemaHashCache) GetOrLoad(
 	sfCtx, cancel := context.WithTimeout(ctx, singleflightTimeout)
 	defer cancel()
 
-	result, _, err := c.singleflight.Do(sfCtx, string(schemaHash), func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
+	result, _, err := c.singleflight.Do(sfCtx, string(schemaHash), func(ctx context.Context) (*CachedSchema, error) {
 		// Check cache again in case another goroutine loaded it
 		schema, err := c.get(schemaHash)
 		if err != nil {

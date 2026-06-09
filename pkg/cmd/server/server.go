@@ -228,7 +228,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
-	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](cacheRegisterer, &c.StoredSchemaCacheConfig)
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datalayer.CachedSchema](cacheRegisterer, &c.StoredSchemaCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
 	}
