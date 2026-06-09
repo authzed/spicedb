@@ -247,6 +247,10 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestStoredSchemaStableText", runner(tester, StoredSchemaStableTextTest))
 	t.Run("TestStoredSchemaLarge", runner(tester, StoredSchemaLargeTest))
 	t.Run("TestStoredSchemaPhaseMigration", runner(tester, StoredSchemaPhaseMigrationTest))
+	t.Run("TestStoredSchemaViaDataLayer", runner(tester, StoredSchemaViaDataLayerTest))
+	if !except.Transaction() {
+		t.Run("TestStoredSchemaReadInWriteTxMemoized", runner(tester, StoredSchemaReadInWriteTxMemoizedTest))
+	}
 	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
 	t.Run("TestOptimizedRevisionSchemaHash", runner(tester, OptimizedRevisionSchemaHashTest))
 }
