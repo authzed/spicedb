@@ -308,6 +308,59 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+// CaseSensitivityTest verifies that object IDs are treated as case-sensitive: resources
+// and subjects that differ only in letter case are distinct relationships. This is a
+// regression test for datastores whose default collation is case-insensitive (e.g. MySQL's
+// latin1_swedish_ci), which would otherwise collide "Foo" with "foo".
+func CaseSensitivityTest(t *testing.T, tester DatastoreTester) {
+	ctx := t.Context()
+	require := require.New(t)
+
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+	defer ds.Close()
+
+	lower := makeTestRel("caseobject", "caseuser")
+	upper := makeTestRel("CaseObject", "CaseUser")
+
+	// Both relationships are distinct and must both persist in a single write.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(lower),
+			tuple.Create(upper),
+		})
+	})
+	require.NoError(err)
+
+	revResult, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	reader := ds.SnapshotReader(revResult.Revision)
+
+	// Filtering by the lowercase resource ID must return ONLY the lowercase relationship.
+	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: testResourceNamespace,
+		OptionalResourceIds:  []string{"caseobject"},
+	}, options.WithQueryShape(queryshape.Varying))
+	require.NoError(err)
+	found, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
+	require.Len(found, 1)
+	require.Equal("caseobject", found[0].Resource.ObjectID)
+	require.Equal("caseuser", found[0].Subject.ObjectID)
+
+	// Filtering by the uppercase resource ID must return ONLY the uppercase relationship.
+	iter, err = reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: testResourceNamespace,
+		OptionalResourceIds:  []string{"CaseObject"},
+	}, options.WithQueryShape(queryshape.Varying))
+	require.NoError(err)
+	found, err = datastore.IteratorToSlice(iter)
+	require.NoError(err)
+	require.Len(found, 1)
+	require.Equal("CaseObject", found[0].Resource.ObjectID)
+	require.Equal("CaseUser", found[0].Subject.ObjectID)
+}
+
 // DeleteRelationshipsTest tests whether or not the requirements for deleting
 // relationships hold for a particular datastore.
 func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
