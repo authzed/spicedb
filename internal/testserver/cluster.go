@@ -229,6 +229,15 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 		ctx, cancel := context.WithCancel(t.Context())
 		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
+		// Disable caches and their metrics to avoid "duplicate metrics" errors
+		cfg.DispatchClusterMetricsEnabled = false
+		cfg.DispatchClientMetricsEnabled = false
+		cfg.DatastoreConfig.EnableDatastoreMetrics = false
+		cfg.NamespaceCacheConfig = server.CacheConfig{}
+		cfg.DispatchCacheConfig = server.CacheConfig{}
+		cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
+		cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
+		cfg.StoredSchemaCacheConfig = server.CacheConfig{}
 		srv, listeners, err := cfg.CompleteForTesting(ctx)
 		require.NoError(t, err)
 

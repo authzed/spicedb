@@ -74,6 +74,23 @@ func restoreEnv(prevEnv []string) {
 	}
 }
 
+// TestConfigDefaultsMatchCLIFlags asserts that NewConfigWithOptionsAndDefaults
+// (the library entry point) produces the same Config as RegisterServeFlags
+// (the CLI entry point). Any drift is a bug: a new flag or a new struct field
+// added without a matching default tag/SetDefaults hook will be caught here.
+//
+// pflag writes each flag's default into the bound destination at registration
+// time, so RegisterServeFlags alone (no ParseFlags call) is enough to fully
+// populate cliCfg with the CLI defaults.
+func TestConfigDefaultsMatchCLIFlags(t *testing.T) {
+	cliCfg := &server.Config{}
+	require.NoError(t, RegisterServeFlags(&cobra.Command{}, cliCfg))
+
+	libCfg := server.NewConfigWithOptionsAndDefaults()
+
+	require.Equal(t, cliCfg.DebugMap(), libCfg.DebugMap())
+}
+
 func TestDefaultConfig(t *testing.T) {
 	flags := []string{
 		"--grpc-preshared-key", "some_key",

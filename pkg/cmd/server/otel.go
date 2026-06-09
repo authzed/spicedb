@@ -30,12 +30,12 @@ type otelShutdowner interface {
 }
 
 type OTelConfig struct {
-	Provider        string  `debugmap:"visible"`
+	Provider        string  `debugmap:"visible" default:"none"`
 	Endpoint        string  `debugmap:"visible"`
-	ServiceName     string  `debugmap:"visible"`
-	TracePropagator string  `debugmap:"visible"`
+	ServiceName     string  `debugmap:"visible" default:"spicedb"`
+	TracePropagator string  `debugmap:"visible" default:"w3c"`
 	UsePlaintext    bool    `debugmap:"visible"`
-	SampleRatio     float64 `debugmap:"visible"`
+	SampleRatio     float64 `debugmap:"visible" default:"0.01"`
 }
 
 // RegisterOTelFlags registers all OpenTelemetry flags on cmd, binding them directly into cfg.

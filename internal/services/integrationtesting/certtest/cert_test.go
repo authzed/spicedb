@@ -126,7 +126,7 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),
@@ -183,7 +183,17 @@ func TestCertRotation(t *testing.T) {
 				},
 			},
 		}),
-	).Complete(ctx)
+	)
+	// Disable caches and their metrics to avoid "duplicate metrics" errors
+	cfg.DispatchClusterMetricsEnabled = false
+	cfg.DispatchClientMetricsEnabled = false
+	cfg.DatastoreConfig.EnableDatastoreMetrics = false
+	cfg.NamespaceCacheConfig = server.CacheConfig{}
+	cfg.DispatchCacheConfig = server.CacheConfig{}
+	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
+	cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
+	cfg.StoredSchemaCacheConfig = server.CacheConfig{}
+	srv, err := cfg.Complete(ctx)
 	require.NoError(t, err)
 
 	wait := make(chan error, 1)
