@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
+- Embedded: add `pkg/embedded`, an in-process library for running permission checks against a datastore via the dispatch engine, without standing up a gRPC server (https://github.com/authzed/spicedb/pull/3166)
+- Caveats: compiled caveats (and their CEL environments) are now cached per schema version rather than rebuilt on every check, reducing check cost for schemas with many caveats (https://github.com/authzed/spicedb/pull/3166)
+- Datastore: schema-derived artifacts (e.g. compiled caveats, type systems) are now cached on the stored schema and share its lifetime, so they are rebuilt only when the schema changes (https://github.com/authzed/spicedb/pull/3166)
 
 ### Fixed
 - The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)
