@@ -105,6 +105,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	svcRegistrationFn(srv)
 	return &completedGRPCServer{
 		srv:               srv,
+		address:           c.Address,
 		opts:              opts,
 		listener:          l,
 		svcRegistrationFn: svcRegistrationFn,
@@ -178,11 +179,13 @@ func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, erro
 }
 
 type RunnableGRPCServer interface {
-	// Listen runs a configured server
-	Listen(ctx context.Context) error
+	// Run runs a configured server
+	Run(ctx context.Context) error
 	// BufferedListener returns the in-memory listener if the server is running in BufferedNetwork
 	// mode, or nil for real network servers.
 	BufferedListener() *bufconn.Listener
+	// Address returns the address of the running server
+	Address() string
 	// Insecure returns true if the server is configured without TLS enabled
 	Insecure() bool
 	// GracefulStop stops a running server, allowing cleanup actions to complete
@@ -193,6 +196,7 @@ type RunnableGRPCServer interface {
 
 type completedGRPCServer struct {
 	opts              []grpc.ServerOption
+	address           string
 	listener          net.Listener
 	svcRegistrationFn func(*grpc.Server)
 	creds             credentials.TransportCredentials
@@ -200,8 +204,10 @@ type completedGRPCServer struct {
 	srv               *grpc.Server
 }
 
+var _ RunnableGRPCServer = &completedGRPCServer{}
+
 // Listen runs a configured server
-func (c *completedGRPCServer) Listen(ctx context.Context) error {
+func (c *completedGRPCServer) Run(ctx context.Context) error {
 	if c.certWatcher != nil {
 		go func() {
 			c.certWatcher.Start(ctx)
@@ -219,6 +225,10 @@ func (c *completedGRPCServer) BufferedListener() *bufconn.Listener {
 	return bl
 }
 
+func (c *completedGRPCServer) Address() string {
+	return c.address
+}
+
 func (c *completedGRPCServer) Insecure() bool {
 	return c.creds.Info().SecurityProtocol == "insecure"
 }
@@ -234,8 +244,14 @@ func (c *completedGRPCServer) ForceStop() {
 
 type disabledGrpcServer struct{}
 
-func (d *disabledGrpcServer) Listen(_ context.Context) error {
+var _ RunnableGRPCServer = &disabledGrpcServer{}
+
+func (d *disabledGrpcServer) Run(_ context.Context) error {
 	return nil
+}
+
+func (d *disabledGrpcServer) Address() string {
+	return ""
 }
 
 func (d *disabledGrpcServer) Insecure() bool {

@@ -198,7 +198,6 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 
 	return &completedTestServer{
 		gRPCServer:            gRPCSrv,
-		grpcAddr:              c.GRPCServer.Address,
 		readOnlyGRPCServer:    readOnlyGRPCSrv,
 		gatewayServer:         gatewayServer,
 		readOnlyGatewayServer: readOnlyGatewayServer,
@@ -208,8 +207,6 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 }
 
 type completedTestServer struct {
-	grpcAddr string
-
 	gRPCServer         util.RunnableGRPCServer
 	readOnlyGRPCServer util.RunnableGRPCServer
 
@@ -237,11 +234,11 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
-		return c.gRPCServer.Listen(ctx)
+		return c.gRPCServer.Run(ctx)
 	})
 
 	g.Go(func() error {
-		return c.readOnlyGRPCServer.Listen(ctx)
+		return c.readOnlyGRPCServer.Run(ctx)
 	})
 
 	g.Go(c.gatewayServer.ListenAndServe)
@@ -260,5 +257,5 @@ func (c *completedTestServer) NewClient(opts ...grpc.DialOption) (*grpc.ClientCo
 	// under the assumption that most folks won't be running this in a context where
 	// running through a buffcon is necessary, as opposed to the implementation in
 	// pkg/cmd/server/server.go
-	return grpc.NewClient(c.grpcAddr, opts...)
+	return grpc.NewClient(c.gRPCServer.Address(), opts...)
 }

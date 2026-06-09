@@ -555,7 +555,6 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	return &completedServerConfig{
 		ds:                 ds,
 		gRPCServer:         grpcServer,
-		grpcAddr:           c.GRPCServer.Address,
 		dispatchGRPCServer: dispatchGrpcServer,
 		gatewayServer:      gatewayServer,
 		metricsServer:      metricsServer,
@@ -776,9 +775,6 @@ type RunnableServer interface {
 // It offers limited options for mutation before Run() starts the services.
 type completedServerConfig struct {
 	ds datastore.Datastore
-	// grpcAddr carries the address for the gRPC server
-	// so that `NewClient` can reference it
-	grpcAddr string
 
 	gRPCServer         util.RunnableGRPCServer
 	dispatchGRPCServer util.RunnableGRPCServer
@@ -815,10 +811,10 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		return c.healthManager.Checker(ctx)
 	})
 	g.Go(func() error {
-		return c.gRPCServer.Listen(ctx)
+		return c.gRPCServer.Run(ctx)
 	})
 	g.Go(func() error {
-		return c.dispatchGRPCServer.Listen(ctx)
+		return c.dispatchGRPCServer.Run(ctx)
 	})
 	g.Go(c.gatewayServer.ListenAndServe)
 	g.Go(c.metricsServer.ListenAndServe)
@@ -841,5 +837,5 @@ func (c *completedServerConfig) NewClient(opts ...grpc.DialOption) (*grpc.Client
 	if bufferedListener != nil {
 		return grpchelpers.NewBufferedClient(bufferedListener, opts...)
 	}
-	return grpc.NewClient(c.grpcAddr, opts...)
+	return grpc.NewClient(c.gRPCServer.Address(), opts...)
 }
