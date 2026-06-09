@@ -134,6 +134,9 @@ type Config struct {
 	BootstrapOverwrite    bool                 `debugmap:"visible"`
 	BootstrapTimeout      time.Duration        `debugmap:"visible"`
 	CaveatTypeSet         *caveattypes.TypeSet `debugmap:"hidden"`
+	// BootstrapSchemaMode controls the schema storage mode used when writing bootstrap
+	// data. The zero value (SchemaModeReadLegacyWriteLegacy) preserves prior behavior.
+	BootstrapSchemaMode datalayer.SchemaMode `debugmap:"visible"`
 
 	// Hedging
 	RequestHedgingEnabled          bool          `debugmap:"visible"`
@@ -482,7 +485,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		}
 
 		if len(bootstrapContents) > 0 {
-			bootstrapDL := datalayer.NewDataLayer(ds)
+			bootstrapDL := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(opts.BootstrapSchemaMode))
 			_, _, err = validationfile.PopulateFromFilesContents(ctx, bootstrapDL, opts.CaveatTypeSet, bootstrapContents)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load bootstrap data: %w", err)
