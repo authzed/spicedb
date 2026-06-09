@@ -777,6 +777,140 @@ func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 		"OptimizedRevision schema hashes should differ after writing a different schema")
 }
 
+// StoredSchemaViaDataLayerTest exercises the DataLayer's ReadSchema inside write
+// transactions in both legacy (ReadLegacyWriteLegacy) and new (ReadNewWriteNew)
+// schema modes. In new mode, ReadSchema calls ReadStoredSchemaHash before fetching
+// the full blob — a path not exercised by the raw-datastore tests above.
+func StoredSchemaViaDataLayerTest(t *testing.T, tester DatastoreTester) {
+	ctx := t.Context()
+
+	schemaText := `definition user {}
+
+definition document {
+	relation viewer: user
+}`
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schemaText,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	defs := make([]compiler.SchemaDefinition, 0, len(compiled.ObjectDefinitions))
+	for _, od := range compiled.ObjectDefinitions {
+		defs = append(defs, od)
+	}
+	dsDefs := toSchemaDefinitions(defs)
+
+	modes := []struct {
+		name string
+		mode datalayer.SchemaMode
+	}{
+		{"ReadLegacyWriteLegacy", datalayer.SchemaModeReadLegacyWriteLegacy},
+		{"ReadLegacyWriteBoth", datalayer.SchemaModeReadLegacyWriteBoth},
+		{"ReadNewWriteBoth", datalayer.SchemaModeReadNewWriteBoth},
+		{"ReadNewWriteNew", datalayer.SchemaModeReadNewWriteNew},
+	}
+
+	for _, tc := range modes {
+		t.Run(tc.name, func(t *testing.T) {
+			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			require.NoError(t, err)
+
+			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(tc.mode))
+
+			// tx1: write schema through DataLayer.
+			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				_, err := rwt.WriteSchema(ctx, dsDefs, schemaText, nil)
+				return err
+			})
+			require.NoError(t, err)
+
+			// tx2: read schema within a write transaction without writing first.
+			// In ReadNewWriteNew / ReadNewWriteBoth mode this exercises ReadStoredSchemaHash.
+			_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				sr, err := rwt.ReadSchema(ctx)
+				if err != nil {
+					return err
+				}
+				typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+				if err != nil {
+					return err
+				}
+				require.Len(t, typeDefs, 2)
+				return nil
+			})
+			require.NoError(t, err)
+
+			// Snapshot read after commit should also return the same schema.
+			reader := dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting)
+			sr, err := reader.ReadSchema(ctx)
+			require.NoError(t, err)
+			typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+			require.NoError(t, err)
+			require.Len(t, typeDefs, 2)
+		})
+	}
+}
+
+// StoredSchemaReadInWriteTxMemoizedTest verifies that, in new-read schema modes,
+// ReadStoredSchemaHash is not called more than once per write transaction when
+// ReadSchema is called multiple times in the same transaction.
+func StoredSchemaReadInWriteTxMemoizedTest(t *testing.T, tester DatastoreTester) {
+	ctx := t.Context()
+
+	schemaText := `definition user {}`
+	defs := []compiler.SchemaDefinition{ns.Namespace("user")}
+	dsDefs := toSchemaDefinitions(defs)
+
+	modes := []struct {
+		name string
+		mode datalayer.SchemaMode
+	}{
+		{"ReadNewWriteBoth", datalayer.SchemaModeReadNewWriteBoth},
+		{"ReadNewWriteNew", datalayer.SchemaModeReadNewWriteNew},
+	}
+
+	for _, tc := range modes {
+		t.Run(tc.name, func(t *testing.T) {
+			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			require.NoError(t, err)
+
+			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(tc.mode))
+
+			_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				_, err := rwt.WriteSchema(ctx, dsDefs, schemaText, nil)
+				return err
+			})
+			require.NoError(t, err)
+
+			// Read schema twice in the same write transaction; should succeed both times.
+			_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				sr1, err := rwt.ReadSchema(ctx)
+				if err != nil {
+					return err
+				}
+				typeDefs1, err := sr1.ListAllTypeDefinitions(ctx)
+				if err != nil {
+					return err
+				}
+				require.Len(t, typeDefs1, 1)
+
+				sr2, err := rwt.ReadSchema(ctx)
+				if err != nil {
+					return err
+				}
+				typeDefs2, err := sr2.ListAllTypeDefinitions(ctx)
+				if err != nil {
+					return err
+				}
+				require.Len(t, typeDefs2, 1)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 // verifySchemaTypes reads schema through the datalayer at the given revision
 // and verifies the expected type definition and caveat definition names are present.
 func verifySchemaTypes(t *testing.T, ctx context.Context, dl datalayer.DataLayer, rev datastore.Revision, expectedTypes []string, expectedCaveats []string) {
