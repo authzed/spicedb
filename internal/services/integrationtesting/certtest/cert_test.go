@@ -184,12 +184,7 @@ func TestCertRotation(t *testing.T) {
 			},
 		}),
 	)
-	// Disable all caching and metrics so this test server retains its
-	// pre-PR behavior. The new library defaults enable real caches
-	// (matching CLI), which (a) break parallel subtests by registering
-	// duplicate metrics with prometheus.DefaultRegisterer and (b) can
-	// affect test semantics by introducing caching where there was
-	// previously a NoopCache.
+	// Disable caches and their metrics to avoid "duplicate metrics" errors
 	cfg.DispatchClusterMetricsEnabled = false
 	cfg.DispatchClientMetricsEnabled = false
 	cfg.DatastoreConfig.EnableDatastoreMetrics = false
