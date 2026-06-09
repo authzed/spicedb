@@ -766,7 +766,8 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 type RunnableServer interface {
 	// Run takes the runnable server configuration and starts the server.
 	Run(ctx context.Context) error
-	// NewClient returns a grpc client set up to connect to the server.
+	// NewClient returns a grpc connection to this server.
+	// It is up to the caller to close the connection when done using it.
 	NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
