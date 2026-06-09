@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
@@ -379,7 +380,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := rs.GRPCDialContext(ctx)
+	clientConn, err := rs.NewClient(grpcutil.WithInsecureBearerToken("psk"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()
@@ -490,7 +491,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
-	clientConn, err := rs.GRPCDialContext(ctx)
+	clientConn, err := rs.NewClient()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = clientConn.Close()

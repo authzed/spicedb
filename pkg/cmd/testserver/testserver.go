@@ -51,19 +51,19 @@ type Config struct {
 	ShutdownGracePeriod             time.Duration         `debugmap:"visible"`
 }
 
-type RunnableTestServer interface {
-	Run(ctx context.Context) error
-	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
-	ReadOnlyGRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
-}
-
 type datastoreReady struct{}
+
+var _ health.DatastoreChecker = &datastoreReady{}
 
 func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, error) {
 	return datastore.ReadyState{IsReady: true}, nil
 }
 
-func (c *Config) Complete(ctx context.Context) (RunnableTestServer, error) {
+func (c *Config) Complete(ctx context.Context) (server.RunnableServer, error) {
+	return c.complete(ctx)
+}
+
+func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 	closeables := util.CloseableStack{}
 	var err error
@@ -217,6 +217,8 @@ type completedTestServer struct {
 	closeFunc     func() error
 }
 
+var _ server.RunnableServer = &completedTestServer{}
+
 func (c *completedTestServer) Run(ctx context.Context) error {
 	g := errgroup.Group{}
 
@@ -232,11 +234,11 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
-		return c.gRPCServer.Listen(ctx)
+		return c.gRPCServer.Run(ctx)
 	})
 
 	g.Go(func() error {
-		return c.readOnlyGRPCServer.Listen(ctx)
+		return c.readOnlyGRPCServer.Run(ctx)
 	})
 
 	g.Go(c.gatewayServer.ListenAndServe)
@@ -250,10 +252,10 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	return nil
 }
 
-func (c *completedTestServer) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	return c.gRPCServer.DialContext(ctx, opts...)
-}
-
-func (c *completedTestServer) ReadOnlyGRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	return c.readOnlyGRPCServer.DialContext(ctx, opts...)
+func (c *completedTestServer) NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	// NOTE: NewClient as implemented by TestServer just provides a handle on the address,
+	// under the assumption that most folks won't be running this in a context where
+	// running through a buffcon is necessary, as opposed to the implementation in
+	// pkg/cmd/server/server.go
+	return grpc.NewClient(c.gRPCServer.Address(), opts...)
 }

@@ -170,8 +170,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 		_ = srv.Run(ctx)
 	}()
 
-	// TODO: move off of WithBlock
-	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock()) // nolint: staticcheck
+	conn, err := srv.NewClient()
 	require.NoError(t, err)
 
 	return conn, func() {

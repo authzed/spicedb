@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/backoff"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -191,11 +192,14 @@ func TestCertRotation(t *testing.T) {
 		wait <- err
 	}()
 
-	// If previous code takes more than initialValidDuration*2 to execute, the cert
-	// would have expired, and Dial would retry indefinitely, hence the context timeout
-	dialCtx, cancelDial := context.WithTimeout(ctx, initialValidDuration*2)
-	conn, err := srv.GRPCDialContext(dialCtx,
-		grpc.WithReturnConnectionError(),
+	tlsCreds, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, caFile.Name())
+	require.NoError(t, err)
+
+	// "buffnet" matches the DNSNames in the TLS certificate issued above; WithAuthority
+	// sets the SNI so TLS verification succeeds even though the dial target is localhost.
+	conn, err := srv.NewClient(
+		tlsCreds,
+		grpc.WithAuthority("buffnet"),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1 * time.Second,
@@ -282,7 +286,6 @@ func TestCertRotation(t *testing.T) {
 	}
 
 	cancel()
-	cancelDial()
 	select {
 	case err := <-wait:
 		require.NoError(t, err)

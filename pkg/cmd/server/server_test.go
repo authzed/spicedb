@@ -188,7 +188,7 @@ func TestOTelReporting(t *testing.T) {
 	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
 	require.NoError(t, err)
 
-	conn, err := srv.GRPCDialContext(ctx)
+	conn, err := srv.NewClient()
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -260,7 +260,7 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
 	require.NoError(t, err)
 
-	conn, err := srv.GRPCDialContext(ctx)
+	conn, err := srv.NewClient()
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -397,7 +397,7 @@ func TestRetryPolicy(t *testing.T) {
 	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
 	require.NoError(t, err)
 
-	conn, err := srv.GRPCDialContext(ctx,
+	conn, err := srv.NewClient(
 		grpc.WithDefaultServiceConfig(`{
                   "methodConfig": [
                     {
@@ -418,7 +418,8 @@ func TestRetryPolicy(t *testing.T) {
                       }
                     }
                   ]
-                }`))
+                }`),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = conn.Close()

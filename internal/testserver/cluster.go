@@ -9,18 +9,17 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/resolver"
 
 	"github.com/authzed/consistent"
 
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -95,6 +94,9 @@ func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.Cl
 		addrs:  addrs,
 	}
 	b.resolvers.Store(target.URL.Hostname(), r)
+	// Push addresses immediately so the gRPC channel can proceed without
+	// requiring a separate ResolveNow call after the resolver is built.
+	r.ResolveNow(resolver.ResolveNowOptions{})
 	return r, nil
 }
 
@@ -171,6 +173,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 			combineddispatch.GrpcDialOpts(
+				grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
 				grpc.WithDefaultServiceConfig(
 					(&consistent.BalancerConfig{
 						ReplicationFactor: 1500,
@@ -226,7 +229,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 		ctx, cancel := context.WithCancel(t.Context())
 		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
-		srv, err := cfg.Complete(ctx)
+		srv, listeners, err := cfg.CompleteForTesting(ctx)
 		require.NoError(t, err)
 
 		errCh := make(chan error, 1)
@@ -239,19 +242,11 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 			require.NoError(t, err)
 		})
 
-		dialers = append(dialers, srv.DispatchNetDialContext)
+		dialers = append(dialers, func(ctx context.Context, _ string) (net.Conn, error) {
+			return listeners.Dispatch.DialContext(ctx)
+		})
 
-		// TODO: move off of WithBlock and WithReturnConnectionError
-		conn, err := srv.GRPCDialContext(ctx,
-			grpc.WithReturnConnectionError(), // nolint: staticcheck
-			grpc.WithBlock(),                 // nolint: staticcheck
-			grpc.WithConnectParams(grpc.ConnectParams{
-				Backoff: backoff.Config{
-					BaseDelay:  1 * time.Second,
-					Multiplier: 2,
-					MaxDelay:   15 * time.Second,
-				},
-			}))
+		conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
 		require.NoError(t, err)
 		conns = append(conns, conn)
 	}
