@@ -736,6 +736,9 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 }
 
 func TestLookupResources(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	testCases := []struct {
 		objectType           string
 		permission           string
@@ -920,9 +923,9 @@ func TestLookupResources(t *testing.T) {
 								tf.StandardDatastoreWithData,
 							)
 							client := v1.NewPermissionsServiceClient(conn)
-							defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
-							defer cleanup()
-
+							t.Cleanup(func() {
+								cleanup()
+							})
 							var trailer metadata.MD
 							lookupClient, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
 								ResourceObjectType: tc.objectType,
