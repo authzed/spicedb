@@ -229,12 +229,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 		ctx, cancel := context.WithCancel(t.Context())
 		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
-		// Disable all caching and metrics so test clusters retain their
-		// pre-PR behavior. The new library defaults enable real caches
-		// (matching CLI), which (a) breaks parallel subtests by registering
-		// duplicate metrics with prometheus.DefaultRegisterer and (b) can
-		// affect test semantics by introducing caching where there was
-		// previously a NoopCache.
+		// Disable caches and their metrics to avoid "duplicate metrics" errors
 		cfg.DispatchClusterMetricsEnabled = false
 		cfg.DispatchClientMetricsEnabled = false
 		cfg.DatastoreConfig.EnableDatastoreMetrics = false
