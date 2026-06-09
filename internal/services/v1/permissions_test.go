@@ -2469,7 +2469,7 @@ func TestExportBulkRelationshipsBeyondAllowedLimit(t *testing.T) {
 
 	_, err = resp.Recv()
 	require.Error(err)
-	require.Contains(err.Error(), "provided limit 10000005 is greater than maximum allowed of 100000")
+	require.Contains(err.Error(), "provided limit 10000005 is greater than maximum allowed of 10000")
 }
 
 func TestExportBulkRelationships(t *testing.T) {

@@ -33,10 +33,10 @@ const BufferedNetwork string = "buffnet"
 
 type GRPCServerConfig struct {
 	Address      string        `debugmap:"visible"`
-	Network      string        `debugmap:"visible"`
+	Network      string        `debugmap:"visible" default:"tcp"`
 	TLSCertPath  string        `debugmap:"visible"`
 	TLSKeyPath   string        `debugmap:"visible"`
-	MaxConnAge   time.Duration `debugmap:"visible"`
+	MaxConnAge   time.Duration `debugmap:"visible" default:"30s"`
 	Enabled      bool          `debugmap:"visible"`
 	BufferSize   int           `debugmap:"visible"`
 	ClientCAPath string        `debugmap:"visible"`

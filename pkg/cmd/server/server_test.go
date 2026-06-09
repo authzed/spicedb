@@ -81,7 +81,112 @@ func TestServerGracefulTermination(t *testing.T) {
 func TestServerDefaultOptions(t *testing.T) {
 	cfg := NewConfigWithOptionsAndDefaults()
 
+	require.Equal(t, 5*time.Second, cfg.ShutdownGracePeriod)
+	require.Equal(t, 4096, cfg.MaxCaveatContextSize)
+	require.Equal(t, 25_000, cfg.MaxRelationshipContextSize)
+	require.Equal(t, time.Second, cfg.SchemaWatchHeartbeat)
+	require.Equal(t, "read-legacy-write-legacy", cfg.ExperimentalSchemaMode)
+
+	require.Equal(t, uint32(50), cfg.DispatchMaxDepth)
+	require.Equal(t, uint16(50), cfg.GlobalDispatchConcurrencyLimit)
+	require.Equal(t, 60*time.Second, cfg.DispatchUpstreamTimeout)
+	require.Equal(t, uint16(100), cfg.DispatchHashringReplicationFactor)
+	require.Equal(t, uint8(1), cfg.DispatchHashringSpread)
+	require.Equal(t, uint16(100), cfg.DispatchChunkSize)
+
+	require.Equal(t, uint16(1000), cfg.MaximumUpdatesPerWrite)
+	require.Equal(t, uint16(1000), cfg.MaximumPreconditionCount)
+	require.Equal(t, uint64(1000), cfg.MaxDatastoreReadPageSize)
+	require.Equal(t, 30*time.Second, cfg.StreamingAPITimeout)
+	require.Equal(t, time.Second, cfg.WatchHeartbeat)
+	require.Equal(t, uint32(1000), cfg.MaxReadRelationshipsLimit)
+	require.Equal(t, uint32(1000), cfg.MaxDeleteRelationshipsLimit)
+	require.Equal(t, uint32(1000), cfg.MaxLookupResourcesLimit)
+	require.Equal(t, uint32(10_000), cfg.MaxBulkExportRelationshipsLimit)
 	require.True(t, cfg.EnableRelationshipExpiration)
+	require.True(t, cfg.EnableRevisionHeartbeat)
+	require.Equal(t, "full-consistency", cfg.MismatchZedTokenBehavior)
+	require.True(t, cfg.EnableMemoryProtectionMiddleware)
+
+	require.Equal(t, "https://telemetry.authzed.com", cfg.TelemetryEndpoint)
+	require.Equal(t, time.Hour, cfg.TelemetryInterval)
+
+	// Embedded gRPC servers: per-instance defaults from (*Config).SetDefaults
+	// plus shared field defaults from struct tags on util.GRPCServerConfig.
+	require.Equal(t, ":50051", cfg.GRPCServer.Address)
+	require.True(t, cfg.GRPCServer.Enabled)
+	require.Equal(t, "tcp", cfg.GRPCServer.Network)
+	require.Equal(t, 30*time.Second, cfg.GRPCServer.MaxConnAge)
+	require.Equal(t, ":50053", cfg.DispatchServer.Address)
+	require.False(t, cfg.DispatchServer.Enabled)
+	require.Equal(t, "tcp", cfg.DispatchServer.Network)
+
+	// Embedded HTTP servers.
+	require.Equal(t, ":8443", cfg.HTTPGateway.HTTPAddress)
+	require.False(t, cfg.HTTPGateway.HTTPEnabled)
+	require.Equal(t, []string{"*"}, cfg.HTTPGatewayCorsAllowedOrigins)
+	require.Equal(t, ":9090", cfg.MetricsAPI.HTTPAddress)
+	require.True(t, cfg.MetricsAPI.HTTPEnabled)
+
+	// CacheConfig: five sites with different names and sizes. NumCounters
+	// stays 0 in every site to match RegisterCacheFlags, which hardcodes the
+	// (deprecated) flag default to 0.
+	require.Equal(t, CacheConfig{Name: "namespace", Enabled: true, Metrics: true, MaxCost: "32MiB"}, cfg.NamespaceCacheConfig)
+	require.Equal(t, CacheConfig{Name: "dispatch", Enabled: true, Metrics: true, MaxCost: "30%"}, cfg.DispatchCacheConfig)
+	require.Equal(t, CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "70%"}, cfg.ClusterDispatchCacheConfig)
+	require.Equal(t, CacheConfig{Name: "lr3_chunk", Enabled: true, MaxCost: "50MiB"}, cfg.LR3ResourceChunkCacheConfig)
+	require.Equal(t, CacheConfig{Name: "stored_schema", Enabled: true, Metrics: true, MaxCost: "32MiB"}, cfg.StoredSchemaCacheConfig)
+	require.True(t, cfg.DispatchClusterMetricsEnabled)
+	require.True(t, cfg.DispatchClientMetricsEnabled)
+
+	// OTel.
+	require.Equal(t, "none", cfg.OTel.Provider)
+	require.Equal(t, "spicedb", cfg.OTel.ServiceName)
+	require.Equal(t, "w3c", cfg.OTel.TracePropagator)
+	require.InEpsilon(t, 0.01, cfg.OTel.SampleRatio, 1e-9)
+
+	// Datastore: every non-zero field from DefaultDatastoreConfig is now
+	// reachable via struct tags so library users get the same defaults as
+	// CLI users.
+	require.Equal(t, "memory", cfg.DatastoreConfig.Engine)
+	require.Equal(t, 24*time.Hour, cfg.DatastoreConfig.GCWindow)
+	require.Equal(t, 5*time.Second, cfg.DatastoreConfig.RevisionQuantization)
+	require.InEpsilon(t, 0.1, cfg.DatastoreConfig.MaxRevisionStalenessPercent, 1e-9)
+	require.Equal(t, uint16(100), cfg.DatastoreConfig.FilterMaximumIDCount)
+	require.True(t, cfg.DatastoreConfig.EnableDatastoreMetrics)
+	require.Equal(t, 10*time.Second, cfg.DatastoreConfig.BootstrapTimeout)
+	require.Equal(t, 4800*time.Millisecond, cfg.DatastoreConfig.FollowerReadDelay)
+	require.Equal(t, 10, cfg.DatastoreConfig.MaxRetries)
+	require.Equal(t, "key", cfg.DatastoreConfig.OverlapKey)
+	require.Equal(t, "static", cfg.DatastoreConfig.OverlapStrategy)
+	require.True(t, cfg.DatastoreConfig.EnableConnectionBalancing)
+	require.Equal(t, 100*time.Millisecond, cfg.DatastoreConfig.ConnectRate)
+	require.Equal(t, 30*time.Millisecond, cfg.DatastoreConfig.WriteAcquisitionTimeout)
+	require.Equal(t, 3*time.Minute, cfg.DatastoreConfig.GCInterval)
+	require.Equal(t, time.Minute, cfg.DatastoreConfig.GCMaxOperationTime)
+	require.Equal(t, uint16(1024), cfg.DatastoreConfig.WatchBufferLength)
+	require.Equal(t, "15%", cfg.DatastoreConfig.WatchChangeBufferMaximumSize)
+	require.Equal(t, time.Second, cfg.DatastoreConfig.WatchBufferWriteTimeout)
+	require.Equal(t, time.Second, cfg.DatastoreConfig.WatchConnectTimeout)
+	require.Equal(t, uint64(100), cfg.DatastoreConfig.SpannerMinSessions)
+	require.Equal(t, uint64(400), cfg.DatastoreConfig.SpannerMaxSessions)
+	require.Equal(t, "otel", cfg.DatastoreConfig.SpannerDatastoreMetricsOption)
+	require.True(t, cfg.DatastoreConfig.ExperimentalColumnOptimization)
+
+	// Connection pools: Read default 20/20, Write default 10/10, both with
+	// 30m lifetime/idle and 30s healthcheck. Slice fields default to empty
+	// (non-nil) to match the CLI's StringSliceVar/StringArrayVar defaults.
+	require.Equal(t, 20, cfg.DatastoreConfig.ReadConnPool.MaxOpenConns)
+	require.Equal(t, 20, cfg.DatastoreConfig.ReadConnPool.MinOpenConns)
+	require.Equal(t, 30*time.Minute, cfg.DatastoreConfig.ReadConnPool.MaxLifetime)
+	require.Equal(t, 30*time.Minute, cfg.DatastoreConfig.ReadConnPool.MaxIdleTime)
+	require.Equal(t, 30*time.Second, cfg.DatastoreConfig.ReadConnPool.HealthCheckInterval)
+	require.Equal(t, 10, cfg.DatastoreConfig.WriteConnPool.MaxOpenConns)
+	require.Equal(t, 10, cfg.DatastoreConfig.WriteConnPool.MinOpenConns)
+	require.Equal(t, []string{}, cfg.DatastoreConfig.BootstrapFiles)
+	require.Equal(t, []string{}, cfg.DatastoreConfig.ReadReplicaURIs)
+	require.Equal(t, []string{}, cfg.DatastoreConfig.AllowedMigrations)
+	require.Equal(t, []string{}, cfg.DatastoreConfig.RelationshipIntegrityExpiredKeys)
 }
 
 func TestExperimentalQueryPlanStringSliceMapping(t *testing.T) {

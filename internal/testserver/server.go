@@ -95,7 +95,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
 
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
@@ -163,7 +163,21 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 				},
 			},
 		}),
-	).Complete(ctx)
+	)
+	// Disable all caching and metrics so test servers retain their pre-PR
+	// behavior. The new library defaults enable real caches (matching CLI),
+	// which (a) break parallel subtests by registering duplicate metrics
+	// with prometheus.DefaultRegisterer and (b) can affect test semantics
+	// by introducing caching where there was previously a NoopCache.
+	cfg.DispatchClusterMetricsEnabled = false
+	cfg.DispatchClientMetricsEnabled = false
+	cfg.DatastoreConfig.EnableDatastoreMetrics = false
+	cfg.NamespaceCacheConfig = server.CacheConfig{}
+	cfg.DispatchCacheConfig = server.CacheConfig{}
+	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
+	cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
+	cfg.StoredSchemaCacheConfig = server.CacheConfig{}
+	srv, err := cfg.Complete(ctx)
 	require.NoError(t, err)
 
 	go func() {

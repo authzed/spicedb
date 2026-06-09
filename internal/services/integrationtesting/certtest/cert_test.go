@@ -126,7 +126,7 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
 		server.WithDispatchMaxDepth(50),
@@ -183,7 +183,22 @@ func TestCertRotation(t *testing.T) {
 				},
 			},
 		}),
-	).Complete(ctx)
+	)
+	// Disable all caching and metrics so this test server retains its
+	// pre-PR behavior. The new library defaults enable real caches
+	// (matching CLI), which (a) break parallel subtests by registering
+	// duplicate metrics with prometheus.DefaultRegisterer and (b) can
+	// affect test semantics by introducing caching where there was
+	// previously a NoopCache.
+	cfg.DispatchClusterMetricsEnabled = false
+	cfg.DispatchClientMetricsEnabled = false
+	cfg.DatastoreConfig.EnableDatastoreMetrics = false
+	cfg.NamespaceCacheConfig = server.CacheConfig{}
+	cfg.DispatchCacheConfig = server.CacheConfig{}
+	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
+	cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
+	cfg.StoredSchemaCacheConfig = server.CacheConfig{}
+	srv, err := cfg.Complete(ctx)
 	require.NoError(t, err)
 
 	wait := make(chan error, 1)
