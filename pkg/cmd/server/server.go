@@ -195,7 +195,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		return nil, err
 	}
 
-	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
+	// Caches with metrics enabled register them with the default registerer,
+	// which the metrics endpoint scrapes; they unregister themselves on Close.
+	cacheRegisterer := prometheus.DefaultRegisterer
+
+	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](cacheRegisterer, &c.NamespaceCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
@@ -224,7 +228,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
-	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&c.StoredSchemaCacheConfig)
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](cacheRegisterer, &c.StoredSchemaCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
 	}
@@ -249,7 +253,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	// Create LR3 resource chunk cache (used by both dispatcher types)
-	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&c.LR3ResourceChunkCacheConfig)
+	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](cacheRegisterer, &c.LR3ResourceChunkCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LR3 resource chunk cache: %w", err)
 	}
@@ -258,7 +262,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.DispatchCacheConfig.WithRevisionParameters(
+		cc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.DispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
@@ -319,7 +323,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
-		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](c.ClusterDispatchCacheConfig.WithRevisionParameters(
+		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.ClusterDispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
