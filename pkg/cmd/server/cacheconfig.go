@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/pkg/cache"
@@ -48,9 +48,8 @@ func (cc *CacheConfig) WithRevisionParameters(
 }
 
 // CompleteCache translates the CLI cache config into a cache. If metrics are
-// enabled for the cache, it is added to the provided caches map (owned by the
-// server) so the server's cache Collector can export its metrics.
-func CompleteCache[K cache.KeyString, V any](caches *sync.Map, cc *CacheConfig) (cache.Cache[K, V], error) {
+// enabled for the cache, its metrics are registered with the given registerer.
+func CompleteCache[K cache.KeyString, V any](registerer prometheus.Registerer, cc *CacheConfig) (cache.Cache[K, V], error) {
 	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" {
 		return cache.NoopCache[K, V](), nil
 	}
@@ -74,21 +73,17 @@ func CompleteCache[K cache.KeyString, V any](caches *sync.Map, cc *CacheConfig) 
 		return nil, errors.New("could not cast max cost to int64")
 	}
 
-	c, err := cache.NewStandardCache[K, V](&cache.Config{
+	if cc.Metrics {
+		return cache.NewStandardCacheWithMetrics[K, V](registerer, cc.Name, &cache.Config{
+			MaxCost:    intMaxCost,
+			DefaultTTL: cc.defaultTTL,
+		})
+	}
+
+	return cache.NewStandardCache[K, V](&cache.Config{
 		MaxCost:    intMaxCost,
 		DefaultTTL: cc.defaultTTL,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	if cc.Metrics {
-		if _, loaded := caches.LoadOrStore(cc.Name, c); loaded {
-			return nil, fmt.Errorf("two caches registered with the same name: %s", cc.Name)
-		}
-	}
-
-	return c, nil
 }
 
 func parsePercent(str string, freeMem uint64) (uint64, error) {

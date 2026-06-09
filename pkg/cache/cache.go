@@ -53,7 +53,7 @@ func (c *Config) MarshalZerologObject(e *zerolog.Event) {
 
 // Cache defines an interface for a generic cache. Method semantics follow
 // Ristretto, the original implementation; the current implementation is
-// backed by Otter (see NewOtterCacheWithMetrics).
+// backed by Otter (see NewOtterCache).
 type Cache[K KeyString, V any] interface {
 	// Get returns the value for the given key and true if it is present;
 	// otherwise it returns the zero value of V and false.

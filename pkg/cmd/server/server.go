@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -182,8 +181,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 }
 
 func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
-	completed := &completedServerConfig{}
-
 	closeables := util.CloseableStack{}
 	var err error
 	defer func() {
@@ -198,16 +195,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		return nil, err
 	}
 
-	// Export the metrics of this server's caches. The collector reads from the
-	// server-owned caches map, which CompleteCache populates below.
-	cacheCollector := cache.NewCollector(&completed.caches)
-	if regErr := prometheus.Register(cacheCollector); regErr != nil {
-		log.Ctx(ctx).Warn().Err(regErr).Msg("unable to register cache metrics collector")
-	} else {
-		closeables.AddWithoutError(func() { prometheus.Unregister(cacheCollector) })
-	}
+	// Caches with metrics enabled register them with the default registerer,
+	// which the metrics endpoint scrapes; they unregister themselves on Close.
+	cacheRegisterer := prometheus.DefaultRegisterer
 
-	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&completed.caches, &c.NamespaceCacheConfig)
+	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](cacheRegisterer, &c.NamespaceCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
@@ -236,7 +228,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
-	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&completed.caches, &c.StoredSchemaCacheConfig)
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](cacheRegisterer, &c.StoredSchemaCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
 	}
@@ -261,7 +253,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	// Create LR3 resource chunk cache (used by both dispatcher types)
-	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&completed.caches, &c.LR3ResourceChunkCacheConfig)
+	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](cacheRegisterer, &c.LR3ResourceChunkCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LR3 resource chunk cache: %w", err)
 	}
@@ -270,7 +262,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		cc, err := CompleteCache[keys.DispatchCacheKey, any](&completed.caches, c.DispatchCacheConfig.WithRevisionParameters(
+		cc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.DispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
@@ -331,7 +323,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
-		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](&completed.caches, c.ClusterDispatchCacheConfig.WithRevisionParameters(
+		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.ClusterDispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
@@ -564,15 +556,16 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 
-	completed.ds = ds
-	completed.gRPCServer = grpcServer
-	completed.dispatchGRPCServer = dispatchGrpcServer
-	completed.gatewayServer = gatewayServer
-	completed.metricsServer = metricsServer
-	completed.telemetryReporter = reporter
-	completed.healthManager = healthManager
-	completed.closeFunc = closeables.Close
-	return completed, nil
+	return &completedServerConfig{
+		ds:                 ds,
+		gRPCServer:         grpcServer,
+		dispatchGRPCServer: dispatchGrpcServer,
+		gatewayServer:      gatewayServer,
+		metricsServer:      metricsServer,
+		telemetryReporter:  reporter,
+		healthManager:      healthManager,
+		closeFunc:          closeables.Close,
+	}, nil
 }
 
 func (c *Config) handleGrpcAuthn(ctx context.Context) error {
@@ -786,11 +779,6 @@ type RunnableServer interface {
 // It offers limited options for mutation before Run() starts the services.
 type completedServerConfig struct {
 	ds datastore.Datastore
-
-	// caches holds the metrics-enabled caches owned by this server, keyed by
-	// name. A cache.Collector reads from it to export their metrics; the map
-	// (and the caches it tracks) live for the lifetime of the server.
-	caches sync.Map
 
 	gRPCServer         util.RunnableGRPCServer
 	dispatchGRPCServer util.RunnableGRPCServer

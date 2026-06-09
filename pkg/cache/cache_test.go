@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +15,7 @@ func TestCacheWithMetrics(t *testing.T) {
 	}
 
 	t.Run("Set and Get", func(t *testing.T) {
-		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
+		cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 
@@ -45,7 +46,7 @@ func TestCacheWithMetrics(t *testing.T) {
 	})
 
 	t.Run("Set same key with diff values", func(t *testing.T) {
-		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
+		cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 
@@ -66,7 +67,7 @@ func TestCacheWithMetrics(t *testing.T) {
 	})
 
 	t.Run("Close multiple times", func(t *testing.T) {
-		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
+		cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", config)
 		require.NoError(t, err)
 
 		for range 10 {
@@ -75,7 +76,7 @@ func TestCacheWithMetrics(t *testing.T) {
 	})
 
 	t.Run("GetTTL", func(t *testing.T) {
-		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
+		cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 
@@ -83,7 +84,7 @@ func TestCacheWithMetrics(t *testing.T) {
 	})
 
 	t.Run("GetMetrics", func(t *testing.T) {
-		cache, err := NewOtterCacheWithMetrics[StringKey, string]("test-otter", config)
+		cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", config)
 		require.NoError(t, err)
 		defer cache.Close()
 
