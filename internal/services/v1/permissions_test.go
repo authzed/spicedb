@@ -337,7 +337,7 @@ func TestCheckPermissionSchemaLoadedOnce(t *testing.T) {
 			StreamingAPITimeout:   30 * time.Second,
 			DataLayerOpts: []datalayer.DataLayerOption{
 				datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
-				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}),
+				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datalayer.CachedSchema)}),
 			},
 		},
 		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
@@ -431,7 +431,7 @@ func TestCheckPermissionSchemaLoadedOnceMinLatency(t *testing.T) {
 			StreamingAPITimeout:   30 * time.Second,
 			DataLayerOpts: []datalayer.DataLayerOption{
 				datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
-				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}),
+				datalayer.WithSchemaCache(&simpleSchemaCache{items: make(map[datalayer.SchemaCacheKey]*datalayer.CachedSchema)}),
 			},
 		},
 		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
@@ -581,17 +581,17 @@ func (r *countingReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadO
 // simpleSchemaCache is a minimal SchemaCache for testing.
 type simpleSchemaCache struct {
 	mu    sync.Mutex
-	items map[datalayer.SchemaCacheKey]*datastore.ReadOnlyStoredSchema // GUARDED_BY(mu)
+	items map[datalayer.SchemaCacheKey]*datalayer.CachedSchema // GUARDED_BY(mu)
 }
 
-func (c *simpleSchemaCache) Get(key datalayer.SchemaCacheKey) (*datastore.ReadOnlyStoredSchema, bool) {
+func (c *simpleSchemaCache) Get(key datalayer.SchemaCacheKey) (*datalayer.CachedSchema, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	v, ok := c.items[key]
 	return v, ok
 }
 
-func (c *simpleSchemaCache) Set(key datalayer.SchemaCacheKey, entry *datastore.ReadOnlyStoredSchema, _ int64) bool {
+func (c *simpleSchemaCache) Set(key datalayer.SchemaCacheKey, entry *datalayer.CachedSchema, _ int64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.items[key] = entry

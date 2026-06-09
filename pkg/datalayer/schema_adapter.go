@@ -324,7 +324,7 @@ func writeSchemaViaLegacy(ctx context.Context, legacyWriter datastore.LegacySche
 // storedSchemaReaderAdapter implements SchemaReader by reading from the unified
 // StoredSchema proto via ReadStoredSchema on the underlying datastore reader.
 type storedSchemaReaderAdapter struct {
-	storedSchema        *datastore.ReadOnlyStoredSchema
+	cached              *CachedSchema
 	lastWrittenRevision datastore.Revision
 }
 
@@ -343,29 +343,46 @@ func newStoredSchemaReaderAdapter(ctx context.Context, reader storedSchemaReader
 	defer span.End()
 	span.SetAttributes(attribute.String(otelconv.AttrSchemaHash, string(schemaHash)))
 
-	storedSchema, err := cache.GetOrLoad(ctx, lastWrittenRevision, schemaHash, func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error) {
-		return reader.ReadStoredSchema(ctx)
+	cached, err := cache.GetOrLoad(ctx, lastWrittenRevision, schemaHash, func(ctx context.Context) (*CachedSchema, error) {
+		stored, err := reader.ReadStoredSchema(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return NewCachedSchema(stored), nil
 	})
 	if err != nil {
 		if errors.Is(err, datastore.ErrSchemaNotFound) {
 			// No unified schema yet; return an adapter with no definitions
 			return &storedSchemaReaderAdapter{
-				storedSchema: datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
+				cached: NewCachedSchema(datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
 					Version: 1,
 					VersionOneof: &core.StoredSchema_V1{
 						V1: &core.StoredSchema_V1StoredSchema{},
 					},
-				}),
+				})),
 				lastWrittenRevision: lastWrittenRevision,
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to read stored schema: %w", err)
 	}
-	return &storedSchemaReaderAdapter{storedSchema: storedSchema, lastWrittenRevision: lastWrittenRevision}, nil
+	return &storedSchemaReaderAdapter{cached: cached, lastWrittenRevision: lastWrittenRevision}, nil
+}
+
+// StoredSchema returns the underlying read-only stored schema backing this reader.
+func (s *storedSchemaReaderAdapter) StoredSchema() *datastore.ReadOnlyStoredSchema {
+	return s.cached.Schema()
+}
+
+// CachedSchema returns the shared, per-schema-version cached schema, which hosts
+// schema-derived caches (see CachedSchema). It is shared across readers for a single schema
+// version. Consumers may type-assert a SchemaReader to the (structural) interface
+// { CachedSchema() *CachedSchema } to access it.
+func (s *storedSchemaReaderAdapter) CachedSchema() *CachedSchema {
+	return s.cached
 }
 
 func (s *storedSchemaReaderAdapter) v1() *core.StoredSchema_V1StoredSchema {
-	if v1 := s.storedSchema.Get().GetV1(); v1 != nil {
+	if v1 := s.cached.Schema().Get().GetV1(); v1 != nil {
 		return v1
 	}
 	return &core.StoredSchema_V1StoredSchema{}
@@ -546,7 +563,7 @@ func WriteSchemaViaStoredSchema(ctx context.Context, rwt datastore.ReadWriteTran
 
 	// Update cache after successful write
 	if v1 := storedSchema.GetV1(); v1 != nil && v1.SchemaHash != "" {
-		if err := cache.Set(SchemaHash(v1.SchemaHash), datastore.NewReadOnlyStoredSchema(storedSchema)); err != nil {
+		if err := cache.Set(SchemaHash(v1.SchemaHash), NewCachedSchema(datastore.NewReadOnlyStoredSchema(storedSchema))); err != nil {
 			return "", err
 		}
 	}

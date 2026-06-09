@@ -16,20 +16,20 @@ import (
 // storedSchemaCache caches stored schemas by hash.
 type storedSchemaCache interface {
 	GetOrLoad(ctx context.Context, rev datastore.Revision, schemaHash SchemaHash,
-		loader func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error)) (*datastore.ReadOnlyStoredSchema, error)
-	Set(schemaHash SchemaHash, schema *datastore.ReadOnlyStoredSchema) error
+		loader func(ctx context.Context) (*CachedSchema, error)) (*CachedSchema, error)
+	Set(schemaHash SchemaHash, schema *CachedSchema) error
 }
 
 // noopSchemaCache is a storedSchemaCache that always delegates to the loader.
 type noopSchemaCache struct{}
 
 func (noopSchemaCache) GetOrLoad(ctx context.Context, _ datastore.Revision, _ SchemaHash,
-	loader func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error),
-) (*datastore.ReadOnlyStoredSchema, error) {
+	loader func(ctx context.Context) (*CachedSchema, error),
+) (*CachedSchema, error) {
 	return loader(ctx)
 }
 
-func (noopSchemaCache) Set(_ SchemaHash, _ *datastore.ReadOnlyStoredSchema) error {
+func (noopSchemaCache) Set(_ SchemaHash, _ *CachedSchema) error {
 	return nil
 }
 
