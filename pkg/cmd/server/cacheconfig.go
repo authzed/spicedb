@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -46,8 +47,10 @@ func (cc *CacheConfig) WithRevisionParameters(
 	return cc
 }
 
-// CompleteCache translates the CLI cache config into a cache config.
-func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V], error) {
+// CompleteCache translates the CLI cache config into a cache. If metrics are
+// enabled for the cache, it is added to the provided caches map (owned by the
+// server) so the server's cache Collector can export its metrics.
+func CompleteCache[K cache.KeyString, V any](caches *sync.Map, cc *CacheConfig) (cache.Cache[K, V], error) {
 	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" {
 		return cache.NoopCache[K, V](), nil
 	}
@@ -71,17 +74,21 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 		return nil, errors.New("could not cast max cost to int64")
 	}
 
-	if cc.Metrics {
-		return cache.NewStandardCacheWithMetrics[K, V](cc.Name, &cache.Config{
-			MaxCost:    intMaxCost,
-			DefaultTTL: cc.defaultTTL,
-		})
-	}
-
-	return cache.NewStandardCache[K, V](&cache.Config{
+	c, err := cache.NewStandardCache[K, V](&cache.Config{
 		MaxCost:    intMaxCost,
 		DefaultTTL: cc.defaultTTL,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if cc.Metrics {
+		if _, loaded := caches.LoadOrStore(cc.Name, c); loaded {
+			return nil, fmt.Errorf("two caches registered with the same name: %s", cc.Name)
+		}
+	}
+
+	return c, nil
 }
 
 func parsePercent(str string, freeMem uint64) (uint64, error) {

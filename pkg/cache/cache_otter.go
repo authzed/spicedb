@@ -13,24 +13,12 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func NewOtterCacheWithMetrics[K KeyString, V any](name string, config *Config) (Cache[K, V], error) {
-	cache, err := NewOtterCache[K, V](name, config)
-	if err != nil {
-		return nil, err
-	}
-	// NOTE: this is the difference between `WithMetrics` and not -
-	// the counters are instantiated either way, but they're only registered
-	// in this variant.
-	mustRegisterCache(name, cache)
-	return cache, nil
-}
-
 type valueAndCost[V any] struct {
 	value V
 	cost  uint32
 }
 
-func NewOtterCache[K KeyString, V any](name string, config *Config) (Cache[K, V], error) {
+func NewOtterCacheWithMetrics[K KeyString, V any](name string, config *Config) (Cache[K, V], error) {
 	uintCost, err := safecast.Convert[uint64](config.MaxCost)
 	if err != nil {
 		return nil, err
@@ -50,10 +38,10 @@ func NewOtterCache[K KeyString, V any](name string, config *Config) (Cache[K, V]
 
 	cache, err := otter.New(opts)
 	return &otterCache[K, V]{
-		name,
-		cache,
-		otterMetrics{atomic.Uint64{}, counter},
-		config.DefaultTTL,
+		name:    name,
+		cache:   cache,
+		metrics: otterMetrics{atomic.Uint64{}, counter},
+		ttl:     config.DefaultTTL,
 	}, err
 }
 
@@ -101,7 +89,6 @@ func (wtc *otterCache[K, V]) Wait() {}
 func (wtc *otterCache[K, V]) Close() {
 	// Stops the pending goroutine that Otter spins off
 	wtc.cache.StopAllGoroutines()
-	unregisterCache(wtc.name)
 }
 
 type otterMetrics struct {

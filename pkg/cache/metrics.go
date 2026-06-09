@@ -7,10 +7,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func init() {
-	prometheus.MustRegister(defaultCollector)
-}
-
 const (
 	promNamespace = "spicedb"
 	promSubsystem = "cache"
@@ -46,32 +42,30 @@ var (
 	)
 )
 
-var caches sync.Map
-
-func mustRegisterCache(name string, c withMetrics) {
-	if _, loaded := caches.LoadOrStore(name, c); loaded {
-		panic("two caches with the same name: " + name)
-	}
+// Collector is a prometheus.Collector that exports the metrics of every cache
+// tracked in the map it is given. The map is owned by the caller (e.g. a
+// SpiceDB server, which tracks its own caches) rather than by global package
+// state. Construct one with NewCollector and register it with a
+// prometheus.Registerer. The map's values must implement the Cache interface
+// (specifically GetMetrics) and be keyed by the cache name.
+type Collector struct {
+	caches *sync.Map
 }
 
-func unregisterCache(name string) {
-	caches.Delete(name)
+var _ prometheus.Collector = (*Collector)(nil)
+
+// NewCollector returns a Collector that exports metrics for the caches tracked
+// in the given map.
+func NewCollector(caches *sync.Map) *Collector {
+	return &Collector{caches: caches}
 }
 
-var (
-	defaultCollector collector
-
-	_ prometheus.Collector = (*collector)(nil)
-)
-
-type collector struct{}
-
-func (c collector) Describe(ch chan<- *prometheus.Desc) {
+func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	prometheus.DescribeByCollect(c, ch)
 }
 
-func (c collector) Collect(ch chan<- prometheus.Metric) {
-	caches.Range(func(name, cache any) bool {
+func (c *Collector) Collect(ch chan<- prometheus.Metric) {
+	c.caches.Range(func(name, cache any) bool {
 		cacheName := name.(string)
 		metrics := cache.(withMetrics).GetMetrics()
 		ch <- prometheus.MustNewConstMetric(descCacheHitsTotal, prometheus.CounterValue, float64(metrics.Hits()), cacheName)
