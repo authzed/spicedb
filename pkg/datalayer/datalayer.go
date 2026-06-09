@@ -106,6 +106,12 @@ type RevisionedReader interface {
 }
 
 // TxUserFunc is a type for the function that users supply when they invoke a read-write transaction.
+//
+// When WithSchemaHashPrecondition is passed to ReadWriteTx, the datalayer may transparently retry
+// fn with a refreshed schema hash if the stored schema changed since the precondition was captured.
+// This is only safe when ALL schema-sensitive validation (ReadSchema, ValidateRelationshipUpdates,
+// validatePrecondition, etc.) happens INSIDE fn. Validation performed before calling ReadWriteTx
+// will not be re-run on retry, which can allow writes that violate the new schema.
 type TxUserFunc func(context.Context, ReadWriteTransaction) error
 
 // ReadWriteTransaction supports both reading and writing.

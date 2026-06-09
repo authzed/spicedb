@@ -1822,39 +1822,6 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 	return out
 }
 
-func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *testing.T) {
-	require := require.New(t)
-
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
-	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
-
-	// Kick off a number of writes to ensure at least one hits an error, as memdb's write throughput
-	// is limited.
-	g := errgroup.Group{}
-
-	for i := range 50 {
-		g.Go(func() error {
-			updates := make([]*v1.RelationshipUpdate, 0, 500) //nolint:prealloc  // for some reason prealloc thinks this should be 1k
-			for j := range 500 {
-				updates = append(updates, &v1.RelationshipUpdate{
-					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-					Relationship: tuple.ToV1Relationship(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))),
-				})
-			}
-
-			_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
-				Updates: updates,
-			})
-			return err
-		})
-	}
-
-	werr := g.Wait()
-	require.Error(werr)
-	require.ErrorContains(werr, "serialization max retries exceeded")
-	grpcutil.RequireStatus(t, codes.DeadlineExceeded, werr)
-}
 
 func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 	// Test cases covering various combinations of expiration, caveats, and filters

@@ -580,10 +580,6 @@ type ReadWriteTransaction interface {
 	// WriteStoredSchema writes the unified stored schema to the datastore.
 	WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error
 
-	// ReadStoredSchemaHash reads only the schema hash from the datastore without
-	// fetching the full schema blob. Returns ErrSchemaNotFound if no schema has been written.
-	ReadStoredSchemaHash(ctx context.Context) (string, error)
-
 	// BulkLoad takes a relationship source iterator, and writes all of the
 	// relationships to the backing datastore in an optimized fashion. This
 	// method can and will omit checks and otherwise cut corners in the
