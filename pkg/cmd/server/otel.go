@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/contrib/propagators/ot"
@@ -30,12 +31,17 @@ type otelShutdowner interface {
 }
 
 type OTelConfig struct {
-	Provider        string  `debugmap:"visible" default:"none"`
-	Endpoint        string  `debugmap:"visible"`
-	ServiceName     string  `debugmap:"visible" default:"spicedb"`
-	TracePropagator string  `debugmap:"visible" default:"w3c"`
-	UsePlaintext    bool    `debugmap:"visible"`
-	SampleRatio     float64 `debugmap:"visible" default:"0.01"`
+	Provider           string                `debugmap:"visible" default:"none"`
+	Endpoint           string                `debugmap:"visible"`
+	ServiceName        string                `debugmap:"visible" default:"spicedb"`
+	TracePropagator    string                `debugmap:"visible" default:"w3c"`
+	UsePlaintext       bool                  `debugmap:"visible"`
+	SampleRatio        float64               `debugmap:"visible" default:"0.01"`
+	PrometheusRegistry prometheus.Registerer `debugmap:"hidden"`
+}
+
+func (o *OTelConfig) SetDefaults() {
+	o.PrometheusRegistry = prometheus.NewRegistry()
 }
 
 // RegisterOTelFlags registers all OpenTelemetry flags on cmd, binding them directly into cfg.

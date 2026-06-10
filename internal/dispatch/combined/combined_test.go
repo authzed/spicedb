@@ -4,10 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -84,9 +86,9 @@ func TestNewDispatcher_AppliesAllOptions_NoUpstream(t *testing.T) {
 
 	concurrencyLimits := graph.ConcurrencyLimits{Check: 10, LookupResources: 5}
 
+	reg := prometheus.NewRegistry()
 	options := []Option{
-		MetricsEnabled(true),
-		PrometheusSubsystem("test_subsystem"),
+		Metrics(dispatch.MetricsOptions{PrometheusSubsystem: "test_subsystem", PrometheusRegistry: reg}),
 		DispatchChunkSize(50),
 		RelationshipChunkCacheConfig(cacheConfig),
 		CaveatTypeSet(caveattypes.Default.TypeSet),
@@ -96,8 +98,8 @@ func TestNewDispatcher_AppliesAllOptions_NoUpstream(t *testing.T) {
 
 	// Field-level assertions: each setter wrote to the right slot.
 	opts := newOptions(options...)
-	require.True(t, opts.metricsEnabled)
-	require.Equal(t, "test_subsystem", opts.prometheusSubsystem)
+	require.Equal(t, reg, opts.metrics.PrometheusRegistry)
+	require.Equal(t, "test_subsystem", opts.metrics.PrometheusSubsystem)
 	require.Equal(t, uint16(50), opts.dispatchChunkSize)
 	require.Same(t, cacheConfig, opts.relationshipChunkCacheConfig)
 	require.Same(t, caveattypes.Default.TypeSet, opts.caveatTypeSet)

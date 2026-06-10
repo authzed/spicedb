@@ -21,14 +21,6 @@ func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, m
 	err := RegisterRootFlags(cmd)
 	require.NoError(t, err)
 	require.NoError(t, RegisterServeFlags(cmd, config))
-	// Disable all metrics as they are singletons
-	config.DispatchClusterMetricsEnabled = false
-	config.DispatchClientMetricsEnabled = false
-	config.DatastoreConfig.EnableDatastoreMetrics = false
-	config.DispatchCacheConfig.Metrics = false
-	config.ClusterDispatchCacheConfig.Metrics = false
-	config.NamespaceCacheConfig.Metrics = false
-	config.StoredSchemaCacheConfig.Metrics = false
 
 	cmd.SetArgs(args)
 
