@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
+- Server handles: `GRPCDialContext` as a handle on the server used deprecated gRPC methods. We modernized it and renamed it to `NewClient` (https://github.com/authzed/spicedb/pull/3147)
 
 ### Fixed
 - The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)
