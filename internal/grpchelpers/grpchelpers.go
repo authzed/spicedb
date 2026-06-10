@@ -23,6 +23,8 @@ func NewBufferedClient(listener *bufconn.Listener, opts ...grpc.DialOption) (*gr
 			return listener.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		// This identifies the client to the server as being over the buffered network
+		grpc.WithAuthority("buffnet"),
 	}, opts...)
 	return grpc.NewClient("passthrough:///localhost", opts...)
 }
