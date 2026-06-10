@@ -42,6 +42,37 @@ func (r *memdbReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlySt
 	return datastore.NewReadOnlyStoredSchema(storedSchema), nil
 }
 
+// ReadStoredSchemaHash reads only the schema hash from the in-memory schema revision table.
+func (rwt *memdbReadWriteTx) ReadStoredSchemaHash(_ context.Context) (string, error) {
+	rwt.mustLock()
+	defer rwt.Unlock()
+
+	tx, err := rwt.txSource()
+	if err != nil {
+		return "", err
+	}
+
+	raw, err := tx.First(tableSchemaRevision, indexID, "current")
+	if err != nil {
+		return "", fmt.Errorf("failed to read schema hash: %w", err)
+	}
+
+	if raw == nil {
+		return "", datastore.ErrSchemaNotFound
+	}
+
+	srd, ok := raw.(*schemaRevisionData)
+	if !ok {
+		return "", fmt.Errorf("unexpected schema revision data type: %T", raw)
+	}
+
+	if len(srd.hash) == 0 {
+		return "", datastore.ErrSchemaNotFound
+	}
+
+	return string(srd.hash), nil
+}
+
 // WriteStoredSchema writes the unified stored schema to the in-memory database.
 func (rwt *memdbReadWriteTx) WriteStoredSchema(_ context.Context, schema *core.StoredSchema) error {
 	rwt.mustLock()
@@ -66,7 +97,7 @@ func (rwt *memdbReadWriteTx) WriteStoredSchema(_ context.Context, schema *core.S
 
 	// Write the schema hash to the schema revision table for tracking per-snapshot.
 	v1 := schema.GetV1()
-	if v1 != nil {
+	if v1 != nil && v1.SchemaHash != "" {
 		// Delete existing entry first, if any.
 		if existing, err := tx.First(tableSchemaRevision, indexID, "current"); err == nil && existing != nil {
 			if err := tx.Delete(tableSchemaRevision, existing); err != nil {

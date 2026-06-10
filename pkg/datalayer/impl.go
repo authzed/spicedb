@@ -85,9 +85,25 @@ func (d *defaultDataLayer) SnapshotReader(rev datastore.Revision, schemaHash Sch
 }
 
 func (d *defaultDataLayer) ReadWriteTx(ctx context.Context, fn TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
-	return d.ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return fn(ctx, &readWriteTransaction{rwt: rwt, schemaMode: d.schemaMode, cache: d.cache})
+	var pendingHash SchemaHash
+	var pendingSchema *datastore.ReadOnlyStoredSchema
+
+	rev, err := d.ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		pendingHash, pendingSchema = "", nil // reset on retry
+		return fn(ctx, &readWriteTransaction{
+			rwt:        rwt,
+			schemaMode: d.schemaMode,
+			cache:      d.cache,
+			onSchemaWritten: func(h SchemaHash, s *datastore.ReadOnlyStoredSchema) {
+				pendingHash, pendingSchema = h, s
+			},
+		})
 	}, opts...)
+
+	if err == nil && pendingHash != "" {
+		_ = d.cache.Set(pendingHash, pendingSchema)
+	}
+	return rev, err
 }
 
 func (d *defaultDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
@@ -193,11 +209,37 @@ type readWriteTransaction struct {
 	rwt        datastore.ReadWriteTransaction
 	schemaMode SchemaMode
 	cache      storedSchemaCache
+
+	// onSchemaWritten is called by WriteSchema after a successful datastore write.
+	// ReadWriteTx sets this to capture the written schema for post-commit cache update.
+	onSchemaWritten func(SchemaHash, *datastore.ReadOnlyStoredSchema)
+
+	// txHeadHash is the schema hash read on the first ReadSchema call, memoized
+	// so that subsequent calls within the same transaction pay no additional DB cost.
+	txHeadHash SchemaHash
 }
 
 func (t *readWriteTransaction) ReadSchema(ctx context.Context) (SchemaReader, error) {
 	if t.schemaMode.ReadsFromNew() {
-		return newStoredSchemaReaderAdapter(ctx, t.rwt, NoSchemaHashInTransaction, datastore.NoRevision, t.cache)
+		// Read the schema, extract and cache the hash, then reuse it for any subsequent
+		// ReadSchema calls within the same transaction.
+		//
+		// Note: if WriteSchema is called before ReadSchema in the same transaction, this
+		// returns the pre-write schema. That ordering never occurs today, since schema
+		// writes are always isolated in a dedicated api call, but keep in mind for future
+		// uses.
+		if t.txHeadHash == "" {
+			hash, err := t.rwt.ReadStoredSchemaHash(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if hash != "" {
+				t.txHeadHash = SchemaHash(hash)
+			} else {
+				t.txHeadHash = NoSchemaHashInTransaction
+			}
+		}
+		return newStoredSchemaReaderAdapter(ctx, t.rwt, t.txHeadHash, datastore.NoRevision, t.cache)
 	}
 	return &legacySchemaReaderAdapter{legacyReader: t.rwt}, nil
 }
@@ -240,9 +282,12 @@ func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []da
 
 	// Write to unified storage if mode requires it
 	if t.schemaMode.WritesToNew() {
-		schemaHash, err := WriteSchemaViaStoredSchema(ctx, t.rwt, definitions, schemaString, t.cache)
+		schemaHash, schema, err := WriteSchemaViaStoredSchema(ctx, t.rwt, definitions, schemaString)
 		if err != nil {
 			return "", err
+		}
+		if t.onSchemaWritten != nil {
+			t.onSchemaWritten(schemaHash, schema)
 		}
 		return schemaHash, nil
 	}

@@ -2,6 +2,8 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
@@ -27,6 +29,32 @@ func (mr *mysqlReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnl
 
 	rw := common.NewSQLSingleStoreSchemaReaderWriterForTransactionIDs(chunker, common.NoTransactionID[uint64])
 	return rw.ReadStoredSchema(ctx)
+}
+
+// ReadStoredSchemaHash reads only the schema hash from the schema_revision table.
+func (rwt *mysqlReadWriteTXN) ReadStoredSchemaHash(ctx context.Context) (string, error) {
+	query, args, err := sb.Select("hash").
+		From(rwt.schemaRevisionTableName).
+		Where(sq.Eq{colName: schemaRevisionName}).
+		Where(sq.Eq{colDeletedTxn: liveDeletedTxnID}).
+		OrderBy(colCreatedTxn + " DESC").
+		Limit(1).
+		ToSql()
+	if err != nil {
+		return "", fmt.Errorf("failed to build schema hash query: %w", err)
+	}
+
+	var hash []byte
+	if err := rwt.tx.QueryRowContext(ctx, query, args...).Scan(&hash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to read schema hash: %w", err)
+	}
+	if len(hash) == 0 {
+		return "", datastore.ErrSchemaNotFound
+	}
+	return string(hash), nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the MySQL schema table.

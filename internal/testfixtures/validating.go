@@ -265,6 +265,10 @@ func (vrwt validatingReadWriteTransaction) ReadStoredSchema(ctx context.Context)
 	return vrwt.delegate.ReadStoredSchema(ctx)
 }
 
+func (vrwt validatingReadWriteTransaction) ReadStoredSchemaHash(ctx context.Context) (string, error) {
+	return vrwt.delegate.ReadStoredSchemaHash(ctx)
+}
+
 func (vrwt validatingReadWriteTransaction) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
 	return vrwt.delegate.WriteStoredSchema(ctx, schema)
 }
