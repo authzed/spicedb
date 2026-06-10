@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/spanner"
+	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -24,6 +25,28 @@ func (sr spannerReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOn
 
 	rw := common.NewSQLSingleStoreSchemaReaderWriterWithBuiltInMVCC(chunker)
 	return rw.ReadStoredSchema(ctx)
+}
+
+// ReadStoredSchemaHash reads only the schema hash from the schema_revision table.
+func (rwt spannerReadWriteTXN) ReadStoredSchemaHash(ctx context.Context) (string, error) {
+	row, err := rwt.txSource().ReadRow(ctx, "schema_revision", spanner.Key{"current"}, []string{"schema_hash"})
+	if err != nil {
+		if spanner.ErrCode(err) == codes.NotFound {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to read schema hash: %w", err)
+	}
+
+	var hash []byte
+	if err := row.Column(0, &hash); err != nil {
+		return "", fmt.Errorf("failed to scan schema hash: %w", err)
+	}
+
+	if len(hash) == 0 {
+		return "", datastore.ErrSchemaNotFound
+	}
+
+	return string(hash), nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the Spanner schema table.

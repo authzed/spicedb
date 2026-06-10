@@ -306,7 +306,7 @@ func setupDatastore(t *testing.T, ds datastore.Datastore) datastore.Revision {
 	require.NoError(t, err)
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// TODO: add cache to this?
-		_, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, schemaDefinitions, schemaText, nil)
+		_, _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, schemaDefinitions, schemaText)
 		return err
 	})
 	require.NoError(t, err)
