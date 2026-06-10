@@ -40,6 +40,9 @@ func TestWatchingCachingProxyUnwrap(t *testing.T) {
 	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
 	unwrapped := wcache.Unwrap()
 	require.Equal(t, fakeDS, unwrapped)
+	t.Cleanup(func() {
+		wcache.Close()
+	})
 }
 
 func TestOldWatchingCacheBasicOperation(t *testing.T) {

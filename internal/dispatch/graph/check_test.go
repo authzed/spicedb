@@ -2068,15 +2068,15 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 
 	ds, revision := testfixtures.StandardDatastoreWithData(t, rawDS)
 
-	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = dispatch.Close()
+		_ = dispatcher.Close()
 	})
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), dispatch.MetricsOptions{}, &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)
-	cachingDispatcher.SetDelegate(dispatch)
+	cachingDispatcher.SetDelegate(dispatcher)
 	t.Cleanup(func() {
 		cachingDispatcher.Close()
 	})
@@ -2093,15 +2093,15 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, schema, rels)
 
-	dispatch, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+	dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		dispatch.Close()
+		dispatcher.Close()
 	})
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), dispatch.MetricsOptions{}, &keys.CanonicalKeyHandler{})
 	require.NoError(t, err)
-	cachingDispatcher.SetDelegate(dispatch)
+	cachingDispatcher.SetDelegate(dispatcher)
 	t.Cleanup(func() {
 		cachingDispatcher.Close()
 	})
