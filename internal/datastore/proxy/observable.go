@@ -388,6 +388,12 @@ func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWrite
 	return rwt.delegate.BulkLoad(ctx, iter)
 }
 
+func (rwt *observableRWT) ReadStoredSchemaHash(ctx context.Context) (string, error) {
+	ctx, closer := observe(ctx, "ReadStoredSchemaHash", "")
+	defer closer()
+	return rwt.delegate.ReadStoredSchemaHash(ctx)
+}
+
 func (rwt *observableRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
 	ctx, closer := observe(ctx, "WriteStoredSchema", "")
 	defer closer()

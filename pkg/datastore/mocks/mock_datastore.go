@@ -552,6 +552,21 @@ func (mr *MockReadWriteTransactionMockRecorder) ReadStoredSchema(ctx any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadStoredSchema", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReadStoredSchema), ctx)
 }
 
+// ReadStoredSchemaHash mocks base method.
+func (m *MockReadWriteTransaction) ReadStoredSchemaHash(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadStoredSchemaHash", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadStoredSchemaHash indicates an expected call of ReadStoredSchemaHash.
+func (mr *MockReadWriteTransactionMockRecorder) ReadStoredSchemaHash(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadStoredSchemaHash", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReadStoredSchemaHash), ctx)
+}
+
 // RegisterCounter mocks base method.
 func (m *MockReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *corev1.RelationshipFilter) error {
 	m.ctrl.T.Helper()

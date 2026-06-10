@@ -677,16 +677,8 @@ func TestNewStoredSchemaReaderAdapter_Success(t *testing.T) {
 func TestNewStoredSchemaReaderAdapter_SchemaNotFound(t *testing.T) {
 	t.Parallel()
 	reader := &fakeStoredSchemaReader{err: datastore.ErrSchemaNotFound}
-	adapter, err := newStoredSchemaReaderAdapter(t.Context(), reader, "somehash", testRevision, noopSchemaCache{})
-	require.NoError(t, err)
-
-	// Should return empty adapter
-	defs, err := adapter.ListAllTypeDefinitions(t.Context())
-	require.NoError(t, err)
-	require.Empty(t, defs)
-
-	_, err = adapter.SchemaText(t.Context())
-	require.Error(t, err) // SchemaNotDefinedErr
+	_, err := newStoredSchemaReaderAdapter(t.Context(), reader, "somehash", testRevision, noopSchemaCache{})
+	require.ErrorIs(t, err, datastore.ErrSchemaNotFound)
 }
 
 func TestNewStoredSchemaReaderAdapter_OtherError(t *testing.T) {

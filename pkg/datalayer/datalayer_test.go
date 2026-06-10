@@ -2,6 +2,7 @@ package datalayer
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -602,7 +604,7 @@ func TestWriteSchemaRejectsCaveatAndNamespaceWithSameName(t *testing.T) {
 
 	// WriteSchemaViaStoredSchema uses MustBugf for duplicate names, which panics in tests.
 	require.Panics(t, func() {
-		_, _ = WriteSchemaViaStoredSchema(t.Context(), nil, defs, "", nil)
+		_, _, _ = WriteSchemaViaStoredSchema(t.Context(), nil, defs, "")
 	})
 }
 
@@ -1492,4 +1494,155 @@ func TestHeadRevisionSchemaHashMatchesRevision(t *testing.T) {
 	typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
 	require.NoError(err)
 	require.Len(typeDefs, 2, "first revision should have the original 2-type schema")
+}
+
+// TestReadSchemaInWriteTxOnFreshDatastore verifies that ReadSchema inside a write
+// transaction on a database with no schema returns ErrSchemaNotFound.
+func TestReadSchemaInWriteTxOnFreshDatastore(t *testing.T) {
+	t.Parallel()
+
+	ds := newTestDatastore(t)
+	dl := NewDataLayer(ds, WithSchemaMode(SchemaModeReadNewWriteNew))
+	ctx := t.Context()
+
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.ReadSchema(ctx)
+		return err
+	})
+	require.ErrorIs(t, err, datastore.ErrSchemaNotFound)
+}
+
+// TestRolledBackWriteDoesNotPolluteCache verifies that a schema write whose
+// transaction is rolled back (callback returns an error) does NOT populate the
+// schema cache. cache.Set is deferred to post-commit, so a rolled-back write
+// must not leave a stale entry that subsequent reads could serve.
+func TestRolledBackWriteDoesNotPolluteCache(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rawDS := newTestDatastore(t)
+	innerCache := newTestSchemaCache()
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew), WithSchemaCache(innerCache))
+	ctx := t.Context()
+
+	defs, schemaText := testSchemaDefinitions(t)
+
+	// Pre-compute the hash that WriteSchema would produce for these definitions.
+	rolledBackHash := SchemaHash(computeHash(t, defs))
+
+	rollbackErr := errors.New("intentional rollback")
+
+	// Write schema then force a rollback by returning an error from the callback.
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		if _, wErr := rwt.WriteSchema(ctx, defs, schemaText, nil); wErr != nil {
+			return wErr
+		}
+		return rollbackErr
+	})
+	require.ErrorIs(err, rollbackErr)
+
+	// The rolled-back hash must NOT appear in the cache.
+	_, ok := innerCache.Get(SchemaCacheKey(rolledBackHash))
+	require.False(ok, "rolled-back write must not populate the schema cache")
+
+	// A subsequent write transaction must see ErrSchemaNotFound (not the rolled-back schema).
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, rErr := rwt.ReadSchema(ctx)
+		return rErr
+	})
+	require.ErrorIs(err, datastore.ErrSchemaNotFound)
+}
+
+// countingRWTDatastore wraps a Datastore and counts ReadStoredSchemaHash calls made
+// inside write transactions.
+type countingRWTDatastore struct {
+	datastore.Datastore
+	readStoredSchemaHashCalls atomic.Int32
+}
+
+func (c *countingRWTDatastore) ReadWriteTx(ctx context.Context, f datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+	return c.Datastore.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return f(ctx, &countingHashRWT{ReadWriteTransaction: rwt, counter: &c.readStoredSchemaHashCalls})
+	}, opts...)
+}
+
+type countingHashRWT struct {
+	datastore.ReadWriteTransaction
+	counter *atomic.Int32
+}
+
+func (r *countingHashRWT) ReadStoredSchemaHash(ctx context.Context) (string, error) {
+	r.counter.Add(1)
+	return r.ReadWriteTransaction.ReadStoredSchemaHash(ctx)
+}
+
+// TestReadSchemaInWriteTxOnExistingDatastore verifies that ReadSchema inside a write
+// transaction on a database that already has schema returns the schema correctly.
+// This exercises the ReadStoredSchemaHash success path (hash row exists) and the
+// impl.go branch that sets txHeadHash from the returned hash.
+func TestReadSchemaInWriteTxOnExistingDatastore(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	ds := newTestDatastore(t)
+	dl := NewDataLayer(ds, WithSchemaMode(SchemaModeReadNewWriteNew))
+	ctx := t.Context()
+	defs, schemaText := testSchemaDefinitions(t)
+
+	// Write schema in tx1.
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(err)
+
+	// In tx2, read schema without writing first — exercises ReadStoredSchemaHash.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
+		typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+		if err != nil {
+			return err
+		}
+		require.Len(typeDefs, 2)
+		return nil
+	})
+	require.NoError(err)
+}
+
+// TestReadSchemaInWriteTxHashMemoized verifies that ReadStoredSchemaHash is called at
+// most once per write transaction, regardless of how many times ReadSchema is called.
+func TestReadSchemaInWriteTxHashMemoized(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rawDS := newTestDatastore(t)
+	ds := &countingRWTDatastore{Datastore: rawDS}
+	dl := NewDataLayer(ds, WithSchemaMode(SchemaModeReadNewWriteNew), WithSchemaCache(newTestSchemaCache()))
+	ctx := t.Context()
+	defs, schemaText := testSchemaDefinitions(t)
+
+	// Write schema first.
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(err)
+
+	ds.readStoredSchemaHashCalls.Store(0)
+
+	// Call ReadSchema twice in the same transaction — hash should be read only once.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		if _, err := rwt.ReadSchema(ctx); err != nil {
+			return err
+		}
+		if _, err := rwt.ReadSchema(ctx); err != nil {
+			return err
+		}
+		return nil
+	})
+	require.NoError(err)
+	require.Equal(int32(1), ds.readStoredSchemaHashCalls.Load(), "ReadStoredSchemaHash must be called at most once per write transaction")
 }

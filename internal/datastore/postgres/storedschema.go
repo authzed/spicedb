@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -26,6 +27,29 @@ func (r *pgReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlySto
 
 	rw := common.NewSQLSingleStoreSchemaReaderWriterForTransactionIDs(chunker, common.NoTransactionID[uint64])
 	return rw.ReadStoredSchema(ctx)
+}
+
+// ReadStoredSchemaHash reads only the schema hash from the schema_revision table.
+func (rwt *pgReadWriteTXN) ReadStoredSchemaHash(ctx context.Context) (string, error) {
+	sql, args, err := psql.Select("hash").
+		From("schema_revision").
+		Where(sq.Eq{"name": "current"}).
+		Where(sq.Eq{"deleted_xid": liveDeletedTxnID}).
+		OrderBy("created_xid DESC").
+		Limit(1).
+		ToSql()
+	if err != nil {
+		return "", fmt.Errorf("failed to build schema hash query: %w", err)
+	}
+
+	var hash []byte
+	if err := rwt.tx.QueryRow(ctx, sql, args...).Scan(&hash); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", datastore.ErrSchemaNotFound
+		}
+		return "", fmt.Errorf("failed to read schema hash: %w", err)
+	}
+	return string(hash), nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the Postgres schema table.
