@@ -4,19 +4,24 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/testutil"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // toSchemaDefinitions converts compiler.SchemaDefinition slice to datastore.SchemaDefinition slice.
@@ -34,7 +39,7 @@ func writeSchema(ctx context.Context, t *testing.T, ds datastore.Datastore,
 ) datastore.Revision {
 	t.Helper()
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(definitions), schemaText, nil)
+		_, _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(definitions), schemaText)
 		return err
 	})
 	require.NoError(t, err)
@@ -320,7 +325,7 @@ func StoredSchemaReadWithinTransactionTest(t *testing.T, tester DatastoreTester)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write within the transaction.
-		if _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(defs), schemaText, nil); err != nil {
+		if _, _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(defs), schemaText); err != nil {
 			return err
 		}
 
@@ -775,6 +780,337 @@ func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 		"OptimizedRevision should return the updated schema hash after a schema change")
 	require.NotEqual(resultAfterFirst.SchemaHash, resultAfterSecond.SchemaHash,
 		"OptimizedRevision schema hashes should differ after writing a different schema")
+}
+
+// StoredSchemaViaDataLayerTest exercises the DataLayer's ReadSchema inside write
+// transactions in both legacy (ReadLegacyWriteLegacy) and new (ReadNewWriteNew)
+// schema modes. In new mode, ReadSchema calls ReadStoredSchemaHash before fetching
+// the full blob — a path not exercised by the raw-datastore tests above.
+func StoredSchemaViaDataLayerTest(t *testing.T, tester DatastoreTester) {
+	ctx := t.Context()
+
+	schemaText := `definition user {}
+
+definition document {
+	relation viewer: user
+}`
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schemaText,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	defs := make([]compiler.SchemaDefinition, 0, len(compiled.ObjectDefinitions))
+	for _, od := range compiled.ObjectDefinitions {
+		defs = append(defs, od)
+	}
+	dsDefs := toSchemaDefinitions(defs)
+
+	modes := []struct {
+		name string
+		mode datalayer.SchemaMode
+	}{
+		{"ReadLegacyWriteLegacy", datalayer.SchemaModeReadLegacyWriteLegacy},
+		{"ReadLegacyWriteBoth", datalayer.SchemaModeReadLegacyWriteBoth},
+		{"ReadNewWriteBoth", datalayer.SchemaModeReadNewWriteBoth},
+		{"ReadNewWriteNew", datalayer.SchemaModeReadNewWriteNew},
+	}
+
+	for _, tc := range modes {
+		t.Run(tc.name, func(t *testing.T) {
+			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			require.NoError(t, err)
+
+			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(tc.mode))
+
+			// tx1: write schema through DataLayer.
+			rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				_, err := rwt.WriteSchema(ctx, dsDefs, schemaText, nil)
+				return err
+			})
+			require.NoError(t, err)
+
+			// tx2: read schema within a write transaction without writing first.
+			_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				sr, err := rwt.ReadSchema(ctx)
+				if err != nil {
+					return err
+				}
+				typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+				if err != nil {
+					return err
+				}
+				require.Len(t, typeDefs, 2)
+				return nil
+			})
+			require.NoError(t, err)
+
+			// Snapshot read after commit should also return the same schema.
+			reader := dl.SnapshotReader(rev, datalayer.NoSchemaHashForTesting)
+			sr, err := reader.ReadSchema(ctx)
+			require.NoError(t, err)
+			typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+			require.NoError(t, err)
+			require.Len(t, typeDefs, 2)
+		})
+	}
+}
+
+// StoredSchemaReadInWriteTxMemoizedTest verifies that, in new-read schema modes,
+// ReadSchema called multiple times in the same write transaction returns consistent results.
+func StoredSchemaReadInWriteTxMemoizedTest(t *testing.T, tester DatastoreTester) {
+	ctx := t.Context()
+
+	schemaText := `definition user {}`
+	defs := []compiler.SchemaDefinition{ns.Namespace("user")}
+	dsDefs := toSchemaDefinitions(defs)
+
+	modes := []struct {
+		name string
+		mode datalayer.SchemaMode
+	}{
+		{"ReadNewWriteBoth", datalayer.SchemaModeReadNewWriteBoth},
+		{"ReadNewWriteNew", datalayer.SchemaModeReadNewWriteNew},
+	}
+
+	for _, tc := range modes {
+		t.Run(tc.name, func(t *testing.T) {
+			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			require.NoError(t, err)
+
+			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(tc.mode))
+
+			_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				_, err := rwt.WriteSchema(ctx, dsDefs, schemaText, nil)
+				return err
+			})
+			require.NoError(t, err)
+
+			// Read schema twice in the same write transaction; should succeed both times.
+			_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+				sr1, err := rwt.ReadSchema(ctx)
+				if err != nil {
+					return err
+				}
+				typeDefs1, err := sr1.ListAllTypeDefinitions(ctx)
+				if err != nil {
+					return err
+				}
+				require.Len(t, typeDefs1, 1)
+
+				sr2, err := rwt.ReadSchema(ctx)
+				if err != nil {
+					return err
+				}
+				typeDefs2, err := sr2.ListAllTypeDefinitions(ctx)
+				if err != nil {
+					return err
+				}
+				require.Len(t, typeDefs2, 1)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+// StoredSchemaAssertHashPreconditionTest verifies that WithSchemaHashPrecondition causes the
+// datastore to abort the transaction if the stored schema hash does not match.
+func StoredSchemaAssertHashPreconditionTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+	ctx := t.Context()
+
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	defs := []compiler.SchemaDefinition{ns.Namespace("user")}
+	schemaText, _, err := generator.GenerateSchema(ctx, defs)
+	require.NoError(err)
+
+	writeSchema(ctx, t, ds, defs, schemaText)
+
+	// Read the stored hash via HeadRevision.
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	storedHash := headRev.SchemaHash
+	require.NotEmpty(storedHash)
+
+	// Precondition with correct hash: should succeed.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return nil
+	}, options.WithSchemaHashPrecondition(storedHash))
+	require.NoError(err)
+
+	// Precondition with wrong hash: should fail with ErrSchemaHashPreconditionFailed.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return nil
+	}, options.WithSchemaHashPrecondition("wrong-hash-value"))
+	require.ErrorIs(err, datastore.ErrSchemaHashPreconditionFailed)
+
+	// No precondition (empty string via no option): should succeed normally.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(err)
+}
+
+// StoredSchemaConcurrentSchemaWinsTest verifies the safety invariant for concurrent schema and
+// relationship writes: after a schema write commits, any relationship write carrying the old hash
+// fails immediately. The mechanism differs by datastore:
+//   - Postgres/MySQL: the rel write holds FOR SHARE until commit; the schema write (FOR UPDATE)
+//     blocks until all in-flight rel writes release, so no rel write commits against a stale schema.
+//   - CRDB: FOR SHARE is best-effort under SERIALIZABLE isolation; correctness is provided by
+//     CRDB's serializable conflict detection at commit time instead of explicit locking.
+func StoredSchemaConcurrentSchemaWinsTest(t *testing.T, tester DatastoreTester) {
+	req := require.New(t)
+	ctx := t.Context()
+
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	req.NoError(err)
+
+	// Write initial schema (schema V1 = "user").
+	defsV1 := []compiler.SchemaDefinition{ns.Namespace("user")}
+	schemaTextV1, _, err := generator.GenerateSchema(ctx, defsV1)
+	req.NoError(err)
+	writeSchema(ctx, t, ds, defsV1, schemaTextV1)
+
+	headRevV1, err := ds.HeadRevision(ctx)
+	req.NoError(err)
+	hashV1 := headRevV1.SchemaHash
+	req.NotEmpty(hashV1)
+
+	// Prepare schema V2 (adds "document") for the schema write.
+	defsV2 := []compiler.SchemaDefinition{ns.Namespace("user"), ns.Namespace("document")}
+	schemaTextV2, _, err := generator.GenerateSchema(ctx, defsV2)
+	req.NoError(err)
+
+	// relWriteInside is closed when the rel write has acquired FOR SHARE and is inside fn.
+	// releaseRelWrite is closed to let the rel write commit and release FOR SHARE.
+	relWriteInside := make(chan struct{})
+	releaseRelWrite := make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			close(relWriteInside) // signal: FOR SHARE acquired, transaction is open
+			<-releaseRelWrite     // hold FOR SHARE until the test releases us
+			return nil
+		}, options.WithSchemaHashPrecondition(hashV1), options.WithDisableRetries(true))
+	}()
+
+	// Wait for the rel write to be inside its transaction (FOR SHARE held).
+	select {
+	case <-relWriteInside:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for relationship write to enter its transaction")
+	}
+
+	// Start the schema write. On Postgres/MySQL it blocks on FOR UPDATE until the rel write
+	// releases FOR SHARE. On CRDB it proceeds immediately — correctness is guaranteed by
+	// CRDB's serializable isolation detecting the read-write conflict at commit time instead.
+	schemaWriteDone := make(chan error, 1)
+	go func() {
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			_, _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(defsV2), schemaTextV2)
+			return err
+		}, options.WithSchemaHashPrecondition(hashV1), options.WithSchemaHashPreconditionExclusive(true))
+		schemaWriteDone <- err
+	}()
+
+	// Release the rel write, then wait for the schema write to complete.
+	close(releaseRelWrite)
+	wg.Wait()
+
+	select {
+	case err := <-schemaWriteDone:
+		req.NoError(err, "schema write should succeed")
+	case <-time.After(10 * time.Second):
+		t.Fatal("schema write did not complete within 10s")
+	}
+
+	// A new relationship write carrying the now-stale hash must fail immediately.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return nil
+	}, options.WithSchemaHashPrecondition(hashV1), options.WithDisableRetries(true))
+	req.ErrorIs(err, datastore.ErrSchemaHashPreconditionFailed,
+		"relationship write with stale hash should fail after schema write commits")
+}
+
+// StoredSchemaWriteSucceedsUnderRelWriteTrafficTest verifies that a schema write can complete
+// under continuous relationship write traffic. The DB's lock queue prevents starvation: once a
+// FOR UPDATE (schema write) is queued, new FOR SHARE (rel write) requests queue behind it, so
+// the schema write drains the current holders and proceeds in bounded time.
+func StoredSchemaWriteSucceedsUnderRelWriteTrafficTest(t *testing.T, tester DatastoreTester) {
+	req := require.New(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	req.NoError(err)
+
+	// Write initial schema V1: a namespace with a relation so traffic goroutines can write rels.
+	defsV1 := []compiler.SchemaDefinition{
+		ns.Namespace("user"),
+		ns.Namespace("resource", ns.MustRelation("reader", nil)),
+	}
+	schemaTextV1, _, err := generator.GenerateSchema(ctx, defsV1)
+	req.NoError(err)
+	writeSchema(ctx, t, ds, defsV1, schemaTextV1)
+
+	headRevV1, err := ds.HeadRevision(ctx)
+	req.NoError(err)
+	hashV1 := headRevV1.SchemaHash
+	req.NotEmpty(hashV1)
+
+	// Schema V2 adds a "document" namespace.
+	defsV2 := []compiler.SchemaDefinition{
+		ns.Namespace("user"),
+		ns.Namespace("resource", ns.MustRelation("reader", nil)),
+		ns.Namespace("document"),
+	}
+	schemaTextV2, _, err := generator.GenerateSchema(ctx, defsV2)
+	req.NoError(err)
+
+	// Launch constant rel write traffic. Each goroutine writes unique relationships in a
+	// tight loop, holding FOR SHARE on the schema row for the duration of each write.
+	var attempted atomic.Int64
+	const writers = 5
+	var wg sync.WaitGroup
+	for i := range writers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; ctx.Err() == nil; j++ {
+				_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+					rtu := tuple.Touch(tuple.MustParse(fmt.Sprintf("resource:res-%d-%d#reader@user:u", i, j)))
+					return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
+				}, options.WithSchemaHashPrecondition(hashV1))
+				attempted.Add(1)
+			}
+		}()
+	}
+
+	// Wait until all writers have made at least one attempt, confirming FOR SHARE traffic is flowing.
+	req.Eventually(func() bool { return attempted.Load() >= writers }, 30*time.Second, time.Millisecond)
+
+	// Now attempt the schema write. The DB must not starve it.
+	schemaWriteDone := make(chan error, 1)
+	go func() {
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			_, _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(defsV2), schemaTextV2)
+			return err
+		}, options.WithSchemaHashPrecondition(hashV1), options.WithSchemaHashPreconditionExclusive(true))
+		schemaWriteDone <- err
+	}()
+
+	select {
+	case err := <-schemaWriteDone:
+		req.NoError(err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("schema write did not complete within 10s under constant rel write traffic — possible lock starvation")
+	}
 }
 
 // verifySchemaTypes reads schema through the datalayer at the given revision

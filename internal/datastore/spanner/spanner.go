@@ -361,6 +361,13 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
 			spannerRWT,
 		}
+
+		if config.SchemaHashPrecondition != "" {
+			if err := assertSchemaHash(ctx, spannerRWT, config.SchemaHashPrecondition); err != nil {
+				return err
+			}
+		}
+
 		err := func() error {
 			innerCtx, innerSpan := tracer.Start(ctx, "TxUserFunc")
 			defer innerSpan.End()

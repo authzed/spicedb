@@ -120,6 +120,15 @@ type RWTOptions struct {
 	DisableRetries    bool             `debugmap:"visible"`
 	Metadata          *structpb.Struct `debugmap:"visible"`
 	IncludesExpiredAt bool             `debugmap:"visible"`
+	// SchemaHashPrecondition, when non-empty, causes ReadWriteTx to verify the
+	// stored schema hash equals this value before invoking the user callback.
+	// Returns ErrSchemaHashPreconditionFailed if the hash differs.
+	SchemaHashPrecondition string `debugmap:"visible"`
+	// SchemaHashPreconditionExclusive, when true, causes the schema hash precondition
+	// check to acquire an exclusive (FOR UPDATE) lock rather than a shared (FOR SHARE)
+	// lock. Set by schema write transactions; relationship writes use the default shared lock
+	// so they can proceed concurrently.
+	SchemaHashPreconditionExclusive bool `debugmap:"visible"`
 }
 
 // DeleteOptions are the options that can affect the results of a delete relationships

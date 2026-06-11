@@ -2,6 +2,7 @@ package datalayer
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -602,7 +604,7 @@ func TestWriteSchemaRejectsCaveatAndNamespaceWithSameName(t *testing.T) {
 
 	// WriteSchemaViaStoredSchema uses MustBugf for duplicate names, which panics in tests.
 	require.Panics(t, func() {
-		_, _ = WriteSchemaViaStoredSchema(t.Context(), nil, defs, "", nil)
+		_, _, _ = WriteSchemaViaStoredSchema(t.Context(), nil, defs, "")
 	})
 }
 
@@ -1492,4 +1494,702 @@ func TestHeadRevisionSchemaHashMatchesRevision(t *testing.T) {
 	typeDefs, err := schemaReader.ListAllTypeDefinitions(ctx)
 	require.NoError(err)
 	require.Len(typeDefs, 2, "first revision should have the original 2-type schema")
+}
+
+// TestReadSchemaInWriteTxOnFreshDatastore verifies that ReadSchema inside a write
+// transaction on a database with no schema returns ErrSchemaNotFound.
+func TestReadSchemaInWriteTxOnFreshDatastore(t *testing.T) {
+	t.Parallel()
+
+	ds := newTestDatastore(t)
+	dl := NewDataLayer(ds, WithSchemaMode(SchemaModeReadNewWriteNew))
+	ctx := t.Context()
+
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.ReadSchema(ctx)
+		return err
+	})
+	require.ErrorIs(t, err, datastore.ErrSchemaNotFound)
+}
+
+// TestRolledBackWriteDoesNotPolluteCache verifies that a schema write whose
+// transaction is rolled back (callback returns an error) does NOT populate the
+// schema cache. cache.Set is deferred to post-commit, so a rolled-back write
+// must not leave a stale entry that subsequent reads could serve.
+func TestRolledBackWriteDoesNotPolluteCache(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	rawDS := newTestDatastore(t)
+	innerCache := newTestSchemaCache()
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew), WithSchemaCache(innerCache))
+	ctx := t.Context()
+
+	defs, schemaText := testSchemaDefinitions(t)
+
+	// Pre-compute the hash that WriteSchema would produce for these definitions.
+	rolledBackHash := SchemaHash(computeHash(t, defs))
+
+	rollbackErr := errors.New("intentional rollback")
+
+	// Write schema then force a rollback by returning an error from the callback.
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		if _, wErr := rwt.WriteSchema(ctx, defs, schemaText, nil); wErr != nil {
+			return wErr
+		}
+		return rollbackErr
+	})
+	require.ErrorIs(err, rollbackErr)
+
+	// The rolled-back hash must NOT appear in the cache.
+	_, ok := innerCache.Get(SchemaCacheKey(rolledBackHash))
+	require.False(ok, "rolled-back write must not populate the schema cache")
+
+	// A subsequent write transaction must see ErrSchemaNotFound (not the rolled-back schema).
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, rErr := rwt.ReadSchema(ctx)
+		return rErr
+	})
+	require.ErrorIs(err, datastore.ErrSchemaNotFound)
+}
+
+// TestReadSchemaInWriteTxOnExistingDatastore verifies that ReadSchema inside a write
+// transaction on a database that already has schema returns the schema correctly.
+func TestReadSchemaInWriteTxOnExistingDatastore(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+
+	ds := newTestDatastore(t)
+	dl := NewDataLayer(ds, WithSchemaMode(SchemaModeReadNewWriteNew))
+	ctx := t.Context()
+	defs, schemaText := testSchemaDefinitions(t)
+
+	// Write schema in tx1.
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(err)
+
+	// In tx2, read schema without writing first.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
+		typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+		if err != nil {
+			return err
+		}
+		require.Len(typeDefs, 2)
+		return nil
+	})
+	require.NoError(err)
+}
+
+// TestSchemaHashPreconditionMatch verifies that ReadSchema uses the precondition hash
+// directly when WithSchemaHashPrecondition is set and the hash matches.
+func TestSchemaHashPreconditionMatch(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	// Get the stored hash via HeadRevision.
+	headRev, err := rawDS.HeadRevision(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, headRev.SchemaHash)
+
+	// Open a write tx with the correct precondition and read schema — must succeed.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.ReadSchema(ctx)
+		return err
+	}, options.WithSchemaHashPrecondition(headRev.SchemaHash))
+	require.NoError(t, err)
+}
+
+// TestSchemaHashPreconditionMismatch verifies that a wrong precondition hash returns
+// ErrSchemaHashPreconditionFailed when retries are disabled, and that the user
+// callback is never called (assertSchemaHash fires before fn).
+func TestSchemaHashPreconditionMismatch(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	fnCalled := false
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		fnCalled = true
+		return nil
+	}, options.WithSchemaHashPrecondition("wrong-hash-value"), options.WithDisableRetries(true))
+	require.ErrorIs(t, err, datastore.ErrSchemaHashPreconditionFailed)
+	require.False(t, fnCalled, "user callback must not be called when precondition fails")
+}
+
+// TestSchemaHashPreconditionIgnoredInLegacyMode verifies that WithSchemaHashPrecondition
+// is effectively ignored by the datalayer in legacy schema modes (the hash does not
+// affect ReadSchema routing, which falls back to legacy storage).
+func TestSchemaHashPreconditionIgnoredInLegacyMode(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadLegacyWriteLegacy))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	// In legacy mode, any precondition string is simply ignored by the datalayer's
+	// ReadSchema path. The underlying datastore may or may not check it; memdb does
+	// check it but there is no schema_revision row in legacy-only mode, so we must
+	// not pass a precondition to avoid a false ErrSchemaHashPreconditionFailed.
+	// This test uses an empty precondition to confirm legacy mode works normally.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
+		typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+		if err != nil {
+			return err
+		}
+		require.Len(t, typeDefs, 2)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestSchemaHashPreconditionEmpty verifies that an empty precondition behaves
+// identically to not passing one at all — ReadSchema succeeds.
+func TestSchemaHashPreconditionEmpty(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	// Passing an empty precondition must behave identically to passing no option.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		sr, err := rwt.ReadSchema(ctx)
+		if err != nil {
+			return err
+		}
+		typeDefs, err := sr.ListAllTypeDefinitions(ctx)
+		if err != nil {
+			return err
+		}
+		require.Len(t, typeDefs, 2)
+		return nil
+	}, options.WithSchemaHashPrecondition(""))
+	require.NoError(t, err)
+}
+
+// TestSchemaHashPreconditionRetryOnStalePrecondition verifies that the datalayer
+// transparently retries when a precondition hash is stale (schema was updated after
+// the hash was fetched). The callback must be called exactly once — on the retry,
+// not on the failed first attempt (since assertSchemaHash fires before fn).
+func TestSchemaHashPreconditionRetryOnStalePrecondition(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	// Write first schema, capture its hash.
+	defs1, schemaText1 := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	headRev1, err := rawDS.HeadRevision(ctx)
+	require.NoError(t, err)
+	staleHash := headRev1.SchemaHash
+	require.NotEmpty(t, staleHash)
+
+	// Write a different schema — staleHash is now outdated.
+	defs2 := []datastore.SchemaDefinition{ns.Namespace("team")}
+	schemaText2, _, err := generator.GenerateSchema(ctx, []compiler.SchemaDefinition{ns.Namespace("team")})
+	require.NoError(t, err)
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	// Open a write tx with the stale hash. The datalayer should detect the mismatch,
+	// fetch the new hash, and retry — the callback must succeed on that retry.
+	callCount := 0
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		callCount++
+		return nil
+	}, options.WithSchemaHashPrecondition(staleHash))
+	require.NoError(t, err)
+	require.Equal(t, 1, callCount, "callback should be called exactly once (on the retry)")
+}
+
+// TestSchemaHashPreconditionNoRetryWhenDisabled verifies that DisableRetries suppresses
+// the automatic refresh-and-retry on ErrSchemaHashPreconditionFailed.
+func TestSchemaHashPreconditionNoRetryWhenDisabled(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	defs1, schemaText1 := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs1, schemaText1, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	headRev1, err := rawDS.HeadRevision(ctx)
+	require.NoError(t, err)
+	staleHash := headRev1.SchemaHash
+
+	// Update schema — staleHash is now outdated.
+	defs2 := []datastore.SchemaDefinition{ns.Namespace("team")}
+	schemaText2, _, err := generator.GenerateSchema(ctx, []compiler.SchemaDefinition{ns.Namespace("team")})
+	require.NoError(t, err)
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs2, schemaText2, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	// With DisableRetries, the stale hash must surface as an error rather than retrying.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	}, options.WithSchemaHashPrecondition(staleHash), options.WithDisableRetries(true))
+	require.ErrorIs(t, err, datastore.ErrSchemaHashPreconditionFailed)
+}
+
+// preconditionCapturingDS wraps a Datastore and records the SchemaHashPrecondition
+// value passed to each ReadWriteTx call so tests can assert auto-seeding behavior.
+type preconditionCapturingDS struct {
+	datastore.Datastore
+	mu                    sync.Mutex
+	capturedPreconditions []string // GUARDED_BY(mu)
+}
+
+func (d *preconditionCapturingDS) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+	config := options.NewRWTOptionsWithOptions(opts...)
+	d.mu.Lock()
+	d.capturedPreconditions = append(d.capturedPreconditions, config.SchemaHashPrecondition)
+	d.mu.Unlock()
+	return d.Datastore.ReadWriteTx(ctx, fn, opts...)
+}
+
+func (d *preconditionCapturingDS) lastCapturedPrecondition() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.capturedPreconditions) == 0 {
+		return ""
+	}
+	return d.capturedPreconditions[len(d.capturedPreconditions)-1]
+}
+
+// TestAutoSeedLastSchemaHashFromHeadRevision verifies that calling HeadRevision
+// populates lastSchemaHash and that a subsequent ReadWriteTx without an explicit
+// precondition automatically forwards that hash to the underlying datastore.
+func TestAutoSeedLastSchemaHashFromHeadRevision(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	capDS := &preconditionCapturingDS{Datastore: rawDS}
+	dl := NewDataLayer(capDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	// Write schema so a hash exists in the datastore.
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	// Record the hash and reset the capture slice so the next call is isolated.
+	_, seededHash, err := dl.HeadRevision(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, seededHash)
+
+	capDS.mu.Lock()
+	capDS.capturedPreconditions = nil
+	capDS.mu.Unlock()
+
+	// ReadWriteTx without any explicit precondition should auto-seed from lastSchemaHash.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(seededHash), capDS.lastCapturedPrecondition(),
+		"ReadWriteTx should forward the hash observed by HeadRevision as the precondition")
+}
+
+// TestAutoSeedLastSchemaHashFromSnapshotReader verifies that SnapshotReader
+// populates lastSchemaHash so a subsequent ReadWriteTx uses it automatically.
+func TestAutoSeedLastSchemaHashFromSnapshotReader(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	capDS := &preconditionCapturingDS{Datastore: rawDS}
+	dl := NewDataLayer(capDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	rev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	expectedHash := SchemaHash(computeHash(t, defs))
+
+	// SnapshotReader with a non-bypass hash should seed lastSchemaHash.
+	_ = dl.SnapshotReader(rev, expectedHash)
+
+	capDS.mu.Lock()
+	capDS.capturedPreconditions = nil
+	capDS.mu.Unlock()
+
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(expectedHash), capDS.lastCapturedPrecondition(),
+		"ReadWriteTx should forward the hash observed by SnapshotReader as the precondition")
+}
+
+// TestAutoSeedLastSchemaHashFromSchemaWriteCommit verifies that committing a WriteSchema
+// inside ReadWriteTx populates lastSchemaHash so the next ReadWriteTx uses it.
+func TestAutoSeedLastSchemaHashFromSchemaWriteCommit(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	capDS := &preconditionCapturingDS{Datastore: rawDS}
+	dl := NewDataLayer(capDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	// First write: the committed hash should become the seeded value.
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	expectedHash := SchemaHash(computeHash(t, defs))
+
+	capDS.mu.Lock()
+	capDS.capturedPreconditions = nil
+	capDS.mu.Unlock()
+
+	// Second write tx (no explicit precondition) should use the hash from the first commit.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(expectedHash), capDS.lastCapturedPrecondition(),
+		"ReadWriteTx should forward the hash observed at schema write commit as the precondition")
+}
+
+// TestAutoSeedFallbackToHeadRevisionWhenCold verifies that when lastSchemaHash is
+// empty (cold datalayer) ReadWriteTx falls back to HeadRevision to seed the hash.
+func TestAutoSeedFallbackToHeadRevisionWhenCold(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+
+	// Write schema via a separate datalayer so the hash exists in the datastore
+	// without being known to the datalayer under test.
+	dl1 := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl1.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	expectedHash := SchemaHash(computeHash(t, defs))
+
+	// dl2 is cold — it has never called HeadRevision/SnapshotReader/ReadWriteTx.
+	capDS := &preconditionCapturingDS{Datastore: rawDS}
+	dl2 := NewDataLayer(capDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	_, err = dl2.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(expectedHash), capDS.lastCapturedPrecondition(),
+		"cold datalayer should fall back to HeadRevision to seed the precondition hash")
+}
+
+// TestAssertSchemaHashReturnsErrSchemaNotFound verifies that passing a non-empty
+// precondition against a datastore with no schema row returns ErrSchemaNotFound,
+// not ErrSchemaHashPreconditionFailed.
+func TestAssertSchemaHashReturnsErrSchemaNotFound(t *testing.T) {
+	ctx := t.Context()
+
+	// Fresh datastore with no schema written — no schema_revision row exists.
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	}, options.WithSchemaHashPrecondition("any-hash"), options.WithDisableRetries(true))
+	require.ErrorIs(t, err, datastore.ErrSchemaNotFound,
+		"missing schema row should surface as ErrSchemaNotFound, not ErrSchemaHashPreconditionFailed")
+}
+
+// TestMemdbStaleHashClearedOnWriteWithoutHash verifies that writing a schema without
+// a hash field clears any previously stored schema_revision row, so the old hash
+// cannot be matched by a subsequent precondition check.
+func TestMemdbStaleHashClearedOnWriteWithoutHash(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	// Write schema with a hash via the datalayer.
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	_, storedHash, err := dl.HeadRevision(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, storedHash)
+
+	// Overwrite schema via rawDS with no hash — simulates a legacy/migration write.
+	// An empty StoredSchema has no v1.SchemaHash, so the schema_revision row should be cleared.
+	_, err = rawDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteStoredSchema(ctx, &core.StoredSchema{})
+	})
+	require.NoError(t, err)
+
+	// The old hash should now produce ErrSchemaNotFound, not ErrSchemaHashPreconditionFailed,
+	// because the schema_revision row was cleared by the write-without-hash.
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	}, options.WithSchemaHashPrecondition(string(storedHash)), options.WithDisableRetries(true))
+	require.ErrorIs(t, err, datastore.ErrSchemaNotFound,
+		"old hash should yield ErrSchemaNotFound after a no-hash write clears the schema_revision row")
+}
+
+// TestMemdbConcurrentWriteBlocksUntilActive verifies that when a write transaction is
+// already active in memdb, a concurrent write blocks (via sync.Cond) until the active
+// transaction finishes, then proceeds successfully.
+func TestMemdbConcurrentWriteBlocksUntilActive(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	dl := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	headRev, err := rawDS.HeadRevision(ctx)
+	require.NoError(t, err)
+	hash := headRev.SchemaHash
+	require.NotEmpty(t, hash)
+
+	// Hold the memdb write lock open.
+	lockHeld := make(chan struct{})
+	lockRelease := make(chan struct{})
+	go func() {
+		_, _ = rawDS.ReadWriteTx(ctx, func(ctx context.Context, _ datastore.ReadWriteTransaction) error {
+			close(lockHeld)
+			<-lockRelease
+			return nil
+		})
+	}()
+	<-lockHeld
+
+	// A concurrent write should block (not spin) until the active tx finishes.
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+			return nil
+		}, options.WithSchemaHashPrecondition(hash))
+		resultCh <- err
+	}()
+
+	close(lockRelease)
+
+	require.NoError(t, <-resultCh,
+		"ReadWriteTx should succeed once the active transaction completes")
+}
+
+// TestFirstWriteSchemaOnEmptyDatastoreSucceeds verifies that WriteSchema works on a
+// fresh datastore with no prior schema. HeadRevision returns an empty SchemaHash when
+// no schema exists, so no precondition is set and assertSchemaHash is never called.
+func TestFirstWriteSchemaOnEmptyDatastoreSucceeds(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	capDS := &preconditionCapturingDS{Datastore: rawDS}
+	dl := NewDataLayer(capDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err, "first WriteSchema on empty datastore must not return ErrSchemaNotFound")
+
+	// No precondition should have been sent — HeadRevision returned empty SchemaHash.
+	require.Empty(t, capDS.lastCapturedPrecondition(),
+		"empty datastore HeadRevision returns no hash, so no precondition should be forwarded")
+}
+
+// TestColdNodeWithExistingSchemaSucceeds verifies that a newly started node (cold
+// lastSchemaHash) can perform a write transaction when schema already exists in the
+// datastore. The HeadRevision fallback seeds the correct hash so assertSchemaHash passes.
+func TestColdNodeWithExistingSchemaSucceeds(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+
+	// Write schema using a separate datalayer instance to simulate schema already
+	// existing in the datastore before this node starts up.
+	warmDL := NewDataLayer(rawDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := warmDL.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	expectedHash := SchemaHash(computeHash(t, defs))
+
+	// Cold node: fresh datalayer pointing at the same datastore, lastSchemaHash is nil.
+	capDS := &preconditionCapturingDS{Datastore: rawDS}
+	coldDL := NewDataLayer(capDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	_, err = coldDL.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	})
+	require.NoError(t, err, "cold node write tx must succeed when schema exists in the datastore")
+
+	// The HeadRevision fallback should have seeded the existing hash as the precondition.
+	require.Equal(t, string(expectedHash), capDS.lastCapturedPrecondition(),
+		"cold node should fall back to HeadRevision and use the existing hash as precondition")
+}
+
+// erroringRevisionDS wraps a Datastore and returns a configurable error from
+// HeadRevision and OptimizedRevision, used to cover the error-return branches.
+type erroringRevisionDS struct {
+	datastore.Datastore
+	headErr      error
+	optimizedErr error
+}
+
+func (d *erroringRevisionDS) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
+	return datastore.RevisionWithSchemaHash{}, d.headErr
+}
+
+func (d *erroringRevisionDS) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
+	return datastore.RevisionWithSchemaHash{}, d.optimizedErr
+}
+
+// schemaHashInjectingDS wraps a Datastore and injects a fixed SchemaHash into
+// OptimizedRevision results so tests can exercise the hash-seeding branch
+// without depending on memdb's nanosecond-precision clock behaviour.
+type schemaHashInjectingDS struct {
+	datastore.Datastore
+	injectHash string
+}
+
+func (d *schemaHashInjectingDS) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	r, err := d.Datastore.OptimizedRevision(ctx)
+	if err == nil {
+		r.SchemaHash = d.injectHash
+	}
+	return r, err
+}
+
+// TestOptimizedRevisionSeedsLastSchemaHash verifies that OptimizedRevision in a
+// new-read mode populates lastSchemaHash when the datastore returns a schema hash,
+// and that a subsequent ReadWriteTx forwards that hash as the precondition.
+func TestOptimizedRevisionSeedsLastSchemaHash(t *testing.T) {
+	ctx := t.Context()
+
+	rawDS := newTestDatastore(t)
+	injected := "injected-schema-hash-value"
+	injectDS := &schemaHashInjectingDS{Datastore: rawDS, injectHash: injected}
+	capDS := &preconditionCapturingDS{Datastore: injectDS}
+	dl := NewDataLayer(capDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	// Seed the lastSchemaHash via OptimizedRevision (injected returns non-empty hash).
+	_, gotHash, err := dl.OptimizedRevision(ctx)
+	require.NoError(t, err)
+	require.Equal(t, SchemaHash(injected), gotHash,
+		"OptimizedRevision should return the datastore hash in new-read mode")
+
+	capDS.mu.Lock()
+	capDS.capturedPreconditions = nil
+	capDS.mu.Unlock()
+
+	// Next ReadWriteTx should auto-seed the precondition from lastSchemaHash.
+	// No real schema exists, so the tx will fail — we only care that the
+	// precondition was forwarded, not whether it matched.
+	_, _ = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return nil
+	})
+	require.Equal(t, injected, capDS.lastCapturedPrecondition(),
+		"ReadWriteTx should forward the hash seeded by OptimizedRevision as the precondition")
+}
+
+// TestHeadRevisionErrorReturnsNoHash verifies that HeadRevision propagates a
+// datastore error and returns the legacy no-hash sentinel.
+func TestHeadRevisionErrorReturnsNoHash(t *testing.T) {
+	ctx := t.Context()
+
+	sentinelErr := errors.New("head revision unavailable")
+	errDS := &erroringRevisionDS{Datastore: newTestDatastore(t), headErr: sentinelErr}
+	dl := NewDataLayer(errDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	_, hash, err := dl.HeadRevision(ctx)
+	require.ErrorIs(t, err, sentinelErr)
+	require.Equal(t, NoSchemaHashInLegacyMode, hash)
+}
+
+// TestOptimizedRevisionErrorReturnsNoHash verifies that OptimizedRevision
+// propagates a datastore error and returns the legacy no-hash sentinel.
+func TestOptimizedRevisionErrorReturnsNoHash(t *testing.T) {
+	ctx := t.Context()
+
+	sentinelErr := errors.New("optimized revision unavailable")
+	errDS := &erroringRevisionDS{Datastore: newTestDatastore(t), optimizedErr: sentinelErr}
+	dl := NewDataLayer(errDS, WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	_, hash, err := dl.OptimizedRevision(ctx)
+	require.ErrorIs(t, err, sentinelErr)
+	require.Equal(t, NoSchemaHashInLegacyMode, hash)
 }

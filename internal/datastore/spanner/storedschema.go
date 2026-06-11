@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/spanner"
+	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -24,6 +25,29 @@ func (sr spannerReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOn
 
 	rw := common.NewSQLSingleStoreSchemaReaderWriterWithBuiltInMVCC(chunker)
 	return rw.ReadStoredSchema(ctx)
+}
+
+// assertSchemaHash reads the schema_revision row inside a Spanner read-write transaction,
+// which establishes a conflict range automatically. Returns ErrSchemaHashPreconditionFailed
+// if not found or the stored hash does not match expectedHash.
+func assertSchemaHash(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction, expectedHash string) error {
+	row, err := spannerRWT.ReadRow(ctx, "schema_revision", spanner.Key{"current"}, []string{"schema_hash"})
+	if err != nil {
+		if spanner.ErrCode(err) == codes.NotFound {
+			return datastore.ErrSchemaNotFound
+		}
+		return fmt.Errorf("failed to read schema hash for precondition: %w", err)
+	}
+
+	var hash []byte
+	if err := row.Column(0, &hash); err != nil {
+		return fmt.Errorf("failed to scan schema hash for precondition: %w", err)
+	}
+
+	if string(hash) != expectedHash {
+		return datastore.ErrSchemaHashPreconditionFailed
+	}
+	return nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the Spanner schema table.

@@ -270,9 +270,28 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	log.Ctx(ctx).Info().EmbedObject(storedSchemaCache).Msg("configured stored schema cache")
 	closeables.AddWithoutError(storedSchemaCache.Close)
 
+	// Parse schema mode early so proxy setup can depend on it.
+	var dlOpts []datalayer.DataLayerOption
+	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
+	schemaMode := datalayer.SchemaModeReadLegacyWriteLegacy
+	if c.ExperimentalSchemaMode != "" {
+		schemaMode, err = datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
+		if err != nil {
+			return nil, err
+		}
+	}
+	dlOpts = append(dlOpts, datalayer.WithSchemaMode(schemaMode))
+
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	ds = proxy.NewSingleflightDatastoreProxy(ds)
-	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode, c.SchemaWatchHeartbeat)
+
+	// The legacy namespace caching proxy caches per-revision namespace definitions.
+	// In new schema mode, reads go through the unified stored schema instead, so
+	// the proxy's cache is never populated — only its write-invalidation overhead
+	// remains. Skip it when reads come from new schema storage.
+	if !schemaMode.ReadsFromNew() {
+		ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode, c.SchemaWatchHeartbeat)
+	}
 	closeables.AddWithError(ds.Close)
 
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
@@ -415,17 +434,6 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	memoryUsageProvider := c.BuildMemoryUsageProvider()
-
-	// Parse schema mode for datalayer construction
-	var dlOpts []datalayer.DataLayerOption
-	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
-	if c.ExperimentalSchemaMode != "" {
-		schemaMode, smErr := datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
-		if smErr != nil {
-			return nil, smErr
-		}
-		dlOpts = append(dlOpts, datalayer.WithSchemaMode(schemaMode))
-	}
 
 	opts := MiddlewareOption{
 		Logger:                    log.Logger,
