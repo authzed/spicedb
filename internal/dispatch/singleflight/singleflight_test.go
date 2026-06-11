@@ -130,6 +130,82 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 	assertCounterWithLabel(t, reg, 2, "spicedb_dispatch_single_flight_total", "loop")
 }
 
+// TestSingleFlightDispatcherDoesNotShareDebugChecks ensures debug-enabled checks
+// are dispatched directly rather than sharing a flight with otherwise-identical
+// non-debug checks. The dispatch key ignores req.Debug, so sharing would leak the
+// leader's debug info to a non-debug follower (the cause of #3159) or deny a debug
+// follower its trace.
+func TestSingleFlightDispatcherDoesNotShareDebugChecks(t *testing.T) {
+	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	reg := registerMetricInGatherer(singleFlightCount)
+
+	// The delegate returns debug info only when the request asked for it, so the
+	// response carried back to each caller reveals whether a flight was shared
+	// across debug levels.
+	delegate := &debugAwareDispatcher{delay: 100 * time.Millisecond}
+	disp := New(delegate, &keys.DirectKeyHandler{})
+
+	req := &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
+		ResourceIds:      []string{"foo", "bar"},
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     "1234",
+			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+	}
+
+	var mu sync.Mutex
+	var nonDebugResponses, debugResponses []*v1.DispatchCheckResponse
+
+	wg := sync.WaitGroup{}
+	wg.Add(4)
+	// Two non-debug checks should share a single flight.
+	for range 2 {
+		go func() {
+			resp, _ := disp.DispatchCheck(t.Context(), req.CloneVT())
+			mu.Lock()
+			nonDebugResponses = append(nonDebugResponses, resp)
+			mu.Unlock()
+			wg.Done()
+		}()
+	}
+	// Two debug-enabled checks, identical key, must each dispatch directly. Cover
+	// both debug levels: WithTracing maps to basic debugging, while trace debugging
+	// is the deeper variant; the bypass keys on != NO_DEBUG so both must apply.
+	for _, debug := range []v1.DispatchCheckRequest_DebugSetting{
+		v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING,
+		v1.DispatchCheckRequest_ENABLE_TRACE_DEBUGGING,
+	} {
+		go func() {
+			debugReq := req.CloneVT()
+			debugReq.Debug = debug
+			resp, _ := disp.DispatchCheck(t.Context(), debugReq)
+			mu.Lock()
+			debugResponses = append(debugResponses, resp)
+			mu.Unlock()
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+
+	// One dispatch for the shared non-debug pair, plus one per debug check.
+	require.Equal(t, uint64(3), delegate.called.Load(), "should have dispatched 3 calls but did %d", delegate.called.Load())
+	// Two label series: shared=true (the shared non-debug pair) and shared=debug.
+	assertCounterWithLabel(t, reg, 2, "spicedb_dispatch_single_flight_total", "debug")
+
+	// A non-debug caller must never receive debug info, even when racing an
+	// identical debug check; a debug caller must always receive its own.
+	for _, resp := range nonDebugResponses {
+		require.Nil(t, resp.GetMetadata().GetDebugInfo(), "non-debug caller received leaked debug info")
+	}
+	for _, resp := range debugResponses {
+		require.NotNil(t, resp.GetMetadata().GetDebugInfo(), "debug caller lost its trace")
+	}
+}
+
 // this test makes sure that bloom filter information is carried from dispatcher to dispatcher
 func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
@@ -513,6 +589,26 @@ func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req 
 	require.NoError(t, err)
 
 	return binaryBloom
+}
+
+// debugAwareDispatcher returns debug info only when the request asked for it,
+// so callers can assert that a non-debug caller never receives debug info from a
+// flight shared with a debug caller. Only DispatchCheck is exercised.
+type debugAwareDispatcher struct {
+	dispatch.Dispatcher
+	delay  time.Duration
+	called atomic.Uint64
+}
+
+func (d *debugAwareDispatcher) DispatchCheck(_ context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+	time.Sleep(d.delay)
+	d.called.Add(1)
+
+	resp := &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}
+	if req.Debug != v1.DispatchCheckRequest_NO_DEBUG {
+		resp.Metadata.DebugInfo = &v1.DebugInformation{Check: &v1.CheckDebugTrace{}}
+	}
+	return resp, nil
 }
 
 type mockDispatcher struct {
