@@ -186,6 +186,9 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 				// Find the debug info that matches the resource ID.
 				var debugInfo *dispatchv1.DebugInformation
 				for _, di := range debugInfos {
+					if di.Check == nil || di.Check.Request == nil {
+						continue
+					}
 					if slices.Contains(di.Check.Request.ResourceIds, resourceID) {
 						debugInfo = di
 						break
