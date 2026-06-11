@@ -300,6 +300,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			secondaryClients[name] = remote.SecondaryDispatch{
 				Name:                       name,
 				Client:                     v1.NewDispatchServiceClient(secondaryConn),
+				Conn:                       secondaryConn,
 				MaximumPrimaryHedgingDelay: maximumHedgingDelay,
 			}
 		}
