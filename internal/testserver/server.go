@@ -33,10 +33,6 @@ type ServerConfig struct {
 }
 
 var DefaultTestServerConfig = ServerConfig{
-	MaxUpdatesPerWrite:                 1000,
-	MaxPreconditionsCount:              1000,
-	StreamingAPITimeout:                30 * time.Second,
-	MaxRelationshipContextSize:         25000,
 	EnableExperimentalLookupResources3: true,
 }
 
@@ -72,6 +68,8 @@ func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool
 	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
+		server.WithTelemetryEndpoint(""),
+		server.WithSilentlyDisableTelemetry(true),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),

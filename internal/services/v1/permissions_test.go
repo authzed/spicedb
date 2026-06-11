@@ -1911,6 +1911,10 @@ func randString(length int) string {
 }
 
 func TestGetCaveatContext(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
 	strct, err := structpb.NewStruct(map[string]any{"foo": "bar"})
 	require.NoError(t, err)
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -29,6 +30,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -589,6 +591,9 @@ func expectFrames(req *require.Assertions, frames []frameInfo, check *v1.CheckDe
 }
 
 func TestBulkCheckPermissionWithDebug(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name          string
 		schema        string
@@ -929,6 +934,10 @@ func TestBulkCheckPermissionWithDebug(t *testing.T) {
 }
 
 func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
 	req := require.New(t)
 
 	schema := `
@@ -1015,6 +1024,9 @@ func TestLookupResourcesDebugTrace_LR3(t *testing.T) {
 }
 
 func TestLookupResourcesDebugTrace_LR2(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	req := require.New(t)
 
 	schema := `
