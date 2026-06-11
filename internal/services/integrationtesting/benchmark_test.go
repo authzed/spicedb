@@ -344,17 +344,15 @@ func BenchmarkServices(b *testing.B) {
 					}
 
 					// Set up dispatch server (default path).
-					dispatchConn, dispatchCleanup := testserver.TestClusterWithDispatch(b, 1, ds)
-					b.Cleanup(dispatchCleanup)
+					dispatchConn := testserver.TestClusterWithDispatch(b, 1, ds)
 					dispatchTester := consistencytestutil.NewServiceTester(dispatchConn[0])
 
 					// Set up query plan server.
-					qpConn, qpCleanup := testserver.TestClusterWithDispatch(b, 1, ds,
+					qpConn := testserver.TestClusterWithDispatch(b, 1, ds,
 						server.WithExperimentalQueryPlan("check"),
 						server.WithExperimentalQueryPlan("lr"),
 						server.WithExperimentalQueryPlan("ls"),
 					)
-					b.Cleanup(qpCleanup)
 					qpTester := consistencytestutil.NewServiceTester(qpConn[0])
 
 					// Warm up the query planner so the server-side CountAdvisor

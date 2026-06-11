@@ -50,8 +50,7 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{consistencyTestFilePath})
 	require.NoError(err)
 
-	connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds, additionalServerOptions...)
-	t.Cleanup(cleanup)
+	connections := testserver.TestClusterWithDispatch(t, 1, ds, additionalServerOptions...)
 
 	dl := datalayer.NewDataLayer(ds)
 

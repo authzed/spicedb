@@ -42,42 +42,16 @@ var DefaultTestServerConfig = ServerConfig{
 
 type DatastoreInitFunc func(testing.TB, datastore.Datastore) (datastore.Datastore, datastore.Revision)
 
-// NewTestServer creates a new test server, using defaults for the config.
-func NewTestServer(t testing.TB,
-	revisionQuantization time.Duration,
-	gcWindow time.Duration,
-	schemaPrefixRequired bool,
-	dsInitFunc DatastoreInitFunc,
-) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
-	return NewTestServerWithConfig(t, revisionQuantization, gcWindow, schemaPrefixRequired,
-		DefaultTestServerConfig,
-		dsInitFunc)
-}
-
 // NewTestServerWithConfig creates as new test server with the specified config.
-func NewTestServerWithConfig(t testing.TB,
-	revisionQuantization time.Duration,
-	gcWindow time.Duration,
-	schemaPrefixRequired bool,
-	config ServerConfig,
-	dsInitFunc DatastoreInitFunc,
-) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
+func NewTestServerWithConfig(t testing.TB, revisionQuantization time.Duration, gcWindow time.Duration, schemaPrefixRequired bool, config ServerConfig, dsInitFunc DatastoreInitFunc) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(t, err)
 
-	return NewTestServerWithConfigAndDatastore(t, revisionQuantization, gcWindow, schemaPrefixRequired, config, emptyDS, dsInitFunc)
+	return NewTestServerWithConfigAndDatastore(t, schemaPrefixRequired, config, emptyDS, dsInitFunc)
 }
 
-func NewTestServerWithConfigAndDatastore(t testing.TB,
-	revisionQuantization time.Duration,
-	gcWindow time.Duration,
-	schemaPrefixRequired bool,
-	config ServerConfig,
-	emptyDS datastore.Datastore,
-	dsInitFunc DatastoreInitFunc,
-) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
+func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool, config ServerConfig, emptyDS datastore.Datastore, dsInitFunc DatastoreInitFunc) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(t, emptyDS)
-	ctx, cancel := context.WithCancel(t.Context())
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
 	lrver := ""
@@ -177,20 +151,21 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
 	cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
 	cfg.StoredSchemaCacheConfig = server.CacheConfig{}
-	srv, err := cfg.Complete(ctx)
+	srv, err := cfg.Complete(t.Context())
 	require.NoError(t, err)
 
+	done := make(chan bool, 1)
 	go func() {
-		_ = srv.Run(ctx)
+		_ = srv.Run(t.Context())
+		done <- true
 	}()
 
 	conn, err := srv.NewClient()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+		<-done
+	})
 
-	return conn, func() {
-		if conn != nil {
-			require.NoError(t, conn.Close())
-		}
-		cancel()
-	}, ds, revision
+	return conn, ds, revision
 }

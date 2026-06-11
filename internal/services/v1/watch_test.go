@@ -347,8 +347,9 @@ definition document {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tc.datastoreInitFunc)
-			t.Cleanup(cleanup)
+			conn, _, revision := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tc.datastoreInitFunc)
 			client := v1.NewWatchServiceClient(conn)
 
 			cursor := zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken)
@@ -444,10 +445,9 @@ func TestWatchCarriesSchemaHash(t *testing.T) {
 	config.DataLayerOpts = []datalayer.DataLayerOption{
 		datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
 	}
-	conn, cleanup, ds, _ := testserver.NewTestServerWithConfig(
+	conn, ds, _ := testserver.NewTestServerWithConfig(
 		t, 0, memdb.DisableGC, true, config, testfixtures.EmptyDatastore,
 	)
-	t.Cleanup(cleanup)
 
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	permClient := v1.NewPermissionsServiceClient(conn)

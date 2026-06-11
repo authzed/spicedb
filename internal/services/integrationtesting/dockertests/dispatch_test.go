@@ -328,8 +328,7 @@ func TestDispatchIntegration(t *testing.T) {
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
 
-					conns, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
-					t.Cleanup(cleanup)
+					conns := testserver.TestClusterWithDispatch(t, 1, ds)
 
 					schemaClient := v1.NewSchemaServiceClient(conns[0])
 					_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{

@@ -143,7 +143,7 @@ func (r *SafeManualResolver) Close() {}
 // TestClusterWithDispatch creates a cluster with `size` nodes.
 // The cluster has a real dispatch stack that uses bufconn grpc connections.
 // All Caching is turned off.
-func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) ([]*grpc.ClientConn, func()) {
+func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) []*grpc.ClientConn {
 	// each cluster gets a unique prefix since grpc resolution is process-global
 	prefix := getPrefix(t)
 
@@ -159,7 +159,6 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 	dialers := make([]dialerFunc, 0, size)
 	conns := make([]*grpc.ClientConn, 0, size)
-	cancelFuncs := make([]func(), 0, size)
 
 	for i := range size {
 		// One QueryPlanMetadata per node, shared between the node's dispatcher
@@ -227,7 +226,6 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 		}
 		serverOptions = append(serverOptions, additionalServerOptions...)
 
-		ctx, cancel := context.WithCancel(t.Context())
 		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
 		// Disable caches and their metrics to avoid "duplicate metrics" errors
 		cfg.DispatchClusterMetricsEnabled = false
@@ -238,37 +236,31 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 		cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
 		cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
 		cfg.StoredSchemaCacheConfig = server.CacheConfig{}
-		srv, listeners, err := cfg.CompleteForTesting(ctx)
+		srv, listeners, err := cfg.CompleteForTesting(t.Context())
 		require.NoError(t, err)
 
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- srv.Run(ctx)
+			errCh <- srv.Run(t.Context())
 		}()
-		cancelFuncs = append(cancelFuncs, func() {
-			cancel()
+		t.Cleanup(func() {
 			err := <-errCh
 			require.NoError(t, err)
 		})
-
 		dialers = append(dialers, func(ctx context.Context, _ string) (net.Conn, error) {
 			return listeners.Dispatch.DialContext(ctx)
 		})
 
 		conn, err := grpchelpers.NewBufferedClient(listeners.GRPC)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			conn.Close()
+		})
 		conns = append(conns, conn)
 	}
 
 	// resolve after dialers have been set to initialize connections
 	testResolverBuilder.ResolveNow(prefix)
 
-	return conns, func() {
-		for _, c := range conns {
-			require.NoError(t, c.Close())
-		}
-		for _, c := range cancelFuncs {
-			c()
-		}
-	}
+	return conns
 }

@@ -36,6 +36,9 @@ import (
 const defaultFilterMaximumIDCountForTest = 100
 
 func TestBulkImportRelationships(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	testCases := []struct {
 		name       string
 		batchSize  func() uint64
@@ -55,9 +58,10 @@ func TestBulkImportRelationships(t *testing.T) {
 				t.Run(fmt.Sprintf("withCaveats=%t", withCaveats), func(t *testing.T) {
 					require := require.New(t)
 
-					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+					conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+						testserver.DefaultTestServerConfig,
+						tf.StandardDatastoreWithSchema)
 					client := v1.NewExperimentalServiceClient(conn)
-					t.Cleanup(cleanup)
 
 					ctx := t.Context()
 
@@ -145,10 +149,14 @@ func randomBatch(minimum, maximum int) func() uint64 {
 }
 
 func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewExperimentalServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	resp, err := client.BulkExportRelationships(t.Context(), &v1.BulkExportRelationshipsRequest{
 		OptionalLimit: 10000005,
@@ -161,9 +169,13 @@ func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
 }
 
 func TestBulkExportRelationships(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithSchema)
 	client := v1.NewExperimentalServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	nsAndRels := []struct {
 		namespace string
@@ -263,6 +275,9 @@ func TestBulkExportRelationships(t *testing.T) {
 }
 
 func TestBulkExportRelationshipsWithFilter(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	testCases := []struct {
 		name          string
 		filter        *v1.RelationshipFilter
@@ -312,9 +327,10 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+			conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tf.StandardDatastoreWithSchema)
 			client := v1.NewExperimentalServiceClient(conn)
-			t.Cleanup(cleanup)
 
 			nsAndRels := []struct {
 				namespace string
@@ -422,11 +438,13 @@ type bulkCheckTest struct {
 }
 
 func TestBulkCheckPermission(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
-
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewExperimentalServiceClient(conn)
-	defer cleanup()
 
 	testCases := []struct {
 		name     string
@@ -680,10 +698,14 @@ func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
 }
 
 func TestExperimentalSchemaDiff(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
-	defer cleanup()
 
 	testCases := []struct {
 		name             string
@@ -773,10 +795,14 @@ func TestExperimentalSchemaDiff(t *testing.T) {
 }
 
 func TestExperimentalReflectSchema(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
-	defer cleanup()
 
 	testCases := []struct {
 		name             string
@@ -1186,6 +1212,9 @@ definition user {}`,
 }
 
 func TestExperimentalDependentRelations(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name             string
 		schema           string
@@ -1383,10 +1412,11 @@ func TestExperimentalDependentRelations(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tf.EmptyDatastore)
 			expClient := v1.NewExperimentalServiceClient(conn)
 			schemaClient := v1.NewSchemaServiceClient(conn)
-			defer cleanup()
 
 			// Write the schema.
 			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -1420,6 +1450,9 @@ func TestExperimentalDependentRelations(t *testing.T) {
 }
 
 func TestExperimentalComputablePermissions(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name             string
 		schema           string
@@ -1582,10 +1615,11 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tf.EmptyDatastore)
 			expClient := v1.NewExperimentalServiceClient(conn)
 			schemaClient := v1.NewSchemaServiceClient(conn)
-			defer cleanup()
 
 			// Write the schema.
 			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
@@ -1620,11 +1654,15 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 }
 
 func TestExperimentalCountRelationships(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.EmptyDatastore)
 	expClient := v1.NewExperimentalServiceClient(conn)
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	permsClient := v1.NewPermissionsServiceClient(conn)
-	defer cleanup()
 
 	// Write the schema.
 	_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
