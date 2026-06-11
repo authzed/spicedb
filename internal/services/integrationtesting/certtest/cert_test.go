@@ -7,12 +7,15 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,9 +23,9 @@ import (
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/credentials"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -37,18 +40,33 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
+// servedCertRecorder records the leaf certificate presented by the server
+// during each TLS handshake. It is safe for concurrent use.
+type servedCertRecorder struct {
+	mu   sync.Mutex
+	last *x509.Certificate
+}
+
+func (r *servedCertRecorder) verifyConnection(cs tls.ConnectionState) error {
+	if len(cs.PeerCertificates) == 0 {
+		return fmt.Errorf("server presented no certificates")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.last = cs.PeerCertificates[0]
+	return nil
+}
+
+func (r *servedCertRecorder) lastServedCert() *x509.Certificate {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.last
+}
+
 func TestCertRotation(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
 	})
-
-	const (
-		// length of time the initial cert is valid
-		initialValidDuration = 3 * time.Second
-
-		// continue making requests for waitFactor*initialValidDuration
-		waitFactor = 2
-	)
 
 	certDir := t.TempDir()
 
@@ -71,13 +89,11 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, err)
 	caFile, err := os.Create(filepath.Join(certDir, "ca.crt"))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, caFile.Close())
-	})
 	require.NoError(t, pem.Encode(caFile, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caCert.Raw,
 	}))
+	require.NoError(t, caFile.Close())
 
 	old := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -85,7 +101,7 @@ func TestCertRotation(t *testing.T) {
 			Organization: []string{"initialTestCert"},
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(initialValidDuration),
+		NotAfter:              time.Now().Add(5 * time.Minute),
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
@@ -133,10 +149,13 @@ func TestCertRotation(t *testing.T) {
 		server.WithMaximumPreconditionCount(1000),
 		server.WithMaximumUpdatesPerWrite(1000),
 		server.WithGRPCServer(util.GRPCServerConfig{
-			Network:      util.BufferedNetwork,
-			Enabled:      true,
-			TLSCertPath:  certFile.Name(),
-			TLSKeyPath:   keyFile.Name(),
+			Network:     util.BufferedNetwork,
+			Enabled:     true,
+			TLSCertPath: certFile.Name(),
+			TLSKeyPath:  keyFile.Name(),
+			// ClientCAPath is used by the server's outbound dispatch credentials, not
+			// for server-side client-cert validation — the server does not set ClientAuth,
+			// so this test does not exercise mutual TLS.
 			ClientCAPath: caFile.Name(),
 		}),
 		server.WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
@@ -202,43 +221,60 @@ func TestCertRotation(t *testing.T) {
 		wait <- err
 	}()
 
-	tlsCreds, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, caFile.Name())
-	require.NoError(t, err)
+	caPool := x509.NewCertPool()
+	caPool.AddCert(caCert)
 
-	// "buffnet" matches the DNSNames in the TLS certificate issued above; WithAuthority
-	// sets the SNI so TLS verification succeeds even though the dial target is localhost.
-	conn, err := srv.NewClient(
-		tlsCreds,
-		grpc.WithAuthority("buffnet"),
-		grpc.WithConnectParams(grpc.ConnectParams{
-			Backoff: backoff.Config{
-				BaseDelay:  1 * time.Second,
-				Multiplier: 2,
-				MaxDelay:   15 * time.Second,
+	// newConn dials a brand-new *grpc.ClientConn with its own servedCertRecorder.
+	// A new ClientConn has no cached TLS session state (nil ClientSessionCache),
+	// so every dial performs a full handshake and VerifyConnection fires to capture
+	// the leaf cert the server currently presents.
+	newConn := func() (*grpc.ClientConn, *servedCertRecorder, error) {
+		rec := &servedCertRecorder{}
+		creds := credentials.NewTLS(&tls.Config{
+			RootCAs:          caPool,
+			ServerName:       "buffnet",
+			MinVersion:       tls.VersionTLS12,
+			VerifyConnection: rec.verifyConnection,
+		})
+		conn, err := srv.NewClient(
+			grpc.WithTransportCredentials(creds),
+			grpc.WithConnectParams(grpc.ConnectParams{
+				Backoff: backoff.Config{
+					BaseDelay:  1 * time.Second,
+					Multiplier: 2,
+					MaxDelay:   15 * time.Second,
+				},
+			}),
+		)
+		return conn, rec, err
+	}
+
+	rel := tuple.ToV1Relationship(tuple.MustParse(tf.StandardRelationships[0]))
+
+	checkPermission := func(client v1.PermissionsServiceClient) error {
+		_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_AtLeastAsFresh{
+					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
+				},
 			},
-		}),
-	)
+			Resource:   rel.Resource,
+			Permission: "viewer",
+			Subject:    rel.Subject,
+		})
+		return err
+	}
 
+	conn, rec, err := newConn()
 	require.NoError(t, err)
 	defer func() {
-		if conn != nil {
-			require.NoError(t, conn.Close())
-		}
+		require.NoError(t, conn.Close())
 	}()
-	// requests work with the old key
-	client := v1.NewPermissionsServiceClient(conn)
-	rel := tuple.ToV1Relationship(tuple.MustParse(tf.StandardRelationships[0]))
-	_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
-			},
-		},
-		Resource:   rel.Resource,
-		Permission: "viewer",
-		Subject:    rel.Subject,
-	})
-	require.NoError(t, err)
+
+	require.NoError(t, checkPermission(v1.NewPermissionsServiceClient(conn)))
+	served := rec.lastServedCert()
+	require.NotNil(t, served)
+	require.Equal(t, oldCert.SerialNumber, served.SerialNumber, "expected the initial certificate to be served before rotation")
 
 	// rotate the key
 	newCert := &x509.Certificate{
@@ -279,21 +315,26 @@ func TestCertRotation(t *testing.T) {
 	}))
 	require.NoError(t, certFile.Close())
 
-	// check for waitFactor*initialValidDuration seconds
-	for range waitFactor {
-		_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
-			Consistency: &v1.Consistency{
-				Requirement: &v1.Consistency_AtLeastAsFresh{
-					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
-				},
-			},
-			Resource:   rel.Resource,
-			Permission: "viewer",
-			Subject:    rel.Subject,
-		})
-		require.NoError(t, err)
-		time.Sleep(initialValidDuration)
-	}
+	// Wait for the server to reload the rotated certificate. Each iteration dials
+	// a fresh connection to force a new TLS handshake — a reused connection keeps
+	// its existing session and would never re-present the cert. This assertion
+	// fails if hot reloading in updateCachedCertificate is disabled.
+	require.Eventually(t, func() bool {
+		rotatedConn, rotatedRec, err := newConn()
+		if err != nil {
+			t.Logf("newConn failed: %v", err)
+			return false
+		}
+		defer func() { _ = rotatedConn.Close() }()
+
+		if err := checkPermission(v1.NewPermissionsServiceClient(rotatedConn)); err != nil {
+			t.Logf("checkPermission failed: %v", err)
+			return false
+		}
+
+		served := rotatedRec.lastServedCert()
+		return served != nil && served.SerialNumber.Cmp(newCertParsed.SerialNumber) == 0
+	}, 30*time.Second, 500*time.Millisecond, "server never served the rotated certificate")
 
 	cancel()
 	select {
