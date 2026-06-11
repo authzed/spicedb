@@ -752,8 +752,9 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, testerName := range []string{"v1"} {
 				t.Run(testerName, func(t *testing.T) {
-					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, false, tf.EmptyDatastore)
-					t.Cleanup(cleanup)
+					conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, false,
+						testserver.DefaultTestServerConfig,
+						tf.EmptyDatastore)
 
 					tester := testers[testerName](conn)
 

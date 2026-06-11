@@ -43,8 +43,7 @@ func TestBurst(t *testing.T) {
 				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
 			ds, revision := tf.StandardDatastoreWithData(t, ds)
 
-			conns, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
-			t.Cleanup(cleanup)
+			conns := testserver.TestClusterWithDispatch(t, 1, ds)
 
 			client := v1.NewPermissionsServiceClient(conns[0])
 			var wg sync.WaitGroup
