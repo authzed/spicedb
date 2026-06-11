@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
 - Server handles: `GRPCDialContext` as a handle on the server used deprecated gRPC methods. We modernized it and renamed it to `NewClient` (https://github.com/authzed/spicedb/pull/3147)
+- MySQL: relationship reads now force the index that matches each query shape (and its sort order), rather than relying on the MySQL optimizer to pick one. This avoids cases where the optimizer chose a suboptimal index for `Check`, `LookupResources`, `LookupSubjects`, and `ReadRelationships`/reverse-relationship queries. (https://github.com/authzed/spicedb/pull/3173)
 
 ### Fixed
 - The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)
