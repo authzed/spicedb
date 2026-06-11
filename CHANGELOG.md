@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
 - Server handles: `GRPCDialContext` as a handle on the server used deprecated gRPC methods. We modernized it and renamed it to `NewClient` (https://github.com/authzed/spicedb/pull/3147)
+- Postgres: garbage collection is now preemptible. The GC lock is acquired per deletion batch as a transaction-level advisory lock, so a node taking over GC no longer waits for another node's full run to finish; the preempted node treats the takeover as partial success (https://github.com/authzed/spicedb/pull/3059)
 
 ### Fixed
 - The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)
@@ -23,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed a LookupSubjects issue in the query planner around the handling of wildcards in compound permissions (https://github.com/authzed/spicedb/pull/3140)
 - MySQL: identifiers (object/subject IDs and relationship counter names) are now stored with a case-sensitive (binary) collation, matching the Postgres, CockroachDB, and Spanner datastores. Previously, identifiers differing only in letter case (e.g. `Foo` and `foo`) incorrectly collided in unique indexes and lookups. ⚠️ The migration rebuilds the `relation_tuple` table in place via `ALTER TABLE`, which can hold a metadata/table lock for a long time on large datasets — run the upgrade in a low-traffic window, or apply it with an online schema-change tool (e.g. gh-ost). (https://github.com/authzed/spicedb/pull/3161)
 - `server.NewConfigWithOptionsAndDefaults` now populates `Config` and its embedded structs with the same defaults as the CLI flags, fixing zero-value behavior when embedding SpiceDB as a library. (https://github.com/authzed/spicedb/pull/3156)
+- MySQL: the GC advisory lock is now acquired and released on a connection pinned for the lock's lifetime, and the release result is checked. Previously the release could run on a different pooled connection and silently no-op, leaking the lock and stalling garbage collection cluster-wide until the holding connection was recycled (https://github.com/authzed/spicedb/pull/3059)
 
 ## [1.53.0] - 2026-05-13
 ### Added
