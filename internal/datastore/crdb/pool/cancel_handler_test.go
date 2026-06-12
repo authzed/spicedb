@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -27,7 +26,7 @@ func (f *fakeSessionCanceler) CancelSessionQueries(_ *pgconn.PgConn) error {
 
 type fakeDeadlineConn struct {
 	mu        sync.Mutex
-	deadlines []time.Time
+	deadlines []time.Time // GUARDED_BY(mu)
 }
 
 func (f *fakeDeadlineConn) SetDeadline(t time.Time) error {
@@ -52,7 +51,7 @@ func TestCancelHandlerBlocksUntilCancelCompletesAndClearsDeadline(t *testing.T) 
 		conn := &fakeDeadlineConn{}
 		h := &CancelQueryContextWatcherHandler{conn: conn, canceler: fake, deadlineDelay: time.Second}
 
-		h.HandleCancel(context.Background())
+		h.HandleCancel(t.Context())
 		start := time.Now()
 		h.HandleUnwatchAfterCancel()
 
@@ -69,7 +68,7 @@ func TestCancelHandlerPoisonsConnectionWhenCancelFails(t *testing.T) {
 		conn := &fakeDeadlineConn{}
 		h := &CancelQueryContextWatcherHandler{conn: conn, canceler: fake, deadlineDelay: time.Second}
 
-		h.HandleCancel(context.Background())
+		h.HandleCancel(t.Context())
 		h.HandleUnwatchAfterCancel()
 
 		require.False(t, conn.last().IsZero(), "deadline must be poisoned (non-zero) when the cancel fails")
@@ -85,13 +84,13 @@ func TestCancelHandlerResetsStateBetweenCycles(t *testing.T) {
 
 		// Cycle 1: failure poisons.
 		fake.err = errors.New("boom")
-		h.HandleCancel(context.Background())
+		h.HandleCancel(t.Context())
 		h.HandleUnwatchAfterCancel()
 		require.False(t, conn.last().IsZero())
 
 		// Cycle 2: success clears.
 		fake.err = nil
-		h.HandleCancel(context.Background())
+		h.HandleCancel(t.Context())
 		h.HandleUnwatchAfterCancel()
 		require.True(t, conn.last().IsZero())
 		require.Equal(t, int32(2), fake.calls.Load())

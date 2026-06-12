@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sync"
@@ -73,10 +74,6 @@ func NewCanceler(ctx context.Context, config *pgxpool.Config) (*Canceler, error)
 	config = config.Copy()
 	config.MinConns = 1
 	config.MaxConns = defaultCancelPoolMaxConns
-	// The cancel pool keeps pgx's default context watcher behavior: CANCEL
-	// statements run under their own short timeouts, and losing one of these
-	// connections is cheap.
-	config.ConnConfig.BuildContextWatcherHandler = nil
 
 	p, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
@@ -130,7 +127,7 @@ func (c *Canceler) SessionID(pgConn *pgconn.PgConn) (string, bool) {
 func (c *Canceler) CancelSessionQueries(pgConn *pgconn.PgConn) error {
 	sessionID, ok := c.SessionID(pgConn)
 	if !ok {
-		return fmt.Errorf("no session registered for connection")
+		return errors.New("no session registered for connection")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultCancelTimeout)

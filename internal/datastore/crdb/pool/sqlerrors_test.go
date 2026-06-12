@@ -455,14 +455,14 @@ func TestUnexpectedCancellationTripwire(t *testing.T) {
 	before := testutil.ToFloat64(UnexpectedCancellationErrors)
 
 	// A 57014 with a live context is a cancellation that hit the wrong query.
-	err := wrapRetryableError(context.Background(), &pgconn.PgError{Code: CrdbQueryCanceledErrCode})
+	err := wrapRetryableError(t.Context(), &pgconn.PgError{Code: CrdbQueryCanceledErrCode})
 	require.Error(t, err)
-	require.Equal(t, before+1, testutil.ToFloat64(UnexpectedCancellationErrors))
+	require.InEpsilon(t, before+1, testutil.ToFloat64(UnexpectedCancellationErrors), 1e-9)
 
 	// A 57014 with a canceled context is expected and must not trip the wire.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	err = wrapRetryableError(ctx, &pgconn.PgError{Code: CrdbQueryCanceledErrCode})
 	require.ErrorIs(t, err, context.Canceled)
-	require.Equal(t, before+1, testutil.ToFloat64(UnexpectedCancellationErrors))
+	require.InEpsilon(t, before+1, testutil.ToFloat64(UnexpectedCancellationErrors), 1e-9)
 }
