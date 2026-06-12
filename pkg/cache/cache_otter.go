@@ -13,6 +13,8 @@ import (
 	"github.com/maypok86/otter/v2/stats"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -89,6 +91,9 @@ type otterCache[K KeyString, V any] struct {
 // given registerer. The metrics are read from the cache at scrape time. On any
 // registration failure, already-registered metrics are rolled back.
 func (wtc *otterCache[K, V]) registerMetrics(registerer prometheus.Registerer) error {
+	if registerer == nil {
+		return spiceerrors.MustBugf("error attempting to register metrics in cache: nil Prometheus registerer")
+	}
 	labels := prometheus.Labels{"cache": wtc.name}
 	collectors := []prometheus.Collector{
 		prometheus.NewCounterFunc(prometheus.CounterOpts{

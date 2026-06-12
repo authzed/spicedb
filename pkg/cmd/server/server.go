@@ -103,9 +103,9 @@ type Config struct {
 	DispatchUpstreamAddr              string                   `debugmap:"visible"`
 	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
 	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible" default:"60s"`
-	DispatchClientMetricsEnabled      bool                     `debugmap:"visible"`
+	DispatchClientMetricsEnabled      bool                     `debugmap:"visible" default:"true"`
 	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
-	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible"`
+	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible" default:"true"`
 	DispatchClusterMetricsPrefix      string                   `debugmap:"visible"`
 	Dispatcher                        dispatch.Dispatcher      `debugmap:"visible"`
 	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
@@ -192,9 +192,6 @@ func (c *Config) SetDefaults() {
 	c.MetricsAPI.HTTPAddress = ":9090"
 	c.MetricsAPI.HTTPEnabled = true
 
-	c.DispatchClusterMetricsEnabled = true
-	c.DispatchClientMetricsEnabled = true
-
 	// NOTE: NumCounters stays 0 here to match RegisterCacheFlags, which
 	// hardcodes the flag default to 0 (the flag is deprecated and unused).
 	c.NamespaceCacheConfig = CacheConfig{Name: "namespace", Enabled: true, Metrics: true, MaxCost: "32MiB"}
@@ -230,11 +227,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		return nil, err
 	}
 
-	// Caches with metrics enabled register them with the default registerer,
-	// which the metrics endpoint scrapes; they unregister themselves on Close.
-	cacheRegisterer := prometheus.DefaultRegisterer
-
-	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](cacheRegisterer, &c.NamespaceCacheConfig)
+	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](c.OTel.PrometheusRegistry, &c.NamespaceCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
@@ -263,7 +256,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
-	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](cacheRegisterer, &c.StoredSchemaCacheConfig)
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](c.OTel.PrometheusRegistry, &c.StoredSchemaCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
 	}
@@ -288,7 +281,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	// Create LR3 resource chunk cache (used by both dispatcher types)
-	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](cacheRegisterer, &c.LR3ResourceChunkCacheConfig)
+	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](c.OTel.PrometheusRegistry, &c.LR3ResourceChunkCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LR3 resource chunk cache: %w", err)
 	}
@@ -297,7 +290,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		cc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.DispatchCacheConfig.WithRevisionParameters(
+		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.OTel.PrometheusRegistry, c.DispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
@@ -322,6 +315,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			return nil, fmt.Errorf("failed to create gRPC hashring balancer config: %w", err)
 		}
 
+		var prometheusRegistry prometheus.Registerer = nil
+		if c.DispatchClientMetricsEnabled {
+			prometheusRegistry = c.OTel.PrometheusRegistry
+		}
+
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
@@ -339,8 +337,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 					requestid.StreamClientInterceptor(),
 				),
 			),
-			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
-			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
+			combineddispatch.Metrics(dispatch.MetricsOptions{PrometheusSubsystem: c.DispatchClientMetricsPrefix, PrometheusRegistry: prometheusRegistry}),
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
@@ -358,7 +355,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
-		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.ClusterDispatchCacheConfig.WithRevisionParameters(
+		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](c.OTel.PrometheusRegistry, c.ClusterDispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
@@ -369,10 +366,14 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		log.Ctx(ctx).Info().EmbedObject(cdcc).Msg("configured cluster dispatch cache")
 		closeables.AddWithoutError(cdcc.Close)
 
+		var prometheusRegistry prometheus.Registerer = nil
+		if c.DispatchClusterMetricsEnabled {
+			prometheusRegistry = c.OTel.PrometheusRegistry
+		}
+
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
 			dispatcher,
-			clusterdispatch.MetricsEnabled(c.DispatchClusterMetricsEnabled),
-			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
+			clusterdispatch.Metrics(dispatch.MetricsOptions{PrometheusSubsystem: c.DispatchClusterMetricsPrefix, PrometheusRegistry: prometheusRegistry}),
 			clusterdispatch.Cache(cdcc),
 			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
