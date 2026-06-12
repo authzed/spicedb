@@ -36,6 +36,7 @@ type crdbOptions struct {
 	includeQueryParametersInTraces bool
 	watchDisabled                  bool
 	acquireTimeout                 time.Duration
+	enableQueryCancellation        bool
 }
 
 const (
@@ -67,6 +68,7 @@ const (
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces = false
 	defaultWatchDisabled                  = false
+	defaultEnableQueryCancellation        = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -94,6 +96,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		watchDisabled:                  defaultWatchDisabled,
 		acquireTimeout:                 defaultAcquireTimeout,
+		enableQueryCancellation:        defaultEnableQueryCancellation,
 	}
 
 	for _, option := range options {
@@ -403,4 +406,14 @@ func WithWatchDisabled(isDisabled bool) Option {
 // from the pool with Try* methods before applying backpressure.
 func WithAcquireTimeout(timeout time.Duration) Option {
 	return func(po *crdbOptions) { po.acquireTimeout = timeout }
+}
+
+// WithQueryCancellation enables in-band cancellation of in-flight queries via
+// CockroachDB's CANCEL QUERIES statement when their context is canceled,
+// keeping connections alive instead of destroying them (pgx's default
+// behavior). When enabled, reader query contexts are no longer severed.
+//
+// This is experimental and disabled by default.
+func WithQueryCancellation(enabled bool) Option {
+	return func(po *crdbOptions) { po.enableQueryCancellation = enabled }
 }

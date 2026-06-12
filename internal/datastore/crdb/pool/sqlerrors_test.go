@@ -1,11 +1,14 @@
 package pool
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -446,4 +449,20 @@ func Test_sqlErrorCode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnexpectedCancellationTripwire(t *testing.T) {
+	before := testutil.ToFloat64(UnexpectedCancellationErrors)
+
+	// A 57014 with a live context is a cancellation that hit the wrong query.
+	err := wrapRetryableError(t.Context(), &pgconn.PgError{Code: CrdbQueryCanceledErrCode})
+	require.Error(t, err)
+	require.InEpsilon(t, before+1, testutil.ToFloat64(UnexpectedCancellationErrors), 1e-9)
+
+	// A 57014 with a canceled context is expected and must not trip the wire.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err = wrapRetryableError(ctx, &pgconn.PgError{Code: CrdbQueryCanceledErrCode})
+	require.ErrorIs(t, err, context.Canceled)
+	require.InEpsilon(t, before+1, testutil.ToFloat64(UnexpectedCancellationErrors), 1e-9)
 }

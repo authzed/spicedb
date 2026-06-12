@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Added
 - Query Planner: fast serialize/deserialize for query plans (https://github.com/authzed/spicedb/pull/3122)
+- CockroachDB: new experimental flag `--datastore-experimental-crdb-query-cancellation` that cancels in-flight queries via CockroachDB's `CANCEL QUERIES` statement when their context is canceled, keeping connections alive instead of destroying them and preventing the pool-drain death spiral under load. Recommended pairing: `--write-conn-acquisition-timeout=0`.
 
 ### Changed
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)

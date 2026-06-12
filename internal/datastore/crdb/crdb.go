@@ -183,6 +183,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		dburl:                        url,
 		acquireTimeout:               config.acquireTimeout,
+		queryCancellationEnabled:     config.enableQueryCancellation,
 		watchBufferLength:            config.watchBufferLength,
 		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
 		watchBufferWriteTimeout:      config.watchBufferWriteTimeout,
@@ -203,6 +204,21 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
+
+	if config.enableQueryCancellation {
+		cancelPoolConfig, err := pgxpool.ParseConfig(url)
+		if err != nil {
+			ds.cancel()
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+		}
+		ds.canceler, err = pool.NewCanceler(ds.ctx, cancelPoolConfig)
+		if err != nil {
+			ds.cancel()
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+		}
+		ds.canceler.InstallOn(writePoolConfig)
+	}
+
 	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
@@ -275,6 +291,8 @@ type crdbDatastore struct {
 	gcWindow                     time.Duration
 	schema                       common.SchemaInformation
 	acquireTimeout               time.Duration
+	canceler                     *pool.Canceler
+	queryCancellationEnabled     bool
 
 	beginChangefeedQuery string
 	transactionNowQuery  string
@@ -482,6 +500,9 @@ func (cds *crdbDatastore) Close() error {
 	}
 	cds.readPool.Close()
 	cds.writePool.Close()
+	if cds.canceler != nil {
+		cds.canceler.Close()
+	}
 	for _, collector := range cds.collectors {
 		ok := prometheus.Unregister(collector)
 		if !ok {
