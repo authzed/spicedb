@@ -13,6 +13,7 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -30,11 +31,15 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 func TestReadRelationships(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	testCases := []struct {
 		name         string
 		filter       *v1.RelationshipFilter
@@ -283,9 +288,11 @@ func TestReadRelationships(t *testing.T) {
 					for _, tc := range testCases {
 						t.Run(tc.name, func(t *testing.T) {
 							require := require.New(t)
-							conn, cleanup, _, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+
+							conn, _, revision := testserver.NewTestServerWithConfig(t, delta, memdb.DisableGC, true,
+								testserver.DefaultTestServerConfig,
+								tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
-							t.Cleanup(cleanup)
 
 							var currentCursor *v1.Cursor
 
@@ -362,11 +369,15 @@ func TestReadRelationships(t *testing.T) {
 }
 
 func TestWriteRelationships(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	toWrite := []tuple.Relationship{
 		tuple.MustParse("document:totallynew#parent@folder:plans"),
@@ -463,11 +474,15 @@ func TestWriteRelationships(t *testing.T) {
 }
 
 func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	toDelete := tuple.MustParse("document:totallynew#parent@folder:plans")
 
@@ -482,11 +497,15 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 }
 
 func TestWriteExpiringRelationships(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	req := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	toWrite := tuple.MustParse("document:companyplan#expiring_viewer@user:johndoe#...[expiration:2300-01-01T00:00:00Z]")
 	relWritten := tuple.ToV1Relationship(toWrite)
@@ -506,13 +525,17 @@ func TestWriteExpiringRelationships(t *testing.T) {
 }
 
 func TestWriteCaveatedRelationships(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	for _, deleteWithCaveat := range []bool{true, false} {
 		t.Run(fmt.Sprintf("with-caveat-%v", deleteWithCaveat), func(t *testing.T) {
 			req := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+			conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tf.StandardDatastoreWithData)
 			client := v1.NewPermissionsServiceClient(conn)
-			t.Cleanup(cleanup)
 
 			toWrite := tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#...")
 			caveatCtx, err := structpb.NewStruct(map[string]any{"expectedSecret": "hi"})
@@ -739,6 +762,9 @@ func relationshipForBulkTesting(nsAndRel struct {
 }
 
 func TestInvalidWriteRelationship(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	testCases := []struct {
 		name          string
 		preconditions []*v1.RelationshipFilter
@@ -878,9 +904,11 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+
+					conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+						testserver.DefaultTestServerConfig,
+						tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
-					t.Cleanup(cleanup)
 
 					preconditions := make([]*v1.Precondition, 0, len(tc.preconditions))
 					for _, filter := range tc.preconditions {
@@ -913,6 +941,9 @@ func TestInvalidWriteRelationship(t *testing.T) {
 }
 
 func TestDeleteRelationships(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	testCases := []struct {
 		name          string
 		req           *v1.DeleteRelationshipsRequest
@@ -1245,10 +1276,10 @@ func TestDeleteRelationships(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
 				require := require.New(t)
-				conn, cleanup, ds, revision := testserver.NewTestServer(t, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+				conn, ds, revision := testserver.NewTestServerWithConfig(t, delta, memdb.DisableGC, true,
+					testserver.DefaultTestServerConfig,
+					tf.StandardDatastoreWithData)
 				client := v1.NewPermissionsServiceClient(conn)
-				t.Cleanup(cleanup)
-
 				resp, err := client.DeleteRelationships(t.Context(), tc.req)
 
 				if tc.expectedCode != codes.OK {
@@ -1273,10 +1304,15 @@ func TestDeleteRelationships(t *testing.T) {
 }
 
 func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	_, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
@@ -1290,10 +1326,15 @@ func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
 }
 
 func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	_, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
@@ -1307,10 +1348,15 @@ func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 }
 
 func TestReadRelationshipsBeyondAllowedLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	resp, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
@@ -1326,6 +1372,9 @@ func TestReadRelationshipsBeyondAllowedLimit(t *testing.T) {
 }
 
 func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	expected := map[string]struct{}{
 		"document:ownerplan#viewer@user:owner":                       {},
 		"document:companyplan#parent@folder:company":                 {},
@@ -1346,9 +1395,11 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 
 		t.Run(fmt.Sprintf("batchsize-%d", batchSize), func(t *testing.T) {
 			require := require.New(t)
-			conn, cleanup, ds, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+
+			conn, ds, revision := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tf.StandardDatastoreWithData)
 			client := v1.NewPermissionsServiceClient(conn)
-			t.Cleanup(cleanup)
 
 			iterations := 0
 			uintBatchSize, err := safecast.Convert[uint32](batchSize)
@@ -1401,8 +1452,11 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 }
 
 func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+	conn, _, _ := testserver.NewTestServerWithConfig(
 		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
@@ -1414,7 +1468,6 @@ func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 		tf.StandardDatastoreWithData,
 	)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	_, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
@@ -1459,8 +1512,11 @@ func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 }
 
 func TestWriteRelationshipsWithMetadata(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, beforeWriteRev := testserver.NewTestServerWithConfig(
+	conn, _, beforeWriteRev := testserver.NewTestServerWithConfig(
 		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
@@ -1471,7 +1527,6 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 		},
 		tf.StandardDatastoreWithData,
 	)
-	t.Cleanup(cleanup)
 
 	client := v1.NewPermissionsServiceClient(conn)
 
@@ -1507,8 +1562,11 @@ func TestWriteRelationshipsWithMetadata(t *testing.T) {
 }
 
 func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+	conn, _, _ := testserver.NewTestServerWithConfig(
 		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
@@ -1520,7 +1578,6 @@ func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
 		tf.StandardDatastoreWithData,
 	)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	metadata, err := structpb.NewStruct(map[string]any{
 		"foo": strings.Repeat("hithere", 65000),
@@ -1536,8 +1593,11 @@ func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
 }
 
 func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+	conn, _, _ := testserver.NewTestServerWithConfig(
 		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
@@ -1549,7 +1609,6 @@ func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
 		tf.StandardDatastoreWithData,
 	)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	metadata, err := structpb.NewStruct(map[string]any{
 		"foo": strings.Repeat("hithere", 65000),
@@ -1566,8 +1625,11 @@ func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
 }
 
 func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+	conn, _, _ := testserver.NewTestServerWithConfig(
 		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
@@ -1579,7 +1641,6 @@ func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 		tf.StandardDatastoreWithData,
 	)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		OptionalPreconditions: []*v1.Precondition{
@@ -1615,8 +1676,11 @@ func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 }
 
 func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+	conn, _, _ := testserver.NewTestServerWithConfig(
 		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
@@ -1628,7 +1692,6 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 		tf.StandardDatastoreWithData,
 	)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
@@ -1648,8 +1711,11 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 }
 
 func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
-	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+	conn, _, _ := testserver.NewTestServerWithConfig(
 		t,
 		testTimedeltas[0],
 		memdb.DisableGC,
@@ -1660,7 +1726,6 @@ func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
 		tf.StandardDatastoreWithCaveatedData,
 	)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	rel := relWithCaveat("document", "newdoc", "parent", "folder", "afolder", "", "test")
 	strct, err := structpb.NewStruct(map[string]any{"key": "value"})
@@ -1682,9 +1747,12 @@ func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
 }
 
 func TestReadRelationshipsWithTimeout(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+	conn, _, _ := testserver.NewTestServerWithConfig(
 		t,
 		0,
 		memdb.DisableGC,
@@ -1697,7 +1765,6 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 		tf.StandardDatastoreWithData,
 	)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	// Write additional test data.
 	counter := 0
@@ -1742,11 +1809,15 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 }
 
 func TestReadRelationshipsInvalidCursor(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
 
-	conn, cleanup, _, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, _, revision := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
@@ -1823,11 +1894,15 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 }
 
 func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
 
 	// Kick off a number of writes to ensure at least one hits an error, as memdb's write throughput
 	// is limited.
@@ -1857,6 +1932,9 @@ func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *tes
 }
 
 func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	// Test cases covering various combinations of expiration, caveats, and filters
 	testCases := []struct {
 		name                  string
@@ -2294,9 +2372,11 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 			require := require.New(t)
 
 			// Create test server with custom schema and data
-			conn, cleanup, _, _ := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tf.EmptyDatastore)
+
+			conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tf.EmptyDatastore)
 			client := v1.NewPermissionsServiceClient(conn)
-			t.Cleanup(cleanup)
 
 			// Write the schema
 			schemaClient := v1.NewSchemaServiceClient(conn)

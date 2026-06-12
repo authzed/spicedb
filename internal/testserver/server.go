@@ -33,51 +33,21 @@ type ServerConfig struct {
 }
 
 var DefaultTestServerConfig = ServerConfig{
-	MaxUpdatesPerWrite:                 1000,
-	MaxPreconditionsCount:              1000,
-	StreamingAPITimeout:                30 * time.Second,
-	MaxRelationshipContextSize:         25000,
 	EnableExperimentalLookupResources3: true,
 }
 
 type DatastoreInitFunc func(testing.TB, datastore.Datastore) (datastore.Datastore, datastore.Revision)
 
-// NewTestServer creates a new test server, using defaults for the config.
-func NewTestServer(t testing.TB,
-	revisionQuantization time.Duration,
-	gcWindow time.Duration,
-	schemaPrefixRequired bool,
-	dsInitFunc DatastoreInitFunc,
-) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
-	return NewTestServerWithConfig(t, revisionQuantization, gcWindow, schemaPrefixRequired,
-		DefaultTestServerConfig,
-		dsInitFunc)
-}
-
 // NewTestServerWithConfig creates as new test server with the specified config.
-func NewTestServerWithConfig(t testing.TB,
-	revisionQuantization time.Duration,
-	gcWindow time.Duration,
-	schemaPrefixRequired bool,
-	config ServerConfig,
-	dsInitFunc DatastoreInitFunc,
-) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
+func NewTestServerWithConfig(t testing.TB, revisionQuantization time.Duration, gcWindow time.Duration, schemaPrefixRequired bool, config ServerConfig, dsInitFunc DatastoreInitFunc) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(t, err)
 
-	return NewTestServerWithConfigAndDatastore(t, revisionQuantization, gcWindow, schemaPrefixRequired, config, emptyDS, dsInitFunc)
+	return NewTestServerWithConfigAndDatastore(t, schemaPrefixRequired, config, emptyDS, dsInitFunc)
 }
 
-func NewTestServerWithConfigAndDatastore(t testing.TB,
-	revisionQuantization time.Duration,
-	gcWindow time.Duration,
-	schemaPrefixRequired bool,
-	config ServerConfig,
-	emptyDS datastore.Datastore,
-	dsInitFunc DatastoreInitFunc,
-) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
+func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool, config ServerConfig, emptyDS datastore.Datastore, dsInitFunc DatastoreInitFunc) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(t, emptyDS)
-	ctx, cancel := context.WithCancel(t.Context())
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
 	lrver := ""
@@ -95,9 +65,11 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
 
-	srv, err := server.NewConfigWithOptionsAndDefaults(
+	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
+		server.WithTelemetryEndpoint(""),
+		server.WithSilentlyDisableTelemetry(true),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
@@ -163,21 +135,35 @@ func NewTestServerWithConfigAndDatastore(t testing.TB,
 				},
 			},
 		}),
-	).Complete(ctx)
+	)
+	// Disable all caching and metrics so test servers retain their pre-PR
+	// behavior. The new library defaults enable real caches (matching CLI),
+	// which (a) break parallel subtests by registering duplicate metrics
+	// with prometheus.DefaultRegisterer and (b) can affect test semantics
+	// by introducing caching where there was previously a NoopCache.
+	cfg.DispatchClusterMetricsEnabled = false
+	cfg.DispatchClientMetricsEnabled = false
+	cfg.DatastoreConfig.EnableDatastoreMetrics = false
+	cfg.NamespaceCacheConfig = server.CacheConfig{}
+	cfg.DispatchCacheConfig = server.CacheConfig{}
+	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
+	cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
+	cfg.StoredSchemaCacheConfig = server.CacheConfig{}
+	srv, err := cfg.Complete(t.Context())
 	require.NoError(t, err)
 
+	done := make(chan bool, 1)
 	go func() {
-		_ = srv.Run(ctx)
+		_ = srv.Run(t.Context())
+		done <- true
 	}()
 
-	// TODO: move off of WithBlock
-	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock()) // nolint: staticcheck
+	conn, err := srv.NewClient()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+		<-done
+	})
 
-	return conn, func() {
-		if conn != nil {
-			require.NoError(t, conn.Close())
-		}
-		cancel()
-	}, ds, revision
+	return conn, ds, revision
 }

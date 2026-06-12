@@ -964,9 +964,8 @@ func runPGServer(t *testing.T, client *authzed.Client) int {
 	port, err := GetFreePort()
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx := t.Context()
 	t.Cleanup(func() {
-		cancel()
 		require.NoError(t, pgserver.Close())
 	})
 
@@ -1024,10 +1023,6 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 	}
 
 	ctx := t.Context()
-	ctx, cancel := context.WithCancel(ctx)
-	t.Cleanup(func() {
-		cancel()
-	})
 
 	runnableServer, err := config.Complete(ctx)
 	require.NoError(t, err)

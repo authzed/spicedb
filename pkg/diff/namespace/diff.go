@@ -1,8 +1,9 @@
 package namespace
 
 import (
+	"slices"
+
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	nsinternal "github.com/authzed/spicedb/internal/namespace"

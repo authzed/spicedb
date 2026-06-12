@@ -1,10 +1,10 @@
 package graph
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -27,7 +27,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
-	"github.com/authzed/spicedb/pkg/query/queryopt"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -498,11 +497,18 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	)
 }
 
+// LookupPlanCheck is a no-op on the local dispatcher — there is no cache layer
+// at this level, so callers should fall through to DispatchQueryPlan.
+func (ld *localDispatcher) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
+
 // DispatchQueryPlan implements dispatch.Plan interface.
-// It loads the schema, compiles the plan, finds the subtree by canonical key,
-// and executes it locally. The Impl method is called directly on the found
-// iterator to avoid re-triggering the executor's dispatch decision on the
-// same alias boundary that was already dispatched by the caller.
+// It loads the schema (needed to rehydrate DatastoreIterator subjects), then
+// deserializes the iterator subtree the sender shipped in req.Plan and runs
+// it locally. The Impl method is called directly on the deserialized iterator
+// to avoid re-triggering the executor's dispatch decision on the same alias
+// boundary that was already dispatched by the caller.
 func (ld *localDispatcher) DispatchQueryPlan(
 	req *v1.DispatchQueryPlanRequest,
 	stream dispatch.PlanStream,
@@ -521,10 +527,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 
 	schemaHash := datalayer.SchemaHash(planCtx.GetSchemaHash())
 
-	// Load schema at the requested revision and rebuild the iterator subtree
-	// for the (definition, relation) pair encoded in CanonicalKey.
-	// TODO: use cached compiled plans instead of recompiling each time.
-	it, err := ld.compileIteratorForDispatchKey(ctx, revision, schemaHash, req)
+	it, err := ld.deserializePlanFromRequest(ctx, revision, schemaHash, req)
 	if err != nil {
 		return err
 	}
@@ -663,17 +666,14 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	}
 }
 
-// compileIteratorForDispatchKey loads the schema at the given revision, parses
-// the dispatch key (currently encoded as "definition#relation"), builds the
-// outline standalone for that pair, applies the same optimizers the sender
-// would have used, and compiles to an iterator. The returned iterator's outer
-// node is the *AliasIterator for the requested (definition, relation); callers
-// invoke its Impl method directly so the alias's rewrite + self-edge logic
-// runs without re-triggering the executor's dispatch decision at this level.
-func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, req *v1.DispatchQueryPlanRequest) (query.Iterator, error) {
-	defName, relName, ok := strings.Cut(req.CanonicalKey, "#")
-	if !ok || defName == "" || relName == "" {
-		return nil, fmt.Errorf("DispatchQueryPlan: invalid dispatch key %q (expected \"definition#relation\")", req.CanonicalKey)
+// deserializePlanFromRequest loads the schema at the requested revision and
+// rehydrates the iterator subtree the sender serialized into req.Plan. The
+// schema is required so DatastoreIterator children can resolve back to live
+// *schema.BaseRelation pointers via DeserializeContext. Optimization and
+// compilation already happened on the sender; this side just decodes and runs.
+func (ld *localDispatcher) deserializePlanFromRequest(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, req *v1.DispatchQueryPlanRequest) (query.Iterator, error) {
+	if len(req.Plan) == 0 {
+		return nil, errors.New("DispatchQueryPlan: missing serialized plan")
 	}
 
 	dl := datalayer.MustFromContext(ctx)
@@ -702,37 +702,9 @@ func (ld *localDispatcher) compileIteratorForDispatchKey(ctx context.Context, re
 		return nil, fmt.Errorf("DispatchQueryPlan: failed to build schema: %w", err)
 	}
 
-	co, err := query.BuildOutlineFromSchema(fullSchema, defName, relName)
+	it, err := query.Deserialize(bytes.NewReader(req.Plan), &query.DeserializeContext{Schema: fullSchema})
 	if err != nil {
-		return nil, fmt.Errorf("DispatchQueryPlan: failed to build outline for %s#%s: %w", defName, relName, err)
-	}
-
-	operation, err := planOperationToQueryOperation(req.Operation)
-	if err != nil {
-		return nil, fmt.Errorf("DispatchQueryPlan: %w", err)
-	}
-
-	params := queryopt.RequestParams{
-		Operation:       operation,
-		SubjectType:     req.Subject.GetNamespace(),
-		SubjectRelation: req.Subject.GetRelation(),
-	}
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(params), params)
-	if err != nil {
-		return nil, fmt.Errorf("DispatchQueryPlan: failed to optimize outline for %s#%s: %w", defName, relName, err)
-	}
-
-	// Apply the count-based advisor using the shared QueryPlanMetadata so the
-	// receiver-side compile benefits from stats accumulated by prior runs on
-	// either side of the dispatch boundary.
-	optimized, err = ld.queryPlanMetadata.ApplyAdvisor(optimized)
-	if err != nil {
-		return nil, fmt.Errorf("DispatchQueryPlan: failed to apply advisor for %s#%s: %w", defName, relName, err)
-	}
-
-	it, err := optimized.Compile()
-	if err != nil {
-		return nil, fmt.Errorf("DispatchQueryPlan: failed to compile outline for %s#%s: %w", defName, relName, err)
+		return nil, fmt.Errorf("DispatchQueryPlan: failed to deserialize plan: %w", err)
 	}
 	return it, nil
 }

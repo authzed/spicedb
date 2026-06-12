@@ -69,18 +69,13 @@ func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datas
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
-	clientConn, cleanup, _, _ := testserver.NewTestServerWithConfigAndDatastore(t, 0, 0, false,
-		testserver.DefaultTestServerConfig,
-		ds,
-		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
-			// Load in the data.
-			_, rev, err := validationfile.PopulateFromFiles(ctx, datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{"testdata/" + tc.datafile})
-			require.NoError(t, err)
+	clientConn, _, _ := testserver.NewTestServerWithConfigAndDatastore(t, false, testserver.DefaultTestServerConfig, ds, func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+		// Load in the data.
+		_, rev, err := validationfile.PopulateFromFiles(ctx, datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{"testdata/" + tc.datafile})
+		require.NoError(t, err)
 
-			return ds, rev
-		})
-
-	t.Cleanup(cleanup)
+		return ds, rev
+	})
 
 	clients := stClients{
 		PermissionsClient: v1.NewPermissionsServiceClient(clientConn),

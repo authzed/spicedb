@@ -143,6 +143,22 @@ func (mr *MockDispatcherMockRecorder) DispatchQueryPlan(req, stream any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchQueryPlan", reflect.TypeOf((*MockDispatcher)(nil).DispatchQueryPlan), req, stream)
 }
 
+// LookupPlanCheck mocks base method.
+func (m *MockDispatcher) LookupPlanCheck(ctx context.Context, lookup dispatch.PlanCheckLookup) (*dispatchv1.ResultPath, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LookupPlanCheck", ctx, lookup)
+	ret0, _ := ret[0].(*dispatchv1.ResultPath)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LookupPlanCheck indicates an expected call of LookupPlanCheck.
+func (mr *MockDispatcherMockRecorder) LookupPlanCheck(ctx, lookup any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupPlanCheck", reflect.TypeOf((*MockDispatcher)(nil).LookupPlanCheck), ctx, lookup)
+}
+
 // ReadyState mocks base method.
 func (m *MockDispatcher) ReadyState() dispatch.ReadyState {
 	m.ctrl.T.Helper()
@@ -385,6 +401,22 @@ func (m *MockPlan) DispatchQueryPlan(req *dispatchv1.DispatchQueryPlanRequest, s
 func (mr *MockPlanMockRecorder) DispatchQueryPlan(req, stream any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchQueryPlan", reflect.TypeOf((*MockPlan)(nil).DispatchQueryPlan), req, stream)
+}
+
+// LookupPlanCheck mocks base method.
+func (m *MockPlan) LookupPlanCheck(ctx context.Context, lookup dispatch.PlanCheckLookup) (*dispatchv1.ResultPath, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LookupPlanCheck", ctx, lookup)
+	ret0, _ := ret[0].(*dispatchv1.ResultPath)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LookupPlanCheck indicates an expected call of LookupPlanCheck.
+func (mr *MockPlanMockRecorder) LookupPlanCheck(ctx, lookup any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupPlanCheck", reflect.TypeOf((*MockPlan)(nil).LookupPlanCheck), ctx, lookup)
 }
 
 // MockDispatchableRequest is a mock of DispatchableRequest interface.

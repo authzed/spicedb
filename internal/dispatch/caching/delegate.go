@@ -44,4 +44,8 @@ func (fd fakeDelegate) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, _ dispa
 	return spiceerrors.MustBugf(errMessage)
 }
 
+func (fd fakeDelegate) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, spiceerrors.MustBugf(errMessage)
+}
+
 var _ dispatch.Dispatcher = fakeDelegate{}

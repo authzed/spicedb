@@ -227,7 +227,7 @@ func (u *UnionIterator) SubjectTypes() ([]ObjectType, error) {
 }
 
 func (u *UnionIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, UnionIteratorType, u.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, UnionIteratorType, u.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil { // flags reserved
 			return err
 		}

@@ -47,6 +47,9 @@ func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.Re
 }
 
 func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.CheckRevision")
+	defer span.End()
+
 	_, _, err := p.checkRevGroup.Do(ctx, revision.String(), func(ctx context.Context) (string, error) {
 		return "", p.delegate.CheckRevision(ctx, revision)
 	})
@@ -54,6 +57,9 @@ func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastor
 }
 
 func (p *singleflightProxy) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.HeadRevision")
+	defer span.End()
+
 	rev, _, err := p.headRevGroup.Do(ctx, "", func(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
 		return p.delegate.HeadRevision(ctx)
 	})
@@ -73,6 +79,9 @@ func (p *singleflightProxy) Watch(ctx context.Context, afterRevision datastore.R
 }
 
 func (p *singleflightProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.Statistics")
+	defer span.End()
+
 	stats, _, err := p.statsGroup.Do(ctx, "", func(ctx context.Context) (datastore.Stats, error) {
 		return p.delegate.Statistics(ctx)
 	})
@@ -80,6 +89,9 @@ func (p *singleflightProxy) Statistics(ctx context.Context) (datastore.Stats, er
 }
 
 func (p *singleflightProxy) Features(ctx context.Context) (*datastore.Features, error) {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.Features")
+	defer span.End()
+
 	return p.delegate.Features(ctx)
 }
 

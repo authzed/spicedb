@@ -11,7 +11,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -159,14 +158,9 @@ func (p *watchingCachingProxy) enterFallback() {
 	p.caveatCache.setFallbackMode()
 }
 
-// createWatchingCacheProxy creates and returns a watching cache proxy.
-func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry], gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
-	fallbackCache := &definitionCachingProxy{
-		Datastore: delegate,
-		c:         c,
-	}
-
-	proxy := &watchingCachingProxy{
+// NewWatchingCacheProxy creates and returns a watching cache proxy.
+func NewWatchingCacheProxy(delegate datastore.Datastore, fallbackCache *definitionCachingProxy, gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
+	return &watchingCachingProxy{
 		Datastore:     delegate,
 		fallbackCache: fallbackCache,
 
@@ -201,7 +195,6 @@ func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.
 			caveatsFallbackModeGauge,
 		),
 	}
-	return proxy
 }
 
 func (p *watchingCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {

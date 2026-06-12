@@ -54,6 +54,10 @@ func (m *fakeDispatcher) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, _ dis
 	return nil
 }
 
+func (m *fakeDispatcher) LookupPlanCheck(_ context.Context, _ dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return nil, false, nil
+}
+
 func (m *fakeDispatcher) Close() error {
 	return nil
 }

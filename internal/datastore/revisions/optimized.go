@@ -9,7 +9,6 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 	"resenje.org/singleflight"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -40,7 +39,9 @@ func (cor *CachedOptimizedRevisions) SetOptimizedRevisionFunc(revisionFunc Optim
 }
 
 func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
-	span := trace.SpanFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "CachedOptimizedRevisions.OptimizedRevision")
+	defer span.End()
+
 	localNow := cor.clockFn.Now()
 
 	// Subtract a random amount of time from now, to let barely expired candidates get selected

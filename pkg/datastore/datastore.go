@@ -717,6 +717,8 @@ type ReadOnlyDatastore interface {
 	// used by the specific datastore implementation.
 	RevisionFromString(serialized string) (Revision, error)
 
+	// Deprecated: prefer using datalayer.Watch.
+	//
 	// Watch notifies the caller about changes to the datastore, based on the specified options.
 	// The specified options must be built and validated by the caller.
 	// Some datastores may intentionally ignore some options.

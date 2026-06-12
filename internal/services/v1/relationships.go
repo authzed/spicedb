@@ -158,7 +158,7 @@ func NewPermissionsServer(
 		MaxReadRelationshipsLimit:          defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
 		MaxDeleteRelationshipsLimit:        defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
 		MaxLookupResourcesLimit:            defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
-		MaxBulkExportRelationshipsLimit:    defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
+		MaxBulkExportRelationshipsLimit:    defaultIfZero(config.MaxBulkExportRelationshipsLimit, 10_000),
 		DispatchChunkSize:                  defaultIfZero(config.DispatchChunkSize, 100),
 		MaxCheckBulkConcurrency:            defaultIfZero(config.MaxCheckBulkConcurrency, 50),
 		CaveatTypeSet:                      caveattypes.TypeSetOrDefault(config.CaveatTypeSet),

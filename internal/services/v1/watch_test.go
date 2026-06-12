@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -53,6 +55,9 @@ func update(
 }
 
 func TestWatch(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	testCases := []struct {
 		name                   string
 		watchKinds             []v1.WatchKind
@@ -347,8 +352,9 @@ definition document {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _, revision := testserver.NewTestServer(t, 0, memdb.DisableGC, true, tc.datastoreInitFunc)
-			t.Cleanup(cleanup)
+			conn, _, revision := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+				testserver.DefaultTestServerConfig,
+				tc.datastoreInitFunc)
 			client := v1.NewWatchServiceClient(conn)
 
 			cursor := zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken)
@@ -436,6 +442,9 @@ definition document {
 }
 
 func TestWatchCarriesSchemaHash(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	require := require.New(t)
 
 	// SchemaModeReadNewWriteBoth is required for the datastore to produce real
@@ -444,10 +453,9 @@ func TestWatchCarriesSchemaHash(t *testing.T) {
 	config.DataLayerOpts = []datalayer.DataLayerOption{
 		datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
 	}
-	conn, cleanup, ds, _ := testserver.NewTestServerWithConfig(
+	conn, ds, _ := testserver.NewTestServerWithConfig(
 		t, 0, memdb.DisableGC, true, config, testfixtures.EmptyDatastore,
 	)
-	t.Cleanup(cleanup)
 
 	schemaClient := v1.NewSchemaServiceClient(conn)
 	permClient := v1.NewPermissionsServiceClient(conn)

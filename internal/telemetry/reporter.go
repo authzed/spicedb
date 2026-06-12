@@ -209,6 +209,7 @@ func RemoteReporter(
 				ticker = time.After(nextPush)
 
 			case <-ctx.Done():
+				client.CloseIdleConnections()
 				return nil
 			}
 		}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/pkg/cache"
@@ -46,8 +47,9 @@ func (cc *CacheConfig) WithRevisionParameters(
 	return cc
 }
 
-// CompleteCache translates the CLI cache config into a cache config.
-func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V], error) {
+// CompleteCache translates the CLI cache config into a cache. If metrics are
+// enabled for the cache, its metrics are registered with the given registerer.
+func CompleteCache[K cache.KeyString, V any](registerer prometheus.Registerer, cc *CacheConfig) (cache.Cache[K, V], error) {
 	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" {
 		return cache.NoopCache[K, V](), nil
 	}
@@ -72,7 +74,7 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 	}
 
 	if cc.Metrics {
-		return cache.NewStandardCacheWithMetrics[K, V](cc.Name, &cache.Config{
+		return cache.NewStandardCacheWithMetrics[K, V](registerer, cc.Name, &cache.Config{
 			MaxCost:    intMaxCost,
 			DefaultTTL: cc.defaultTTL,
 		})

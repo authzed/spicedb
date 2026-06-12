@@ -147,6 +147,13 @@ func (d *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReques
 	return d.delegate.DispatchLookupSubjects(req, stream)
 }
 
+// LookupPlanCheck is a passthrough — singleflight provides no cache of its
+// own; it just deduplicates concurrent identical Plan-Check dispatches. The
+// delegate (typically a caching.Dispatcher) is the actual cache holder.
+func (d *Dispatcher) LookupPlanCheck(ctx context.Context, lookup dispatch.PlanCheckLookup) (*v1.ResultPath, bool, error) {
+	return d.delegate.LookupPlanCheck(ctx, lookup)
+}
+
 func (d *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	// Only PLAN_OPERATION_CHECK is request/response-shaped (single ResultPath
 	// per call) and therefore safe to deduplicate via singleflight. The lookup

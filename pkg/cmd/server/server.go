@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -24,7 +23,6 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
 
 	"github.com/authzed/consistent"
-	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
@@ -35,6 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/services"
@@ -64,8 +63,8 @@ type Config struct {
 	// API config
 	GRPCServer             util.GRPCServerConfig `debugmap:"visible"`
 	GRPCAuthFunc           grpc_auth.AuthFunc    `debugmap:"visible"`
-	PresharedSecureKey     []string              `debugmap:"sensitive"`
-	ShutdownGracePeriod    time.Duration         `debugmap:"visible"`
+	PresharedSecureKey     []string              `debugmap:"sensitive" default:"[]"`
+	ShutdownGracePeriod    time.Duration         `debugmap:"visible"   default:"5s"`
 	DisableVersionResponse bool                  `debugmap:"visible"`
 	ServerName             string                `debugmap:"visible"`
 
@@ -86,7 +85,7 @@ type Config struct {
 
 	// Namespace cache
 	EnableExperimentalWatchableSchemaCache bool          `debugmap:"visible"`
-	SchemaWatchHeartbeat                   time.Duration `debugmap:"visible"`
+	SchemaWatchHeartbeat                   time.Duration `debugmap:"visible" default:"1s"`
 	NamespaceCacheConfig                   CacheConfig   `debugmap:"visible"`
 
 	// Stored schema hash cache
@@ -94,24 +93,24 @@ type Config struct {
 
 	// Schema options
 	SchemaPrefixesRequired bool   `debugmap:"visible"`
-	ExperimentalSchemaMode string `debugmap:"visible"`
+	ExperimentalSchemaMode string `debugmap:"visible" default:"read-legacy-write-legacy"`
 
 	// Dispatch options
 	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
-	DispatchMaxDepth                  uint32                   `debugmap:"visible"`
-	GlobalDispatchConcurrencyLimit    uint16                   `debugmap:"visible"`
+	DispatchMaxDepth                  uint32                   `debugmap:"visible" default:"50"`
+	GlobalDispatchConcurrencyLimit    uint16                   `debugmap:"visible" default:"50"`
 	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
 	DispatchUpstreamAddr              string                   `debugmap:"visible"`
 	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
-	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible"`
+	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible" default:"60s"`
 	DispatchClientMetricsEnabled      bool                     `debugmap:"visible"`
 	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
 	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible"`
 	DispatchClusterMetricsPrefix      string                   `debugmap:"visible"`
 	Dispatcher                        dispatch.Dispatcher      `debugmap:"visible"`
 	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
-	DispatchHashringReplicationFactor uint16                   `debugmap:"visible"`
-	DispatchHashringSpread            uint8                    `debugmap:"visible"`
+	DispatchHashringReplicationFactor uint16                   `debugmap:"visible" default:"100"`
+	DispatchHashringSpread            uint8                    `debugmap:"visible" default:"1"`
 	DispatchChunkSize                 uint16                   `debugmap:"visible" default:"100"`
 
 	DispatchSecondaryUpstreamAddrs               map[string]string `debugmap:"visible"`
@@ -126,22 +125,22 @@ type Config struct {
 	// API Behavior
 	DisableV1SchemaAPI                 bool          `debugmap:"visible"`
 	V1SchemaAdditiveOnly               bool          `debugmap:"visible"`
-	MaximumUpdatesPerWrite             uint16        `debugmap:"visible"`
-	MaximumPreconditionCount           uint16        `debugmap:"visible"`
-	MaxDatastoreReadPageSize           uint64        `debugmap:"visible"`
-	StreamingAPITimeout                time.Duration `debugmap:"visible"`
-	WatchHeartbeat                     time.Duration `debugmap:"visible"`
-	MaxReadRelationshipsLimit          uint32        `debugmap:"visible"`
-	MaxDeleteRelationshipsLimit        uint32        `debugmap:"visible"`
-	MaxLookupResourcesLimit            uint32        `debugmap:"visible"`
-	MaxBulkExportRelationshipsLimit    uint32        `debugmap:"visible"`
+	MaximumUpdatesPerWrite             uint16        `debugmap:"visible" default:"1000"`
+	MaximumPreconditionCount           uint16        `debugmap:"visible" default:"1000"`
+	MaxDatastoreReadPageSize           uint64        `debugmap:"visible" default:"1000"`
+	StreamingAPITimeout                time.Duration `debugmap:"visible" default:"30s"`
+	WatchHeartbeat                     time.Duration `debugmap:"visible" default:"1s"`
+	MaxReadRelationshipsLimit          uint32        `debugmap:"visible" default:"1000"`
+	MaxDeleteRelationshipsLimit        uint32        `debugmap:"visible" default:"1000"`
+	MaxLookupResourcesLimit            uint32        `debugmap:"visible" default:"1000"`
+	MaxBulkExportRelationshipsLimit    uint32        `debugmap:"visible" default:"10000"`
 	EnableExperimentalLookupResources  bool          `debugmap:"visible"`
 	ExperimentalLookupResourcesVersion string        `debugmap:"visible"`
 	ExperimentalQueryPlan              []string      `debugmap:"visible"`
 	EnableRelationshipExpiration       bool          `debugmap:"visible" default:"true"`
-	EnableRevisionHeartbeat            bool          `debugmap:"visible"`
+	EnableRevisionHeartbeat            bool          `debugmap:"visible" default:"true"`
 	EnablePerformanceInsightMetrics    bool          `debugmap:"visible"`
-	MismatchZedTokenBehavior           string        `debugmap:"visible"`
+	MismatchZedTokenBehavior           string        `debugmap:"visible" default:"full-consistency"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -160,8 +159,8 @@ type Config struct {
 	// Telemetry
 	SilentlyDisableTelemetry bool          `debugmap:"visible"`
 	TelemetryCAOverridePath  string        `debugmap:"visible"`
-	TelemetryEndpoint        string        `debugmap:"visible"`
-	TelemetryInterval        time.Duration `debugmap:"visible"`
+	TelemetryEndpoint        string        `debugmap:"visible" default:"https://telemetry.authzed.com"`
+	TelemetryInterval        time.Duration `debugmap:"visible" default:"1h"`
 
 	// OpenTelemetry tracing
 	OTel OTelConfig `debugmap:"visible"`
@@ -174,10 +173,49 @@ type Config struct {
 	DisableGRPCLatencyHistogram bool `debugmap:"visible"`
 }
 
+// SetDefaults is invoked by github.com/creasty/defaults after struct-tag
+// defaults are applied. It populates the per-instance defaults that struct
+// tags cannot express because the same struct type is embedded in Config in
+// multiple places with different defaults (GRPCServer vs. DispatchServer,
+// HTTPGateway vs. MetricsAPI, the five CacheConfig sites). It also matches
+// the empty (non-nil) slice defaults that RegisterServeFlags writes via
+// StringSliceVar so the library and CLI configurations stay identical.
+//
+// These values must stay in sync with cmd.RegisterServeFlags;
+// TestConfigDefaultsMatchCLIFlags in pkg/cmd enforces that parity.
+func (c *Config) SetDefaults() {
+	c.GRPCServer.Address = ":50051"
+	c.GRPCServer.Enabled = true
+	c.DispatchServer.Address = ":50053"
+
+	c.HTTPGateway.HTTPAddress = ":8443"
+	c.MetricsAPI.HTTPAddress = ":9090"
+	c.MetricsAPI.HTTPEnabled = true
+
+	c.DispatchClusterMetricsEnabled = true
+	c.DispatchClientMetricsEnabled = true
+
+	// NOTE: NumCounters stays 0 here to match RegisterCacheFlags, which
+	// hardcodes the flag default to 0 (the flag is deprecated and unused).
+	c.NamespaceCacheConfig = CacheConfig{Name: "namespace", Enabled: true, Metrics: true, MaxCost: "32MiB"}
+	c.DispatchCacheConfig = CacheConfig{Name: "dispatch", Enabled: true, Metrics: true, MaxCost: "30%"}
+	c.ClusterDispatchCacheConfig = CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "70%"}
+	c.LR3ResourceChunkCacheConfig = CacheConfig{Name: "lr3_chunk", Enabled: true, MaxCost: "50MiB"}
+	c.StoredSchemaCacheConfig = CacheConfig{Name: "stored_schema", Enabled: true, Metrics: true, MaxCost: "32MiB"}
+
+	if c.HTTPGatewayCorsAllowedOrigins == nil {
+		c.HTTPGatewayCorsAllowedOrigins = []string{"*"}
+	}
+}
+
 // Complete validates the config and fills out defaults.
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
+	return c.complete(ctx)
+}
+
+func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	closeables := util.CloseableStack{}
 	var err error
 	defer func() {
@@ -192,7 +230,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, err
 	}
 
-	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
+	// Caches with metrics enabled register them with the default registerer,
+	// which the metrics endpoint scrapes; they unregister themselves on Close.
+	cacheRegisterer := prometheus.DefaultRegisterer
+
+	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](cacheRegisterer, &c.NamespaceCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
@@ -221,7 +263,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
-	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&c.StoredSchemaCacheConfig)
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](cacheRegisterer, &c.StoredSchemaCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
 	}
@@ -246,7 +288,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	// Create LR3 resource chunk cache (used by both dispatcher types)
-	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](&c.LR3ResourceChunkCacheConfig)
+	lr3ChunkCache, err := CompleteCache[cache.StringKey, any](cacheRegisterer, &c.LR3ResourceChunkCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LR3 resource chunk cache: %w", err)
 	}
@@ -255,7 +297,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.DispatchCacheConfig.WithRevisionParameters(
+		cc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.DispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
@@ -316,7 +358,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
-		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](c.ClusterDispatchCacheConfig.WithRevisionParameters(
+		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](cacheRegisterer, c.ClusterDispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
@@ -561,7 +603,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dispatchGRPCServer: dispatchGrpcServer,
 		gatewayServer:      gatewayServer,
 		metricsServer:      metricsServer,
-		presharedKeys:      c.PresharedSecureKey,
 		telemetryReporter:  reporter,
 		healthManager:      healthManager,
 		closeFunc:          closeables.Close,
@@ -765,11 +806,13 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	return gatewayServer, closeableGatewayHandler, nil
 }
 
-// RunnableServer is a spicedb service set ready to run
+// RunnableServer is a spicedb service set ready to run.
 type RunnableServer interface {
+	// Run takes the runnable server configuration and starts the server.
 	Run(ctx context.Context) error
-	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
-	DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error)
+	// NewClient returns a grpc connection to this server.
+	// It is up to the caller to close the connection when done using it.
+	NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
 // completedServerConfig holds the full configuration to run a spicedb server,
@@ -785,25 +828,10 @@ type completedServerConfig struct {
 	telemetryReporter  telemetry.Reporter
 	healthManager      health.Manager
 
-	presharedKeys []string
-	closeFunc     func() error
+	closeFunc func() error
 }
 
-func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	if len(c.presharedKeys) == 0 {
-		return c.gRPCServer.DialContext(ctx, opts...)
-	}
-	if c.gRPCServer.Insecure() {
-		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKeys[0]))
-	} else {
-		opts = append(opts, grpcutil.WithBearerToken(c.presharedKeys[0]))
-	}
-	return c.gRPCServer.DialContext(ctx, opts...)
-}
-
-func (c *completedServerConfig) DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error) {
-	return c.dispatchGRPCServer.NetDialContext(ctx, s)
-}
+var _ RunnableServer = &completedServerConfig{}
 
 func (c *completedServerConfig) Run(ctx context.Context) error {
 	log.Ctx(ctx).Info().Type("datastore", c.ds).Msg("running server")
@@ -828,10 +856,10 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		return c.healthManager.Checker(ctx)
 	})
 	g.Go(func() error {
-		return c.gRPCServer.Listen(ctx)
+		return c.gRPCServer.Run(ctx)
 	})
 	g.Go(func() error {
-		return c.dispatchGRPCServer.Listen(ctx)
+		return c.dispatchGRPCServer.Run(ctx)
 	})
 	g.Go(c.gatewayServer.ListenAndServe)
 	g.Go(c.metricsServer.ListenAndServe)
@@ -847,4 +875,12 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *completedServerConfig) NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	bufferedListener := c.gRPCServer.BufferedListener()
+	if bufferedListener != nil {
+		return grpchelpers.NewBufferedClient(bufferedListener, opts...)
+	}
+	return grpc.NewClient(c.gRPCServer.Address(), opts...)
 }

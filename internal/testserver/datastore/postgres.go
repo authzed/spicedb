@@ -64,6 +64,11 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 		cmd = append(cmd, "-c", "track_commit_timestamp=1")
 	}
 
+	// Turn off autovacuum. This shouldn't meaningfully change the behavior of postgres
+	// on the timescale of our tests and should allow the XID consumption test to run without
+	// failing.
+	cmd = append(cmd, "-c", "autovacuum=off")
+
 	postgres, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       postgresContainerHostname,
 		Repository: "postgres",

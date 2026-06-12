@@ -90,12 +90,15 @@ func writeHeader(w io.Writer, t IteratorType, key CanonicalKey) error {
 	return writeString(w, string(key))
 }
 
-// serializeWithHeader emits the header and then invokes writeBody to write the
+// SerializeWithHeader emits the header and then invokes writeBody to write the
 // type-specific body straight into w — no intermediate buffer. (An earlier
 // version built the body in a pooled bytes.Buffer so we could length-prefix
 // it; we dropped the length prefix to let the decode side avoid a per-node
 // allocation, which also lets the encode side skip the staging buffer.)
-func serializeWithHeader(w io.Writer, t IteratorType, key CanonicalKey, writeBody func(io.Writer) error) error {
+//
+// Exported for external iterators registered via MustRegisterIterator that
+// need to emit their own bodies with the same framing as the built-ins.
+func SerializeWithHeader(w io.Writer, t IteratorType, key CanonicalKey, writeBody func(io.Writer) error) error {
 	if err := writeHeader(w, t, key); err != nil {
 		return err
 	}

@@ -158,7 +158,7 @@ func (r *RecursiveSentinelIterator) SubjectTypes() ([]ObjectType, error) {
 const sentinelFlagWithSubRelations = 0
 
 func (r *RecursiveSentinelIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, RecursiveSentinelIteratorType, r.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, RecursiveSentinelIteratorType, r.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, sentinelFlagWithSubRelations, r.withSubRelations)
 		if err := writeUvarint(buf, flags); err != nil {

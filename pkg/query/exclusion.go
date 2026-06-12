@@ -416,7 +416,7 @@ func (e *ExclusionIterator) SubjectTypes() ([]ObjectType, error) {
 }
 
 func (e *ExclusionIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, ExclusionIteratorType, e.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, ExclusionIteratorType, e.canonicalKey, func(buf io.Writer) error {
 		if err := writeUvarint(buf, 0); err != nil {
 			return err
 		}

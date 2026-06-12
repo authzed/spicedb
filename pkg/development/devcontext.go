@@ -3,7 +3,6 @@ package development
 import (
 	"context"
 	"errors"
-	"net"
 	"time"
 
 	"buf.build/go/protovalidate"
@@ -12,7 +11,6 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -210,14 +208,7 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		}
 	}()
 
-	conn, err := grpchelpers.DialAndWait(
-		context.Background(),
-		"",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return listener.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	conn, err := grpchelpers.NewBufferedClient(listener)
 	return conn, func() {
 		conn.Close()
 		listener.Close()

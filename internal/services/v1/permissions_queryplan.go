@@ -71,6 +71,13 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	// Tag dispatch-eligible aliases by wrapping them in DispatchIterator, run
+	// after the standard optimizer set so the wrap sees the post-optimizer tree.
+	optimized, err = dispatch.ApplyDispatchWrap(optimized, queryParams)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
 	// Apply count-based advisor if stats have been accumulated from prior requests.
 	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
 	if err != nil {
@@ -206,6 +213,13 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
+	// Tag dispatch-eligible aliases by wrapping them in DispatchIterator, run
+	// after the standard optimizer set so the wrap sees the post-optimizer tree.
+	optimized, err = dispatch.ApplyDispatchWrap(optimized, queryParams)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
 	// Apply count-based advisor if stats have been accumulated from prior requests.
 	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
 	if err != nil {
@@ -330,6 +344,13 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		SubjectRelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 	}
 	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Tag dispatch-eligible aliases by wrapping them in DispatchIterator, run
+	// after the standard optimizer set so the wrap sees the post-optimizer tree.
+	optimized, err = dispatch.ApplyDispatchWrap(optimized, queryParams)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}

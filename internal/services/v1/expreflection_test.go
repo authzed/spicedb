@@ -8,6 +8,7 @@ import (
 
 	"github.com/ettle/strcase"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -23,6 +24,9 @@ import (
 )
 
 func TestExpConvertDiff(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name             string
 		existingSchema   string
@@ -592,6 +596,9 @@ func TestExpConvertDiff(t *testing.T) {
 type expFilterCheck func(sf *expSchemaFilters) bool
 
 func TestExpSchemaFiltering(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name     string
 		filters  []*v1.ExpSchemaFilter
@@ -790,6 +797,9 @@ func TestExpSchemaFiltering(t *testing.T) {
 }
 
 func TestExpNewexpSchemaFilters(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name    string
 		filters []*v1.ExpSchemaFilter

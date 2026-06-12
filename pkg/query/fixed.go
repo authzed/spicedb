@@ -227,11 +227,11 @@ func (f *FixedIterator) Serialize(w io.Writer) error {
 	// Empty FixedIterator decompiles to NullIteratorType; emit Null on the wire
 	// so the receiver reconstructs the same shape.
 	if len(f.paths) == 0 {
-		return serializeWithHeader(w, NullIteratorType, f.canonicalKey, func(buf io.Writer) error {
+		return SerializeWithHeader(w, NullIteratorType, f.canonicalKey, func(buf io.Writer) error {
 			return writeUvarint(buf, 0)
 		})
 	}
-	return serializeWithHeader(w, FixedIteratorType, f.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, FixedIteratorType, f.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, fixedFlagHasPaths, len(f.paths) > 0)
 		if err := writeUvarint(buf, flags); err != nil {

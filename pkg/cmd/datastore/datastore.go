@@ -51,12 +51,12 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.connpool.options.go . ConnPoolConfig
 type ConnPoolConfig struct {
-	MaxIdleTime         time.Duration `debugmap:"visible"`
-	MaxLifetime         time.Duration `debugmap:"visible"`
+	MaxIdleTime         time.Duration `debugmap:"visible" default:"30m"`
+	MaxLifetime         time.Duration `debugmap:"visible" default:"30m"`
 	MaxLifetimeJitter   time.Duration `debugmap:"visible"`
 	MaxOpenConns        int           `debugmap:"visible"`
 	MinOpenConns        int           `debugmap:"visible"`
-	HealthCheckInterval time.Duration `debugmap:"visible"`
+	HealthCheckInterval time.Duration `debugmap:"visible" default:"30s"`
 }
 
 func DefaultReadConnPool() *ConnPoolConfig {
@@ -103,12 +103,12 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.options.go . Config
 type Config struct {
-	Engine                      string        `debugmap:"visible"`
+	Engine                      string        `debugmap:"visible"   default:"memory"`
 	URI                         string        `debugmap:"sensitive"`
-	GCWindow                    time.Duration `debugmap:"visible"`
-	LegacyFuzzing               time.Duration `debugmap:"visible"`
-	RevisionQuantization        time.Duration `debugmap:"visible"`
-	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
+	GCWindow                    time.Duration `debugmap:"visible"   default:"24h"`
+	LegacyFuzzing               time.Duration `debugmap:"visible"   default:"-1ns"`
+	RevisionQuantization        time.Duration `debugmap:"visible"   default:"5s"`
+	MaxRevisionStalenessPercent float64       `debugmap:"visible"   default:"0.1"`
 	CredentialsProviderName     string        `debugmap:"visible"`
 	FilterMaximumIDCount        uint16        `debugmap:"hidden"    default:"100"`
 
@@ -116,7 +116,7 @@ type Config struct {
 	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`
 	WriteConnPool                  ConnPoolConfig `debugmap:"visible"`
 	ReadOnly                       bool           `debugmap:"visible"`
-	EnableDatastoreMetrics         bool           `debugmap:"visible"`
+	EnableDatastoreMetrics         bool           `debugmap:"visible" default:"true"`
 	DisableStats                   bool           `debugmap:"visible"`
 	IncludeQueryParametersInTraces bool           `debugmap:"visible"`
 
@@ -131,7 +131,7 @@ type Config struct {
 	BootstrapFiles        []string             `debugmap:"visible-format"`
 	BootstrapFileContents map[string][]byte    `debugmap:"visible"`
 	BootstrapOverwrite    bool                 `debugmap:"visible"`
-	BootstrapTimeout      time.Duration        `debugmap:"visible"`
+	BootstrapTimeout      time.Duration        `debugmap:"visible"        default:"10s"`
 	CaveatTypeSet         *caveattypes.TypeSet `debugmap:"hidden"`
 
 	// Hedging
@@ -141,17 +141,17 @@ type Config struct {
 	RequestHedgingQuantile         float64       `debugmap:"visible"`
 
 	// CRDB
-	FollowerReadDelay         time.Duration `debugmap:"visible"`
-	MaxRetries                int           `debugmap:"visible"`
-	OverlapKey                string        `debugmap:"visible"`
-	OverlapStrategy           string        `debugmap:"visible"`
-	EnableConnectionBalancing bool          `debugmap:"visible"`
-	ConnectRate               time.Duration `debugmap:"visible"`
-	WriteAcquisitionTimeout   time.Duration `debugmap:"visible"`
+	FollowerReadDelay         time.Duration `debugmap:"visible" default:"4800ms"`
+	MaxRetries                int           `debugmap:"visible" default:"10"`
+	OverlapKey                string        `debugmap:"visible" default:"key"`
+	OverlapStrategy           string        `debugmap:"visible" default:"static"`
+	EnableConnectionBalancing bool          `debugmap:"visible" default:"true"`
+	ConnectRate               time.Duration `debugmap:"visible" default:"100ms"`
+	WriteAcquisitionTimeout   time.Duration `debugmap:"visible" default:"30ms"`
 
 	// Postgres
-	GCInterval            time.Duration `debugmap:"visible"`
-	GCMaxOperationTime    time.Duration `debugmap:"visible"`
+	GCInterval            time.Duration `debugmap:"visible" default:"3m"`
+	GCMaxOperationTime    time.Duration `debugmap:"visible" default:"1m"`
 	RelaxedIsolationLevel bool          `debugmap:"visible"`
 
 	// Spanner
@@ -167,9 +167,9 @@ type Config struct {
 	// https://docs.cloud.google.com/docs/authentication/client-libraries#adc
 	SpannerCredentialsJSON        []byte `debugmap:"sensitive"`
 	SpannerEmulatorHost           string `debugmap:"visible"`
-	SpannerMinSessions            uint64 `debugmap:"visible"`
-	SpannerMaxSessions            uint64 `debugmap:"visible"`
-	SpannerDatastoreMetricsOption string `debugmap:"visible"`
+	SpannerMinSessions            uint64 `debugmap:"visible"   default:"100"`
+	SpannerMaxSessions            uint64 `debugmap:"visible"   default:"400"`
+	SpannerDatastoreMetricsOption string `debugmap:"visible"   default:"otel"`
 
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
@@ -180,10 +180,10 @@ type Config struct {
 	RelationshipIntegrityExpiredKeys []string        `debugmap:"visible"`
 
 	// Internal
-	WatchBufferLength            uint16        `debugmap:"visible"`
-	WatchChangeBufferMaximumSize string        `debugmap:"visible"`
-	WatchBufferWriteTimeout      time.Duration `debugmap:"visible"`
-	WatchConnectTimeout          time.Duration `debugmap:"visible"`
+	WatchBufferLength            uint16        `debugmap:"visible" default:"1024"`
+	WatchChangeBufferMaximumSize string        `debugmap:"visible" default:"15%"`
+	WatchBufferWriteTimeout      time.Duration `debugmap:"visible" default:"1s"`
+	WatchConnectTimeout          time.Duration `debugmap:"visible" default:"1s"`
 	DisableWatchSupport          bool          `debugmap:"hidden"`
 
 	// Migrations
@@ -191,8 +191,43 @@ type Config struct {
 	AllowedMigrations []string `debugmap:"visible"`
 
 	// Experimental
-	ExperimentalColumnOptimization bool `debugmap:"visible"`
+	ExperimentalColumnOptimization bool `debugmap:"visible" default:"true"`
 	EnableRevisionHeartbeat        bool `debugmap:"visible"`
+}
+
+// SetDefaults is invoked by github.com/creasty/defaults after struct-tag
+// defaults are applied. It fills the four ConnPoolConfig slots from the
+// canonical DefaultReadConnPool / DefaultWriteConnPool constructors because
+// each slot receives a different default set from RegisterConnPoolFlagsWithPrefix
+// in RegisterDatastoreFlagsWithPrefix (Read pools = 20/20 conns, Write = 10/10).
+// It also pre-allocates slice fields to empty (non-nil) values so the
+// resulting Config matches what RegisterDatastoreFlags writes via
+// StringSliceVar/StringArrayVar.
+func (c *Config) SetDefaults() {
+	c.ReadConnPool = *DefaultReadConnPool()
+	c.WriteConnPool = *DefaultWriteConnPool()
+	c.ReadReplicaConnPool = *DefaultReadConnPool()
+	c.OldReadReplicaConnPool = *DefaultReadConnPool()
+
+	// CaveatTypeSet is hidden from DebugMap but RegisterDatastoreFlags
+	// initializes it from DefaultDatastoreConfig at line 223. Mirror that
+	// here so library users get the same value as CLI users.
+	if c.CaveatTypeSet == nil {
+		c.CaveatTypeSet = caveattypes.Default.TypeSet
+	}
+
+	if c.BootstrapFiles == nil {
+		c.BootstrapFiles = []string{}
+	}
+	if c.ReadReplicaURIs == nil {
+		c.ReadReplicaURIs = []string{}
+	}
+	if c.AllowedMigrations == nil {
+		c.AllowedMigrations = []string{}
+	}
+	if c.RelationshipIntegrityExpiredKeys == nil {
+		c.RelationshipIntegrityExpiredKeys = []string{}
+	}
 }
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey

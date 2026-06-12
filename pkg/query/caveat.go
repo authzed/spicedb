@@ -310,7 +310,7 @@ func (c *CaveatIterator) buildExplainInfo() string {
 const caveatFlagHasCaveat = 0
 
 func (c *CaveatIterator) Serialize(w io.Writer) error {
-	return serializeWithHeader(w, CaveatIteratorType, c.canonicalKey, func(buf io.Writer) error {
+	return SerializeWithHeader(w, CaveatIteratorType, c.canonicalKey, func(buf io.Writer) error {
 		var flags uint64
 		setFlag(&flags, caveatFlagHasCaveat, c.caveat != nil)
 		if err := writeUvarint(buf, flags); err != nil {

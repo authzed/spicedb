@@ -3,7 +3,6 @@ package remote
 import (
 	"context"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"testing"
@@ -180,14 +179,7 @@ func TestDispatchTimeout(t *testing.T) {
 				_ = s.Serve(listener)
 			}()
 
-			conn, err := grpchelpers.DialAndWait(
-				t.Context(),
-				"",
-				grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-					return listener.Dial()
-				}),
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-			)
+			conn, err := grpchelpers.NewBufferedClient(listener)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -1029,14 +1021,7 @@ func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.
 		_ = s.Serve(listener)
 	}()
 
-	conn, err := grpchelpers.DialAndWait(
-		t.Context(),
-		"",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return listener.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	conn, err := grpchelpers.NewBufferedClient(listener)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
