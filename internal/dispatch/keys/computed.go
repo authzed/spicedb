@@ -120,36 +120,25 @@ func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) DispatchC
 func planCheckRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return PlanCheckLookupKey(
 		req.PlanContext.Revision,
-		currentDispatchKey(req.PlanContext),
+		req.Plan,
 		req.Resource,
 		req.Subject,
 		req.PlanContext.CaveatContext,
 	)
 }
 
-// currentDispatchKey returns the canonical "def#rel" key for the dispatch
-// currently being processed. By contract — see planContextForDispatch in
-// internal/dispatch/executor.go — the sender appends the current dispatch's
-// key to PlanContext.InProgressKeys before sending, so the last entry is
-// always the current dispatch's key. Returns "" if InProgressKeys is empty,
-// which is invalid for a Plan-dispatched request but is tolerated to keep
-// this helper safe to call on partial test fixtures.
-func currentDispatchKey(pc *v1.PlanContext) string {
-	if pc == nil || len(pc.InProgressKeys) == 0 {
-		return ""
-	}
-	return pc.InProgressKeys[len(pc.InProgressKeys)-1]
-}
-
-// PlanCheckLookupKey computes the same Plan-Check cache key as
-// planCheckRequestToKey, but takes the inputs directly so callers can probe the
-// cache without first having to construct a DispatchQueryPlanRequest (which
-// forces iterator serialization). The hashed component set must stay identical
-// to planCheckRequestToKey or the cache-hit fast path and the DispatchQueryPlan
-// slow path will end up on different cache entries.
-func PlanCheckLookupKey(revision string, canonicalKey string, resource, subject *core.ObjectAndRelation, caveatContext *structpb.Struct) DispatchCacheKey {
+// PlanCheckLookupKey computes the Plan-Check cache key from the serialized
+// iterator bytes plus the request inputs. Same shape as planCheckRequestToKey
+// so the cache-hit fast path (LookupPlanCheck) and the DispatchQueryPlan slow
+// path produce identical keys for identical inputs.
+//
+// The plan bytes are the dispatch identity — content-addressed; two dispatches
+// with byte-identical plans collide into the same cache slot, and any
+// structural difference (advisor reorderings, optimizer variations) lands in
+// a separate slot.
+func PlanCheckLookupKey(revision string, plan []byte, resource, subject *core.ObjectAndRelation, caveatContext *structpb.Struct) DispatchCacheKey {
 	return dispatchCacheKeyHash(planCheckPrefix, revision,
-		hashableString(canonicalKey),
+		hashableBytes(plan),
 		hashableOnr{resource},
 		hashableOnr{subject},
 		hashableContext{Struct: caveatContext},
@@ -159,7 +148,7 @@ func PlanCheckLookupKey(revision string, canonicalKey string, resource, subject 
 // planLookupResourcesRequestToKey converts a plan lookup resources request into a cache key
 func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return dispatchCacheKeyHash(planLookupResourcesPrefix, req.PlanContext.Revision,
-		hashableString(currentDispatchKey(req.PlanContext)),
+		hashableBytes(req.Plan),
 		hashableOnr{req.Subject},
 		hashableContext{Struct: req.PlanContext.CaveatContext},
 	)
@@ -168,7 +157,7 @@ func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchC
 // planLookupSubjectsRequestToKey converts a plan lookup subjects request into a cache key
 func planLookupSubjectsRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
 	return dispatchCacheKeyHash(planLookupSubjectsPrefix, req.PlanContext.Revision,
-		hashableString(currentDispatchKey(req.PlanContext)),
+		hashableBytes(req.Plan),
 		hashableOnr{req.Resource},
 		hashableContext{Struct: req.PlanContext.CaveatContext},
 	)

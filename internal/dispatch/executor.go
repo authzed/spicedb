@@ -31,53 +31,6 @@ var _ query.Executor = &DispatchExecutor{}
 // the executor was constructed with chunkSize == 0.
 const defaultDispatchChunkSize = 100
 
-// recursiveKey uniquely identifies a recursion pair by definition and relation name.
-type recursiveKey struct {
-	definitionName string
-	relationName   string
-}
-
-// containsUnmatchedRecursiveSentinel walks the entire iterator tree and checks whether
-// there is a RecursiveSentinelIterator whose (definitionName, relationName) pair has no
-// matching RecursiveIterator anywhere in the tree. A sentinel is "managed" (safe to
-// dispatch) only when a RecursiveIterator with the same key exists to handle its
-// collection context. This handles the double-recursion case where a RecursiveIterator
-// for one recursion pair contains a sentinel for a different pair in its subtree.
-func containsUnmatchedRecursiveSentinel(it query.Iterator) bool {
-	// Collect all keys from RecursiveIterator and RecursiveSentinelIterator nodes.
-	var iteratorKeys map[recursiveKey]struct{}
-	var sentinelKeys map[recursiveKey]struct{}
-
-	var walk func(query.Iterator)
-	walk = func(sub query.Iterator) {
-		if ri, ok := sub.(*query.RecursiveIterator); ok {
-			if iteratorKeys == nil {
-				iteratorKeys = make(map[recursiveKey]struct{})
-			}
-			iteratorKeys[recursiveKey{ri.DefinitionName(), ri.RelationName()}] = struct{}{}
-		}
-		if si, ok := sub.(*query.RecursiveSentinelIterator); ok {
-			if sentinelKeys == nil {
-				sentinelKeys = make(map[recursiveKey]struct{})
-			}
-			sentinelKeys[recursiveKey{si.DefinitionName(), si.RelationName()}] = struct{}{}
-		}
-		for _, child := range sub.Subiterators() {
-			walk(child)
-		}
-	}
-	walk(it)
-
-	// Every sentinel must have a matching iterator; an unmatched sentinel means
-	// its collection context won't be established and dispatch would break.
-	for key := range sentinelKeys {
-		if _, managed := iteratorKeys[key]; !managed {
-			return true
-		}
-	}
-	return false
-}
-
 // NewDispatchExecutor creates a new DispatchExecutor that dispatches alias
 // iterator operations through the given Dispatcher chain. dispatchChunkSize
 // caps the number of inputs per CheckMany RPC; if zero, defaults to 100.
@@ -92,66 +45,40 @@ func NewDispatchExecutor(dispatcher Dispatcher, planContext *v1.PlanContext, dis
 	}
 }
 
-// wrappedAlias extracts the AliasIterator wrapped by a DispatchIterator. The
-// dispatch-wrap optimizer (internal/dispatch/dispatch_optimizer.go) always
-// builds DispatchIterator(Alias(...)), so the assertion is normally safe; we
-// still return ok=false for any other shape so a future caller handing us an
-// odd tree doesn't panic the executor.
-func wrappedAlias(it query.Iterator) (*query.AliasIterator, bool) {
-	disp, ok := it.(*DispatchIterator)
-	if !ok {
-		return nil, false
-	}
-	subs := disp.Subiterators()
-	if len(subs) != 1 {
-		return nil, false
-	}
-	alias, ok := subs[0].(*query.AliasIterator)
-	if !ok {
-		return nil, false
-	}
-	return alias, true
-}
-
-// shouldDispatch reports whether the iterator is a DispatchIterator-wrapped
-// alias that the executor should ship over RPC, vs. running locally. Two
-// reasons to refuse:
-//   - the wrap contains a sentinel whose matching RecursiveIterator lives
-//     outside its own subtree (sentinel-based recursion guard, ancestor case).
-//   - the alias's canonical key is already in the active dispatch chain
-//     (in-progress guard, cross-relation cycle case). Without this, a standalone
-//     plan that re-expands the same key in a sibling subtree produces an
-//     infinite dispatch loop.
+// shouldDispatch reports whether to ship this iterator over RPC vs run it
+// locally. Two conditions must hold:
 //
-// The wrap itself is the authoritative dispatch boundary — bare AliasIterators
-// produced by the planner are intentionally not dispatched. The optimizer
-// decides which alias positions get a wrap; this predicate just consults it.
-func (e *DispatchExecutor) shouldDispatch(it query.Iterator) (string, bool) {
-	alias, ok := wrappedAlias(it)
-	if !ok {
-		return "", false
+//  1. The iterator is a DispatchIterator — the optimizer's authoritative
+//     dispatch boundary (see internal/dispatch/dispatch_optimizer.go).
+//
+//  2. currentOp matches ctx.TopLevelOperation — the request type at this
+//     wrap matches the user-facing request type that started the work. The
+//     receiver-side executor only knows how to drive one operation per
+//     dispatch (the request's op == top-level op by construction at the
+//     edge), so dispatching a wrap reached via a *different* sub-operation
+//     (e.g. Arrow(RTL) drives IterResources on its right subtree while the
+//     user request is Check) would launch an RPC whose results we then
+//     re-process locally — pure overhead. Stay local; let CheckImpl drive.
+//
+// No runtime cycle-break: the compiler emits RecursiveIterator +
+// RecursiveSentinelIterator for every cyclic schema, so the compiled tree is
+// finite by construction and a dispatch chain can't loop on the same key.
+func (e *DispatchExecutor) shouldDispatch(ctx *query.Context, it query.Iterator, currentOp query.Operation) bool {
+	if _, ok := it.(*DispatchIterator); !ok {
+		return false
 	}
-	if containsUnmatchedRecursiveSentinel(it) {
-		return "", false
-	}
-	key := alias.DefinitionName() + "#" + alias.Relation()
-	for _, k := range e.planContext.GetInProgressKeys() {
-		if k == key {
-			return "", false
-		}
-	}
-	return key, true
+	return currentOp == ctx.TopLevelOperation
 }
 
 func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*query.Path, error) {
-	if _, ok := e.shouldDispatch(it); ok {
+	if e.shouldDispatch(ctx, it, query.OperationCheck) {
 		return e.dispatchCheck(ctx, it, resource, subject)
 	}
 	return it.CheckImpl(ctx, resource, subject)
 }
 
 func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterator, resource query.Object, subjects []query.ObjectAndRelation) ([]*query.Path, error) {
-	if _, ok := e.shouldDispatch(it); !ok {
+	if !e.shouldDispatch(ctx, it, query.OperationCheck) {
 		out := make([]*query.Path, len(subjects))
 		for i, s := range subjects {
 			p, err := it.CheckImpl(ctx, resource, s)
@@ -166,7 +93,7 @@ func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterat
 }
 
 func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Iterator, resources []query.Object, subject query.ObjectAndRelation) ([]*query.Path, error) {
-	if _, ok := e.shouldDispatch(it); !ok {
+	if !e.shouldDispatch(ctx, it, query.OperationCheck) {
 		out := make([]*query.Path, len(resources))
 		for i, r := range resources {
 			p, err := it.CheckImpl(ctx, r, subject)
@@ -181,7 +108,7 @@ func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Itera
 }
 
 func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := e.shouldDispatch(it); ok {
+	if e.shouldDispatch(ctx, it, query.OperationIterSubjects) {
 		return e.dispatchIterSubjects(ctx, it, resource, filterSubjectType)
 	}
 	pathSeq, err := it.IterSubjectsImpl(ctx, resource, filterSubjectType)
@@ -192,7 +119,7 @@ func (e *DispatchExecutor) IterSubjects(ctx *query.Context, it query.Iterator, r
 }
 
 func (e *DispatchExecutor) IterResources(ctx *query.Context, it query.Iterator, subject query.ObjectAndRelation, filterResourceType query.ObjectType) (query.PathSeq, error) {
-	if _, ok := e.shouldDispatch(it); ok {
+	if e.shouldDispatch(ctx, it, query.OperationIterResources) {
 		return e.dispatchIterResources(ctx, it, subject, filterResourceType)
 	}
 	pathSeq, err := it.IterResourcesImpl(ctx, subject, filterResourceType)
@@ -206,14 +133,15 @@ func (e *DispatchExecutor) dispatchCheck(ctx *query.Context, it query.Iterator, 
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Probe the dispatcher chain for a cached Plan-Check answer before paying
-	// to serialize the iterator. The lookup descriptor is cheap to build —
-	// just the wrapped alias's (def, rel) plus the resource/subject ONRs and
-	// parent plan context — and the cache key it produces is identical to the
-	// one DispatchQueryPlan would compute (see keys.PlanCheckLookupKey), so a
-	// hit here is the same hit the slow path would have found.
-	alias, _ := wrappedAlias(it)
-	canonicalKey := alias.DefinitionName() + "#" + alias.Relation()
+	// The serialized iterator bytes are the dispatch identity — we serialize
+	// once and reuse the bytes for both the cache lookup and (on miss) the
+	// dispatched request. Cache hits skip the full DispatchQueryPlan machinery
+	// (request alloc, stream setup, delegate hop) but still pay this serialize
+	// cost — fine, because dispatching mandates the serialize anyway.
+	plan, err := serializePlan(it)
+	if err != nil {
+		return nil, err
+	}
 	resourceONR := &core.ObjectAndRelation{
 		Namespace: resource.ObjectType,
 		ObjectId:  resource.ObjectID,
@@ -224,20 +152,17 @@ func (e *DispatchExecutor) dispatchCheck(ctx *query.Context, it query.Iterator, 
 		Relation:  subject.Relation,
 	}
 	if path, ok, err := e.dispatcher.LookupPlanCheck(subCtx, PlanCheckLookup{
-		CanonicalKey: canonicalKey,
-		Resource:     resourceONR,
-		Subject:      subjectONR,
-		PlanContext:  e.planContext,
+		Plan:        plan,
+		Resource:    resourceONR,
+		Subject:     subjectONR,
+		PlanContext: e.planContext,
 	}); err != nil {
 		return nil, err
 	} else if ok {
 		return resultPathToQueryPath(path), nil
 	}
 
-	req, err := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK, it, resource, subject)
-	if err != nil {
-		return nil, err
-	}
+	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK, plan, resourceONR, subjectONR)
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 		return nil, err
@@ -256,18 +181,25 @@ func (e *DispatchExecutor) dispatchIterSubjects(ctx *query.Context, it query.Ite
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	plan, err := serializePlan(it)
+	if err != nil {
+		return nil, err
+	}
+
 	// For LookupSubjects the proto Subject field carries the *filter* subject
 	// type+relation rather than a real subject ONR — the receiver needs the
 	// filter to apply the same reachability/optimizer decisions the sender
 	// would have applied. The actual receiver-side iteration uses NoObjectFilter
 	// since the sender filters the returned paths itself.
-	req, err := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, it, resource, query.ObjectAndRelation{
-		ObjectType: filterSubjectType.Type,
-		Relation:   filterSubjectType.Subrelation,
-	})
-	if err != nil {
-		return nil, err
+	resourceONR := &core.ObjectAndRelation{
+		Namespace: resource.ObjectType,
+		ObjectId:  resource.ObjectID,
 	}
+	subjectONR := &core.ObjectAndRelation{
+		Namespace: filterSubjectType.Type,
+		Relation:  filterSubjectType.Subrelation,
+	}
+	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, plan, resourceONR, subjectONR)
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 		return nil, err
@@ -281,13 +213,21 @@ func (e *DispatchExecutor) dispatchIterResources(ctx *query.Context, it query.It
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	req, err := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES, it, query.Object{
-		ObjectType: subject.ObjectType,
-		ObjectID:   subject.ObjectID,
-	}, subject)
+	plan, err := serializePlan(it)
 	if err != nil {
 		return nil, err
 	}
+
+	resourceONR := &core.ObjectAndRelation{
+		Namespace: subject.ObjectType,
+		ObjectId:  subject.ObjectID,
+	}
+	subjectONR := &core.ObjectAndRelation{
+		Namespace: subject.ObjectType,
+		ObjectId:  subject.ObjectID,
+		Relation:  subject.Relation,
+	}
+	req := e.buildRequest(ctx, v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES, plan, resourceONR, subjectONR)
 	stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 	if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 		return nil, err
@@ -301,13 +241,22 @@ func (e *DispatchExecutor) dispatchCheckManySubjects(ctx *query.Context, it quer
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	plan, err := serializePlan(it)
+	if err != nil {
+		return nil, err
+	}
+	resourceONR := &core.ObjectAndRelation{
+		Namespace: resource.ObjectType,
+		ObjectId:  resource.ObjectID,
+	}
+
 	out := make([]*query.Path, len(subjects))
 	idx := 0
 	for chunk := range slices.Chunk(subjects, int(e.dispatchChunkSize)) {
-		req, err := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, it, resource, query.ObjectAndRelation{}, nil, chunk)
-		if err != nil {
-			return nil, err
-		}
+		// CHECK_MANY_SUBJECTS: real resource ONR, empty subject ONR (real subjects
+		// ride on `many`). Empty placeholder rather than nil so the receiver's
+		// dereferences of req.Subject.* don't NPE.
+		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, plan, resourceONR, &core.ObjectAndRelation{}, nil, chunk)
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -332,13 +281,23 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	plan, err := serializePlan(it)
+	if err != nil {
+		return nil, err
+	}
+	subjectONR := &core.ObjectAndRelation{
+		Namespace: subject.ObjectType,
+		ObjectId:  subject.ObjectID,
+		Relation:  subject.Relation,
+	}
+
 	out := make([]*query.Path, len(resources))
 	idx := 0
 	for chunk := range slices.Chunk(resources, int(e.dispatchChunkSize)) {
-		req, err := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, it, query.Object{}, subject, chunk, nil)
-		if err != nil {
-			return nil, err
-		}
+		// CHECK_MANY_RESOURCES: empty resource ONR (real resources on `many`),
+		// real subject ONR. Empty placeholder rather than nil so the receiver's
+		// dereferences of req.Resource.* don't NPE.
+		req := e.buildManyRequest(ctx, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, plan, &core.ObjectAndRelation{}, subjectONR, chunk, nil)
 		stream := NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](subCtx)
 		if err := e.dispatcher.DispatchQueryPlan(req, stream); err != nil {
 			return nil, err
@@ -359,40 +318,18 @@ func (e *DispatchExecutor) dispatchCheckManyResources(ctx *query.Context, it que
 	return out, nil
 }
 
-// buildManyRequest constructs a DispatchQueryPlanRequest for CheckMany operations.
-// Exactly one of (manyResources, manySubjects) is non-nil; the corresponding
-// singular field (resource for CHECK_MANY_RESOURCES, subject for CHECK_MANY_SUBJECTS)
-// must be left zero — the receiver inspects `many` for those operations.
-func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) (*v1.DispatchQueryPlanRequest, error) {
-	// it is a *DispatchIterator wrapping the alias the executor decided to
-	// ship — see shouldDispatch. Serialize only the inner alias subtree: the
-	// receiver runs it locally (its executor won't re-dispatch a bare alias),
-	// and we save a small handful of header bytes per request.
-	alias, ok := wrappedAlias(it)
-	if !ok {
-		return nil, fmt.Errorf("DispatchQueryPlan: buildManyRequest expected DispatchIterator(Alias), got %T", it)
-	}
-	key := alias.DefinitionName() + "#" + alias.Relation()
-	plan, err := serializePlan(alias)
-	if err != nil {
-		return nil, err
-	}
-	// The current dispatch's canonical key rides on PlanContext.InProgressKeys
-	// (appended by planContextForDispatch). Receiver-side cache key computation
-	// reads it back from the last entry there; there is no top-level
-	// canonical_key field on the request anymore.
+// buildManyRequest constructs a DispatchQueryPlanRequest for CheckMany
+// operations. Exactly one of (manyResources, manySubjects) is non-nil; the
+// corresponding singular field (resource for CHECK_MANY_RESOURCES, subject
+// for CHECK_MANY_SUBJECTS) must be left zero — the receiver inspects `many`
+// for those operations. Callers serialize the iterator into `plan` before
+// calling so the bytes can also be used for cache lookups when relevant.
+func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperation, plan []byte, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, manyResources []query.Object, manySubjects []query.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
 	req := &v1.DispatchQueryPlanRequest{
-		Operation: op,
-		Resource: &core.ObjectAndRelation{
-			Namespace: resource.ObjectType,
-			ObjectId:  resource.ObjectID,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: subject.ObjectType,
-			ObjectId:  subject.ObjectID,
-			Relation:  subject.Relation,
-		},
-		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
+		Operation:   op,
+		Resource:    resource,
+		Subject:     subject,
+		PlanContext: planContextForDispatch(e.planContext, ctx.TopLevelOperation),
 		Plan:        plan,
 	}
 	if len(manyResources) > 0 {
@@ -414,12 +351,13 @@ func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperat
 			}
 		}
 	}
-	return req, nil
+	return req
 }
 
-// serializePlan emits the iterator subtree using the pkg/query wire format so
-// the receiver can deserialize and execute it directly without rebuilding from
-// the (definition, relation) canonical key.
+// serializePlan emits the iterator subtree using the pkg/query wire format.
+// The bytes are simultaneously: (a) the dispatch identity used to compute
+// cache/singleflight/cluster keys, and (b) the payload the receiver
+// deserializes and executes. One serialize per dispatch, used for both.
 func serializePlan(it query.Iterator) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := it.Serialize(&buf); err != nil {
@@ -428,50 +366,30 @@ func serializePlan(it query.Iterator) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation, it query.Iterator, resource query.Object, subject query.ObjectAndRelation) (*v1.DispatchQueryPlanRequest, error) {
-	// dispatch{Check,IterSubjects,IterResources} only enter buildRequest after
-	// shouldDispatch accepted `it` as a DispatchIterator(Alias). Unwrap the
-	// wrap and serialize the inner alias — the receiver runs it locally without
-	// re-dispatching, and we keep the wire shape identical to what shipped
-	// before the wrap became authoritative. The dispatch boundary's "def#rel"
-	// is appended to PlanContext.InProgressKeys via planContextForDispatch;
-	// receiver-side cache key computation pulls it back out of that slice.
-	alias, ok := wrappedAlias(it)
-	if !ok {
-		return nil, fmt.Errorf("DispatchQueryPlan: buildRequest expected DispatchIterator(Alias), got %T", it)
-	}
-	key := alias.DefinitionName() + "#" + alias.Relation()
-	plan, err := serializePlan(alias)
-	if err != nil {
-		return nil, err
-	}
+// buildRequest constructs a DispatchQueryPlanRequest for the single-target
+// dispatch operations (CHECK, LOOKUP_RESOURCES, LOOKUP_SUBJECTS). Callers
+// serialize the iterator into `plan` before calling — for CHECK the same
+// bytes drive the cache lookup, so we don't re-serialize inside.
+func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation, plan []byte, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation) *v1.DispatchQueryPlanRequest {
 	return &v1.DispatchQueryPlanRequest{
-		Operation: op,
-		Resource: &core.ObjectAndRelation{
-			Namespace: resource.ObjectType,
-			ObjectId:  resource.ObjectID,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: subject.ObjectType,
-			ObjectId:  subject.ObjectID,
-			Relation:  subject.Relation,
-		},
-		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
+		Operation:   op,
+		Resource:    resource,
+		Subject:     subject,
+		PlanContext: planContextForDispatch(e.planContext, ctx.TopLevelOperation),
 		Plan:        plan,
-	}, nil
+	}
 }
 
-// planContextForDispatch returns a shallow copy of pc with `key` appended to
-// the in-progress dispatch keys and `topLevelOp` recorded as the user-facing
-// operation. Two receiver-side guards depend on these:
-//   - InProgressKeys breaks cross-relation cycles produced by standalone plan
-//     rebuilds at each receiver hop.
-//   - TopLevelOperation propagates the original API operation across hops so
-//     iterators that consult TopLevelOperation see consistent user intent.
-func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Operation) *v1.PlanContext {
+// planContextForDispatch returns a shallow copy of pc with `topLevelOp`
+// recorded as the user-facing operation. The receiver-side guard
+// TopLevelOperation propagates the original API operation across hops so
+// iterators that consult TopLevelOperation (e.g. AliasIterator's self-edge
+// logic) see consistent user intent. No InProgressKeys append — the plan
+// bytes are the dispatch identity now (see keys.PlanCheckLookupKey), and
+// cycle-breaks are guaranteed by the compiler's RecursiveIterator wrapping.
+func planContextForDispatch(pc *v1.PlanContext, topLevelOp query.Operation) *v1.PlanContext {
 	if pc == nil {
 		return &v1.PlanContext{
-			InProgressKeys:    []string{key},
 			TopLevelOperation: queryOpToPlanOperation(topLevelOp),
 		}
 	}
@@ -483,19 +401,12 @@ func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Ope
 	if tlo == v1.PlanOperation_PLAN_OPERATION_CHECK {
 		tlo = queryOpToPlanOperation(topLevelOp)
 	}
-
-	// Duplicate and append the in progress keys
-	inProgress := make([]string, len(pc.InProgressKeys)+1)
-	copy(inProgress, pc.InProgressKeys)
-	inProgress[len(pc.InProgressKeys)] = key
-
 	return &v1.PlanContext{
 		Revision:               pc.Revision,
 		CaveatContext:          pc.CaveatContext,
 		MaxRecursionDepth:      pc.MaxRecursionDepth,
 		OptionalDatastoreLimit: pc.OptionalDatastoreLimit,
 		SchemaHash:             pc.SchemaHash,
-		InProgressKeys:         inProgress,
 		TopLevelOperation:      tlo,
 	}
 }
