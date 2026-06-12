@@ -148,7 +148,8 @@ type Config struct {
 	OverlapStrategy           string        `debugmap:"visible" default:"static"`
 	EnableConnectionBalancing bool          `debugmap:"visible" default:"true"`
 	ConnectRate               time.Duration `debugmap:"visible" default:"100ms"`
-	WriteAcquisitionTimeout   time.Duration `debugmap:"visible" default:"30ms"`
+	WriteAcquisitionTimeout              time.Duration `debugmap:"visible" default:"30ms"`
+	ExperimentalCRDBQueryCancellation    bool          `debugmap:"visible"`
 
 	// Postgres
 	GCInterval            time.Duration `debugmap:"visible" default:"3m"`
@@ -365,6 +366,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
 	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (Postgres and CockroachDB drivers only)")
 	flagSet.DurationVar(&opts.WriteAcquisitionTimeout, flagName("write-conn-acquisition-timeout"), defaults.WriteAcquisitionTimeout, "amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)")
+	flagSet.BoolVar(&opts.ExperimentalCRDBQueryCancellation, flagName("datastore-experimental-crdb-query-cancellation"), defaults.ExperimentalCRDBQueryCancellation, "enables experimental in-band query cancellation: canceled requests cancel their in-flight queries via CockroachDB's CANCEL QUERIES statement instead of destroying the connection (CockroachDB driver only)")
 
 	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. (CockroachDB driver only)")
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
@@ -442,8 +444,9 @@ func DefaultDatastoreConfig() *Config {
 		AllowedMigrations:                []string{},
 		ExperimentalColumnOptimization:   true,
 		IncludeQueryParametersInTraces:   false,
-		WriteAcquisitionTimeout:          30 * time.Millisecond,
-		CaveatTypeSet:                    caveattypes.Default.TypeSet,
+		WriteAcquisitionTimeout:              30 * time.Millisecond,
+		ExperimentalCRDBQueryCancellation:    false,
+		CaveatTypeSet:                        caveattypes.Default.TypeSet,
 	}
 }
 
@@ -620,6 +623,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.ReadConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		crdb.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
 		crdb.WithAcquireTimeout(opts.WriteAcquisitionTimeout),
+		crdb.WithQueryCancellation(opts.ExperimentalCRDBQueryCancellation),
 		crdb.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		crdb.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
 		crdb.WriteConnMaxIdleTime(opts.WriteConnPool.MaxIdleTime),
