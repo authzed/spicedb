@@ -40,8 +40,8 @@ func (r *readonlyDataLayer) RevisionFromString(serialized string) (datastore.Rev
 	return r.delegate.RevisionFromString(serialized)
 }
 
-func (r *readonlyDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
-	return r.delegate.Watch(ctx, afterRevision, opts)
+func (r *readonlyDataLayer) Watch(ctx context.Context, afterRevision datastore.Revision, serverOptions datastore.ServerWatchOptions, clientOptions datastore.ClientWatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	return r.delegate.Watch(ctx, afterRevision, serverOptions, clientOptions)
 }
 
 func (r *readonlyDataLayer) ReadyState(ctx context.Context) (datastore.ReadyState, error) {

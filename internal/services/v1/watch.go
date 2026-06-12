@@ -27,16 +27,24 @@ type watchServer struct {
 	v1.UnimplementedWatchServiceServer
 	shared.WithStreamServiceSpecificInterceptor
 
-	heartbeatDuration time.Duration
+	serverConfig ServerWatchConfig
+}
+
+type ServerWatchConfig struct {
+	CheckpointInterval             time.Duration
+	WatchBufferLength              uint16
+	WatchBufferWriteTimeout        time.Duration
+	WatchConnectTimeout            time.Duration
+	MaximumBufferedChangesByteSize string
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(heartbeatDuration time.Duration, validator protovalidate.Validator) v1.WatchServiceServer {
+func NewWatchServer(config ServerWatchConfig, validator protovalidate.Validator) v1.WatchServiceServer {
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
 			Stream: grpcvalidate.StreamServerInterceptor(validator),
 		},
-		heartbeatDuration: heartbeatDuration,
+		serverConfig: config,
 	}
 	return s
 }
@@ -97,10 +105,17 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		DispatchCount: 1,
 	})
 
-	updates, errchan := dl.Watch(ctx, afterRevision, datastore.WatchOptions{
-		Content:            convertWatchKindToContent(req.OptionalUpdateKinds),
-		CheckpointInterval: ws.heartbeatDuration,
-	})
+	clientRequest := datastore.ClientWatchOptions{
+		Content: convertWatchKindToContent(req.OptionalUpdateKinds),
+	}
+	dsConfig := datastore.ServerWatchOptions{
+		CheckpointInterval:             ws.serverConfig.CheckpointInterval,
+		WatchBufferLength:              ws.serverConfig.WatchBufferLength,
+		WatchBufferWriteTimeout:        ws.serverConfig.WatchBufferWriteTimeout,
+		WatchConnectTimeout:            ws.serverConfig.WatchConnectTimeout,
+		MaximumBufferedChangesByteSize: ws.serverConfig.MaximumBufferedChangesByteSize,
+	}
+	updates, errchan := dl.Watch(ctx, afterRevision, dsConfig, clientRequest)
 	for {
 		select {
 		case update, ok := <-updates:

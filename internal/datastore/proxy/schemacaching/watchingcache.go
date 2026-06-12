@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -328,11 +329,17 @@ func (p *watchingCachingProxy) runWatchOnce(ctx context.Context, headRev datasto
 	}
 	log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
 
+	dl := datalayer.NewDataLayer(p.Datastore)
+
 	log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
-	ssc, serrc := p.Watch(ctx, headRev, datastore.WatchOptions{
-		Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
-		CheckpointInterval: p.watchHeartbeat,
-	})
+	ssc, serrc := dl.Watch(ctx, headRev,
+		datastore.ServerWatchOptions{
+			CheckpointInterval: p.watchHeartbeat,
+		},
+		datastore.ClientWatchOptions{
+			Content: datastore.WatchSchema | datastore.WatchCheckpoints,
+		},
+	)
 	spiceerrors.DebugAssertNotNilf(ssc, "ssc is nil")
 	spiceerrors.DebugAssertNotNilf(serrc, "serrc is nil")
 

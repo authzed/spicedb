@@ -523,7 +523,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 				v1SchemaServiceOption,
 				watchServiceOption,
 				permSysConfig,
-				c.WatchHeartbeat,
+				v1svc.ServerWatchConfig{
+					CheckpointInterval:             c.WatchHeartbeat,
+					WatchBufferLength:              c.DatastoreConfig.WatchBufferLength,
+					WatchBufferWriteTimeout:        c.DatastoreConfig.WatchBufferWriteTimeout,
+					WatchConnectTimeout:            c.DatastoreConfig.WatchConnectTimeout,
+					MaximumBufferedChangesByteSize: c.DatastoreConfig.WatchChangeBufferMaximumSize,
+				},
 			)
 		},
 		grpc.ChainUnaryInterceptor(unaryMiddleware...),

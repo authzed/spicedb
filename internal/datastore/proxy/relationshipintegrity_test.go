@@ -254,7 +254,10 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
 	require.NoError(t, err)
 
-	watchEvents, errChan := pds.Watch(t.Context(), headRevResult.Revision, datastore.WatchJustRelationships())
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
+	watchEvents, errChan := pds.Watch(t.Context(), headRevResult.Revision, watchJustRelationships)
 
 	// Insert an invalid integrity hash for one of the relationships to be invalid by bypassing
 	// the proxy.

@@ -668,7 +668,6 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 					primaryInstanceID,
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),
-					WatchBufferLength(1),
 				)
 				require.NoError(err)
 				return ds

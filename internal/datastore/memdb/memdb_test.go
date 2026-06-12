@@ -124,7 +124,10 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	err = ds.Close()
 	require.NoError(err)
 
-	_, errChan := ds.Watch(t.Context(), lowestRevision.Revision, datastore.WatchJustRelationships())
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
+	_, errChan := ds.Watch(t.Context(), lowestRevision.Revision, watchJustRelationships)
 
 	select {
 	case err := <-errChan:

@@ -1,8 +1,6 @@
 package services
 
 import (
-	"time"
-
 	"buf.build/go/protovalidate"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -57,7 +55,7 @@ func RegisterGrpcServices(
 	schemaServiceOption SchemaServiceOption,
 	watchServiceOption WatchServiceOption,
 	permSysConfig v1svc.PermissionsServerConfig,
-	watchHeartbeatDuration time.Duration,
+	watchServiceConfig v1svc.ServerWatchConfig,
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
@@ -77,7 +75,7 @@ func RegisterGrpcServices(
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {
-		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(watchHeartbeatDuration, validator))
+		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(watchServiceConfig, validator))
 		healthManager.RegisterReportedService(v1.WatchService_ServiceDesc.ServiceName)
 	}
 

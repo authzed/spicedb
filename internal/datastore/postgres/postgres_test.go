@@ -51,7 +51,6 @@ func TestPostgresDatastoreGC(t *testing.T) {
 			RevisionQuantization(0),
 			GCWindow(1*time.Millisecond),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 		))
 
@@ -61,7 +60,6 @@ func TestPostgresDatastoreGC(t *testing.T) {
 			RevisionQuantization(0),
 			GCWindow(1*time.Millisecond),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 		))
 
@@ -71,7 +69,6 @@ func TestPostgresDatastoreGC(t *testing.T) {
 			RevisionQuantization(0),
 			GCWindow(1*time.Millisecond),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 			WithRevisionHeartbeat(false),
 		))

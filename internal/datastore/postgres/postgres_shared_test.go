@@ -75,13 +75,12 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 		ctx := t.Context()
 
 		// NOTE: gc tests take exclusive locks, so they are run under non-parallel.
-		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(gcInterval),
-					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
 					MigrationPhase(config.migrationPhase),
 					WithRevisionHeartbeat(false), // heartbeat revision messes with tests that assert over revisions
@@ -98,7 +97,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			RevisionQuantization(0),
 			GCWindow(1000*time.Second),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(50),
 			MigrationPhase(config.migrationPhase),
 			ReadConnsMinOpen(10),
 			ReadConnsMaxOpen(10),
@@ -111,13 +109,12 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 		b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion, config.pgbouncer)
 		ctx := t.Context()
 
-		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(veryLargeGCInterval),
-					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
 					MigrationPhase(config.migrationPhase),
 					WithRevisionHeartbeat(false), // heartbeat revision messes with tests that assert over revisions
@@ -134,7 +131,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			RevisionQuantization(0),
 			GCWindow(1*time.Millisecond),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 		))
 
@@ -161,7 +157,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -171,7 +166,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -181,7 +175,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 				WithRevisionHeartbeat(false),
 			))
@@ -192,7 +185,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 				WithRevisionHeartbeat(false),
 			))
@@ -203,7 +195,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -213,7 +204,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -223,7 +213,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -233,7 +222,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -242,7 +230,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				ContinuousCheckpointTest,
 				RevisionQuantization(100*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 				WithRevisionHeartbeat(true),
 			))
@@ -253,7 +240,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -263,7 +249,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -273,7 +258,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1000*time.Second),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
 
@@ -283,7 +267,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				RevisionQuantization(0),
 				GCWindow(1000*time.Second),
 				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(50),
 				MigrationPhase(config.migrationPhase),
 			))
 		}
@@ -294,7 +277,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			RevisionQuantization(0),
 			GCWindow(1*time.Millisecond),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 		))
 
@@ -304,7 +286,6 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			RevisionQuantization(0),
 			GCWindow(1*time.Millisecond),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 			MigrationPhase(config.migrationPhase),
 		))
 	})
@@ -319,13 +300,12 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 
 		// NOTE: watch API requires the commit timestamps, so we skip those tests here.
 		// NOTE: gc tests take exclusive locks, so they are run under non-parallel.
-		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(veryLargeGCInterval),
-					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
 					WithRevisionHeartbeat(false),
 				)
@@ -339,13 +319,12 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 	t.Run(fmt.Sprintf("postgres-%s-gc", pgVersion), func(t *testing.T) {
 		ctx := t.Context()
 		b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false, pgVersion, enablePgbouncer)
-		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(gcInterval),
-					WatchBufferLength(watchBufferLength),
 					DebugAnalyzeBeforeStatistics(),
 					WithRevisionHeartbeat(false),
 				)
@@ -927,7 +906,6 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 					primaryInstanceID,
 					RevisionQuantization(tc.quantization),
 					GCWindow(24*time.Hour),
-					WatchBufferLength(1),
 					FollowerReadDelay(tc.followerReadDelay),
 					WithRevisionHeartbeat(false),
 				)
@@ -1005,7 +983,6 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 					primaryInstanceID,
 					RevisionQuantization(tc.quantization),
 					GCWindow(24*time.Hour),
-					WatchBufferLength(1),
 					FollowerReadDelay(tc.followerReadDelay),
 					WithRevisionHeartbeat(false),
 				)
@@ -1193,8 +1170,11 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	seenWatchRevisions := make([]datastore.Revision, 0)
 	seenWatchRevisionsLock := sync.Mutex{}
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	go func() {
-		changes, _ := ds.Watch(withCancel, rev, datastore.WatchJustRelationships())
+		changes, _ := ds.Watch(withCancel, rev, watchJustRelationships)
 
 		waitForWatch <- struct{}{}
 
@@ -1362,8 +1342,11 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	})
 	require.NoError(err)
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	// Call watch and ensure it terminates with having only read the two expected sets of changes.
-	changes, errChan := ds.Watch(ctx, rev, datastore.WatchJustRelationships())
+	changes, errChan := ds.Watch(ctx, rev, watchJustRelationships)
 	transactionCount := 0
 loop:
 	for {
@@ -1479,18 +1462,20 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 		)
 		require.NoError(err)
 		return ds
 	})
 	defer ds.Close()
 
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+
 	ds, revision := testfixtures.StandardDatastoreWithData(t, ds)
 	_, errChan := ds.Watch(
 		t.Context(),
 		revision,
-		datastore.WatchJustRelationships(),
+		watchJustRelationships,
 	)
 	err := <-errChan
 	require.Error(err)
@@ -1507,7 +1492,6 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			GCInterval(veryLargeGCInterval),
-			WatchBufferLength(1),
 			WithQueryInterceptor(interceptor),
 		)
 		require.NoError(err)
@@ -1897,7 +1881,9 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	watchJustRelationships := ds.DefaultsWatchOptions()
+	watchJustRelationships.Content = datastore.WatchRelationships
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchJustRelationships)
 	require.Empty(errchan)
 
 	// Manually insert a relationship with a NULL caveat. This is allowed, but can only happen due to
@@ -1969,9 +1955,9 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
-		Content: datastore.WatchRelationships | datastore.WatchSchema | datastore.WatchCheckpoints,
-	})
+	watchOptions := ds.DefaultsWatchOptions()
+	watchOptions.Content = datastore.WatchRelationships | datastore.WatchSchema | datastore.WatchCheckpoints
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchOptions)
 	require.Empty(errchan)
 
 	pds := ds.(*pgDatastore)
@@ -2034,10 +2020,10 @@ func ContinuousCheckpointTest(t *testing.T, ds datastore.Datastore) {
 	lowestRevision := lowestRevisionResult.Revision
 
 	// Run the watch API.
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
-		Content:            datastore.WatchCheckpoints,
-		CheckpointInterval: 100 * time.Millisecond,
-	})
+	watchOptions := ds.DefaultsWatchOptions()
+	watchOptions.Content = datastore.WatchCheckpoints
+	watchOptions.CheckpointInterval = 100 * time.Millisecond
+	changes, errchan := ds.Watch(ctx, lowestRevision, watchOptions)
 	require.Empty(errchan)
 
 	var checkpointCount int
