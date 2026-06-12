@@ -106,7 +106,7 @@ func TestQueryCancellationStressNoStaleErrors(t *testing.T) {
 	for i := 0; i < 300; i++ {
 		// Jitter the deadline around the query duration (~10ms) so the
 		// cancellation races completion in both directions.
-		timeout := time.Duration(5+rand.IntN(15)) * time.Millisecond
+		timeout := time.Duration(5+rand.IntN(15)) * time.Millisecond //nolint:gosec // jitter, not crypto
 		cancelCtx, cancel := context.WithTimeout(ctx, timeout)
 		_ = cds.writePool.QueryRowFunc(cancelCtx, scanIgnore, "SELECT pg_sleep(0.01)")
 		cancel()
@@ -116,6 +116,6 @@ func TestQueryCancellationStressNoStaleErrors(t *testing.T) {
 			"iteration %d: follow-up query failed — possible stale cancellation", i)
 	}
 
-	require.Equal(t, tripwireBefore, testutil.ToFloat64(pool.UnexpectedCancellationErrors),
+	require.InDelta(t, tripwireBefore, testutil.ToFloat64(pool.UnexpectedCancellationErrors), 1e-9,
 		"no query may observe 57014 without its own context being canceled")
 }

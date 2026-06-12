@@ -142,14 +142,14 @@ type Config struct {
 	RequestHedgingQuantile         float64       `debugmap:"visible"`
 
 	// CRDB
-	FollowerReadDelay         time.Duration `debugmap:"visible" default:"4800ms"`
-	MaxRetries                int           `debugmap:"visible" default:"10"`
-	OverlapKey                string        `debugmap:"visible" default:"key"`
-	OverlapStrategy           string        `debugmap:"visible" default:"static"`
-	EnableConnectionBalancing bool          `debugmap:"visible" default:"true"`
-	ConnectRate               time.Duration `debugmap:"visible" default:"100ms"`
-	WriteAcquisitionTimeout              time.Duration `debugmap:"visible" default:"30ms"`
-	ExperimentalCRDBQueryCancellation    bool          `debugmap:"visible"`
+	FollowerReadDelay                 time.Duration `debugmap:"visible" default:"4800ms"`
+	MaxRetries                        int           `debugmap:"visible" default:"10"`
+	OverlapKey                        string        `debugmap:"visible" default:"key"`
+	OverlapStrategy                   string        `debugmap:"visible" default:"static"`
+	EnableConnectionBalancing         bool          `debugmap:"visible" default:"true"`
+	ConnectRate                       time.Duration `debugmap:"visible" default:"100ms"`
+	WriteAcquisitionTimeout           time.Duration `debugmap:"visible" default:"30ms"`
+	ExperimentalCRDBQueryCancellation bool          `debugmap:"visible"`
 
 	// Postgres
 	GCInterval            time.Duration `debugmap:"visible" default:"3m"`
@@ -401,52 +401,52 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 func DefaultDatastoreConfig() *Config {
 	return &Config{
-		Engine:                           MemoryEngine,
-		GCWindow:                         24 * time.Hour,
-		LegacyFuzzing:                    -1,
-		RevisionQuantization:             5 * time.Second,
-		MaxRevisionStalenessPercent:      .1, // 10%
-		ReadConnPool:                     *DefaultReadConnPool(),
-		WriteConnPool:                    *DefaultWriteConnPool(),
-		ReadReplicaConnPool:              *DefaultReadConnPool(),
-		OldReadReplicaConnPool:           *DefaultReadConnPool(),
-		ReadReplicaURIs:                  []string{},
-		ReadOnly:                         false,
-		MaxRetries:                       10,
-		OverlapKey:                       "key",
-		OverlapStrategy:                  "static",
-		ConnectRate:                      100 * time.Millisecond,
-		EnableConnectionBalancing:        true,
-		GCInterval:                       3 * time.Minute,
-		GCMaxOperationTime:               1 * time.Minute,
-		WatchBufferLength:                1024,
-		WatchChangeBufferMaximumSize:     "15%",
-		WatchBufferWriteTimeout:          1 * time.Second,
-		WatchConnectTimeout:              1 * time.Second,
-		DisableWatchSupport:              false,
-		EnableDatastoreMetrics:           true,
-		DisableStats:                     false,
-		BootstrapFiles:                   []string{},
-		BootstrapTimeout:                 10 * time.Second,
-		BootstrapOverwrite:               false,
-		SpannerCredentialsFile:           "",
-		SpannerEmulatorHost:              "",
-		TablePrefix:                      "",
-		MigrationPhase:                   "",
-		FollowerReadDelay:                DefaultFollowerReadDelay,
-		SpannerMinSessions:               100,
-		SpannerMaxSessions:               400,
-		FilterMaximumIDCount:             100,
-		SpannerDatastoreMetricsOption:    spanner.DatastoreMetricsOptionOpenTelemetry,
-		RelationshipIntegrityEnabled:     false,
-		RelationshipIntegrityCurrentKey:  RelIntegrityKey{},
-		RelationshipIntegrityExpiredKeys: []string{},
-		AllowedMigrations:                []string{},
-		ExperimentalColumnOptimization:   true,
-		IncludeQueryParametersInTraces:   false,
-		WriteAcquisitionTimeout:              30 * time.Millisecond,
-		ExperimentalCRDBQueryCancellation:    false,
-		CaveatTypeSet:                        caveattypes.Default.TypeSet,
+		Engine:                            MemoryEngine,
+		GCWindow:                          24 * time.Hour,
+		LegacyFuzzing:                     -1,
+		RevisionQuantization:              5 * time.Second,
+		MaxRevisionStalenessPercent:       .1, // 10%
+		ReadConnPool:                      *DefaultReadConnPool(),
+		WriteConnPool:                     *DefaultWriteConnPool(),
+		ReadReplicaConnPool:               *DefaultReadConnPool(),
+		OldReadReplicaConnPool:            *DefaultReadConnPool(),
+		ReadReplicaURIs:                   []string{},
+		ReadOnly:                          false,
+		MaxRetries:                        10,
+		OverlapKey:                        "key",
+		OverlapStrategy:                   "static",
+		ConnectRate:                       100 * time.Millisecond,
+		EnableConnectionBalancing:         true,
+		GCInterval:                        3 * time.Minute,
+		GCMaxOperationTime:                1 * time.Minute,
+		WatchBufferLength:                 1024,
+		WatchChangeBufferMaximumSize:      "15%",
+		WatchBufferWriteTimeout:           1 * time.Second,
+		WatchConnectTimeout:               1 * time.Second,
+		DisableWatchSupport:               false,
+		EnableDatastoreMetrics:            true,
+		DisableStats:                      false,
+		BootstrapFiles:                    []string{},
+		BootstrapTimeout:                  10 * time.Second,
+		BootstrapOverwrite:                false,
+		SpannerCredentialsFile:            "",
+		SpannerEmulatorHost:               "",
+		TablePrefix:                       "",
+		MigrationPhase:                    "",
+		FollowerReadDelay:                 DefaultFollowerReadDelay,
+		SpannerMinSessions:                100,
+		SpannerMaxSessions:                400,
+		FilterMaximumIDCount:              100,
+		SpannerDatastoreMetricsOption:     spanner.DatastoreMetricsOptionOpenTelemetry,
+		RelationshipIntegrityEnabled:      false,
+		RelationshipIntegrityCurrentKey:   RelIntegrityKey{},
+		RelationshipIntegrityExpiredKeys:  []string{},
+		AllowedMigrations:                 []string{},
+		ExperimentalColumnOptimization:    true,
+		IncludeQueryParametersInTraces:    false,
+		WriteAcquisitionTimeout:           30 * time.Millisecond,
+		ExperimentalCRDBQueryCancellation: false,
+		CaveatTypeSet:                     caveattypes.Default.TypeSet,
 	}
 }
 
