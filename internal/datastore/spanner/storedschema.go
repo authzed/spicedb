@@ -27,26 +27,27 @@ func (sr spannerReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOn
 	return rw.ReadStoredSchema(ctx)
 }
 
-// ReadStoredSchemaHash reads only the schema hash from the schema_revision table.
-func (rwt spannerReadWriteTXN) ReadStoredSchemaHash(ctx context.Context) (string, error) {
-	row, err := rwt.txSource().ReadRow(ctx, "schema_revision", spanner.Key{"current"}, []string{"schema_hash"})
+// assertSchemaHash reads the schema_revision row inside a Spanner read-write transaction,
+// which establishes a conflict range automatically. Returns ErrSchemaHashPreconditionFailed
+// if not found or the stored hash does not match expectedHash.
+func assertSchemaHash(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction, expectedHash string) error {
+	row, err := spannerRWT.ReadRow(ctx, "schema_revision", spanner.Key{"current"}, []string{"schema_hash"})
 	if err != nil {
 		if spanner.ErrCode(err) == codes.NotFound {
-			return "", datastore.ErrSchemaNotFound
+			return datastore.ErrSchemaNotFound
 		}
-		return "", fmt.Errorf("failed to read schema hash: %w", err)
+		return fmt.Errorf("failed to read schema hash for precondition: %w", err)
 	}
 
 	var hash []byte
 	if err := row.Column(0, &hash); err != nil {
-		return "", fmt.Errorf("failed to scan schema hash: %w", err)
+		return fmt.Errorf("failed to scan schema hash for precondition: %w", err)
 	}
 
-	if len(hash) == 0 {
-		return "", datastore.ErrSchemaNotFound
+	if string(hash) != expectedHash {
+		return datastore.ErrSchemaHashPreconditionFailed
 	}
-
-	return string(hash), nil
+	return nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the Spanner schema table.

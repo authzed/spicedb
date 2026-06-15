@@ -379,11 +379,6 @@ func (dm *MockReadWriteTransaction) ReadStoredSchema(_ context.Context) (*datast
 	return schema, args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) ReadStoredSchemaHash(_ context.Context) (string, error) {
-	args := dm.Called()
-	return args.String(0), args.Error(1)
-}
-
 func (dm *MockReadWriteTransaction) WriteStoredSchema(_ context.Context, schema *core.StoredSchema) error {
 	args := dm.Called(schema)
 	return args.Error(0)

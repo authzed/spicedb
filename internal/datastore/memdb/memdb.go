@@ -62,7 +62,7 @@ func NewMemdbDatastore(
 	}
 
 	uniqueID := uuid.NewString()
-	return &memdbDatastore{
+	mdb := &memdbDatastore{
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.Timestamp,
 		},
@@ -80,7 +80,9 @@ func NewMemdbDatastore(
 		watchBufferLength:       watchBufferLength,
 		watchBufferWriteTimeout: 100 * time.Millisecond,
 		uniqueID:                uniqueID,
-	}, nil
+	}
+	mdb.writeTxReady = sync.NewCond(&mdb.RWMutex)
+	return mdb, nil
 }
 
 type memdbDatastore struct {
@@ -91,6 +93,7 @@ type memdbDatastore struct {
 	db             *memdb.MemDB // GUARDED_BY(RWMutex)
 	revisions      []snapshot   // GUARDED_BY(RWMutex)
 	activeWriteTxn *memdb.Txn   // GUARDED_BY(RWMutex)
+	writeTxReady   *sync.Cond   // broadcast when activeWriteTxn becomes nil
 
 	negativeGCWindow        int64
 	quantizationPeriod      int64
@@ -192,9 +195,10 @@ func (mdb *memdbDatastore) ReadWriteTx(
 				mdb.Lock()
 				defer mdb.Unlock()
 
-				if mdb.activeWriteTxn != nil {
-					err = ErrSerialization
-					return
+				// Block until any active write transaction finishes rather than
+				// returning ErrSerialization and busy-retrying with sleeps.
+				for mdb.activeWriteTxn != nil {
+					mdb.writeTxReady.Wait()
 				}
 
 				if err = mdb.checkNotClosed(); err != nil {
@@ -211,25 +215,34 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		newRevision := mdb.newRevisionID()
 		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now()}, newRevision}
+		if config.SchemaHashPrecondition != "" {
+			if err := assertSchemaHash(ctx, rwt, config.SchemaHashPrecondition); err != nil {
+				mdb.Lock()
+				if tx != nil {
+					tx.Abort()
+					mdb.activeWriteTxn = nil
+					mdb.writeTxReady.Signal()
+				}
+				mdb.Unlock()
+				return datastore.NoRevision, err
+			}
+		}
 		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
 				tx.Abort()
 				mdb.activeWriteTxn = nil
+				mdb.writeTxReady.Signal()
 			}
 
-			// If the error was a serialization error, retry the transaction
+			// If the error was a serialization error, retry the transaction.
+			// We *must* return the inner error unmodified in case it's not an error type
+			// that supports unwrapping (e.g. gRPC errors)
 			if errors.Is(err, ErrSerialization) {
 				mdb.Unlock()
-
-				// If we don't sleep here, we run out of retries instantaneously
-				time.Sleep(1 * time.Millisecond)
 				continue
 			}
 			defer mdb.Unlock()
-
-			// We *must* return the inner error unmodified in case it's not an error type
-			// that supports unwrapping (e.g. gRPC errors)
 			return datastore.NoRevision, err
 		}
 
@@ -352,6 +365,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			tx.Commit()
 		}
 		mdb.activeWriteTxn = nil
+		mdb.writeTxReady.Signal()
 
 		if err := mdb.checkNotClosed(); err != nil {
 			return datastore.NoRevision, err

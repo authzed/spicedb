@@ -14,7 +14,6 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -1891,44 +1890,6 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 		out[t] = struct{}{}
 	}
 	return out
-}
-
-func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *testing.T) {
-	t.Cleanup(func() {
-		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
-	})
-	require := require.New(t)
-
-	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
-		testserver.DefaultTestServerConfig,
-		tf.StandardDatastoreWithData)
-	client := v1.NewPermissionsServiceClient(conn)
-
-	// Kick off a number of writes to ensure at least one hits an error, as memdb's write throughput
-	// is limited.
-	g := errgroup.Group{}
-
-	for i := range 50 {
-		g.Go(func() error {
-			updates := make([]*v1.RelationshipUpdate, 0, 500) //nolint:prealloc  // for some reason prealloc thinks this should be 1k
-			for j := range 500 {
-				updates = append(updates, &v1.RelationshipUpdate{
-					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-					Relationship: tuple.ToV1Relationship(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))),
-				})
-			}
-
-			_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
-				Updates: updates,
-			})
-			return err
-		})
-	}
-
-	werr := g.Wait()
-	require.Error(werr)
-	require.ErrorContains(werr, "serialization max retries exceeded")
-	grpcutil.RequireStatus(t, codes.DeadlineExceeded, werr)
 }
 
 func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {

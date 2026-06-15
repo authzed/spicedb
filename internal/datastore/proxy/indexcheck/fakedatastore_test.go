@@ -223,10 +223,6 @@ func (f *fakeRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelation
 	return 0, nil
 }
 
-func (f *fakeRWT) ReadStoredSchemaHash(_ context.Context) (string, error) {
-	return "", datastore.ErrSchemaNotFound
-}
-
 func (f *fakeRWT) WriteStoredSchema(ctx context.Context, schema *corev1.StoredSchema) error {
 	return nil
 }

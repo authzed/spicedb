@@ -29,27 +29,37 @@ func (r *pgReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlySto
 	return rw.ReadStoredSchema(ctx)
 }
 
-// ReadStoredSchemaHash reads only the schema hash from the schema_revision table.
-func (rwt *pgReadWriteTXN) ReadStoredSchemaHash(ctx context.Context) (string, error) {
-	sql, args, err := psql.Select("hash").
+// assertSchemaHash verifies the schema_revision row matches expectedHash.
+// exclusive=true acquires FOR UPDATE (schema writes), serializing concurrent schema writers.
+// exclusive=false acquires FOR SHARE (relationship writes): holds a shared lock until commit,
+// so schema writes (FOR UPDATE) are blocked until all in-flight rel writes release, guaranteeing
+// no relationship write commits against a schema it was not validated against.
+func assertSchemaHash(ctx context.Context, tx pgx.Tx, expectedHash string, exclusive bool) error {
+	q := psql.Select("hash").
 		From("schema_revision").
 		Where(sq.Eq{"name": "current"}).
-		Where(sq.Eq{"deleted_xid": liveDeletedTxnID}).
-		OrderBy("created_xid DESC").
-		Limit(1).
-		ToSql()
+		Where(sq.Eq{"deleted_xid": liveDeletedTxnID})
+	if exclusive {
+		q = q.Suffix("FOR UPDATE")
+	} else {
+		q = q.Suffix("FOR SHARE")
+	}
+	sqlStr, args, err := q.ToSql()
 	if err != nil {
-		return "", fmt.Errorf("failed to build schema hash query: %w", err)
+		return fmt.Errorf("failed to build schema hash precondition query: %w", err)
 	}
 
-	var hash []byte
-	if err := rwt.tx.QueryRow(ctx, sql, args...).Scan(&hash); err != nil {
+	var storedHash []byte
+	if err := tx.QueryRow(ctx, sqlStr, args...).Scan(&storedHash); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", datastore.ErrSchemaNotFound
+			return datastore.ErrSchemaNotFound
 		}
-		return "", fmt.Errorf("failed to read schema hash: %w", err)
+		return fmt.Errorf("failed to check schema hash precondition: %w", err)
 	}
-	return string(hash), nil
+	if string(storedHash) != expectedHash {
+		return datastore.ErrSchemaHashPreconditionFailed
+	}
+	return nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the Postgres schema table.
