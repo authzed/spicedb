@@ -230,10 +230,6 @@ func (rwt *indexcheckingRWT) BulkLoad(ctx context.Context, iter datastore.BulkWr
 	return rwt.delegate.BulkLoad(ctx, iter)
 }
 
-func (rwt *indexcheckingRWT) ReadStoredSchemaHash(ctx context.Context) (string, error) {
-	return rwt.delegate.ReadStoredSchemaHash(ctx)
-}
-
 func (rwt *indexcheckingRWT) WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error {
 	return rwt.delegate.WriteStoredSchema(ctx, schema)
 }

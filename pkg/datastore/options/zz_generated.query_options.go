@@ -420,6 +420,8 @@ func (r *RWTOptions) ToOption() RWTOptionsOption {
 		to.DisableRetries = r.DisableRetries
 		to.Metadata = r.Metadata
 		to.IncludesExpiredAt = r.IncludesExpiredAt
+		to.SchemaHashPrecondition = r.SchemaHashPrecondition
+		to.SchemaHashPreconditionExclusive = r.SchemaHashPreconditionExclusive
 	}
 }
 
@@ -437,6 +439,12 @@ func (r *RWTOptions) DebugMap() map[string]any {
 		debugMap["Metadata"] = *r.Metadata
 	}
 	debugMap["IncludesExpiredAt"] = r.IncludesExpiredAt
+	if r.SchemaHashPrecondition == "" {
+		debugMap["SchemaHashPrecondition"] = "(empty)"
+	} else {
+		debugMap["SchemaHashPrecondition"] = r.SchemaHashPrecondition
+	}
+	debugMap["SchemaHashPreconditionExclusive"] = r.SchemaHashPreconditionExclusive
 	return debugMap
 }
 
@@ -495,5 +503,19 @@ func WithMetadata(metadata *structpb.Struct) RWTOptionsOption {
 func WithIncludesExpiredAt(includesExpiredAt bool) RWTOptionsOption {
 	return func(r *RWTOptions) {
 		r.IncludesExpiredAt = includesExpiredAt
+	}
+}
+
+// WithSchemaHashPrecondition returns an option that can set SchemaHashPrecondition on a RWTOptions
+func WithSchemaHashPrecondition(schemaHashPrecondition string) RWTOptionsOption {
+	return func(r *RWTOptions) {
+		r.SchemaHashPrecondition = schemaHashPrecondition
+	}
+}
+
+// WithSchemaHashPreconditionExclusive returns an option that can set SchemaHashPreconditionExclusive on a RWTOptions
+func WithSchemaHashPreconditionExclusive(schemaHashPreconditionExclusive bool) RWTOptionsOption {
+	return func(r *RWTOptions) {
+		r.SchemaHashPreconditionExclusive = schemaHashPreconditionExclusive
 	}
 }

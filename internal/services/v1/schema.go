@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -172,7 +173,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			DispatchCount: dispatchCount,
 		})
 		return nil
-	})
+	}, options.WithSchemaHashPreconditionExclusive(true))
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}

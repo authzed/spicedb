@@ -34,25 +34,31 @@ func (cr *crdbReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnly
 	return rw.ReadStoredSchema(ctx)
 }
 
-// ReadStoredSchemaHash reads only the schema hash from the schema_revision table.
-func (rwt *crdbReadWriteTXN) ReadStoredSchemaHash(ctx context.Context) (string, error) {
-	sql, args, err := psql.Select("hash").
+// assertSchemaHash verifies the schema_revision row matches expectedHash.
+// Under CRDB's default SERIALIZABLE isolation, both FOR UPDATE and FOR SHARE are unreplicated
+// best-effort locks that cannot be relied upon for correctness. Correctness for concurrent
+// schema and relationship writes is instead guaranteed by CRDB's serializable conflict
+// detection at commit time. The exclusive flag is ignored.
+func assertSchemaHash(ctx context.Context, tx pgx.Tx, expectedHash string) error {
+	q := psql.Select("hash").
 		From("schema_revision").
-		Where(sq.Eq{"name": "current"}).
-		Limit(1).
-		ToSql()
+		Where(sq.Eq{"name": "current"})
+	sqlStr, args, err := q.ToSql()
 	if err != nil {
-		return "", fmt.Errorf("failed to build schema hash query: %w", err)
+		return fmt.Errorf("failed to build schema hash precondition query: %w", err)
 	}
 
-	var hash []byte
-	if err := rwt.tx.QueryRow(ctx, sql, args...).Scan(&hash); err != nil {
+	var storedHash []byte
+	if err := tx.QueryRow(ctx, sqlStr, args...).Scan(&storedHash); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", datastore.ErrSchemaNotFound
+			return datastore.ErrSchemaNotFound
 		}
-		return "", fmt.Errorf("failed to read schema hash: %w", err)
+		return fmt.Errorf("failed to check schema hash precondition: %w", err)
 	}
-	return string(hash), nil
+	if string(storedHash) != expectedHash {
+		return datastore.ErrSchemaHashPreconditionFailed
+	}
+	return nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the CRDB schema table.

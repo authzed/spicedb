@@ -171,6 +171,8 @@ func rewriteError(ctx context.Context, err error, _ *ConfigForErrors) error {
 		return status.Errorf(codes.OutOfRange, "invalid zedtoken: %s", err)
 	case errors.As(err, &datastore.CaveatNameNotFoundError{}):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT)
+	case errors.Is(err, datastore.ErrSchemaHashPreconditionFailed):
+		return status.Errorf(codes.FailedPrecondition, "%s", err)
 	case errors.Is(err, datastore.ErrSchemaNotFound):
 		return status.Errorf(codes.NotFound, "%s", err)
 	case errors.As(err, &datastore.SchemaNotDefinedError{}):

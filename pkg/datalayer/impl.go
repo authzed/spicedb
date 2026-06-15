@@ -2,6 +2,8 @@ package datalayer
 
 import (
 	"context"
+	"errors"
+	"sync/atomic"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -12,6 +14,10 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// maxSchemaHashAttempts is the total number of times ReadWriteTx will attempt a transaction
+// (including the first) before surfacing ErrSchemaHashPreconditionFailed to the caller.
+const maxSchemaHashAttempts = 4
 
 // storedSchemaCache caches stored schemas by hash.
 type storedSchemaCache interface {
@@ -66,15 +72,33 @@ func NewDataLayer(ds datastore.Datastore, opts ...DataLayerOption) DataLayer {
 
 // defaultDataLayer wraps a datastore.Datastore and implements DataLayer.
 type defaultDataLayer struct {
-	ds         datastore.Datastore
-	schemaMode SchemaMode
-	cache      storedSchemaCache
+	ds             datastore.Datastore
+	schemaMode     SchemaMode
+	cache          storedSchemaCache
+	lastSchemaHash atomic.Pointer[string] // most recently observed non-bypass schema hash
+}
+
+// observeSchemaHash stores h as the most recently observed schema hash.
+// Ignored for empty or bypass-sentinel values.
+func (d *defaultDataLayer) observeSchemaHash(h SchemaHash) {
+	if h != "" && !h.IsBypassSentinel() {
+		d.lastSchemaHash.Store(new(string(h)))
+	}
+}
+
+// loadLastSchemaHash returns the most recently observed schema hash, or "" if none.
+func (d *defaultDataLayer) loadLastSchemaHash() SchemaHash {
+	if p := d.lastSchemaHash.Load(); p != nil {
+		return SchemaHash(*p)
+	}
+	return ""
 }
 
 func (d *defaultDataLayer) SnapshotReader(rev datastore.Revision, schemaHash SchemaHash) RevisionedReader {
 	if schemaHash == "" {
 		_ = spiceerrors.MustBugf("empty string passed as SchemaHash; use a named sentinel")
 	}
+	d.observeSchemaHash(schemaHash)
 	return &revisionedReader{
 		reader:     d.ds.SnapshotReader(rev),
 		rev:        rev,
@@ -85,25 +109,74 @@ func (d *defaultDataLayer) SnapshotReader(rev datastore.Revision, schemaHash Sch
 }
 
 func (d *defaultDataLayer) ReadWriteTx(ctx context.Context, fn TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
-	var pendingHash SchemaHash
-	var pendingSchema *datastore.ReadOnlyStoredSchema
+	rwtOpts := options.NewRWTOptionsWithOptions(opts...)
+	preconditionHash := SchemaHash(rwtOpts.SchemaHashPrecondition)
 
-	rev, err := d.ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		pendingHash, pendingSchema = "", nil // reset on retry
-		return fn(ctx, &readWriteTransaction{
-			rwt:        rwt,
-			schemaMode: d.schemaMode,
-			cache:      d.cache,
-			onSchemaWritten: func(h SchemaHash, s *datastore.ReadOnlyStoredSchema) {
-				pendingHash, pendingSchema = h, s
-			},
-		})
-	}, opts...)
-
-	if err == nil && pendingHash != "" {
-		_ = d.cache.Set(pendingHash, pendingSchema)
+	// Seed the precondition from the most recently observed hash so ReadSchema
+	// inside the transaction can hit the cache without an extra HeadRevision call.
+	// Falls back to HeadRevision only when nothing has been observed yet.
+	if preconditionHash == "" && d.schemaMode.ReadsFromNew() {
+		if h := d.loadLastSchemaHash(); h != "" {
+			preconditionHash = h
+		} else if result, err := d.ds.HeadRevision(ctx); err == nil && result.SchemaHash != "" {
+			preconditionHash = SchemaHash(result.SchemaHash)
+			d.observeSchemaHash(preconditionHash)
+		}
 	}
-	return rev, err
+
+	var err error
+	for range maxSchemaHashAttempts {
+		var pendingHash SchemaHash
+		var pendingSchema *datastore.ReadOnlyStoredSchema
+
+		// Always pass the current preconditionHash as the last option so that on retries,
+		// the refreshed hash overrides whatever the caller originally passed (last option wins).
+		dsOpts := make([]options.RWTOptionsOption, len(opts)+1)
+		copy(dsOpts, opts)
+		dsOpts[len(opts)] = options.WithSchemaHashPrecondition(string(preconditionHash))
+
+		var rev datastore.Revision
+		rev, err = d.ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			pendingHash, pendingSchema = "", nil // reset on inner retry
+			return fn(ctx, &readWriteTransaction{
+				rwt:              rwt,
+				schemaMode:       d.schemaMode,
+				cache:            d.cache,
+				preconditionHash: preconditionHash,
+				onSchemaWritten: func(h SchemaHash, s *datastore.ReadOnlyStoredSchema) {
+					pendingHash, pendingSchema = h, s
+				},
+			})
+		}, dsOpts...)
+
+		if err == nil {
+			if pendingHash != "" {
+				_ = d.cache.Set(pendingHash, pendingSchema)
+				d.observeSchemaHash(pendingHash)
+			}
+			return rev, nil
+		}
+
+		// When the schema changed since the caller fetched the hash, transparently
+		// refresh the hash and retry so the callback runs against the current schema.
+		// fn was never called (assertSchemaHash fires before fn), so retrying is safe.
+		if !rwtOpts.DisableRetries &&
+			errors.Is(err, datastore.ErrSchemaHashPreconditionFailed) &&
+			preconditionHash != "" {
+			// Use HeadRevision (not OptimizedRevision) to guarantee we see the
+			// hash of the write that just invalidated our precondition, even when
+			// the datastore quantizes revisions or caches the optimized revision.
+			result, fetchErr := d.ds.HeadRevision(ctx)
+			if fetchErr == nil && result.SchemaHash != "" {
+				preconditionHash = SchemaHash(result.SchemaHash)
+				d.observeSchemaHash(preconditionHash)
+				continue
+			}
+		}
+
+		return datastore.NoRevision, err
+	}
+	return datastore.NoRevision, err
 }
 
 func (d *defaultDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
@@ -113,7 +186,9 @@ func (d *defaultDataLayer) OptimizedRevision(ctx context.Context) (datastore.Rev
 	}
 
 	if d.schemaMode.ReadsFromNew() && result.SchemaHash != "" {
-		return result.Revision, SchemaHash(result.SchemaHash), nil
+		hash := SchemaHash(result.SchemaHash)
+		d.observeSchemaHash(hash)
+		return result.Revision, hash, nil
 	}
 
 	return result.Revision, NoSchemaHashInLegacyMode, nil
@@ -126,7 +201,9 @@ func (d *defaultDataLayer) HeadRevision(ctx context.Context) (datastore.Revision
 	}
 
 	if d.schemaMode.ReadsFromNew() && result.SchemaHash != "" {
-		return result.Revision, SchemaHash(result.SchemaHash), nil
+		hash := SchemaHash(result.SchemaHash)
+		d.observeSchemaHash(hash)
+		return result.Revision, hash, nil
 	}
 
 	return result.Revision, NoSchemaHashInLegacyMode, nil
@@ -214,32 +291,18 @@ type readWriteTransaction struct {
 	// ReadWriteTx sets this to capture the written schema for post-commit cache update.
 	onSchemaWritten func(SchemaHash, *datastore.ReadOnlyStoredSchema)
 
-	// txHeadHash is the schema hash read on the first ReadSchema call, memoized
-	// so that subsequent calls within the same transaction pay no additional DB cost.
-	txHeadHash SchemaHash
+	// preconditionHash, when non-empty, is the hash the datastore asserted at tx open time
+	// (via WithSchemaHashPrecondition). ReadSchema uses it directly for cache lookup.
+	preconditionHash SchemaHash
 }
 
 func (t *readWriteTransaction) ReadSchema(ctx context.Context) (SchemaReader, error) {
 	if t.schemaMode.ReadsFromNew() {
-		// Read the schema, extract and cache the hash, then reuse it for any subsequent
-		// ReadSchema calls within the same transaction.
-		//
-		// Note: if WriteSchema is called before ReadSchema in the same transaction, this
-		// returns the pre-write schema. That ordering never occurs today, since schema
-		// writes are always isolated in a dedicated api call, but keep in mind for future
-		// uses.
-		if t.txHeadHash == "" {
-			hash, err := t.rwt.ReadStoredSchemaHash(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if hash != "" {
-				t.txHeadHash = SchemaHash(hash)
-			} else {
-				t.txHeadHash = NoSchemaHashInTransaction
-			}
+		hash := t.preconditionHash
+		if hash == "" {
+			hash = NoSchemaHashInTransaction
 		}
-		return newStoredSchemaReaderAdapter(ctx, t.rwt, t.txHeadHash, datastore.NoRevision, t.cache)
+		return newStoredSchemaReaderAdapter(ctx, t.rwt, hash, datastore.NoRevision, t.cache)
 	}
 	return &legacySchemaReaderAdapter{legacyReader: t.rwt}, nil
 }
