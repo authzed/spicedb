@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)
 
 ### Fixed
-- When SpiceDB loses a connection to a CockroachDB node (as shown by metric `crdb_connections_per_node`), every read happening in the server also blocks.
+- When SpiceDB loses a connection to a CockroachDB node, every read happening in the server blocks for a short period of time (https://github.com/authzed/spicedb/pull/3181)
 
 ## [1.54.0] - 2026-06-18
 ### Added

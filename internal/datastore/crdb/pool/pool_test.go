@@ -623,10 +623,8 @@ func TestAfterConnectDoesNotBlockAcquireHotPath(t *testing.T) {
 
 	// A second reconnect: it parks in limiter.Wait,
 	// but should NOT hold the write lock the entire time.
-	blockedCtx, cancelBlocked := context.WithCancel(ctx)
-	defer cancelBlocked() // release the stuck goroutine when the test ends
 	go func() {
-		_ = config.AfterConnect(blockedCtx, &pgx.Conn{})
+		_ = config.AfterConnect(t.Context(), &pgx.Conn{})
 	}()
 
 	// The acquire hot path must stay responsive. BeforeAcquire -> gcConnection
