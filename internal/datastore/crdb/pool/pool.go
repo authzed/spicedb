@@ -151,6 +151,10 @@ func (p *RetryPool) afterConnect(ctx context.Context, conn *pgx.Conn, wrapped fu
 		}
 	}
 
+	if err := limiter.Wait(ctx); err != nil {
+		return err
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -159,10 +163,6 @@ func (p *RetryPool) afterConnect(ctx context.Context, conn *pgx.Conn, wrapped fu
 
 	id := p.nodeIDFromConn(conn)
 	p.healthTracker.SetNodeHealth(id, true)
-
-	if err := limiter.Wait(ctx); err != nil {
-		return err
-	}
 
 	p.nodeForConn[conn] = id
 
