@@ -4,13 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Changed
+- Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)
+
+### Fixed
+- When SpiceDB loses a connection to a CockroachDB node, every read happening in the server blocks for a short period of time (https://github.com/authzed/spicedb/pull/3181)
+
+## [1.54.0] - 2026-06-18
 ### Added
 - Query Planner: fast serialize/deserialize for query plans (https://github.com/authzed/spicedb/pull/3122)
 
 ### Changed
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
 - Server handles: `GRPCDialContext` as a handle on the server used deprecated gRPC methods. We modernized it and renamed it to `NewClient` (https://github.com/authzed/spicedb/pull/3147)
-- Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)
 
 ### Fixed
 - The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)
@@ -3637,7 +3643,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.53.0...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.54.0...HEAD
+[1.54.0]: https://github.com/authzed/spicedb/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/authzed/spicedb/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/authzed/spicedb/compare/v1.51.1...v1.52.0
 [1.51.1]: https://github.com/authzed/spicedb/compare/v1.51.0...v1.51.1

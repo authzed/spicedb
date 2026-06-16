@@ -607,61 +607,39 @@ func TestAcquireFromDifferentNodeWithOneHealthyNode(t *testing.T) {
 	require.NotNil(t, conn, "with <=1 healthy node it returns whatever it acquired")
 }
 
-// TODO uncomment when fixing https://github.com/authzed/spicedb/issues/3179.
-//
-// AfterConnect takes the pool's exclusive write lock (p.Lock) and then calls the
-// blocking limiter.Wait while still holding it. The same RWMutex guards the
-// connection acquire/release hot path (BeforeAcquire/AfterRelease -> gcConnection),
-// so a reconnect that is rate-limited stalls all datastore traffic in the pool.
-//
-// This test fails against the current code (the hot path stalls) and is expected
-// to pass once limiter.Wait is hoisted out of the critical section.
-// func TestAfterConnectDoesNotBlockAcquireHotPath(t *testing.T) {
-//	p := createTestRetryPool(NewTestPool())
-//	p.nodeIDFromConn = func(conn *pgx.Conn) uint32 { return 0 }
-//
-//	config := &pgxpool.Config{ConnConfig: &pgx.ConnConfig{}}
-//	// rate.NewLimiter(rate.Every(1h), 1) starts with a single token. The first
-//	// AfterConnect consumes it; the next one must wait ~1h for a refill.
-//	p.configureLifecycleCallbacks(config, time.Hour)
-//
-//	ctx := t.Context()
-//
-//	// Consume the limiter's only initial token so the next reconnect blocks.
-//	require.NoError(t, config.AfterConnect(ctx, &pgx.Conn{}))
-//
-//	// A second reconnect: it grabs p.Lock() and then parks in limiter.Wait,
-//	// holding the write lock the entire time.
-//	blockedCtx, cancelBlocked := context.WithCancel(ctx)
-//	defer cancelBlocked() // release the stuck goroutine when the test ends
-//	go func() {
-//		_ = config.AfterConnect(blockedCtx, &pgx.Conn{})
-//	}()
-//
-//	// Wait until that goroutine is actually holding the write lock. TryRLock can
-//	// only fail because our reconnect goroutine holds (or is acquiring) the write
-//	// lock — nothing else in this test writes.
-//	require.Eventually(t, func() bool {
-//		if p.TryRLock() {
-//			p.RUnlock()
-//			return false
-//		}
-//		return true
-//	}, 2*time.Second, time.Millisecond, "reconnect goroutine never took the write lock")
-//
-//	// The acquire hot path must stay responsive. BeforeAcquire -> gcConnection
-//	// takes p.RLock(), which is blocked behind the held write lock.
-//	done := make(chan struct{})
-//	go func() {
-//		config.BeforeAcquire(ctx, &pgx.Conn{}) //nolint:staticcheck // need to move BeforeAcquire to PrepareConn
-//		close(done)
-//	}()
-//
-//	select {
-//	case <-done:
-//		// hot path completed promptly -> the lock is not held across the wait
-//	case <-time.After(5 * time.Second):
-//		t.Fatal("acquire hot path (BeforeAcquire) stalled because AfterConnect held " +
-//			"the write lock across the blocking limiter.Wait — see issue #3179")
-//	}
-//}
+func TestAfterConnectDoesNotBlockAcquireHotPath(t *testing.T) {
+	p := createTestRetryPool(NewTestPool())
+	p.nodeIDFromConn = func(conn *pgx.Conn) uint32 { return 0 }
+
+	config := &pgxpool.Config{ConnConfig: &pgx.ConnConfig{}}
+	// rate.NewLimiter(rate.Every(1h), 1) starts with a single token. The first
+	// AfterConnect consumes it; the next one must wait ~1h for a refill.
+	p.configureLifecycleCallbacks(config, time.Hour)
+
+	ctx := t.Context()
+
+	// Consume the limiter's only initial token so the next reconnect blocks.
+	require.NoError(t, config.AfterConnect(ctx, &pgx.Conn{}))
+
+	// A second reconnect: it parks in limiter.Wait,
+	// but should NOT hold the write lock the entire time.
+	go func() {
+		_ = config.AfterConnect(t.Context(), &pgx.Conn{})
+	}()
+
+	// The acquire hot path must stay responsive. BeforeAcquire -> gcConnection
+	// takes p.RLock(), which is blocked behind the held write lock.
+	done := make(chan struct{})
+	go func() {
+		config.BeforeAcquire(ctx, &pgx.Conn{}) //nolint:staticcheck // need to move BeforeAcquire to PrepareConn
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// hot path completed promptly -> the lock is not held across the wait
+	case <-time.After(5 * time.Second):
+		t.Fatal("acquire hot path (BeforeAcquire) stalled because AfterConnect held " +
+			"the write lock across the blocking limiter.Wait — see issue #3179")
+	}
+}
