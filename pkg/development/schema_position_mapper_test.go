@@ -431,6 +431,76 @@ definition somethingelse {}
 			},
 		},
 		{
+			name: "arrow rhs with multi-target LHS first match is a permission",
+			schema: `definition user {}
+
+			definition org {
+				relation admin: user
+				permission member = admin
+			}
+
+			definition team {
+				relation member: user
+			}
+
+			definition document {
+				relation parent: org | team
+				permission viewable = parent->member
+			}
+			`,
+			line:   13,
+			column: 36,
+			// `org` defines `member` as a permission while `team` defines it as
+			// a relation, so the multi-match path surfaces both. The top-level
+			// reference reflects the first match (`org`'s permission).
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 13, ColumnPosition: 36},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypePermission,
+				ReferenceMarkdown:        "permission member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 4, ColumnPosition: 4},
+				TargetSourceCode:         "// from org\npermission member = admin\n\n// from team\nrelation member: user\n",
+				TargetNamePositionOffset: 11,
+			},
+		},
+		{
+			name: "arrow rhs with multi-target LHS later match is a permission",
+			schema: `definition user {}
+
+			definition org {
+				relation member: user
+			}
+
+			definition team {
+				relation admin: user
+				permission member = admin
+			}
+
+			definition document {
+				relation parent: org | team
+				permission viewable = parent->member
+			}
+			`,
+			line:   13,
+			column: 36,
+			// `org` defines `member` as a relation and `team` as a permission.
+			// The top-level reference reflects the first match (`org`'s
+			// relation) even though a later match is a permission.
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 13, ColumnPosition: 36},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 3, ColumnPosition: 4},
+				TargetSourceCode:         "// from org\nrelation member: user\n\n// from team\npermission member = admin\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
 			name: "arrow rhs with duplicate-namespace LHS dedupes",
 			schema: `definition user {}
 
