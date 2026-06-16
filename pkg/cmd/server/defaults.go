@@ -91,7 +91,15 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+	// TODO(miparnisari): use a custom registry instead of the default one!
+	gatherer := prometheus.DefaultGatherer
+	if c != nil {
+		if serverGatherer, ok := c.OTel.PrometheusRegistry.(prometheus.Gatherer); ok {
+			gatherer = prometheus.Gatherers{prometheus.DefaultGatherer, serverGatherer}
+		}
+	}
+
+	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
 		// Opt into OpenMetrics e.g. to support exemplars.
 		EnableOpenMetrics: true,
 	}))

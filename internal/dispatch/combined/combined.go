@@ -26,8 +26,7 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	metricsEnabled                               bool
-	prometheusSubsystem                          string
+	metrics                                      dispatch.MetricsOptions
 	upstreamAddr                                 string
 	upstreamCAPath                               string
 	grpcPresharedKey                             string
@@ -55,17 +54,10 @@ func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
 	}
 }
 
-// MetricsEnabled enables issuing prometheus metrics
-func MetricsEnabled(enabled bool) Option {
+// Metrics sets the prometheus metrics
+func Metrics(reg dispatch.MetricsOptions) Option {
 	return func(state *optionState) {
-		state.metricsEnabled = enabled
-	}
-}
-
-// PrometheusSubsystem sets the subsystem name for the prometheus metrics
-func PrometheusSubsystem(name string) Option {
-	return func(state *optionState) {
-		state.prometheusSubsystem = name
+		state.metrics = reg
 	}
 }
 
@@ -202,11 +194,11 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	opts := newOptions(options...)
 	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
 
-	if opts.prometheusSubsystem == "" {
-		opts.prometheusSubsystem = "dispatch_client"
+	if opts.metrics.PrometheusSubsystem == "" {
+		opts.metrics.PrometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metrics, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

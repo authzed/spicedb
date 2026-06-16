@@ -145,9 +145,6 @@ func TestCertRotation(t *testing.T) {
 	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
-		server.WithDispatchMaxDepth(50),
-		server.WithMaximumPreconditionCount(1000),
-		server.WithMaximumUpdatesPerWrite(1000),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network:     util.BufferedNetwork,
 			Enabled:     true,
@@ -203,15 +200,6 @@ func TestCertRotation(t *testing.T) {
 			},
 		}),
 	)
-	// Disable caches and their metrics to avoid "duplicate metrics" errors
-	cfg.DispatchClusterMetricsEnabled = false
-	cfg.DispatchClientMetricsEnabled = false
-	cfg.DatastoreConfig.EnableDatastoreMetrics = false
-	cfg.NamespaceCacheConfig = server.CacheConfig{}
-	cfg.DispatchCacheConfig = server.CacheConfig{}
-	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
-	cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
-	cfg.StoredSchemaCacheConfig = server.CacheConfig{}
 	srv, err := cfg.Complete(ctx)
 	require.NoError(t, err)
 

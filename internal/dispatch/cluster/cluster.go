@@ -18,8 +18,8 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	metricsEnabled               bool
-	prometheusSubsystem          string
+	metrics dispatch.MetricsOptions
+
 	cache                        cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits            graph.ConcurrencyLimits
 	remoteDispatchTimeout        time.Duration
@@ -38,17 +38,10 @@ func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
 	}
 }
 
-// MetricsEnabled enables issuing prometheus metrics
-func MetricsEnabled(enabled bool) Option {
+// Metrics sets the prometheus metrics
+func Metrics(reg dispatch.MetricsOptions) Option {
 	return func(state *optionState) {
-		state.metricsEnabled = enabled
-	}
-}
-
-// PrometheusSubsystem sets the subsystem name for the prometheus metrics
-func PrometheusSubsystem(name string) Option {
-	return func(state *optionState) {
-		state.prometheusSubsystem = name
+		state.metrics = reg
 	}
 }
 
@@ -155,11 +148,11 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		return nil, fmt.Errorf("failed to create cluster dispatcher: %w", err)
 	}
 
-	if opts.prometheusSubsystem == "" {
-		opts.prometheusSubsystem = "dispatch"
+	if opts.metrics.PrometheusSubsystem == "" {
+		opts.metrics.PrometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metrics, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
