@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - When SpiceDB loses a connection to a CockroachDB node, every read happening in the server blocks for a short period of time (https://github.com/authzed/spicedb/pull/3181)
+- LSP: hover and go-to-definition now resolve identifiers on the right-hand side of arrow expressions (`->`, `.any(...)`, `.all(...)`) (https://github.com/authzed/spicedb/pull/3157)
 
 ## [1.54.0] - 2026-06-18
 ### Added
@@ -210,10 +211,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - expose x-request-id header in HTTP Gateway responses by @Verolop in https://github.com/authzed/spicedb/pull/2712
 - error message when cannot run 'datastore gc' or 'datastore repair' by @miparnisari in https://github.com/authzed/spicedb/pull/2609
 - Postgres:
-    * wire up missing revision timestamp on PG ReadWriteTx by [@vroldanbet](https://authzed.slack.com/team/U03HU4QUZU3) in https://github.com/authzed/spicedb/pull/2725
+  * wire up missing revision timestamp on PG ReadWriteTx by [@vroldanbet](https://authzed.slack.com/team/U03HU4QUZU3) in https://github.com/authzed/spicedb/pull/2725
 - Spanner:
-    * Watch API by @miparnisari in https://github.com/authzed/spicedb/pull/2560
-    * statistics by @miparnisari in https://github.com/authzed/spicedb/pull/2745
+  * Watch API by @miparnisari in https://github.com/authzed/spicedb/pull/2560
+  * statistics by @miparnisari in https://github.com/authzed/spicedb/pull/2745
 
 ## [1.47.1] - 2025-11-20
 ### Changed
@@ -236,7 +237,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - add man page generation support by @ivanauth in https://github.com/authzed/spicedb/pull/2595
 - add fgprof wall-clock profiler by @vroldanbet in https://github.com/authzed/spicedb/pull/2618
 - CRDB: add write backpressure when write pool is overloaded  by @ecordell in https://github.com/authzed/spicedb/pull/2642
-    * ⚠️ With this change, Write APIs now return ResourceExhausted errors if there are no available connections in the pool
+  * ⚠️ With this change, Write APIs now return ResourceExhausted errors if there are no available connections in the pool
 
 ### Changed
 - perf: significant improvements around LR3 dispatching by @josephschorr in https://github.com/authzed/spicedb/pull/2587
@@ -256,7 +257,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - LR3 Fixes and Improvements by @josephschorr in https://github.com/authzed/spicedb/pull/2570 and https://github.com/authzed/spicedb/pull/2574
 - propagate cancellation errors in consistency middleware by @tstirrat15 in https://github.com/authzed/spicedb/pull/2581
 - breakage of gRPC retries by @vroldanbet in https://github.com/authzed/spicedb/pull/2577
-    *  ⚠️ With this change, if you use the `zed` CLI, you must update to the latest version ([v0.33.0](https://github.com/authzed/zed/releases/tag/v0.33.0))
+  *  ⚠️ With this change, if you use the `zed` CLI, you must update to the latest version ([v0.33.0](https://github.com/authzed/zed/releases/tag/v0.33.0))
 - fix: add flags to configure how to handle zedtokens meant for a different datastore by @josephschorr in https://github.com/authzed/spicedb/pull/1723
 
 ## [1.45.4] - 2025-09-12
