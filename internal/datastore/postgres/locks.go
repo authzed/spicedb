@@ -2,12 +2,20 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type lockID uint32
+
+// ErrLockNotHeld is returned by releaseLock when pg_advisory_unlock reports the
+// session did not hold the lock. Advisory locks are session-level, so this
+// happens when the session was reset/reconnected after acquiring the lock (e.g.
+// a connection blip mid-GC). It is benign during teardown — the lock is already
+// gone — so callers may choose to tolerate it.
+var ErrLockNotHeld = errors.New("advisory lock was not held at release time")
 
 const (
 	// gcRunLock is the lock ID for the garbage collection run.
@@ -49,7 +57,7 @@ func (pgd *pgDatastore) releaseLock(ctx context.Context, conn *pgxpool.Conn, loc
 	}
 
 	if !lockReleased {
-		return fmt.Errorf("failed to release lock %d", lockID)
+		return fmt.Errorf("lock %d: %w", lockID, ErrLockNotHeld)
 	}
 
 	return nil

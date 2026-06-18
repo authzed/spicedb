@@ -764,7 +764,8 @@ func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
 	}
 
 	defer func() {
-		if err := pgd.releaseLock(ctx, conn, revisionHeartbeatLock); err != nil && !errors.Is(err, context.Canceled) {
+		if err := pgd.releaseLock(ctx, conn, revisionHeartbeatLock); err != nil &&
+			!errors.Is(err, context.Canceled) && !errors.Is(err, ErrLockNotHeld) {
 			log.Warn().Err(err).Msg("failed to release revision heartbeat lock")
 		}
 	}()
