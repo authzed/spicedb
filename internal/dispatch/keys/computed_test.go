@@ -736,3 +736,87 @@ func TestComputeContextHash(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "e49efdc8e1d99daca601", hex.EncodeToString(result.StableSumAsBytes()))
 }
+
+func TestCheckRequestKeyIncludesCheckHints(t *testing.T) {
+	baseReq := func() *v1.DispatchCheckRequest {
+		return &v1.DispatchCheckRequest{
+			ResourceRelation: RR("document", "reader"),
+			ResourceIds:      []string{"firstdoc"},
+			Subject:          ONR("user", "caveatedreader", "..."),
+			ResultsSetting:   v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+			Metadata: &v1.ResolverMeta{
+				AtRevision: "1234",
+				SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
+			},
+		}
+	}
+
+	memberHint := func() []*v1.CheckHint {
+		return []*v1.CheckHint{{
+			Resource: ONR("document", "firstdoc", "reader"),
+			Subject:  ONR("user", "caveatedreader", "..."),
+			Result:   &v1.ResourceCheckResult{Membership: v1.ResourceCheckResult_MEMBER},
+		}}
+	}
+	caveatedHint := func() []*v1.CheckHint {
+		return []*v1.CheckHint{{
+			Resource: ONR("document", "firstdoc", "reader"),
+			Subject:  ONR("user", "caveatedreader", "..."),
+			Result:   &v1.ResourceCheckResult{Membership: v1.ResourceCheckResult_CAVEATED_MEMBER},
+		}}
+	}
+	twoHints := func() []*v1.CheckHint {
+		return []*v1.CheckHint{
+			{
+				Resource: ONR("document", "firstdoc", "reader"),
+				Subject:  ONR("user", "caveatedreader", "..."),
+				Result:   &v1.ResourceCheckResult{Membership: v1.ResourceCheckResult_MEMBER},
+			},
+			{
+				Resource: ONR("document", "firstdoc", "writer"),
+				Subject:  ONR("user", "caveatedreader", "..."),
+				Result:   &v1.ResourceCheckResult{Membership: v1.ResourceCheckResult_CAVEATED_MEMBER},
+			},
+		}
+	}
+	twoHintsReversed := func() []*v1.CheckHint {
+		return []*v1.CheckHint{twoHints()[1], twoHints()[0]}
+	}
+
+	noHints := baseReq()
+
+	withMember := baseReq()
+	withMember.CheckHints = memberHint()
+
+	withCaveated := baseReq()
+	withCaveated.CheckHints = caveatedHint()
+
+	withTwoHints := baseReq()
+	withTwoHints.CheckHints = twoHints()
+
+	withTwoHintsReversed := baseReq()
+	withTwoHintsReversed.CheckHints = twoHintsReversed()
+
+	t.Run("relation key", func(t *testing.T) {
+		require.NotEqual(t, checkRequestToKey(noHints), checkRequestToKey(withMember), "a hint-influenced check must not share a cache key with a hint-free check")
+		require.NotEqual(t, checkRequestToKey(withMember), checkRequestToKey(withCaveated), "check hints with different results must produce different cache keys")
+		require.Equal(t, checkRequestToKey(withTwoHints), checkRequestToKey(withTwoHintsReversed), "the order of check hints must not influence the cache key")
+	})
+
+	t.Run("canonical key", func(t *testing.T) {
+		keyNo, err := checkRequestToKeyWithCanonical(noHints, "reader")
+		require.NoError(t, err)
+		keyMember, err := checkRequestToKeyWithCanonical(withMember, "reader")
+		require.NoError(t, err)
+		keyCaveated, err := checkRequestToKeyWithCanonical(withCaveated, "reader")
+		require.NoError(t, err)
+		keyTwoHints, err := checkRequestToKeyWithCanonical(withTwoHints, "writer")
+		require.NoError(t, err)
+		keyTwoHintsReversed, err := checkRequestToKeyWithCanonical(withTwoHintsReversed, "writer")
+		require.NoError(t, err)
+
+		require.NotEqual(t, keyNo, keyMember, "a hint-influenced check must not share a canonical cache key with a hint-free check")
+		require.NotEqual(t, keyMember, keyCaveated, "check hints with different results must produce different canonical cache keys")
+		require.Equal(t, keyTwoHints, keyTwoHintsReversed, "the order of check hints must not influence the canonical cache key")
+	})
+}

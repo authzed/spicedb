@@ -39,25 +39,37 @@ var cachePrefixes = []cachePrefix{
 
 // checkRequestToKey converts a check request into a cache key based on the relation
 func checkRequestToKey(req *v1.DispatchCheckRequest) DispatchCacheKey {
-	return dispatchCacheKeyHash(checkViaRelationPrefix, req.Metadata.AtRevision,
+	args := []hashableValue{
 		hashableRelationReference{req.ResourceRelation},
 		hashableIds(req.ResourceIds),
 		hashableOnr{req.Subject},
 		hashableResultSetting(req.ResultsSetting),
-	)
+	}
+
+	if len(req.CheckHints) > 0 {
+		args = append(args, hashableCheckHints(req.CheckHints))
+	}
+
+	return dispatchCacheKeyHash(checkViaRelationPrefix, req.Metadata.AtRevision, args...)
 }
 
 // checkRequestToKeyWithCanonical converts a check request into a cache key based
 // on the canonical key.
 func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey string) (DispatchCacheKey, error) {
 	// NOTE: canonical cache keys are only unique *within* a version of a namespace.
-	cacheKey := dispatchCacheKeyHash(checkViaCanonicalPrefix, req.Metadata.AtRevision,
+	args := []hashableValue{
 		hashableString(req.ResourceRelation.Namespace),
 		hashableString(canonicalKey),
 		hashableIds(req.ResourceIds),
 		hashableOnr{req.Subject},
 		hashableResultSetting(req.ResultsSetting),
-	)
+	}
+
+	if len(req.CheckHints) > 0 {
+		args = append(args, hashableCheckHints(req.CheckHints))
+	}
+
+	cacheKey := dispatchCacheKeyHash(checkViaCanonicalPrefix, req.Metadata.AtRevision, args...)
 
 	if canonicalKey == "" {
 		return cacheKey, spiceerrors.MustBugf("given empty canonical key for request: %s => %s", req.ResourceRelation, tuple.StringCoreONR(req.Subject))
