@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.54.0] - 2026-06-18
 ### Added
 - Query Planner: fast serialize/deserialize for query plans (https://github.com/authzed/spicedb/pull/3122)
 
@@ -3639,7 +3639,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.53.0...HEAD
+[1.54.0]: https://github.com/authzed/spicedb/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/authzed/spicedb/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/authzed/spicedb/compare/v1.51.1...v1.52.0
 [1.51.1]: https://github.com/authzed/spicedb/compare/v1.51.0...v1.51.1
