@@ -141,6 +141,9 @@ func TestNodeConnectionBalancerPrune(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tracker, err := NewNodeHealthChecker("")
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				tracker.Close()
+			})
 			for _, n := range tt.nodes {
 				tracker.healthyNodes[n] = struct{}{}
 			}

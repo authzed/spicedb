@@ -20,24 +20,6 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil"
 )
 
-var (
-	connectionsPerCRDBNodeCountGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "crdb_connections_per_node",
-		Help: "The number of active connections SpiceDB holds to each CockroachDB node, by pool (read/write). Imbalanced values across nodes suggest the connection balancer is unable to redistribute connections evenly.",
-	}, []string{"pool", "node_id"})
-
-	pruningTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "crdb_pruning_duration",
-		Help:    "Duration in milliseconds of one iteration of the CockroachDB connection balancer pruning excess connections from over-represented nodes. Elevated values indicate the balancer is struggling to rebalance connections.",
-		Buckets: []float64{.1, .2, .5, 1, 2, 5, 10, 20, 50, 100},
-	}, []string{"pool"})
-)
-
-func init() {
-	prometheus.MustRegister(connectionsPerCRDBNodeCountGauge)
-	prometheus.MustRegister(pruningTimeHistogram)
-}
-
 type balancePoolConn[C balanceConn] interface {
 	Conn() C
 	Release()
@@ -81,6 +63,9 @@ type nodeConnectionBalancer[P balancePoolConn[C], C balanceConn] struct {
 	healthTracker *NodeHealthTracker
 	rnd           *rand.Rand
 	seed          int64
+
+	connectionsPerCRDBNodeCountGauge *prometheus.GaugeVec
+	pruningTimeHistogram             prometheus.Histogram
 }
 
 // newNodeConnectionBalancer is generic over underlying connection types for
@@ -99,18 +84,46 @@ func newNodeConnectionBalancer[P balancePoolConn[C], C balanceConn](pool balance
 			seed = 0
 		}
 	}
+	var (
+		connectionsPerCRDBNodeCountGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "crdb_connections_per_node",
+			ConstLabels: prometheus.Labels{
+				"pool": pool.ID(),
+			},
+			Help: "The number of active connections SpiceDB holds to each CockroachDB node, by pool (read/write). Imbalanced values across nodes suggest the connection balancer is unable to redistribute connections evenly.",
+		}, []string{"node_id"})
+
+		pruningTimeHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name: "crdb_pruning_duration",
+			ConstLabels: prometheus.Labels{
+				"pool": pool.ID(),
+			},
+			Help:    "Duration in milliseconds of one iteration of the CockroachDB connection balancer pruning excess connections from over-represented nodes. Elevated values indicate the balancer is struggling to rebalance connections.",
+			Buckets: []float64{.1, .2, .5, 1, 2, 5, 10, 20, 50, 100},
+		})
+	)
+
+	prometheus.MustRegister(connectionsPerCRDBNodeCountGauge)
+	prometheus.MustRegister(pruningTimeHistogram)
 	return &nodeConnectionBalancer[P, C]{
-		ticker:        time.NewTicker(interval),
-		sem:           semaphore.NewWeighted(1),
-		healthTracker: healthTracker,
-		pool:          pool,
-		seed:          seed,
+		ticker:                           time.NewTicker(interval),
+		sem:                              semaphore.NewWeighted(1),
+		healthTracker:                    healthTracker,
+		pool:                             pool,
+		seed:                             seed,
+		connectionsPerCRDBNodeCountGauge: connectionsPerCRDBNodeCountGauge,
+		pruningTimeHistogram:             pruningTimeHistogram,
 		// nolint:gosec
 		// use of non cryptographically secure random number generator is not concern here,
 		// as it's used for shuffling the nodes to balance the connections when the number of
 		// connections do not divide evenly.
 		rnd: rand.New(rand.NewSource(seed)),
 	}
+}
+
+func (p *nodeConnectionBalancer[P, C]) Close() {
+	prometheus.Unregister(p.connectionsPerCRDBNodeCountGauge)
+	prometheus.Unregister(p.pruningTimeHistogram)
 }
 
 // Prune starts periodically checking idle connections and killing ones that are determined to be unbalanced.
@@ -137,7 +150,7 @@ func (p *nodeConnectionBalancer[P, C]) Prune(ctx context.Context) {
 func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context) {
 	start := time.Now()
 	defer func() {
-		pruningTimeHistogram.WithLabelValues(p.pool.ID()).Observe(float64(time.Since(start).Milliseconds()))
+		p.pruningTimeHistogram.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 	conns := p.pool.AcquireAllIdle(ctx)
 	defer func() {
@@ -182,8 +195,7 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 	p.healthTracker.RLock()
 	for node := range p.healthTracker.nodesEverSeen {
 		if _, ok := connectionCounts[node]; !ok {
-			connectionsPerCRDBNodeCountGauge.DeletePartialMatch(map[string]string{
-				"pool":    p.pool.ID(),
+			p.connectionsPerCRDBNodeCountGauge.DeletePartialMatch(map[string]string{
 				"node_id": strconv.FormatUint(uint64(node), 10),
 			})
 		}
@@ -205,8 +217,7 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 	initialPerNodeMax := p.pool.MaxConns() / nodeCount
 	for i, node := range nodes {
 		count := connectionCounts[node]
-		connectionsPerCRDBNodeCountGauge.WithLabelValues(
-			p.pool.ID(),
+		p.connectionsPerCRDBNodeCountGauge.WithLabelValues(
 			strconv.FormatUint(uint64(node), 10),
 		).Set(float64(count))
 

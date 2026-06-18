@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - When SpiceDB loses a connection to a CockroachDB node, every read happening in the server blocks for a short period of time (https://github.com/authzed/spicedb/pull/3181)
 - LSP: hover and go-to-definition now resolve identifiers on the right-hand side of arrow expressions (`->`, `.any(...)`, `.all(...)`) (https://github.com/authzed/spicedb/pull/3157)
+- Do not register metrics in `init()` functions (https://github.com/authzed/spicedb/pull/2966)
 
 ## [1.54.0] - 2026-06-18
 ### Added
