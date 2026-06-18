@@ -3,9 +3,8 @@ package common
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExpectedIndexesForShape(t *testing.T) {
