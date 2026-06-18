@@ -14,6 +14,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/prometheus/client_golang/prometheus"
 	prom_collectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"go.opentelemetry.io/otel"
@@ -338,6 +339,18 @@ func (mds *mysqlDatastore) SnapshotReader(rev datastore.Revision) datastore.Read
 
 func noCleanup() error { return nil }
 
+// sleepOnErr sleeps for an exponentially increasing duration with jitter after a
+// retryable error, matching the backoff used by the Postgres datastore.
+func sleepOnErr(ctx context.Context, err error, retries uint8) {
+	after := retry.BackoffExponentialWithJitter(25*time.Millisecond, 0.5)(ctx, uint(retries+1))
+	log.Debug().Err(err).Dur("after", after).Uint8("retry", retries+1).Msg("retrying on database error")
+
+	select {
+	case <-time.After(after):
+	case <-ctx.Done():
+	}
+}
+
 // ReadWriteTx starts a read/write transaction, which will be committed if no error is
 // returned and rolled back if an error is returned.
 func (mds *mysqlDatastore) ReadWriteTx(
@@ -392,6 +405,10 @@ func (mds *mysqlDatastore) ReadWriteTx(
 			return fn(ctx, rwt)
 		}); err != nil {
 			if !config.DisableRetries && isErrorRetryable(err) {
+				// Don't back off after the final attempt; we're about to give up.
+				if i < mds.maxRetries {
+					sleepOnErr(ctx, err, i)
+				}
 				continue
 			}
 
