@@ -3,8 +3,9 @@ package common
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
 func TestExpectedIndexesForShape(t *testing.T) {
@@ -23,17 +24,28 @@ func TestExpectedIndexesForShape(t *testing.T) {
 					queryshape.CheckPermissionSelectIndirectSubjects,
 				},
 			},
+			{
+				// A maintenance index serving no query shape (e.g. GC).
+				Name: "idx_maintenance",
+			},
 		},
 	}
 
+	// All indexes serving a shape are reported as shape-serving, regardless of the requested
+	// shape; the maintenance index is never reported.
+	allShapeServing := []string{"idx1", "idx2"}
+
 	expectedIndexes := schema.expectedIndexesForShape(queryshape.Unspecified)
-	require.Empty(t, expectedIndexes)
+	require.Empty(t, expectedIndexes.ExpectedIndexNames)
+	require.Equal(t, expectedIndexes.ShapeServingIndexNames, allShapeServing)
 
 	expectedIndexes = schema.expectedIndexesForShape(queryshape.CheckPermissionSelectDirectSubjects)
 	require.Equal(t, []string{"idx1", "idx2"}, expectedIndexes.ExpectedIndexNames)
+	require.Equal(t, expectedIndexes.ShapeServingIndexNames, allShapeServing)
 
 	expectedIndexes = schema.expectedIndexesForShape(queryshape.CheckPermissionSelectIndirectSubjects)
 	require.Equal(t, []string{"idx2"}, expectedIndexes.ExpectedIndexNames)
+	require.Equal(t, expectedIndexes.ShapeServingIndexNames, allShapeServing)
 }
 
 func TestSortByResourceColumnOrderColumns(t *testing.T) {
