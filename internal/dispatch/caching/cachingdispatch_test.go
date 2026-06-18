@@ -125,7 +125,7 @@ func TestMaxDepthCaching(t *testing.T) {
 				}
 			}
 
-			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), dispatch.MetricsOptions{}, nil)
 			dispatch.SetDelegate(delegate)
 			require.NoError(err)
 			defer dispatch.Close()
@@ -177,7 +177,7 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 			},
 		}, nil)
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), false, "", nil)
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), dispatch.MetricsOptions{}, nil)
 	require.NoError(err)
 	dispatcher.SetDelegate(delegate)
 	t.Cleanup(func() {
@@ -294,8 +294,9 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 	// Use a unique subsystem so we don't collide with other tests in the global
 	// default Prometheus registry.
 	subsystem := fmt.Sprintf("test_caching_%d", time.Now().UnixNano())
+	reg := prometheus.NewRegistry()
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), true, subsystem, nil)
+	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), dispatch.MetricsOptions{PrometheusSubsystem: subsystem, PrometheusRegistry: reg}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
@@ -326,16 +327,14 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 	require.NoError(t, dispatcher.DispatchQueryPlan(req, stream2))
 	require.Len(t, stream2.Results(), 1)
 
-	gatherer := prometheus.DefaultGatherer
-
-	totalCheck := sumOperationCounter(t, gatherer, "spicedb_"+subsystem+"_query_plan_total", "check")
+	totalCheck := sumOperationCounter(t, reg, "spicedb_"+subsystem+"_query_plan_total", "check")
 	require.InEpsilon(t, float64(2), totalCheck, 1e-9, "query_plan_total{operation=check} should bump for each plan dispatch")
 
-	fromCacheCheck := sumOperationCounter(t, gatherer, "spicedb_"+subsystem+"_query_plan_from_cache_total", "check")
+	fromCacheCheck := sumOperationCounter(t, reg, "spicedb_"+subsystem+"_query_plan_from_cache_total", "check")
 	require.InEpsilon(t, float64(1), fromCacheCheck, 1e-9, "query_plan_from_cache_total{operation=check} should bump only on cache hit")
 
 	// Ensure the plan path no longer inflates the classic DispatchCheck counter.
-	checkTotal := sumPlainCounter(t, gatherer, "spicedb_"+subsystem+"_check_total")
+	checkTotal := sumPlainCounter(t, reg, "spicedb_"+subsystem+"_check_total")
 	require.Zero(t, checkTotal, "check_total must not be incremented from the plan path")
 
 	// The delegate is only consulted on the cache miss.

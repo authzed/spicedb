@@ -232,6 +232,254 @@ func TestSchemaPositionMapper(t *testing.T) {
 			expectedReference: nil,
 		},
 		{
+			name: "arrow rhs resolves relation on target type",
+			schema: `definition user {}
+
+			definition org {
+				relation member: user
+			}
+
+			definition document {
+				relation parent: org
+				permission viewable = parent->member
+			}
+			`,
+			line:   8,
+			column: 36,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 8, ColumnPosition: 36},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 3, ColumnPosition: 4},
+				TargetSourceCode:         "relation member: user\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
+			name: "arrow rhs (.any) resolves relation on target type",
+			schema: `definition user {}
+
+			definition org {
+				relation member: user
+			}
+
+			definition document {
+				relation parent: org
+				permission viewable = parent.any(member)
+			}
+			`,
+			line:   8,
+			column: 37,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 8, ColumnPosition: 37},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 3, ColumnPosition: 4},
+				TargetSourceCode:         "relation member: user\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
+			name: "arrow rhs (.all) resolves relation on target type",
+			schema: `definition user {}
+
+			definition org {
+				relation member: user
+			}
+
+			definition document {
+				relation parent: org
+				permission viewable = parent.all(member)
+			}
+			`,
+			line:   8,
+			column: 37,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 8, ColumnPosition: 37},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 3, ColumnPosition: 4},
+				TargetSourceCode:         "relation member: user\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
+			name: "arrow rhs resolves permission on target type",
+			schema: `definition user {}
+
+			definition org {
+				relation member: user
+				permission view = member
+			}
+
+			definition document {
+				relation parent: org
+				permission viewable = parent->view
+			}
+			`,
+			line:   9,
+			column: 35,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 9, ColumnPosition: 35},
+				Text:                     "view",
+				ReferenceType:            ReferenceTypePermission,
+				ReferenceMarkdown:        "permission view",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 4, ColumnPosition: 4},
+				TargetSourceCode:         "permission view = member\n",
+				TargetNamePositionOffset: 11,
+			},
+		},
+		{
+			name: "arrow rhs subject-subrelation LHS resolves on target namespace",
+			schema: `definition user {}
+
+			definition group {
+				relation member: user
+			}
+
+			definition document {
+				relation owner_group: group#member
+				permission viewable = owner_group->member
+			}
+			`,
+			line:   8,
+			column: 41,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 8, ColumnPosition: 41},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 3, ColumnPosition: 4},
+				TargetSourceCode:         "relation member: user\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
+			name: "arrow rhs with multi-target LHS combines identical matches",
+			schema: `definition user {}
+
+			definition org {
+				relation member: user
+			}
+
+			definition team {
+				relation member: user
+			}
+
+			definition document {
+				relation parent: org | team
+				permission viewable = parent->member
+			}
+			`,
+			line:   12,
+			column: 36,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 12, ColumnPosition: 36},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 3, ColumnPosition: 4},
+				TargetSourceCode:         "// from org\nrelation member: user\n\n// from team\nrelation member: user\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
+			name: "arrow rhs with multi-target LHS shows all matches",
+			schema: `definition user {}
+definition somethingelse {}
+
+			definition org {
+				relation member: user
+			}
+
+			definition team {
+				relation member: somethingelse
+			}
+
+			definition document {
+				relation parent: org | team
+				permission viewable = parent->member
+			}
+			`,
+			line:   13,
+			column: 36,
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 13, ColumnPosition: 36},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 4, ColumnPosition: 4},
+				TargetSourceCode:         "// from org\nrelation member: user\n\n// from team\nrelation member: somethingelse\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
+			name: "arrow rhs with duplicate-namespace LHS dedupes",
+			schema: `definition user {}
+
+			definition org {
+				relation admin: user
+				relation member: user
+			}
+
+			definition document {
+				relation parent: org | org#admin
+				permission viewable = parent->member
+			}
+			`,
+			line:   9,
+			column: 36,
+			// `AllowedSubjectRelations` returns one entry per allowed direct
+			// subject type, so `parent: org | org#admin` produces two entries
+			// that both resolve `member` on `org`. Dedup by namespace so we
+			// don't repeat the same block in the hover output.
+			expectedReference: &SchemaReference{
+				Source:                   input.Source("test"),
+				Position:                 input.Position{LineNumber: 9, ColumnPosition: 36},
+				Text:                     "member",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation member",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 4, ColumnPosition: 4},
+				TargetSourceCode:         "relation member: user\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
+		{
+			name: "arrow rhs with no match returns nil",
+			schema: `definition user {}
+
+			definition org {
+				relation member: user
+			}
+
+			definition document {
+				relation parent: org
+				permission viewable = parent->nonexistent
+			}
+			`,
+			line:              8,
+			column:            36,
+			expectedReference: nil,
+		},
+		{
 			name: "caveat parameter reference",
 			schema: `definition user {}
 
@@ -601,4 +849,46 @@ definition resource {
 		require.Equal(t, input.Position{LineNumber: 9, ColumnPosition: 5}, ref.Position)
 		require.Equal(t, &input.Position{LineNumber: 1, ColumnPosition: 0}, ref.TargetPosition)
 	})
+}
+
+// TestSchemaPositionMapperArrowRHSImportedTarget exercises arrow RHS hover when
+// the target namespace lives in an imported file. The arrow resolution itself
+// finds the right relation; the TargetSource may currently point at the wrong
+// file because resolveTargetSource keys off the relation name rather than the
+// owning definition name. This test pins the current behavior so regressions
+// are caught and the unrelated TargetSource fix can be tracked separately.
+func TestSchemaPositionMapperArrowRHSImportedTarget(t *testing.T) {
+	rootSchema := `use import
+import "path/groups.zed"
+
+definition document {
+	relation parent: group
+	permission viewable = parent->member
+}
+`
+	sourceFS := fstest.MapFS{
+		"path/groups.zed": &fstest.MapFile{Data: []byte("definition user {}\ndefinition group {\nrelation member: user\n}\n")},
+	}
+
+	rootSource := input.Source("path/root.zed")
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       rootSource,
+		SchemaString: rootSchema,
+	}, compiler.AllowUnprefixedObjectType(), compiler.SourceFS(sourceFS))
+	require.NoError(t, err)
+
+	mapper, err := NewSchemaPositionMapper(compiled)
+	require.NoError(t, err)
+
+	// Cursor on "member" in `parent->member`.
+	ref, err := mapper.ReferenceAtPosition(rootSource, input.Position{
+		LineNumber:     5,
+		ColumnPosition: 32,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, ref, "arrow RHS should now resolve")
+	require.Equal(t, "member", ref.Text)
+	require.Equal(t, ReferenceTypeRelation, ref.ReferenceType)
+	require.Equal(t, "relation member", ref.ReferenceMarkdown)
+	require.Equal(t, &input.Position{LineNumber: 2, ColumnPosition: 0}, ref.TargetPosition)
 }

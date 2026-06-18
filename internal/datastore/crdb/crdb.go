@@ -349,6 +349,12 @@ func (cds *crdbDatastore) ReadWriteTx(
 			false,
 		}
 
+		if config.SchemaHashPrecondition != "" {
+			if err := assertSchemaHash(ctx, tx, config.SchemaHashPrecondition); err != nil {
+				return err
+			}
+		}
+
 		if err := f(ctx, rwt); err != nil {
 			return err
 		}

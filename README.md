@@ -292,7 +292,7 @@ For more best practices on deploying SpiceDB, read our [best practices guide].
 
 [examples]: https://github.com/authzed/examples
 [testing SpiceDB on Kubernetes]: https://github.com/authzed/examples/tree/main/kubernetes
-[AuthZed Cloud]: https://authzed.com/cloud
+[AuthZed Cloud]: https://authzed.com/cloud/signup?utm_campaign=gh_referral&utm_source=github&utm_medium=spicedb
 [best practices guide]: https://authzed.com/docs/best-practices
 
 #### Telemetry

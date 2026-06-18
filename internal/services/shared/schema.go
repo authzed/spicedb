@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"maps"
 
 	"go.opentelemetry.io/otel"
@@ -109,7 +110,10 @@ func ApplySchemaChanges(ctx context.Context, rwt datalayer.ReadWriteTransaction,
 	defer span.End()
 	sr, err := rwt.ReadSchema(ctx)
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, datastore.ErrSchemaNotFound) {
+			return nil, err
+		}
+		return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, nil, nil)
 	}
 
 	existingCaveatDefs, err := sr.ListAllCaveatDefinitions(ctx)
@@ -250,13 +254,18 @@ func ApplySchemaChangesOverExisting(
 
 		// Get the list of extant definitions so that we can add them to the
 		// list of definitions that should be written in the single shot
+		var allExtantDefinitions map[string]datastore.SchemaDefinition
 		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
-			return nil, err
-		}
-		allExtantDefinitions, err := sr.ListAllSchemaDefinitions(ctx)
-		if err != nil {
-			return nil, err
+			if !errors.Is(err, datastore.ErrSchemaNotFound) {
+				return nil, err
+			}
+			// No existing schema — treat as empty, same as the ApplySchemaChanges caller does.
+		} else {
+			allExtantDefinitions, err = sr.ListAllSchemaDefinitions(ctx)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		writtenDefinitionNames := mapz.NewSet[string]()
