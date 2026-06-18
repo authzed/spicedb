@@ -32,6 +32,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - MySQL: identifiers (object/subject IDs and relationship counter names) are now stored with a case-sensitive (binary) collation, matching the Postgres, CockroachDB, and Spanner datastores. Previously, identifiers differing only in letter case (e.g. `Foo` and `foo`) incorrectly collided in unique indexes and lookups. ⚠️ The migration rebuilds the `relation_tuple` table in place via `ALTER TABLE`, which can hold a metadata/table lock for a long time on large datasets — run the upgrade in a low-traffic window, or apply it with an online schema-change tool (e.g. gh-ost). (https://github.com/authzed/spicedb/pull/3161)
 - `server.NewConfigWithOptionsAndDefaults` now populates `Config` and its embedded structs with the same defaults as the CLI flags, fixing zero-value behavior when embedding SpiceDB as a library. (https://github.com/authzed/spicedb/pull/3156, https://github.com/authzed/spicedb/pull/3170)
 
+### Security
+- Prevent cache poisoning. The dispatch Check cache key now incorporates check hints. See https://github.com/authzed/spicedb/security/advisories/GHSA-4vrg-r928-h5vv
+
 ## [1.53.0] - 2026-05-13
 ### Added
 - Add DispatchExecutor, a query plan executor that is Dispatch-aware and sends subproblems on Alias boundaries (https://github.com/authzed/spicedb/pull/3074)
