@@ -2158,8 +2158,13 @@ func WriteAndReadInRWT(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
-// ConcurrentWriteSerializationTest uses goroutines and channels to intentionally set up a
-// deadlocking dependency between transactions.
+// ConcurrentWriteSerializationTest uses goroutines and channels to deterministically set up a
+// deadlocking dependency between exactly two transactions: one reads a set of resources and then
+// writes, while a second writes an overlapping resource, so the backend must serialize (or abort
+// and retry) one of them. The datastore must resolve the conflict and let both writes complete in
+// bounded time. Unlike ConcurrentWriteDeadlockTest, which floods the same object with many
+// uncoordinated writers to exercise the retry/backoff budget under heavy contention, this test
+// orchestrates a single, precise read-then-write vs. write conflict via channels.
 func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
@@ -2218,6 +2223,44 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(g.Wait())
 	require.Less(time.Since(startTime), 10*time.Second)
+}
+
+// ConcurrentWriteDeadlockTest reproduces https://github.com/authzed/spicedb/issues/3172: many
+// concurrent WriteRelationships targeting the same resource object contend for the same locks and
+// some backends (e.g. MySQL under SERIALIZABLE) abort transactions with a deadlock. The datastore's
+// write retry loop must back off between attempts so the contending writers spread out; otherwise
+// the retries keep re-colliding and exhaust the retry budget. Every writer must eventually succeed.
+func ConcurrentWriteDeadlockTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
+	ctx := t.Context()
+
+	const concurrency = 50
+
+	// Each goroutine uses the test's context directly (not a shared cancelable group context) so
+	// that one writer giving up does not abort the others; we want to observe every writer's final
+	// outcome.
+	errs := make([]error, concurrency)
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func(i int) {
+			defer wg.Done()
+			rel := tuple.Touch(makeTestRel("shared", fmt.Sprintf("user-%d", i)))
+			_, errs[i] = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rel})
+			})
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoErrorf(err, "concurrent write %d to the shared resource should eventually succeed", i)
+	}
 }
 
 func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
