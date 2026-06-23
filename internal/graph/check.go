@@ -410,7 +410,8 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
-		it, err := dl.QueryRelationships(ctx, filter,
+		it, err := dl.QueryRelationships(
+			ctx, filter,
 			options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats),
 			options.WithSkipExpiration(!directSubjectOrWildcardCanHaveExpiration),
 			options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -461,7 +462,8 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		},
 	}
 
-	it, err := dl.QueryRelationships(ctx, filter,
+	it, err := dl.QueryRelationships(
+		ctx, filter,
 		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
 		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
 		options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects),

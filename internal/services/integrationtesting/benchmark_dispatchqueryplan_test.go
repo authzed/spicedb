@@ -92,7 +92,8 @@ func (h *dispatchQueryPlanHandle) compileIterator(b *testing.B, operation query.
 	require.NoError(b, err)
 
 	obs := query.NewCountObserver()
-	warmCtx := query.NewLocalContext(b.Context(),
+	warmCtx := query.NewLocalContext(
+		b.Context(),
 		query.WithReader(query.NewQueryDatastoreReader(
 			datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, h.schemaHash),
 		)),
@@ -132,7 +133,8 @@ func (h *dispatchQueryPlanHandle) compileIterator(b *testing.B, operation query.
 
 // newLocalContext creates a query context using LocalExecutor for baseline comparison.
 func (h *dispatchQueryPlanHandle) newLocalContext(ctx context.Context) *query.Context {
-	return query.NewLocalContext(ctx,
+	return query.NewLocalContext(
+		ctx,
 		query.WithRevisionedReader(datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, h.schemaHash)),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 	)

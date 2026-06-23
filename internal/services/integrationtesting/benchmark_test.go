@@ -310,7 +310,8 @@ func BenchmarkServices(b *testing.B) {
 					b.StopTimer()
 
 					rde := testdatastore.RunDatastoreEngine(b, engineID)
-					ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
+					ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(
+						b,
 						dsconfig.WithWatchBufferLength(0),
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10),
@@ -348,7 +349,8 @@ func BenchmarkServices(b *testing.B) {
 					dispatchTester := consistencytestutil.NewServiceTester(dispatchConn[0])
 
 					// Set up query plan server.
-					qpConn := testserver.TestClusterWithDispatch(b, 1, ds,
+					qpConn := testserver.TestClusterWithDispatch(
+						b, 1, ds,
 						server.WithExperimentalQueryPlan("check"),
 						server.WithExperimentalQueryPlan("lr"),
 						server.WithExperimentalQueryPlan("ls"),

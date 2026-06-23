@@ -260,7 +260,8 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 	ctx, closer := observe(ctx, "ReverseQueryRelationships", string(queryOpts.QueryShapeForReverse), trace.WithAttributes(
 		attribute.String(otelconv.AttrDatastoreSubjectType, subjectsFilter.SubjectType),
-		attribute.String(otelconv.AttrDatastoreQueryShape, string(queryOpts.QueryShapeForReverse))))
+		attribute.String(otelconv.AttrDatastoreQueryShape, string(queryOpts.QueryShapeForReverse)),
+	))
 
 	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 	if err != nil {

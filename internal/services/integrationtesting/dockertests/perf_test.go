@@ -48,7 +48,7 @@ func TestBurst(t *testing.T) {
 			client := v1.NewPermissionsServiceClient(conns[0])
 			var wg sync.WaitGroup
 			for i := 0; i < 100; i++ {
-				rel := tuple.ToV1Relationship(tuple.MustParse(tf.StandardRelationships[i%(len(tf.StandardRelationships))]))
+				rel := tuple.ToV1Relationship(tuple.MustParse(tf.StandardRelationships[i%len(tf.StandardRelationships)]))
 				run := make(chan struct{})
 				wg.Add(1)
 				go func() {

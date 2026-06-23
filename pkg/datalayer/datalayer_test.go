@@ -26,7 +26,8 @@ import (
 
 var testDefinitions = []compiler.SchemaDefinition{
 	ns.Namespace("user"),
-	ns.Namespace("document",
+	ns.Namespace(
+		"document",
 		ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 	),
 }

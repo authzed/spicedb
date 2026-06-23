@@ -35,47 +35,56 @@ var CaveatDef = ns.MustCaveatDefinition(
 
 var DocumentNS = ns.Namespace(
 	"document",
-	ns.MustRelation("owner",
+	ns.MustRelation(
+		"owner",
 		nil,
 		ns.AllowedRelation("user", "..."),
 		ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("test")),
 	),
-	ns.MustRelation("editor",
+	ns.MustRelation(
+		"editor",
 		nil,
 		ns.AllowedRelation("user", "..."),
 	),
-	ns.MustRelation("viewer",
+	ns.MustRelation(
+		"viewer",
 		nil,
 		ns.AllowedRelation("user", "..."),
 		ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("test")),
 	),
-	ns.MustRelation("viewer_and_editor",
+	ns.MustRelation(
+		"viewer_and_editor",
 		nil,
 		ns.AllowedRelation("user", "..."),
 	),
-	ns.MustRelation("caveated_viewer",
+	ns.MustRelation(
+		"caveated_viewer",
 		nil,
 		ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("test")),
 	),
-	ns.MustRelation("expiring_viewer",
+	ns.MustRelation(
+		"expiring_viewer",
 		nil,
 		ns.AllowedRelationWithExpiration("user", "..."),
 	),
 	ns.MustRelation("parent", nil, ns.AllowedRelation("folder", "...")),
-	ns.MustRelation("edit",
+	ns.MustRelation(
+		"edit",
 		ns.Union(
 			ns.ComputedUserset("owner"),
 			ns.ComputedUserset("editor"),
 		),
 	),
-	ns.MustRelation("view",
+	ns.MustRelation(
+		"view",
 		ns.Union(
 			ns.ComputedUserset("viewer"),
 			ns.ComputedUserset("edit"),
 			ns.TupleToUserset("parent", "view"),
 		),
 	),
-	ns.MustRelation("view_and_edit",
+	ns.MustRelation(
+		"view_and_edit",
 		ns.Intersection(
 			ns.ComputedUserset("viewer_and_editor"),
 			ns.ComputedUserset("edit"),
@@ -85,29 +94,34 @@ var DocumentNS = ns.Namespace(
 
 var FolderNS = ns.Namespace(
 	"folder",
-	ns.MustRelation("owner",
+	ns.MustRelation(
+		"owner",
 		nil,
 		ns.AllowedRelation("user", "..."),
 		ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("test")),
 	),
-	ns.MustRelation("editor",
+	ns.MustRelation(
+		"editor",
 		nil,
 		ns.AllowedRelation("user", "..."),
 	),
-	ns.MustRelation("viewer",
+	ns.MustRelation(
+		"viewer",
 		nil,
 		ns.AllowedRelation("user", "..."),
 		ns.AllowedRelation("folder", "viewer"),
 		ns.AllowedRelationWithCaveat("folder", "viewer", ns.AllowedCaveat("test")),
 	),
 	ns.MustRelation("parent", nil, ns.AllowedRelation("folder", "...")),
-	ns.MustRelation("edit",
+	ns.MustRelation(
+		"edit",
 		ns.Union(
 			ns.ComputedUserset("editor"),
 			ns.ComputedUserset("owner"),
 		),
 	),
-	ns.MustRelation("view",
+	ns.MustRelation(
+		"view",
 		ns.Union(
 			ns.ComputedUserset("viewer"),
 			ns.ComputedUserset("edit"),

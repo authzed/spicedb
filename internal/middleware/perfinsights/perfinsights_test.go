@@ -433,7 +433,8 @@ func TestPerfInsightsMiddlewareWithBuffcon(t *testing.T) {
 	}()
 
 	// Create client connection using buffcon
-	conn, err := grpc.NewClient("localhost:fake",
+	conn, err := grpc.NewClient(
+		"localhost:fake",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return lis.Dial()
 		}),

@@ -93,7 +93,8 @@ func (ts *TypeSystem) Validate(ctx context.Context, def *Definition) (*Validated
 				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
 					return NewTypeWithSourceError(
 						NewPermissionUsedOnLeftOfArrowErr(def.nsDef.Name, relation.Name, relationName),
-						childOneof, relationName), nil
+						childOneof, relationName,
+					), nil
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
@@ -139,7 +140,8 @@ func (ts *TypeSystem) Validate(ctx context.Context, def *Definition) (*Validated
 				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
 					return NewTypeWithSourceError(
 						NewPermissionUsedOnLeftOfArrowErr(def.nsDef.Name, relation.Name, relationName),
-						childOneof, relationName), nil
+						childOneof, relationName,
+					), nil
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
@@ -197,7 +199,8 @@ func (ts *TypeSystem) Validate(ctx context.Context, def *Definition) (*Validated
 				// NOTE: This is a legacy error and should never really occur with schema.
 				return nil, NewTypeWithSourceError(
 					fmt.Errorf("direct relations are not allowed under relation `%s`", relation.Name),
-					relation, relation.Name)
+					relation, relation.Name,
+				)
 			}
 		}
 

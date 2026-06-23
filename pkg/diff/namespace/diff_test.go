@@ -169,7 +169,8 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			ns.Namespace(
 				"document",
-				ns.MustRelation("somerel",
+				ns.MustRelation(
+					"somerel",
 					ns.Union(
 						ns.ComputedUserset("owner"),
 					),

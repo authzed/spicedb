@@ -522,7 +522,8 @@ func TestStoredAdapter_ListAllTypeDefinitions(t *testing.T) {
 		map[string]*core.NamespaceDefinition{
 			"user": {Name: "user"},
 			"doc":  {Name: "doc"},
-		}, nil, "")
+		}, nil, "",
+	)
 
 	result, err := adapter.ListAllTypeDefinitions(t.Context())
 	require.NoError(t, err)

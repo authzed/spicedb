@@ -47,7 +47,8 @@ func TestIterSubjectsWithWildcard(t *testing.T) {
 	// Write test data:
 	// - resource:first#viewer@user:* (wildcard)
 	// - resource:first#viewer@user:concrete (concrete user)
-	revision, err := common.WriteRelationships(ctx, rawDS, tuple.UpdateOperationCreate,
+	revision, err := common.WriteRelationships(
+		ctx, rawDS, tuple.UpdateOperationCreate,
 		tuple.MustParse("resource:first#viewer@user:*"),
 		tuple.MustParse("resource:first#viewer@user:concrete"),
 	)
@@ -148,7 +149,8 @@ func TestIterSubjectsWildcardWithoutWildcardRelationship(t *testing.T) {
 	require.NoError(err)
 
 	// Write test data with ONLY concrete users, NO wildcard
-	revision, err := common.WriteRelationships(ctx, rawDS, tuple.UpdateOperationCreate,
+	revision, err := common.WriteRelationships(
+		ctx, rawDS, tuple.UpdateOperationCreate,
 		tuple.MustParse("resource:second#viewer@user:alice"),
 		tuple.MustParse("resource:second#viewer@user:bob"),
 	)

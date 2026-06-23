@@ -307,7 +307,8 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 			return srv.Serve(listener)
 		}
 	default:
-		return nil, fmt.Errorf("failed to start http server: must provide both --%s-tls-cert-path and --%s-tls-key-path",
+		return nil, fmt.Errorf(
+			"failed to start http server: must provide both --%s-tls-cert-path and --%s-tls-key-path",
 			c.flagPrefix,
 			c.flagPrefix,
 		)

@@ -92,7 +92,8 @@ func newExecutorHandle(b *testing.B, engineID, scenarioName string) *executorHan
 	b.StopTimer()
 
 	rde := testdatastore.RunDatastoreEngine(b, engineID)
-	ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
+	ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(
+		b,
 		dsconfig.WithWatchBufferLength(0),
 		dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 		dsconfig.WithRevisionQuantization(10),
@@ -183,7 +184,8 @@ func compileAdvisedCheckIterator(
 
 	reader := query.NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, schemaHash))
 	obs := query.NewCountObserver()
-	warmCtx := query.NewLocalContext(b.Context(),
+	warmCtx := query.NewLocalContext(
+		b.Context(),
 		query.WithReader(reader),
 		query.WithObserver(obs),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
@@ -293,7 +295,8 @@ func runExecutorCheck(b *testing.B, h *executorHandle) {
 
 func newLocalQueryContext(b *testing.B, h *executorHandle) *query.Context {
 	b.Helper()
-	return query.NewLocalContext(b.Context(),
+	return query.NewLocalContext(
+		b.Context(),
 		query.WithReader(query.NewQueryDatastoreReader(
 			datalayer.NewDataLayer(h.ds).SnapshotReader(h.revision, h.schemaHash),
 		)),

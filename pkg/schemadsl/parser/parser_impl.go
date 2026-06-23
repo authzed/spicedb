@@ -381,9 +381,9 @@ func (p *sourceParser) buildBinaryOperatorExpressionFnTree(ops []binaryOpDefinit
 	for i := range ops {
 		// Note: We have to reverse this to ensure we have proper precedence.
 		currentParseFn = func(operatorInfo binaryOpDefinition, currentFn tryParserFn) tryParserFn {
-			return (func() (AstNode, bool) {
+			return func() (AstNode, bool) {
 				return p.tryConsumeComputeExpression(currentFn, operatorInfo.BinaryOperatorToken, operatorInfo.BinaryExpressionNodeType)
-			})
+			}
 		}(ops[len(ops)-i-1], currentParseFn)
 	}
 

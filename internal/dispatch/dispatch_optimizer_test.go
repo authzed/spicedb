@@ -111,7 +111,8 @@ func TestDispatchWrapOptimizer(t *testing.T) {
 		// Alias("view")(Recursive("folder","viewer")(Sentinel("folder","viewer")))
 		// The recursive iterator inside the alias matches the sentinel's key, so
 		// the dispatch boundary is safe.
-		input := aliasOutline("document", "view",
+		input := aliasOutline(
+			"document", "view",
 			recursiveOutline("folder", "viewer", sentinelOutline("folder", "viewer")),
 		)
 		got := runDispatchWrap(t, input)
@@ -123,7 +124,8 @@ func TestDispatchWrapOptimizer(t *testing.T) {
 		// No RecursiveIterator with key folder#viewer exists in the alias's
 		// subtree, so dispatching the alias would sever the sentinel from its
 		// collection context.
-		input := aliasOutline("document", "view",
+		input := aliasOutline(
+			"document", "view",
 			query.Outline{
 				Type: query.UnionIteratorType,
 				SubOutlines: []query.Outline{

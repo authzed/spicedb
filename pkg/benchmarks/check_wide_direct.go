@@ -44,7 +44,8 @@ func setupCheckWideDirect(ctx context.Context, ds datastore.Datastore) (*QuerySe
 	relationships := make([]tuple.Relationship, 0, numUsers+1)
 	for i := 0; i < numUsers; i++ {
 		relationships = append(relationships, tuple.MustParse(
-			fmt.Sprintf("resource:someresource#viewer@user:user-%d", i)))
+			fmt.Sprintf("resource:someresource#viewer@user:user-%d", i),
+		))
 	}
 	relationships = append(relationships, tuple.MustParse("resource:someresource#viewer@user:tom"))
 

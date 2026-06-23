@@ -35,22 +35,26 @@ func DS(objectType string, objectID string, objectRelation string) *core.DirectS
 var ONRRef = tuple.ONRRef
 
 var (
-	companyOwner = graph.Leaf(ONRRef("folder", "company", "owner"),
-		(DS("user", "owner", expand.Ellipsis)),
+	companyOwner = graph.Leaf(
+		ONRRef("folder", "company", "owner"),
+		DS("user", "owner", expand.Ellipsis),
 	)
 	companyEditor = graph.Leaf(ONRRef("folder", "company", "editor"))
 
-	companyEdit = graph.Union(ONRRef("folder", "company", "edit"),
+	companyEdit = graph.Union(
+		ONRRef("folder", "company", "edit"),
 		companyEditor,
 		companyOwner,
 	)
 
-	companyViewer = graph.Leaf(ONRRef("folder", "company", "viewer"),
-		(DS("user", "legal", "...")),
-		(DS("folder", "auditors", "viewer")),
+	companyViewer = graph.Leaf(
+		ONRRef("folder", "company", "viewer"),
+		DS("user", "legal", "..."),
+		DS("folder", "auditors", "viewer"),
 	)
 
-	companyView = graph.Union(ONRRef("folder", "company", "view"),
+	companyView = graph.Union(
+		ONRRef("folder", "company", "view"),
 		companyViewer,
 		companyEdit,
 		graph.Union(ONRRef("folder", "company", "view")),
@@ -60,16 +64,19 @@ var (
 
 	auditorsEditor = graph.Leaf(ONRRef("folder", "auditors", "editor"))
 
-	auditorsEdit = graph.Union(ONRRef("folder", "auditors", "edit"),
+	auditorsEdit = graph.Union(
+		ONRRef("folder", "auditors", "edit"),
 		auditorsEditor,
 		auditorsOwner,
 	)
 
-	auditorsViewer = graph.Leaf(ONRRef("folder", "auditors", "viewer"),
-		(DS("user", "auditor", "...")),
+	auditorsViewer = graph.Leaf(
+		ONRRef("folder", "auditors", "viewer"),
+		DS("user", "auditor", "..."),
 	)
 
-	auditorsViewRecursive = graph.Union(ONRRef("folder", "auditors", "view"),
+	auditorsViewRecursive = graph.Union(
+		ONRRef("folder", "auditors", "view"),
 		auditorsViewer,
 		auditorsEdit,
 		graph.Union(ONRRef("folder", "auditors", "view")),
@@ -78,57 +85,66 @@ var (
 	companyViewRecursive = graph.Union(ONRRef("folder", "company", "view"),
 		graph.Union(ONRRef("folder", "company", "viewer"),
 			graph.Leaf(ONRRef("folder", "auditors", "viewer"),
-				(DS("user", "auditor", "..."))),
+				DS("user", "auditor", "...")),
 			graph.Leaf(ONRRef("folder", "company", "viewer"),
-				(DS("user", "legal", "...")),
-				(DS("folder", "auditors", "viewer")))),
+				DS("user", "legal", "..."),
+				DS("folder", "auditors", "viewer"))),
 		graph.Union(ONRRef("folder", "company", "edit"),
 			graph.Leaf(ONRRef("folder", "company", "editor")),
 			graph.Leaf(ONRRef("folder", "company", "owner"),
-				(DS("user", "owner", "...")))),
+				DS("user", "owner", "..."))),
 		graph.Union(ONRRef("folder", "company", "view")))
 
-	docOwner = graph.Leaf(ONRRef("document", "masterplan", "owner"),
-		(DS("user", "product_manager", "...")),
+	docOwner = graph.Leaf(
+		ONRRef("document", "masterplan", "owner"),
+		DS("user", "product_manager", "..."),
 	)
 	docEditor = graph.Leaf(ONRRef("document", "masterplan", "editor"))
 
-	docEdit = graph.Union(ONRRef("document", "masterplan", "edit"),
+	docEdit = graph.Union(
+		ONRRef("document", "masterplan", "edit"),
 		docOwner,
 		docEditor,
 	)
 
-	docViewer = graph.Leaf(ONRRef("document", "masterplan", "viewer"),
-		(DS("user", "eng_lead", "...")),
+	docViewer = graph.Leaf(
+		ONRRef("document", "masterplan", "viewer"),
+		DS("user", "eng_lead", "..."),
 	)
 
-	docView = graph.Union(ONRRef("document", "masterplan", "view"),
+	docView = graph.Union(
+		ONRRef("document", "masterplan", "view"),
 		docViewer,
 		docEdit,
-		graph.Union(ONRRef("document", "masterplan", "view"),
+		graph.Union(
+			ONRRef("document", "masterplan", "view"),
 			graph.Union(ONRRef("folder", "plans", "view"),
-				graph.Leaf(ONRRef("folder", "plans", "viewer"),
-					(DS("user", "chief_financial_officer", "...")),
+				graph.Leaf(
+					ONRRef("folder", "plans", "viewer"),
+					DS("user", "chief_financial_officer", "..."),
 				),
 				graph.Union(ONRRef("folder", "plans", "edit"),
 					graph.Leaf(ONRRef("folder", "plans", "editor")),
 					graph.Leaf(ONRRef("folder", "plans", "owner"))),
 				graph.Union(ONRRef("folder", "plans", "view"))),
-			graph.Union(ONRRef("folder", "strategy", "view"),
+			graph.Union(
+				ONRRef("folder", "strategy", "view"),
 				graph.Leaf(ONRRef("folder", "strategy", "viewer")),
 				graph.Union(ONRRef("folder", "strategy", "edit"),
 					graph.Leaf(ONRRef("folder", "strategy", "editor")),
 					graph.Leaf(ONRRef("folder", "strategy", "owner"),
-						(DS("user", "vp_product", "...")))),
-				graph.Union(ONRRef("folder", "strategy", "view"),
-					graph.Union(ONRRef("folder", "company", "view"),
+						DS("user", "vp_product", "..."))),
+				graph.Union(
+					ONRRef("folder", "strategy", "view"),
+					graph.Union(
+						ONRRef("folder", "company", "view"),
 						graph.Leaf(ONRRef("folder", "company", "viewer"),
-							(DS("user", "legal", "...")),
-							(DS("folder", "auditors", "viewer"))),
+							DS("user", "legal", "..."),
+							DS("folder", "auditors", "viewer")),
 						graph.Union(ONRRef("folder", "company", "edit"),
 							graph.Leaf(ONRRef("folder", "company", "editor")),
 							graph.Leaf(ONRRef("folder", "company", "owner"),
-								(DS("user", "owner", "...")))),
+								DS("user", "owner", "..."))),
 						graph.Union(ONRRef("folder", "company", "view")),
 					),
 				),

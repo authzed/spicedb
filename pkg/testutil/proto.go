@@ -57,7 +57,8 @@ func AreProtoSlicesEqual[T proto.Message](expected, found []T, cmp func(a, b T) 
 	formattedMessage := fmt.Sprintf(message, args...)
 
 	if len(expected) != len(found) {
-		return fmt.Errorf("%s\n\nFound different number of elements in slices: %d in expected, %d in actual\nExpected: %s\nActual: %s",
+		return fmt.Errorf(
+			"%s\n\nFound different number of elements in slices: %d in expected, %d in actual\nExpected: %s\nActual: %s",
 			formattedMessage,
 			len(expected),
 			len(found),

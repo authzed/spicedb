@@ -85,7 +85,8 @@ func (Lint) Golangcilint() error {
 // Analyzers Run all analyzers
 func (Lint) Analyzers() error {
 	fmt.Println("running analyzers")
-	return RunSh("go", WithDir("tools/analyzers"), WithV())("run", "./cmd/analyzers/main.go",
+	return RunSh("go", WithDir("tools/analyzers"), WithV())(
+		"run", "./cmd/analyzers/main.go",
 		"-nilvaluecheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1",
 		"-nilvaluecheck.disallowed-nil-return-type-paths=*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse",
 		"-exprstatementcheck.disallowed-expr-statement-types=*github.com/rs/zerolog.Event:MarshalZerologObject:missing Send or Msg on zerolog log Event",
@@ -106,7 +107,7 @@ func (Lint) Analyzers() error {
 // Vulncheck Run vulncheck
 func (Lint) Vulncheck() error {
 	fmt.Println("running vulncheck")
-	return buildAndRunTool("magefiles", "golang.org/x/vuln/cmd/govulncheck", "-show", "verbose", "./...")
+	return buildAndRunTool("magefiles", "golang.org/x/vuln/cmd/govulncheck", "./...")
 }
 
 // BufFormat runs buf format command

@@ -31,7 +31,8 @@ func (mds *mysqlDatastore) tryAcquireLock(ctx context.Context, lockName lockName
 
 func (mds *mysqlDatastore) releaseLock(ctx context.Context, lockName lockName) error {
 	// See: https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html#function_release-lock
-	_, err := mds.db.ExecContext(ctx, `
+	_, err := mds.db.ExecContext(
+		ctx, `
 		SELECT RELEASE_LOCK(?)
 	`,
 		lockName,

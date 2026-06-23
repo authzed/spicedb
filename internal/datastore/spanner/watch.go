@@ -151,7 +151,8 @@ func (sd *spannerDatastore) watch(
 					spanner.Priority(sppb.RequestOptions_PRIORITY_LOW),
 				},
 			},
-		})
+		},
+	)
 	if err != nil {
 		sendError(err)
 		return

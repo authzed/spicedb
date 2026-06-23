@@ -77,7 +77,8 @@ func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resource Object, subje
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+	pathSeq, err := ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
@@ -117,7 +118,8 @@ func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resource Object, sub
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+	pathSeq, err := ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
@@ -155,7 +157,8 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 
 	// If pagination is not configured, do the simple eager collection
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+		pathSeq, err := ctx.Reader.QuerySubjects(
+			ctx,
 			resource,
 			r.base.RelationName(),
 			subjectType,
@@ -180,7 +183,8 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+			pathSeq, err := ctx.Reader.QuerySubjects(
+				ctx,
 				resource,
 				r.base.RelationName(),
 				subjectType,
@@ -238,7 +242,8 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	return ctx.Reader.CheckRelationships(ctx,
+	return ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
@@ -272,7 +277,8 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 	}
 
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QueryResources(ctx,
+		pathSeq, err := ctx.Reader.QueryResources(
+			ctx,
 			r.base.DefinitionName(),
 			r.base.RelationName(),
 			subject,
@@ -295,7 +301,8 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QueryResources(ctx,
+			pathSeq, err := ctx.Reader.QueryResources(
+				ctx,
 				r.base.DefinitionName(),
 				r.base.RelationName(),
 				subject,
@@ -352,7 +359,8 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 	}
 
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QueryResources(ctx,
+		pathSeq, err := ctx.Reader.QueryResources(
+			ctx,
 			r.base.DefinitionName(),
 			r.base.RelationName(),
 			wildcardSubject,
@@ -376,7 +384,8 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QueryResources(ctx,
+			pathSeq, err := ctx.Reader.QueryResources(
+				ctx,
 				r.base.DefinitionName(),
 				r.base.RelationName(),
 				wildcardSubject,

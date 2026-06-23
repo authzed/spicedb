@@ -131,7 +131,8 @@ func (opt *inliningOptimizer) rewritePresenceExpr(ctx *cel.OptimizerContext, pre
 	ctx.ClearMacroCall(prev.ID())
 	if inlinedType.IsAssignableType(cel.NullType) {
 		ctx.UpdateExpr(prev,
-			ctx.NewCall(operators.NotEquals,
+			ctx.NewCall(
+				operators.NotEquals,
 				inlined,
 				ctx.NewLiteral(types.NullValue),
 			))
@@ -139,7 +140,8 @@ func (opt *inliningOptimizer) rewritePresenceExpr(ctx *cel.OptimizerContext, pre
 	}
 	if inlinedType.HasTrait(traits.SizerType) {
 		ctx.UpdateExpr(prev,
-			ctx.NewCall(operators.NotEquals,
+			ctx.NewCall(
+				operators.NotEquals,
 				ctx.NewMemberCall(overloads.Size, inlined),
 				ctx.NewLiteral(types.IntZero),
 			))

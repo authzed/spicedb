@@ -11,7 +11,8 @@ const (
 )
 
 func init() {
-	if err := DatabaseMigrations.Register("add-gc-index", "change-transaction-timestamp-default",
+	if err := DatabaseMigrations.Register(
+		"add-gc-index", "change-transaction-timestamp-default",
 		func(ctx context.Context, conn *pgx.Conn) error {
 			// CREATE INDEX CONCURRENTLY cannot run inside a transaction block (SQLSTATE 25001)
 			_, err := conn.Exec(ctx, createDeletedTransactionIndex)

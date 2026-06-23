@@ -230,7 +230,8 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 			err = adjustMetadataForDispatch(resp.Metadata)
 			return resp, err
-		})
+		},
+	)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
 	}
@@ -573,7 +574,8 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 
 	returnedResultsDispatcherName := atomic.NewString(noDispatcherResults)
 
-	primarySleeper := cr.newPrimarySleeper(reqKey,
+	primarySleeper := cr.newPrimarySleeper(
+		reqKey,
 		tuple.FromCoreRelationReference(req.GetResourceRelation()),
 		tuple.FromCoreRelationReference(req.GetSubjectRelation()),
 		maximumHedgingDelay,

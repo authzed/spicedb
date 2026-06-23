@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -65,7 +65,8 @@ func InitOTelProvider(ctx context.Context, cfg OTelConfig) (func() error, error)
 		return func() error { return nil }, nil
 	}
 
-	res, err := resource.New(ctx,
+	res, err := resource.New(
+		ctx,
 		resource.WithAttributes(semconv.ServiceNameKey.String(cfg.ServiceName)),
 		resource.WithProcess(),
 		resource.WithOS(),

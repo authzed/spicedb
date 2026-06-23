@@ -76,7 +76,8 @@ func setupDoubleWideArrow(ctx context.Context, ds datastore.Datastore) (*QuerySe
 		for i := 0; i < orgsPerFile; i++ {
 			orgID := (i * step) % numOrgs
 			relationships = append(relationships, tuple.MustParse(
-				fmt.Sprintf("file:file%d#org@org:org%d", fileID, orgID)))
+				fmt.Sprintf("file:file%d#org@org:org%d", fileID, orgID),
+			))
 		}
 	}
 
@@ -85,7 +86,8 @@ func setupDoubleWideArrow(ctx context.Context, ds datastore.Datastore) (*QuerySe
 		for i := 0; i < groupsPerOrg; i++ {
 			groupID := (i * step) % numGroups
 			relationships = append(relationships, tuple.MustParse(
-				fmt.Sprintf("org:org%d#group@group:group%d", orgID, groupID)))
+				fmt.Sprintf("org:org%d#group@group:group%d", orgID, groupID),
+			))
 		}
 	}
 
@@ -94,7 +96,8 @@ func setupDoubleWideArrow(ctx context.Context, ds datastore.Datastore) (*QuerySe
 		for i := 0; i < usersPerGroup; i++ {
 			userID := (i * step) % numUsers
 			relationships = append(relationships, tuple.MustParse(
-				fmt.Sprintf("group:group%d#member@user:user%d", groupID, userID)))
+				fmt.Sprintf("group:group%d#member@user:user%d", groupID, userID),
+			))
 		}
 	}
 

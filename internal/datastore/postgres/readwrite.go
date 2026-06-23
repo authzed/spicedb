@@ -225,7 +225,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 	// For each of the TOUCH operations, invoke the INSERTs, but with `ON CONFLICT DO NOTHING` to ensure
 	// that the operations over existing relationships no-op.
 	if len(touchMutationsByNonCaveat) > 0 {
-		touchInserts = touchInserts.Suffix(fmt.Sprintf("ON CONFLICT DO NOTHING RETURNING %s, %s, %s, %s, %s, %s",
+		touchInserts = touchInserts.Suffix(fmt.Sprintf(
+			"ON CONFLICT DO NOTHING RETURNING %s, %s, %s, %s, %s, %s",
 			schema.ColNamespace,
 			schema.ColObjectID,
 			schema.ColRelation,
@@ -322,7 +323,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 
 	builder := deleteTuple.
 		Where(deleteClauses).
-		Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s",
+		Suffix(fmt.Sprintf(
+			"RETURNING %s, %s, %s, %s, %s, %s",
 			schema.ColNamespace,
 			schema.ColObjectID,
 			schema.ColRelation,

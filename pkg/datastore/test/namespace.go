@@ -21,11 +21,13 @@ import (
 )
 
 var (
-	testNamespace = ns.Namespace("foo/bar",
+	testNamespace = ns.Namespace(
+		"foo/bar",
 		ns.MustRelation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)
 
-	updatedNamespace = ns.Namespace(testNamespace.Name,
+	updatedNamespace = ns.Namespace(
+		testNamespace.Name,
 		ns.MustRelation("reader", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 		ns.MustRelation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)

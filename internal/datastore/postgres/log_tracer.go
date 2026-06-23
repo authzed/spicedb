@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/tracelog"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.32.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"

@@ -182,13 +182,13 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 
 var defaultKeyForTesting = proxy.KeyConfig{
 	ID: "defaultfortest",
-	Bytes: (func() []byte {
+	Bytes: func() []byte {
 		b, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
 		if err != nil {
 			panic(err)
 		}
 		return b
-	})(),
+	}(),
 	ExpiredAt: nil,
 }
 

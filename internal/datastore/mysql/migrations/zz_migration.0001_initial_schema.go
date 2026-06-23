@@ -6,7 +6,8 @@ func createMigrationVersion(t *tables) string {
 	// we need the additional primary key column because github.com/github/gh-ost requires a shared, not-null
 	// key between the _to_ and _from_ table schemas to perform a schema migration.
 	// -- https://github.com/github/gh-ost/blob/master/doc/shared-key.md
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		id int(11) NOT NULL PRIMARY KEY,
 		_meta_version_ VARCHAR(255) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		t.migrationVersion(),
@@ -15,7 +16,8 @@ func createMigrationVersion(t *tables) string {
 
 // namespace max size: https://buf.build/authzed/api/file/main/authzed/api/v0/core.proto#L29
 func createNamespaceConfig(t *tables) string {
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		namespace VARCHAR(128) NOT NULL,
 		serialized_config BLOB NOT NULL,
 		created_transaction BIGINT NOT NULL,
@@ -29,7 +31,8 @@ func createNamespaceConfig(t *tables) string {
 // relationship max size: https://buf.build/authzed/api/file/main:authzed/api/v1/core.proto#L33
 // object id max size: https://buf.build/authzed/api/file/main:authzed/api/v1/core.proto#L45
 func createRelationTuple(t *tables) string {
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 		namespace VARCHAR(128) NOT NULL,
 		object_id VARCHAR(128) NOT NULL,
@@ -50,7 +53,8 @@ func createRelationTuple(t *tables) string {
 }
 
 func createRelationTupleTransaction(t *tables) string {
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 		timestamp DATETIME(6) DEFAULT NOW(6) NOT NULL,
 		PRIMARY KEY (id),
@@ -60,7 +64,8 @@ func createRelationTupleTransaction(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("initial", "", noNonatomicMigration,
+	mustRegisterMigration(
+		"initial", "", noNonatomicMigration,
 		newStatementBatch(
 			createMigrationVersion,
 			createNamespaceConfig,

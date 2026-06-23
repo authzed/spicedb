@@ -29,7 +29,8 @@ import "fmt"
 // uniqueness (more distinct values), so it cannot violate any existing unique constraint.
 
 func makeRelationTupleCaseSensitive(t *tables) string {
-	return fmt.Sprintf(`ALTER TABLE %s CONVERT TO CHARACTER SET latin1 COLLATE latin1_bin;`,
+	return fmt.Sprintf(
+		`ALTER TABLE %s CONVERT TO CHARACTER SET latin1 COLLATE latin1_bin;`,
 		t.RelationTuple(),
 	)
 }
@@ -81,7 +82,8 @@ func makeMetadataUniqueIDCaseSensitive(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("identifiers_case_sensitive", "populate_schema_tables", noNonatomicMigration,
+	mustRegisterMigration(
+		"identifiers_case_sensitive", "populate_schema_tables", noNonatomicMigration,
 		newStatementBatch(
 			makeRelationTupleCaseSensitive,
 			makeNamespaceConfigCaseSensitive,

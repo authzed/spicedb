@@ -187,7 +187,8 @@ func (r *pgReader) ReverseQueryRelationships(
 	indexingHint := schema.IndexingHintForQueryShape(r.schema, queryOpts.QueryShapeForReverse)
 	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
-	return r.executor.ExecuteQuery(ctx,
+	return r.executor.ExecuteQuery(
+		ctx,
 		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),

@@ -630,7 +630,8 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 			return currentValue, errors.New(
 				"TraverseArrowTargets requires a resolved schema. " +
 					"Call ResolveSchema() on your schema before walking with arrow traversal enabled. " +
-					"Unresolved ArrowReference found: " + o.Left() + "->" + o.Right())
+					"Unresolved ArrowReference found: " + o.Left() + "->" + o.Right(),
+			)
 		}
 
 		// Terminal node - call visitors
@@ -710,7 +711,8 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 			if options.schema == nil {
 				return currentValue, errors.New(
 					"TraverseArrowTargets requires a schema for target resolution. " +
-						"Arrow reference: " + o.Left() + "->" + o.Right())
+						"Arrow reference: " + o.Left() + "->" + o.Right(),
+				)
 			}
 
 			// Get the resolved left relation to find allowed subject types
@@ -766,7 +768,8 @@ func walkOperationPostOrder[T any](op Operation, v Visitor[T], value T, options 
 			if options.schema == nil {
 				return currentValue, errors.New(
 					"TraverseArrowTargets requires a schema for target resolution. " +
-						"Functioned arrow reference: " + o.Left() + "->" + o.Right())
+						"Functioned arrow reference: " + o.Left() + "->" + o.Right(),
+				)
 			}
 
 			// Get the resolved left relation to find allowed subject types

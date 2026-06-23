@@ -136,7 +136,8 @@ func (r *datalayerQueryDatastoreReader) CheckRelationships(
 		},
 	}
 
-	relIter, err := r.inner.QueryRelationships(ctx, filter,
+	relIter, err := r.inner.QueryRelationships(
+		ctx, filter,
 		options.WithSkipCaveats(!withCaveats),
 		options.WithSkipExpiration(!withExpiration),
 		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -191,7 +192,8 @@ func (r *datalayerQueryDatastoreReader) QuerySubjects(
 		options.WithQueryShape(shape),
 	}
 	if page.Limit != nil {
-		queryOpts = append(queryOpts,
+		queryOpts = append(
+			queryOpts,
 			options.WithLimit(page.Limit),
 			options.WithSort(options.ChooseEfficient),
 		)
@@ -233,7 +235,8 @@ func (r *datalayerQueryDatastoreReader) QueryResources(
 		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
 	}
 	if page.Limit != nil {
-		queryOpts = append(queryOpts,
+		queryOpts = append(
+			queryOpts,
 			options.WithLimit(page.Limit),
 			options.WithSort(options.ChooseEfficient),
 		)
@@ -265,7 +268,8 @@ func (r *datalayerQueryDatastoreReader) SubjectExistsAsRelationship(
 		OptionalExpirationOption: datastore.ExpirationFilterOptionNone,
 	}
 
-	relIter, err := r.inner.QueryRelationships(ctx, filter,
+	relIter, err := r.inner.QueryRelationships(
+		ctx, filter,
 		options.WithLimit(&limitOne),
 		options.WithSkipExpiration(true),
 	)

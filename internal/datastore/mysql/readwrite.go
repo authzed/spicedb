@@ -545,7 +545,8 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 				caveatName = rel.OptionalCaveat.CaveatName
 				caveatContext = rel.OptionalCaveat.Context.AsMap()
 			}
-			args = append(args,
+			args = append(
+				args,
 				rel.Resource.ObjectType,
 				rel.Resource.ObjectID,
 				rel.Resource.Relation,

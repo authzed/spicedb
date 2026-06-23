@@ -237,7 +237,8 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if ds == nil {
 		var err error
 		c.supportOldAndNewReadReplicaConnectionPoolFlags()
-		ds, err = datastorecfg.NewDatastore(ctx, c.DatastoreConfig.ToOption(),
+		ds, err = datastorecfg.NewDatastore(
+			ctx, c.DatastoreConfig.ToOption(),
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
@@ -474,7 +475,8 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	sameMiddlewares := defaultUnaryMiddlewareChain.Names().Equal(defaultStreamingMiddlewareChain.Names())
 	if !sameMiddlewares {
-		return nil, fmt.Errorf("unary and streaming middlewares differ: %v / %v",
+		return nil, fmt.Errorf(
+			"unary and streaming middlewares differ: %v / %v",
 			defaultUnaryMiddlewareChain.Names().AsSlice(),
 			defaultStreamingMiddlewareChain.Names().AsSlice(),
 		)
@@ -523,7 +525,8 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)
-	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
+	grpcServer, err := c.GRPCServer.Complete(
+		zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
@@ -675,7 +678,8 @@ func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.Memory
 		}
 	}
 
-	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
+	dispatchGrpcServer, err := c.DispatchServer.Complete(
+		zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
 		},

@@ -234,7 +234,8 @@ func (rwt *definitionCachingRWT) LegacyReadNamespaceByName(
 	return readAndCacheInTransaction(
 		ctx, rwt, "namespace", nsName, func(ctx context.Context, name string) (*core.NamespaceDefinition, datastore.Revision, error) {
 			return rwt.ReadWriteTransaction.LegacyReadNamespaceByName(ctx, name)
-		})
+		},
+	)
 }
 
 func (rwt *definitionCachingRWT) LegacyReadCaveatByName(
@@ -244,7 +245,8 @@ func (rwt *definitionCachingRWT) LegacyReadCaveatByName(
 	return readAndCacheInTransaction(
 		ctx, rwt, "caveat", nsName, func(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 			return rwt.ReadWriteTransaction.LegacyReadCaveatByName(ctx, name)
-		})
+		},
+	)
 }
 
 func readAndCacheInTransaction[T schemaDefinition](

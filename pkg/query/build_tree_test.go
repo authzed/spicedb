@@ -129,11 +129,14 @@ func TestBuildTreeRecursion(t *testing.T) {
 	// }
 	// This creates recursion: computing member arrows through parent groups,
 	// which recursively compute their own member permission
-	groupDef := namespace.Namespace("group",
-		namespace.MustRelation("parent", nil,
+	groupDef := namespace.Namespace(
+		"group",
+		namespace.MustRelation(
+			"parent", nil,
 			namespace.AllowedRelation("group", "..."),
 		),
-		namespace.MustRelation("member",
+		namespace.MustRelation(
+			"member",
 			namespace.Union(
 				namespace.TupleToUserset("parent", "member"),
 			),
@@ -216,8 +219,10 @@ func TestBuildTreeExclusionOperation(t *testing.T) {
 	userDef := testfixtures.UserNS.CloneVT()
 
 	// Create a document with an exclusion operation
-	docDef := namespace.Namespace("document",
-		namespace.MustRelation("excluded_perm",
+	docDef := namespace.Namespace(
+		"document",
+		namespace.MustRelation(
+			"excluded_perm",
 			namespace.Exclusion(
 				namespace.Nil(),
 				namespace.Nil(),
@@ -263,10 +268,12 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
 			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Create schema with exclusion using relation references
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
-			namespace.MustRelation("can_view",
+			namespace.MustRelation(
+				"can_view",
 				namespace.Exclusion(
 					namespace.ComputedUserset("viewer"),
 					namespace.ComputedUserset("owner"),
@@ -293,11 +300,13 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	t.Run("Exclusion with Union Operations", func(t *testing.T) {
 		// Create schema with exclusion containing union operations
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("editor", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
-			namespace.MustRelation("restricted_viewers",
+			namespace.MustRelation(
+				"restricted_viewers",
 				namespace.Exclusion(
 					namespace.Rewrite(
 						namespace.Union(
@@ -334,10 +343,12 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	t.Run("Exclusion with Intersection Operations", func(t *testing.T) {
 		// Create schema with exclusion containing intersection operations
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("editor", nil, namespace.AllowedRelation("user", "...")),
-			namespace.MustRelation("restricted_view",
+			namespace.MustRelation(
+				"restricted_view",
 				namespace.Exclusion(
 					namespace.Rewrite(
 						namespace.Intersection(
@@ -374,11 +385,13 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	t.Run("Nested Exclusion Operations", func(t *testing.T) {
 		// Create schema with nested exclusions
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("all_users", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("banned_users", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("restricted_users", nil, namespace.AllowedRelation("user", "...")),
-			namespace.MustRelation("allowed_users",
+			namespace.MustRelation(
+				"allowed_users",
 				namespace.Exclusion(
 					namespace.Rewrite(
 						namespace.Exclusion(
@@ -417,9 +430,11 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	t.Run("Exclusion with Error in Left Operation", func(t *testing.T) {
 		// Create schema with exclusion where left operation references non-existent relation
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
-			namespace.MustRelation("bad_exclusion",
+			namespace.MustRelation(
+				"bad_exclusion",
 				namespace.Exclusion(
 					namespace.ComputedUserset("nonexistent_relation"),
 					namespace.ComputedUserset("viewer"),
@@ -439,9 +454,11 @@ func TestBuildTreeExclusionEdgeCases(t *testing.T) {
 
 	t.Run("Exclusion with Error in Right Operation", func(t *testing.T) {
 		// Create schema with exclusion where right operation references non-existent relation
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("viewer", nil, namespace.AllowedRelation("user", "...")),
-			namespace.MustRelation("bad_exclusion",
+			namespace.MustRelation(
+				"bad_exclusion",
 				namespace.Exclusion(
 					namespace.ComputedUserset("viewer"),
 					namespace.ComputedUserset("nonexistent_relation"),
@@ -466,8 +483,10 @@ func TestBuildTreeArrowMissingLeftRelation(t *testing.T) {
 	// Create a schema with an arrow that references a non-existent left relation
 	userDef := testfixtures.UserNS.CloneVT()
 
-	docDef := namespace.Namespace("document",
-		namespace.MustRelation("bad_arrow",
+	docDef := namespace.Namespace(
+		"document",
+		namespace.MustRelation(
+			"bad_arrow",
 			namespace.Union(
 				namespace.TupleToUserset("nonexistent", "view"),
 			),
@@ -525,13 +544,16 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
 			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Test that base relations with ellipsis (group:...) work correctly with arrows
-		groupDef := namespace.Namespace("group",
+		groupDef := namespace.Namespace(
+			"group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
 		)
 
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")), // Ellipsis on group
-			namespace.MustRelation("viewer",
+			namespace.MustRelation(
+				"viewer",
 				namespace.Union(
 					namespace.TupleToUserset("parent", "member"), // Arrow to group's member relation
 				),
@@ -561,14 +583,17 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
 			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Create schema with specific subrelation that should create union with arrow
-		groupDef := namespace.Namespace("group",
+		groupDef := namespace.Namespace(
+			"group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("admin", nil, namespace.AllowedRelation("user", "...")),
 		)
 
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")),
-			namespace.MustRelation("viewer",
+			namespace.MustRelation(
+				"viewer",
 				namespace.Union(
 					namespace.TupleToUserset("parent", "admin"), // This should create arrow from parent to admin
 				),
@@ -594,9 +619,11 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 	t.Run("Base Relation Without Subrelations Disabled", func(t *testing.T) {
 		// Test base relation iterator with withSubRelations = false
 		// This hits the buildBaseDatastoreIterator path where subrelations are disabled
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("parent", nil, namespace.AllowedRelation("document", "...")),
-			namespace.MustRelation("viewer",
+			namespace.MustRelation(
+				"viewer",
 				namespace.Union(
 					namespace.TupleToUserset("parent", "viewer"), // Arrow operation disables subrelations
 				),
@@ -619,14 +646,17 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 
 	t.Run("Base Relation with Missing Subrelation Definition", func(t *testing.T) {
 		// Create schema where base relation references a subrelation that doesn't exist in target
-		groupDef := namespace.Namespace("group",
+		groupDef := namespace.Namespace(
+			"group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
 			// Missing "nonexistent" relation
 		)
 
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")),
-			namespace.MustRelation("viewer",
+			namespace.MustRelation(
+				"viewer",
 				namespace.Union(
 					namespace.TupleToUserset("parent", "nonexistent"), // References non-existent relation
 				),
@@ -647,15 +677,18 @@ func TestBuildTreeSubrelationHandling(t *testing.T) {
 		ctx := NewLocalContext(t.Context(),
 			WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
 		// Test relation with multiple base relations, some with subrelations, some without
-		groupDef := namespace.Namespace("group",
+		groupDef := namespace.Namespace(
+			"group",
 			namespace.MustRelation("member", nil, namespace.AllowedRelation("user", "...")),
 			namespace.MustRelation("admin", nil, namespace.AllowedRelation("user", "...")),
 		)
 
-		docDef := namespace.Namespace("document",
+		docDef := namespace.Namespace(
+			"document",
 			namespace.MustRelation("owner", nil, namespace.AllowedRelation("user", "...")), // Simple relation without subrelations
 			namespace.MustRelation("parent", nil, namespace.AllowedRelation("group", "...")),
-			namespace.MustRelation("viewer",
+			namespace.MustRelation(
+				"viewer",
 				namespace.Union(
 					namespace.ComputedUserset("owner"),          // Direct relation
 					namespace.TupleToUserset("parent", "admin"), // Arrow with subrelation
@@ -744,7 +777,8 @@ func TestBuildTreeWildcardIterator(t *testing.T) {
 		// Create a schema with both wildcard and regular relations
 		mixedDocDef := namespace.Namespace(
 			"document",
-			namespace.MustRelation("viewer", nil,
+			namespace.MustRelation(
+				"viewer", nil,
 				namespace.AllowedRelation("user", ""),    // Regular relation
 				namespace.AllowedPublicNamespace("user"), // Wildcard relation
 			),
@@ -779,24 +813,30 @@ func TestBuildTreeMutualRecursionSentinelFiltering(t *testing.T) {
 	// This is the exact scenario from walkbackandforth.yaml
 	userDef := testfixtures.UserNS.CloneVT()
 
-	otherdocumentDef := namespace.Namespace("otherdocument",
-		namespace.MustRelation("viewer", nil,
+	otherdocumentDef := namespace.Namespace(
+		"otherdocument",
+		namespace.MustRelation(
+			"viewer", nil,
 			namespace.AllowedRelation("user", "..."),
 			namespace.AllowedRelation("document", "viewer"),
 		),
-		namespace.MustRelation("view",
+		namespace.MustRelation(
+			"view",
 			namespace.Union(
 				namespace.ComputedUserset("viewer"),
 			),
 		),
 	)
 
-	documentDef := namespace.Namespace("document",
-		namespace.MustRelation("viewer", nil,
+	documentDef := namespace.Namespace(
+		"document",
+		namespace.MustRelation(
+			"viewer", nil,
 			namespace.AllowedRelation("user", "..."),
 			namespace.AllowedRelation("otherdocument", "viewer"),
 		),
-		namespace.MustRelation("view",
+		namespace.MustRelation(
+			"view",
 			namespace.Union(
 				namespace.ComputedUserset("viewer"),
 			),

@@ -132,7 +132,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 		foundONRStrings := tuple.StringsONRs(foundParentResources)
 		if !cmp.Equal(expectedONRStrings, foundONRStrings) {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, found different relationships for subject `%s`: Specified: `%s`, Computed: `%s`",
+				Message: fmt.Sprintf(
+					"For object and permission/relation `%s`, found different relationships for subject `%s`: Specified: `%s`, Computed: `%s`",
 					tuple.StringONR(onr),
 					tuple.StringONR(subjectWithExceptions.Subject.Subject),
 					strings.Join(wrapResources(expectedONRStrings), "/"),
@@ -158,7 +159,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 
 			if !cmp.Equal(expectedExcludedStrings, foundExcludedONRStrings) {
 				failures = append(failures, &devinterface.DeveloperError{
-					Message: fmt.Sprintf("For object and permission/relation `%s`, found different excluded subjects for subject `%s`: Specified: `%s`, Computed: `%s`",
+					Message: fmt.Sprintf(
+						"For object and permission/relation `%s`, found different excluded subjects for subject `%s`: Specified: `%s`, Computed: `%s`",
 						tuple.StringONR(onr),
 						tuple.StringONR(subjectWithExceptions.Subject.Subject),
 						strings.Join(wrapResources(expectedExcludedStrings), ", "),
@@ -173,7 +175,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 			}
 		} else if len(expectedExcludedSubjects) > 0 {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, found unexpected excluded subjects",
+				Message: fmt.Sprintf(
+					"For object and permission/relation `%s`, found unexpected excluded subjects",
 					tuple.StringONR(onr),
 				),
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
@@ -187,7 +190,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 		// Verify caveats.
 		if (subject.GetCaveatExpression() != nil) != subjectWithExceptions.Subject.IsCaveated {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, found caveat mismatch",
+				Message: fmt.Sprintf(
+					"For object and permission/relation `%s`, found caveat mismatch",
 					tuple.StringONR(onr),
 				),
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
@@ -212,7 +216,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but not listed in expected subjects",
+				Message: fmt.Sprintf(
+					"For object and permission/relation `%s`, subject `%s` found but not listed in expected subjects",
 					tuple.StringONR(onr),
 					tuple.StringONR(foundSubject.Subject()),
 				),
@@ -247,7 +252,8 @@ func GenerateValidation(membershipSet *developmentmembership.Set) (string, error
 		strs := make([]string, 0, len(subjectList))
 		for _, fs := range subjectList {
 			strs = append(strs,
-				fmt.Sprintf("[%s] is %s",
+				fmt.Sprintf(
+					"[%s] is %s",
 					fs.ToValidationString(),
 					strings.Join(wrapResources(tuple.StringsONRs(fs.ParentResources())), "/"),
 				))

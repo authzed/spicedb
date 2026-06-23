@@ -68,7 +68,8 @@ func PublishError(runFunc cobrautil.CobraRunFunc) cobrautil.CobraRunFunc {
 
 // RegisterFlags registers the termination log flag
 func RegisterFlags(flagset *flag.FlagSet) {
-	flagset.String(terminationLogFlagName,
+	flagset.String(
+		terminationLogFlagName,
 		"",
 		"local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty",
 	)

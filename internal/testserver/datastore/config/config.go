@@ -17,7 +17,8 @@ import (
 func DatastoreConfigInitFunc(t testing.TB, options ...dsconfig.ConfigOption) testdatastore.InitFunc {
 	return func(engine, uri string) datastore.Datastore {
 		ds, err := dsconfig.NewDatastore(t.Context(),
-			append(options,
+			append(
+				options,
 				dsconfig.WithEngine(engine),
 				dsconfig.WithEnableDatastoreMetrics(false),
 				dsconfig.WithURI(uri),

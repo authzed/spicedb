@@ -383,7 +383,8 @@ func (crr *CursoredLookupResources3) unlimitedLookupResourcesIter(
 
 	// Portion #1: If the requested resource type+relation matches the subject type+relation, then we've immediately
 	// found matching resources, as a permission always matches itself.
-	return cter.CursoredWithIntegerHeader(ctx, cursor,
+	return cter.CursoredWithIntegerHeader(
+		ctx, cursor,
 		func(ctx context.Context, startIndex int) iter.Seq2[possibleResource, error] {
 			// If the subject relation does not match the resource relation, we cannot yield any results for this
 			// portion.
@@ -725,7 +726,8 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 	// The producer will yield chunks of relationships, maximum of the dispatchChunkSize, to be
 	// dispatched by the mapper in parallel.
 	return estimatedConcurrencyLimit(crr, refs, keyedEntrypoint(config.entrypoint), func(computedConcurrencyLimit uint16) iter.Seq2[result, error] {
-		return cter.CursoredProducerMapperIterator(ctx, currentCursor,
+		return cter.CursoredProducerMapperIterator(
+			ctx, currentCursor,
 			computedConcurrencyLimit,
 			datastoreIndexFromString,
 			mustDatastoreIndexToString,
@@ -1009,7 +1011,8 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 			tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
 			&v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			})
+			},
+		)
 		if err != nil {
 			return nil, err
 		}

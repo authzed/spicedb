@@ -122,7 +122,8 @@ import "doesnotexist.zed"
 `
 	sourceFS := fstest.MapFS{} // empty FS, so the import will fail
 
-	compiled, devErr, err := CompileSchema(rootSchema,
+	compiled, devErr, err := CompileSchema(
+		rootSchema,
 		WithSourceFS(sourceFS),
 		WithRootFileName("myroot.zed"),
 	)
@@ -144,7 +145,8 @@ import "imported.zed"
 		"imported.zed": &fstest.MapFile{Data: []byte("definition document {\n\tinvalid syntax here\n}")},
 	}
 
-	compiled, devErr, err := CompileSchema(rootSchema,
+	compiled, devErr, err := CompileSchema(
+		rootSchema,
 		WithSourceFS(sourceFS),
 		WithRootFileName("myroot.zed"),
 	)

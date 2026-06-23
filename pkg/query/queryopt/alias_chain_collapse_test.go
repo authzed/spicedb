@@ -35,7 +35,8 @@ func applyCollapse(outline query.Outline) query.Outline {
 func TestAliasChainCollapse(t *testing.T) {
 	t.Run("collapses two-level alias chain", func(t *testing.T) {
 		// Alias("viewer")(Alias("owner")(DS))
-		input := aliasOutline("viewer",
+		input := aliasOutline(
+			"viewer",
 			aliasOutline("owner", dsOutlineNoCaveat()),
 		)
 
@@ -53,8 +54,10 @@ func TestAliasChainCollapse(t *testing.T) {
 
 	t.Run("collapses three-level alias chain", func(t *testing.T) {
 		// Alias("perm")(Alias("viewer")(Alias("owner")(DS)))
-		input := aliasOutline("perm",
-			aliasOutline("viewer",
+		input := aliasOutline(
+			"perm",
+			aliasOutline(
+				"viewer",
 				aliasOutline("owner", dsOutlineNoCaveat()),
 			),
 		)
@@ -136,7 +139,8 @@ func TestAliasChainCollapse(t *testing.T) {
 	})
 
 	t.Run("clears outer node ID so canonical key gets recomputed", func(t *testing.T) {
-		outer := aliasOutline("viewer",
+		outer := aliasOutline(
+			"viewer",
 			aliasOutline("owner", dsOutlineNoCaveat()),
 		)
 		outer.ID = 100
@@ -177,7 +181,8 @@ func TestAliasChainCollapseViaRegister(t *testing.T) {
 
 	transform := opt.NewTransform(RequestParams{})
 
-	input := aliasOutline("outer",
+	input := aliasOutline(
+		"outer",
 		aliasOutline("inner", dsOutlineNoCaveat()),
 	)
 

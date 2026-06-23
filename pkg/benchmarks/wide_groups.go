@@ -58,7 +58,8 @@ func setupWideGroups(ctx context.Context, ds datastore.Datastore) (*QuerySets, e
 	var relationships []tuple.Relationship
 
 	// Core chain: first -> second -> third -> resource
-	relationships = append(relationships,
+	relationships = append(
+		relationships,
 		tuple.MustParse("group:first#member@user:tom"),
 		tuple.MustParse("group:second#member@group:first#member"),
 		tuple.MustParse("group:third#member@group:second#member"),
@@ -68,23 +69,27 @@ func setupWideGroups(ctx context.Context, ds datastore.Datastore) (*QuerySets, e
 	// 100 wide groups at level 1, all containing group:first#member
 	for i := 0; i < numWideGroups; i++ {
 		relationships = append(relationships, tuple.MustParse(
-			fmt.Sprintf("group:widegroup1-%d#member@group:first#member", i)))
+			fmt.Sprintf("group:widegroup1-%d#member@group:first#member", i),
+		))
 	}
 
 	// 100 wide groups at level 2, each containing the corresponding level 1 group
 	for i := 0; i < numWideGroups; i++ {
 		relationships = append(relationships, tuple.MustParse(
-			fmt.Sprintf("group:widegroup2-%d#member@group:widegroup1-%d#member", i, i)))
+			fmt.Sprintf("group:widegroup2-%d#member@group:widegroup1-%d#member", i, i),
+		))
 	}
 
 	// 100 wide groups at level 3, each containing the corresponding level 2 group
 	for i := 0; i < numWideGroups; i++ {
 		relationships = append(relationships, tuple.MustParse(
-			fmt.Sprintf("group:widegroup3-%d#member@group:widegroup2-%d#member", i, i)))
+			fmt.Sprintf("group:widegroup3-%d#member@group:widegroup2-%d#member", i, i),
+		))
 	}
 
 	// Additional resources
-	relationships = append(relationships,
+	relationships = append(
+		relationships,
 		tuple.MustParse("resource:anotherresource#viewer@group:widegroup3-99#member"),
 		tuple.MustParse("resource:thirdresource#viewer@user:sarah"),
 	)

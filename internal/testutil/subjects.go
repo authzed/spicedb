@@ -172,19 +172,22 @@ func formatCaveatExpr(expr *core.CaveatExpression) string {
 
 	switch expr.GetOperation().Op {
 	case core.CaveatOperation_AND:
-		return fmt.Sprintf("(%s) && (%s)",
+		return fmt.Sprintf(
+			"(%s) && (%s)",
 			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
 			formatCaveatExpr(expr.GetOperation().GetChildren()[1]),
 		)
 
 	case core.CaveatOperation_OR:
-		return fmt.Sprintf("(%s) || (%s)",
+		return fmt.Sprintf(
+			"(%s) || (%s)",
 			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
 			formatCaveatExpr(expr.GetOperation().GetChildren()[1]),
 		)
 
 	case core.CaveatOperation_NOT:
-		return fmt.Sprintf("!(%s)",
+		return fmt.Sprintf(
+			"!(%s)",
 			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
 		)
 

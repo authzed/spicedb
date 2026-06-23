@@ -27,7 +27,8 @@ func TestPlanPartitionedExport(t *testing.T) {
 	var connectStr string
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connectStr = uri
-		ds, err := NewCRDBDatastore(ctx, uri,
+		ds, err := NewCRDBDatastore(
+			ctx, uri,
 			GCWindow(veryLargeGCWindow),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
@@ -177,20 +178,22 @@ func TestPlanPartitionedExport(t *testing.T) {
 func TestUnwrapAsBulkExportPartitioner(t *testing.T) {
 	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
-	t.Run("bare datastore can be unwrapped", createDatastoreTest(b, func(t *testing.T, ds datastore.Datastore) {
-		partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](ds)
-		require.NotNil(t, partitioner, "expected datastore to be unwrappable as BulkExportPartitioner")
-	},
+	t.Run("bare datastore can be unwrapped", createDatastoreTest(
+		b, func(t *testing.T, ds datastore.Datastore) {
+			partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](ds)
+			require.NotNil(t, partitioner, "expected datastore to be unwrappable as BulkExportPartitioner")
+		},
 		GCWindow(veryLargeGCWindow),
 		RevisionQuantization(0),
 		WithAcquireTimeout(30*time.Second),
 	))
 
-	t.Run("readonly-wrapped datastore can be unwrapped", createDatastoreTest(b, func(t *testing.T, ds datastore.Datastore) {
-		roDS := proxy.NewReadonlyDatastore(ds)
-		partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](roDS)
-		require.NotNil(t, partitioner, "expected readonly-wrapped datastore to be unwrappable as BulkExportPartitioner")
-	},
+	t.Run("readonly-wrapped datastore can be unwrapped", createDatastoreTest(
+		b, func(t *testing.T, ds datastore.Datastore) {
+			roDS := proxy.NewReadonlyDatastore(ds)
+			partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](roDS)
+			require.NotNil(t, partitioner, "expected readonly-wrapped datastore to be unwrappable as BulkExportPartitioner")
+		},
 		GCWindow(veryLargeGCWindow),
 		RevisionQuantization(0),
 		WithAcquireTimeout(30*time.Second),
@@ -215,7 +218,8 @@ func TestPlanPartitionsOnlyUsesPrimaryIndex(t *testing.T) {
 		var connectStr string
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			connectStr = uri
-			ds, err := NewCRDBDatastore(ctx, uri,
+			ds, err := NewCRDBDatastore(
+				ctx, uri,
 				GCWindow(veryLargeGCWindow),
 				RevisionQuantization(0),
 				WithAcquireTimeout(30*time.Second),
@@ -506,7 +510,8 @@ func TestPlanPartitionsLogic(t *testing.T) {
 		require.Nil(t, partitions[1].UpperBound)
 
 		// Shared boundary.
-		require.Equal(t,
+		require.Equal(
+			t,
 			*dsoptions.ToRelationship(partitions[0].UpperBound),
 			*dsoptions.ToRelationship(partitions[1].LowerBound),
 		)
@@ -526,7 +531,8 @@ func TestPlanPartitionsLogic(t *testing.T) {
 
 		// All adjacent boundaries match.
 		for i := 1; i < len(partitions); i++ {
-			require.Equal(t,
+			require.Equal(
+				t,
 				*dsoptions.ToRelationship(partitions[i-1].UpperBound),
 				*dsoptions.ToRelationship(partitions[i].LowerBound),
 			)
@@ -555,7 +561,8 @@ func TestPlanPartitionsLogic(t *testing.T) {
 		require.Nil(t, partitions[3].UpperBound)
 
 		for i := 1; i < len(partitions); i++ {
-			require.Equal(t,
+			require.Equal(
+				t,
 				*dsoptions.ToRelationship(partitions[i-1].UpperBound),
 				*dsoptions.ToRelationship(partitions[i].LowerBound),
 			)

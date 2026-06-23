@@ -109,10 +109,10 @@ func TestSchemaWatch(t *testing.T) {
 				OutputStream: ww,
 			}
 
-			go (func() {
+			go func() {
 				err = pool.Client.Logs(opts)
 				assert.NoError(t, err)
-			})()
+			}()
 
 			select {
 			case <-ww.c:

@@ -32,7 +32,8 @@ const arrowWildcardSchema = `
 // calls IterResources on the right side to find any intermediate of the
 // matching type that satisfies the target subject.
 func TestArrowIterator_WildcardInversion_Check(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, arrowWildcardSchema,
+	ds, rev, dsSchema := setupTestDB(
+		t, arrowWildcardSchema,
 		// doc1 grants parent via wildcard — any folder matches.
 		"document:doc1#parent@folder:*",
 		// A concrete folder where alice is a viewer.
@@ -52,7 +53,8 @@ func TestArrowIterator_WildcardInversion_Check(t *testing.T) {
 	right := NewDatastoreIterator(viewerRel.BaseRelations()[0])
 	arrow := NewArrowIterator(left, right)
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 		WithTraceLogger(NewTraceLogger()),
 	)
@@ -70,7 +72,8 @@ func TestArrowIterator_WildcardInversion_Check(t *testing.T) {
 // TestArrowIterator_WildcardInversion_Check_NoConcreteMatch verifies the negative
 // case: wildcard on the left, but no concrete intermediate has the target subject.
 func TestArrowIterator_WildcardInversion_Check_NoConcreteMatch(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, arrowWildcardSchema,
+	ds, rev, dsSchema := setupTestDB(
+		t, arrowWildcardSchema,
 		"document:doc1#parent@folder:*",
 		"folder:shared#viewer@user:alice",
 	)
@@ -87,7 +90,8 @@ func TestArrowIterator_WildcardInversion_Check_NoConcreteMatch(t *testing.T) {
 	right := NewDatastoreIterator(viewerRel.BaseRelations()[0])
 	arrow := NewArrowIterator(left, right)
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
@@ -102,7 +106,8 @@ func TestArrowIterator_WildcardInversion_Check_NoConcreteMatch(t *testing.T) {
 // to expand. This mirrors the traditional dispatch path's behavior — wildcard
 // tupleset entries are not followed through arrows during subject enumeration.
 func TestArrowIterator_WildcardSkip_IterSubjects(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, arrowWildcardSchema,
+	ds, rev, dsSchema := setupTestDB(
+		t, arrowWildcardSchema,
 		"document:doc1#parent@folder:*",
 		"document:doc1#parent@folder:concrete",
 		"folder:concrete#viewer@user:alice",
@@ -131,7 +136,8 @@ func TestArrowIterator_WildcardSkip_IterSubjects(t *testing.T) {
 // the right side; a wildcard on the left uses the same IterResources inversion
 // strategy as the regular arrow.
 func TestIntersectionArrowIterator_WildcardInversion_Check(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, arrowWildcardSchema,
+	ds, rev, dsSchema := setupTestDB(
+		t, arrowWildcardSchema,
 		// Only the wildcard parent exists — no concrete parents.
 		"document:doc1#parent@folder:*",
 		"folder:shared#viewer@user:alice",
@@ -149,7 +155,8 @@ func TestIntersectionArrowIterator_WildcardInversion_Check(t *testing.T) {
 	right := NewDatastoreIterator(viewerRel.BaseRelations()[0])
 	iarrow := NewIntersectionArrowIterator(left, right)
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
@@ -161,7 +168,8 @@ func TestIntersectionArrowIterator_WildcardInversion_Check(t *testing.T) {
 // TestIntersectionArrowIterator_WildcardSkip_IterSubjects verifies the
 // parallel skip branch in IntersectionArrowIterator.IterSubjectsImpl.
 func TestIntersectionArrowIterator_WildcardSkip_IterSubjects(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, arrowWildcardSchema,
+	ds, rev, dsSchema := setupTestDB(
+		t, arrowWildcardSchema,
 		"document:doc1#parent@folder:*",
 		"document:doc1#parent@folder:concrete",
 		"folder:concrete#viewer@user:alice",

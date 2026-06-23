@@ -14,7 +14,8 @@ func adjustObjectIDLength(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("extend_object_id", "add_caveat", noNonatomicMigration,
+	mustRegisterMigration(
+		"extend_object_id", "add_caveat", noNonatomicMigration,
 		newStatementBatch(
 			adjustObjectIDLength,
 		).execute,

@@ -819,7 +819,8 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				t.Run(fmt.Sprintf("%s::%v", r.check, r.context), func(t *testing.T) {
 					rel := tuple.MustParse(r.check)
 
-					result, _, err := computed.ComputeCheck(ctx, dispatch,
+					result, _, err := computed.ComputeCheck(
+						ctx, dispatch,
 						caveattypes.Default.TypeSet,
 						computed.CheckParameters{
 							ResourceType:  rel.Resource.RelationReference(),
@@ -864,7 +865,8 @@ func TestComputeCheckError(t *testing.T) {
 	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
 	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
-	_, _, err = computed.ComputeCheck(ctx, dispatch,
+	_, _, err = computed.ComputeCheck(
+		ctx, dispatch,
 		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR("a", "b"),
@@ -913,7 +915,8 @@ func TestComputeBulkCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, _, _, err := computed.ComputeBulkCheck(ctx, dispatch,
+	resp, _, _, err := computed.ComputeBulkCheck(
+		ctx, dispatch,
 		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR("document", "view"),

@@ -228,7 +228,8 @@ func TestPrependMiddleware(t *testing.T) {
 		ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			Name:       "foobar",
 			Middleware: replaceUnary,
-		})
+		},
+	)
 	require.NoError(t, err)
 
 	mod := MiddlewareModification[grpc.UnaryServerInterceptor]{
@@ -359,7 +360,8 @@ func TestMiddlewareOrdering(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ds, err := datastore.NewDatastore(ctx,
+	ds, err := datastore.NewDatastore(
+		ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
 	)
@@ -439,7 +441,8 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ds, err := datastore.NewDatastore(ctx,
+	ds, err := datastore.NewDatastore(
+		ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
 	)

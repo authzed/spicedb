@@ -10,7 +10,8 @@ func TestIteratorTracing(t *testing.T) {
 	// Create a test context with TraceLogger
 	traceLogger := NewTraceLogger()
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithTraceLogger(traceLogger),
 	)
 

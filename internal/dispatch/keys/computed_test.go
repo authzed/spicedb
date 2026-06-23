@@ -691,7 +691,7 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 													generated, usedData := f(resourceIds, subjectIds, resourceRelation, subjectRelation, metadata)
 													usedDataString := fmt.Sprintf("%s:%s", prefix, strings.Join(usedData, ","))
 													if dataCombinationSeen.Add(usedDataString) {
-														require.True(t, stableCacheKeysSeen.Add(hex.EncodeToString((generated.StableSumAsBytes()))))
+														require.True(t, stableCacheKeysSeen.Add(hex.EncodeToString(generated.StableSumAsBytes())))
 													}
 												})
 											}

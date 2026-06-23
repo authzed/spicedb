@@ -374,7 +374,8 @@ func unionWildcardWithWildcard[T Subject[T]](existing *T, adding T, constructor 
 		expression,
 		exisingConcreteExclusions.AsSlice(),
 		*existing,
-		adding)
+		adding,
+	)
 	return &constructed, nil
 }
 
@@ -411,12 +412,14 @@ func unionWildcardWithConcrete[T Subject[T]](existing *T, adding T, constructor 
 				caveatInvert(adding.GetCaveatExpression()),
 			)
 
-			updatedExclusions = append(updatedExclusions, constructor(
-				adding.GetSubjectId(),
-				exclusionConditionalExpression,
-				nil,
-				existingExclusion,
-				adding),
+			updatedExclusions = append(
+				updatedExclusions, constructor(
+					adding.GetSubjectId(),
+					exclusionConditionalExpression,
+					nil,
+					existingExclusion,
+					adding,
+				),
 			)
 		} else {
 			updatedExclusions = append(updatedExclusions, existingExclusion)
@@ -427,7 +430,8 @@ func unionWildcardWithConcrete[T Subject[T]](existing *T, adding T, constructor 
 		tuple.PublicWildcard,
 		existingWildcard.GetCaveatExpression(),
 		updatedExclusions,
-		existingWildcard)
+		existingWildcard,
+	)
 	return &constructed
 }
 
@@ -454,7 +458,8 @@ func unionConcreteWithConcrete[T Subject[T]](existing *T, adding *T, constructor
 			addingConcrete.GetCaveatExpression(),
 		),
 		nil,
-		existingConcrete, addingConcrete)
+		existingConcrete, addingConcrete,
+	)
 	return &constructed
 }
 
@@ -535,7 +540,8 @@ func subtractWildcardFromWildcard[T Subject[T]](existing *T, toRemove T, constru
 			resultingConcreteSubjects = append(resultingConcreteSubjects, constructor(
 				excludedSubject.GetSubjectId(),
 				exclusionConditionalExpression,
-				nil, excludedSubject))
+				nil, excludedSubject,
+			))
 		}
 	}
 
@@ -547,7 +553,8 @@ func subtractWildcardFromWildcard[T Subject[T]](existing *T, toRemove T, constru
 			combinedConditionalExpression,
 			existingWildcard.GetExcludedSubjects(),
 			existingWildcard,
-			toRemove)
+			toRemove,
+		)
 		return &constructed, resultingConcreteSubjects
 	}
 
@@ -583,7 +590,8 @@ func subtractWildcardFromConcrete[T Subject[T]](existingConcrete T, wildcardToRe
 			existingConcrete.GetSubjectId(),
 			caveatAnd(existingConcrete.GetCaveatExpression(), caveatInvert(wildcardToRemove.GetCaveatExpression())),
 			nil,
-			existingConcrete)
+			existingConcrete,
+		)
 		return &constructed
 	}
 
@@ -600,7 +608,8 @@ func subtractWildcardFromConcrete[T Subject[T]](existingConcrete T, wildcardToRe
 		existingConcrete.GetSubjectId(),
 		caveatAnd(existingConcrete.GetCaveatExpression(), exclusionConditional),
 		nil,
-		existingConcrete)
+		existingConcrete,
+	)
 	return &constructed
 }
 
@@ -632,7 +641,8 @@ func subtractConcreteFromConcrete[T Subject[T]](existingConcrete T, toRemove T, 
 		existingConcrete.GetSubjectId(),
 		expression,
 		nil,
-		existingConcrete, toRemove)
+		existingConcrete, toRemove,
+	)
 	return &constructed
 }
 
@@ -656,12 +666,14 @@ func subtractConcreteFromWildcard[T Subject[T]](wildcard T, concreteToRemove T, 
 				concreteToRemove.GetCaveatExpression(),
 			)
 
-			updatedExclusions = append(updatedExclusions, constructor(
-				concreteToRemove.GetSubjectId(),
-				exclusionConditionalExpression,
-				nil,
-				existingExclusion,
-				concreteToRemove),
+			updatedExclusions = append(
+				updatedExclusions, constructor(
+					concreteToRemove.GetSubjectId(),
+					exclusionConditionalExpression,
+					nil,
+					existingExclusion,
+					concreteToRemove,
+				),
 			)
 			wasFound = true
 		} else {
@@ -677,7 +689,8 @@ func subtractConcreteFromWildcard[T Subject[T]](wildcard T, concreteToRemove T, 
 		tuple.PublicWildcard,
 		wildcard.GetCaveatExpression(),
 		updatedExclusions,
-		wildcard)
+		wildcard,
+	)
 	return &constructed
 }
 
@@ -697,7 +710,8 @@ func intersectConcreteWithConcrete[T Subject[T]](first T, second *T, constructor
 		caveatAnd(first.GetCaveatExpression(), secondConcrete.GetCaveatExpression()),
 		nil,
 		first,
-		secondConcrete)
+		secondConcrete,
+	)
 
 	return &constructed
 }
@@ -743,7 +757,8 @@ func intersectWildcardWithWildcard[T Subject[T]](first *T, second *T, constructo
 		caveatAnd(firstWildcard.GetCaveatExpression(), secondWildcard.GetCaveatExpression()),
 		concreteExclusions.AsSlice(),
 		firstWildcard,
-		secondWildcard)
+		secondWildcard,
+	)
 	return &constructed, nil
 }
 
@@ -780,7 +795,8 @@ func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constr
 			caveatAnd(concrete.GetCaveatExpression(), wildcardToIntersect.GetCaveatExpression()),
 			nil,
 			concrete,
-			wildcardToIntersect)
+			wildcardToIntersect,
+		)
 		return &constructed, nil
 
 	case isExcluded && exclusion.GetCaveatExpression() == nil:
@@ -800,11 +816,13 @@ func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constr
 				caveatAnd(
 					wildcardToIntersect.GetCaveatExpression(),
 					caveatInvert(exclusion.GetCaveatExpression()),
-				)),
+				),
+			),
 			nil,
 			concrete,
 			wildcardToIntersect,
-			exclusion)
+			exclusion,
+		)
 		return &constructed, nil
 
 	default:

@@ -91,8 +91,10 @@ func RegisterIPAddressType(ts *TypeSet) (VariableType, error) {
 
 			return d, nil
 		},
-		cel.Function("in_cidr",
-			cel.MemberOverload("ipaddress_in_cidr_string",
+		cel.Function(
+			"in_cidr",
+			cel.MemberOverload(
+				"ipaddress_in_cidr_string",
 				[]*cel.Type{cel.ObjectType("IPAddress"), cel.StringType},
 				cel.BoolType,
 				cel.BinaryBinding(func(lhs, rhs ref.Val) ref.Val {

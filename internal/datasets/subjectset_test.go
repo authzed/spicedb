@@ -197,7 +197,8 @@ func TestSubjectSetAdd(t *testing.T) {
 				// The caveat of the exclusion is now the combination of the caveats from the original
 				// wildcard and the concrete which was added, as the exclusion applies when the exclusion
 				// caveat is true and the concrete's caveat is false.
-				cwc(nil, csub("foo",
+				cwc(nil, csub(
+					"foo",
 					caveatAnd(
 						caveatexpr("testcaveat"),
 						caveatInvert(caveatexpr("anothercaveat")),
@@ -216,7 +217,8 @@ func TestSubjectSetAdd(t *testing.T) {
 				// The caveat of the exclusion is now the combination of the caveats from the original
 				// wildcard and the concrete which was added, as the exclusion applies when the exclusion
 				// caveat is true and the concrete's caveat is false.
-				cwc(caveatexpr("wildcardcaveat"), csub("foo",
+				cwc(caveatexpr("wildcardcaveat"), csub(
+					"foo",
 					caveatAnd(
 						caveatexpr("testcaveat"),
 						caveatInvert(caveatexpr("anothercaveat")),
@@ -521,7 +523,8 @@ func TestSubjectSetSubtract(t *testing.T) {
 				//
 				// thus causing the expression to become `{*} - {* - {foo}}`, and therefore producing
 				// `foo` as a concrete.
-				csub("foo",
+				csub(
+					"foo",
 					caveatAnd(
 						caveatAnd(
 							caveatAnd(
@@ -555,7 +558,8 @@ func TestSubjectSetSubtract(t *testing.T) {
 				// and its own exclusion is true.
 				// Therefore, bar must be *concretely* in the set if:
 				// wildcard1 && wildcard2 && exclusion2
-				csub("bar",
+				csub(
+					"bar",
 					caveatAnd(
 						caveatAnd(
 							caveatexpr("wildcardcaveat1"),
@@ -814,7 +818,8 @@ func TestSubjectSetIntersection(t *testing.T) {
 			[]*v1.FoundSubject{
 				// The concrete is included if its own caveat is true, the wildcard's caveat is true
 				// and the exclusion's caveat is false.
-				csub("1",
+				csub(
+					"1",
 					caveatAnd(
 						caveatexpr("caveat1"),
 						caveatAnd(
@@ -832,7 +837,8 @@ func TestSubjectSetIntersection(t *testing.T) {
 			[]*v1.FoundSubject{wc()},
 
 			[]*v1.FoundSubject{
-				csub("1",
+				csub(
+					"1",
 					caveatexpr("first"),
 				),
 			},
@@ -854,7 +860,8 @@ func TestSubjectSetIntersection(t *testing.T) {
 				// - If first is false and second is true, we get {*} ∩ {*, 1} => {*, 1}
 				// - If both are true, then the subject appears, but that is just a remnant of the join
 				//   on the concrete subject itself (since the set does not simplify expressions)
-				csub("1",
+				csub(
+					"1",
 					caveatOr(
 						caveatOr(
 							caveatAnd(
@@ -869,7 +876,8 @@ func TestSubjectSetIntersection(t *testing.T) {
 			},
 			[]*v1.FoundSubject{
 				wc(),
-				csub("1",
+				csub(
+					"1",
 					caveatOr(
 						caveatOr(
 							caveatAnd(
@@ -891,7 +899,8 @@ func TestSubjectSetIntersection(t *testing.T) {
 				csub("1", caveatexpr("second")),
 			},
 			[]*v1.FoundSubject{
-				csub("1",
+				csub(
+					"1",
 					caveatOr(
 						caveatAnd(
 							caveatexpr("first"),
@@ -905,7 +914,8 @@ func TestSubjectSetIntersection(t *testing.T) {
 				),
 			},
 			[]*v1.FoundSubject{
-				csub("1",
+				csub(
+					"1",
 					caveatOr(
 						caveatAnd(
 							caveatexpr("second"),
@@ -1046,7 +1056,8 @@ func TestMultipleOperations(t *testing.T) {
 				set.Subtract(csub("1", caveatexpr("third")))
 			},
 			[]*v1.FoundSubject{
-				csub("1",
+				csub(
+					"1",
 					caveatAnd(
 						caveatOr(caveatexpr("first"), caveatexpr("second")),
 						caveatInvert(caveatexpr("third")),
@@ -1063,7 +1074,8 @@ func TestMultipleOperations(t *testing.T) {
 				set.MustAdd(csub("1", caveatexpr("fourth")))
 			},
 			[]*v1.FoundSubject{
-				csub("1",
+				csub(
+					"1",
 					caveatOr(
 						caveatAnd(
 							caveatOr(caveatexpr("first"), caveatexpr("second")),
@@ -1247,7 +1259,8 @@ func TestMultipleOperations(t *testing.T) {
 				//
 				//   NOTE: the remaining expressions are cruft generated to cover other cases, but because
 				//   there is no expression simplification, it is not collapsing due to just `!banned`
-				csub("3",
+				csub(
+					"3",
 					caveatOr(
 						caveatOr(
 							caveatAnd(
@@ -1285,7 +1298,8 @@ func TestMultipleOperations(t *testing.T) {
 				//   ({*, 3} - {3[banned]}) ∩ ({3[second]})
 				//   therefore:
 				//		 `3` is included if banned is false and second is true.
-				csub("3",
+				csub(
+					"3",
 					caveatOr(
 						caveatAnd(
 							caveatInvert(caveatexpr("banned")),
@@ -1689,16 +1703,20 @@ func TestUnionWildcardWithWildcard(t *testing.T) {
 
 			// Expected
 			// The subject is excluded if both its caveats are true
-			cwc(nil,
-				csub("1",
+			cwc(
+				nil,
+				csub(
+					"1",
 					caveatAnd(
 						caveatexpr("second"),
 						caveatexpr("first"),
 					),
 				),
 			),
-			cwc(nil,
-				csub("1",
+			cwc(
+				nil,
+				csub(
+					"1",
 					caveatAnd(
 						caveatexpr("first"),
 						caveatexpr("second"),
@@ -1772,7 +1790,8 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 			cwc(nil, csub("2", caveatexpr("first"))),
 		},
 		{
-			cwc(nil,
+			cwc(
+				nil,
 				csub("1", caveatexpr("first")),
 				csub("2", caveatexpr("second")),
 			),
@@ -1782,15 +1801,18 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 			cwc(nil, csub("2", caveatexpr("second"))),
 		},
 		{
-			cwc(nil,
+			cwc(
+				nil,
 				csub("1", caveatexpr("first")),
 				csub("2", caveatexpr("second")),
 			),
 			csub("1", caveatexpr("third")),
 
 			// {* - {1[first], 2[second]}} U {1[third]} => {* - {1[first && !third], 2[second]}}
-			cwc(nil,
-				csub("1",
+			cwc(
+				nil,
+				csub(
+					"1",
 					caveatAnd(
 						caveatexpr("first"),
 						caveatInvert(caveatexpr("third")),
@@ -1807,15 +1829,18 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 			cwc(caveatexpr("first")),
 		},
 		{
-			cwc(caveatexpr("wcaveat"),
+			cwc(
+				caveatexpr("wcaveat"),
 				csub("1", caveatexpr("first")),
 				csub("2", caveatexpr("second")),
 			),
 			csub("1", caveatexpr("third")),
 
 			// {* - {1[first], 2[second]}}[wcaveat] U {1[third]} => {* - {1[first && !third], 2[second]}}[wcaveat]
-			cwc(caveatexpr("wcaveat"),
-				csub("1",
+			cwc(
+				caveatexpr("wcaveat"),
+				csub(
+					"1",
 					caveatAnd(
 						caveatexpr("first"),
 						caveatInvert(caveatexpr("third")),
@@ -1976,7 +2001,8 @@ func TestSubtractWildcardFromWildcard(t *testing.T) {
 			// {* - {1}[first]} - {* - {1}[second]} => {1}[!first && second]
 			nil,
 			[]*v1.FoundSubject{
-				csub("1",
+				csub(
+					"1",
 					caveatAnd(
 						caveatInvert(caveatexpr("first")),
 						caveatexpr("second"),
@@ -2009,7 +2035,8 @@ func TestSubtractWildcardFromWildcard(t *testing.T) {
 				csub("1", caveatexpr("first")),
 			),
 			[]*v1.FoundSubject{
-				csub("1",
+				csub(
+					"1",
 					caveatAnd(
 						caveatAnd(
 							caveatAnd(
@@ -2075,7 +2102,8 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 			cwc(caveatexpr("second")),
 
 			// {1}[first] - {*}[second] => {1[first && !second]}
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("first"),
 					caveatInvert(caveatexpr("second")),
@@ -2087,7 +2115,8 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 			cwc(nil, csub("1", caveatexpr("first"))),
 
 			// {1} - {* - {1[first]}} => {1}[first]
-			csub("1",
+			csub(
+				"1",
 				caveatexpr("first"),
 			),
 		},
@@ -2096,7 +2125,8 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 			cwc(nil, csub("1", caveatexpr("exclusion"))),
 
 			// {1}[previous] - {* - {1[exclusion]}} => {1}[previous && exclusion]
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("previous"),
 					caveatexpr("exclusion"),
@@ -2108,7 +2138,8 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 			cwc(caveatexpr("wcaveat"), csub("1", caveatexpr("exclusion"))),
 
 			// {1}[previous] - {* - {1[exclusion]}}[wcaveat] => {1}[previous && (!wcaveat || exclusion)]]
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("previous"),
 					caveatOr(
@@ -2123,7 +2154,8 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 			cwc(caveatexpr("wcaveat"), csub("2", caveatexpr("exclusion"))),
 
 			// {1}[previous] - {* - {2[exclusion]}}[wcaveat] => {1}[previous && !wcaveat)]]
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("previous"),
 					caveatInvert(caveatexpr("wcaveat")),
@@ -2172,7 +2204,8 @@ func TestSubtractConcreteFromConcrete(t *testing.T) {
 			csub("1", caveatexpr("second")),
 
 			// {1[first]} - {1[second]} => {1[first && !second]}
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("first"),
 					caveatInvert(caveatexpr("second")),
@@ -2244,13 +2277,15 @@ func TestSubtractConcreteFromWildcard(t *testing.T) {
 			// {* - {1[first], 2}}[wcaveat] - {1}[second] => {* - {1[first || second], 2}}[wcaveat]
 			cwc(
 				caveatexpr("wcaveat"),
-				csub("1",
+				csub(
+					"1",
 					caveatOr(
 						caveatexpr("first"),
 						caveatexpr("second"),
 					),
 				),
-				sub("2")),
+				sub("2"),
+			),
 		},
 	}
 
@@ -2301,7 +2336,8 @@ func TestIntersectConcreteWithConcrete(t *testing.T) {
 			csub("1", caveatexpr("second")),
 
 			// {1[first]} ∩ {1[second]} => {1[first && second]}
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("first"),
 					caveatexpr("second"),
@@ -2483,7 +2519,8 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 			cwc(nil, csub("42", caveatexpr("first"))),
 
 			// 42 ∩ {* - 42[first]} => {42}[!first]
-			csub("42",
+			csub(
+				"42",
 				caveatInvert(caveatexpr("first")),
 			),
 		},
@@ -2492,7 +2529,8 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 			cwc(caveatexpr("wcaveat"), csub("1", caveatexpr("first"))),
 
 			// 1 ∩ {* - 1[first]}[wcaveat] => {1}[wcaveat && !first]
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("wcaveat"),
 					caveatInvert(caveatexpr("first")),
@@ -2504,7 +2542,8 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 			cwc(nil, csub("1", caveatexpr("second"))),
 
 			// 1[first] ∩ {* - 1[second]} => {1}[first && !second]
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("first"),
 					caveatInvert(caveatexpr("second")),
@@ -2516,7 +2555,8 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 			cwc(caveatexpr("wcaveat"), csub("1", caveatexpr("second"))),
 
 			// 1[first] ∩ {* - 1[second]}[wcaveat] => {1}[first && !second && wcaveat]
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("first"),
 					caveatAnd(
@@ -2535,7 +2575,8 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 			),
 
 			// 1[first] ∩ {* - {1[second], 2[third]}}[wcaveat] => {1}[first && !second && wcaveat]
-			csub("1",
+			csub(
+				"1",
 				caveatAnd(
 					caveatexpr("first"),
 					caveatAnd(

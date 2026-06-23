@@ -60,7 +60,8 @@ func TestTraverseArrowTargets_Basic(t *testing.T) {
 	require.NoError(t, err)
 
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
+	_, err = WalkSchemaWithOptions(
+		resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
@@ -107,7 +108,8 @@ func TestTraverseArrowTargets_RequiresPostOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
+	_, err = WalkSchemaWithOptions(
+		resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPreOrder). // PreOrder with TraverseArrowTargets should fail
 			WithTraverseArrowTargets(schema).MustBuild(),
@@ -150,7 +152,8 @@ func TestTraverseArrowTargets_MultipleTargets(t *testing.T) {
 	require.NoError(t, err)
 
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
+	_, err = WalkSchemaWithOptions(
+		resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
@@ -195,7 +198,8 @@ func TestTraverseArrowTargets_CycleDetection(t *testing.T) {
 	require.NoError(t, err)
 
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
+	_, err = WalkSchemaWithOptions(
+		resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
@@ -251,7 +255,8 @@ func TestTraverseArrowTargets_NestedArrows(t *testing.T) {
 	require.NoError(t, err)
 
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
+	_, err = WalkSchemaWithOptions(
+		resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
@@ -302,7 +307,8 @@ func TestTraverseArrowTargets_DisabledByDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(resolved.Schema(), visitor, struct{}{},
+	_, err = WalkSchemaWithOptions(
+		resolved.Schema(), visitor, struct{}{},
 		NewWalkOptions().WithStrategy(WalkPostOrder).MustBuild(),
 		// No WithTraverseArrowTargets - should not traverse arrow targets
 	)
@@ -394,7 +400,8 @@ func TestTraverseArrowTargets_RequiresPostOrder_WalkPermission(t *testing.T) {
 	visitor := &arrowTraversalVisitor{}
 
 	// Test that WalkPermissionWithOptions also validates (not just WalkSchemaWithOptions)
-	_, err = WalkPermissionWithOptions(viewPerm, visitor, struct{}{},
+	_, err = WalkPermissionWithOptions(
+		viewPerm, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPreOrder). // PreOrder with TraverseArrowTargets should fail
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
@@ -477,7 +484,8 @@ func TestTraverseArrowTargets_RequiresResolvedSchema(t *testing.T) {
 
 	// DON'T resolve the schema - this should fail
 	visitor := &arrowTraversalVisitor{}
-	_, err = WalkSchemaWithOptions(schema, visitor, struct{}{},
+	_, err = WalkSchemaWithOptions(
+		schema, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(schema).MustBuild(), // Unresolved schema!
@@ -523,7 +531,8 @@ func TestTraverseArrowTargets_IndividualPermissionWalk(t *testing.T) {
 
 	// Walk ONLY the document#view permission (not the entire schema) with TraverseArrowTargets
 	// This tests that visitedTargets map is properly initialized in WalkPermissionWithOptions
-	_, err = WalkPermissionWithOptions(viewPerm, visitor, struct{}{},
+	_, err = WalkPermissionWithOptions(
+		viewPerm, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
@@ -585,7 +594,8 @@ func TestTraverseArrowTargets_IndividualRelationWalk(t *testing.T) {
 
 	// Walk ONLY the document#parent relation with TraverseArrowTargets
 	// This tests that visitedTargets map is properly initialized in WalkRelationWithOptions
-	_, err = WalkRelationWithOptions(parentRel, visitor, struct{}{},
+	_, err = WalkRelationWithOptions(
+		parentRel, visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
@@ -631,7 +641,8 @@ func TestTraverseArrowTargets_DirectOperationWalk(t *testing.T) {
 
 	// Walk ONLY the operation directly (not the permission wrapper) with TraverseArrowTargets
 	// This tests that visitedTargets map is properly initialized in WalkOperationWithOptions
-	_, err = WalkOperationWithOptions(viewPerm.Operation(), visitor, struct{}{},
+	_, err = WalkOperationWithOptions(
+		viewPerm.Operation(), visitor, struct{}{},
 		NewWalkOptions().
 			WithStrategy(WalkPostOrder).
 			WithTraverseArrowTargets(resolved.Schema()).MustBuild(),
