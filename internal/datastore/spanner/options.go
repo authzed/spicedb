@@ -52,14 +52,18 @@ type spannerOptions struct {
 	datastoreMetricsOption       DatastoreMetricsOption
 }
 
-type migrationPhase uint8
-
-const (
-	complete migrationPhase = iota
-)
-
-var migrationPhases = map[string]migrationPhase{
-	"": complete,
+// migrationPhases enumerates the values accepted by the
+// --datastore-migration-phase flag. They mirror the unified schema storage
+// migration phases parsed by datalayer.ParseSchemaMode (the canonical source
+// of these strings). The datastore driver itself takes no action on the phase
+// beyond logging it; the active read/write behavior lives in the data layer.
+// An empty phase is the steady-state (legacy) default.
+var migrationPhases = map[string]struct{}{
+	"":                         {},
+	"read-legacy-write-legacy": {},
+	"read-legacy-write-both":   {},
+	"read-new-write-both":      {},
+	"read-new-write-new":       {},
 }
 
 const (

@@ -85,7 +85,7 @@ func TestServerDefaultOptions(t *testing.T) {
 	require.Equal(t, 4096, cfg.MaxCaveatContextSize)
 	require.Equal(t, 25_000, cfg.MaxRelationshipContextSize)
 	require.Equal(t, time.Second, cfg.SchemaWatchHeartbeat)
-	require.Equal(t, "read-legacy-write-legacy", cfg.ExperimentalSchemaMode)
+	require.Equal(t, "", cfg.DatastoreConfig.MigrationPhase)
 
 	require.Equal(t, uint32(50), cfg.DispatchMaxDepth)
 	require.Equal(t, uint16(50), cfg.GlobalDispatchConcurrencyLimit)
