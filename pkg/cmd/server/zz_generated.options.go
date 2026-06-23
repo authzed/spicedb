@@ -59,7 +59,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.StoredSchemaCacheConfig = c.StoredSchemaCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
-		to.ExperimentalSchemaMode = c.ExperimentalSchemaMode
 		to.DispatchServer = c.DispatchServer
 		to.DispatchMaxDepth = c.DispatchMaxDepth
 		to.GlobalDispatchConcurrencyLimit = c.GlobalDispatchConcurrencyLimit
@@ -219,11 +218,6 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["StoredSchemaCacheConfig"] = c.StoredSchemaCacheConfig
 	}
 	debugMap["SchemaPrefixesRequired"] = c.SchemaPrefixesRequired
-	if c.ExperimentalSchemaMode == "" {
-		debugMap["ExperimentalSchemaMode"] = "(empty)"
-	} else {
-		debugMap["ExperimentalSchemaMode"] = c.ExperimentalSchemaMode
-	}
 	if dm, ok := any(&c.DispatchServer).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -584,13 +578,6 @@ func WithStoredSchemaCacheConfig(storedSchemaCacheConfig CacheConfig) ConfigOpti
 func WithSchemaPrefixesRequired(schemaPrefixesRequired bool) ConfigOption {
 	return func(c *Config) {
 		c.SchemaPrefixesRequired = schemaPrefixesRequired
-	}
-}
-
-// WithExperimentalSchemaMode returns an option that can set ExperimentalSchemaMode on a Config
-func WithExperimentalSchemaMode(experimentalSchemaMode string) ConfigOption {
-	return func(c *Config) {
-		c.ExperimentalSchemaMode = experimentalSchemaMode
 	}
 }
 
