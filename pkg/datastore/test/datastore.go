@@ -170,6 +170,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestMultipleReadsInRWT", runner(tester, MultipleReadsInRWTTest))
 	if !except.ConcurrentWrite() {
 		t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
+		t.Run("TestConcurrentWriteDeadlock", runner(tester, ConcurrentWriteDeadlockTest))
 	}
 
 	t.Run("TestOrdering", runner(tester, OrderingTest))

@@ -392,6 +392,10 @@ func (mds *mysqlDatastore) ReadWriteTx(
 			return fn(ctx, rwt)
 		}); err != nil {
 			if !config.DisableRetries && isErrorRetryable(err) {
+				// Don't back off after the final attempt; we're about to give up.
+				if i < mds.maxRetries {
+					common.SleepOnErr(ctx, err, i)
+				}
 				continue
 			}
 

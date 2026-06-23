@@ -14,7 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
-	"github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/common"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -190,7 +191,7 @@ func (p *RetryPool) MinConns() uint32 {
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return common.QuerierFuncsFor(conn.Conn()).ExecFunc(ctx, tagFunc, sql, arguments...)
+		return pgxcommon.QuerierFuncsFor(conn.Conn()).ExecFunc(ctx, tagFunc, sql, arguments...)
 	})
 }
 
@@ -198,7 +199,7 @@ func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Conte
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return common.QuerierFuncsFor(conn.Conn()).QueryFunc(ctx, rowsFunc, sql, optionsAndArgs...)
+		return pgxcommon.QuerierFuncsFor(conn.Conn()).QueryFunc(ctx, rowsFunc, sql, optionsAndArgs...)
 	})
 }
 
@@ -206,7 +207,7 @@ func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Con
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return common.QuerierFuncsFor(conn.Conn()).QueryRowFunc(ctx, rowFunc, sql, optionsAndArgs...)
+		return pgxcommon.QuerierFuncsFor(conn.Conn()).QueryRowFunc(ctx, rowFunc, sql, optionsAndArgs...)
 	})
 }
 
