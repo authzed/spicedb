@@ -92,8 +92,7 @@ type Config struct {
 	StoredSchemaCacheConfig CacheConfig `debugmap:"visible"`
 
 	// Schema options
-	SchemaPrefixesRequired bool   `debugmap:"visible"`
-	ExperimentalSchemaMode string `debugmap:"visible" default:"read-legacy-write-legacy"`
+	SchemaPrefixesRequired bool `debugmap:"visible"`
 
 	// Dispatch options
 	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
@@ -263,12 +262,14 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	log.Ctx(ctx).Info().EmbedObject(storedSchemaCache).Msg("configured stored schema cache")
 	closeables.AddWithoutError(storedSchemaCache.Close)
 
-	// Parse schema mode early so proxy setup can depend on it.
+	// Parse schema mode early so proxy setup can depend on it. The phase of the
+	// unified-schema migration is driven by the standard --datastore-migration-phase
+	// flag; an empty phase keeps the backward-compatible legacy read/write behavior.
 	var dlOpts []datalayer.DataLayerOption
 	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
 	schemaMode := datalayer.SchemaModeReadLegacyWriteLegacy
-	if c.ExperimentalSchemaMode != "" {
-		schemaMode, err = datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
+	if c.DatastoreConfig.MigrationPhase != "" {
+		schemaMode, err = datalayer.ParseSchemaMode(c.DatastoreConfig.MigrationPhase)
 		if err != nil {
 			return nil, err
 		}

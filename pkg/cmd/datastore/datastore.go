@@ -356,7 +356,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 	flagSet.StringVar(&opts.SpannerDatastoreMetricsOption, flagName("datastore-spanner-metrics"), "otel", `configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel")`)
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
-	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
+	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in. For the unified schema storage migration, the supported phases are: read-legacy-write-legacy (default), read-legacy-write-both, read-new-write-both, read-new-write-new")
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
 	flagSet.StringVar(&opts.WatchChangeBufferMaximumSize, flagName("datastore-watch-change-buffer-maximum-size"), "15%", "how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted.")

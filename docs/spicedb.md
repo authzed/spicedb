@@ -97,7 +97,7 @@ spicedb datastore gc [flags]
       --datastore-gc-window duration                                          amount of time before revisions are garbage collected (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
-      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in. For the unified schema storage migration, the supported phases are: read-legacy-write-legacy (default), read-legacy-write-both, read-new-write-both, read-new-write-new
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -242,7 +242,7 @@ spicedb datastore repair [flags]
       --datastore-gc-window duration                                          amount of time before revisions are garbage collected (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
-      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in. For the unified schema storage migration, the supported phases are: read-legacy-write-legacy (default), read-legacy-write-both, read-new-write-both, read-new-write-new
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -420,7 +420,7 @@ spicedb serve [flags]
       --datastore-gc-window duration                                                    amount of time before revisions are garbage collected (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                                    include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried (default 10)
-      --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in. For the unified schema storage migration, the supported phases are: read-legacy-write-legacy (default), read-legacy-write-both, read-new-write-both, read-new-write-new
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration             amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -482,7 +482,6 @@ spicedb serve [flags]
       --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request (default [])
       --experimental-lookup-resources-version lr3                                       if non-empty, the version of the experimental lookup resources API to use: lr3 or empty
       --experimental-query-plan check                                                   comma-separated list of operations to route through the experimental query plan engine; valid values are check, `lr` (LookupResources), and `ls` (LookupSubjects)
-      --experimental-schema-mode string                                                 schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new (default "read-legacy-write-legacy")
       --grpc-addr string                                                                address to listen on to serve gRPC (default ":50051")
       --grpc-enabled                                                                    enable gRPC gRPC server (default true)
       --grpc-log-requests-enabled                                                       enable logging of API request payloads
