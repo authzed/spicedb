@@ -4,12 +4,11 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	dockercontainer "github.com/moby/moby/api/types/container"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -24,22 +23,21 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func TestServe(t *testing.T) {
 	requireParent := require.New(t)
 
 	// TODO:
-	tester, err := newTester(t,
-		testcontainers.ContainerRequest{
-			Image:        "authzed/spicedb:ci",
-			Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", "firstkey", "--grpc-preshared-key", "secondkey"},
-			ExposedPorts: []string{"50051/tcp"},
-		},
-		"firstkey",
-		false,
-	)
+	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
+	sdbtestcontainer.WithBootstrapSchema(defaultSchema),
+	testcontainers.WithEnv(map[string]string{
+		"SPICEDB_GRPC_PRESHARED_KEY": "firstkey,secondkey",
+	}),
+)
 	requireParent.NoError(err)
+	testcontainers.CleanupContainer(t, container)
 
 	for key, expectedWorks := range map[string]bool{
 		"":           false,
@@ -55,20 +53,19 @@ func TestServe(t *testing.T) {
 			if key != "" {
 				opts = append(opts, grpcutil.WithInsecureBearerToken(key))
 			}
-			conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.port), opts...)
+			conn, err := grpc.NewClient(container.GRPCEndpoint(), opts...)
 
 			require.NoError(err)
 			t.Cleanup(func() {
 				_ = conn.Close()
 			})
 
-			require.Eventually(func() bool {
+			require.EventuallyWithT(func(collect *assert.CollectT) {
 				resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-				if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-					return false
+				if !assert.NoError(collect, err) {
+					return
 				}
-
-				return true
+				assert.Equal(collect, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 			}, 5*time.Second, 1*time.Millisecond, "was unable to connect to running service")
 
 			client := v1.NewSchemaServiceClient(conn)
@@ -123,24 +120,9 @@ func TestGracefulShutdownInMemory(t *testing.T) {
 		Started: true,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = container.Terminate(ctx)
-	})
+	testcontainers.CleanupContainer(t, container)
 
 	require.True(t, gracefulShutdown(ctx, container))
-}
-
-// hostInternalize rewrites localhost references so a SpiceDB container can
-// reach a datastore listening on a host-mapped port via host.docker.internal
-// (paired with withHostGateway).
-func hostInternalize(uri string) string {
-	return strings.ReplaceAll(uri, "localhost", "host.docker.internal")
-}
-
-// withHostGateway maps host.docker.internal to the host gateway. Docker Desktop
-// resolves it automatically, but Linux (e.g. CI runners) does not without this.
-func withHostGateway(hc *dockercontainer.HostConfig) {
-	hc.ExtraHosts = append(hc.ExtraHosts, "host.docker.internal:host-gateway")
 }
 
 // logWaiter is a testcontainers LogConsumer that signals on its channel the
@@ -177,31 +159,29 @@ func TestGracefulShutdown(t *testing.T) {
 			// TODO: supply a network?
 			engine := testdatastore.RunDatastoreEngine(t, driverName)
 
+			// TODO: figure out what's going on here
 			envVars := map[string]string{}
 			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
 				for _, env := range wev.ExternalEnvVars() {
-					parts := strings.SplitN(hostInternalize(env), "=", 2)
+					parts := strings.SplitN(env, "=", 2)
 					if len(parts) == 2 {
 						envVars[parts[0]] = parts[1]
 					}
 				}
 			}
 
-			// The datastore listens on a host-mapped port, so the SpiceDB
-			// container must reach it via host.docker.internal.
-			db := hostInternalize(engine.NewDatabase(t))
+			db := engine.NewDatabase(t)
 
 			// Run the migrate command and wait for it to complete.
-			migrateContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-				ContainerRequest: testcontainers.ContainerRequest{
-					Image:              "authzed/spicedb:ci",
-					Cmd:                []string{"migrate", "head", "--datastore-engine", driverName, "--datastore-conn-uri", db},
-					Env:                envVars,
-					HostConfigModifier: withHostGateway,
-					WaitingFor:         wait.ForExit().WithExitTimeout(time.Minute),
-				},
-				Started: true,
-			})
+			// TODO: figure out what the CI tag is
+			migrateContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+			testcontainers.WithCmd("migrate", "head"),
+			testcontainers.WithEnv(map[string]string{
+				"SPICEDB_DATASTORE_ENGINE": driverName,
+				"SPICEDB_DATASTORE_CONN_URI": db,
+			}),
+			testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
+			)
 			require.NoError(t, err)
 			testcontainers.CleanupContainer(t, migrateContainer)
 
@@ -216,7 +196,6 @@ func TestGracefulShutdown(t *testing.T) {
 				Image:              "authzed/spicedb:ci",
 				Cmd:                []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", ""},
 				Env:                envVars,
-				HostConfigModifier: withHostGateway,
 			}
 			if awaitGC {
 				// Consume logs so we can ensure GC has run before starting a graceful shutdown.

@@ -5,7 +5,7 @@ import "github.com/testcontainers/testcontainers-go"
 // options holds the SpiceDB-specific configuration assembled from the
 // package's functional options before the container is started.
 type options struct {
-	presharedKey           string
+	presharedKeys           []string
 	httpEnabled            bool
 	datastoreEngine        string
 	datastoreConnURI       string
@@ -42,10 +42,10 @@ func filterOpts(opts []testcontainers.ContainerCustomizer) []testcontainers.Cont
 	return filtered
 }
 
-// WithPresharedKey overrides the gRPC preshared key. By default Run generates a
+// WithPresharedKeys overrides the gRPC preshared key. By default Run generates a
 // random key, retrievable via Container.PresharedKey.
-func WithPresharedKey(key string) testcontainers.ContainerCustomizer {
-	return optionFunc(func(o *options) { o.presharedKey = key })
+func WithPresharedKeys(keys ...string) testcontainers.ContainerCustomizer {
+	return optionFunc(func(o *options) { o.presharedKeys = keys })
 }
 
 // WithHTTP enables the SpiceDB HTTP gateway. The HTTP port is exposed and
@@ -55,7 +55,7 @@ func WithHTTP() testcontainers.ContainerCustomizer {
 }
 
 // WithDatastore overrides the datastore engine and connection URI. By default
-// SpiceDB runs with the in-memory datastore and no connection URI is passed.
+// SpiceDB runswith the in-memory datastore and no connection URI is passed.
 func WithDatastore(engine, connURI string) testcontainers.ContainerCustomizer {
 	return optionFunc(func(o *options) {
 		o.datastoreEngine = engine

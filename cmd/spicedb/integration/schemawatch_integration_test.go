@@ -3,13 +3,11 @@
 package integration_test
 
 import (
-	"context"
-	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
@@ -17,6 +15,7 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func TestSchemaWatch(t *testing.T) {
@@ -34,11 +33,10 @@ func TestSchemaWatch(t *testing.T) {
 		}
 
 		t.Run(driverName, func(t *testing.T) {
-			ctx := context.Background()
-			bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
+			ctx := t.Context()
 
-			// Create a bridge network for testing.
-			net, err := network.New(ctx, network.WithDriver("bridge"), network.WithLabels(map[string]string{"name": bridgeNetworkName}))
+			// Create an internal network
+			net, err := network.New(ctx)
 			testcontainers.CleanupNetwork(t, net)
 			require.NoError(t, err)
 
@@ -47,7 +45,7 @@ func TestSchemaWatch(t *testing.T) {
 			envVars := map[string]string{}
 			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
 				for _, env := range wev.ExternalEnvVars() {
-					parts := strings.SplitN(hostInternalize(env), "=", 2)
+					parts := strings.SplitN(env, "=", 2)
 					if len(parts) == 2 {
 						envVars[parts[0]] = parts[1]
 					}
@@ -56,24 +54,20 @@ func TestSchemaWatch(t *testing.T) {
 
 			// The datastore listens on a host-mapped port, so the SpiceDB
 			// container must reach it via host.docker.internal.
-			db := hostInternalize(engine.NewDatabase(t))
+			db := engine.NewDatabase(t)
+
+			envVars["SPICEDB_DATASTORE_ENGINE"] = driverName
+			envVars["SPICEDB_DATASTORE_CONN_URI"] = db
 
 			// Run the migrate command and wait for it to complete.
-			migrateContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-				ContainerRequest: testcontainers.ContainerRequest{
-					Image:              "authzed/spicedb:ci",
-					Cmd:                []string{"migrate", "head", "--datastore-engine", driverName, "--datastore-conn-uri", db},
-					Networks:           []string{bridgeNetworkName},
-					Env:                envVars,
-					HostConfigModifier: withHostGateway,
-					WaitingFor:         wait.ForExit().WithExitTimeout(time.Minute),
-				},
-				Started: true,
-			})
+			migrateContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+			network.WithNetwork([]string{"migrate"}, net),
+			testcontainers.WithCmd("migrate", "head"),
+			testcontainers.WithEnv(envVars),
+			testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
+		)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = migrateContainer.Terminate(ctx)
-			})
+			testcontainers.CleanupContainer(t, migrateContainer)
 
 			// Ensure the command completed successfully.
 			exitCode, err := migrateContainer.State(ctx)
@@ -81,22 +75,23 @@ func TestSchemaWatch(t *testing.T) {
 			require.Equal(t, 0, exitCode.ExitCode)
 			t.Log("finished migrating")
 
+			var spicedbEnvVars map[string]string
+			maps.Copy(spicedbEnvVars, envVars)
+
+			spicedbEnvVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"
+			spicedbEnvVars["SPICEDB_LOG_LEVEL"] = "trace"
+			spicedbEnvVars["SPICEDB_ENABLE_EXPERIMENTAL_WATCHABLE_SCHEMA_CACHE"] = "true"
+
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
 			// Consume logs so we can ensure schema watch has started before graceful shutdown.
 			ww := &logWaiter{c: make(chan bool, 1), expectedString: "starting watching cache"}
-			serveContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-				ContainerRequest: testcontainers.ContainerRequest{
-					Image:    "authzed/spicedb:ci",
-					Cmd:      []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", "", "--log-level", "trace", "--enable-experimental-watchable-schema-cache"},
-					Networks: []string{bridgeNetworkName},
-					Env:      envVars,
-					LogConsumerCfg: &testcontainers.LogConsumerConfig{
-						Consumers: []testcontainers.LogConsumer{ww},
-					},
-					HostConfigModifier: withHostGateway,
-				},
-				Started: true,
-			})
+			serveContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+			network.WithNetwork([]string{"spicedb"}, net),
+			testcontainers.WithLogConsumerConfig(&testcontainers.LogConsumerConfig{
+				Consumers: []testcontainers.LogConsumer{ww},
+			}),
+			testcontainers.WithEnv(spicedbEnvVars),
+		)
 			testcontainers.CleanupContainer(t, serveContainer)
 			require.NoError(t, err)
 
