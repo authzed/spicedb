@@ -51,11 +51,24 @@ func RunSingleCaveatExpression(
 	return runner.RunCaveatExpression(ctx, expr, context, reader, debugOption)
 }
 
+// cachedSchemaProvider is satisfied (structurally) by SchemaReaders backed by a unified
+// stored schema. It exposes the shared, per-schema-version stored schema, which hosts
+// schema-derived caches such as the compiled-caveat cache.
+type cachedSchemaProvider interface {
+	StoredSchema() *datastore.ReadOnlyStoredSchema
+}
+
 // CaveatRunner is a helper for running caveats, providing a cache for deserialized caveats.
 type CaveatRunner struct {
 	caveatTypeSet       *caveattypes.TypeSet
 	caveatDefs          map[string]*core.CaveatDefinition
 	deserializedCaveats map[string]*caveats.CompiledCaveat
+
+	// schemaCache, when non-nil, is a compiled-caveat cache tied to the stored schema
+	// (and thus shared across checks and invalidated on schema change). It is discovered
+	// from the reader on first use. When nil, deserializedCaveats provides per-runner
+	// caching only (the legacy behavior).
+	schemaCache *CompiledCaveatCache
 }
 
 // NewCaveatRunner creates a new CaveatRunner.
@@ -90,6 +103,21 @@ func (cr *CaveatRunner) RunCaveatExpression(
 func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader CaveatDefinitionLookup) error {
 	ctx, span := tracer.Start(ctx, "PopulateCaveatDefinitions")
 	defer span.End()
+
+	// If the reader is backed by a unified stored schema, use the compiled-caveat cache
+	// tied to that schema version so deserialization (which rebuilds the CEL environment)
+	// is paid once per schema rather than once per check.
+	if cr.schemaCache == nil {
+		if provider, ok := reader.(cachedSchemaProvider); ok {
+			if stored := provider.StoredSchema(); stored != nil {
+				schemaCache, err := CompiledCaveatCacheFor(stored)
+				if err != nil {
+					return err
+				}
+				cr.schemaCache = schemaCache
+			}
+		}
+	}
 
 	// Collect all referenced caveat definitions in the expression.
 	caveatNames := mapz.NewSet[string]()
@@ -138,12 +166,23 @@ func (cr *CaveatRunner) get(caveatDefName string) (*core.CaveatDefinition, *cave
 		return caveat, deserialized, nil
 	}
 
-	parameterTypes, err := caveattypes.DecodeParameterTypes(cr.caveatTypeSet, caveat.ParameterTypes)
-	if err != nil {
-		return nil, nil, err
+	compile := func() (*caveats.CompiledCaveat, error) {
+		parameterTypes, err := caveattypes.DecodeParameterTypes(cr.caveatTypeSet, caveat.ParameterTypes)
+		if err != nil {
+			return nil, err
+		}
+		return caveats.DeserializeCaveatWithTypeSet(cr.caveatTypeSet, caveat.SerializedExpression, parameterTypes)
 	}
 
-	justDeserialized, err := caveats.DeserializeCaveatWithTypeSet(cr.caveatTypeSet, caveat.SerializedExpression, parameterTypes)
+	// Prefer the schema-tied cache (shared across checks) when available; fall back to
+	// per-runner compilation otherwise.
+	var justDeserialized *caveats.CompiledCaveat
+	var err error
+	if cr.schemaCache != nil {
+		justDeserialized, err = cr.schemaCache.GetOrCompile(caveatDefName, compile)
+	} else {
+		justDeserialized, err = compile()
+	}
 	if err != nil {
 		return caveat, nil, err
 	}
