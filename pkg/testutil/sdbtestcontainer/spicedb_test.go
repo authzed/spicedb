@@ -1,12 +1,12 @@
 package sdbtestcontainer_test
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -28,22 +28,18 @@ definition resource {
 `
 
 func TestRun(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ctr, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := ctr.Terminate(ctx); err != nil {
-			t.Logf("Terminate: %v", err)
-		}
-	})
+	testcontainers.CleanupContainer(t, ctr)
 
-	require.NotEmpty(t, ctr.Endpoint())
+	require.NotEmpty(t, ctr.GRPCEndpoint())
 	require.NotEmpty(t, ctr.PresharedKey())
 
 	// HTTP is not enabled by default.
-	_, err = ctr.HTTPEndpoint()
-	require.Error(t, err)
+	httpEndpoint := ctr.HTTPEndpoint()
+	require.Empty(t, httpEndpoint)
 
 	conn := dial(t, ctr)
 	_, err = v1.NewSchemaServiceClient(conn).WriteSchema(ctx, &v1.WriteSchemaRequest{Schema: testSchema})
@@ -51,18 +47,14 @@ func TestRun(t *testing.T) {
 }
 
 func TestRunRejectsWrongKey(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ctr, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := ctr.Terminate(ctx); err != nil {
-			t.Logf("Terminate: %v", err)
-		}
-	})
+	testcontainers.CleanupContainer(t, ctr)
 
 	conn, err := grpc.NewClient(
-		ctr.Endpoint(),
+		ctr.GRPCEndpoint(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken("not-the-key"),
 	)
@@ -74,7 +66,7 @@ func TestRunRejectsWrongKey(t *testing.T) {
 }
 
 func TestRunWithHTTP(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ctr, err := sdbtestcontainer.Run(ctx,
 		sdbtestcontainer.DefaultImageReference,
@@ -82,13 +74,9 @@ func TestRunWithHTTP(t *testing.T) {
 		sdbtestcontainer.WithBootstrapSchema(testSchema),
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := ctr.Terminate(ctx); err != nil {
-			t.Logf("Terminate: %v", err)
-		}
-	})
+	testcontainers.CleanupContainer(t, ctr)
 
-	httpEndpoint, err := ctr.HTTPEndpoint()
+	httpEndpoint := ctr.HTTPEndpoint()
 	require.NoError(t, err)
 	require.NotEmpty(t, httpEndpoint)
 
@@ -107,7 +95,7 @@ func TestRunWithHTTP(t *testing.T) {
 }
 
 func TestRunWithBootstrap(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ctr, err := sdbtestcontainer.Run(ctx,
 		sdbtestcontainer.DefaultImageReference,
@@ -115,11 +103,7 @@ func TestRunWithBootstrap(t *testing.T) {
 		sdbtestcontainer.WithBootstrapRelationships("resource:someresource#reader@user:somegal"),
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := ctr.Terminate(ctx); err != nil {
-			t.Logf("Terminate: %v", err)
-		}
-	})
+	testcontainers.CleanupContainer(t, ctr)
 
 	conn := dial(t, ctr)
 	resp, err := v1.NewPermissionsServiceClient(conn).CheckPermission(ctx, &v1.CheckPermissionRequest{
@@ -135,7 +119,7 @@ func TestRunWithBootstrap(t *testing.T) {
 func dial(t *testing.T, ctr *sdbtestcontainer.Container) *grpc.ClientConn {
 	t.Helper()
 	conn, err := grpc.NewClient(
-		ctr.Endpoint(),
+		ctr.GRPCEndpoint(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken(ctr.PresharedKey()),
 	)

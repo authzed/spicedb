@@ -5,15 +5,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
-	"time"
 
 	crdbversion "github.com/authzed/spicedb/internal/datastore/crdb/version"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
-
-const dockerBootTimeout = 10 * time.Second
 
 // configFilePath returns the absolute path to a file in the config directory
 // alongside this package's source. Container helpers must use this rather than

@@ -5,6 +5,7 @@ package integration_test
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -26,32 +27,66 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+const (
+	readOnlyHTTPPort = "8444"
+	readOnlyGRPCPort = "50052"
+	defaultSchema = `
+definition user {}
+
+definition resource {
+	relation reader: user
+	relation writer: user
+
+	permission view = reader + writer
+}
+`
+)
+
+var defaultSchemaOption = sdbtestcontainer.WithBootstrapSchema(defaultSchema)
+
 func TestTestServer(t *testing.T) {
 	require := require.New(t)
-	container, err := newTester(t, false)
+	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
+	defaultSchemaOption,
+	testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
+	testcontainers.WithCmd("serve-testing"),
+)
 	require.NoError(err)
+	testcontainers.CleanupContainer(t, container)
 
-	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(container.PresharedKey())}
-	conn, err := grpc.NewClient(container.Endpoint(), options...)
+	options := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpcutil.WithInsecureBearerToken(container.PresharedKey()),
+	}
+	conn, err := grpc.NewClient(container.GRPCEndpoint(), options...)
 	require.NoError(err)
-	defer conn.Close()
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
 
-	roConn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.readonlyPort), options...)
+	containerHost, err := container.Host(t.Context())
+	readOnlyGRPCEndpoint := net.JoinHostPort(containerHost, readOnlyGRPCPort)
 	require.NoError(err)
-	defer roConn.Close()
+	roConn, err := grpc.NewClient(readOnlyGRPCEndpoint, options...)
+	require.NoError(err)
+	t.Cleanup(func() {
+		_ = roConn.Close()
+	})
 
-	require.Eventually(func() bool {
+	require.EventuallyWithT(func(collect *assert.CollectT) {
 		resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-			return false
+		if !assert.NoError(collect, err) {
+			return
+		}
+		if !assert.Equal(collect, healthpb.HealthCheckResponse_SERVING, resp.GetStatus()) {
+			return
 		}
 
 		resp, err = healthpb.NewHealthClient(roConn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-			return false
+		if !assert.NoError(collect, err) {
+			return
 		}
-
-		return true
+		assert.Equal(collect, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 	}, 5*time.Second, 5*time.Millisecond, "was unable to connect to running service(s)")
 
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -103,7 +138,7 @@ func TestTestServer(t *testing.T) {
 	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
 	// Try a call with a different auth header and ensure it fails.
-	authedConn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.readonlyPort),
+	authedConn, err := grpc.NewClient(readOnlyGRPCEndpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken("someothertoken"))
 	require.NoError(err)
@@ -126,7 +161,7 @@ func TestTestServer(t *testing.T) {
 	require.Equal(codes.FailedPrecondition, s.Code())
 
 	// Make an HTTP call and ensure it succeeds.
-	httpEndpoint, err := container.HTTPEndpoint()
+	httpEndpoint := container.HTTPEndpoint()
 	require.NoError(err)
 	readURL := fmt.Sprintf("http://%s/v1/schema/read", httpEndpoint)
 	req, err := http.NewRequest("POST", readURL, nil)
@@ -147,7 +182,8 @@ func TestTestServer(t *testing.T) {
 	require.Contains(string(body), "definition resource")
 
 	// Attempt to write to the read only HTTP and ensure it fails.
-	writeUrl := fmt.Sprintf("http://localhost:%s/v1/schema/write", tester.readonlyHTTPPort)
+	readOnlyHTTPEndpoint := net.JoinHostPort(containerHost, readOnlyHTTPPort)
+	writeUrl := fmt.Sprintf("http://%s/v1/schema/write", readOnlyHTTPEndpoint)
 	wresp, err := http.Post(writeUrl, "application/json", strings.NewReader(`{
 		"schemaText": "definition user {}\ndefinition resource {\nrelation reader: user\nrelation writer: user\nrelation foobar: user\n}"
 	}`))
@@ -158,56 +194,3 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	require.Contains(string(body), "SERVICE_READ_ONLY")
 }
-
-const defaultSchema = `
-definition user {}
-
-definition resource {
-	relation reader: user
-	relation writer: user
-
-	permission view = reader + writer
-}
-`
-
-// newTester spins up a SpiceDB server running against a specific datastore with a specific access token.
-// It also writes or reads a schema.
-// On test termination it cleans up all resources.
-func newTester(t *testing.T, withExistingSchema bool, opts... testcontainers.ContainerCustomizer) (*sdbtestcontainer.Container, error) {
-	testContainerOptions := make([]testcontainers.ContainerCustomizer, 0, 1)
-	if !withExistingSchema {
-		testContainerOptions = append(testContainerOptions, sdbtestcontainer.WithBootstrapSchema(defaultSchema))
-	}
-		container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference, testContainerOptions...)
-		if err != nil {
-			return nil, fmt.Errorf("could not start resource: %w", err)
-		}
-
-		t.Cleanup(func() {
-			_ = container.Terminate(t.Context())
-		})
-
-			conn, err := grpc.NewClient(
-				container.Endpoint(),
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpcutil.WithInsecureBearerToken(container.PresharedKey()),
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			t.Cleanup(func() {
-				_ = conn.Close()
-			})
-
-			client := v1.NewSchemaServiceClient(conn)
-
-			if withExistingSchema {
-				_, err = client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			return container, nil
-		}

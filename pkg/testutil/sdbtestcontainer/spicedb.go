@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -39,30 +40,27 @@ const (
 // Container is a running SpiceDB server. Call Terminate to stop it.
 type Container struct {
 	testcontainers.Container
-	presharedKey string
+	presharedKeys []string
 	grpcEndpoint string
 	httpEndpoint string
 	httpEnabled  bool
 }
 
-// PresharedKey returns the gRPC preshared key the server was started with.
+// PresharedKey returns the first gRPC preshared key the server was started with.
 // Use it as a bearer token when authenticating API calls.
 func (c *Container) PresharedKey() string {
-	return c.presharedKey
+	return c.presharedKeys[0]
 }
 
 // Endpoint returns the gRPC endpoint as "host:port", reachable from the host.
-func (c *Container) Endpoint() string {
+func (c *Container) GRPCEndpoint() string {
 	return c.grpcEndpoint
 }
 
 // HTTPEndpoint returns the HTTP gateway endpoint as "host:port", reachable from
-// the host. It returns an error if the HTTP gateway was not enabled via WithHTTP.
-func (c *Container) HTTPEndpoint() (string, error) {
-	if !c.httpEnabled {
-		return "", errors.New("http gateway is not enabled; pass WithHTTP() to Run")
-	}
-	return c.httpEndpoint, nil
+// the host. It returns an empty string if the HTTP gateway was not enabled via WithHTTP.
+func (c *Container) HTTPEndpoint() (string) {
+	return c.httpEndpoint
 }
 
 // Run starts a SpiceDB server and waits for it to accept connections.
@@ -83,12 +81,12 @@ func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustom
 		}
 	}
 
-	if cfg.presharedKey == "" {
+	if cfg.presharedKeys == nil {
 		key, err := randomKey()
 		if err != nil {
 			return nil, fmt.Errorf("generate preshared key: %w", err)
 		}
-		cfg.presharedKey = key
+		cfg.presharedKeys = []string{key}
 	}
 
 	exposed := []string{grpcPort}
@@ -129,7 +127,7 @@ func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustom
 
 	c := &Container{
 		Container:    ctr,
-		presharedKey: cfg.presharedKey,
+		presharedKeys: cfg.presharedKeys,
 		httpEnabled:  cfg.httpEnabled,
 	}
 
@@ -167,7 +165,7 @@ func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustom
 // SPICEDB_GRPC_PRESHARED_KEY).
 func buildEnv(cfg *options) map[string]string {
 	env := map[string]string{
-		"SPICEDB_GRPC_PRESHARED_KEY": cfg.presharedKey,
+		"SPICEDB_GRPC_PRESHARED_KEY": strings.Join(cfg.presharedKeys, ","),
 		"SPICEDB_DATASTORE_ENGINE":   cfg.datastoreEngine,
 		"SPICEDB_LOG_LEVEL":          cfg.logLevel,
 		// Avoid phoning home from tests.
@@ -191,7 +189,7 @@ func (c *Container) bootstrap(ctx context.Context, cfg *options) error {
 	conn, err := grpc.NewClient(
 		c.grpcEndpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpcutil.WithInsecureBearerToken(c.presharedKey),
+		grpcutil.WithInsecureBearerToken(c.presharedKeys[0]),
 	)
 	if err != nil {
 		return fmt.Errorf("dial for bootstrap: %w", err)
