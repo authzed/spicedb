@@ -10,7 +10,6 @@ type options struct {
 	datastoreEngine        string
 	datastoreConnURI       string
 	logLevel               string
-	extraArgs              []string
 	bootstrapSchema        string
 	bootstrapRelationships []string
 }
@@ -67,12 +66,6 @@ func WithDatastore(engine, connURI string) testcontainers.ContainerCustomizer {
 // WithLogLevel sets the SpiceDB --log-level flag (e.g. "debug", "info", "warn").
 func WithLogLevel(level string) testcontainers.ContainerCustomizer {
 	return optionFunc(func(o *options) { o.logLevel = level })
-}
-
-// WithExtraArgs appends arbitrary arguments to the `serve` command. Use as an
-// escape hatch for flags this module does not model directly.
-func WithExtraArgs(args ...string) testcontainers.ContainerCustomizer {
-	return optionFunc(func(o *options) { o.extraArgs = append(o.extraArgs, args...) })
 }
 
 // WithBootstrapSchema writes the given schema to the server once it is ready,

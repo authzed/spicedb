@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,8 +31,8 @@ func TestTestServer(t *testing.T) {
 	container, err := newTester(t, false)
 	require.NoError(err)
 
-	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(key)}
-	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.port), options...)
+	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(container.PresharedKey())}
+	conn, err := grpc.NewClient(container.Endpoint(), options...)
 	require.NoError(err)
 	defer conn.Close()
 
@@ -153,7 +154,7 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	require.Equal(503, wresp.StatusCode)
 
-	body, err = ioutil.ReadAll(wresp.Body)
+	body, err = io.ReadAll(wresp.Body)
 	require.NoError(err)
 	require.Contains(string(body), "SERVICE_READ_ONLY")
 }
@@ -172,7 +173,7 @@ definition resource {
 // newTester spins up a SpiceDB server running against a specific datastore with a specific access token.
 // It also writes or reads a schema.
 // On test termination it cleans up all resources.
-func newTester(t *testing.T, withExistingSchema bool, opts testcontainers.ContainerCustomizer) (*sdbtestcontainer.Container, error) {
+func newTester(t *testing.T, withExistingSchema bool, opts... testcontainers.ContainerCustomizer) (*sdbtestcontainer.Container, error) {
 	testContainerOptions := make([]testcontainers.ContainerCustomizer, 0, 1)
 	if !withExistingSchema {
 		testContainerOptions = append(testContainerOptions, sdbtestcontainer.WithBootstrapSchema(defaultSchema))

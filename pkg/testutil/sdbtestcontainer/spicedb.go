@@ -69,8 +69,9 @@ func (c *Container) HTTPEndpoint() (string, error) {
 //
 // img is the image to run (use DefaultImageReference for the default). opts may
 // be any testcontainers.ContainerCustomizer; the WithXxx options in this package
-// configure SpiceDB-specific behavior, while generic customizers (e.g.
-// testcontainers.WithEnv) are applied to the underlying container request.
+// configure SpiceDB-specific behavior, while generic customizers are applied to
+// the underlying container request. For flags this module does not model
+// directly, pass testcontainers.WithEnv with the corresponding SPICEDB_* vars.
 func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustomizer) (*Container, error) {
 	cfg := &options{
 		datastoreEngine: "memory",
@@ -108,7 +109,8 @@ func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustom
 	req := testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        img,
-			Cmd:          buildArgs(cfg),
+			Cmd:          []string{"serve"},
+			Env:          buildEnv(cfg),
 			ExposedPorts: exposed,
 			WaitingFor:   wait.ForAll(waits...),
 		},
@@ -159,24 +161,26 @@ func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustom
 	return c, nil
 }
 
-// buildArgs assembles the `spicedb serve` command line from the configuration.
-func buildArgs(cfg *options) []string {
-	args := []string{
-		"serve",
-		"--grpc-preshared-key", cfg.presharedKey,
-		"--datastore-engine", cfg.datastoreEngine,
-		"--log-level", cfg.logLevel,
+// buildEnv assembles the SPICEDB_* environment variables for `spicedb serve`
+// from the configuration. Every SpiceDB flag is bound to an env var named
+// SPICEDB_ + the flag in upper snake case (e.g. --grpc-preshared-key maps to
+// SPICEDB_GRPC_PRESHARED_KEY).
+func buildEnv(cfg *options) map[string]string {
+	env := map[string]string{
+		"SPICEDB_GRPC_PRESHARED_KEY": cfg.presharedKey,
+		"SPICEDB_DATASTORE_ENGINE":   cfg.datastoreEngine,
+		"SPICEDB_LOG_LEVEL":          cfg.logLevel,
 		// Avoid phoning home from tests.
-		"--telemetry-endpoint", "",
+		"SPICEDB_TELEMETRY_ENDPOINT": "",
 	}
 	if cfg.datastoreConnURI != "" {
-		args = append(args, "--datastore-conn-uri", cfg.datastoreConnURI)
+		env["SPICEDB_DATASTORE_CONN_URI"] = cfg.datastoreConnURI
 	}
 	if cfg.httpEnabled {
-		args = append(args, "--http-enabled", "--http-addr", ":8443")
+		env["SPICEDB_HTTP_ENABLED"] = "true"
+		env["SPICEDB_HTTP_ADDR"] = ":8443"
 	}
-	args = append(args, cfg.extraArgs...)
-	return args
+	return env
 }
 
 // bootstrap writes the configured schema and relationships over the gRPC API.
