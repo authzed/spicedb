@@ -280,6 +280,14 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	RegisterConnPoolFlagsWithPrefix(flagSet, newReadReplicaPrefix, DefaultReadConnPool(), &opts.ReadReplicaConnPool)
 	RegisterConnPoolFlagsWithPrefix(flagSet, oldReadReplicaPrefix, DefaultReadConnPool(), &opts.OldReadReplicaConnPool)
 
+	// ping-timeout is an internal pool-tuning knob; keep it hidden from --help
+	// until load testing settles a good default. The 5s default still applies.
+	for _, prefix := range []string{"datastore-conn-pool-read", "datastore-conn-pool-write", newReadReplicaPrefix} {
+		if err := flagSet.MarkHidden(prefix + "-ping-timeout"); err != nil {
+			return fmt.Errorf("failed to mark flag as hidden: %w", err)
+		}
+	}
+
 	warning := fmt.Sprintf("please use the flags with the prefix %q instead of %q", newReadReplicaPrefix, oldReadReplicaPrefix)
 	for _, flag := range []string{"max-open", "min-open", "max-lifetime", "max-lifetime-jitter", "max-idletime", "healthcheck-interval", "ping-timeout"} {
 		if err := flagSet.MarkDeprecated(oldReadReplicaPrefix+"-"+flag, warning); err != nil {

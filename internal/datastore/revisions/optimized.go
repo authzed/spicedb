@@ -19,7 +19,7 @@ import (
 
 var tracer = otel.Tracer("spicedb/internal/datastore/common/revisions")
 
-// defaultOptimizedRevisionTimeout aggressively bounds the *shared*,
+// defaultOptimizedRevisionSharedTimeout aggressively bounds the *shared*,
 // singleflighted computation of the optimized revision.
 //
 // The computation runs under singleflight, which replaces the caller's context
@@ -37,7 +37,7 @@ var tracer = otel.Tracer("spicedb/internal/datastore/common/revisions")
 // failure, OptimizedRevision retries the computation directly (bypassing
 // singleflight) on the caller's own context, so the aggressive bound does not turn
 // a transient slow/wedged shared attempt into a failed request.
-const defaultOptimizedRevisionTimeout = 2 * time.Second
+const defaultOptimizedRevisionSharedTimeout = 2 * time.Second
 
 // defaultOptimizedRevisionFallbackTimeout bounds the *direct* retry performed
 // after a failed shared attempt. The retry runs on the caller's own context, so
@@ -56,7 +56,7 @@ type OptimizedRevisionFunction func(context.Context) (rev datastore.Revision, va
 func NewCachedOptimizedRevisions(maxRevisionStaleness time.Duration) *CachedOptimizedRevisions {
 	return &CachedOptimizedRevisions{
 		maxRevisionStaleness:             maxRevisionStaleness,
-		optimizedRevisionTimeout:         defaultOptimizedRevisionTimeout,
+		optimizedRevisionSharedTimeout:   defaultOptimizedRevisionSharedTimeout,
 		optimizedRevisionFallbackTimeout: defaultOptimizedRevisionFallbackTimeout,
 		clockFn:                          clock.New(),
 	}
@@ -68,12 +68,12 @@ func (cor *CachedOptimizedRevisions) SetOptimizedRevisionFunc(revisionFunc Optim
 	cor.optimizedFunc = revisionFunc
 }
 
-// SetOptimizedRevisionTimeout overrides the maximum duration the shared,
+// SetOptimizedRevisionSharedTimeout overrides the maximum duration the shared,
 // singleflighted call to the optimized revision function is allowed to run before
-// it is cancelled. See defaultOptimizedRevisionTimeout for why this bound is
+// it is cancelled. See defaultOptimizedRevisionSharedTimeout for why this bound is
 // required.
-func (cor *CachedOptimizedRevisions) SetOptimizedRevisionTimeout(timeout time.Duration) {
-	cor.optimizedRevisionTimeout = timeout
+func (cor *CachedOptimizedRevisions) SetOptimizedRevisionSharedTimeout(timeout time.Duration) {
+	cor.optimizedRevisionSharedTimeout = timeout
 }
 
 // SetOptimizedRevisionFallbackTimeout overrides the bound applied to the direct
@@ -112,16 +112,16 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 
 	// Compute the revision under singleflight so concurrent callers share a single
 	// datastore round-trip. The shared call is aggressively bounded (see
-	// defaultOptimizedRevisionTimeout) so a wedged computation cannot pin the
+	// defaultOptimizedRevisionSharedTimeout) so a wedged computation cannot pin the
 	// latency of every waiting caller.
 	result, _, err := cor.updateGroup.Do(ctx, "", func(sfCtx context.Context) (datastore.RevisionWithSchemaHash, error) {
 		// NOTE: singleflight hands this function a context with the caller's
 		// deadline stripped. Re-impose a (low) deadline so a hung datastore call
 		// cannot block this in-flight call, and therefore every caller waiting on
 		// it, beyond the bound.
-		if cor.optimizedRevisionTimeout > 0 {
+		if cor.optimizedRevisionSharedTimeout > 0 {
 			var cancel context.CancelFunc
-			sfCtx, cancel = context.WithTimeout(sfCtx, cor.optimizedRevisionTimeout)
+			sfCtx, cancel = context.WithTimeout(sfCtx, cor.optimizedRevisionSharedTimeout)
 			defer cancel()
 		}
 
@@ -131,10 +131,10 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		return result, nil
 	}
 
-	// If this caller's own context is already done, the shared call returned its
-	// error; there is nothing to retry.
+	// If this caller's own context is already done, surface its cancellation /
+	// deadline error directly; there is nothing to retry.
 	if ctx.Err() != nil {
-		return datastore.RevisionWithSchemaHash{}, err
+		return datastore.RevisionWithSchemaHash{}, ctx.Err()
 	}
 
 	// The shared, aggressively-bounded attempt failed (e.g. a wedged connection
@@ -145,6 +145,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	// pooled SQL datastores the retry is naturally throttled by the pool's maximum
 	// size; Spanner's client similarly bounds concurrent calls via its own session
 	// pool. Even when many waiters retry at once, the datastore is not overwhelmed.
+	span.AddEvent(otelconv.EventDatastoreRevisionsSharedFailedRetrying)
 	log.Ctx(ctx).Warn().Err(err).Msg("shared optimized revision computation failed; retrying directly")
 
 	retryCtx, cancel := context.WithTimeout(ctx, cor.optimizedRevisionFallbackTimeout)
@@ -190,7 +191,7 @@ type CachedOptimizedRevisions struct {
 	sync.RWMutex
 
 	maxRevisionStaleness             time.Duration
-	optimizedRevisionTimeout         time.Duration
+	optimizedRevisionSharedTimeout   time.Duration
 	optimizedRevisionFallbackTimeout time.Duration
 	optimizedFunc                    OptimizedRevisionFunction
 	clockFn                          clock.Clock

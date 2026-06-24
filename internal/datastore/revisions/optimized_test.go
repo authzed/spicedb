@@ -268,7 +268,7 @@ func TestOptimizedRevisionTimeout(t *testing.T) {
 		req := require.New(t)
 
 		or := NewCachedOptimizedRevisions(0)
-		or.SetOptimizedRevisionTimeout(10 * time.Millisecond)
+		or.SetOptimizedRevisionSharedTimeout(10 * time.Millisecond)
 		or.SetOptimizedRevisionFallbackTimeout(50 * time.Millisecond)
 
 		var calls atomic.Int32
