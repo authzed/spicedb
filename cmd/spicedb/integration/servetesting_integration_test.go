@@ -3,14 +3,13 @@
 package integration_test
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/grpc"
@@ -22,28 +21,13 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestTestServer(t *testing.T) {
 	require := require.New(t)
-	key := uuid.NewString()
-	tester, err := newTester(t,
-		testcontainers.ContainerRequest{
-			Image: "authzed/spicedb:ci",
-			Cmd: []string{
-				"serve-testing",
-				"--log-level", "debug",
-				"--http-addr", ":8443",
-				"--readonly-http-addr", ":8444",
-				"--http-enabled",
-				// "--readonly-http-enabled",
-			},
-			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
-		},
-		key,
-		false,
-	)
+	container, err := newTester(t, false)
 	require.NoError(err)
 
 	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(key)}
@@ -122,15 +106,16 @@ func TestTestServer(t *testing.T) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken("someothertoken"))
 	require.NoError(err)
-	defer authedConn.Close()
+	t.Cleanup(func() {
+		_ = authedConn.Close()
+	})
 
-	require.Eventually(func() bool {
+	require.EventuallyWithT(func(collect *assert.CollectT) {
 		resp, err := healthpb.NewHealthClient(authedConn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-			return false
+		if !assert.NoError(collect, err) {
+			return
 		}
-
-		return true
+		assert.Equal(collect, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 	}, 5*time.Second, 5*time.Millisecond, "was unable to connect to running service(s)")
 
 	authedv1client := v1.NewPermissionsServiceClient(authedConn)
@@ -140,10 +125,12 @@ func TestTestServer(t *testing.T) {
 	require.Equal(codes.FailedPrecondition, s.Code())
 
 	// Make an HTTP call and ensure it succeeds.
-	readURL := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.HTTPPort)
+	httpEndpoint, err := container.HTTPEndpoint()
+	require.NoError(err)
+	readURL := fmt.Sprintf("http://%s/v1/schema/read", httpEndpoint)
 	req, err := http.NewRequest("POST", readURL, nil)
 	require.NoError(err)
-	req.Header.Add("Authorization", "Bearer "+key)
+	req.Header.Add("Authorization", "Bearer "+container.PresharedKey())
 	hresp, err := http.DefaultClient.Do(req) //nolint:gosec  // SSRF isn't an issue in a test
 	require.NoError(err)
 
@@ -158,43 +145,39 @@ func TestTestServer(t *testing.T) {
 	require.Contains(string(body), "schemaText")
 	require.Contains(string(body), "definition resource")
 
-	/*
-		 * TODO(jschorr): Re-enable once we figure out why this makes the test flaky
-		// Attempt to write to the read only HTTP and ensure it fails.
-		writeUrl := fmt.Sprintf("http://localhost:%s/v1/schema/write", tester.readonlyHTTPPort)
-		wresp, err := http.Post(writeUrl, "application/json", strings.NewReader(`{
-			"schemaText": "definition user {}\ndefinition resource {\nrelation reader: user\nrelation writer: user\nrelation foobar: user\n}"
-		}`))
-		require.NoError(err)
-		require.Equal(503, wresp.StatusCode)
+	// Attempt to write to the read only HTTP and ensure it fails.
+	writeUrl := fmt.Sprintf("http://localhost:%s/v1/schema/write", tester.readonlyHTTPPort)
+	wresp, err := http.Post(writeUrl, "application/json", strings.NewReader(`{
+		"schemaText": "definition user {}\ndefinition resource {\nrelation reader: user\nrelation writer: user\nrelation foobar: user\n}"
+	}`))
+	require.NoError(err)
+	require.Equal(503, wresp.StatusCode)
 
-		body, err = ioutil.ReadAll(wresp.Body)
-		require.NoError(err)
-		require.Contains(string(body), "SERVICE_READ_ONLY")
-	*/
+	body, err = ioutil.ReadAll(wresp.Body)
+	require.NoError(err)
+	require.Contains(string(body), "SERVICE_READ_ONLY")
 }
 
-type spicedbHandle struct {
-	port             string
-	readonlyPort     string
-	HTTPPort         string
-	readonlyHTTPPort string
-}
+const defaultSchema = `
+definition user {}
 
-const retryCount = 8
+definition resource {
+	relation reader: user
+	relation writer: user
+
+	permission view = reader + writer
+}
+`
 
 // newTester spins up a SpiceDB server running against a specific datastore with a specific access token.
 // It also writes or reads a schema.
 // On test termination it cleans up all resources.
-func newTester(t *testing.T, containerReq testcontainers.ContainerRequest, token string, withExistingSchema bool) (*spicedbHandle, error) {
-	// TODO: use https://github.com/Mariscal6/testcontainers-spicedb-go and/or make this function more reusable
-	// (there are a couple more places where we create a spicedb container)
-	// TODO: migrate to the newer APIs using the Run function and passing container customisers as functional options
-	for i := 0; i < retryCount; i++ {
-		container, err := testcontainers.GenericContainer(t.Context(), testcontainers.GenericContainerRequest{
-			ContainerRequest: containerReq,
-			Started:          true,
-		})
+func newTester(t *testing.T, withExistingSchema bool, opts testcontainers.ContainerCustomizer) (*sdbtestcontainer.Container, error) {
+	testContainerOptions := make([]testcontainers.ContainerCustomizer, 0, 1)
+	if !withExistingSchema {
+		testContainerOptions = append(testContainerOptions, sdbtestcontainer.WithBootstrapSchema(defaultSchema))
+	}
+		container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference, testContainerOptions...)
 		if err != nil {
 			return nil, fmt.Errorf("could not start resource: %w", err)
 		}
@@ -203,43 +186,13 @@ func newTester(t *testing.T, containerReq testcontainers.ContainerRequest, token
 			_ = container.Terminate(t.Context())
 		})
 
-		mappedPort, err := container.MappedPort(t.Context(), "50051")
-		if err != nil {
-			return nil, fmt.Errorf("could not get port: %w", err)
-		}
-		port := mappedPort.Port()
-
-		mappedReadonlyPort, err := container.MappedPort(t.Context(), "50052")
-		if err != nil {
-			return nil, fmt.Errorf("could not get readonly port: %w", err)
-		}
-		readonlyPort := mappedReadonlyPort.Port()
-
-		mappedHTTPPort, err := container.MappedPort(t.Context(), "8443")
-		if err != nil {
-			return nil, fmt.Errorf("could not get HTTP port: %w", err)
-		}
-		httpPort := mappedHTTPPort.Port()
-
-		mappedReadonlyHTTPPort, err := container.MappedPort(t.Context(), "8444")
-		if err != nil {
-			return nil, fmt.Errorf("could not get readonly HTTP port: %w", err)
-		}
-		readonlyHTTPPort := mappedReadonlyHTTPPort.Port()
-
-		// Give the service time to boot.
-		maxRetries := 30
-		var lastErr error
-		for j := 0; j < maxRetries; j++ {
 			conn, err := grpc.NewClient(
-				fmt.Sprintf("localhost:%s", port),
+				container.Endpoint(),
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpcutil.WithInsecureBearerToken(token),
+				grpcutil.WithInsecureBearerToken(container.PresharedKey()),
 			)
 			if err != nil {
-				lastErr = fmt.Errorf("could not create connection: %w", err)
-				time.Sleep(500 * time.Millisecond)
-				continue
+				return nil, err
 			}
 
 			t.Cleanup(func() {
@@ -251,50 +204,9 @@ func newTester(t *testing.T, containerReq testcontainers.ContainerRequest, token
 			if withExistingSchema {
 				_, err = client.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
 				if err != nil {
-					lastErr = err
-					time.Sleep(500 * time.Millisecond)
-					continue
-				}
-			} else {
-				// Write a basic schema.
-				_, err = client.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
-					Schema: `
-			definition user {}
-
-			definition resource {
-				relation reader: user
-				relation writer: user
-
-				permission view = reader + writer
-			}
-			`,
-				})
-				if err != nil {
-					lastErr = err
-					time.Sleep(500 * time.Millisecond)
-					continue
+					return nil, err
 				}
 			}
 
-			return &spicedbHandle{
-				port:             port,
-				readonlyPort:     readonlyPort,
-				HTTPPort:         httpPort,
-				readonlyHTTPPort: readonlyHTTPPort,
-			}, nil
+			return container, nil
 		}
-
-		// If we got here, retries failed
-		logs, err := container.Logs(t.Context())
-		if err == nil {
-			stream := new(bytes.Buffer)
-			_, _ = io.Copy(stream, logs)
-			fmt.Printf("got error on startup: %v\ncontainer logs: %s\n", lastErr, stream.String())
-		} else {
-			fmt.Printf("got error on startup: %v (could not retrieve logs: %v)\n", lastErr, err)
-		}
-		continue
-	}
-
-	return nil, fmt.Errorf("hit maximum retries when trying to boot SpiceDB server")
-}
