@@ -1,15 +1,11 @@
 package cmd
 
 import (
-	"bytes"
-	"fmt"
-	"io"
+	"maps"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/moby/moby/api/types/container"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -23,6 +19,7 @@ import (
 	datastoreTest "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func TestExecuteMigrateErrorsOut(t *testing.T) {
@@ -180,8 +177,6 @@ func TestExecuteMigrateWithNoDataSucceeds(t *testing.T) {
 // TestExecuteMigrateWithDataSucceeds verifies that migrations introduced on v1.53.0
 // apply on top of a database that has data written by v1.52.0.
 func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
-	presharedKey := uuid.NewString()
-
 	for _, engineKey := range datastore.Engines {
 		if engineKey == "memory" {
 			continue
@@ -190,12 +185,11 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 		t.Run(engineKey, func(t *testing.T) {
 			r := datastoreTest.RunDatastoreEngine(t, engineKey)
 			db := r.NewDatabase(t)
-			containerDB := hostInternalize(db)
 
 			envVars := map[string]string{}
 			if wev, ok := r.(datastoreTest.RunningEngineForTestWithEnvVars); ok {
 				for _, ev := range wev.ExternalEnvVars() {
-					parts := strings.SplitN(hostInternalize(ev), "=", 2)
+					parts := strings.SplitN(ev, "=", 2)
 					if len(parts) == 2 {
 						envVars[parts[0]] = parts[1]
 					}
@@ -203,15 +197,15 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 			}
 
 			// 1. Migrate using SpiceDB v1.52.0.
-			runMigrateHeadWithContainer(t, "v1.52.0", engineKey, containerDB, envVars)
+			runMigrateHeadWithContainer(t, "v1.52.0", engineKey, db, envVars)
 
 			// 2. Run v1.52.0 serve and write a schema.
-			grpcPort := runServe(t, "v1.52.0", engineKey, containerDB, presharedKey, envVars)
+			serveContainer := runServe(t, "v1.52.0", engineKey, db, envVars)
 
 			conn, err := grpc.NewClient(
-				fmt.Sprintf("localhost:%s", grpcPort),
+				serveContainer.GRPCEndpoint(),
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpcutil.WithInsecureBearerToken(presharedKey),
+				grpcutil.WithInsecureBearerToken(serveContainer.PresharedKey()),
 			)
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -248,77 +242,45 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 	}
 }
 
-// withHostGateway lets the container reach datastores listening on host-mapped
-// ports via host.docker.internal (paired with hostInternalize). Docker Desktop
-// auto-resolves host.docker.internal, but Linux (e.g. CI runners) does not
-// without this extra host mapping.
-func withHostGateway(hc *container.HostConfig) {
-	hc.ExtraHosts = append(hc.ExtraHosts, "host.docker.internal:host-gateway")
-}
-
 // runMigrateHeadWithContainer launches a docker container that runs `spicedb migrate head`
 // Use this when you need to exercise a released SpiceDB binary.
 func runMigrateHeadWithContainer(t *testing.T, spiceDBImageTag, engineKey, db string, envVars map[string]string) {
 	t.Helper()
 
-	migrateContainer, err := testcontainers.GenericContainer(t.Context(), testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:              "authzed/spicedb:" + spiceDBImageTag,
-			Cmd:                []string{"migrate", "head", "--datastore-engine", engineKey, "--datastore-conn-uri", db},
-			Env:                envVars,
-			HostConfigModifier: withHostGateway,
-			WaitingFor:         wait.ForExit().WithExitTimeout(time.Minute),
-		},
-		Started: true,
-	})
+	container, err := sdbtestcontainer.Run(t.Context(),
+		"authzed/spicedb:" + spiceDBImageTag,
+		testcontainers.WithEnv(map[string]string{
+			"SPICEDB_DATASTORE_ENGINE": engineKey,
+			"SPICEDB_DATASTORE_CONN_URI": db,
+		}),
+		testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
+	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = migrateContainer.Terminate(t.Context())
-	})
+	testcontainers.CleanupContainer(t, container)
 
-	state, err := migrateContainer.State(t.Context())
+	state, err := container.State(t.Context())
 	require.NoError(t, err)
-
-	if state.ExitCode != 0 {
-		// TODO use a log consumer
-		stream := new(bytes.Buffer)
-		logReader, lerr := migrateContainer.Logs(t.Context())
-		require.NoError(t, lerr)
-		defer func() { _ = logReader.Close() }()
-		_, _ = io.Copy(stream, logReader)
-		require.Failf(t, "migrate head exited with non-zero exit code", "image=%s engine=%s status=%d logs:\n%s", spiceDBImageTag, engineKey, state.ExitCode, stream.String())
-	}
+	require.Equal(t, 0, state.ExitCode)
 }
 
-func runServe(t *testing.T, spiceDBImageTag, engineKey, dbConnection, presharedKey string, envVars map[string]string) string {
+func runServe(t *testing.T, spiceDBImageTag, engineKey, dbConnection string, envVars map[string]string) *sdbtestcontainer.Container {
 	t.Helper()
 
-	serveContainer, err := testcontainers.GenericContainer(t.Context(), testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:              "authzed/spicedb:" + spiceDBImageTag,
-			Cmd:                []string{"serve", "--log-level", "debug", "--grpc-preshared-key", presharedKey, "--datastore-engine", engineKey, "--datastore-conn-uri", dbConnection, "--telemetry-endpoint", ""},
-			Env:                envVars,
-			ExposedPorts:       []string{"50051/tcp"},
-			HostConfigModifier: withHostGateway,
-			WaitingFor:         wait.ForListeningPort("50051/tcp"),
-		},
-		Started: true,
-	})
+	containerVars := map[string]string{
+			"SPICEDB_DATASTORE_ENGINE": engineKey,
+			"SPICEDB_DATASTORE_CONN_URI": dbConnection,
+	}
+
+	maps.Copy(containerVars, envVars)
+
+	container, err := sdbtestcontainer.Run(t.Context(),
+		"authzed/spicedb:" + spiceDBImageTag,
+		testcontainers.WithEnv(containerVars),
+	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = serveContainer.Terminate(t.Context())
-	})
+	testcontainers.CleanupContainer(t, container)
 
-	mappedPort, err := serveContainer.MappedPort(t.Context(), "50051/tcp")
-	require.NoError(t, err)
-	port := mappedPort.Port()
-	require.NotEmpty(t, port, "serve container did not expose a host port for 50051/tcp")
-
-	return port
-}
-
-func hostInternalize(uri string) string {
-	return strings.ReplaceAll(uri, "localhost", "host.docker.internal")
+	return container
 }
 
 func TestMigrateRun(t *testing.T) {

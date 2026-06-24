@@ -115,6 +115,7 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 	require.NoError(t, err)
 
 	// set up the pg container
+	// TODO
 	configFile := configFilePath("postgres.conf")
 	if withCommitTimestamps {
 		configFile = configFilePath("postgres-with-timestamps.conf")
