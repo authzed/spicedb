@@ -13,7 +13,7 @@ import (
 // ParseIPAddress parses the string form of an IP Address into an IPAddress object type.
 func ParseIPAddress(ip string) (IPAddress, error) {
 	parsed, err := netip.ParseAddr(ip)
-	return IPAddress{parsed}, err
+	return IPAddress{parsed.Unmap()}, err
 }
 
 // MustParseIPAddress parses the string form of an IP Address into an IPAddress object type.

@@ -2,6 +2,8 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
@@ -27,6 +29,39 @@ func (mr *mysqlReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnl
 
 	rw := common.NewSQLSingleStoreSchemaReaderWriterForTransactionIDs(chunker, common.NoTransactionID[uint64])
 	return rw.ReadStoredSchema(ctx)
+}
+
+// assertSchemaHash verifies the schema_revision row matches expectedHash.
+// exclusive=true acquires FOR UPDATE (schema writes), serializing concurrent schema writers.
+// exclusive=false acquires FOR SHARE (relationship writes): holds a shared lock until commit,
+// so schema writes (FOR UPDATE) are blocked until all in-flight rel writes release, guaranteeing
+// no relationship write commits against a schema it was not validated against.
+func assertSchemaHash(ctx context.Context, rwt *mysqlReadWriteTXN, expectedHash string, exclusive bool) error {
+	q := sb.Select("hash").
+		From(rwt.schemaRevisionTableName).
+		Where(sq.Eq{colName: schemaRevisionName}).
+		Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	if exclusive {
+		q = q.Suffix("FOR UPDATE")
+	} else {
+		q = q.Suffix("FOR SHARE")
+	}
+	query, args, err := q.ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build schema hash precondition query: %w", err)
+	}
+
+	var storedHash []byte
+	if err := rwt.tx.QueryRowContext(ctx, query, args...).Scan(&storedHash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return datastore.ErrSchemaNotFound
+		}
+		return fmt.Errorf("failed to check schema hash precondition: %w", err)
+	}
+	if string(storedHash) != expectedHash {
+		return datastore.ErrSchemaHashPreconditionFailed
+	}
+	return nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the MySQL schema table.

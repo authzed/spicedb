@@ -8,7 +8,6 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/exaring/otelpgx"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	zerologadapter "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -322,17 +321,6 @@ func (t *QuerierFuncs) QueryRowFunc(ctx context.Context, rowFunc func(ctx contex
 
 func QuerierFuncsFor(d Querier) DBFuncQuerier {
 	return &QuerierFuncs{d: d}
-}
-
-// SleepOnErr sleeps for a short period of time after an error has occurred.
-func SleepOnErr(ctx context.Context, err error, retries uint8) {
-	after := retry.BackoffExponentialWithJitter(25*time.Millisecond, 0.5)(ctx, uint(retries+1)) // add one so we always wait at least a little bit
-	log.Ctx(ctx).Debug().Err(err).Dur("after", after).Uint8("retry", retries+1).Msg("retrying on database error")
-
-	select {
-	case <-time.After(after):
-	case <-ctx.Done():
-	}
 }
 
 // ConfigureDefaultQueryExecMode parses a Postgres URI and determines if a default_query_exec_mode

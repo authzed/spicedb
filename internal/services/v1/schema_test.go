@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -22,6 +23,9 @@ import (
 )
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -35,6 +39,9 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -50,6 +57,9 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidNamespace(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -69,6 +79,9 @@ func TestSchemaWriteInvalidNamespace(t *testing.T) {
 // NOTE: imports must be handled by precompilation;
 // a write of a schema with an import statement is an error.
 func TestSchemaWriteImportsDisallowed(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -89,6 +102,9 @@ func TestSchemaWriteImportsDisallowed(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -114,6 +130,9 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 }
 
 func TestSchemaWriteReturnsSchemaHashInZedToken(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	config := testserver.DefaultTestServerConfig
 	config.DataLayerOpts = []datalayer.DataLayerOption{
 		datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
@@ -150,6 +169,9 @@ definition document {
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -219,6 +241,9 @@ func TestSchemaDeleteRelation(t *testing.T) {
 }
 
 func TestSchemaDeletePermission(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -258,6 +283,9 @@ func TestSchemaDeletePermission(t *testing.T) {
 }
 
 func TestSchemaChangeRelationToPermission(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -318,6 +346,9 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 }
 
 func TestSchemaDeleteDefinition(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -370,6 +401,9 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 }
 
 func TestSchemaRemoveWildcard(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -432,6 +466,9 @@ definition example/user {}`
 }
 
 func TestSchemaEmpty(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -485,6 +522,9 @@ func TestSchemaEmpty(t *testing.T) {
 }
 
 func TestSchemaTypeRedefined(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -507,6 +547,9 @@ func TestSchemaTypeRedefined(t *testing.T) {
 }
 
 func TestSchemaTypeInvalid(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, false,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -525,6 +568,9 @@ func TestSchemaTypeInvalid(t *testing.T) {
 }
 
 func TestSchemaRemoveCaveat(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -596,6 +642,9 @@ definition user {}`
 }
 
 func TestSchemaUnchangedNamespaces(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, ds, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -639,6 +688,9 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 }
 
 func TestSchemaInvalid(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, false,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -662,6 +714,9 @@ func TestSchemaInvalid(t *testing.T) {
 }
 
 func TestSchemaChangeExpiration(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -737,6 +792,9 @@ func TestSchemaChangeExpiration(t *testing.T) {
 }
 
 func TestSchemaChangeExpirationAllowed(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -781,6 +839,9 @@ func TestSchemaChangeExpirationAllowed(t *testing.T) {
 }
 
 func TestSchemaDiff(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -874,6 +935,9 @@ func TestSchemaDiff(t *testing.T) {
 }
 
 func TestReflectSchema(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
 		testserver.DefaultTestServerConfig,
 		tf.EmptyDatastore)
@@ -1287,6 +1351,9 @@ definition user {}`,
 }
 
 func TestDependentRelations(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name             string
 		schema           string
@@ -1521,6 +1588,9 @@ func TestDependentRelations(t *testing.T) {
 }
 
 func TestComputablePermissions(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
 	tcs := []struct {
 		name             string
 		schema           string

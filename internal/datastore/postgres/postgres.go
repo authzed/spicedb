@@ -480,11 +480,16 @@ func (pgd *pgDatastore) ReadWriteTx(
 				newXID,
 			}
 
+			if config.SchemaHashPrecondition != "" {
+				if err := assertSchemaHash(ctx, tx, config.SchemaHashPrecondition, config.SchemaHashPreconditionExclusive); err != nil {
+					return err
+				}
+			}
 			return fn(ctx, rwt)
 		}))
 		if err != nil {
 			if !config.DisableRetries && errorRetryable(err) {
-				pgxcommon.SleepOnErr(ctx, err, i)
+				common.SleepOnErr(ctx, err, i)
 				continue
 			}
 

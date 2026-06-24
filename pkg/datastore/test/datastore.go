@@ -90,6 +90,11 @@ func (c Categories) WatchCheckpoints() bool {
 	return ok
 }
 
+func (c Categories) ConcurrentWrite() bool {
+	_, ok := c[ConcurrentWriteCategory]
+	return ok
+}
+
 var noException = Categories{}
 
 const (
@@ -99,6 +104,9 @@ const (
 	WatchCheckpointsCategory = "WatchCheckpoints"
 	StatsCategory            = "Stats"
 	TransactionCategory      = "Transaction"
+	// ConcurrentWriteCategory marks tests that open two write transactions concurrently.
+	// Datastores with a global write lock (e.g. memdb) must exclude this category.
+	ConcurrentWriteCategory = "ConcurrentWrite"
 )
 
 func WithCategories(cats ...string) Categories {
@@ -160,7 +168,10 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestRelationshipCaveatFiltering", runner(tester, RelationshipCaveatFilteringTest))
 
 	t.Run("TestMultipleReadsInRWT", runner(tester, MultipleReadsInRWTTest))
-	t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
+	if !except.ConcurrentWrite() {
+		t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
+		t.Run("TestConcurrentWriteDeadlock", runner(tester, ConcurrentWriteDeadlockTest))
+	}
 
 	t.Run("TestOrdering", runner(tester, OrderingTest))
 	t.Run("TestLimit", runner(tester, LimitTest))
@@ -247,6 +258,15 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestStoredSchemaStableText", runner(tester, StoredSchemaStableTextTest))
 	t.Run("TestStoredSchemaLarge", runner(tester, StoredSchemaLargeTest))
 	t.Run("TestStoredSchemaPhaseMigration", runner(tester, StoredSchemaPhaseMigrationTest))
+	t.Run("TestStoredSchemaViaDataLayer", runner(tester, StoredSchemaViaDataLayerTest))
+	if !except.Transaction() {
+		t.Run("TestStoredSchemaReadInWriteTxMemoized", runner(tester, StoredSchemaReadInWriteTxMemoizedTest))
+	}
+	t.Run("TestStoredSchemaAssertHashPrecondition", runner(tester, StoredSchemaAssertHashPreconditionTest))
+	if !except.ConcurrentWrite() {
+		t.Run("TestStoredSchemaConcurrentSchemaWins", runner(tester, StoredSchemaConcurrentSchemaWinsTest))
+		t.Run("TestStoredSchemaWriteSucceedsUnderRelWriteTraffic", runner(tester, StoredSchemaWriteSucceedsUnderRelWriteTrafficTest))
+	}
 	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
 	t.Run("TestOptimizedRevisionSchemaHash", runner(tester, OptimizedRevisionSchemaHashTest))
 }
@@ -306,7 +326,7 @@ func setupDatastore(t *testing.T, ds datastore.Datastore) datastore.Revision {
 	require.NoError(t, err)
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// TODO: add cache to this?
-		_, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, schemaDefinitions, schemaText, nil)
+		_, _, err := datalayer.WriteSchemaViaStoredSchema(ctx, rwt, schemaDefinitions, schemaText)
 		return err
 	})
 	require.NoError(t, err)

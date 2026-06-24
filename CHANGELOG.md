@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Changed
+- Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)
+- Updated the Prometheus buckets for `grpc_server_handling_seconds` and `spicedb_datastore_query_latency` to be able to correlate them (https://github.com/authzed/spicedb/pull/3188)
+
+### Fixed
+- When SpiceDB loses a connection to a CockroachDB node, every read happening in the server blocks for a short period of time (https://github.com/authzed/spicedb/pull/3181)
+- LSP: hover and go-to-definition now resolve identifiers on the right-hand side of arrow expressions (`->`, `.any(...)`, `.all(...)`) (https://github.com/authzed/spicedb/pull/3157)
+- The `in_cidr` caveat now matches IPv4-mapped IPv6 addresses (e.g. `::ffff:10.1.2.3`) against IPv4 CIDRs, the same as the dotted form (https://github.com/authzed/spicedb/pull/3184)
+- MySQL: MySQL deadlocks on `WriteRelationships` (https://github.com/authzed/spicedb/pull/3187)
+- Datastore: a hung datastore round-trip while computing the optimized revision can no longer wedge the server. The revision is computed under singleflight, which detaches the work from the caller's context (stripping its gRPC deadline); a stuck computation (e.g. a half-open connection silently dropped by a load balancer) therefore pinned the latency of *every* concurrent caller and inflated whole-system P99. The shared computation is now aggressively bounded (2s), with a direct, deadline-respecting retry outside singleflight on failure so a transient wedge does not fail the request. Applies to all datastores. (https://github.com/authzed/spicedb/pull/3142)
+- Postgres & CockroachDB: pooled connections that have gone idle are now liveness-pinged with a bounded timeout (default 5s) before being handed to a query, so a half-open connection is discarded and replaced instead of hanging the acquiring request. (https://github.com/authzed/spicedb/pull/3142)
+
+## [1.54.0] - 2026-06-18
 ### Added
 - Query Planner: fast serialize/deserialize for query plans (https://github.com/authzed/spicedb/pull/3122)
 
@@ -22,9 +35,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Tracing: When server is shutting down, flush traces. Also, elide the need for setting `OTEL_EXPORTER_OTLP_ENDPOINT`. (https://github.com/authzed/spicedb/pull/3108)
 - Fixed a LookupSubjects issue in the query planner around the handling of wildcards in compound permissions (https://github.com/authzed/spicedb/pull/3140)
 - MySQL: identifiers (object/subject IDs and relationship counter names) are now stored with a case-sensitive (binary) collation, matching the Postgres, CockroachDB, and Spanner datastores. Previously, identifiers differing only in letter case (e.g. `Foo` and `foo`) incorrectly collided in unique indexes and lookups. ⚠️ The migration rebuilds the `relation_tuple` table in place via `ALTER TABLE`, which can hold a metadata/table lock for a long time on large datasets — run the upgrade in a low-traffic window, or apply it with an online schema-change tool (e.g. gh-ost). (https://github.com/authzed/spicedb/pull/3161)
-- `server.NewConfigWithOptionsAndDefaults` now populates `Config` and its embedded structs with the same defaults as the CLI flags, fixing zero-value behavior when embedding SpiceDB as a library. (https://github.com/authzed/spicedb/pull/3156)
-- Datastore: a hung datastore round-trip while computing the optimized revision can no longer wedge the server. The revision is computed under singleflight, which detaches the work from the caller's context (stripping its gRPC deadline); a stuck computation (e.g. a half-open connection silently dropped by a load balancer) therefore pinned the latency of *every* concurrent caller and inflated whole-system P99. The shared computation is now aggressively bounded (2s), with a direct, deadline-respecting retry outside singleflight on failure so a transient wedge does not fail the request. Applies to all datastores. (https://github.com/authzed/spicedb/pull/3142)
-- Postgres & CockroachDB: pooled connections that have gone idle are now liveness-pinged with a bounded timeout (default 5s) before being handed to a query, so a half-open connection is discarded and replaced instead of hanging the acquiring request. (https://github.com/authzed/spicedb/pull/3142)
+- `server.NewConfigWithOptionsAndDefaults` now populates `Config` and its embedded structs with the same defaults as the CLI flags, fixing zero-value behavior when embedding SpiceDB as a library. (https://github.com/authzed/spicedb/pull/3156, https://github.com/authzed/spicedb/pull/3170)
+
+### Security
+- Prevent cache poisoning. The dispatch Check cache key now incorporates check hints. See https://github.com/authzed/spicedb/security/advisories/GHSA-4vrg-r928-h5vv
 
 ## [1.53.0] - 2026-05-13
 ### Added
@@ -205,10 +219,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - expose x-request-id header in HTTP Gateway responses by @Verolop in https://github.com/authzed/spicedb/pull/2712
 - error message when cannot run 'datastore gc' or 'datastore repair' by @miparnisari in https://github.com/authzed/spicedb/pull/2609
 - Postgres:
-    * wire up missing revision timestamp on PG ReadWriteTx by [@vroldanbet](https://authzed.slack.com/team/U03HU4QUZU3) in https://github.com/authzed/spicedb/pull/2725
+  * wire up missing revision timestamp on PG ReadWriteTx by [@vroldanbet](https://authzed.slack.com/team/U03HU4QUZU3) in https://github.com/authzed/spicedb/pull/2725
 - Spanner:
-    * Watch API by @miparnisari in https://github.com/authzed/spicedb/pull/2560
-    * statistics by @miparnisari in https://github.com/authzed/spicedb/pull/2745
+  * Watch API by @miparnisari in https://github.com/authzed/spicedb/pull/2560
+  * statistics by @miparnisari in https://github.com/authzed/spicedb/pull/2745
 
 ## [1.47.1] - 2025-11-20
 ### Changed
@@ -231,7 +245,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - add man page generation support by @ivanauth in https://github.com/authzed/spicedb/pull/2595
 - add fgprof wall-clock profiler by @vroldanbet in https://github.com/authzed/spicedb/pull/2618
 - CRDB: add write backpressure when write pool is overloaded  by @ecordell in https://github.com/authzed/spicedb/pull/2642
-    * ⚠️ With this change, Write APIs now return ResourceExhausted errors if there are no available connections in the pool
+  * ⚠️ With this change, Write APIs now return ResourceExhausted errors if there are no available connections in the pool
 
 ### Changed
 - perf: significant improvements around LR3 dispatching by @josephschorr in https://github.com/authzed/spicedb/pull/2587
@@ -251,7 +265,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - LR3 Fixes and Improvements by @josephschorr in https://github.com/authzed/spicedb/pull/2570 and https://github.com/authzed/spicedb/pull/2574
 - propagate cancellation errors in consistency middleware by @tstirrat15 in https://github.com/authzed/spicedb/pull/2581
 - breakage of gRPC retries by @vroldanbet in https://github.com/authzed/spicedb/pull/2577
-    *  ⚠️ With this change, if you use the `zed` CLI, you must update to the latest version ([v0.33.0](https://github.com/authzed/zed/releases/tag/v0.33.0))
+  *  ⚠️ With this change, if you use the `zed` CLI, you must update to the latest version ([v0.33.0](https://github.com/authzed/zed/releases/tag/v0.33.0))
 - fix: add flags to configure how to handle zedtokens meant for a different datastore by @josephschorr in https://github.com/authzed/spicedb/pull/1723
 
 ## [1.45.4] - 2025-09-12
@@ -3638,7 +3652,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.53.0...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.54.0...HEAD
+[1.54.0]: https://github.com/authzed/spicedb/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/authzed/spicedb/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/authzed/spicedb/compare/v1.51.1...v1.52.0
 [1.51.1]: https://github.com/authzed/spicedb/compare/v1.51.0...v1.51.1

@@ -49,6 +49,7 @@ func (dst *datastoreTester) createDatastore(tb testing.TB, revisionQuantization,
 			TablePrefix(dst.prefix),
 			DebugAnalyzeBeforeStatistics(),
 			OverrideLockWaitTimeout(1),
+			MaxRetries(3),
 		)
 		require.NoError(tb, err)
 		return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
@@ -69,6 +70,7 @@ var defaultOptions = []Option{
 	DebugAnalyzeBeforeStatistics(),
 	OverrideLockWaitTimeout(1),
 	WithEnablePrometheusStats(true),
+	MaxRetries(3),
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)

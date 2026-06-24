@@ -91,7 +91,15 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+	// TODO(miparnisari): use a custom registry instead of the default one!
+	gatherer := prometheus.DefaultGatherer
+	if c != nil {
+		if serverGatherer, ok := c.OTel.PrometheusRegistry.(prometheus.Gatherer); ok {
+			gatherer = prometheus.Gatherers{prometheus.DefaultGatherer, serverGatherer}
+		}
+	}
+
+	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
 		// Opt into OpenMetrics e.g. to support exemplars.
 		EnableOpenMetrics: true,
 	}))
@@ -488,7 +496,8 @@ func createServerMetrics(disableHistogram bool) (grpc.UnaryServerInterceptor, gr
 				NativeHistogramBucketFactor:    1.1, // At most 10% increase from bucket to bucket.
 				NativeHistogramMaxBucketNumber: 100,
 				Buckets: []float64{
-					.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 5,
+					// grpc_server_handling_seconds, same as spicedb_datastore_query_latency
+					.0005, .001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 5, 30,
 				},
 			}),
 		))

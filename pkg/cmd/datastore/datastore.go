@@ -58,7 +58,7 @@ type ConnPoolConfig struct {
 	MaxOpenConns        int           `debugmap:"visible"`
 	MinOpenConns        int           `debugmap:"visible"`
 	HealthCheckInterval time.Duration `debugmap:"visible" default:"30s"`
-	PingTimeout         time.Duration `debugmap:"visible"`
+	PingTimeout         time.Duration `debugmap:"visible" default:"5s"`
 }
 
 func DefaultReadConnPool() *ConnPoolConfig {

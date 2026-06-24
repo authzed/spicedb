@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -26,6 +27,39 @@ func (r *pgReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlySto
 
 	rw := common.NewSQLSingleStoreSchemaReaderWriterForTransactionIDs(chunker, common.NoTransactionID[uint64])
 	return rw.ReadStoredSchema(ctx)
+}
+
+// assertSchemaHash verifies the schema_revision row matches expectedHash.
+// exclusive=true acquires FOR UPDATE (schema writes), serializing concurrent schema writers.
+// exclusive=false acquires FOR SHARE (relationship writes): holds a shared lock until commit,
+// so schema writes (FOR UPDATE) are blocked until all in-flight rel writes release, guaranteeing
+// no relationship write commits against a schema it was not validated against.
+func assertSchemaHash(ctx context.Context, tx pgx.Tx, expectedHash string, exclusive bool) error {
+	q := psql.Select("hash").
+		From("schema_revision").
+		Where(sq.Eq{"name": "current"}).
+		Where(sq.Eq{"deleted_xid": liveDeletedTxnID})
+	if exclusive {
+		q = q.Suffix("FOR UPDATE")
+	} else {
+		q = q.Suffix("FOR SHARE")
+	}
+	sqlStr, args, err := q.ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build schema hash precondition query: %w", err)
+	}
+
+	var storedHash []byte
+	if err := tx.QueryRow(ctx, sqlStr, args...).Scan(&storedHash); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return datastore.ErrSchemaNotFound
+		}
+		return fmt.Errorf("failed to check schema hash precondition: %w", err)
+	}
+	if string(storedHash) != expectedHash {
+		return datastore.ErrSchemaHashPreconditionFailed
+	}
+	return nil
 }
 
 // WriteStoredSchema writes the unified stored schema to the Postgres schema table.

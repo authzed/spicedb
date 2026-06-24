@@ -14,7 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
-	"github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/common"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -50,6 +51,10 @@ type RetryPool struct {
 	id            string
 	healthTracker *NodeHealthTracker
 
+	// nodeIDFromConn extracts the CRDB sql instance id from a connection.
+	// It is a field rather than a direct call to nodeID so that tests can inject a deterministic value without needing a live connection.
+	nodeIDFromConn func(conn *pgx.Conn) uint32
+
 	sync.RWMutex
 	maxRetries  uint8
 	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
@@ -59,37 +64,34 @@ type RetryPool struct {
 func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
 	config = config.Copy()
 	p := &RetryPool{
-		id:            name,
-		maxRetries:    maxRetries,
-		healthTracker: healthTracker,
-		nodeForConn:   make(map[*pgx.Conn]uint32, 0),
-		gc:            make(map[*pgx.Conn]struct{}, 0),
+		id:             name,
+		maxRetries:     maxRetries,
+		healthTracker:  healthTracker,
+		nodeIDFromConn: nodeID,
+		nodeForConn:    make(map[*pgx.Conn]uint32),
+		gc:             make(map[*pgx.Conn]struct{}),
 	}
 
+	p.configureLifecycleCallbacks(config, connectRate)
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+
+	p.pool = pool
+	return p, nil
+}
+
+// configureLifecycleCallbacks installs the pool's connection-lifecycle hooks
+// (AfterConnect/BeforeAcquire/AfterRelease/BeforeClose) onto config, wrapping
+// any pre-existing hooks. It performs no I/O, so it can be exercised in unit
+// tests without a live database by invoking the resulting config callbacks directly.
+func (p *RetryPool) configureLifecycleCallbacks(config *pgxpool.Config, connectRate time.Duration) {
 	limiter := rate.NewLimiter(rate.Every(connectRate), 1)
 	afterConnect := config.AfterConnect
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		if afterConnect != nil {
-			if err := afterConnect(ctx, conn); err != nil {
-				return err
-			}
-		}
-
-		p.Lock()
-		defer p.Unlock()
-
-		delete(p.nodeForConn, conn)
-		delete(p.gc, conn)
-
-		healthTracker.SetNodeHealth(nodeID(conn), true)
-
-		if err := limiter.Wait(ctx); err != nil {
-			return err
-		}
-
-		p.nodeForConn[conn] = nodeID(conn)
-
-		return nil
+		return p.afterConnect(ctx, conn, afterConnect, limiter)
 	}
 
 	// if we attempt to acquire or release a connection that has been marked for
@@ -138,14 +140,34 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		delete(p.nodeForConn, conn)
 		delete(p.gc, conn)
 	}
+}
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, err
+// afterConnect is the body of the AfterConnect lifecycle hook.
+// It records the node a freshly-established connection belongs to and marks that node healthy.
+// wrapped, if non-nil, is the AfterConnect hook that was already present on the config and is invoked first.
+func (p *RetryPool) afterConnect(ctx context.Context, conn *pgx.Conn, wrapped func(context.Context, *pgx.Conn) error, limiter *rate.Limiter) error {
+	if wrapped != nil {
+		if err := wrapped(ctx, conn); err != nil {
+			return err
+		}
 	}
 
-	p.pool = pool
-	return p, nil
+	if err := limiter.Wait(ctx); err != nil {
+		return err
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	delete(p.nodeForConn, conn)
+	delete(p.gc, conn)
+
+	id := p.nodeIDFromConn(conn)
+	p.healthTracker.SetNodeHealth(id, true)
+
+	p.nodeForConn[conn] = id
+
+	return nil
 }
 
 // ID returns a string identifier for this pool for use in metrics and logs.
@@ -169,7 +191,7 @@ func (p *RetryPool) MinConns() uint32 {
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return common.QuerierFuncsFor(conn.Conn()).ExecFunc(ctx, tagFunc, sql, arguments...)
+		return pgxcommon.QuerierFuncsFor(conn.Conn()).ExecFunc(ctx, tagFunc, sql, arguments...)
 	})
 }
 
@@ -177,7 +199,7 @@ func (p *RetryPool) ExecFunc(ctx context.Context, tagFunc func(ctx context.Conte
 // connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return common.QuerierFuncsFor(conn.Conn()).QueryFunc(ctx, rowsFunc, sql, optionsAndArgs...)
+		return pgxcommon.QuerierFuncsFor(conn.Conn()).QueryFunc(ctx, rowsFunc, sql, optionsAndArgs...)
 	})
 }
 
@@ -185,7 +207,7 @@ func (p *RetryPool) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Con
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
 	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
-		return common.QuerierFuncsFor(conn.Conn()).QueryRowFunc(ctx, rowFunc, sql, optionsAndArgs...)
+		return pgxcommon.QuerierFuncsFor(conn.Conn()).QueryRowFunc(ctx, rowFunc, sql, optionsAndArgs...)
 	})
 }
 

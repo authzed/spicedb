@@ -33,10 +33,6 @@ type ServerConfig struct {
 }
 
 var DefaultTestServerConfig = ServerConfig{
-	MaxUpdatesPerWrite:                 1000,
-	MaxPreconditionsCount:              1000,
-	StreamingAPITimeout:                30 * time.Second,
-	MaxRelationshipContextSize:         25000,
 	EnableExperimentalLookupResources3: true,
 }
 
@@ -72,12 +68,12 @@ func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool
 	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
+		server.WithTelemetryEndpoint(""),
+		server.WithSilentlyDisableTelemetry(true),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
-		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),
 		server.WithStreamingAPITimeout(config.StreamingAPITimeout),
-		server.WithMaxCaveatContextSize(4096),
 		server.WithMaxRelationshipContextSize(config.MaxRelationshipContextSize),
 		server.WithExperimentalLookupResourcesVersion(lrver),
 		server.WithGRPCServer(util.GRPCServerConfig{
@@ -138,19 +134,6 @@ func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool
 			},
 		}),
 	)
-	// Disable all caching and metrics so test servers retain their pre-PR
-	// behavior. The new library defaults enable real caches (matching CLI),
-	// which (a) break parallel subtests by registering duplicate metrics
-	// with prometheus.DefaultRegisterer and (b) can affect test semantics
-	// by introducing caching where there was previously a NoopCache.
-	cfg.DispatchClusterMetricsEnabled = false
-	cfg.DispatchClientMetricsEnabled = false
-	cfg.DatastoreConfig.EnableDatastoreMetrics = false
-	cfg.NamespaceCacheConfig = server.CacheConfig{}
-	cfg.DispatchCacheConfig = server.CacheConfig{}
-	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
-	cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
-	cfg.StoredSchemaCacheConfig = server.CacheConfig{}
 	srv, err := cfg.Complete(t.Context())
 	require.NoError(t, err)
 

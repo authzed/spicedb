@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"encoding/hex"
 	"fmt"
 	"slices"
 	"strconv"
@@ -118,6 +119,29 @@ func (hc hashableContext) AppendToHash(hasher hasherInterface) {
 		return
 	}
 	hasher.WriteString(stable)
+}
+
+type hashableCheckHints []*v1.CheckHint
+
+func (hch hashableCheckHints) AppendToHash(hasher hasherInterface) {
+	encoded := make([]string, 0, len(hch))
+	for _, hint := range hch {
+		if hint != nil {
+			marshalled, err := hint.MarshalVT()
+			if err != nil {
+				encoded = append(encoded, hint.String())
+			} else {
+				encoded = append(encoded, hex.EncodeToString(marshalled))
+			}
+		}
+	}
+
+	// sort the encodings so the result is independent of the order in which hints were appended to the request
+	slices.Sort(encoded)
+	for _, e := range encoded {
+		hasher.WriteString(e)
+		hasher.WriteString(",")
+	}
 }
 
 // dispatchCacheKeyHash computes a DispatchCheckKey for the given prefix and any hashable values.

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/authzed/consistent"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -169,7 +171,10 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 		dispatcherOptions := []combineddispatch.Option{
 			combineddispatch.UpstreamAddr("test://" + prefix),
-			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
+			combineddispatch.Metrics(dispatch.MetricsOptions{
+				PrometheusRegistry:  prometheus.NewRegistry(),
+				PrometheusSubsystem: fmt.Sprintf("%s_%d_client_dispatch", prefix, i),
+			}),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
@@ -204,14 +209,10 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 			server.WithDatastore(ds),
 			server.WithDispatcher(dispatcher),
 			server.WithQueryPlanMetadata(queryPlanMetadata),
-			server.WithDispatchMaxDepth(50),
-			server.WithMaximumPreconditionCount(1000),
-			server.WithMaximumUpdatesPerWrite(1000),
 			server.WithGRPCServer(util.GRPCServerConfig{
 				Network: util.BufferedNetwork,
 				Enabled: true,
 			}),
-			server.WithMaxRelationshipContextSize(25000),
 			server.WithSchemaPrefixesRequired(false),
 			server.WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
 				return ctx, nil
@@ -227,15 +228,6 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 		serverOptions = append(serverOptions, additionalServerOptions...)
 
 		cfg := server.NewConfigWithOptionsAndDefaults(serverOptions...)
-		// Disable caches and their metrics to avoid "duplicate metrics" errors
-		cfg.DispatchClusterMetricsEnabled = false
-		cfg.DispatchClientMetricsEnabled = false
-		cfg.DatastoreConfig.EnableDatastoreMetrics = false
-		cfg.NamespaceCacheConfig = server.CacheConfig{}
-		cfg.DispatchCacheConfig = server.CacheConfig{}
-		cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
-		cfg.LR3ResourceChunkCacheConfig = server.CacheConfig{}
-		cfg.StoredSchemaCacheConfig = server.CacheConfig{}
 		srv, listeners, err := cfg.CompleteForTesting(t.Context())
 		require.NoError(t, err)
 

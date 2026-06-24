@@ -384,9 +384,18 @@ func (mds *mysqlDatastore) ReadWriteTx(
 				newTxnID,
 			}
 
+			if config.SchemaHashPrecondition != "" {
+				if err := assertSchemaHash(ctx, rwt, config.SchemaHashPrecondition, config.SchemaHashPreconditionExclusive); err != nil {
+					return err
+				}
+			}
 			return fn(ctx, rwt)
 		}); err != nil {
 			if !config.DisableRetries && isErrorRetryable(err) {
+				// Don't back off after the final attempt; we're about to give up.
+				if i < mds.maxRetries {
+					common.SleepOnErr(ctx, err, i)
+				}
 				continue
 			}
 
