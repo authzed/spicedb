@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -517,8 +518,16 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 
 // ReadOnlyStoredSchema wraps a *core.StoredSchema to indicate it is read-only
 // and must not be modified, as it may be shared across multiple callers via caching.
+//
+// A ReadOnlyStoredSchema also hosts lazily-built, schema-derived caches (for example
+// compiled caveats; see GetDerivedCache). Because a single instance is shared across
+// callers for a given schema version via the stored-schema cache, those derived caches
+// live exactly as long as the schema version they belong to and are discarded, together,
+// when the schema changes. The underlying schema itself remains immutable; only the
+// concurrency-safe derived caches are populated on demand.
 type ReadOnlyStoredSchema struct {
-	schema *core.StoredSchema
+	schema  *core.StoredSchema
+	derived sync.Map // map[DerivedCacheKey]any
 }
 
 // NewReadOnlyStoredSchema wraps a StoredSchema as read-only.
