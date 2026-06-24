@@ -34,8 +34,13 @@ var (
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "query_latency",
-		Buckets:   []float64{.0005, .001, .002, .005, .01, .02, .05, .1, .2, .5},
-		Help:      "response latency for a database query",
+		Buckets: []float64{
+			// same as grpc_server_handling_seconds
+			.0005, .001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 5, 30,
+		},
+		Help:                           "response latency for a database query, in seconds",
+		NativeHistogramBucketFactor:    1.1, // At most 10% increase from bucket to bucket.
+		NativeHistogramMaxBucketNumber: 100,
 	}, []string{
 		"operation", "query_shape",
 	})
