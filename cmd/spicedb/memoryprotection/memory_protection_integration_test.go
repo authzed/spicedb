@@ -3,11 +3,11 @@
 package memoryprotection
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/grpc"
@@ -21,6 +21,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection/rtml"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func init() {
@@ -30,24 +31,15 @@ func init() {
 func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	serverToken := "mykey"
+	ctx := t.Context()
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "authzed/spicedb:ci",
-			Cmd:          []string{"serve", "--log-level=debug", "--grpc-preshared-key", serverToken, "--telemetry-endpoint=\"\""},
-			ExposedPorts: []string{"50051/tcp"},
-			Env: map[string]string{
-				"GOMEMLIMIT": "1B", // NOTE: Absurdly low on purpose
-			},
-		},
-		Started: true,
-	})
+	container, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+		testcontainers.WithEnv(map[string]string{
+			"GOMEMLIMIT": "1B", // NOTE: Absurdly low on purpose
+		}),
+	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, container.Terminate(ctx))
-	})
+	testcontainers.CleanupContainer(t, container)
 
 	mappedPort, err := container.MappedPort(ctx, "50051")
 	require.NoError(t, err)
@@ -55,7 +47,7 @@ func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 
 	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", serverPort),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpcutil.WithInsecureBearerToken(serverToken),
+		grpcutil.WithInsecureBearerToken(container.PresharedKey()),
 	)
 
 	require.NoError(t, err)
@@ -64,9 +56,12 @@ func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 	})
 
 	// Health requests bypass the memory middleware
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-		return err == nil && resp.GetStatus() == healthpb.HealthCheckResponse_SERVING
+		if !assert.NoError(collect, err) {
+			return
+		}
+		assert.Equal(collect, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 	}, 5*time.Second, 1*time.Second, "server never became healthy")
 
 	// Other requests have the memory middleware

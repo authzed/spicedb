@@ -2,8 +2,6 @@ package datastore
 
 import (
 	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	crdbversion "github.com/authzed/spicedb/internal/datastore/crdb/version"
@@ -11,14 +9,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
-
-// configFilePath returns the absolute path to a file in the config directory
-// alongside this package's source. Container helpers must use this rather than
-// a relative path, since tests run from arbitrary working directories.
-func configFilePath(name string) string {
-	_, thisFile, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(thisFile), "config", name)
-}
 
 // InitFunc initializes a datastore instance from a uri that has been
 // generated from a TestDatastoreBuilder

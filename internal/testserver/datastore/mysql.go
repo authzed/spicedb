@@ -56,6 +56,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) Run
 	image := "mirror.gcr.io/library/mysql:" + version.MinimumSupportedMySQLVersion
 	container, err := mysql.Run(ctx,
 		image,
+		// TODO
 		mysql.WithConfigFile(configFilePath("mysql.cnf")),
 		mysql.WithDatabase(initialDB),
 		// Sets MYSQL_ROOT_PASSWORD so we can connect as root below.

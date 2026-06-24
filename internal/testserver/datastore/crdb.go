@@ -83,9 +83,9 @@ func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Dat
 	migrationDriver, err := crdbmigrations.NewCRDBDriver(connectStr)
 	require.NoError(t, err)
 	require.NoError(t, crdbmigrations.CRDBMigrations.Run(t.Context(), migrationDriver, migrate.Head, migrate.LiveRun))
-	defer func() {
-		migrationDriver.Close(t.Context())
-	}()
+	t.Cleanup(func() {
+		_ = migrationDriver.Close(t.Context())
+	})
 
 	return initFunc("cockroachdb", connectStr)
 }

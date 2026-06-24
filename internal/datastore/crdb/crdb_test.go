@@ -3,6 +3,7 @@
 package crdb
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -433,38 +434,35 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 	rootUserCert, err := x509.ParseCertificate(rootUserCertBytes)
 	require.NoError(t, err)
 
-	rootKeyFile, err := os.OpenFile(filepath.Join(certDir, "client.root.key"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
-	require.NoError(t, err)
+	var rootKeyFileBuffer bytes.Buffer
 	rootKeyBytes, err := x509.MarshalECPrivateKey(rootUserPrivateKey)
 	require.NoError(t, err)
-	require.NoError(t, pem.Encode(rootKeyFile, &pem.Block{
+	require.NoError(t, pem.Encode(&rootKeyFileBuffer, &pem.Block{
 		Type:  "EC PRIVATE KEY",
 		Bytes: rootKeyBytes,
 	}))
-	require.NoError(t, rootKeyFile.Close())
 
-	rootCertFile, err := os.Create(filepath.Join(certDir, "client.root.crt"))
+	var rootCertFileBuffer bytes.Buffer
 	require.NoError(t, err)
-	require.NoError(t, pem.Encode(rootCertFile, &pem.Block{
+	require.NoError(t, pem.Encode(&rootCertFileBuffer, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: rootUserCert.Raw,
 	}))
-	require.NoError(t, rootCertFile.Close())
 
 	// Run cockroach in secure mode using the certs generated above. The
 	// cockroachdb testcontainers module can't be used here because it forces
 	// --insecure, which conflicts with --certs-dir.
 	container, err := testcontainers.Run(t.Context(),
 		"mirror.gcr.io/cockroachdb/cockroach:v"+crdbTestVersion(),
-		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				Cmd:          []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
-				ExposedPorts: []string{"26257/tcp"},
-				HostConfigModifier: func(hc *dockercontainer.HostConfig) {
-					hc.Binds = append(hc.Binds, certDir+":/certs")
-				},
-				WaitingFor: wait.ForListeningPort("26257/tcp").WithStartupTimeout(time.Minute),
-			},
+		testcontainers.WithCmd("start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"),
+		testcontainers.WithExposedPorts("26257/tcp"),
+		testcontainers.WithWaitStrategy(wait.ForListeningPort("26257/tcp").WithStartupTimeout(time.Minute)),
+		testcontainers.WithFiles(testcontainers.ContainerFile{
+			ContainerFilePath: "/certs/client.root.key",
+			Reader: &rootKeyFileBuffer,
+		}, testcontainers.ContainerFile{
+			ContainerFilePath: "/certs/client.root.crt",
+			Reader: &rootCertFileBuffer,
 		}),
 	)
 	require.NoError(t, err)
