@@ -526,17 +526,31 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 // when the schema changes. The underlying schema itself remains immutable; only the
 // concurrency-safe derived caches are populated on demand.
 type ReadOnlyStoredSchema struct {
-	schema  *core.StoredSchema
-	derived sync.Map // map[DerivedCacheKey]any
+	schema     *core.StoredSchema
+	schemaSize int64    // rough byte size of the schema, used as a cache-cost base (see EstimatedSize)
+	derived    sync.Map // map[DerivedCacheKey]any
 }
 
-// NewReadOnlyStoredSchema wraps a StoredSchema as read-only.
-// Returns nil if the provided schema is nil.
+// NewReadOnlyStoredSchema wraps a StoredSchema as read-only. Returns nil if the provided
+// schema is nil. The schema's byte size is estimated cheaply from its schema text; callers
+// that have the exact serialized size on hand (e.g. datastore readers that just unmarshaled
+// it) should prefer NewReadOnlyStoredSchemaWithSize.
 func NewReadOnlyStoredSchema(schema *core.StoredSchema) *ReadOnlyStoredSchema {
 	if schema == nil {
 		return nil
 	}
-	return &ReadOnlyStoredSchema{schema: schema}
+	return NewReadOnlyStoredSchemaWithSize(schema, len(schema.GetV1().GetSchemaText()))
+}
+
+// NewReadOnlyStoredSchemaWithSize wraps a StoredSchema as read-only, recording sizeBytes as a
+// rough byte size of the schema for cache-cost accounting (see EstimatedSize). Returns nil if
+// the provided schema is nil. sizeBytes need not be exact; the serialized length the schema
+// was read from is a good value.
+func NewReadOnlyStoredSchemaWithSize(schema *core.StoredSchema, sizeBytes int) *ReadOnlyStoredSchema {
+	if schema == nil {
+		return nil
+	}
+	return &ReadOnlyStoredSchema{schema: schema, schemaSize: int64(sizeBytes)}
 }
 
 // Get returns the underlying StoredSchema. Callers must not modify the returned value.
