@@ -58,6 +58,7 @@ type ConnPoolConfig struct {
 	MaxOpenConns        int           `debugmap:"visible"`
 	MinOpenConns        int           `debugmap:"visible"`
 	HealthCheckInterval time.Duration `debugmap:"visible" default:"30s"`
+	PingTimeout         time.Duration `debugmap:"visible" default:"5s"`
 }
 
 func DefaultReadConnPool() *ConnPoolConfig {
@@ -67,6 +68,7 @@ func DefaultReadConnPool() *ConnPoolConfig {
 		MaxOpenConns:        20,
 		MinOpenConns:        20,
 		HealthCheckInterval: 30 * time.Second,
+		PingTimeout:         5 * time.Second,
 	}
 }
 
@@ -91,6 +93,7 @@ func RegisterConnPoolFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, defa
 	flagSet.DurationVar(&opts.MaxLifetimeJitter, flagName("max-lifetime-jitter"), defaults.MaxLifetimeJitter, "waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)")
 	flagSet.DurationVar(&opts.MaxIdleTime, flagName("max-idletime"), defaults.MaxIdleTime, "maximum amount of time a connection can idle in a remote datastore's connection pool")
 	flagSet.DurationVar(&opts.HealthCheckInterval, flagName("healthcheck-interval"), defaults.HealthCheckInterval, "amount of time between connection health checks in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.PingTimeout, flagName("ping-timeout"), defaults.PingTimeout, "amount of time to wait for a liveness ping against an acquired idle connection before discarding it in a remote datastore's connection pool")
 }
 
 func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
@@ -100,6 +103,7 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 	_ = flagSet.MarkDeprecated("datastore-conn-max-lifetime", warning)
 	_ = flagSet.MarkDeprecated("datastore-conn-max-idletime", warning)
 	_ = flagSet.MarkDeprecated("datastore-conn-healthcheck-interval", warning)
+	_ = flagSet.MarkDeprecated("datastore-conn-ping-timeout", warning)
 }
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.options.go . Config
@@ -276,8 +280,16 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	RegisterConnPoolFlagsWithPrefix(flagSet, newReadReplicaPrefix, DefaultReadConnPool(), &opts.ReadReplicaConnPool)
 	RegisterConnPoolFlagsWithPrefix(flagSet, oldReadReplicaPrefix, DefaultReadConnPool(), &opts.OldReadReplicaConnPool)
 
+	// ping-timeout is an internal pool-tuning knob; keep it hidden from --help
+	// until load testing settles a good default. The 5s default still applies.
+	for _, prefix := range []string{"datastore-conn-pool-read", "datastore-conn-pool-write", newReadReplicaPrefix} {
+		if err := flagSet.MarkHidden(prefix + "-ping-timeout"); err != nil {
+			return fmt.Errorf("failed to mark flag as hidden: %w", err)
+		}
+	}
+
 	warning := fmt.Sprintf("please use the flags with the prefix %q instead of %q", newReadReplicaPrefix, oldReadReplicaPrefix)
-	for _, flag := range []string{"max-open", "min-open", "max-lifetime", "max-lifetime-jitter", "max-idletime", "healthcheck-interval"} {
+	for _, flag := range []string{"max-open", "min-open", "max-lifetime", "max-lifetime-jitter", "max-idletime", "healthcheck-interval", "ping-timeout"} {
 		if err := flagSet.MarkDeprecated(oldReadReplicaPrefix+"-"+flag, warning); err != nil {
 			return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 		}
@@ -619,6 +631,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
 		crdb.ReadConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		crdb.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
+		crdb.ReadConnPingTimeout(opts.ReadConnPool.PingTimeout),
 		crdb.WithAcquireTimeout(opts.WriteAcquisitionTimeout),
 		crdb.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		crdb.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
@@ -626,6 +639,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
 		crdb.WriteConnMaxLifetimeJitter(opts.WriteConnPool.MaxLifetimeJitter),
 		crdb.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
+		crdb.WriteConnPingTimeout(opts.WriteConnPool.PingTimeout),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
 		crdb.MaxRetries(maxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
@@ -703,6 +717,7 @@ func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, repli
 		postgres.ReadConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
 		postgres.ReadConnMaxLifetimeJitter(opts.ReadReplicaConnPool.MaxLifetimeJitter),
 		postgres.ReadConnHealthCheckInterval(opts.ReadReplicaConnPool.HealthCheckInterval),
+		postgres.ReadConnPingTimeout(opts.ReadReplicaConnPool.PingTimeout),
 		postgres.ReadStrictMode( /* strict read mode is required for Postgres read replicas */ true),
 	}
 
@@ -728,12 +743,14 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
 		postgres.ReadConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		postgres.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
+		postgres.ReadConnPingTimeout(opts.ReadConnPool.PingTimeout),
 		postgres.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		postgres.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
 		postgres.WriteConnMaxIdleTime(opts.WriteConnPool.MaxIdleTime),
 		postgres.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
 		postgres.WriteConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		postgres.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
+		postgres.WriteConnPingTimeout(opts.WriteConnPool.PingTimeout),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.WatchBufferLength(opts.WatchBufferLength),

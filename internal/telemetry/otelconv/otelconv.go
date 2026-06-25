@@ -47,8 +47,9 @@ const (
 
 	EventDatastoreMySQLTransactionValidated = "spicedb.internal.datastore.mysql.transaction_validated"
 
-	EventDatastoreRevisionsCacheReturned = "spicedb.internal.datastore.revisions.cache_returned"
-	EventDatastoreRevisionsComputed      = "spicedb.internal.datastore.revisions.computed"
+	EventDatastoreRevisionsCacheReturned        = "spicedb.internal.datastore.revisions.cache_returned"
+	EventDatastoreRevisionsComputed             = "spicedb.internal.datastore.revisions.computed"
+	EventDatastoreRevisionsSharedFailedRetrying = "spicedb.internal.datastore.revisions.shared_failed_retrying"
 
 	EventDispatchLookupResources3                          = "spicedb.internal.dispatch.lookupresources3"
 	EventDispatchLR3UnlimitedResults                       = "spicedb.internal.dispatch.lookupresources3.unlimited_results"

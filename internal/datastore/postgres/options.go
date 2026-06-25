@@ -188,6 +188,26 @@ func WriteConnHealthCheckInterval(interval time.Duration) Option {
 	return func(po *postgresOptions) { po.writePoolOpts.ConnHealthCheckInterval = &interval }
 }
 
+// ReadConnPingTimeout is the maximum amount of time the read pool will wait for a
+// liveness ping against a connection (performed when handing out a previously
+// idle connection) before considering that connection unhealthy and discarding
+// it. This bounds how long a half-open connection can stall an acquisition.
+//
+// This value defaults to 5s.
+func ReadConnPingTimeout(timeout time.Duration) Option {
+	return func(po *postgresOptions) { po.readPoolOpts.ConnPingTimeout = &timeout }
+}
+
+// WriteConnPingTimeout is the maximum amount of time the write pool will wait for
+// a liveness ping against a connection (performed when handing out a previously
+// idle connection) before considering that connection unhealthy and discarding
+// it. This bounds how long a half-open connection can stall an acquisition.
+//
+// This value defaults to 5s.
+func WriteConnPingTimeout(timeout time.Duration) Option {
+	return func(po *postgresOptions) { po.writePoolOpts.ConnPingTimeout = &timeout }
+}
+
 // ReadConnMaxIdleTime is the duration after which an idle read connection will
 // be automatically closed by the health check.
 //
