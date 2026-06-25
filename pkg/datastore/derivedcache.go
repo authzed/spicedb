@@ -18,19 +18,49 @@ func NewDerivedCacheKey(name string) DerivedCacheKey { return DerivedCacheKey{na
 // Name returns the human-readable name of the key.
 func (k DerivedCacheKey) Name() string { return k.name }
 
-// derivedCacheFactories maps a DerivedCacheKey to a factory that builds an empty cache
-// instance. Registered once at init time via RegisterDerivedCache.
-var derivedCacheFactories sync.Map // map[DerivedCacheKey]func() any
+// derivedCacheRegistration bundles the lazy factory for a derived cache kind with an estimator
+// of how many bytes that cache adds, when fully populated, on top of the schema it hangs off.
+type derivedCacheRegistration struct {
+	factory   func() any
+	estimator func(*ReadOnlyStoredSchema) int64
+}
 
-// RegisterDerivedCache registers a factory used to lazily build a schema-derived cache of the
-// given kind. The factory returns a fresh, empty cache and is invoked at most once per
-// ReadOnlyStoredSchema instance (i.e. once per schema version). Intended to be called from an
-// init() function. It returns an error if a factory is already registered for the key.
-func RegisterDerivedCache(key DerivedCacheKey, factory func() any) error {
-	if _, loaded := derivedCacheFactories.LoadOrStore(key, factory); loaded {
+// derivedCacheFactories maps a DerivedCacheKey to its registration. Registered once at init
+// time via RegisterDerivedCache.
+var derivedCacheFactories sync.Map // map[DerivedCacheKey]derivedCacheRegistration
+
+// RegisterDerivedCache registers a derived cache kind. factory returns a fresh, empty cache and
+// is invoked at most once per ReadOnlyStoredSchema instance (i.e. once per schema version).
+// estimator returns a rough byte size that this cache adds, when populated, on top of the
+// schema; it is summed into the schema's cache cost (see ReadOnlyStoredSchema.EstimatedSize) and
+// may be nil to contribute nothing. Intended to be called from an init() function. It returns an
+// error if a kind is already registered for the key.
+func RegisterDerivedCache(key DerivedCacheKey, factory func() any, estimator func(*ReadOnlyStoredSchema) int64) error {
+	reg := derivedCacheRegistration{factory: factory, estimator: estimator}
+	if _, loaded := derivedCacheFactories.LoadOrStore(key, reg); loaded {
 		return fmt.Errorf("derived schema cache already registered for key %q", key.name)
 	}
 	return nil
+}
+
+// EstimatedSize returns a rough byte size for this stored schema: the schema's own size plus,
+// for every registered derived cache kind, that kind's estimate of the additional bytes it adds
+// when populated. It is intended as the cost when caching the schema, so the cache's max-cost
+// budget accounts for the derived caches the schema will accrete (compiled caveats, etc.), not
+// just the schema blob. The estimate is deliberately rough and conservative (it assumes every
+// kind will be populated).
+func (r *ReadOnlyStoredSchema) EstimatedSize() int64 {
+	if r == nil {
+		return 0
+	}
+	size := r.schemaSize
+	derivedCacheFactories.Range(func(_, v any) bool {
+		if reg := v.(derivedCacheRegistration); reg.estimator != nil {
+			size += reg.estimator(r)
+		}
+		return true
+	})
+	return size
 }
 
 // derivedCache returns the derived cache registered under key for this schema, building it
@@ -41,11 +71,11 @@ func (r *ReadOnlyStoredSchema) derivedCache(key DerivedCacheKey) (any, error) {
 	if v, ok := r.derived.Load(key); ok {
 		return v, nil
 	}
-	factory, ok := derivedCacheFactories.Load(key)
+	reg, ok := derivedCacheFactories.Load(key)
 	if !ok {
 		return nil, spiceerrors.MustBugf("no derived schema cache registered for key %q", key.name)
 	}
-	built := factory.(func() any)()
+	built := reg.(derivedCacheRegistration).factory()
 	actual, _ := r.derived.LoadOrStore(key, built)
 	return actual, nil
 }

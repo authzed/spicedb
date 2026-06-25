@@ -59,8 +59,8 @@ func TestSchemaHashCache_SetCostsBySize(t *testing.T) {
 	require.NoError(t, shc.Set(SchemaHash("small"), small))
 	require.NoError(t, shc.Set(SchemaHash("large"), large))
 
-	require.Equal(t, int64(small.EstimatedSize()), tc.cost(SchemaCacheKey("small")))
-	require.Equal(t, int64(large.EstimatedSize()), tc.cost(SchemaCacheKey("large")))
+	require.Equal(t, small.EstimatedSize(), tc.cost(SchemaCacheKey("small")))
+	require.Equal(t, large.EstimatedSize(), tc.cost(SchemaCacheKey("large")))
 	require.Greater(t, tc.cost(SchemaCacheKey("large")), tc.cost(SchemaCacheKey("small")))
 	require.Greater(t, tc.cost(SchemaCacheKey("small")), int64(1))
 }

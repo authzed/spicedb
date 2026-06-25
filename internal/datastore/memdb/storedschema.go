@@ -39,7 +39,8 @@ func (r *memdbReader) ReadStoredSchema(_ context.Context) (*datastore.ReadOnlySt
 		return nil, fmt.Errorf("failed to unmarshal schema: %w", err)
 	}
 
-	return datastore.NewReadOnlyStoredSchema(storedSchema), nil
+	// len(sd.data) is the exact serialized size, used as the rough schema-size base for cache cost.
+	return datastore.NewReadOnlyStoredSchemaWithSize(storedSchema, len(sd.data)), nil
 }
 
 // assertSchemaHash verifies the stored schema hash matches expectedHash.

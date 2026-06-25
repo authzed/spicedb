@@ -31,7 +31,7 @@ func TestDerivedCacheLazyAndShared(t *testing.T) {
 	require.NoError(t, datastore.RegisterDerivedCache(key, func() any {
 		built++
 		return &testCache{id: built}
-	}))
+	}, nil))
 
 	s := newStoredSchema()
 
@@ -62,6 +62,20 @@ func TestDerivedCacheUnregisteredKeyErrors(t *testing.T) {
 
 func TestDerivedCacheDuplicateRegistrationErrors(t *testing.T) {
 	key := uniqueDerivedCacheKey("dup")
-	require.NoError(t, datastore.RegisterDerivedCache(key, func() any { return &testCache{} }))
-	require.Error(t, datastore.RegisterDerivedCache(key, func() any { return &testCache{} }))
+	require.NoError(t, datastore.RegisterDerivedCache(key, func() any { return &testCache{} }, nil))
+	require.Error(t, datastore.RegisterDerivedCache(key, func() any { return &testCache{} }, nil))
+}
+
+func TestEstimatedSizeIncludesSchemaAndDerivedEstimators(t *testing.T) {
+	// Base size comes from the explicit byte size; registered estimators add on top. The
+	// registry is process-global, so assert against the delta rather than an absolute total.
+	s := datastore.NewReadOnlyStoredSchemaWithSize(&core.StoredSchema{}, 1000)
+	before := s.EstimatedSize()
+	require.GreaterOrEqual(t, before, int64(1000), "estimated size includes the schema byte size")
+
+	key := uniqueDerivedCacheKey("estimator")
+	require.NoError(t, datastore.RegisterDerivedCache(key, func() any { return &testCache{} },
+		func(*datastore.ReadOnlyStoredSchema) int64 { return 250 }))
+
+	require.Equal(t, before+250, s.EstimatedSize(), "a registered estimator adds to estimated size")
 }
