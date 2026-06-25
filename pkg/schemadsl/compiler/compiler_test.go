@@ -599,16 +599,18 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.MustRelation("foos",
-						namespace.Exclusion(
-							namespace.Rewrite(
-								namespace.Union(
-									namespace.ComputedUserset("bars"),
-									namespace.ComputedUserset("bazs"),
+					namespace.MustWithMixedOperators(
+						namespace.MustRelation("foos",
+							namespace.Exclusion(
+								namespace.Rewrite(
+									namespace.Union(
+										namespace.ComputedUserset("bars"),
+										namespace.ComputedUserset("bazs"),
+									),
 								),
+								namespace.ComputedUserset("mehs"),
 							),
-							namespace.ComputedUserset("mehs"),
-						),
+						), 1, 22,
 					),
 				),
 			},
@@ -631,6 +633,24 @@ func TestCompile(t *testing.T) {
 									namespace.ComputedUserset("mehs"),
 								),
 							),
+						),
+					),
+				),
+			},
+		},
+		{
+			"top-level parens permission",
+			withTenantPrefix,
+			`definition complex {
+				permission foos = (bars + bazs);
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/complex",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 				),
