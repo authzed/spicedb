@@ -13,7 +13,7 @@ If you'd like to be included in the security embargo because this project is cri
 
 ## Threat Model
 
-Even if you are not reporting a vulnerability, please take your take to read and understand this section carefully.
+Even if you are not reporting a vulnerability, please take your time to read and understand this section carefully.
 This describes the scope of responsibility of this project and importantly what it is *not* responsible for.
 
 ### Logic Errors
