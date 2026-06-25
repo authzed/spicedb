@@ -170,7 +170,8 @@ func (sr spannerReader) ReverseQueryRelationships(
 	indexingHint := IndexingHintForQueryShape(sr.schema, queryOpts.QueryShapeForReverse)
 	qBuilder = qBuilder.WithIndexingHint(indexingHint)
 
-	return sr.executor.ExecuteQuery(ctx,
+	return sr.executor.ExecuteQuery(
+		ctx,
 		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
@@ -217,7 +218,8 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 			var integrityHash []byte
 			var timestamp time.Time
 
-			colsToSelect, err := common.ColumnsToSelect(builder,
+			colsToSelect, err := common.ColumnsToSelect(
+				builder,
 				&resourceObjectType,
 				&resourceObjectID,
 				&relation,

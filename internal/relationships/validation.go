@@ -198,7 +198,8 @@ func ValidateOneRelationship(
 		relationToCheck = ns.AllowedRelationWithCaveat(
 			rel.Subject.ObjectType,
 			rel.Subject.Relation,
-			caveat)
+			caveat,
+		)
 	}
 
 	if rel.OptionalExpiration != nil {
@@ -210,7 +211,8 @@ func ValidateOneRelationship(
 		// For writing or when the caveat was specified, the caveat must be a direct match.
 		isAllowed, err := resourceTS.HasAllowedRelation(
 			rel.Resource.Relation,
-			relationToCheck)
+			relationToCheck,
+		)
 		if err != nil {
 			return err
 		}

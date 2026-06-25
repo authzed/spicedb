@@ -26,7 +26,8 @@ func init() {
 			}
 
 			return nil
-		}); err != nil {
+		},
+	); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}
 }

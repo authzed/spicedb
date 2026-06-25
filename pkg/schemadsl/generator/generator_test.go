@@ -99,7 +99,8 @@ func TestGenerateNamespace(t *testing.T) {
 		},
 		{
 			"simple relation",
-			namespace.Namespace("foos/test",
+			namespace.Namespace(
+				"foos/test",
 				namespace.MustRelation("somerel", nil, namespace.AllowedRelation("foos/bars", "hiya")),
 			),
 			`definition foos/test {
@@ -109,7 +110,8 @@ func TestGenerateNamespace(t *testing.T) {
 		},
 		{
 			"simple permission",
-			namespace.Namespace("foos/test",
+			namespace.Namespace(
+				"foos/test",
 				namespace.MustRelation("someperm", namespace.Union(
 					namespace.ComputedUserset("anotherrel"),
 				)),
@@ -121,7 +123,8 @@ func TestGenerateNamespace(t *testing.T) {
 		},
 		{
 			"complex permission",
-			namespace.Namespace("foos/test",
+			namespace.Namespace(
+				"foos/test",
 				namespace.MustRelation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
@@ -140,7 +143,8 @@ func TestGenerateNamespace(t *testing.T) {
 		},
 		{
 			"complex permission with self",
-			namespace.Namespace("foos/test",
+			namespace.Namespace(
+				"foos/test",
 				namespace.MustRelation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
@@ -160,7 +164,8 @@ func TestGenerateNamespace(t *testing.T) {
 		},
 		{
 			"complex permission with nil",
-			namespace.Namespace("foos/test",
+			namespace.Namespace(
+				"foos/test",
 				namespace.MustRelation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
@@ -180,7 +185,8 @@ func TestGenerateNamespace(t *testing.T) {
 		},
 		{
 			"legacy relation",
-			namespace.Namespace("foos/test",
+			namespace.Namespace(
+				"foos/test",
 				namespace.MustRelation("somerel", namespace.Union(
 					&core.SetOperation_Child{
 						ChildType: &core.SetOperation_Child_XThis{},
@@ -195,7 +201,8 @@ func TestGenerateNamespace(t *testing.T) {
 		},
 		{
 			"missing type information",
-			namespace.Namespace("foos/test",
+			namespace.Namespace(
+				"foos/test",
 				namespace.MustRelation("somerel", nil),
 			),
 			`definition foos/test {
@@ -206,13 +213,16 @@ func TestGenerateNamespace(t *testing.T) {
 
 		{
 			"full example",
-			namespace.WithComment("foos/document", `/**
+			namespace.WithComment(
+				"foos/document", `/**
 * Some comment goes here
 */`,
-				namespace.MustRelation("owner", nil,
+				namespace.MustRelation(
+					"owner", nil,
 					namespace.AllowedRelation("foos/user", "..."),
 				),
-				namespace.MustRelationWithComment("reader", "//foobar", nil,
+				namespace.MustRelationWithComment(
+					"reader", "//foobar", nil,
 					namespace.AllowedRelation("foos/user", "..."),
 					namespace.AllowedPublicNamespace("foos/user"),
 					namespace.AllowedRelation("foos/group", "member"),

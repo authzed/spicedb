@@ -17,7 +17,8 @@ func createNSConfigID(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("add_ns_config_id", "add_unique_datastore_id", noNonatomicMigration,
+	mustRegisterMigration(
+		"add_ns_config_id", "add_unique_datastore_id", noNonatomicMigration,
 		newStatementBatch(
 			dropNSConfigPK,
 			createNSConfigID,

@@ -35,36 +35,44 @@ var (
 	_this    *tuple.ObjectAndRelation
 	ownerONR = tuple.ONR("folder", "company", "owner")
 
-	companyOwner = graph.Leaf(&ownerONR,
-		(DS("user", "owner", Ellipsis)),
+	companyOwner = graph.Leaf(
+		&ownerONR,
+		DS("user", "owner", Ellipsis),
 	)
-	companyEditor = graph.Union(tuple.ONRRef("folder", "company", "editor"),
-		graph.Leaf(_this, (DS("user", "writer", Ellipsis))),
+	companyEditor = graph.Union(
+		tuple.ONRRef("folder", "company", "editor"),
+		graph.Leaf(_this, DS("user", "writer", Ellipsis)),
 		companyOwner,
 	)
 
 	auditorONR    = tuple.ONR("folder", "auditors", "owner")
 	auditorsOwner = graph.Leaf(&auditorONR)
 
-	auditorsEditor = graph.Union(tuple.ONRRef("folder", "auditors", "editor"),
+	auditorsEditor = graph.Union(
+		tuple.ONRRef("folder", "auditors", "editor"),
 		graph.Leaf(_this),
 		auditorsOwner,
 	)
 
-	auditorsViewerRecursive = graph.Union(tuple.ONRRef("folder", "auditors", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "auditor", "...")),
+	auditorsViewerRecursive = graph.Union(
+		tuple.ONRRef("folder", "auditors", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "auditor", "..."),
 		),
 		auditorsEditor,
 		graph.Union(tuple.ONRRef("folder", "auditors", "viewer")),
 	)
 
-	companyViewerRecursive = graph.Union(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Union(tuple.ONRRef("folder", "company", "viewer"),
+	companyViewerRecursive = graph.Union(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Union(
+			tuple.ONRRef("folder", "company", "viewer"),
 			auditorsViewerRecursive,
-			graph.Leaf(_this,
-				(DS("user", "legal", "...")),
-				(DS("folder", "auditors", "viewer")),
+			graph.Leaf(
+				_this,
+				DS("user", "legal", "..."),
+				DS("folder", "auditors", "viewer"),
 			),
 		),
 		companyEditor,
@@ -97,13 +105,16 @@ func TestMembershipSetIntersectionBasic(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
 		),
 	)
 
@@ -117,14 +128,17 @@ func TestMembershipSetIntersectionWithDifferentTypesOneMissingLeft(t *testing.T)
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
-			(DS("folder", "foobar", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
+			DS("folder", "foobar", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
 		),
 	)
 
@@ -138,14 +152,17 @@ func TestMembershipSetIntersectionWithDifferentTypesOneMissingRight(t *testing.T
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
-			(DS("folder", "foobar", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
+			DS("folder", "foobar", "..."),
 		),
 	)
 
@@ -159,16 +176,19 @@ func TestMembershipSetIntersectionWithDifferentTypes(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
-			(DS("folder", "foobar", "...")),
-			(DS("folder", "barbaz", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
+			DS("folder", "foobar", "..."),
+			DS("folder", "barbaz", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
-			(DS("folder", "barbaz", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
+			DS("folder", "barbaz", "..."),
 		),
 	)
 
@@ -182,13 +202,16 @@ func TestMembershipSetExclusion(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	exclusion := graph.Exclusion(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
+	exclusion := graph.Exclusion(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
 		),
 	)
 
@@ -202,17 +225,21 @@ func TestMembershipSetExclusionMultiple(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	exclusion := graph.Exclusion(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
-			(DS("user", "third", "...")),
+	exclusion := graph.Exclusion(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
+			DS("user", "third", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
 		),
 	)
 
@@ -226,16 +253,20 @@ func TestMembershipSetExclusionMultipleWithWildcard(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	exclusion := graph.Exclusion(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
+	exclusion := graph.Exclusion(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
 	)
 
@@ -249,17 +280,21 @@ func TestMembershipSetExclusionMultipleMiddle(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	exclusion := graph.Exclusion(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
-			(DS("user", "third", "...")),
+	exclusion := graph.Exclusion(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
+			DS("user", "third", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "another", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "another", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
 		),
 	)
 
@@ -273,13 +308,16 @@ func TestMembershipSetIntersectionWithOneWildcard(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "*", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "*", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
 		),
 	)
 
@@ -293,13 +331,16 @@ func TestMembershipSetIntersectionWithAllWildcardLeft(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "*", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "*", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
 	)
 
@@ -313,13 +354,16 @@ func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "*", "..."),
 		),
 	)
 
@@ -333,13 +377,16 @@ func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	exclusion := graph.Exclusion(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "*", "...")),
+	exclusion := graph.Exclusion(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "*", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "legal", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "legal", "..."),
 		),
 	)
 
@@ -353,13 +400,16 @@ func TestMembershipSetExclusionWithRightWildcard(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	exclusion := graph.Exclusion(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
+	exclusion := graph.Exclusion(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
 	)
 
@@ -373,16 +423,20 @@ func TestMembershipSetIntersectionWithThreeWildcards(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
 	)
 
@@ -396,17 +450,21 @@ func TestMembershipSetIntersectionWithOneBranchMissingWildcards(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
-			(DS("user", "*", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
+			DS("user", "*", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
 	)
 
@@ -420,16 +478,20 @@ func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) 
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "another", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "another", "..."),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
 	)
 
@@ -443,17 +505,21 @@ func TestMembershipSetWithCaveats(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Intersection(tuple.ONRRef("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			(DS("user", "owner", "...")),
-			(DS("user", "legal", "...")),
-			(DS("user", "*", "...")),
+	intersection := graph.Intersection(
+		tuple.ONRRef("folder", "company", "viewer"),
+		graph.Leaf(
+			_this,
+			DS("user", "owner", "..."),
+			DS("user", "legal", "..."),
+			DS("user", "*", "..."),
 		),
-		graph.Leaf(_this,
-			(CaveatedDS("user", "owner", "...", "somecaveat")),
+		graph.Leaf(
+			_this,
+			CaveatedDS("user", "owner", "...", "somecaveat"),
 		),
-		graph.Leaf(_this,
-			(DS("user", "*", "...")),
+		graph.Leaf(
+			_this,
+			DS("user", "*", "..."),
 		),
 	)
 	intersection.CaveatExpression = caveats.CaveatExprForTesting("anothercaveat")

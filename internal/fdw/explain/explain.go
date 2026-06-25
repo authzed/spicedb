@@ -14,7 +14,8 @@ type Explain struct {
 
 // String formats the explain plan in Postgres EXPLAIN output format.
 func (e Explain) String() string {
-	return fmt.Sprintf("%s on %s (cost=%.2f..%.2f rows=%d width=%d)",
+	return fmt.Sprintf(
+		"%s on %s (cost=%.2f..%.2f rows=%d width=%d)",
 		e.Operation,
 		e.TableName,
 		e.StartupCost,

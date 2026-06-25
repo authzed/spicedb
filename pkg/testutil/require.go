@@ -31,7 +31,8 @@ func RequireEqualEmptyNil(t *testing.T, expected, actual any, msgAndArgs ...any)
 			core.RelationTupleTreeNode{},
 			core.RelationTupleTreeNode_LeafNode{},
 			core.DirectSubjects{},
-			core.SetOperationUserset{}),
+			core.SetOperationUserset{},
+		),
 		cmpopts.EquateEmpty(),
 	}
 
@@ -47,11 +48,11 @@ func RequireWithin(t *testing.T, runner func(t *testing.T), timeout time.Duratio
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
-	go (func() {
+	go func() {
 		t.Helper()
 		runner(t)
 		ch <- true
-	})()
+	}()
 
 	select {
 	case <-timer.C:

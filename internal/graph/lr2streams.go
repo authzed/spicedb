@@ -124,7 +124,8 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 			tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 			&v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			})
+			},
+		)
 		if err != nil {
 			return err
 		}

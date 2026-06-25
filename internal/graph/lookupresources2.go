@@ -337,7 +337,8 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 	skipCaveats := !possibleTraits.AllowsCaveats
 	skipExpiration := !possibleTraits.AllowsExpiration
 
-	return withDatastoreCursorInCursor(ctx, config.ci, config.parentStream, config.concurrencyLimit,
+	return withDatastoreCursorInCursor(
+		ctx, config.ci, config.parentStream, config.concurrencyLimit,
 		// Find the target resources for the subject.
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap2], error) {
 			it, err := config.reader.ReverseQueryRelationships(
@@ -590,7 +591,8 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 								tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 								&v1.ResourceCheckResult{
 									Membership: v1.ResourceCheckResult_MEMBER,
-								})
+								},
+							)
 							if err != nil {
 								return err
 							}

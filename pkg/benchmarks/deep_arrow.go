@@ -46,7 +46,8 @@ func setupDeepArrow(ctx context.Context, ds datastore.Datastore) (*QuerySets, er
 	relationships = append(relationships, tuple.MustParse("document:target#parent@document:1"))
 	for i := 1; i <= 30; i++ {
 		relationships = append(relationships, tuple.MustParse(
-			fmt.Sprintf("document:%d#parent@document:%d", i, i+1)))
+			fmt.Sprintf("document:%d#parent@document:%d", i, i+1),
+		))
 	}
 	relationships = append(relationships, tuple.MustParse("document:29#view@user:slow"))
 

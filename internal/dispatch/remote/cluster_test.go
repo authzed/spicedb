@@ -1292,7 +1292,8 @@ func TestReadyStateConnecting(t *testing.T) {
 	// localhost:0 is a target address that will never successfully connect — port 0 means "no
 	//	specific port." The connection will stay stuck in Connecting state because there's nothing
 	//	listening there
-	conn, err := grpc.NewClient("localhost:0",
+	conn, err := grpc.NewClient(
+		"localhost:0",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)

@@ -142,7 +142,8 @@ func TestDoubleWideArrowAdvisedMatchesPlain(t *testing.T) {
 	t.Logf("advised explain:\n%s\nadvised trace:\n%s", advisedIt.Explain(), advisedTrace.DumpTrace())
 
 	// Both plans must agree: either both find a path or neither does
-	require.Equal(t, plainPath == nil, advisedPath == nil,
+	require.Equal(
+		t, plainPath == nil, advisedPath == nil,
 		"advised plan must agree with plain on whether a path exists",
 	)
 }

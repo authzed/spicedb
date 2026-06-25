@@ -265,7 +265,8 @@ func TestOTelReporting(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	ds, err := datastore.NewDatastore(ctx,
+	ds, err := datastore.NewDatastore(
+		ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
@@ -338,7 +339,8 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	ds, err := datastore.NewDatastore(ctx,
+	ds, err := datastore.NewDatastore(
+		ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
@@ -460,7 +462,8 @@ func TestRetryPolicy(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	ds, err := datastore.NewDatastore(ctx,
+	ds, err := datastore.NewDatastore(
+		ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 	)
 	require.NoError(t, err, "unable to start memdb datastore")
@@ -841,7 +844,8 @@ func TestHandleGRPCAuthn(t *testing.T) {
 		require.NoError(t, config.handleGrpcAuthn(t.Context()))
 		// Assert that the function objects are the same. this hackaround is necessary
 		// because of the way that golang treats function values.
-		require.Equal(t,
+		require.Equal(
+			t,
 			reflect.ValueOf(authFn).Pointer(),
 			reflect.ValueOf(config.GRPCAuthFunc).Pointer(),
 		)

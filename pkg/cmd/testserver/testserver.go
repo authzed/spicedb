@@ -140,7 +140,8 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
 	}
 
-	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
+	gRPCSrv, err := c.GRPCServer.Complete(
+		zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(unaryMiddleware.ToGRPCInterceptors()...),
 		grpc.ChainStreamInterceptor(streamMiddleware.ToGRPCInterceptors()...),
 		grpc.StatsHandler(otelgrpc.NewServerHandler(statsHandlerOpts...)),
@@ -150,7 +151,8 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	}
 	closeables.AddCloserWithGracePeriod("grpc", c.ShutdownGracePeriod, gRPCSrv.GracefulStop, gRPCSrv.ForceStop)
 
-	readOnlyGRPCSrv, err := c.ReadOnlyGRPCServer.Complete(zerolog.InfoLevel, registerServices,
+	readOnlyGRPCSrv, err := c.ReadOnlyGRPCServer.Complete(
+		zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(
 			append(unaryMiddleware.ToGRPCInterceptors(), readonly.UnaryServerInterceptor())...,
 		),

@@ -149,7 +149,8 @@ func StoredSchemaRevisionTest(t *testing.T, tester DatastoreTester) {
 	// Write second schema: "user" + "document" with viewer.
 	secondDefs := []compiler.SchemaDefinition{
 		ns.Namespace("user"),
-		ns.Namespace("document",
+		ns.Namespace(
+			"document",
 			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 		),
 	}
@@ -161,7 +162,8 @@ func StoredSchemaRevisionTest(t *testing.T, tester DatastoreTester) {
 	// Write third schema: "user" + "document" with viewer+editor.
 	thirdDefs := []compiler.SchemaDefinition{
 		ns.Namespace("user"),
-		ns.Namespace("document",
+		ns.Namespace(
+			"document",
 			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 			ns.MustRelation("editor", nil, ns.AllowedRelation("user", "...")),
 		),
@@ -212,7 +214,8 @@ func StoredSchemaUpdateTest(t *testing.T, tester DatastoreTester) {
 	// Write initial schema with 2 relations.
 	initialDefs := []compiler.SchemaDefinition{
 		ns.Namespace("user"),
-		ns.Namespace("document",
+		ns.Namespace(
+			"document",
 			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 			ns.MustRelation("editor", nil, ns.AllowedRelation("user", "...")),
 		),
@@ -224,7 +227,8 @@ func StoredSchemaUpdateTest(t *testing.T, tester DatastoreTester) {
 	// Update schema: add an "owner" relation.
 	updatedDefs := []compiler.SchemaDefinition{
 		ns.Namespace("user"),
-		ns.Namespace("document",
+		ns.Namespace(
+			"document",
 			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 			ns.MustRelation("editor", nil, ns.AllowedRelation("user", "...")),
 			ns.MustRelation("owner", nil, ns.AllowedRelation("user", "...")),
@@ -279,7 +283,8 @@ func StoredSchemaMultipleRevisionsTest(t *testing.T, tester DatastoreTester) {
 	for i := range numVersions {
 		defs := []compiler.SchemaDefinition{
 			ns.Namespace("user"),
-			ns.Namespace(fmt.Sprintf("resource_%d", i),
+			ns.Namespace(
+				fmt.Sprintf("resource_%d", i),
 				ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 			),
 		}
@@ -687,7 +692,8 @@ func HeadRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	// Write a schema.
 	firstDefs := []compiler.SchemaDefinition{
 		ns.Namespace("user"),
-		ns.Namespace("document",
+		ns.Namespace(
+			"document",
 			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 		),
 	}
@@ -745,7 +751,8 @@ func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	// Write a schema.
 	firstDefs := []compiler.SchemaDefinition{
 		ns.Namespace("user"),
-		ns.Namespace("document",
+		ns.Namespace(
+			"document",
 			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 		),
 	}

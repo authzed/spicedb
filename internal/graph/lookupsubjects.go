@@ -77,7 +77,8 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 		ctx,
 		req.ResourceRelation.Namespace,
 		req.ResourceRelation.Relation,
-		sr)
+		sr,
+	)
 	if err != nil {
 		return err
 	}

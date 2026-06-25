@@ -100,7 +100,8 @@ func TestSubjectSetByTypeWithCaveats(t *testing.T) {
 	tom, ok := ss.Get("tom")
 	require.True(t, ok)
 
-	require.Equal(t,
+	require.Equal(
+		t,
 		caveatexpr("first"),
 		tom.GetCaveatExpression(),
 	)

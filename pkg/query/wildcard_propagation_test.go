@@ -53,7 +53,8 @@ func setupTestDB(t *testing.T, schemaText string, rels ...string) (datastore.Dat
 // collectSubjectIDs runs IterSubjects on the given iterator and returns the subject IDs.
 func collectSubjectIDs(t *testing.T, ctx context.Context, ds datastore.Datastore, rev datastore.Revision, it Iterator, resource Object) []string {
 	t.Helper()
-	qctx := NewLocalContext(ctx,
+	qctx := NewLocalContext(
+		ctx,
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 		WithTraceLogger(NewTraceLogger()),
 	)
@@ -75,7 +76,8 @@ func collectSubjectIDs(t *testing.T, ctx context.Context, ds datastore.Datastore
 // Schema: permission view = viewer & reader
 // Where viewer has user:* and reader has concrete users.
 func TestIntersectionWithWildcard(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user | user:*
@@ -111,7 +113,8 @@ func TestIntersectionWithWildcard(t *testing.T) {
 
 // TestIntersectionBothWildcards tests intersection when both sides have wildcards.
 func TestIntersectionBothWildcards(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user | user:*
@@ -153,7 +156,8 @@ func TestIntersectionBothWildcards(t *testing.T) {
 // TestExclusionWithWildcardExcluded tests that a wildcard in the excluded set
 // correctly excludes all concrete subjects from the main set.
 func TestExclusionWithWildcardExcluded(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user
@@ -190,7 +194,8 @@ func TestExclusionWithWildcardExcluded(t *testing.T) {
 // passes through when the excluded set only has concrete subjects.
 // The wildcard is stripped at the top level.
 func TestExclusionWildcardMinusConcrete(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user | user:*
@@ -232,7 +237,8 @@ func TestExclusionWildcardMinusConcrete(t *testing.T) {
 // where viewer=*, maybebanned=*, notreallybanned={sarah}
 // Expected: sarah escapes the ban → sarah can view.
 func TestNestedExclusionWithWildcards(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user | user:*
@@ -284,7 +290,8 @@ func TestNestedExclusionWithWildcards(t *testing.T) {
 // TestTopLevelFilterStripsWildcards ensures that wildcards propagate internally
 // but are stripped before reaching the caller.
 func TestTopLevelFilterStripsWildcards(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user | user:*
@@ -311,7 +318,8 @@ func TestTopLevelFilterStripsWildcards(t *testing.T) {
 // TestWildcardInUnionWithConcrete tests that wildcards in a union coexist
 // with concrete subjects — concrete subjects survive the top-level filter.
 func TestWildcardInUnionWithConcrete(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user | user:*
@@ -338,7 +346,8 @@ func TestWildcardInUnionWithConcrete(t *testing.T) {
 // TestIntersectionWildcardWithExclusion tests the combined scenario:
 // permission view = (viewer & reader) where viewer=* and reader has concrete + exclusion.
 func TestIntersectionWildcardWithExclusion(t *testing.T) {
-	ds, rev, dsSchema := setupTestDB(t, `
+	ds, rev, dsSchema := setupTestDB(
+		t, `
 		definition user {}
 		definition resource {
 			relation viewer: user | user:*

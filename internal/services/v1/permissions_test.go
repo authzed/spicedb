@@ -1082,65 +1082,77 @@ func TestTranslateExpansionTree(t *testing.T) {
 		name  string
 		input *core.RelationTupleTreeNode
 	}{
-		{"simple leaf", pgraph.Leaf(nil, (DS("user", "user1", "...")))},
+		{"simple leaf", pgraph.Leaf(nil, DS("user", "user1", "..."))},
 		{
 			"simple union",
-			pgraph.Union(nil,
-				pgraph.Leaf(nil, (DS("user", "user1", "..."))),
-				pgraph.Leaf(nil, (DS("user", "user2", "..."))),
-				pgraph.Leaf(nil, (DS("user", "user3", "..."))),
+			pgraph.Union(
+				nil,
+				pgraph.Leaf(nil, DS("user", "user1", "...")),
+				pgraph.Leaf(nil, DS("user", "user2", "...")),
+				pgraph.Leaf(nil, DS("user", "user3", "...")),
 			),
 		},
 		{
 			"simple intersection",
-			pgraph.Intersection(nil,
-				pgraph.Leaf(nil,
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+			pgraph.Intersection(
+				nil,
+				pgraph.Leaf(
+					nil,
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
-				pgraph.Leaf(nil,
-					(DS("user", "user2", "...")),
-					(DS("user", "user3", "...")),
+				pgraph.Leaf(
+					nil,
+					DS("user", "user2", "..."),
+					DS("user", "user3", "..."),
 				),
-				pgraph.Leaf(nil,
-					(DS("user", "user2", "...")),
-					(DS("user", "user4", "...")),
+				pgraph.Leaf(
+					nil,
+					DS("user", "user2", "..."),
+					DS("user", "user4", "..."),
 				),
 			),
 		},
 		{
 			"empty intersection",
-			pgraph.Intersection(nil,
-				pgraph.Leaf(nil,
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+			pgraph.Intersection(
+				nil,
+				pgraph.Leaf(
+					nil,
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
-				pgraph.Leaf(nil,
-					(DS("user", "user3", "...")),
-					(DS("user", "user4", "...")),
+				pgraph.Leaf(
+					nil,
+					DS("user", "user3", "..."),
+					DS("user", "user4", "..."),
 				),
 			),
 		},
 		{
 			"simple exclusion",
-			pgraph.Exclusion(nil,
-				pgraph.Leaf(nil,
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+			pgraph.Exclusion(
+				nil,
+				pgraph.Leaf(
+					nil,
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
-				pgraph.Leaf(nil, (DS("user", "user2", "..."))),
-				pgraph.Leaf(nil, (DS("user", "user3", "..."))),
+				pgraph.Leaf(nil, DS("user", "user2", "...")),
+				pgraph.Leaf(nil, DS("user", "user3", "...")),
 			),
 		},
 		{
 			"empty exclusion",
-			pgraph.Exclusion(nil,
-				pgraph.Leaf(nil,
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+			pgraph.Exclusion(
+				nil,
+				pgraph.Leaf(
+					nil,
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
-				pgraph.Leaf(nil, (DS("user", "user1", "..."))),
-				pgraph.Leaf(nil, (DS("user", "user2", "..."))),
+				pgraph.Leaf(nil, DS("user", "user1", "...")),
+				pgraph.Leaf(nil, DS("user", "user2", "...")),
 			),
 		},
 	}
@@ -2242,15 +2254,15 @@ func TestCheckBulkPermissions(t *testing.T) {
 		},
 		{
 			name: "chunking test",
-			requests: (func() []string {
+			requests: func() []string {
 				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+5)
 				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
 				return toReturn
-			})(),
-			response: (func() []bulkCheckTest {
+			}(),
+			response: func() []bulkCheckTest {
 				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+5)
 				for i := range int(defaultFilterMaximumIDCountForTest + 5) {
 					toReturn = append(toReturn, bulkCheckTest{
@@ -2260,11 +2272,11 @@ func TestCheckBulkPermissions(t *testing.T) {
 				}
 
 				return toReturn
-			})(),
+			}(),
 		},
 		{
 			name: "chunking test with errors",
-			requests: (func() []string {
+			requests: func() []string {
 				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, `nondoc:masterplan#view@user:eng_lead`)
 
@@ -2273,8 +2285,8 @@ func TestCheckBulkPermissions(t *testing.T) {
 				}
 
 				return toReturn
-			})(),
-			response: (func() []bulkCheckTest {
+			}(),
+			response: func() []bulkCheckTest {
 				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, bulkCheckTest{
 					req: `nondoc:masterplan#view@user:eng_lead`,
@@ -2289,7 +2301,7 @@ func TestCheckBulkPermissions(t *testing.T) {
 				}
 
 				return toReturn
-			})(),
+			}(),
 		},
 		{
 			name: "same resource and permission with same subject, repeated",

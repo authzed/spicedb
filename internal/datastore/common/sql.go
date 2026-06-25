@@ -748,7 +748,8 @@ func (sqf SchemaQueryFilterer) FilterWithNoCaveat() SchemaQueryFilterer {
 		sq.Or{
 			sq.Eq{sqf.schema.ColCaveatName: nil},
 			sq.Eq{sqf.schema.ColCaveatName: ""},
-		})
+		},
+	)
 	sqf.recordVaryingColumnValue(sqf.schema.ColCaveatName)
 	return sqf
 }

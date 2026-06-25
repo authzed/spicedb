@@ -121,7 +121,8 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		debugOption = computed.BasicDebuggingEnabled
 	}
 
-	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
+	cr, metadata, err := computed.ComputeCheck(
+		ctx, ps.dispatch,
 		ps.config.CaveatTypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
@@ -634,7 +635,8 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 			OptionalLimit:    req.OptionalLimit,
 			EnableDebugTrace: req.WithDebug,
 		},
-		stream)
+		stream,
+	)
 	if err != nil {
 		if req.WithDebug && dispatchpkg.IsMaxDepthExceeded(err) {
 			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
@@ -793,7 +795,8 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 			OptionalLimit:    req.OptionalLimit,
 			EnableDebugTrace: req.WithDebug,
 		},
-		stream)
+		stream,
+	)
 	if err != nil {
 		if req.WithDebug && dispatchpkg.IsMaxDepthExceeded(err) {
 			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
@@ -953,7 +956,8 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				Relation:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 			},
 		},
-		stream)
+		stream,
+	)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}

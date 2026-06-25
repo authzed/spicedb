@@ -106,10 +106,12 @@ func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Clus
 	t.Log("initializing crdb...")
 
 	crdbCluster.Init(ctx, tlog, tlog)
-	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
+	require.NoError(crdbCluster.SQL(
+		ctx, tlog, tlog,
 		"SET CLUSTER SETTING kv.range.backpressure_range_size_multiplier=0;",
 	))
-	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
+	require.NoError(crdbCluster.SQL(
+		ctx, tlog, tlog,
 		fmt.Sprintf(createDB, dbName),
 	))
 
@@ -182,7 +184,8 @@ func TestNoNewEnemy(t *testing.T) {
 	})
 
 	t.Log("configure small ranges, single replicas, short ttl")
-	require.NoError(t, crdb.SQL(ctx, tlog, tlog,
+	require.NoError(t, crdb.SQL(
+		ctx, tlog, tlog,
 		fmt.Sprintf(setSmallRanges, dbName),
 	))
 
@@ -617,7 +620,8 @@ func generateTuples(names NamespaceNames, n int, objIDGenerator *generator.Uniqu
 // getLeaderNode returns the node with the lease leader for the range containing the tuple
 func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v1.Relationship) int {
 	t := tuple
-	row := conn.QueryRow(ctx, "SHOW RANGE FROM TABLE relation_tuple FOR ROW ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text)",
+	row := conn.QueryRow(
+		ctx, "SHOW RANGE FROM TABLE relation_tuple FOR ROW ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text)",
 		t.Resource.ObjectType,
 		t.Resource.ObjectId,
 		t.Relation,
@@ -631,7 +635,8 @@ func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v1.Relationship) 
 
 // getLeaderNodeForNamespace returns the node with the lease leader for the range containing the namespace
 func getLeaderNodeForNamespace(ctx context.Context, conn *pgx.Conn, namespace string) int {
-	rows := conn.QueryRow(ctx, "SHOW RANGE FROM TABLE namespace_config FOR ROW ($1::text)",
+	rows := conn.QueryRow(
+		ctx, "SHOW RANGE FROM TABLE namespace_config FOR ROW ($1::text)",
 		namespace,
 	)
 	return leaderFromRangeRow(rows)

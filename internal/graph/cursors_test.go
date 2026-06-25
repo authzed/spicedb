@@ -196,7 +196,8 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 			}
 
 			return stream.Publish((item * 10) + 1)
-		})
+		},
+	)
 
 	require.NoError(t, err)
 	require.Equal(t, []int{100, 101, 200, 201, 300, 301, 400, 401, 500, 501}, parentStream.Results())
@@ -226,7 +227,8 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 			}
 
 			return stream.Publish((item * 10) + 1)
-		})
+		},
+	)
 
 	require.NoError(t, err)
 	require.Equal(t, []int{300, 301, 400, 401, 500, 501}, parentStream.Results())
@@ -256,7 +258,8 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 			}
 
 			return stream.Publish((item * 10) + 1)
-		})
+		},
+	)
 
 	require.NoError(t, err)
 	require.Equal(t, []int{100, 101, 200, 201, 300}, parentStream.Results())
@@ -294,7 +297,8 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 			lock.Unlock()
 
 			return stream.Publish(item * 10)
-		})
+		},
+	)
 
 	require.Len(t, encountered, len(expected))
 	require.NotEqual(t, expected, encountered)
@@ -334,7 +338,8 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 			lock.Unlock()
 
 			return stream.Publish(item * 10)
-		})
+		},
+	)
 
 	expected := []int{10, 20, 30}
 
@@ -378,7 +383,8 @@ func TestWithDatastoreCursorInCursorWithMalformedCursor(t *testing.T) {
 			lock.Unlock()
 
 			return stream.Publish(item * 10)
-		})
+		},
+	)
 
 	require.ErrorContains(t, err, "could not parse")
 }
@@ -420,7 +426,8 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 			}
 
 			return stream.Publish(item * 10)
-		})
+		},
+	)
 
 	require.NoError(t, err)
 

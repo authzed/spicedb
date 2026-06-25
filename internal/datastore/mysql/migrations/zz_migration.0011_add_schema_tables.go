@@ -3,7 +3,8 @@ package migrations
 import "fmt"
 
 func createSchemaTable(t *tables) string {
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		name VARCHAR(700) NOT NULL,
 		chunk_index INT NOT NULL,
 		chunk_data LONGBLOB NOT NULL,
@@ -15,7 +16,8 @@ func createSchemaTable(t *tables) string {
 }
 
 func createSchemaRevisionTable(t *tables) string {
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		name VARCHAR(700) NOT NULL DEFAULT 'current',
 		hash BLOB NOT NULL,
 		created_transaction BIGINT NOT NULL,
@@ -26,7 +28,8 @@ func createSchemaRevisionTable(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("add_schema_tables", "add_expiration_to_relation_tuple", noNonatomicMigration,
+	mustRegisterMigration(
+		"add_schema_tables", "add_expiration_to_relation_tuple", noNonatomicMigration,
 		newStatementBatch(
 			createSchemaTable,
 			createSchemaRevisionTable,

@@ -23,7 +23,8 @@ func caveat(name string, context map[string]any) *core.CaveatExpression {
 		&core.ContextualizedCaveat{
 			CaveatName: name,
 			Context:    s,
-		})
+		},
+	)
 }
 
 func TestMembershipSetAddDirectMember(t *testing.T) {

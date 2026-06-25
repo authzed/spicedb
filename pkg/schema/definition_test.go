@@ -141,12 +141,14 @@ func TestDefinition(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.MustRelation("owner", nil, ns.AllowedRelation("user", "...")),
-				ns.MustRelation("can_comment",
+				ns.MustRelation(
+					"can_comment",
 					nil,
 					ns.AllowedRelation("user", "..."),
 					ns.AllowedRelation("folder", "can_comment"),
 				),
-				ns.MustRelation("editor",
+				ns.MustRelation(
+					"editor",
 					ns.Union(
 						ns.ComputedUserset("owner"),
 					),
@@ -326,7 +328,8 @@ func TestDefinition(t *testing.T) {
 			"valid all the caveats",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("viewer", nil,
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelation("user", "..."),
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat")),
 					ns.AllowedPublicNamespaceWithCaveat("user", ns.AllowedCaveat("definedcaveat")),
@@ -335,7 +338,8 @@ func TestDefinition(t *testing.T) {
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
-				ns.Namespace("team",
+				ns.Namespace(
+					"team",
 					ns.MustRelation("member", nil),
 				),
 			},
@@ -348,14 +352,16 @@ func TestDefinition(t *testing.T) {
 			"valid expiration",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("viewer", nil,
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelationWithExpiration("user", "..."),
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat")),
 				),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
-				ns.Namespace("team",
+				ns.Namespace(
+					"team",
 					ns.MustRelation("member", nil),
 				),
 			},
@@ -368,14 +374,16 @@ func TestDefinition(t *testing.T) {
 			"duplicate expiration",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("viewer", nil,
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelationWithExpiration("user", "..."),
 					ns.AllowedRelationWithExpiration("user", "..."),
 				),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
-				ns.Namespace("team",
+				ns.Namespace(
+					"team",
 					ns.MustRelation("member", nil),
 				),
 			},
@@ -388,14 +396,16 @@ func TestDefinition(t *testing.T) {
 			"non-duplicate expiration",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("viewer", nil,
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelationWithExpiration("user", "..."),
 					ns.AllowedRelationWithExpiration("team", "..."),
 				),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
-				ns.Namespace("team",
+				ns.Namespace(
+					"team",
 					ns.MustRelation("member", nil),
 				),
 			},

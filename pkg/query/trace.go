@@ -59,7 +59,8 @@ func (t *TraceLogger) EnterIterator(it Iterator, traceString string) {
 	indent := strings.Repeat("  ", t.depth)
 	idPrefix := iteratorIDPrefix(it)
 
-	t.appendTrace(fmt.Sprintf("%s-> %s: %s",
+	t.appendTrace(fmt.Sprintf(
+		"%s-> %s: %s",
 		indent,
 		idPrefix,
 		traceString,

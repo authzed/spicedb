@@ -15,7 +15,8 @@ import (
 func TestRESTGateway(t *testing.T) {
 	require := require.New(t)
 
-	tester, err := newTester(t,
+	tester, err := newTester(
+		t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
 			Tag:          "ci",

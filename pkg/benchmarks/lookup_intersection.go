@@ -65,7 +65,8 @@ func setupLookupIntersection(ctx context.Context, ds datastore.Datastore) (*Quer
 	relationships = append(relationships, tuple.MustParse("organization:org1#reader@user:tom"))
 
 	for i := 1; i <= numResources; i++ {
-		relationships = append(relationships,
+		relationships = append(
+			relationships,
 			tuple.MustParse(fmt.Sprintf("resource:resource%d#viewer@user:tom", i)),
 			tuple.MustParse(fmt.Sprintf("resource:resource%d#organization@organization:org1", i)),
 		)

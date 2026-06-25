@@ -27,7 +27,8 @@ type CheckResult struct {
 // if they want to distinguish between user errors and internal errors.
 func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject tuple.ObjectAndRelation, caveatContext map[string]any) (CheckResult, error) {
 	ctx := devContext.Ctx
-	cr, meta, err := computed.ComputeCheck(ctx, devContext.Dispatcher,
+	cr, meta, err := computed.ComputeCheck(
+		ctx, devContext.Dispatcher,
 		caveattypes.Default.TypeSet,
 		computed.CheckParameters{
 			ResourceType:  resource.RelationReference(),

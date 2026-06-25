@@ -537,7 +537,8 @@ func TestSchemaTypeRedefined(t *testing.T) {
 		definition example/user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_SCHEMA_PARSE_ERROR, err,
+	spiceerrors.RequireReason(
+		t, v1.ErrorReason_ERROR_REASON_SCHEMA_PARSE_ERROR, err,
 		"source_code",
 		"start_line_number",
 		"start_column_position",

@@ -116,7 +116,8 @@ func (it *intervalTracker[T]) lookup(revision datastore.Revision, lastCheckpoint
 			}
 
 			return 1
-		})
+		},
+	)
 	if !ok {
 		return *new(T), false
 	}

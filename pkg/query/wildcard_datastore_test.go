@@ -21,7 +21,8 @@ func TestDatastoreIterator_CheckWildcard(t *testing.T) {
 			relation viewer: user | user:*
 		}
 	`
-	ds, rev, dsSchema := setupTestDB(t, sc,
+	ds, rev, dsSchema := setupTestDB(
+		t, sc,
 		"resource:doc1#viewer@user:*",
 	)
 
@@ -30,12 +31,14 @@ func TestDatastoreIterator_CheckWildcard(t *testing.T) {
 	// BaseRelations[1] is the user:* wildcard branch (BaseRelations[0] is user).
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
 	t.Run("ConcreteSubjectMatchesViaWildcard", func(t *testing.T) {
-		path, err := ctx.Check(wildcardBase,
+		path, err := ctx.Check(
+			wildcardBase,
 			NewObject("resource", "doc1"),
 			NewObject("user", "alice").WithEllipses(),
 		)
@@ -46,7 +49,8 @@ func TestDatastoreIterator_CheckWildcard(t *testing.T) {
 	})
 
 	t.Run("ConcreteSubjectMissesWhenNoWildcardRow", func(t *testing.T) {
-		path, err := ctx.Check(wildcardBase,
+		path, err := ctx.Check(
+			wildcardBase,
 			NewObject("resource", "nonexistent"),
 			NewObject("user", "alice").WithEllipses(),
 		)
@@ -68,7 +72,8 @@ func TestDatastoreIterator_IterSubjectsWildcard(t *testing.T) {
 			relation viewer: user | user:*
 		}
 	`
-	ds, rev, dsSchema := setupTestDB(t, sc,
+	ds, rev, dsSchema := setupTestDB(
+		t, sc,
 		"resource:doc1#viewer@user:*",
 	)
 
@@ -76,7 +81,8 @@ func TestDatastoreIterator_IterSubjectsWildcard(t *testing.T) {
 	viewerRel, _ := resourceDef.GetRelation("viewer")
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 
@@ -103,7 +109,8 @@ func TestDatastoreIterator_IterSubjectsWildcard_Empty(t *testing.T) {
 		}
 	`
 	// Note: no wildcard relationship.
-	ds, rev, dsSchema := setupTestDB(t, sc,
+	ds, rev, dsSchema := setupTestDB(
+		t, sc,
 		"resource:doc1#viewer@user:alice",
 	)
 
@@ -111,7 +118,8 @@ func TestDatastoreIterator_IterSubjectsWildcard_Empty(t *testing.T) {
 	viewerRel, _ := resourceDef.GetRelation("viewer")
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 	tripTopLevel(t, ctx, NewObject("resource", "doc1"))
@@ -134,7 +142,8 @@ func TestDatastoreIterator_IterResourcesWildcard(t *testing.T) {
 			relation viewer: user | user:*
 		}
 	`
-	ds, rev, dsSchema := setupTestDB(t, sc,
+	ds, rev, dsSchema := setupTestDB(
+		t, sc,
 		"resource:doc1#viewer@user:*",
 		"resource:doc2#viewer@user:*",
 	)
@@ -143,7 +152,8 @@ func TestDatastoreIterator_IterResourcesWildcard(t *testing.T) {
 	viewerRel, _ := resourceDef.GetRelation("viewer")
 	wildcardBase := NewDatastoreIterator(viewerRel.BaseRelations()[1])
 
-	ctx := NewLocalContext(t.Context(),
+	ctx := NewLocalContext(
+		t.Context(),
 		WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(rev, datalayer.NoSchemaHashForTesting)),
 	)
 

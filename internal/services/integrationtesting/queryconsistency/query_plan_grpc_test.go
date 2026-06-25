@@ -152,7 +152,8 @@ func validateQueryPlanLookupResources(
 							resolvedIDs = append(resolvedIDs, r.ResourceObjectId)
 						}
 
-						require.ElementsMatch(t,
+						require.ElementsMatch(
+							t,
 							slices.Collect(maps.Keys(accessibleResources)),
 							resolvedIDs,
 							"query plan LookupResources mismatch for %s#%s / subject %s",
@@ -193,7 +194,8 @@ func validateQueryPlanLookupSubjects(
 							// The accessibility set only covers directly-accessible defined subjects;
 							// it does not include inferred subjects or wildcards, so we check subset.
 							expectedDefinedSubjects := accessibilitySet.DirectlyAccessibleDefinedSubjectsOfType(resource, subjectType)
-							requireSubsetOf(t,
+							requireSubsetOf(
+								t,
 								slices.Collect(maps.Keys(resolvedSubjects)),
 								slices.Collect(maps.Keys(expectedDefinedSubjects)),
 							)

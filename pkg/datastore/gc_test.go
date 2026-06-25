@@ -202,7 +202,7 @@ func TestGCFailureBackoff(t *testing.T) {
 	// we should see failures at 100s, 200s, 400s, 800s
 	// but depending on jitter this could end up being squished down such that we get 5 failures.
 	// Experimentally, we see 5 most often and 4 sometimes, so asserting greater than 3 works here.
-	require.Greater(t, *(mf.GetMetric()[0].Counter.Value), 3.0, "did not see expected number of backoffs")
+	require.Greater(t, *mf.GetMetric()[0].Counter.Value, 3.0, "did not see expected number of backoffs")
 }
 
 // Ensure the garbage collector interval is reset after recovering from an

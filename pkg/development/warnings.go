@@ -173,7 +173,7 @@ func walkUsersetRewrite(ctx context.Context, rewrite *corev1.UsersetRewrite, rel
 		return nil, nil
 	}
 
-	switch t := (rewrite.RewriteOperation).(type) {
+	switch t := rewrite.RewriteOperation.(type) {
 	case *corev1.UsersetRewrite_Union:
 		return walkUsersetOperations(ctx, t.Union.Child, relation, checks, def, ts)
 

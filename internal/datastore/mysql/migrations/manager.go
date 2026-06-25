@@ -42,7 +42,8 @@ func registerMigration(version, replaces string, up migrate.MigrationFunc[Wrappe
 	// validate migration names to ensure they are compatible with mysql column names
 	for _, v := range []string{version, replaces} {
 		if match := migrationNameRe.MatchString(v); !match {
-			return fmt.Errorf("migration from '%s' to '%s': '%s' is an invalid mysql migration version, expected to match pattern '%s'",
+			return fmt.Errorf(
+				"migration from '%s' to '%s': '%s' is an invalid mysql migration version, expected to match pattern '%s'",
 				replaces, version, v, migrationNamePattern,
 			)
 		}

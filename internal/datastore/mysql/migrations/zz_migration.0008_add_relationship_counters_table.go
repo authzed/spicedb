@@ -3,7 +3,8 @@ package migrations
 import "fmt"
 
 func addRelationshipCountersTable(t *tables) string {
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 		name VARCHAR(128) NOT NULL,
 		serialized_filter BLOB NOT NULL,
@@ -17,7 +18,8 @@ func addRelationshipCountersTable(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("add_relationship_counters_table", "watch_api_relation_tuple_index", noNonatomicMigration,
+	mustRegisterMigration(
+		"add_relationship_counters_table", "watch_api_relation_tuple_index", noNonatomicMigration,
 		newStatementBatch(
 			addRelationshipCountersTable,
 		).execute,

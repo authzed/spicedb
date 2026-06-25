@@ -182,7 +182,8 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 					(&consistent.BalancerConfig{
 						ReplicationFactor: 1500,
 						Spread:            1,
-					}).MustServiceConfigJSON()),
+					}).MustServiceConfigJSON(),
+				),
 				grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 					// it's possible grpc tries to dial before we have set the
 					// buffconn dialers, we have to return a "TempError" so that

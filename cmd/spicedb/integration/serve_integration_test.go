@@ -30,7 +30,8 @@ import (
 func TestServe(t *testing.T) {
 	requireParent := require.New(t)
 
-	tester, err := newTester(t,
+	tester, err := newTester(
+		t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
 			Tag:          "ci",
@@ -238,10 +239,10 @@ func TestGracefulShutdown(t *testing.T) {
 					OutputStream: ww,
 				}
 
-				go (func() {
+				go func() {
 					err = pool.Client.Logs(opts)
 					assert.NoError(t, err)
-				})()
+				}()
 
 				select {
 				case <-ww.c:

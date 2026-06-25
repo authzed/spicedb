@@ -192,7 +192,8 @@ func (c *Cluster) Connect(ctx context.Context, out io.Writer) error {
 
 // MigrateHead migrates a Datastore to the latest revision defined in spicedb
 func MigrateHead(ctx context.Context, out io.Writer, datastore, uri string) error {
-	return e2e.Run(ctx, out, out,
+	return e2e.Run(
+		ctx, out, out,
 		"./spicedb",
 		"datastore", "migrate", "head",
 		"--datastore-engine="+datastore,

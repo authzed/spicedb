@@ -95,7 +95,8 @@ func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name strin
 	// Update the counter's count and revision in the table.
 	updatedTimestampTime := computedAtRevision.(revisions.TimestampRevision).Time()
 
-	mutation := spanner.Update(tableRelationshipCounter,
+	mutation := spanner.Update(
+		tableRelationshipCounter,
 		[]string{colCounterName, colCounterCurrentCount, colCounterUpdatedAtTimestamp},
 		[]any{name, value, updatedTimestampTime},
 	)

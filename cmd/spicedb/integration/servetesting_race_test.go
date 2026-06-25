@@ -24,7 +24,8 @@ import (
 func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 	_, b, _, _ := runtime.Caller(0)
 	basepath := filepath.Dir(b)
-	tester, err := newTester(t,
+	tester, err := newTester(
+		t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
 			Tag:          "ci",

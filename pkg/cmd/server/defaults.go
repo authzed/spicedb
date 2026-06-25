@@ -49,7 +49,8 @@ var DisableTelemetryHandler *prometheus.Registry
 
 // ServeExample creates an example usage string with the provided program name.
 func ServeExample(programName string) string {
-	return fmt.Sprintf(`	%[1]s:
+	return fmt.Sprintf(
+		`	%[1]s:
 		%[3]s serve --grpc-preshared-key "somerandomkeyhere"
 
 	%[2]s:
@@ -298,14 +299,16 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.UnaryServerInterceptor(
 				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, timestampFormatOption, traceIDFieldOption),
-				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
+				selector.MatchFunc(matchesRoute(healthCheckRoute)),
+			)).
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.UnaryServerInterceptor(
 				grpclog.UnaryServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, timestampFormatOption, traceIDFieldOption),
-				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
+				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)),
+			)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -316,8 +319,9 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareMemoryProtection).
 			WithInterceptor(selector.UnaryServerInterceptor(
-										memoryProtectionUnaryInterceptor.UnaryServerInterceptor(),
-										selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
+				memoryProtectionUnaryInterceptor.UnaryServerInterceptor(),
+				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)),
+			)).
 			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports OOM status
 			Done(),
 
@@ -373,14 +377,16 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			WithName(DefaultMiddlewareGRPCLog + "-debug").
 			WithInterceptor(selector.StreamServerInterceptor(
 				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), alwaysDebugOption, durationFieldOption, timestampFormatOption, traceIDFieldOption),
-				selector.MatchFunc(matchesRoute(healthCheckRoute)))).
+				selector.MatchFunc(matchesRoute(healthCheckRoute)),
+			)).
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
 			WithInterceptor(selector.StreamServerInterceptor(
 				grpclog.StreamServerInterceptor(InterceptorLogger(opts.Logger), determineEventsToLog(opts), defaultCodeToLevel, durationFieldOption, timestampFormatOption, traceIDFieldOption),
-				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)))).
+				selector.MatchFunc(doesNotMatchRoute(healthCheckRoute)),
+			)).
 			Done(),
 
 		NewStreamMiddleware().

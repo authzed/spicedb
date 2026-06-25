@@ -397,7 +397,8 @@ func TestWriteRelationships(t *testing.T) {
 	})
 	require.Nil(resp)
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
-	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_WRITE_OR_DELETE_PRECONDITION_FAILURE, err,
+	spiceerrors.RequireReason(
+		t, v1.ErrorReason_ERROR_REASON_WRITE_OR_DELETE_PRECONDITION_FAILURE, err,
 		"precondition_operation",
 		"precondition_relation",
 		"precondition_resource_id",

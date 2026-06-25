@@ -614,7 +614,8 @@ definition document {
 	_, err = pgconn.Exec(t.Context(), "BEGIN")
 	require.NoError(t, err)
 
-	_, err = pgconn.Exec(t.Context(),
+	_, err = pgconn.Exec(
+		t.Context(),
 		"DECLARE lr_cursor CURSOR FOR SELECT resource_id FROM permissions WHERE resource_type = $1 AND permission = $2 AND subject_type = $3 AND subject_id = $4",
 		"document", "view", "user", "testuser",
 	)
@@ -703,7 +704,8 @@ definition document {
 	_, err = pgconn.Exec(t.Context(), "BEGIN")
 	require.NoError(t, err)
 
-	_, err = pgconn.Exec(t.Context(),
+	_, err = pgconn.Exec(
+		t.Context(),
 		"DECLARE rel_cursor CURSOR FOR SELECT resource_id FROM relationships WHERE resource_type = $1",
 		"document",
 	)
@@ -792,7 +794,8 @@ definition document {
 	_, err = pgconn.Exec(t.Context(), "BEGIN")
 	require.NoError(t, err)
 
-	_, err = pgconn.Exec(t.Context(),
+	_, err = pgconn.Exec(
+		t.Context(),
 		"DECLARE ls_cursor CURSOR FOR SELECT subject_id FROM permissions WHERE resource_type = $1 AND resource_id = $2 AND permission = $3 AND subject_type = $4",
 		"document", "testdoc", "view", "user",
 	)
@@ -1028,10 +1031,10 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 	require.NoError(t, err)
 
 	serverReady := make(chan bool)
-	go (func() {
+	go func() {
 		serverReady <- true
 		_ = runnableServer.Run(ctx)
-	})()
+	}()
 
 	// Wait for server goroutine to start
 	<-serverReady

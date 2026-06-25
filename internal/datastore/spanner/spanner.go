@@ -20,7 +20,7 @@ import (
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 	otelres "go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
@@ -131,7 +131,8 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		spanner.EnableOpenTelemetryMetrics()
 
 		res, err := otelres.Merge(otelres.Default(),
-			otelres.NewWithAttributes(semconv.SchemaURL,
+			otelres.NewWithAttributes(
+				semconv.SchemaURL,
 				semconv.ServiceName("spicedb"),
 			))
 		if err != nil {
@@ -150,7 +151,8 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	}
 
 	slogger := slog.New(slogzerolog.Option{Level: slog.LevelDebug, Logger: &log.Logger}.NewZerologHandler())
-	spannerOpts = append(spannerOpts,
+	spannerOpts = append(
+		spannerOpts,
 		option.WithCredentialsFile(config.credentialsFilePath), //nolint:staticcheck  // The preferred approach is using Application Default Credentials
 		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
 		option.WithGRPCDialOption(
@@ -264,7 +266,8 @@ func (t *traceableRTX) ReadRow(ctx context.Context, table string, key spanner.Ke
 		attribute.String(otelconv.AttrDatastoreSpannerAPI, "ReadOnlyTransaction.ReadRow"),
 		attribute.String(otelconv.AttrDatastoreSpannerTable, table),
 		attribute.String(otelconv.AttrDatastoreSpannerKey, key.String()),
-		attribute.StringSlice(otelconv.AttrDatastoreSpannerColumns, columns))
+		attribute.StringSlice(otelconv.AttrDatastoreSpannerColumns, columns),
+	)
 
 	return t.delegate.ReadRow(ctx, table, key, columns)
 }
@@ -273,7 +276,8 @@ func (t *traceableRTX) Read(ctx context.Context, table string, keys spanner.KeyS
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.String(otelconv.AttrDatastoreSpannerAPI, "ReadOnlyTransaction.Read"),
 		attribute.String(otelconv.AttrDatastoreSpannerTable, table),
-		attribute.StringSlice(otelconv.AttrDatastoreSpannerColumns, columns))
+		attribute.StringSlice(otelconv.AttrDatastoreSpannerColumns, columns),
+	)
 
 	return t.delegate.Read(ctx, table, keys, columns)
 }
@@ -281,7 +285,8 @@ func (t *traceableRTX) Read(ctx context.Context, table string, keys spanner.KeyS
 func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *spanner.RowIterator {
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.String(otelconv.AttrDatastoreSpannerAPI, "ReadOnlyTransaction.Query"),
-		attribute.String(otelconv.AttrDatastoreSpannerStatement, statement.SQL))
+		attribute.String(otelconv.AttrDatastoreSpannerStatement, statement.SQL),
+	)
 
 	return t.delegate.Query(ctx, statement)
 }
@@ -343,7 +348,8 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 		if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
 			// Insert the metadata into the transaction metadata table.
-			mutation := spanner.Insert(tableTransactionMetadata,
+			mutation := spanner.Insert(
+				tableTransactionMetadata,
 				[]string{colTransactionTag, colMetadata},
 				[]any{transactionTag, spanner.NullJSON{
 					Value: config.Metadata.AsMap(),

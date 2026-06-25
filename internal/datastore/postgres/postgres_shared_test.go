@@ -77,7 +77,8 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 		// NOTE: gc tests take exclusive locks, so they are run under non-parallel.
 		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
+				ds, err := newPostgresDatastore(
+					ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(gcInterval),
@@ -113,7 +114,8 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 
 		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
+				ds, err := newPostgresDatastore(
+					ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(veryLargeGCInterval),
@@ -321,7 +323,8 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 		// NOTE: gc tests take exclusive locks, so they are run under non-parallel.
 		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
+				ds, err := newPostgresDatastore(
+					ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(veryLargeGCInterval),
@@ -341,7 +344,8 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 		b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false, pgVersion, enablePgbouncer)
 		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
+				ds, err := newPostgresDatastore(
+					ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
 					GCWindow(gcWindow),
 					GCInterval(gcInterval),
@@ -1474,7 +1478,8 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ctx := t.Context()
-		ds, err := newPostgresDatastore(ctx, uri,
+		ds, err := newPostgresDatastore(
+			ctx, uri,
 			primaryInstanceID,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
@@ -1502,7 +1507,8 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ctx := t.Context()
-		ds, err := newPostgresDatastore(ctx, uri,
+		ds, err := newPostgresDatastore(
+			ctx, uri,
 			primaryInstanceID,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
@@ -1525,7 +1531,8 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			err := rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
 				fmt.Sprintf("resource%d", i),
-				namespace.MustRelation("reader", nil)))
+				namespace.MustRelation("reader", nil),
+			))
 			if err != nil {
 				return err
 			}
@@ -1931,11 +1938,12 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Verify the relationship create was tracked by the watch.
-	test.VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
-		{
-			tuple.Touch(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
+	test.VerifyUpdates(
+		t, require, [][]tuple.RelationshipUpdate{
+			{
+				tuple.Touch(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
+			},
 		},
-	},
 		changes,
 		errchan,
 		false,
@@ -1947,11 +1955,12 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Verify the delete.
-	test.VerifyUpdates(t, require, [][]tuple.RelationshipUpdate{
-		{
-			tuple.Delete(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
+	test.VerifyUpdates(
+		t, require, [][]tuple.RelationshipUpdate{
+			{
+				tuple.Delete(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
+			},
 		},
-	},
 		changes,
 		errchan,
 		false,

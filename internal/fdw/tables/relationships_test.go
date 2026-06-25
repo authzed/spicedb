@@ -219,7 +219,8 @@ func TestFilterFromFields(t *testing.T) {
 					require.Nil(t, filter.OptionalSubjectFilter.OptionalRelation)
 				} else {
 					require.NotNil(t, filter.OptionalSubjectFilter.OptionalRelation)
-					require.Equal(t,
+					require.Equal(
+						t,
 						tc.expectedFilter.OptionalSubjectFilter.OptionalRelation.Relation,
 						filter.OptionalSubjectFilter.OptionalRelation.Relation,
 					)

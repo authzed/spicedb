@@ -157,7 +157,8 @@ func NewExceedsMaximumPreconditionsErr(preconditionCount uint64, maxCountAllowed
 		error: fmt.Errorf(
 			"precondition count of %d is greater than maximum allowed of %d",
 			preconditionCount,
-			maxCountAllowed),
+			maxCountAllowed,
+		),
 		preconditionCount: preconditionCount,
 		maxCountAllowed:   maxCountAllowed,
 	}

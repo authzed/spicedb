@@ -49,7 +49,8 @@ func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 	})
 
 	serverPort := serveResource.GetPort("50051/tcp")
-	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", serverPort),
+	conn, err := grpc.NewClient(
+		fmt.Sprintf("localhost:%s", serverPort),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken(serverToken),
 	)

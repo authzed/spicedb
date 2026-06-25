@@ -543,7 +543,8 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	// pass picks up data-driven hints (e.g. arrow direction reversal) for
 	// nodes only this hop has visibility into.
 	countObserver := query.NewCountObserver()
-	qctx := query.NewQueryContext(ctx, executor,
+	qctx := query.NewQueryContext(
+		ctx, executor,
 		query.WithReader(query.NewQueryDatastoreReader(dl.SnapshotReader(revision, schemaHash))),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 		query.WithCaveatContext(dispatch.CaveatContextFromPlanContext(planCtx)),

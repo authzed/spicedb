@@ -20,13 +20,15 @@ func TestTypeSystemConcurrency(t *testing.T) {
 		Definitions: []*core.NamespaceDefinition{
 			ns.Namespace(
 				"document",
-				ns.MustRelation("viewer", nil,
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelationWithExpiration("user", "..."),
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat")),
 				),
 			),
 			ns.Namespace("user"),
-			ns.Namespace("team",
+			ns.Namespace(
+				"team",
 				ns.MustRelation("member", nil),
 			),
 		},
@@ -188,18 +190,23 @@ func TestDirectPossibleTraitsForFilter(t *testing.T) {
 	setup := &PredefinedElements{
 		Definitions: []*core.NamespaceDefinition{
 			ns.Namespace("user"),
-			ns.Namespace("resource",
-				ns.MustRelation("viewer", nil,
+			ns.Namespace(
+				"resource",
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelation("user", "..."),
 				),
-				ns.MustRelation("editor", nil,
+				ns.MustRelation(
+					"editor", nil,
 					ns.AllowedRelation("user", "..."),
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 				),
-				ns.MustRelation("admin", nil,
+				ns.MustRelation(
+					"admin", nil,
 					ns.AllowedRelationWithExpiration("user", "..."),
 				),
-				ns.MustRelation("owner", nil,
+				ns.MustRelation(
+					"owner", nil,
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 					ns.AllowedRelationWithExpiration("user", "..."),
 				),
@@ -403,32 +410,41 @@ func TestPossibleTraitsForFilter(t *testing.T) {
 	setup := &PredefinedElements{
 		Definitions: []*core.NamespaceDefinition{
 			ns.Namespace("user"),
-			ns.Namespace("group",
+			ns.Namespace(
+				"group",
 				ns.MustRelation("member", nil, ns.AllowedRelation("user", "...")),
 			),
-			ns.Namespace("resource",
-				ns.MustRelation("viewer", nil,
+			ns.Namespace(
+				"resource",
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelation("user", "..."),
 				),
-				ns.MustRelation("editor", nil,
+				ns.MustRelation(
+					"editor", nil,
 					ns.AllowedRelation("user", "..."),
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 				),
-				ns.MustRelation("admin", nil,
+				ns.MustRelation(
+					"admin", nil,
 					ns.AllowedRelationWithExpiration("user", "..."),
 				),
-				ns.MustRelation("owner", nil,
+				ns.MustRelation(
+					"owner", nil,
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 					ns.AllowedRelationWithExpiration("user", "..."),
 					ns.AllowedRelationWithCaveatAndExpiration("user", "...", ns.AllowedCaveat("somecaveat")),
 				),
 			),
-			ns.Namespace("document",
-				ns.MustRelation("viewer", nil,
+			ns.Namespace(
+				"document",
+				ns.MustRelation(
+					"viewer", nil,
 					ns.AllowedRelation("user", "..."),
 					ns.AllowedRelation("group", "member"),
 				),
-				ns.MustRelation("editor", nil,
+				ns.MustRelation(
+					"editor", nil,
 					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 					ns.AllowedRelationWithExpiration("group", "member"),
 				),

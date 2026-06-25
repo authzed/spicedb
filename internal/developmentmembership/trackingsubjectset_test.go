@@ -84,16 +84,16 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"simple intersection",
 			intersect(
 				set(
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
 				set(
-					(DS("user", "user2", "...")),
-					(DS("user", "user3", "...")),
+					DS("user", "user2", "..."),
+					DS("user", "user3", "..."),
 				),
 				set(
-					(DS("user", "user2", "...")),
-					(DS("user", "user4", "...")),
+					DS("user", "user2", "..."),
+					DS("user", "user4", "..."),
 				),
 			),
 			[]FoundSubject{fs("user", "user2", "...")},
@@ -102,12 +102,12 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"empty intersection",
 			intersect(
 				set(
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
 				set(
-					(DS("user", "user3", "...")),
-					(DS("user", "user4", "...")),
+					DS("user", "user3", "..."),
+					DS("user", "user4", "..."),
 				),
 			),
 			[]FoundSubject{},
@@ -116,8 +116,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"simple exclusion",
 			subtract(
 				set(
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
 				set(DS("user", "user2", "...")),
 				set(DS("user", "user3", "...")),
@@ -128,8 +128,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"empty exclusion",
 			subtract(
 				set(
-					(DS("user", "user1", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "user1", "..."),
+					DS("user", "user2", "..."),
 				),
 				set(DS("user", "user1", "...")),
 				set(DS("user", "user2", "...")),
@@ -140,7 +140,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard left side union",
 			union(
 				set(
-					(DS("user", "*", "...")),
+					DS("user", "*", "..."),
 				),
 				set(DS("user", "user1", "...")),
 			),
@@ -154,7 +154,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 			union(
 				set(DS("user", "user1", "...")),
 				set(
-					(DS("user", "*", "...")),
+					DS("user", "*", "..."),
 				),
 			),
 			[]FoundSubject{
@@ -166,8 +166,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard left side exclusion",
 			subtract(
 				set(
-					(DS("user", "*", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "*", "..."),
+					DS("user", "user2", "..."),
 				),
 				set(DS("user", "user1", "...")),
 			),
@@ -180,7 +180,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard right side exclusion",
 			subtract(
 				set(
-					(DS("user", "user2", "...")),
+					DS("user", "user2", "..."),
 				),
 				set(DS("user", "*", "...")),
 			),
@@ -190,7 +190,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard right side concrete exclusion",
 			subtract(
 				set(
-					(DS("user", "*", "...")),
+					DS("user", "*", "..."),
 				),
 				set(DS("user", "user1", "...")),
 			),
@@ -202,8 +202,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard both sides exclusion",
 			subtract(
 				set(
-					(DS("user", "user2", "...")),
-					(DS("user", "*", "...")),
+					DS("user", "user2", "..."),
+					DS("user", "*", "..."),
 				),
 				set(DS("user", "*", "...")),
 			),
@@ -213,8 +213,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard left side intersection",
 			intersect(
 				set(
-					(DS("user", "*", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "*", "..."),
+					DS("user", "user2", "..."),
 				),
 				set(DS("user", "user1", "...")),
 			),
@@ -227,8 +227,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 			intersect(
 				set(DS("user", "user1", "...")),
 				set(
-					(DS("user", "*", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "*", "..."),
+					DS("user", "user2", "..."),
 				),
 			),
 			[]FoundSubject{
@@ -239,11 +239,12 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard both sides intersection",
 			intersect(
 				set(
-					(DS("user", "*", "...")),
-					(DS("user", "user1", "..."))),
+					DS("user", "*", "..."),
+					DS("user", "user1", "..."),
+				),
 				set(
-					(DS("user", "*", "...")),
-					(DS("user", "user2", "...")),
+					DS("user", "*", "..."),
+					DS("user", "user2", "..."),
 				),
 			),
 			[]FoundSubject{

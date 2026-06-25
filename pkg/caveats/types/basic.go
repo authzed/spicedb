@@ -146,7 +146,8 @@ func RegisterBasicTypes(sts *StandardTypeSet) error {
 	}
 	sts.listTypeBuilder = listTypeBuilder
 
-	mapTypeBuilder, err := RegisterGenericType(ts, "map", 1,
+	mapTypeBuilder, err := RegisterGenericType(
+		ts, "map", 1,
 		func(childTypes []VariableType) VariableType {
 			return VariableType{
 				localName:  "map",
@@ -178,7 +179,8 @@ func RegisterBasicTypes(sts *StandardTypeSet) error {
 	}
 	sts.mapTypeBuilder = mapTypeBuilder
 
-	if err := RegisterMethodOnDefinedType(ts, cel.MapType(cel.StringType, cel.DynType),
+	if err := RegisterMethodOnDefinedType(
+		ts, cel.MapType(cel.StringType, cel.DynType),
 		"isSubtreeOf",
 		[]*cel.Type{cel.MapType(cel.StringType, cel.DynType)},
 		cel.BoolType,

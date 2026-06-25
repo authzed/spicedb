@@ -44,7 +44,8 @@ func ParseSchemaMode(s string) (SchemaMode, error) {
 	mode, ok := schemaModeNames[s]
 	if !ok {
 		return SchemaModeReadLegacyWriteLegacy, fmt.Errorf(
-			"invalid schema mode %q, must be one of: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new", s)
+			"invalid schema mode %q, must be one of: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new", s,
+		)
 	}
 	return mode, nil
 }

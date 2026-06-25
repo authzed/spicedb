@@ -27,7 +27,8 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 	var connectStr string
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connectStr = uri
-		ds, err := NewCRDBDatastore(ctx, uri,
+		ds, err := NewCRDBDatastore(
+			ctx, uri,
 			GCWindow(veryLargeGCWindow),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
@@ -95,7 +96,8 @@ func TestStreamPartitionedExportBoundCombinations(t *testing.T) {
 		var connectStr string
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			connectStr = uri
-			ds, err := NewCRDBDatastore(ctx, uri,
+			ds, err := NewCRDBDatastore(
+				ctx, uri,
 				GCWindow(veryLargeGCWindow),
 				RevisionQuantization(0),
 				WithAcquireTimeout(30*time.Second),
@@ -214,7 +216,8 @@ func TestCRDBSpecialCharEncodingInRangeKeys(t *testing.T) {
 	var connectStr string
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connectStr = uri
-		ds, err := NewCRDBDatastore(ctx, uri,
+		ds, err := NewCRDBDatastore(
+			ctx, uri,
 			GCWindow(veryLargeGCWindow),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
@@ -267,13 +270,15 @@ func TestCRDBSpecialCharEncodingInRangeKeys(t *testing.T) {
 	// and return the raw start_key string.
 	getStartKeyForObjectID := func(t *testing.T, namespace, objectID string) string {
 		t.Helper()
-		_, err := conn.Exec(ctx,
+		_, err := conn.Exec(
+			ctx,
 			`INSERT INTO relation_tuple (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation) VALUES ($1, $2, 'viewer', 'user', 'alice', '...')`,
 			namespace, objectID,
 		)
 		require.NoError(t, err)
 
-		_, err = conn.Exec(ctx,
+		_, err = conn.Exec(
+			ctx,
 			`ALTER TABLE relation_tuple SPLIT AT VALUES ($1, $2, 'viewer', 'user', 'alice', '...')`,
 			namespace, objectID,
 		)
@@ -354,7 +359,8 @@ func TestCRDBExhaustiveEscapeScan(t *testing.T) {
 	var connStr string
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connStr = uri
-		ds, err := NewCRDBDatastore(ctx, uri,
+		ds, err := NewCRDBDatastore(
+			ctx, uri,
 			GCWindow(veryLargeGCWindow),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
@@ -392,13 +398,15 @@ func TestCRDBExhaustiveEscapeScan(t *testing.T) {
 		ns := fmt.Sprintf("scan_%03d", i)
 		oid := fmt.Sprintf("x%cy", char)
 
-		_, err := conn.Exec(ctx,
+		_, err := conn.Exec(
+			ctx,
 			`INSERT INTO relation_tuple (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation) VALUES ($1, $2, 'viewer', 'user', 'alice', '...')`,
 			ns, oid,
 		)
 		require.NoError(t, err, "INSERT failed for byte 0x%02x", char)
 
-		_, err = conn.Exec(ctx,
+		_, err = conn.Exec(
+			ctx,
 			`ALTER TABLE relation_tuple SPLIT AT VALUES ($1, $2, 'viewer', 'user', 'alice', '...')`,
 			ns, oid,
 		)
@@ -447,7 +455,8 @@ func TestExplainPartitionedQuery(t *testing.T) {
 		ctx := t.Context()
 
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewCRDBDatastore(ctx, uri,
+			ds, err := NewCRDBDatastore(
+				ctx, uri,
 				GCWindow(veryLargeGCWindow),
 				RevisionQuantization(0),
 				WithAcquireTimeout(30*time.Second),

@@ -62,14 +62,16 @@ func setupCheckWideGroups(ctx context.Context, ds datastore.Datastore) (*QuerySe
 		for y := 1; y <= 9; y++ {
 			subgroup := fmt.Sprintf("eng-%d%d", x, y)
 			relationships = append(relationships, tuple.MustParse(
-				fmt.Sprintf("group:eng#member@group:%s#member", subgroup)))
+				fmt.Sprintf("group:eng#member@group:%s#member", subgroup),
+			))
 		}
 	}
 
 	// Each eng-N has one child eng-N-1
 	for i := 1; i <= 99; i++ {
 		relationships = append(relationships, tuple.MustParse(
-			fmt.Sprintf("group:eng-%d#member@group:eng-%d-1#member", i, i)))
+			fmt.Sprintf("group:eng-%d#member@group:eng-%d-1#member", i, i),
+		))
 	}
 
 	// user:tom is at the deepest leaf

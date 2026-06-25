@@ -417,7 +417,8 @@ func ensureRelationshipWrites(t *testing.T, vctx validationContext) {
 // validateRelationshipReads ensures that all defined relationships are returned by the Read API.
 func validateRelationshipReads(t *testing.T, vctx validationContext) {
 	testForEachRelationship(t, vctx, "read", func(t *testing.T, relationship tuple.Relationship) {
-		foundRelationships, err := vctx.serviceTester.Read(t.Context(),
+		foundRelationships, err := vctx.serviceTester.Read(
+			t.Context(),
 			relationship.Resource.ObjectType,
 			vctx.revision,
 		)
@@ -440,7 +441,8 @@ func validateRelationshipReads(t *testing.T, vctx validationContext) {
 func ensureNoExpansionErrors(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "run_expand",
 		func(t *testing.T, resource tuple.ObjectAndRelation) {
-			_, err := vctx.serviceTester.Expand(t.Context(),
+			_, err := vctx.serviceTester.Expand(
+				t.Context(),
 				resource,
 				vctx.revision,
 			)
@@ -464,7 +466,8 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 						SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 					},
 					ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
-				})
+				},
+			)
 			require.NoError(t, err)
 
 			// Build an accessible subject set from the expansion tree.
@@ -479,7 +482,8 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 
 					// NOTE: an expanded subject must either be accessible directly (e.g. not via a wildcard)
 					// OR must be removed due to a static caveat context removing it from the set.
-					require.True(t,
+					require.True(
+						t,
 						accessiblity == consistencytestutil.AccessibleDirectly ||
 							accessiblity == consistencytestutil.NotAccessibleDueToPrespecifiedCaveat,
 						"mismatch between expand and accessibility for resource %s and subject %s. accessibility: %v, permissionship: %v",
@@ -546,7 +550,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 								}
 							}
 
-							require.ElementsMatch(t,
+							require.ElementsMatch(
+								t,
 								slices.Collect(maps.Keys(accessibleResources)),
 								slices.Collect(maps.Keys(resolvedResources)),
 								"expected accessibleResources in list A don't match actual resolvedResources in list B",
@@ -557,7 +562,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							expectedBulkPermissions := map[string]v1.CheckPermissionResponse_Permissionship{}
 
 							for _, resolvedResource := range resolvedResources {
-								permissionship, err := vctx.serviceTester.Check(t.Context(),
+								permissionship, err := vctx.serviceTester.Check(
+									t.Context(),
 									tuple.ObjectAndRelation{
 										ObjectType: resourceRelation.ObjectType,
 										ObjectID:   resolvedResource.ResourceObjectId,
@@ -576,7 +582,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 								expectedBulkPermissions[resolvedResource.ResourceObjectId] = expectedPermissionship
 
 								require.NoError(t, err)
-								require.Equal(t,
+								require.Equal(
+									t,
 									expectedPermissionship,
 									permissionship,
 									"Found Check failure for relation %s:%s#%s and subject %s in lookup resources; LR permission %v, Check Permission %v",
@@ -605,7 +612,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							}
 
 							// Ensure they are all found via bulk check as well.
-							results, err := vctx.serviceTester.CheckBulk(t.Context(),
+							results, err := vctx.serviceTester.CheckBulk(
+								t.Context(),
 								checkBulkItems,
 								vctx.revision,
 							)
@@ -635,7 +643,8 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 						// permissions as their subject relation, or wildcards), this should be a
 						// subset.
 						expectedDefinedSubjects := vctx.accessibilitySet.DirectlyAccessibleDefinedSubjectsOfType(resource, subjectType)
-						requireSubsetOf(t,
+						requireSubsetOf(
+							t,
 							slices.Collect(maps.Keys(resolvedSubjects)),
 							slices.Collect(maps.Keys(expectedDefinedSubjects)),
 						)
@@ -714,7 +723,8 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 							}
 
 							for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
-								permissionship, err := vctx.serviceTester.Check(t.Context(),
+								permissionship, err := vctx.serviceTester.Check(
+									t.Context(),
 									resource,
 									tuple.ObjectAndRelation{
 										ObjectType: subjectType.ObjectType,
@@ -734,7 +744,8 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 									expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 								}
 
-								require.Equal(t,
+								require.Equal(
+									t,
 									expectedPermissionship,
 									permissionship,
 									"Found Check failure for resource %s and excluded subject %s in lookup subjects",
@@ -756,7 +767,8 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 								Relation:   subjectType.Relation,
 							}
 
-							permissionship, err := vctx.serviceTester.Check(t.Context(),
+							permissionship, err := vctx.serviceTester.Check(
+								t.Context(),
 								resource,
 								subject,
 								vctx.revision,
@@ -769,7 +781,8 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 								expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 							}
 
-							require.Equal(t,
+							require.Equal(
+								t,
 								expectedPermissionship,
 								permissionship,
 								"Found Check failure for resource %s and subject %s in lookup subjects",
@@ -866,7 +879,8 @@ func runAssertions(t *testing.T, vctx validationContext) {
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
 								require.Contains(t, resolvedDirectResourceIds, rel.Resource.ObjectID, "Missing object %s in lookup for assertion %s", rel.Resource, rel)
-								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedDirectResourcesMap[rel.Resource.ObjectID].Permissionship,
+								require.Equal(
+									t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedDirectResourcesMap[rel.Resource.ObjectID].Permissionship,
 									"Expected caveated permission in direct lookup for assertion %s", rel,
 								)
 							}
@@ -888,7 +902,8 @@ func runAssertions(t *testing.T, vctx validationContext) {
 								case accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat:
 									found, ok := resolvedIndirectResourcesMap[rel.Resource.ObjectID]
 									require.True(t, ok, "Missing expected object %s in indirect lookup for assertion %s", rel.Resource, rel)
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, found.Permissionship,
+									require.Equal(
+										t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, found.Permissionship,
 										"Expected caveated permission in indirect lookup for assertion %s", rel,
 									)
 								}
@@ -1104,7 +1119,8 @@ func validateReachableSubjectTypes(t *testing.T, vctx validationContext) {
 				subjectTypeRef = subjectTypeRef + "#" + member.Relation
 			}
 
-			require.True(t, reachableSubjectTypesSet.Has(subjectTypeRef),
+			require.True(
+				t, reachableSubjectTypesSet.Has(subjectTypeRef),
 				"Found unexpected subject type %s#%s in lookup subjects for resource %s; expected one of %s",
 				member.ObjectType,
 				member.Relation,

@@ -518,7 +518,7 @@ func newSubjectSortedIterator(now time.Time, it memdb.ResultIterator, limit *uin
 		rhsSub := results[j].Subject
 		return less(lhsSub.ObjectType, lhsSub.ObjectID, lhsSub.Relation, rhsSub) ||
 			(eq(lhsSub.ObjectType, lhsSub.ObjectID, lhsSub.Relation, rhsSub) &&
-				(less(lhsRes.ObjectType, lhsRes.ObjectID, lhsRes.Relation, rhsRes)))
+				less(lhsRes.ObjectType, lhsRes.ObjectID, lhsRes.Relation, rhsRes))
 	})
 
 	// Limit them if requested

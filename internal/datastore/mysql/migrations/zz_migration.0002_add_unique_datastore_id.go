@@ -5,7 +5,8 @@ import (
 )
 
 func createMetadataTable(t *tables) string {
-	return fmt.Sprintf(`CREATE TABLE %s (
+	return fmt.Sprintf(
+		`CREATE TABLE %s (
 		id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
 		unique_id VARCHAR(36));`,
 		t.Metadata(),
@@ -13,7 +14,8 @@ func createMetadataTable(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("add_unique_datastore_id", "initial", noNonatomicMigration,
+	mustRegisterMigration(
+		"add_unique_datastore_id", "initial", noNonatomicMigration,
 		newStatementBatch(
 			createMetadataTable,
 		).execute,

@@ -29,7 +29,8 @@ import (
 func TestTestServer(t *testing.T) {
 	require := require.New(t)
 	key := uuid.NewString()
-	tester, err := newTester(t,
+	tester, err := newTester(
+		t,
 		&dockertest.RunOptions{
 			Repository: "authzed/spicedb",
 			Tag:        "ci",

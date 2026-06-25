@@ -43,14 +43,16 @@ func TestToValidationString(t *testing.T) {
 		},
 		{
 			"with some exclusion",
-			fs("user", "*", "...",
+			fs(
+				"user", "*", "...",
 				"user1", "user2", "user3", "user4", "user5",
 			),
 			"user:* - {user:user1, user:user2, user:user3, user:user4, user:user5}",
 		},
 		{
 			"with many exclusion",
-			fs("user", "*", "...",
+			fs(
+				"user", "*", "...",
 				"user1", "user2", "user3", "user4", "user5", "user6",
 			),
 			"user:* - {user:user1, user:user2, user:user3, user:user4, user:user5, user:user6}",

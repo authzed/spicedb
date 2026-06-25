@@ -583,11 +583,13 @@ func TestOldSnapshotCachingRealDatastore(t *testing.T) {
 			"defined",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("owner",
+				ns.MustRelation(
+					"owner",
 					nil,
 					ns.AllowedRelation("user", "..."),
 				),
-				ns.MustRelation("editor",
+				ns.MustRelation(
+					"editor",
 					nil,
 					ns.AllowedRelation("user", "..."),
 				),
@@ -661,11 +663,13 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			"defined",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("owner",
+				ns.MustRelation(
+					"owner",
 					nil,
 					ns.AllowedRelation("user", "..."),
 				),
-				ns.MustRelation("editor",
+				ns.MustRelation(
+					"editor",
 					nil,
 					ns.AllowedRelation("user", "..."),
 				),

@@ -51,7 +51,8 @@ func TestIterSubjectsWildcardWithMultipleRelations(t *testing.T) {
 	// - document:publicdoc#viewer@user:* (wildcard on viewer)
 	// - document:publicdoc#viewer@user:tom (concrete user on viewer)
 	// - document:publicdoc#banned@user:fred (concrete user on banned - should NOT appear in viewer results)
-	revision, err := common.WriteRelationships(ctx, rawDS, tuple.UpdateOperationCreate,
+	revision, err := common.WriteRelationships(
+		ctx, rawDS, tuple.UpdateOperationCreate,
 		tuple.MustParse("document:publicdoc#viewer@user:*"),
 		tuple.MustParse("document:publicdoc#viewer@user:tom"),
 		tuple.MustParse("document:publicdoc#banned@user:fred"),

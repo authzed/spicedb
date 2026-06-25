@@ -168,7 +168,8 @@ func BuildAccessibilitySet(t *testing.T, ctx context.Context, populated *validat
 						// statically has permission (or not). This can happen if the caveat context
 						// is fully specified on the relationship.
 						if membership == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER {
-							cr, _, err := computed.ComputeCheck(ctx, dispatcher,
+							cr, _, err := computed.ComputeCheck(
+								ctx, dispatcher,
 								caveattypes.Default.TypeSet,
 								computed.CheckParameters{
 									ResourceType:  resourceRelation,

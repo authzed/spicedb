@@ -29,7 +29,8 @@ func TestContextualizedCaveatFrom(t *testing.T) {
 
 	res, err = ContextualizedCaveatFrom(
 		spanner.NullString{StringVal: "test", Valid: true},
-		spanner.NullJSON{Value: map[string]any{"key": "val"}, Valid: true})
+		spanner.NullJSON{Value: map[string]any{"key": "val"}, Valid: true},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, "test", res.CaveatName)
