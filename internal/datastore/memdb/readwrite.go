@@ -346,18 +346,53 @@ func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames [
 }
 
 func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	rwt.mustLock()
+	defer rwt.Unlock()
+
+	tx, err := rwt.txSource()
+	if err != nil {
+		return 0, err
+	}
+
+	// BulkLoad has TOUCH-like (idempotent) semantics: relationships that already
+	// exist are silently skipped rather than causing the load to fail. The
+	// returned count reflects only the relationships actually inserted.
 	var numCopied uint64
 	var next *tuple.Relationship
-	var err error
-
-	updates := []tuple.RelationshipUpdate{{
-		Operation: tuple.UpdateOperationCreate,
-	}}
-
 	for next, err = iter.Next(ctx); next != nil && err == nil; next, err = iter.Next(ctx) {
-		updates[0].Relationship = *next
-		if err := rwt.WriteRelationships(ctx, updates); err != nil {
-			return 0, err
+		mutation := tuple.RelationshipUpdate{Relationship: *next}
+		rel := &relationship{
+			next.Resource.ObjectType,
+			next.Resource.ObjectID,
+			next.Resource.Relation,
+			next.Subject.ObjectType,
+			next.Subject.ObjectID,
+			next.Subject.Relation,
+			rwt.toCaveatReference(mutation),
+			rwt.toIntegrity(mutation),
+			next.OptionalExpiration,
+		}
+
+		found, ferr := tx.First(
+			tableRelationship,
+			indexID,
+			rel.namespace,
+			rel.resourceID,
+			rel.relation,
+			rel.subjectNamespace,
+			rel.subjectObjectID,
+			rel.subjectRelation,
+		)
+		if ferr != nil {
+			return 0, fmt.Errorf("error loading existing relationship: %w", ferr)
+		}
+		if found != nil {
+			// Already exists; idempotently skip.
+			continue
+		}
+
+		if ierr := tx.Insert(tableRelationship, rel); ierr != nil {
+			return 0, fmt.Errorf("error inserting relationship: %w", ierr)
 		}
 		numCopied++
 	}

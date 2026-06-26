@@ -416,11 +416,17 @@ func (rwt spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNam
 }
 
 func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	// BulkLoad has TOUCH-like (idempotent) semantics: an InsertOrUpdate mutation
+	// is used so that relationships which already exist do not fail the load.
+	// NOTE: unlike the other datastores, Spanner cannot cheaply distinguish a
+	// newly-inserted relationship from an existing one (mutations are applied
+	// blindly at commit), so the returned count reflects the number of
+	// relationships processed rather than only those newly inserted.
 	var numLoaded uint64
 	var rel *tuple.Relationship
 	var err error
 	for rel, err = iter.Next(ctx); err == nil && rel != nil; rel, err = iter.Next(ctx) {
-		txnMut, _, err := spannerMutation(ctx, tuple.UpdateOperationCreate, *rel)
+		txnMut, _, err := spannerMutation(ctx, tuple.UpdateOperationTouch, *rel)
 		if err != nil {
 			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
 		}

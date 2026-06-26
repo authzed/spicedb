@@ -2,6 +2,8 @@ package common
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
@@ -11,58 +13,60 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-type tupleSourceAdapter struct {
-	source datastore.BulkWriteRelationshipSource
-	ctx    context.Context
+// maxParametersPerStatement is the maximum number of bind parameters that the
+// PostgreSQL extended query protocol permits in a single statement.
+const maxParametersPerStatement = 65535
 
-	current      *tuple.Relationship
-	err          error
-	valuesBuffer []any
-	colNames     []string
-}
+// numBaseColumns is the number of non-integrity columns written for each
+// relationship. When more columns than this are requested, the additional
+// columns carry the relationship integrity values.
+const numBaseColumns = 9
 
-// Next returns true if there is another row and makes the next row data
-// available to Values(). When there are no more rows available or an error
-// has occurred it returns false.
-func (tg *tupleSourceAdapter) Next() bool {
-	tg.current, tg.err = tg.source.Next(tg.ctx)
-	return tg.current != nil
-}
-
-// Values returns the values for the current row.
-func (tg *tupleSourceAdapter) Values() ([]any, error) {
+// appendRelationshipValues appends the column values for a single relationship
+// to args, in the same column order used by BulkLoad. When withIntegrity is
+// true, the relationship integrity values are appended as well.
+func appendRelationshipValues(args []any, rel *tuple.Relationship, withIntegrity bool) ([]any, error) {
 	var caveatName string
 	var caveatContext map[string]any
-	if tg.current.OptionalCaveat != nil {
-		caveatName = tg.current.OptionalCaveat.CaveatName
-		caveatContext = tg.current.OptionalCaveat.Context.AsMap()
+	if rel.OptionalCaveat != nil {
+		caveatName = rel.OptionalCaveat.CaveatName
+		caveatContext = rel.OptionalCaveat.Context.AsMap()
 	}
 
-	tg.valuesBuffer[0] = tg.current.Resource.ObjectType
-	tg.valuesBuffer[1] = tg.current.Resource.ObjectID
-	tg.valuesBuffer[2] = tg.current.Resource.Relation
-	tg.valuesBuffer[3] = tg.current.Subject.ObjectType
-	tg.valuesBuffer[4] = tg.current.Subject.ObjectID
-	tg.valuesBuffer[5] = tg.current.Subject.Relation
-	tg.valuesBuffer[6] = caveatName
-	tg.valuesBuffer[7] = caveatContext
-	tg.valuesBuffer[8] = tg.current.OptionalExpiration
+	args = append(args,
+		rel.Resource.ObjectType,
+		rel.Resource.ObjectID,
+		rel.Resource.Relation,
+		rel.Subject.ObjectType,
+		rel.Subject.ObjectID,
+		rel.Subject.Relation,
+		caveatName,
+		caveatContext, // PGX serializes map[string]any to JSONB columns.
+		rel.OptionalExpiration,
+	)
 
-	if len(tg.colNames) > 9 && tg.current.OptionalIntegrity != nil {
-		tg.valuesBuffer[9] = tg.current.OptionalIntegrity.KeyId
-		tg.valuesBuffer[10] = tg.current.OptionalIntegrity.Hash
-		tg.valuesBuffer[11] = tg.current.OptionalIntegrity.HashedAt.AsTime()
+	if withIntegrity {
+		if rel.OptionalIntegrity == nil {
+			return nil, spiceerrors.MustBugf("expected relationship integrity for bulk load")
+		}
+
+		args = append(args,
+			rel.OptionalIntegrity.KeyId,
+			rel.OptionalIntegrity.Hash,
+			rel.OptionalIntegrity.HashedAt.AsTime(),
+		)
 	}
 
-	return tg.valuesBuffer, nil
+	return args, nil
 }
 
-// Err returns any error that has been encountered by the CopyFromSource. If
-// this is not nil *Conn.CopyFrom will abort the copy.
-func (tg *tupleSourceAdapter) Err() error {
-	return tg.err
-}
-
+// BulkLoad writes all of the relationships produced by iter into tupleTableName
+// using batched INSERT statements with `ON CONFLICT DO NOTHING`. The conflict
+// clause gives the load TOUCH-like semantics: relationships that already exist
+// are silently skipped rather than causing the load to fail, which makes
+// re-importing the same data idempotent. The returned count reflects the number
+// of relationships that were actually inserted (i.e. excludes ones skipped
+// because they already existed).
 func BulkLoad(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -70,16 +74,84 @@ func BulkLoad(
 	colNames []string,
 	iter datastore.BulkWriteRelationshipSource,
 ) (uint64, error) {
-	adapter := &tupleSourceAdapter{
-		source:       iter,
-		ctx:          ctx,
-		valuesBuffer: make([]any, len(colNames)),
-		colNames:     colNames,
+	numCols := len(colNames)
+	if numCols == 0 {
+		return 0, spiceerrors.MustBugf("no columns provided to bulk load")
 	}
-	copied, err := tx.CopyFrom(ctx, pgx.Identifier{tupleTableName}, colNames, adapter)
-	uintCopied, castErr := safecast.Convert[uint64](copied)
-	if castErr != nil {
-		return 0, spiceerrors.MustBugf("number copied was negative: %v", castErr)
+	withIntegrity := numCols > numBaseColumns
+
+	// The static prefix shared by every batch: `INSERT INTO <table> (cols) VALUES `.
+	prefix := "INSERT INTO " + tupleTableName + " (" + strings.Join(colNames, ", ") + ") VALUES "
+
+	// Cap the number of rows per statement so the bind-parameter count never
+	// exceeds the wire-protocol limit.
+	maxRowsPerBatch := maxParametersPerStatement / numCols
+
+	var totalInserted uint64
+	args := make([]any, 0, maxRowsPerBatch*numCols)
+	var sb strings.Builder
+
+	flush := func() error {
+		rows := len(args) / numCols
+		if rows == 0 {
+			return nil
+		}
+
+		sb.Reset()
+		sb.WriteString(prefix)
+		param := 1
+		for row := 0; row < rows; row++ {
+			if row > 0 {
+				sb.WriteByte(',')
+			}
+			sb.WriteByte('(')
+			for col := 0; col < numCols; col++ {
+				if col > 0 {
+					sb.WriteByte(',')
+				}
+				sb.WriteByte('$')
+				sb.WriteString(strconv.Itoa(param))
+				param++
+			}
+			sb.WriteByte(')')
+		}
+		sb.WriteString(" ON CONFLICT DO NOTHING")
+
+		tag, err := tx.Exec(ctx, sb.String(), args...)
+		if err != nil {
+			return err
+		}
+
+		inserted, err := safecast.Convert[uint64](tag.RowsAffected())
+		if err != nil {
+			return spiceerrors.MustBugf("number inserted was negative: %v", err)
+		}
+		totalInserted += inserted
+
+		args = args[:0]
+		return nil
 	}
-	return uintCopied, err
+
+	rel, err := iter.Next(ctx)
+	for ; err == nil && rel != nil; rel, err = iter.Next(ctx) {
+		args, err = appendRelationshipValues(args, rel, withIntegrity)
+		if err != nil {
+			return 0, err
+		}
+
+		if len(args)/numCols >= maxRowsPerBatch {
+			if flushErr := flush(); flushErr != nil {
+				return 0, flushErr
+			}
+		}
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	if flushErr := flush(); flushErr != nil {
+		return 0, flushErr
+	}
+
+	return totalInserted, nil
 }

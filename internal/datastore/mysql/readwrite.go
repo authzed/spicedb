@@ -21,7 +21,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -517,7 +516,11 @@ func (rwt *mysqlReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsName
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var sqlStmt bytes.Buffer
 
-	sql, _, err := rwt.WriteRelsQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).ToSql()
+	// BulkLoad has TOUCH-like (idempotent) semantics: `INSERT IGNORE` silently
+	// skips relationships that already exist (conflicting on the
+	// uq_relation_tuple_living unique constraint) rather than failing the load.
+	// The returned count reflects only the relationships actually inserted.
+	sql, _, err := rwt.WriteRelsQuery.Options("IGNORE").Values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).ToSql()
 	if err != nil {
 		return 0, err
 	}
@@ -564,13 +567,25 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 		}
 
 		if batchLen > 0 {
-			log.Warn().Uint64("count", batchLen).Uint64("written", numWritten).Msg("writing batch")
-			if _, err := rwt.tx.Exec(sqlStmt.String(), args...); err != nil {
-				return 0, fmt.Errorf(errUnableToBulkWriteRelationships, fmt.Errorf("error writing batch: %w", err))
+			result, execErr := rwt.tx.Exec(sqlStmt.String(), args...)
+			if execErr != nil {
+				return 0, fmt.Errorf(errUnableToBulkWriteRelationships, fmt.Errorf("error writing batch: %w", execErr))
 			}
-		}
 
-		numWritten += batchLen
+			// With INSERT IGNORE, RowsAffected counts only the rows actually
+			// inserted; relationships skipped because they already existed are
+			// excluded.
+			affected, affErr := result.RowsAffected()
+			if affErr != nil {
+				return 0, fmt.Errorf(errUnableToBulkWriteRelationships, affErr)
+			}
+
+			inserted, castErr := safecast.Convert[uint64](affected)
+			if castErr != nil {
+				return 0, fmt.Errorf(errUnableToBulkWriteRelationships, castErr)
+			}
+			numWritten += inserted
+		}
 	}
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToBulkWriteRelationships, err)
