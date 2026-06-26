@@ -33,6 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -81,10 +82,12 @@ var (
 )
 
 type spannerDatastore struct {
-	*revisions.RemoteClockRevisions
 	revisions.CommonDecoder
 	*common.MigrationValidator
 
+	followerReadDelay            time.Duration
+	revisionQuantization         time.Duration
+	gcWindow                     time.Duration
 	watchBufferLength            uint16
 	watchChangeBufferMaximumSize uint64
 	watchBufferWriteTimeout      time.Duration
@@ -170,9 +173,6 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, database)
 	}
 
-	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
-		config.maxRevisionStalenessPercent) * time.Nanosecond
-
 	headMigration, err := migrations.SpannerMigrations.HeadRevision()
 	if err != nil {
 		return nil, fmt.Errorf("invalid head migration found for spanner: %w", err)
@@ -208,16 +208,13 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	)
 
 	ds := &spannerDatastore{
-		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
-			defaultChangeStreamRetention,
-			maxRevisionStaleness,
-			config.followerReadDelay,
-			config.revisionQuantization,
-		),
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.Timestamp,
 		},
 		MigrationValidator:                  common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		followerReadDelay:                   config.followerReadDelay,
+		revisionQuantization:                config.revisionQuantization,
+		gcWindow:                            defaultChangeStreamRetention,
 		client:                              client,
 		config:                              config,
 		database:                            database,
@@ -231,14 +228,67 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		schema:                              *schema,
 		meterProvider:                       meterProvider,
 	}
-	// Optimized revision and revision checking use a stale read for the
-	// current timestamp.
-	// TODO: Still investigating whether a stale read can be used for
-	//       HeadRevision for FullConsistency queries.
-	ds.SetNowFunc(ds.staleHeadRevision)
-	ds.SetNowOnlyFunc(ds.nowOnly)
-
 	return ds, nil
+}
+
+// OptimizedRevision computes the uncached quantized revision for Spanner. It
+// reads the current timestamp via a stale read and quantizes it in Go. Caching,
+// deduplication, and jitter are layered on by proxy.NewOptimizedRevisionProxy.
+//
+// Optimized revision and revision checking use a stale read for the current
+// timestamp.
+// TODO: Still investigating whether a stale read can be used for HeadRevision
+//
+//	for FullConsistency queries.
+func (sd *spannerDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+	ctx, span := tracer.Start(ctx, "OptimizedRevision")
+	defer span.End()
+
+	nowRev, schemaHash, err := sd.staleHeadRevision(ctx)
+	if err != nil {
+		return datastore.NoRevision, 0, "", err
+	}
+
+	if nowRev == datastore.NoRevision {
+		return datastore.NoRevision, 0, "", datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
+	}
+
+	nowTS, ok := nowRev.(revisions.WithTimestampRevision)
+	if !ok {
+		return datastore.NoRevision, 0, "", spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
+	}
+
+	rev, validFor := revisions.QuantizeHLC(nowTS, sd.followerReadDelay, sd.revisionQuantization)
+	return rev, validFor, schemaHash, nil
+}
+
+// CheckRevision verifies the given revision is within the software GC window. It
+// lives on the datastore (not the caching layer) because it is not a caching
+// concern, and uses the hash-free stale read since the schema hash is not needed.
+func (sd *spannerDatastore) CheckRevision(ctx context.Context, dsRevision datastore.Revision) error {
+	if dsRevision == datastore.NoRevision {
+		return datastore.NewInvalidRevisionErr(dsRevision, datastore.CouldNotDetermineRevision)
+	}
+
+	revision, ok := dsRevision.(revisions.WithTimestampRevision)
+	if !ok {
+		return spiceerrors.MustBugf("expected HLC revision, got %T", dsRevision)
+	}
+
+	ctx, span := tracer.Start(ctx, "CheckRevision")
+	defer span.End()
+
+	now, err := sd.nowOnly(ctx)
+	if err != nil {
+		return err
+	}
+
+	nowTS, ok := now.(revisions.WithTimestampRevision)
+	if !ok {
+		return spiceerrors.MustBugf("expected HLC revision, got %T", now)
+	}
+
+	return revisions.CheckHLCGCWindow(nowTS, revision, sd.gcWindow)
 }
 
 func getMeterProviderWithPromExporter(res *otelres.Resource) (*metric.MeterProvider, error) {
