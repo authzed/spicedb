@@ -128,7 +128,7 @@ const (
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
 
-func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration

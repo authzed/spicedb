@@ -28,6 +28,33 @@ func assertEventuallyFallback(t *testing.T, wcache *watchingCachingProxy, want b
 	}, 5*time.Second, 5*time.Millisecond, "cache did not reach inFallbackMode=%v", want)
 }
 
+// waitForCheckpoint blocks until both caches have processed a checkpoint at
+// or after revision. The fake delivers events over a channel, so a send
+// returning does not mean the proxy has applied it yet.
+func waitForCheckpoint(t *testing.T, wcache *watchingCachingProxy, revision datastore.Revision) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		return checkpointReached(wcache.namespaceCache, revision) &&
+			checkpointReached(wcache.caveatCache, revision)
+	}, 5*time.Second, time.Millisecond, "cache never checkpointed to %v", revision)
+}
+
+func checkpointReached[T datastore.SchemaDefinition](swc *schemaWatchCache[T], revision datastore.Revision) bool {
+	swc.lock.RLock()
+	defer swc.lock.RUnlock()
+	return swc.checkpointRevision != nil && !swc.checkpointRevision.LessThan(revision)
+}
+
+// waitForDefinition blocks until the cache holds the change (or deletion) to
+// name that was written at exactly revision.
+func waitForDefinition[T datastore.SchemaDefinition](t *testing.T, swc *schemaWatchCache[T], name string, revision datastore.Revision) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		found, ok := swc.getTrackerForName(name).lookup(revision, revision)
+		return ok && found.revisionedDefinition.LastWrittenRevision.Equal(revision)
+	}, 5*time.Second, time.Millisecond, "cache never received %s at %v", name, revision)
+}
+
 func cacheForTest(t *testing.T) cache.Cache[cache.StringKey, *cacheEntry] {
 	built, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
 		MaxCost:    fallbackMaxCost,
@@ -113,6 +140,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 
 	// Checkpoint to rev 4.
 	fakeDS.sendCheckpoint(rev("4"))
+	waitForCheckpoint(t, wcache, rev("4"))
 	require.False(t, wcache.namespaceCache.isInFallback())
 
 	// Disable reads.
@@ -130,6 +158,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 
 	// Delete the namespace at revision 5.
 	fakeDS.updateNamespace("somenamespace", nil, rev("5"))
+	waitForDefinition(t, wcache.namespaceCache, "somenamespace", rev("5"))
 
 	// Re-read at an earlier revision.
 	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
@@ -148,6 +177,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 
 	// Update a caveat.
 	fakeDS.updateCaveat("somecaveat", &corev1.CaveatDefinition{Name: "somecaveat"}, rev("6"))
+	waitForDefinition(t, wcache.caveatCache, "somecaveat", rev("6"))
 
 	// Read at revision 6.
 	caveatDef, _, err := wcache.SnapshotReader(rev("6")).LegacyReadCaveatByName(t.Context(), "somecaveat")
@@ -218,6 +248,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 
 	// Checkpoint to rev 4.
 	fakeDS.sendCheckpoint(rev("4"))
+	waitForCheckpoint(t, wcache, rev("4"))
 	require.False(t, wcache.namespaceCache.isInFallback())
 
 	// Disable reads.
@@ -235,6 +266,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 
 	// Delete the namespace at revision 5.
 	fakeDS.updateNamespace("somenamespace", nil, rev("5"))
+	waitForDefinition(t, wcache.namespaceCache, "somenamespace", rev("5"))
 
 	// Re-read at an earlier revision.
 	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).LegacyReadNamespaceByName(t.Context(), "somenamespace")
@@ -253,6 +285,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 
 	// Update a caveat.
 	fakeDS.updateCaveat("somecaveat", &corev1.CaveatDefinition{Name: "somecaveat"}, rev("6"))
+	waitForDefinition(t, wcache.caveatCache, "somecaveat", rev("6"))
 
 	// Read at revision 6.
 	caveatDef, _, err := wcache.SnapshotReader(rev("6")).LegacyReadCaveatByName(t.Context(), "somecaveat")
@@ -883,7 +916,6 @@ func (fds *fakeDatastore) sendCheckpoint(revision datastore.Revision) {
 		Revision:     revision,
 		IsCheckpoint: true,
 	}
-	time.Sleep(1 * time.Millisecond)
 }
 
 type fakeEntry[T datastore.RevisionedDefinition[Q], Q datastore.SchemaDefinition] struct {
@@ -1039,8 +1071,8 @@ func (*fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.RevisionWithSchemaHash, error) {
-	return datastore.RevisionWithSchemaHash{}, fmt.Errorf("not implemented")
+func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.Revision, time.Duration, string, error) {
+	return datastore.NoRevision, 0, "", fmt.Errorf("not implemented")
 }
 
 func (*fakeDatastore) ReadyState(context.Context) (datastore.ReadyState, error) {

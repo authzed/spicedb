@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -74,10 +75,10 @@ func TestObservableProxy_DatastoreMethodsWithMetrics(t *testing.T) {
 			name:     "OptimizedRevision",
 			metricOp: "OptimizedRevision",
 			setupMock: func(ds *proxy_test.MockDatastore) {
-				ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHash{Revision: testRev}, nil).Once()
+				ds.On("OptimizedRevision").Return(testRev, time.Duration(0), "", nil).Once()
 			},
 			call: func(t *testing.T, ds datastore.Datastore) {
-				_, err := ds.OptimizedRevision(t.Context())
+				_, _, _, err := ds.OptimizedRevision(t.Context())
 				require.NoError(t, err)
 			},
 		},

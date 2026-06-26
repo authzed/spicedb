@@ -38,9 +38,8 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			ctx := t.Context()
-			veryFirstRevisionResult, err := ds.OptimizedRevision(ctx)
+			veryFirstRevision, _, _, err := ds.OptimizedRevision(ctx)
 			require.NoError(err)
-			veryFirstRevision := veryFirstRevisionResult.Revision
 
 			postSetupRevision := setupDatastore(t, ds)
 			require.True(postSetupRevision.GreaterThan(veryFirstRevision), "post-setup revision should be greater than the first revision")
@@ -65,9 +64,8 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 
 			// Now we should ONLY get revisions later than the now revision
 			for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
-				testRevisionResult, err := ds.OptimizedRevision(ctx)
+				testRevision, _, _, err := ds.OptimizedRevision(ctx)
 				require.NoError(err)
-				testRevision := testRevisionResult.Revision
 				require.True(nowRevision.LessThan(testRevision) || nowRevision.Equal(testRevision))
 			}
 		})
@@ -115,10 +113,10 @@ func SnapshotReadStabilityTest(t *testing.T, tester DatastoreTester) {
 
 	var optimizedRevision datastore.Revision
 	for deadline := time.Now().Add(30 * time.Second); ; {
-		candidate, err := ds.OptimizedRevision(ctx)
+		candidate, _, _, err := ds.OptimizedRevision(ctx)
 		require.NoError(t, err)
-		if !candidate.Revision.LessThan(postSetup.Revision) {
-			optimizedRevision = candidate.Revision
+		if !candidate.LessThan(postSetup.Revision) {
+			optimizedRevision = candidate
 			break
 		}
 		require.False(t, time.Now().After(deadline), "optimized revision never advanced to the post-setup revision %v", postSetup.Revision)
@@ -364,9 +362,9 @@ func QuantizedRevisionStaysReadableTest(t *testing.T, tester DatastoreTester) {
 	// Sample a few times: every request in this bucket gets the same revision,
 	// so an aged-out one fails for all of them, not just one.
 	for range 5 {
-		optimized, err := ds.OptimizedRevision(ctx)
+		optimized, _, _, err := ds.OptimizedRevision(ctx)
 		require.NoError(err)
-		require.NoError(ds.CheckRevision(ctx, optimized.Revision),
+		require.NoError(ds.CheckRevision(ctx, optimized),
 			"revision advertised at the end of the quantization window must still be within the GC window")
 	}
 

@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -82,11 +83,11 @@ func TestOptimizedRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	delegate.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHash{Revision: expectedRevision}, nil).Times(1)
+	delegate.On("OptimizedRevision").Return(expectedRevision, time.Duration(0), "", nil).Times(1)
 
-	result, err := ds.OptimizedRevision(ctx)
+	result, _, _, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)
-	require.Equal(expectedRevision, result.Revision)
+	require.Equal(expectedRevision, result)
 	delegate.AssertExpectations(t)
 }
 

@@ -1,4 +1,4 @@
-package revisions
+package proxy
 
 import (
 	"context"
@@ -16,8 +16,6 @@ import (
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
-
-var tracer = otel.Tracer("spicedb/internal/datastore/common/revisions")
 
 // defaultOptimizedRevisionSharedTimeout aggressively bounds the *shared*,
 // singleflighted computation of the optimized revision.
@@ -46,95 +44,82 @@ const defaultOptimizedRevisionSharedTimeout = 2 * time.Second
 // computation can never block forever.
 const defaultOptimizedRevisionFallbackTimeout = 10 * time.Second
 
-// OptimizedRevisionFunction instructs the datastore to compute its own current
-// optimized revision given the specific quantization, and return for how long
-// it will remain valid, along with the schema hash at that revision (or "" if
-// the datastore does not provide one on this code path).
-type OptimizedRevisionFunction func(context.Context) (rev datastore.Revision, validFor time.Duration, schemaHash string, err error)
-
-// NewCachedOptimizedRevisions returns a CachedOptimizedRevisions for the given configuration
-func NewCachedOptimizedRevisions(maxRevisionStaleness time.Duration) *CachedOptimizedRevisions {
-	return &CachedOptimizedRevisions{
-		maxRevisionStaleness:             maxRevisionStaleness,
-		optimizedRevisionSharedTimeout:   defaultOptimizedRevisionSharedTimeout,
-		optimizedRevisionFallbackTimeout: defaultOptimizedRevisionFallbackTimeout,
-		clockFn:                          clock.New(),
+// NewOptimizedRevisionProxy wraps a datastore with an in-process cache for its
+// optimized revision. Concurrent misses are deduplicated via singleflight, the
+// expiry decision is jittered by up to maxStaleness to avoid a thundering herd at
+// quantization boundaries, and the shared computation is bounded so a wedged
+// datastore call cannot pin the latency of every waiting caller.
+//
+// The wrapped datastore's OptimizedRevision is expected to be uncached: one
+// database round-trip per call, returning the revision, how long it remains
+// valid, and the schema hash visible at it. Caching is entirely the proxy's job.
+func NewOptimizedRevisionProxy(d datastore.Datastore, maxStaleness time.Duration) datastore.Datastore {
+	return &optimizedRevisionProxy{
+		Datastore:       d,
+		maxStaleness:    maxStaleness,
+		sharedTimeout:   defaultOptimizedRevisionSharedTimeout,
+		fallbackTimeout: defaultOptimizedRevisionFallbackTimeout,
+		clock:           clock.New(),
+		tracer:          otel.Tracer("spicedb/internal/datastore/proxy/optimized_revision"),
 	}
 }
 
-// SetOptimizedRevisionFunc must be called after construction, and is the method
-// by which one specializes this helper for a specific datastore.
-func (cor *CachedOptimizedRevisions) SetOptimizedRevisionFunc(revisionFunc OptimizedRevisionFunction) {
-	cor.optimizedFunc = revisionFunc
+func (p *optimizedRevisionProxy) Unwrap() datastore.Datastore {
+	return p.Datastore
 }
 
-// SetOptimizedRevisionSharedTimeout overrides the maximum duration the shared,
-// singleflighted call to the optimized revision function is allowed to run before
-// it is cancelled. See defaultOptimizedRevisionSharedTimeout for why this bound is
-// required.
-func (cor *CachedOptimizedRevisions) SetOptimizedRevisionSharedTimeout(timeout time.Duration) {
-	cor.optimizedRevisionSharedTimeout = timeout
-}
-
-// SetOptimizedRevisionFallbackTimeout overrides the bound applied to the direct
-// retry performed after a failed shared attempt for callers that have no deadline
-// of their own. See defaultOptimizedRevisionFallbackTimeout.
-func (cor *CachedOptimizedRevisions) SetOptimizedRevisionFallbackTimeout(timeout time.Duration) {
-	cor.optimizedRevisionFallbackTimeout = timeout
-}
-
-func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
-	ctx, span := tracer.Start(ctx, "CachedOptimizedRevisions.OptimizedRevision")
+func (p *optimizedRevisionProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+	ctx, span := p.tracer.Start(ctx, "optimizedRevisionProxy.OptimizedRevision")
 	defer span.End()
 
-	localNow := cor.clockFn.Now()
+	localNow := p.clock.Now()
 
-	// Subtract a random amount of time from now, to let barely expired candidates get selected
+	// Subtract a random amount of time from now, to let barely expired candidates get selected.
 	adjustedNow := localNow
-	if cor.maxRevisionStaleness > 0 {
+	if p.maxStaleness > 0 {
 		// nolint:gosec
 		// G404 use of non cryptographically secure random number generator is not a security concern here,
 		// as we are using it to introduce randomness to the accepted staleness of a revision and reduce the odds of
 		// a thundering herd to the datastore
-		adjustedNow = localNow.Add(-1 * time.Duration(rand.Int63n(cor.maxRevisionStaleness.Nanoseconds())) * time.Nanosecond)
+		adjustedNow = localNow.Add(-1 * time.Duration(rand.Int63n(p.maxStaleness.Nanoseconds())) * time.Nanosecond)
 	}
 
-	cor.RLock()
-	for _, candidate := range cor.candidates {
+	p.mu.Lock()
+	for _, candidate := range p.candidates {
 		if candidate.validThrough.After(adjustedNow) {
-			cor.RUnlock()
+			p.mu.Unlock()
 			log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", candidate.validThrough).Msg("returning cached revision")
 			span.AddEvent(otelconv.EventDatastoreRevisionsCacheReturned)
-			return datastore.RevisionWithSchemaHash{Revision: candidate.revision, SchemaHash: candidate.schemaHash}, nil
+			return candidate.revision, candidate.validThrough.Sub(localNow), candidate.schemaHash, nil
 		}
 	}
-	cor.RUnlock()
+	p.mu.Unlock()
 
 	// Compute the revision under singleflight so concurrent callers share a single
 	// datastore round-trip. The shared call is aggressively bounded (see
 	// defaultOptimizedRevisionSharedTimeout) so a wedged computation cannot pin the
 	// latency of every waiting caller.
-	result, _, err := cor.updateGroup.Do(ctx, "", func(sfCtx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	result, _, err := p.updateGroup.Do(ctx, "", func(sfCtx context.Context) (cachedRevision, error) {
 		// NOTE: singleflight hands this function a context with the caller's
 		// deadline stripped. Re-impose a (low) deadline so a hung datastore call
 		// cannot block this in-flight call, and therefore every caller waiting on
 		// it, beyond the bound.
-		if cor.optimizedRevisionSharedTimeout > 0 {
+		if p.sharedTimeout > 0 {
 			var cancel context.CancelFunc
-			sfCtx, cancel = context.WithTimeout(sfCtx, cor.optimizedRevisionSharedTimeout)
+			sfCtx, cancel = context.WithTimeout(sfCtx, p.sharedTimeout)
 			defer cancel()
 		}
 
-		return cor.computeOptimizedRevision(sfCtx, localNow, span)
+		return p.compute(sfCtx, localNow, span)
 	})
 	if err == nil {
-		return result, nil
+		return result.revision, result.validFor, result.schemaHash, nil
 	}
 
 	// If this caller's own context is already done, surface its cancellation /
 	// deadline error directly; there is nothing to retry.
 	if ctx.Err() != nil {
-		return datastore.RevisionWithSchemaHash{}, ctx.Err()
+		return datastore.NoRevision, 0, "", ctx.Err()
 	}
 
 	// The shared, aggressively-bounded attempt failed (e.g. a wedged connection
@@ -148,61 +133,77 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	span.AddEvent(otelconv.EventDatastoreRevisionsSharedFailedRetrying)
 	log.Ctx(ctx).Warn().Err(err).Msg("shared optimized revision computation failed; retrying directly")
 
-	retryCtx, cancel := context.WithTimeout(ctx, cor.optimizedRevisionFallbackTimeout)
+	retryCtx, cancel := context.WithTimeout(ctx, p.fallbackTimeout)
 	defer cancel()
-	return cor.computeOptimizedRevision(retryCtx, cor.clockFn.Now(), span)
+	result, err = p.compute(retryCtx, p.clock.Now(), span)
+	if err != nil {
+		return datastore.NoRevision, 0, "", err
+	}
+	return result.revision, result.validFor, result.schemaHash, nil
 }
 
-// computeOptimizedRevision invokes the datastore's optimized revision function and
-// records the result as a cache candidate. It is invoked both from the shared
-// singleflight path and from the direct retry that follows a failed shared attempt.
-func (cor *CachedOptimizedRevisions) computeOptimizedRevision(ctx context.Context, localNow time.Time, span trace.Span) (datastore.RevisionWithSchemaHash, error) {
+// compute fetches an uncached optimized revision from the wrapped datastore and
+// records it as a cache candidate. It is invoked both from the shared singleflight
+// path and from the direct retry that follows a failed shared attempt.
+func (p *optimizedRevisionProxy) compute(ctx context.Context, localNow time.Time, span trace.Span) (cachedRevision, error) {
 	log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
 
-	optimized, validFor, schemaHash, err := cor.optimizedFunc(ctx)
+	optimized, validFor, schemaHash, err := p.Datastore.OptimizedRevision(ctx)
 	if err != nil {
-		return datastore.RevisionWithSchemaHash{}, fmt.Errorf("unable to compute optimized revision: %w", err)
+		return cachedRevision{}, fmt.Errorf("unable to compute optimized revision: %w", err)
 	}
 
 	rvt := localNow.Add(validFor)
 
-	// Prune the candidates that have definitely expired
-	cor.Lock()
+	// Prune the candidates that have definitely expired.
+	p.mu.Lock()
 	var numToDrop uint
-	for _, candidate := range cor.candidates {
-		if candidate.validThrough.Add(cor.maxRevisionStaleness).Before(localNow) {
+	for _, candidate := range p.candidates {
+		if candidate.validThrough.Add(p.maxStaleness).Before(localNow) {
 			numToDrop++
 		} else {
 			break
 		}
 	}
 
-	cor.candidates = cor.candidates[numToDrop:]
-	cor.candidates = append(cor.candidates, validRevision{optimized, rvt, schemaHash})
-	cor.Unlock()
+	p.candidates = p.candidates[numToDrop:]
+	p.candidates = append(p.candidates, validRevision{optimized, rvt, schemaHash})
+	p.mu.Unlock()
 
 	span.AddEvent(otelconv.EventDatastoreRevisionsComputed)
 	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
-	return datastore.RevisionWithSchemaHash{Revision: optimized, SchemaHash: schemaHash}, nil
+	return cachedRevision{revision: optimized, validFor: validFor, schemaHash: schemaHash}, nil
 }
 
-// CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.
-type CachedOptimizedRevisions struct {
-	sync.RWMutex
+// optimizedRevisionProxy is both the proxy in the datastore chain and the cache
+// itself: the candidate list, its mutex, the singleflight group, and the jitter
+// all live directly on it.
+type optimizedRevisionProxy struct {
+	datastore.Datastore
 
-	maxRevisionStaleness             time.Duration
-	optimizedRevisionSharedTimeout   time.Duration
-	optimizedRevisionFallbackTimeout time.Duration
-	optimizedFunc                    OptimizedRevisionFunction
-	clockFn                          clock.Clock
+	tracer trace.Tracer
 
-	// these values are read and set by multiple consumers
-	candidates []validRevision // GUARDED_BY(RWMutex)
+	maxStaleness    time.Duration
+	sharedTimeout   time.Duration
+	fallbackTimeout time.Duration
+	clock           clock.Clock
 
-	// the updategroup consolidates concurrent requests to the database into 1
-	updateGroup singleflight.Group[string, datastore.RevisionWithSchemaHash]
+	mu         sync.Mutex
+	candidates []validRevision // GUARDED_BY(mu)
+
+	// updateGroup consolidates concurrent misses into a single datastore round-trip.
+	updateGroup singleflight.Group[string, cachedRevision]
 }
 
+// cachedRevision is the value carried through the singleflight group.
+type cachedRevision struct {
+	revision   datastore.Revision
+	validFor   time.Duration
+	schemaHash string
+}
+
+// validRevision is a cached candidate revision and the wall-clock time through
+// which it remains acceptable.
 type validRevision struct {
 	revision     datastore.Revision
 	validThrough time.Time

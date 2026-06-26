@@ -400,7 +400,7 @@ func TestRelationshipIntegrityProxyPassThroughs(t *testing.T) {
 
 	require.NoError(t, pds.CheckRevision(ctx, headRev.Revision))
 
-	optRev, err := pds.OptimizedRevision(ctx)
+	optRev, _, _, err := pds.OptimizedRevision(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, optRev)
 
