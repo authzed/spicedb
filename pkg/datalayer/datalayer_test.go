@@ -2114,8 +2114,8 @@ func (d *erroringRevisionDS) HeadRevision(_ context.Context) (datastore.Revision
 	return datastore.RevisionWithSchemaHash{}, d.headErr
 }
 
-func (d *erroringRevisionDS) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
-	return datastore.RevisionWithSchemaHash{}, d.optimizedErr
+func (d *erroringRevisionDS) OptimizedRevision(_ context.Context) (datastore.Revision, time.Duration, string, error) {
+	return datastore.NoRevision, 0, "", d.optimizedErr
 }
 
 // schemaHashInjectingDS wraps a Datastore and injects a fixed SchemaHash into
@@ -2126,12 +2126,12 @@ type schemaHashInjectingDS struct {
 	injectHash string
 }
 
-func (d *schemaHashInjectingDS) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
-	r, err := d.Datastore.OptimizedRevision(ctx)
-	if err == nil {
-		r.SchemaHash = d.injectHash
+func (d *schemaHashInjectingDS) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+	rev, validFor, _, err := d.Datastore.OptimizedRevision(ctx)
+	if err != nil {
+		return datastore.NoRevision, 0, "", err
 	}
-	return r, err
+	return rev, validFor, d.injectHash, nil
 }
 
 // TestOptimizedRevisionSeedsLastSchemaHash verifies that OptimizedRevision in a

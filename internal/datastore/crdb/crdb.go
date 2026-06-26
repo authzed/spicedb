@@ -164,23 +164,16 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		keyer = noOverlapKeyer
 	}
 
-	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
-		config.maxRevisionStalenessPercent) * time.Nanosecond
-
 	headMigration, err := migrations.CRDBMigrations.HeadRevision()
 	if err != nil {
 		return nil, fmt.Errorf("invalid head migration found for cockroach: %w", err)
 	}
 
 	ds := &crdbDatastore{
-		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
-			config.gcWindow,
-			maxRevisionStaleness,
-			config.followerReadDelay,
-			config.revisionQuantization,
-		),
 		CommonDecoder:                revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
 		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
+		followerReadDelay:            config.followerReadDelay,
+		revisionQuantization:         config.revisionQuantization,
 		dburl:                        url,
 		acquireTimeout:               config.acquireTimeout,
 		watchBufferLength:            config.watchBufferLength,
@@ -198,8 +191,6 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		watchEnabled:                 !config.watchDisabled,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
-	ds.SetNowFunc(ds.headRevisionInternal)
-	ds.SetNowOnlyFunc(ds.headRevisionInternalNoHash)
 
 	// this ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
@@ -257,11 +248,68 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	return datastore.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
+// OptimizedRevision computes the uncached quantized revision for CockroachDB. It
+// reads the current HLC time and quantizes it in Go (CRDB's only revision
+// primitive is cluster_logical_timestamp()). Caching, deduplication, and jitter
+// are layered on by proxy.NewOptimizedRevisionProxy.
+func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+	ctx, span := tracer.Start(ctx, "OptimizedRevision")
+	defer span.End()
+
+	nowRev, schemaHash, err := cds.headRevisionInternal(ctx)
+	if err != nil {
+		return datastore.NoRevision, 0, "", err
+	}
+
+	if nowRev == datastore.NoRevision {
+		return datastore.NoRevision, 0, "", datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
+	}
+
+	nowTS, ok := nowRev.(revisions.WithTimestampRevision)
+	if !ok {
+		return datastore.NoRevision, 0, "", spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
+	}
+
+	rev, validFor := revisions.QuantizeHLC(nowTS, cds.followerReadDelay, cds.revisionQuantization)
+	return rev, validFor, schemaHash, nil
+}
+
+// CheckRevision verifies the given revision is within the software GC window. It
+// lives on the datastore (not the caching layer) because it is not a caching
+// concern. It uses the hash-free head revision query since the schema hash is
+// not needed here.
+func (cds *crdbDatastore) CheckRevision(ctx context.Context, dsRevision datastore.Revision) error {
+	if dsRevision == datastore.NoRevision {
+		return datastore.NewInvalidRevisionErr(dsRevision, datastore.CouldNotDetermineRevision)
+	}
+
+	revision, ok := dsRevision.(revisions.WithTimestampRevision)
+	if !ok {
+		return spiceerrors.MustBugf("expected HLC revision, got %T", dsRevision)
+	}
+
+	ctx, span := tracer.Start(ctx, "CheckRevision")
+	defer span.End()
+
+	now, err := cds.headRevisionInternalNoHash(ctx)
+	if err != nil {
+		return err
+	}
+
+	nowTS, ok := now.(revisions.WithTimestampRevision)
+	if !ok {
+		return spiceerrors.MustBugf("expected HLC revision, got %T", now)
+	}
+
+	return revisions.CheckHLCGCWindow(nowTS, revision, cds.gcWindow)
+}
+
 type crdbDatastore struct {
-	*revisions.RemoteClockRevisions
 	revisions.CommonDecoder
 	*common.MigrationValidator
 
+	followerReadDelay            time.Duration
+	revisionQuantization         time.Duration
 	dburl                        string
 	readPool, writePool          *pool.RetryPool
 	collectors                   []prometheus.Collector

@@ -201,9 +201,6 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
-	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
-		config.maxRevisionStalenessPercent) * time.Nanosecond
-
 	quantizationPeriodNanos := max(config.revisionQuantization.Nanoseconds(), 1)
 
 	followerReadDelayNanos := max(config.followerReadDelay.Nanoseconds(), 0)
@@ -269,16 +266,11 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		maxRetries:                   config.maxRetries,
 		analyzeBeforeStats:           config.analyzeBeforeStats,
 		schema:                       *schema,
-		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
-			maxRevisionStaleness,
-		),
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.TransactionID,
 		},
 		filterMaximumIDCount: config.filterMaximumIDCount,
 	}
-
-	store.SetOptimizedRevisionFunc(store.optimizedRevisionFunc)
 
 	ctx, cancel := context.WithTimeout(context.Background(), seedingTimeout)
 	defer cancel()
@@ -475,7 +467,6 @@ func newMySQLExecutor(tx querier, explainable datastore.Explainable) common.Exec
 
 // Datastore is a MySQL-based implementation of the datastore.Datastore interface
 type mysqlDatastore struct {
-	*revisions.CachedOptimizedRevisions
 	*common.MigrationValidator
 
 	db                 *sql.DB

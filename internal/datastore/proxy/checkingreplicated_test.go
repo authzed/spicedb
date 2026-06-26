@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -179,8 +180,8 @@ func (f fakeDatastore) ReadWriteTx(_ context.Context, _ datastore.TxUserFunc, _ 
 	return nil, nil
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
-	return datastore.RevisionWithSchemaHash{}, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, time.Duration, string, error) {
+	return datastore.NoRevision, 0, "", nil
 }
 
 func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {

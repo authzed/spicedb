@@ -488,6 +488,21 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		return nil, err
 	}
 
+	// Layer the optimized-revision cache onto the datastore. Concrete datastores
+	// return the uncached optimized revision (one round-trip per call); caching,
+	// singleflighting, and jitter are provided here by the proxy stack.
+	maxRevisionStaleness := time.Duration(float64(opts.RevisionQuantization.Nanoseconds()) *
+		opts.MaxRevisionStalenessPercent)
+	// Ensure the max revision staleness never exceeds the GC window.
+	if opts.GCWindow > 0 && maxRevisionStaleness > opts.GCWindow {
+		log.Ctx(ctx).Warn().
+			Dur("maxRevisionStaleness", maxRevisionStaleness).
+			Dur("gcWindow", opts.GCWindow).
+			Msg("the configured maximum revision staleness exceeds the configured gc window, so capping to gcWindow")
+		maxRevisionStaleness = opts.GCWindow - 1
+	}
+	ds = proxy.NewOptimizedRevisionProxy(ds, maxRevisionStaleness)
+
 	if len(opts.BootstrapFiles) > 0 || len(opts.BootstrapFileContents) > 0 {
 		ctx, cancel := context.WithTimeout(ctx, opts.BootstrapTimeout)
 		defer cancel()
