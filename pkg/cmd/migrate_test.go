@@ -247,12 +247,17 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 func runMigrateHeadWithContainer(t *testing.T, spiceDBImageTag, engineKey, db string, envVars map[string]string) {
 	t.Helper()
 
-	container, err := sdbtestcontainer.Run(t.Context(),
-		"authzed/spicedb:" + spiceDBImageTag,
-		testcontainers.WithEnv(map[string]string{
-			"SPICEDB_DATASTORE_ENGINE": engineKey,
-			"SPICEDB_DATASTORE_CONN_URI": db,
-		}),
+	containerVars := map[string]string{
+		"SPICEDB_DATASTORE_ENGINE":   engineKey,
+		"SPICEDB_DATASTORE_CONN_URI": db,
+	}
+
+	maps.Copy(containerVars, envVars)
+
+	container, err := sdbtestcontainer.Run(
+		t.Context(),
+		"authzed/spicedb:"+spiceDBImageTag,
+		testcontainers.WithEnv(containerVars),
 		testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
 	)
 	require.NoError(t, err)
@@ -267,14 +272,15 @@ func runServe(t *testing.T, spiceDBImageTag, engineKey, dbConnection string, env
 	t.Helper()
 
 	containerVars := map[string]string{
-			"SPICEDB_DATASTORE_ENGINE": engineKey,
-			"SPICEDB_DATASTORE_CONN_URI": dbConnection,
+		"SPICEDB_DATASTORE_ENGINE":   engineKey,
+		"SPICEDB_DATASTORE_CONN_URI": dbConnection,
 	}
 
 	maps.Copy(containerVars, envVars)
 
-	container, err := sdbtestcontainer.Run(t.Context(),
-		"authzed/spicedb:" + spiceDBImageTag,
+	container, err := sdbtestcontainer.Run(
+		t.Context(),
+		"authzed/spicedb:"+spiceDBImageTag,
 		testcontainers.WithEnv(containerVars),
 	)
 	require.NoError(t, err)

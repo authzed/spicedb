@@ -26,7 +26,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	dockercontainer "github.com/moby/moby/api/types/container"
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -186,13 +185,13 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 
 var defaultKeyForTesting = proxy.KeyConfig{
 	ID: "defaultfortest",
-	Bytes: (func() []byte {
+	Bytes: func() []byte {
 		b, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
 		if err != nil {
 			panic(err)
 		}
 		return b
-	})(),
+	}(),
 	ExpiredAt: nil,
 }
 
@@ -452,17 +451,18 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 	// Run cockroach in secure mode using the certs generated above. The
 	// cockroachdb testcontainers module can't be used here because it forces
 	// --insecure, which conflicts with --certs-dir.
-	container, err := testcontainers.Run(t.Context(),
+	container, err := testcontainers.Run(
+		t.Context(),
 		"mirror.gcr.io/cockroachdb/cockroach:v"+crdbTestVersion(),
 		testcontainers.WithCmd("start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"),
 		testcontainers.WithExposedPorts("26257/tcp"),
 		testcontainers.WithWaitStrategy(wait.ForListeningPort("26257/tcp").WithStartupTimeout(time.Minute)),
 		testcontainers.WithFiles(testcontainers.ContainerFile{
 			ContainerFilePath: "/certs/client.root.key",
-			Reader: &rootKeyFileBuffer,
+			Reader:            &rootKeyFileBuffer,
 		}, testcontainers.ContainerFile{
 			ContainerFilePath: "/certs/client.root.crt",
-			Reader: &rootCertFileBuffer,
+			Reader:            &rootCertFileBuffer,
 		}),
 	)
 	require.NoError(t, err)
