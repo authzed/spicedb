@@ -71,6 +71,10 @@ type SchemaInformation struct {
 func (si SchemaInformation) expectedIndexesForShape(shape queryshape.Shape) options.SQLIndexInformation {
 	expectedIndexes := options.SQLIndexInformation{}
 	for _, index := range si.Indexes {
+		// Track every index that serves at least one query shape.
+		if len(index.Shapes) > 0 {
+			expectedIndexes.ShapeServingIndexNames = append(expectedIndexes.ShapeServingIndexNames, index.Name)
+		}
 		if index.matchesShape(shape) {
 			expectedIndexes.ExpectedIndexNames = append(expectedIndexes.ExpectedIndexNames, index.Name)
 		}

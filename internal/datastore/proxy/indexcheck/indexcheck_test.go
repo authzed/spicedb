@@ -72,6 +72,73 @@ func TestIndexCheckingFoundIndex(t *testing.T) {
 	}
 }
 
+// TestIndexCheckingIgnoresNonShapeServingIndex ensures that when the optimizer falls back to an
+// index that serves no query shape (e.g. the GC index on small datasets), the check passes rather
+// than erroring, mirroring the "no index used" small-data carve-out.
+func TestIndexCheckingIgnoresNonShapeServingIndex(t *testing.T) {
+	ds := fakeDatastore{
+		indexesUsed:         []string{"uq_relation_tuple_living"},
+		parsedIndexes:       []string{"ix_relation_tuple_by_deleted_transaction"},
+		shapeServingIndexes: []string{"uq_relation_tuple_living", "ix_relation_tuple_by_subject"},
+	}
+	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
+
+	headRevResult, err := ds.HeadRevision(t.Context())
+	require.NoError(t, err)
+
+	reader := wrapped.SnapshotReader(headRevResult.Revision)
+	it, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"somedoc"},
+		OptionalResourceRelation: "viewer",
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: "user",
+				OptionalSubjectIds:  []string{"tom"},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+			},
+		},
+	}, options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects))
+	require.NoError(t, err)
+
+	for _, err := range it {
+		require.NoError(t, err)
+	}
+}
+
+// TestIndexCheckingWrongShapeServingIndex ensures that using a shape-serving index that is not one
+// of the expected indexes for the query shape still fails, even when shape-serving info is present.
+func TestIndexCheckingWrongShapeServingIndex(t *testing.T) {
+	ds := fakeDatastore{
+		indexesUsed:         []string{"uq_relation_tuple_living"},
+		parsedIndexes:       []string{"ix_relation_tuple_by_subject"},
+		shapeServingIndexes: []string{"uq_relation_tuple_living", "ix_relation_tuple_by_subject"},
+	}
+	wrapped := WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
+
+	headRevResult, err := ds.HeadRevision(t.Context())
+	require.NoError(t, err)
+
+	reader := wrapped.SnapshotReader(headRevResult.Revision)
+	it, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
+		OptionalResourceType:     "document",
+		OptionalResourceIds:      []string{"somedoc"},
+		OptionalResourceRelation: "viewer",
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				OptionalSubjectType: "user",
+				OptionalSubjectIds:  []string{"tom"},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+			},
+		},
+	}, options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects))
+	require.NoError(t, err)
+
+	for _, err := range it {
+		require.ErrorContains(t, err, "expected index(es) [uq_relation_tuple_living] for query shape check-permission-select-direct-subjects not used")
+	}
+}
+
 func TestWrapWithIndexCheckingDatastoreProxyIfApplicable(t *testing.T) {
 	t.Run("wraps SQL datastore", func(t *testing.T) {
 		ds := fakeDatastore{}
