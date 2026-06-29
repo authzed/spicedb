@@ -544,22 +544,12 @@ definition document {
 			runEndToEndTest(t, tc)
 		})
 	}
-
-	t.Run("lookupresources cursor pagination", func(t *testing.T) {
-		runLookupResourcesCursorPaginationTest(t)
-	})
-	t.Run("readrelationships cursor pagination", func(t *testing.T) {
-		runReadRelationshipsCursorPaginationTest(t)
-	})
-	t.Run("lookupsubjects cursor pagination", func(t *testing.T) {
-		runLookupSubjectsCursorPaginationTest(t)
-	})
 }
 
 // runLookupResourcesCursorPaginationTest verifies that LookupResources returns
 // correct, non-duplicated results when the result set exceeds a single cursor
 // fetch page (regression test for cursor pagination support).
-func runLookupResourcesCursorPaginationTest(t *testing.T) {
+func TestLookupResourcesCursorPagination(t *testing.T) {
 	const totalDocs = 150
 	const fetchSize = 50
 
@@ -595,12 +585,9 @@ definition document {
 
 	// Start PGServer and Postgres.
 	pgServerPort := runPGServer(t, client)
-	pgconn := runPostgres(t)
+	pgconn := runPostgres(t, pgServerPort)
 
-	_, filename, _, _ := runtime.Caller(0)
-	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
-	require.NoError(t, err)
-	createCommands := strings.ReplaceAll(string(dat), "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
+	createCommands := readCreateCommands(t, pgServerPort)
 
 	_, err = pgconn.Exec(t.Context(), createCommands)
 	require.NoError(t, err)
@@ -653,7 +640,7 @@ definition document {
 
 // runReadRelationshipsCursorPaginationTest verifies that ReadRelationships returns
 // correct, non-duplicated results when the result set exceeds a single cursor fetch page.
-func runReadRelationshipsCursorPaginationTest(t *testing.T) {
+func TestReadRelationshipsCursorPagination(t *testing.T) {
 	const totalRels = 150
 	const fetchSize = 50
 
@@ -685,14 +672,9 @@ definition document {
 	require.NoError(t, err)
 
 	pgServerPort := runPGServer(t, client)
-	pgconn := runPostgres(t)
+	pgconn := runPostgres(t, pgServerPort)
 
-	_, filename, _, _ := runtime.Caller(0)
-	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
-	require.NoError(t, err)
-	createCommands := strings.ReplaceAll(string(dat), "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
-
-	_, err = pgconn.Exec(t.Context(), createCommands)
+	_, err = pgconn.Exec(t.Context(), readCreateCommands(t, pgServerPort))
 	require.NoError(t, err)
 
 	_, err = pgconn.Exec(t.Context(), "BEGIN")
@@ -741,7 +723,7 @@ definition document {
 // runLookupSubjectsCursorPaginationTest verifies that LookupSubjects returns
 // correct, non-duplicated results when the result set exceeds a single cursor
 // fetch page (regression test for FDW-side buffered cursor pagination).
-func runLookupSubjectsCursorPaginationTest(t *testing.T) {
+func TestLookupSubjectsCursorPagination(t *testing.T) {
 	const totalUsers = 150
 	const fetchSize = 50
 
@@ -774,14 +756,9 @@ definition document {
 	require.NoError(t, err)
 
 	pgServerPort := runPGServer(t, client)
-	pgconn := runPostgres(t)
+	pgconn := runPostgres(t, pgServerPort)
 
-	_, filename, _, _ := runtime.Caller(0)
-	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
-	require.NoError(t, err)
-	createCommands := strings.ReplaceAll(string(dat), "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
-
-	_, err = pgconn.Exec(t.Context(), createCommands)
+	_, err = pgconn.Exec(t.Context(), readCreateCommands(t, pgServerPort))
 	require.NoError(t, err)
 
 	_, err = pgconn.Exec(t.Context(), "BEGIN")
@@ -876,20 +853,11 @@ func runEndToEndTest(t *testing.T, tc e2eTestCase) {
 
 	// Start Postgres.
 	t.Log("Starting Postgres")
-	pgconn := runPostgres(t)
+	pgconn := runPostgres(t, pgServerPort)
 	t.Log("Postgres started")
 
-	// Read the commands from the configuration.sql file.
-	_, filename, _, _ := runtime.Caller(1) // 1 for the parent caller.
-	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
-	require.NoError(t, err)
-	createCommandsTemplate := string(dat)
-
-	// Replace the hardcoded port with the dynamically allocated port.
-	createCommands := strings.ReplaceAll(createCommandsTemplate, "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
-
 	// Invoke initial Postgres commands.
-	_, err = pgconn.Exec(t.Context(), createCommands)
+	_, err = pgconn.Exec(t.Context(), readCreateCommands(t, pgServerPort))
 	require.NoError(t, err)
 	t.Log("Initial Postgres commands executed")
 
@@ -968,8 +936,9 @@ func runPGServer(t *testing.T, client *authzed.Client) int {
 
 	go func() {
 		// Bind to all interfaces so the Postgres container can reach us via
-		// host.docker.internal. "localhost" binds to 127.0.0.1 only, which the
-		// container cannot reach (its packets arrive from the docker bridge IP).
+		// testcontainers' forwarded host (host.testcontainers.internal).
+		// "localhost" binds to 127.0.0.1 only, which the container cannot reach
+		// (its packets arrive from the docker bridge IP).
 		_ = pgserver.Run(ctx, fmt.Sprintf("0.0.0.0:%d", port))
 	}()
 
@@ -1060,13 +1029,15 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 	return client
 }
 
-func runPostgres(t *testing.T) (conn *pgx.Conn) {
+func runPostgres(t *testing.T, pgServerPort int) (conn *pgx.Conn) {
 	t.Helper()
+	t.Log("postgres fdw server port: ", pgServerPort)
 	// TODO: use alpine?
 	logger := log.TestLogger(t)
 	image := fmt.Sprintf("mirror.gcr.io/library/postgres:%s", pgVersion)
 	container, err := postgres.Run(t.Context(), image,
 		testcontainers.WithLogger(logger),
+		testcontainers.WithHostPortAccess(pgServerPort),
 		postgres.WithUsername(postgresTestUser),
 		postgres.WithPassword(fdwPassword),
 		postgres.BasicWaitStrategies(),
@@ -1084,4 +1055,20 @@ func runPostgres(t *testing.T) (conn *pgx.Conn) {
 	})
 
 	return conn
+}
+
+// readCreateCommands takes the `configuration.sql` defined in the root of this directory
+// and templates in the variables necessary to run in an integration test context
+func readCreateCommands(t testing.TB, pgServerPort int) string {
+	_, filename, _, _ := runtime.Caller(0)
+	dat, err := os.ReadFile(path.Join(path.Dir(filename), "../../configuration.sql"))
+	require.NoError(t, err)
+	createCommands := strings.ReplaceAll(string(dat), "port '5433'", fmt.Sprintf("port '%d'", pgServerPort))
+
+	// The container reaches the host via testcontainers' sshd-forwarded
+	// hostname (host.testcontainers.internal), not host.docker.internal, which
+	// only auto-resolves on Docker Desktop.
+	// TODO: it seems like there should be a better way to do this.
+	createCommands = strings.ReplaceAll(createCommands, "host 'host.docker.internal'", fmt.Sprintf("host '%s'", testcontainers.HostInternal))
+	return createCommands
 }
