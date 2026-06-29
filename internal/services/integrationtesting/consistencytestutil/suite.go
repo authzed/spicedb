@@ -233,14 +233,12 @@ func ValidateExpansionSubjects(t *testing.T, vctx ValidationContext) {
 }
 
 func requireSubsetOf(t *testing.T, found []string, expected []string) {
-	if len(expected) == 0 {
+	expectedSet := mapz.NewSet(expected...)
+	if expectedSet.IsSubsetOf(mapz.NewSet(found...)) {
 		return
 	}
 
-	foundSet := mapz.NewSet(found...)
-	for _, expectedObjectID := range expected {
-		require.True(t, foundSet.Has(expectedObjectID), "missing expected object ID %s", expectedObjectID)
-	}
+	require.Empty(t, expectedSet.Subtract(mapz.NewSet(found...)).AsSlice(), "missing expected object IDs")
 }
 
 // ValidateLookupResources ensures that a lookup resources call returns the expected objects and

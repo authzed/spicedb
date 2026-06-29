@@ -130,6 +130,15 @@ func TestEqual(t *testing.T) {
 	require.False(t, NewSet("1", "2").Equal(NewSet("1", "3")))
 }
 
+func TestIsSubset(t *testing.T) {
+	require.True(t, NewSet[string]().IsSubsetOf(NewSet[string]()))
+	require.True(t, NewSet[string]().IsSubsetOf(NewSet("1", "2")))
+	require.True(t, NewSet("1", "2").IsSubsetOf(NewSet("1", "2")))
+	require.True(t, NewSet("1", "2").IsSubsetOf(NewSet("1", "2", "3")))
+	require.False(t, NewSet("1", "2", "3").IsSubsetOf(NewSet("1", "2")))
+	require.False(t, NewSet("1", "4").IsSubsetOf(NewSet("1", "2", "3")))
+}
+
 func TestUnion(t *testing.T) {
 	u1 := NewSet("1", "2").Union(NewSet("2", "3")).AsSlice()
 	sort.Strings(u1)
