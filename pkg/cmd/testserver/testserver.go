@@ -39,6 +39,7 @@ type Config struct {
 	HTTPGateway                     util.HTTPServerConfig `debugmap:"visible"`
 	ReadOnlyHTTPGateway             util.HTTPServerConfig `debugmap:"visible"`
 	LoadConfigs                     []string              `debugmap:"visible"`
+	LoadConfigsContents             map[string][]byte     `debugmap:"hidden"`
 	MaximumUpdatesPerWrite          uint16                `debugmap:"visible"`
 	MaximumPreconditionCount        uint16                `debugmap:"visible"`
 	MaxCaveatContextSize            int                   `debugmap:"visible"`
@@ -88,7 +89,7 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 	}
 	closeables.AddWithError(dispatcher.Close)
-	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs, cts)
+	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs, c.LoadConfigsContents, cts)
 	healthManager := health.NewHealthManager(dispatcher, &datastoreReady{})
 
 	registerServices := func(srv *grpc.Server) {
