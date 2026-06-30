@@ -9,8 +9,32 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func TestReadOnlyStoredSchemaEstimatedSize(t *testing.T) {
+	// Nil-safe: a nil wrapper and a wrapper around nil both report 0.
+	var nilSchema *ReadOnlyStoredSchema
+	require.Equal(t, 0, nilSchema.EstimatedSize())
+	require.Equal(t, 0, NewReadOnlyStoredSchema(nil).EstimatedSize())
+
+	// A populated schema reports its serialized size (greater than zero), and a
+	// larger schema reports a larger size.
+	small := NewReadOnlyStoredSchema(&core.StoredSchema{
+		VersionOneof: &core.StoredSchema_V1{
+			V1: &core.StoredSchema_V1StoredSchema{SchemaText: "definition user {}"},
+		},
+	})
+	large := NewReadOnlyStoredSchema(&core.StoredSchema{
+		VersionOneof: &core.StoredSchema_V1{
+			V1: &core.StoredSchema_V1StoredSchema{SchemaText: "definition user {}" + string(make([]byte, 1024))},
+		},
+	})
+	require.Positive(t, small.EstimatedSize())
+	require.Greater(t, large.EstimatedSize(), small.EstimatedSize())
+	require.Equal(t, small.Get().SizeVT(), small.EstimatedSize())
+}
 
 func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 	tests := []struct {

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"math"
 	"runtime/debug"
 	"testing"
 
@@ -35,6 +36,24 @@ func TestAvailableMemory_FallsBackWhenGOMEMLIMITUnset(t *testing.T) {
 
 	mem := AvailableMemory()
 	require.Positive(t, mem, "should fall back to cgroup/system memory detection")
+}
+
+func TestAvailableMemory_FallsBackWhenGOMEMLIMITUnsetSentinel(t *testing.T) {
+	original := debug.SetMemoryLimit(-1)
+	t.Cleanup(func() {
+		debug.SetMemoryLimit(original)
+	})
+
+	// The Go runtime's default soft memory limit (i.e. GOMEMLIMIT never set) is
+	// math.MaxInt64, which is what debug.SetMemoryLimit(-1) reports. This is the
+	// case seen on AWS ECS tasks where cgroup detection fails at startup. We must
+	// fall back to cgroup/system detection rather than returning 75% of MaxInt64.
+	debug.SetMemoryLimit(math.MaxInt64)
+
+	mem := AvailableMemory()
+	require.Positive(t, mem, "should fall back to cgroup/system memory detection")
+	require.Less(t, mem, uint64(math.MaxInt64)/100*75,
+		"must not treat the max-int sentinel as a real memory limit")
 }
 
 func TestAvailableMemory_Applies75PercentRatio(t *testing.T) {

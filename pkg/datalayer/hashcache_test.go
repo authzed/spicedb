@@ -46,6 +46,24 @@ func TestSchemaHashCache_BasicGetSet(t *testing.T) {
 	require.Equal(t, schema.Get().GetV1().SchemaText, retrieved.Get().GetV1().SchemaText)
 }
 
+func TestSchemaHashCache_SetCostsBySize(t *testing.T) {
+	tc := newTestSchemaCache()
+	shc := newSchemaHashCache(tc)
+
+	// A larger schema must be costed higher than a smaller one, and the cost
+	// must match the schema's estimated (serialized) size rather than a flat 1.
+	small := makeTestSchema("definition user {}")
+	large := makeTestSchema("definition user {}" + string(make([]byte, 4096)))
+
+	require.NoError(t, shc.Set(SchemaHash("small"), small))
+	require.NoError(t, shc.Set(SchemaHash("large"), large))
+
+	require.Equal(t, int64(small.EstimatedSize()), tc.cost(SchemaCacheKey("small")))
+	require.Equal(t, int64(large.EstimatedSize()), tc.cost(SchemaCacheKey("large")))
+	require.Greater(t, tc.cost(SchemaCacheKey("large")), tc.cost(SchemaCacheKey("small")))
+	require.Greater(t, tc.cost(SchemaCacheKey("small")), int64(1))
+}
+
 func TestSchemaHashCache_EmptyHash(t *testing.T) {
 	shc := newSchemaHashCache(newTestSchemaCache())
 

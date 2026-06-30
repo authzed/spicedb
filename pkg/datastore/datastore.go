@@ -535,6 +535,18 @@ func (r *ReadOnlyStoredSchema) Get() *core.StoredSchema {
 	return r.schema
 }
 
+// EstimatedSize returns an approximate size of the stored schema in bytes, using
+// the serialized protobuf size as a proxy. It is used for cache cost accounting;
+// the live in-memory object graph is somewhat larger than the serialized size,
+// but this is a far better estimate than treating every schema as a fixed cost.
+// Returns 0 for a nil schema.
+func (r *ReadOnlyStoredSchema) EstimatedSize() int {
+	if r == nil || r.schema == nil {
+		return 0
+	}
+	return r.schema.SizeVT()
+}
+
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	LegacySchemaReader
