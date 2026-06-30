@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -12,6 +13,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/dstrace"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -230,11 +232,18 @@ func (r *observableReader) LegacyReadNamespaceByName(ctx context.Context, nsName
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-	ctx, closer := observe(ctx, "QueryRelationships", string(queryOpts.QueryShape), trace.WithAttributes(
+	queryShape := string(queryOpts.QueryShape)
+	ctx, closer := observe(ctx, "QueryRelationships", queryShape, trace.WithAttributes(
 		attribute.String(otelconv.AttrDatastoreResourceType, filter.OptionalResourceType),
 		attribute.String(otelconv.AttrDatastoreResourceRelation, filter.OptionalResourceRelation),
-		attribute.String(otelconv.AttrDatastoreQueryShape, string(queryOpts.QueryShape)),
+		attribute.String(otelconv.AttrDatastoreQueryShape, queryShape),
 	))
+
+	collector := dstrace.CollectorFromContext(ctx)
+	var start time.Time
+	if collector != nil {
+		start = time.Now()
+	}
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, opts...)
 	if err != nil {
@@ -253,14 +262,24 @@ func (r *observableReader) QueryRelationships(ctx context.Context, filter datast
 			}
 		}
 		loadedRelationshipCount.Observe(float64(count))
+		if collector != nil {
+			collector.Record(queryShape, start, time.Since(start), count)
+		}
 	}, nil
 }
 
 func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
-	ctx, closer := observe(ctx, "ReverseQueryRelationships", string(queryOpts.QueryShapeForReverse), trace.WithAttributes(
+	queryShape := string(queryOpts.QueryShapeForReverse)
+	ctx, closer := observe(ctx, "ReverseQueryRelationships", queryShape, trace.WithAttributes(
 		attribute.String(otelconv.AttrDatastoreSubjectType, subjectsFilter.SubjectType),
-		attribute.String(otelconv.AttrDatastoreQueryShape, string(queryOpts.QueryShapeForReverse))))
+		attribute.String(otelconv.AttrDatastoreQueryShape, queryShape)))
+
+	collector := dstrace.CollectorFromContext(ctx)
+	var start time.Time
+	if collector != nil {
+		start = time.Now()
+	}
 
 	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 	if err != nil {
@@ -279,6 +298,9 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 			}
 		}
 		loadedRelationshipCount.Observe(float64(count))
+		if collector != nil {
+			collector.Record(queryShape, start, time.Since(start), count)
+		}
 	}, nil
 }
 
