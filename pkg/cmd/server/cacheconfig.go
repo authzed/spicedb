@@ -54,23 +54,9 @@ func CompleteCache[K cache.KeyString, V any](registerer prometheus.Registerer, c
 		return cache.NoopCache[K, V](), nil
 	}
 
-	var (
-		maxCost uint64
-		err     error
-	)
-
-	if strings.HasSuffix(cc.MaxCost, "%") {
-		maxCost, err = parsePercent(cc.MaxCost, pkgruntime.AvailableMemory())
-	} else {
-		maxCost, err = humanize.ParseBytes(cc.MaxCost)
-	}
+	intMaxCost, err := resolveMaxCost(cc, pkgruntime.AvailableMemory())
 	if err != nil {
-		return nil, fmt.Errorf("error parsing cache max memory: `%s`: %w", cc.MaxCost, err)
-	}
-
-	intMaxCost, err := safecast.Convert[int64](maxCost)
-	if err != nil {
-		return nil, errors.New("could not cast max cost to int64")
+		return nil, err
 	}
 
 	if cc.Metrics {
@@ -84,6 +70,32 @@ func CompleteCache[K cache.KeyString, V any](registerer prometheus.Registerer, c
 		MaxCost:    intMaxCost,
 		DefaultTTL: cc.defaultTTL,
 	})
+}
+
+// resolveMaxCost translates the configured MaxCost (an absolute byte value or a
+// percentage of available memory) into a concrete byte budget. availableMem is
+// the figure to apply percentages against, as reported by
+// pkgruntime.AvailableMemory().
+func resolveMaxCost(cc *CacheConfig, availableMem uint64) (int64, error) {
+	var (
+		maxCost uint64
+		err     error
+	)
+
+	if strings.HasSuffix(cc.MaxCost, "%") {
+		maxCost, err = parsePercent(cc.MaxCost, availableMem)
+	} else {
+		maxCost, err = humanize.ParseBytes(cc.MaxCost)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("error parsing cache max memory: `%s`: %w", cc.MaxCost, err)
+	}
+
+	intMaxCost, err := safecast.Convert[int64](maxCost)
+	if err != nil {
+		return 0, errors.New("could not cast max cost to int64")
+	}
+	return intMaxCost, nil
 }
 
 func parsePercent(str string, freeMem uint64) (uint64, error) {

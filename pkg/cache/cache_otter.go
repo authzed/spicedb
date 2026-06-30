@@ -27,6 +27,27 @@ type valueAndCost[V any] struct {
 	cost  uint32
 }
 
+// entryWeight computes the weight Otter should account for an entry: the
+// caller-supplied payload cost plus the key bytes. Otter's MaximumWeight bounds
+// only the sum of Weigher outputs (the node weight is exactly the weigher's
+// return value), and the key is retained on the node for the entry's lifetime
+// without being included in that weight. Callers supply a cost covering only the
+// payload, so folding in the key length stops the cache from systematically
+// undercounting real memory and overfilling its configured MaximumWeight. It
+// saturates at math.MaxUint32 rather than overflowing.
+//
+// Fixed per-entry structural overhead (the node struct, hash-table slot, and
+// frequency-sketch state) is deliberately not added here: it is internal to
+// Otter, varies by version, and is instead absorbed by the headroom ratio
+// applied in pkgruntime.AvailableMemory.
+func entryWeight(key string, payloadCost uint32) uint32 {
+	weight := uint64(payloadCost) + uint64(len(key))
+	if weight > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(weight)
+}
+
 // NewOtterCache creates an Otter-backed cache. It tracks its own metrics (see
 // Cache.GetMetrics) but does not export them; use NewOtterCacheWithMetrics to
 // also register those metrics with a Prometheus registerer.
@@ -149,14 +170,21 @@ func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
 		uintCost = math.MaxUint32
 	}
 
-	wtc.metrics.costAdded.Add(uint64(uintCost))
-	_, ok := wtc.Get(key)
-	if ok {
-		wtc.cache.Invalidate(key.KeyString())
+	keyStr := key.KeyString()
+	// Account for the key bytes and fixed per-entry overhead in addition to the
+	// caller-supplied payload cost so the cache's weight tracks real memory usage
+	// rather than systematically undercounting it. The weigher returns this
+	// stored cost, and the costAdded metric uses the same figure, keeping the
+	// weight bound and the exported metrics consistent.
+	weight := entryWeight(keyStr, uintCost)
+
+	wtc.metrics.costAdded.Add(uint64(weight))
+	if _, ok := wtc.cache.GetIfPresent(keyStr); ok {
+		wtc.cache.Invalidate(keyStr)
 	}
-	wtc.cache.Set(key.KeyString(), valueAndCost[V]{value, uintCost})
+	wtc.cache.Set(keyStr, valueAndCost[V]{value, weight})
 	if wtc.ttl > 0 {
-		wtc.cache.SetExpiresAfter(key.KeyString(), wtc.ttl)
+		wtc.cache.SetExpiresAfter(keyStr, wtc.ttl)
 	}
 	return true
 }

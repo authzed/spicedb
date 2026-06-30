@@ -113,7 +113,7 @@ func (c *schemaHashCache) Set(schemaHash SchemaHash, schema *datastore.ReadOnlyS
 		schema: schema,
 	})
 
-	c.cache.Set(SchemaCacheKey(schemaHash), schema, 1)
+	c.cache.Set(SchemaCacheKey(schemaHash), schema, int64(schema.EstimatedSize()))
 	return nil
 }
 

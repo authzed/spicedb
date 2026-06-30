@@ -883,12 +883,16 @@ func TestWriteSchemaDeletesRemovedDefinitions(t *testing.T) {
 
 // testSchemaCache is a simple in-memory cache satisfying SchemaCache for tests.
 type testSchemaCache struct {
-	mu    sync.Mutex
-	items map[SchemaCacheKey]*datastore.ReadOnlyStoredSchema // GUARDED_BY(mu)
+	mu        sync.Mutex
+	items     map[SchemaCacheKey]*datastore.ReadOnlyStoredSchema // GUARDED_BY(mu)
+	lastCosts map[SchemaCacheKey]int64                           // GUARDED_BY(mu)
 }
 
 func newTestSchemaCache() *testSchemaCache {
-	return &testSchemaCache{items: make(map[SchemaCacheKey]*datastore.ReadOnlyStoredSchema)}
+	return &testSchemaCache{
+		items:     make(map[SchemaCacheKey]*datastore.ReadOnlyStoredSchema),
+		lastCosts: make(map[SchemaCacheKey]int64),
+	}
 }
 
 func (c *testSchemaCache) Get(key SchemaCacheKey) (*datastore.ReadOnlyStoredSchema, bool) {
@@ -898,11 +902,18 @@ func (c *testSchemaCache) Get(key SchemaCacheKey) (*datastore.ReadOnlyStoredSche
 	return v, ok
 }
 
-func (c *testSchemaCache) Set(key SchemaCacheKey, entry *datastore.ReadOnlyStoredSchema, _ int64) bool {
+func (c *testSchemaCache) Set(key SchemaCacheKey, entry *datastore.ReadOnlyStoredSchema, cost int64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.items[key] = entry
+	c.lastCosts[key] = cost
 	return true
+}
+
+func (c *testSchemaCache) cost(key SchemaCacheKey) int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastCosts[key]
 }
 
 func (c *testSchemaCache) Wait() {}
