@@ -30,7 +30,7 @@ import (
 const (
 	readOnlyHTTPPort = "8444"
 	readOnlyGRPCPort = "50052"
-	defaultSchema = `
+	defaultSchema    = `
 definition user {}
 
 definition resource {
@@ -47,10 +47,10 @@ var defaultSchemaOption = sdbtestcontainer.WithBootstrapSchema(defaultSchema)
 func TestTestServer(t *testing.T) {
 	require := require.New(t)
 	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
-	defaultSchemaOption,
-	testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
-	testcontainers.WithCmd("serve-testing"),
-)
+		defaultSchemaOption,
+		testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
+		testcontainers.WithCmd("serve-testing"),
+	)
 	require.NoError(err)
 	testcontainers.CleanupContainer(t, container)
 

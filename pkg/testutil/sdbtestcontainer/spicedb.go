@@ -41,9 +41,9 @@ const (
 type Container struct {
 	testcontainers.Container
 	presharedKeys []string
-	grpcEndpoint string
-	httpEndpoint string
-	httpEnabled  bool
+	grpcEndpoint  string
+	httpEndpoint  string
+	httpEnabled   bool
 }
 
 // PresharedKey returns the first gRPC preshared key the server was started with.
@@ -59,7 +59,7 @@ func (c *Container) GRPCEndpoint() string {
 
 // HTTPEndpoint returns the HTTP gateway endpoint as "host:port", reachable from
 // the host. It returns an empty string if the HTTP gateway was not enabled via WithHTTP.
-func (c *Container) HTTPEndpoint() (string) {
+func (c *Container) HTTPEndpoint() string {
 	return c.httpEndpoint
 }
 
@@ -126,9 +126,9 @@ func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustom
 	}
 
 	c := &Container{
-		Container:    ctr,
+		Container:     ctr,
 		presharedKeys: cfg.presharedKeys,
-		httpEnabled:  cfg.httpEnabled,
+		httpEnabled:   cfg.httpEnabled,
 	}
 
 	host, err := ctr.Host(ctx)

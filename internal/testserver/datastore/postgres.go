@@ -1,7 +1,9 @@
 package datastore
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"testing"
 	"time"
 
@@ -115,10 +117,9 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 	require.NoError(t, err)
 
 	// set up the pg container
-	// TODO
-	configFile := configFilePath("postgres.conf")
+	configBytes := postgresConf
 	if withCommitTimestamps {
-		configFile = configFilePath("postgres-with-timestamps.conf")
+		configBytes = postgresWithTimestampsConf
 	}
 
 	image := "mirror.gcr.io/library/postgres:" + pgVersion
@@ -129,7 +130,7 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 			"POSTGRES_INITDB_ARGS":      "--auth=md5",
 		}),
 		// contains the config for commit timestamps and max conns
-		postgres.WithConfigFile(configFile),
+		postgresConfOption(configBytes),
 		network.WithNetwork([]string{"postgres"}, testNetwork),
 		postgres.BasicWaitStrategies(),
 	)
@@ -161,18 +162,41 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 	b.pgbouncerProxy = bouncerContainer
 }
 
+//go:embed config/postgres.conf
+var postgresConf []byte
+
+//go:embed config/postgres-with-timestamps.conf
+var postgresWithTimestampsConf []byte
+
+// postgresConfOption is basically postgres.WithConfigFile but using the `Reader`
+// interface on ContainerFile instead of `HostFilePath`, which is difficult to use
+// when this code is invoked from different places.
+func postgresConfOption(confBytes []byte) testcontainers.CustomizeRequestOption {
+	return func(req *testcontainers.GenericContainerRequest) error {
+		file := testcontainers.ContainerFile{
+			Reader:            bytes.NewBuffer(confBytes),
+			ContainerFilePath: "/etc/postgresql.conf",
+		}
+		if err := testcontainers.WithFiles(file)(req); err != nil {
+			return err
+		}
+
+		return testcontainers.WithCmdArgs("-c", "config_file=/etc/postgresql.conf")(req)
+	}
+}
+
 func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, withCommitTimestamps bool) {
 	t.Helper()
 	ctx := t.Context()
-	configFile := configFilePath("postgres.conf")
+	configBytes := postgresConf
 	if withCommitTimestamps {
-		configFile = configFilePath("postgres-with-timestamps.conf")
+		configBytes = postgresWithTimestampsConf
 	}
 
 	image := "mirror.gcr.io/library/postgres:" + pgVersion
 	container, err := postgres.Run(ctx, image,
 		// contains the config for commit timestamps and max conns
-		postgres.WithConfigFile(configFile),
+		postgresConfOption(configBytes),
 		postgres.WithUsername(PgTestUser),
 		postgres.WithPassword(PgTestPass),
 		postgres.BasicWaitStrategies(),

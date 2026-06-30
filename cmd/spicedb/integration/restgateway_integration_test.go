@@ -8,19 +8,20 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
+
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func TestRESTGateway(t *testing.T) {
 	require := require.New(t)
 
 	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
-	defaultSchemaOption,
-	testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
-	testcontainers.WithCmd("serve-testing"),
-)
+		defaultSchemaOption,
+		testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
+		testcontainers.WithCmd("serve-testing"),
+	)
 	require.NoError(err)
 	testcontainers.CleanupContainer(t, container)
 	require.NoError(err)

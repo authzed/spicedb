@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
@@ -25,7 +26,7 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 	containerFilePath := "/mnt/spicedb_bootstrap.yaml"
 	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
 		testcontainers.WithFiles(testcontainers.ContainerFile{
-			Reader: bootstrapReader,
+			Reader:            bootstrapReader,
 			ContainerFilePath: containerFilePath,
 		}),
 		testcontainers.WithEnv(map[string]string{

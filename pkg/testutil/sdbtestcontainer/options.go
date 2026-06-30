@@ -5,7 +5,7 @@ import "github.com/testcontainers/testcontainers-go"
 // options holds the SpiceDB-specific configuration assembled from the
 // package's functional options before the container is started.
 type options struct {
-	presharedKeys           []string
+	presharedKeys          []string
 	httpEnabled            bool
 	datastoreEngine        string
 	datastoreConnURI       string

@@ -1,7 +1,9 @@
 package datastore
 
 import (
+	"bytes"
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"testing"
 	"time"
@@ -48,6 +50,9 @@ func RunMySQLForTesting(t testing.TB) RunningEngineForTest {
 	return RunMySQLForTestingWithOptions(t, MySQLTesterOptions{Prefix: "", MigrateForNewDatastore: true})
 }
 
+//go:embed config/mysql.cnf
+var mysqlConf []byte
+
 // RunMySQLForTestingWithOptions returns a RunningEngineForTest for the mysql driver
 // backed by a MySQL instance, while allowing options to be forwarded
 func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) RunningEngineForTest {
@@ -56,8 +61,14 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) Run
 	image := "mirror.gcr.io/library/mysql:" + version.MinimumSupportedMySQLVersion
 	container, err := mysql.Run(ctx,
 		image,
-		// TODO
-		mysql.WithConfigFile(configFilePath("mysql.cnf")),
+		// NOTE: we're doing this instead of using mysql.WithConfigFile
+		// because this function is invoked from more places than just
+		// this file, which means that embedding is easier than providing
+		// a path to a file.
+		testcontainers.WithFiles(testcontainers.ContainerFile{
+			ContainerFilePath: "/etc/mysql/conf.d/my.cnf",
+			Reader:            bytes.NewBuffer(mysqlConf),
+		}),
 		mysql.WithDatabase(initialDB),
 		// Sets MYSQL_ROOT_PASSWORD so we can connect as root below.
 		mysql.WithPassword(mysqlRootPassword),

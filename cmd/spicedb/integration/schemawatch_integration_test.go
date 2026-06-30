@@ -61,11 +61,11 @@ func TestSchemaWatch(t *testing.T) {
 
 			// Run the migrate command and wait for it to complete.
 			migrateContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
-			network.WithNetwork([]string{"migrate"}, net),
-			testcontainers.WithCmd("migrate", "head"),
-			testcontainers.WithEnv(envVars),
-			testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
-		)
+				network.WithNetwork([]string{"migrate"}, net),
+				testcontainers.WithCmd("migrate", "head"),
+				testcontainers.WithEnv(envVars),
+				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
+			)
 			require.NoError(t, err)
 			testcontainers.CleanupContainer(t, migrateContainer)
 
@@ -86,12 +86,12 @@ func TestSchemaWatch(t *testing.T) {
 			// Consume logs so we can ensure schema watch has started before graceful shutdown.
 			ww := &logWaiter{c: make(chan bool, 1), expectedString: "starting watching cache"}
 			serveContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
-			network.WithNetwork([]string{"spicedb"}, net),
-			testcontainers.WithLogConsumerConfig(&testcontainers.LogConsumerConfig{
-				Consumers: []testcontainers.LogConsumer{ww},
-			}),
-			testcontainers.WithEnv(spicedbEnvVars),
-		)
+				network.WithNetwork([]string{"spicedb"}, net),
+				testcontainers.WithLogConsumerConfig(&testcontainers.LogConsumerConfig{
+					Consumers: []testcontainers.LogConsumer{ww},
+				}),
+				testcontainers.WithEnv(spicedbEnvVars),
+			)
 			testcontainers.CleanupContainer(t, serveContainer)
 			require.NoError(t, err)
 
