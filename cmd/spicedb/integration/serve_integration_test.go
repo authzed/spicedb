@@ -31,11 +31,11 @@ func TestServe(t *testing.T) {
 
 	// TODO:
 	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
-	sdbtestcontainer.WithBootstrapSchema(defaultSchema),
-	testcontainers.WithEnv(map[string]string{
-		"SPICEDB_GRPC_PRESHARED_KEY": "firstkey,secondkey",
-	}),
-)
+		sdbtestcontainer.WithBootstrapSchema(defaultSchema),
+		testcontainers.WithEnv(map[string]string{
+			"SPICEDB_GRPC_PRESHARED_KEY": "firstkey,secondkey",
+		}),
+	)
 	requireParent.NoError(err)
 	testcontainers.CleanupContainer(t, container)
 
@@ -175,12 +175,12 @@ func TestGracefulShutdown(t *testing.T) {
 			// Run the migrate command and wait for it to complete.
 			// TODO: figure out what the CI tag is
 			migrateContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
-			testcontainers.WithCmd("migrate", "head"),
-			testcontainers.WithEnv(map[string]string{
-				"SPICEDB_DATASTORE_ENGINE": driverName,
-				"SPICEDB_DATASTORE_CONN_URI": db,
-			}),
-			testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
+				testcontainers.WithCmd("migrate", "head"),
+				testcontainers.WithEnv(map[string]string{
+					"SPICEDB_DATASTORE_ENGINE":   driverName,
+					"SPICEDB_DATASTORE_CONN_URI": db,
+				}),
+				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
 			)
 			require.NoError(t, err)
 			testcontainers.CleanupContainer(t, migrateContainer)
@@ -193,9 +193,9 @@ func TestGracefulShutdown(t *testing.T) {
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
 			ww := &logWaiter{c: make(chan bool, 1), expectedString: "running garbage collection worker"}
 			serveReq := testcontainers.ContainerRequest{
-				Image:              "authzed/spicedb:ci",
-				Cmd:                []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", ""},
-				Env:                envVars,
+				Image: "authzed/spicedb:ci",
+				Cmd:   []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", ""},
+				Env:   envVars,
 			}
 			if awaitGC {
 				// Consume logs so we can ensure GC has run before starting a graceful shutdown.
