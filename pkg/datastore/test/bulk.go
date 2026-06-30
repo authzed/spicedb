@@ -8,9 +8,6 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-
-	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -82,44 +79,6 @@ func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 		return err
 	})
 	require.Error(err)
-}
-
-func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTester) {
-	require := require.New(t)
-	ctx := t.Context()
-
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
-	require.NoError(err)
-
-	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
-
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
-			testfixtures.DocumentNS.Name,
-			"viewer",
-			testfixtures.UserNS.Name,
-			1,
-			t,
-		))
-		require.NoError(err)
-		require.Equal(uint64(1), inserted)
-
-		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
-			testfixtures.DocumentNS.Name,
-			"viewer",
-			testfixtures.UserNS.Name,
-			1,
-			t,
-		))
-		return serr
-	}, options.WithDisableRetries(true))
-
-	// NOTE: spanner does not return an error for duplicates.
-	if err == nil {
-		return
-	}
-
-	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 }
 
 func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
@@ -269,7 +228,16 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	require.Equal(tc, foundChanged)
 }
 
-func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
+// BulkUploadIdempotentTest verifies that BulkLoad has TOUCH-like (idempotent)
+// semantics: re-loading relationships that already exist is a no-op rather than
+// an error, and no duplicate relationships are created.
+//
+// NOTE: the count returned by BulkLoad reflects only newly-inserted rows for
+// most datastores, but Spanner cannot cheaply distinguish new from existing
+// relationships and reports the number processed instead. This test therefore
+// asserts the no-duplicate invariant via queries (which holds for every
+// datastore) and only checks the returned count for the initial load.
+func BulkUploadIdempotentTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	ctx := t.Context()
 
@@ -278,39 +246,71 @@ func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
 
-	// Bulk write a single relationship.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
-			testfixtures.DocumentNS.Name,
-			"viewer",
-			testfixtures.UserNS.Name,
-			1,
-			t,
-		))
+	// bulkLoad loads `count` deterministic relationships (object IDs count-1..0)
+	// in their own transaction and returns the count reported by BulkLoad.
+	bulkLoad := func(count int) uint64 {
+		var loaded uint64
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			var ierr error
+			loaded, ierr = rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
+				testfixtures.DocumentNS.Name,
+				"viewer",
+				testfixtures.UserNS.Name,
+				count,
+				t,
+			))
+			return ierr
+		}, options.WithDisableRetries(true))
 		require.NoError(err)
-		require.Equal(uint64(1), inserted)
-		return nil
-	}, options.WithDisableRetries(true))
-	require.NoError(err)
-
-	// Bulk write it again and ensure we get the expected error.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
-			testfixtures.DocumentNS.Name,
-			"viewer",
-			testfixtures.UserNS.Name,
-			1,
-			t,
-		))
-		return serr
-	}, options.WithDisableRetries(true))
-
-	// NOTE: spanner does not return an error for duplicates.
-	if err == nil {
-		return
+		return loaded
 	}
 
-	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
+	countRelationships := func() int {
+		headResult, err := ds.HeadRevision(ctx)
+		require.NoError(err)
+
+		iter, err := ds.SnapshotReader(headResult.Revision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+			OptionalResourceType: testfixtures.DocumentNS.Name,
+		}, options.WithQueryShape(queryshape.FindResourceOfType))
+		require.NoError(err)
+
+		found := 0
+		for _, qerr := range iter {
+			require.NoError(qerr)
+			found++
+		}
+		return found
+	}
+
+	// Initial load inserts all relationships.
+	require.Equal(uint64(10), bulkLoad(10))
+	require.Equal(10, countRelationships())
+
+	// Re-loading the exact same relationships is a no-op: it does not error and
+	// creates no duplicates (TOUCH semantics, rather than an AlreadyExists
+	// error).
+	bulkLoad(10)
+	require.Equal(10, countRelationships())
+
+	// Loading a superset silently skips the relationships that already exist and
+	// inserts only the previously-unseen ones.
+	bulkLoad(20)
+	require.Equal(20, countRelationships())
+
+	// Re-loading duplicates twice within a single transaction is also a no-op.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		if _, ierr := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
+			testfixtures.DocumentNS.Name, "viewer", testfixtures.UserNS.Name, 5, t,
+		)); ierr != nil {
+			return ierr
+		}
+		_, ierr := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
+			testfixtures.DocumentNS.Name, "viewer", testfixtures.UserNS.Name, 5, t,
+		))
+		return ierr
+	}, options.WithDisableRetries(true))
+	require.NoError(err)
+	require.Equal(20, countRelationships())
 }
 
 type onlyErrorSource struct{}
