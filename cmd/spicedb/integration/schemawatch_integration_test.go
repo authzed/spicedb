@@ -4,12 +4,15 @@ package integration_test
 
 import (
 	"maps"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/log"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 
@@ -40,6 +43,9 @@ func TestSchemaWatch(t *testing.T) {
 			testcontainers.CleanupNetwork(t, net)
 			require.NoError(t, err)
 
+			// This is the part that needs access to the network. ugh.
+			// TODO: it's unclear whether host networking is sufficient here,
+			// or if we need to set up a network for these things to talk to each other.
 			engine := testdatastore.RunDatastoreEngine(t, driverName)
 
 			envVars := map[string]string{}
@@ -52,16 +58,22 @@ func TestSchemaWatch(t *testing.T) {
 				}
 			}
 
-			// The datastore listens on a host-mapped port, so the SpiceDB
-			// container must reach it via host.docker.internal.
 			db := engine.NewDatabase(t)
+			dbURL, err := url.Parse(db)
+			require.NoError(t, err)
+			portString := dbURL.Port()
+			port, err := strconv.Atoi(portString)
+			require.NoError(t, err)
+			dbURL.Host = testcontainers.HostInternal+":"+string(portString)
+			require.NoError(t, err)
 
 			envVars["SPICEDB_DATASTORE_ENGINE"] = driverName
-			envVars["SPICEDB_DATASTORE_CONN_URI"] = db
+			envVars["SPICEDB_DATASTORE_CONN_URI"] = dbURL.String()
 
 			// Run the migrate command and wait for it to complete.
-			migrateContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
-				network.WithNetwork([]string{"migrate"}, net),
+			migrateContainer, err := testcontainers.Run(ctx, ciImage,
+				testcontainers.WithLogger(log.TestLogger(t)),
+				testcontainers.WithHostPortAccess(port),
 				testcontainers.WithCmd("migrate", "head"),
 				testcontainers.WithEnv(envVars),
 				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
@@ -75,7 +87,7 @@ func TestSchemaWatch(t *testing.T) {
 			require.Equal(t, 0, exitCode.ExitCode)
 			t.Log("finished migrating")
 
-			var spicedbEnvVars map[string]string
+			spicedbEnvVars := make(map[string]string)
 			maps.Copy(spicedbEnvVars, envVars)
 
 			spicedbEnvVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"

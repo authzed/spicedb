@@ -68,6 +68,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) Run
 		testcontainers.WithFiles(testcontainers.ContainerFile{
 			ContainerFilePath: "/etc/mysql/conf.d/my.cnf",
 			Reader:            bytes.NewBuffer(mysqlConf),
+			FileMode:          0o644,
 		}),
 		mysql.WithDatabase(initialDB),
 		// Sets MYSQL_ROOT_PASSWORD so we can connect as root below.

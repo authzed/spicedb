@@ -1051,7 +1051,7 @@ func runPostgres(t *testing.T, pgServerPort int) (conn *pgx.Conn) {
 	conn, err = pgx.Connect(t.Context(), connURI)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = conn.Close(context.Background())
+		_ = conn.Close(t.Context())
 	})
 
 	return conn

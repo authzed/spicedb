@@ -25,11 +25,16 @@ type crdbTester struct {
 var _ RunningEngineForTest = (*crdbTester)(nil)
 
 // RunCRDBForTesting returns a RunningEngineForTest for CRDB
-func RunCRDBForTesting(t testing.TB, crdbVersion string) *crdbTester {
+func RunCRDBForTesting(t testing.TB, crdbVersion string, opts ...testcontainers.ContainerCustomizer) *crdbTester {
 	ctx := t.Context()
 
-	container, err := cockroachdb.Run(ctx, "mirror.gcr.io/cockroachdb/cockroach:v"+crdbVersion,
-		cockroachdb.WithInsecure(),
+	options := make([]testcontainers.ContainerCustomizer, 0, len(opts)+1)
+	options = append(options, cockroachdb.WithInsecure())
+	options = append(options, opts...)
+
+	container, err := cockroachdb.Run(ctx,
+		"mirror.gcr.io/cockroachdb/cockroach:v"+crdbVersion,
+		options...
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)

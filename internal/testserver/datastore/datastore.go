@@ -8,6 +8,7 @@ import (
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
+	"github.com/testcontainers/testcontainers-go"
 )
 
 // InitFunc initializes a datastore instance from a uri that has been
@@ -42,7 +43,7 @@ type RunningEngineForTestWithEnvVars interface {
 // create the logical database nor call migrate; callers can do so via NewDatabase and NewDatastore
 // respectively. Note also that the backing database or service will be shutdown automatically via
 // the Cleanup of the testing object.
-func RunDatastoreEngine(t testing.TB, engine string) RunningEngineForTest {
+func RunDatastoreEngine(t testing.TB, engine string, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
 	switch engine {
 	case "memory":
 		return RunMemoryForTesting(t)
@@ -51,17 +52,17 @@ func RunDatastoreEngine(t testing.TB, engine string) RunningEngineForTest {
 		if ver == "" {
 			ver = crdbversion.LatestTestedCockroachDBVersion
 		}
-		return RunCRDBForTesting(t, ver)
+		return RunCRDBForTesting(t, ver, opts...)
 	case "postgres":
 		ver := os.Getenv("POSTGRES_TEST_VERSION")
 		if ver == "" {
 			ver = pgversion.LatestTestedPostgresVersion
 		}
-		return RunPostgresForTesting(t, migrate.Head, ver, false)
+		return RunPostgresForTesting(t, migrate.Head, ver, false, opts...)
 	case "mysql":
-		return RunMySQLForTesting(t)
+		return RunMySQLForTesting(t, opts...)
 	case "spanner":
-		return RunSpannerForTesting(t, migrate.Head)
+		return RunSpannerForTesting(t, migrate.Head, opts...)
 	default:
 		t.Fatalf("found missing engine for RunDatastoreEngine: %s", engine)
 		return nil

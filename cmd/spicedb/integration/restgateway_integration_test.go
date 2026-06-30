@@ -14,13 +14,15 @@ import (
 	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
+var ciImage = sdbtestcontainer.DefaultImage + ":ci"
+
 func TestRESTGateway(t *testing.T) {
 	require := require.New(t)
 
-	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
+	container, err := sdbtestcontainer.Run(t.Context(), ciImage,
 		defaultSchemaOption,
+		sdbtestcontainer.WithHTTP(),
 		testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
-		testcontainers.WithCmd("serve-testing"),
 	)
 	require.NoError(err)
 	testcontainers.CleanupContainer(t, container)

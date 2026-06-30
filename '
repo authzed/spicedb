@@ -150,9 +150,7 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 
 	// set up the bouncer container
 	// TODO: this needs to be the "external" thing, and it needs to be
-	// talking to postgres on the internal network.
-	// There also might need to be a separation between bouncer options and postgres options,
-	// which would be an annoying pain.
+	// talking to postgres on this port.
 	bouncerContainer, err := postgres.Run(ctx, "mirror.gcr.io/edoburu/pgbouncer:latest",
 		testcontainers.WithLogger(log.TestLogger(t)),
 		testcontainers.WithEnv(map[string]string{
