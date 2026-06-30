@@ -45,13 +45,6 @@ func TestResolveMaxCost(t *testing.T) {
 		require.Equal(t, int64(250), got)
 	})
 
-	t.Run("percent with undeterminable available memory errors", func(t *testing.T) {
-		_, err := resolveMaxCost(&CacheConfig{Name: "dispatch", MaxCost: "25%"}, 0)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "available memory could not be determined")
-		require.ErrorContains(t, err, "dispatch")
-	})
-
 	t.Run("invalid value errors", func(t *testing.T) {
 		_, err := resolveMaxCost(&CacheConfig{Name: "test", MaxCost: "not-a-size"}, 1000)
 		require.Error(t, err)

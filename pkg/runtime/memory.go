@@ -25,6 +25,11 @@ const (
 	MemorySourceUndetermined MemorySource = "undetermined"
 )
 
+// fallbackMemoryLimit is the amount of memory allocated for caches etc.
+// when the amount of available memory can't be determined through the usual methods.
+// 256mb is tiny, but it should comfortably fit in most runtimes.
+const fallbackMemoryLimit = 256 * 1024
+
 var logAvailableMemoryOnce sync.Once
 
 // AvailableMemory returns 75% of the memory available to this process.
@@ -39,13 +44,16 @@ var logAvailableMemoryOnce sync.Once
 func AvailableMemory() uint64 {
 	mem, source := availableMemory()
 	logAvailableMemoryOnce.Do(func() {
-		evt := logging.Info().
-			Uint64("available-memory-bytes", mem).
-			Str("source", string(source))
 		if source == MemorySourceUndetermined {
-			evt.Msg("could not determine available memory; percent-based cache budgets cannot be honored")
+			logging.Warn().
+				Uint64("available-memory-bytes", mem).
+				Str("source", string(source)).
+				Msg("could not determine available memory; using a conservative default")
 		} else {
-			evt.Msg("determined available memory for percent-based budgets")
+			logging.Info().
+				Uint64("available-memory-bytes", mem).
+				Str("source", string(source)).
+				Msg("determined available memory for percent-based budgets")
 		}
 	})
 	return mem
@@ -72,7 +80,7 @@ func availableMemory() (uint64, MemorySource) {
 	memProvider := memlimit.ApplyFallback(memlimit.FromCgroup, memlimit.FromSystem)
 	totalMemory, err := memProvider()
 	if err != nil || totalMemory == 0 {
-		return 0, MemorySourceUndetermined
+		return fallbackMemoryLimit, MemorySourceUndetermined
 	}
 	return totalMemory * 75 / 100, MemorySourceDetected
 }

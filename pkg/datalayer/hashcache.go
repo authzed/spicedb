@@ -113,10 +113,6 @@ func (c *schemaHashCache) Set(schemaHash SchemaHash, schema *datastore.ReadOnlyS
 		schema: schema,
 	})
 
-	// Cost the entry by its (approximate) size rather than a flat 1, so the
-	// backing cache's weight bound tracks the real memory held by cached schemas
-	// instead of treating each as a single unit (which let large schemas
-	// massively overfill a byte-denominated MaxCost).
 	c.cache.Set(SchemaCacheKey(schemaHash), schema, int64(schema.EstimatedSize()))
 	return nil
 }

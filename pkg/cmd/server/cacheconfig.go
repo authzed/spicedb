@@ -83,14 +83,6 @@ func resolveMaxCost(cc *CacheConfig, availableMem uint64) (int64, error) {
 	)
 
 	if strings.HasSuffix(cc.MaxCost, "%") {
-		if availableMem == 0 {
-			// A percent-based budget against undeterminable available memory
-			// resolves to a zero MaxCost, which is a degenerate cache config
-			// (e.g. on AWS ECS where the container memory limit isn't written
-			// to the cgroup). Fail loudly rather than silently building a
-			// useless or unbounded cache.
-			return 0, fmt.Errorf("cache %q is configured as a percentage of available memory (%q), but available memory could not be determined; set %s as an absolute byte value (e.g. 1GiB) or ensure GOMEMLIMIT / the container cgroup memory limit is set", cc.Name, cc.MaxCost, cc.Name)
-		}
 		maxCost, err = parsePercent(cc.MaxCost, availableMem)
 	} else {
 		maxCost, err = humanize.ParseBytes(cc.MaxCost)
