@@ -52,6 +52,7 @@ func TestSchemaWatch(t *testing.T) {
 				}
 			}
 
+			// TODO: this is wrong
 			// The datastore listens on a host-mapped port, so the SpiceDB
 			// container must reach it via host.docker.internal.
 			db := engine.NewDatabase(t)
@@ -60,7 +61,7 @@ func TestSchemaWatch(t *testing.T) {
 			envVars["SPICEDB_DATASTORE_CONN_URI"] = db
 
 			// Run the migrate command and wait for it to complete.
-			migrateContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+			migrateContainer, err := sdbtestcontainer.Run(ctx, ciImage,
 				network.WithNetwork([]string{"migrate"}, net),
 				testcontainers.WithCmd("migrate", "head"),
 				testcontainers.WithEnv(envVars),
@@ -75,7 +76,7 @@ func TestSchemaWatch(t *testing.T) {
 			require.Equal(t, 0, exitCode.ExitCode)
 			t.Log("finished migrating")
 
-			var spicedbEnvVars map[string]string
+			spicedbEnvVars := make(map[string]string)
 			maps.Copy(spicedbEnvVars, envVars)
 
 			spicedbEnvVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"

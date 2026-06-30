@@ -176,6 +176,7 @@ func postgresConfOption(confBytes []byte) testcontainers.CustomizeRequestOption 
 		file := testcontainers.ContainerFile{
 			Reader:            bytes.NewBuffer(confBytes),
 			ContainerFilePath: "/etc/postgresql.conf",
+			FileMode:          0o644,
 		}
 		if err := testcontainers.WithFiles(file)(req); err != nil {
 			return err
@@ -188,6 +189,7 @@ func postgresConfOption(confBytes []byte) testcontainers.CustomizeRequestOption 
 func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, withCommitTimestamps bool) {
 	t.Helper()
 	ctx := t.Context()
+	logger := log.TestLogger(t)
 	configBytes := postgresConf
 	if withCommitTimestamps {
 		configBytes = postgresWithTimestampsConf
@@ -195,6 +197,7 @@ func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, w
 
 	image := "mirror.gcr.io/library/postgres:" + pgVersion
 	container, err := postgres.Run(ctx, image,
+		testcontainers.WithLogger(logger),
 		// contains the config for commit timestamps and max conns
 		postgresConfOption(configBytes),
 		postgres.WithUsername(PgTestUser),

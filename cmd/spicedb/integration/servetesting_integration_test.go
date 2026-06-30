@@ -46,7 +46,7 @@ var defaultSchemaOption = sdbtestcontainer.WithBootstrapSchema(defaultSchema)
 
 func TestTestServer(t *testing.T) {
 	require := require.New(t)
-	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
+	container, err := sdbtestcontainer.Run(t.Context(), ciImage,
 		defaultSchemaOption,
 		testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
 		testcontainers.WithCmd("serve-testing"),
@@ -183,10 +183,15 @@ func TestTestServer(t *testing.T) {
 
 	// Attempt to write to the read only HTTP and ensure it fails.
 	readOnlyHTTPEndpoint := net.JoinHostPort(containerHost, readOnlyHTTPPort)
-	writeUrl := fmt.Sprintf("http://%s/v1/schema/write", readOnlyHTTPEndpoint)
-	wresp, err := http.Post(writeUrl, "application/json", strings.NewReader(`{
+	writeURL := fmt.Sprintf("http://%s/v1/schema/write", readOnlyHTTPEndpoint)
+	requestBody := strings.NewReader(`{
 		"schemaText": "definition user {}\ndefinition resource {\nrelation reader: user\nrelation writer: user\nrelation foobar: user\n}"
-	}`))
+	}`)
+	//nolint:gosec  // this is test code
+	wresp, err := http.Post(writeURL, "application/json", requestBody)
+	t.Cleanup(func() {
+		_ = wresp.Body.Close()
+	})
 	require.NoError(err)
 	require.Equal(503, wresp.StatusCode)
 
