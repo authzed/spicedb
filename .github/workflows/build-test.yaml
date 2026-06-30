@@ -300,7 +300,7 @@ jobs:
 
   crdbdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-arm-4"
+    runs-on: "depot-ubuntu-24.04-arm-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false

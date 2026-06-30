@@ -124,15 +124,16 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 		return d.delegate.DispatchExpand(ctx, req)
 	}
 
-	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchExpandResponse, error) {
+	sharedResp, isShared, err := d.expandGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchExpandResponse, error) {
 		return d.delegate.DispatchExpand(innerCtx, req)
 	})
 
-	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()
-	if err != nil {
-		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
+	if sharedResp == nil {
+		sharedResp = &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}
 	}
-	return v, err
+
+	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()
+	return sharedResp.CloneVT(), err
 }
 
 func (d *Dispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {

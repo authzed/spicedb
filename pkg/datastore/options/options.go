@@ -56,6 +56,13 @@ type SQLIndexInformation struct {
 	// ExpectedIndexNames are the name(s) of the index(es) that are expected to be used by this
 	// SQL query.
 	ExpectedIndexNames []string
+
+	// ShapeServingIndexNames are the names of all indexes that serve at least one query shape.
+	// Any index used by a query that is *not* in this set (e.g. maintenance indexes such as
+	// those used for garbage collection or watch, or the implicit primary key) is considered a
+	// small-data optimizer artifact rather than a meaningful index choice, and is ignored when
+	// validating that an expected index was used.
+	ShapeServingIndexNames []string
 }
 
 // SQLExplainCallbackForTest is a callback invoked with the explain plan of the SQL query string.
