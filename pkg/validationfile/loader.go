@@ -259,6 +259,7 @@ func CompileSchema(schema compiler.InputSchema, cts *caveattypes.TypeSet) (*comp
 			return nil, spiceerrors.NewWithSourceError(
 				fmt.Errorf("error when parsing schema: %s", errWithContext.BaseMessage),
 				errWithContext.ErrorSourceCode,
+				string(errWithContext.Source),
 				uintLine+1, // source line is 0-indexed
 				uintCol+1,  // source col is 0-indexed
 			)
