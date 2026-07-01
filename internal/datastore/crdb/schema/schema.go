@@ -7,13 +7,14 @@ import (
 )
 
 const (
-	TableNamespace           = "namespace_config"
-	TableTuple               = "relation_tuple"
-	TableTupleWithIntegrity  = "relation_tuple_with_integrity"
-	TableTransactions        = "transactions"
-	TableCaveat              = "caveat"
-	TableRelationshipCounter = "relationship_counter"
-	TableTransactionMetadata = "transaction_metadata"
+	TableNamespace             = "namespace_config"
+	TableTuple                 = "relation_tuple"
+	TableTupleWithIntegrity    = "relation_tuple_with_integrity"
+	TableTransactions          = "transactions"
+	TableCaveat                = "caveat"
+	TableRelationshipCounter   = "relationship_counter"
+	TableTransactionMetadata   = "transaction_metadata"
+	TableRelationshipChangelog = "relationship_changelog"
 
 	ColNamespace      = "namespace"
 	ColConfig         = "serialized_config"
@@ -42,6 +43,16 @@ const (
 	ColCounterUpdatedAt        = "updated_at_timestamp"
 	ColExpiresAt               = "expires_at"
 	ColMetadata                = "metadata"
+
+	ColChangeTS                   = "change_ts"
+	ColChangeOrdinal              = "ordinal"
+	ColChangeKind                 = "kind"
+	ColChangeRelExpiration        = "rel_expiration"
+	ColChangeOperation            = "operation"
+	ColChangeSchemaKind           = "schema_kind"
+	ColChangeDefinitionName       = "definition_name"
+	ColChangeSerializedDefinition = "serialized_definition"
+	ColChangeTTLExpiration        = "ttl_expiration"
 )
 
 func Schema(colOptimizationOpt common.ColumnOptimizationOption, withIntegrity bool, expirationDisabled bool) *common.SchemaInformation {

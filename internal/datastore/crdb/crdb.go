@@ -144,6 +144,13 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		config.gcWindow = time.Duration(clusterTTLNanos) * time.Nanosecond
 	}
 
+	if config.changelogWatchEnabled {
+		if err := ensureChangelogTable(initCtx, initPool, config.gcWindow); err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+		}
+		log.Ctx(initCtx).Info().Msg("experimental CRDB changelog-watch table ensured")
+	}
+
 	keySetInit := newKeySet
 	var keyer overlapKeyer
 	switch config.overlapStrategy {
