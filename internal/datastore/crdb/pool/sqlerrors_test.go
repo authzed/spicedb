@@ -8,8 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func TestMaxRetryError_Error(t *testing.T) {
@@ -236,17 +234,15 @@ func TestResettableError_GRPCStatus(t *testing.T) {
 			fields: fields{
 				Err: nil,
 			},
-			want: status.New(codes.Unavailable, "resettable error"),
+			want: status.New(codes.Unavailable, "the datastore is temporarily unavailable; please retry"),
 		},
 		{
 			name: "with err",
 			fields: fields{
 				Err: fmt.Errorf("failed"),
 			},
-			want: spiceerrors.WithCodeAndDetails(
-				fmt.Errorf("failed"),
-				codes.Unavailable,
-			),
+			// The wrapped driver error must not leak into the client-facing status.
+			want: status.New(codes.Unavailable, "the datastore is temporarily unavailable; please retry"),
 		},
 	}
 	for _, tt := range tests {
@@ -347,17 +343,15 @@ func TestRetryableError_GRPCStatus(t *testing.T) {
 			fields: fields{
 				Err: nil,
 			},
-			want: status.New(codes.Unavailable, "resettable error"),
+			want: status.New(codes.Unavailable, "the datastore is temporarily unavailable; please retry"),
 		},
 		{
 			name: "with err",
 			fields: fields{
 				Err: fmt.Errorf("failed"),
 			},
-			want: spiceerrors.WithCodeAndDetails(
-				fmt.Errorf("failed"),
-				codes.Unavailable,
-			),
+			// The wrapped driver error must not leak into the client-facing status.
+			want: status.New(codes.Unavailable, "the datastore is temporarily unavailable; please retry"),
 		},
 	}
 	for _, tt := range tests {

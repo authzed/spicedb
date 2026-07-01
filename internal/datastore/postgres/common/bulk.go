@@ -77,6 +77,12 @@ func BulkLoad(
 		colNames:     colNames,
 	}
 	copied, err := tx.CopyFrom(ctx, pgx.Identifier{tupleTableName}, colNames, adapter)
+	if err != nil && adapter.err != nil {
+		// When the relationship source aborts the copy, the driver reports the failure as
+		// an opaque COPY error that hides the real cause and exposes datastore internals.
+		// Prefer the source's own error, which is meaningful and free of those internals.
+		err = adapter.err
+	}
 	uintCopied, castErr := safecast.Convert[uint64](copied)
 	if castErr != nil {
 		return 0, spiceerrors.MustBugf("number copied was negative: %v", castErr)

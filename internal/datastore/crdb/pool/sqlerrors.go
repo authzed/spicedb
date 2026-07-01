@@ -7,8 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -23,6 +21,11 @@ const (
 	// Error message encountered when crdb nodes have large clock skew
 	CrdbClockSkewMessage = "cannot specify timestamp in the future"
 )
+
+// datastoreUnavailableMessage is the engine-agnostic, client-facing message returned for
+// transient CockroachDB failures. The underlying driver error may embed datastore internals
+// (e.g. SQLSTATE codes); it is logged server-side rather than surfaced to the client.
+const datastoreUnavailableMessage = "the datastore is temporarily unavailable; please retry"
 
 // MaxRetryError is returned when the retry budget is exhausted.
 type MaxRetryError struct {
@@ -69,13 +72,10 @@ func (e *ResettableError) Error() string {
 func (e *ResettableError) Unwrap() error { return e.Err }
 
 func (e *ResettableError) GRPCStatus() *status.Status {
-	if e.Err == nil {
-		return status.New(codes.Unavailable, "resettable error")
-	}
-	return spiceerrors.WithCodeAndDetails(
-		e.Unwrap(),
-		codes.Unavailable, // return unavailable so clients are know it's ok to retry
-	)
+	// Return unavailable so clients know it's ok to retry, but with an engine-agnostic
+	// message: the wrapped driver error may leak datastore internals and is logged
+	// server-side rather than returned to the client.
+	return status.New(codes.Unavailable, datastoreUnavailableMessage)
 }
 
 // RetryableError is an error that can be retried against the existing connection.
@@ -92,13 +92,10 @@ func (e *RetryableError) Error() string {
 func (e *RetryableError) Unwrap() error { return e.Err }
 
 func (e *RetryableError) GRPCStatus() *status.Status {
-	if e.Err == nil {
-		return status.New(codes.Unavailable, "resettable error")
-	}
-	return spiceerrors.WithCodeAndDetails(
-		e.Unwrap(),
-		codes.Unavailable, // return unavailable so clients are know it's ok to retry
-	)
+	// Return unavailable so clients know it's ok to retry, but with an engine-agnostic
+	// message: the wrapped driver error may leak datastore internals and is logged
+	// server-side rather than returned to the client.
+	return status.New(codes.Unavailable, datastoreUnavailableMessage)
 }
 
 // sqlErrorCode attempts to extract the crdb error code from the error state.
