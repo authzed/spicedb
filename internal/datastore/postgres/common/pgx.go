@@ -210,6 +210,39 @@ func (m *ComposedTracer) TraceQueryStart(ctx context.Context, conn *pgx.Conn, da
 	return ctx
 }
 
+// TraceBatchStart, TraceBatchQuery and TraceBatchEnd implement pgx.BatchTracer.
+// Without these, pgx falls back to the QueryTracer path for statements read out
+// of a batch, but never calls TraceQueryStart for them (batches are traced via
+// BatchTracer). The tracelog tracer then panics reading a nil context value when
+// a batched statement returns rows (e.g. SHOW COMMIT TIMESTAMP). Delegating to
+// any sub-tracer that implements BatchTracer both fixes that and gives batches
+// real tracing spans.
+func (m *ComposedTracer) TraceBatchStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceBatchStartData) context.Context {
+	for _, t := range m.Tracers {
+		if bt, ok := t.(pgx.BatchTracer); ok {
+			ctx = bt.TraceBatchStart(ctx, conn, data)
+		}
+	}
+
+	return ctx
+}
+
+func (m *ComposedTracer) TraceBatchQuery(ctx context.Context, conn *pgx.Conn, data pgx.TraceBatchQueryData) {
+	for _, t := range m.Tracers {
+		if bt, ok := t.(pgx.BatchTracer); ok {
+			bt.TraceBatchQuery(ctx, conn, data)
+		}
+	}
+}
+
+func (m *ComposedTracer) TraceBatchEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceBatchEndData) {
+	for _, t := range m.Tracers {
+		if bt, ok := t.(pgx.BatchTracer); ok {
+			bt.TraceBatchEnd(ctx, conn, data)
+		}
+	}
+}
+
 func (m *ComposedTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryEndData) {
 	for _, t := range m.Tracers {
 		t.TraceQueryEnd(ctx, conn, data)

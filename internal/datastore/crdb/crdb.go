@@ -395,31 +395,45 @@ func (cds *crdbDatastore) ReadWriteTx(
 			tailBatch.Queue(sql, args...)
 		}
 
-		// Touching the transaction keys happens last so that the "write intent" for
-		// the transaction as a whole lands in a range for the affected tuples.
+		// Touching the transaction keys happens before reading the commit
+		// timestamp so that the "write intent" for the transaction as a whole
+		// lands in a range for the affected tuples.
 		for k := range rwt.overlapKeySet {
 			tailBatch.Queue(queryTouchTransaction, k)
 		}
 
-		if tailBatch.Len() > 0 {
-			queued := tailBatch.Len()
-			if err := querier.SendBatchFunc(ctx, tailBatch, func(ctx context.Context, results pgx.BatchResults) error {
-				for range queued {
-					if _, err := results.Exec(); err != nil {
-						return err
-					}
+		// Read the transaction commit timestamp as the final statement of the
+		// batch. On CockroachDB (v23+) this is SHOW COMMIT TIMESTAMP, which both
+		// commits the transaction and returns its HLC commit timestamp; it must
+		// run after every write, which the in-order execution of a pipelined
+		// batch guarantees. Folding it in here removes the extra round-trip a
+		// standalone read would otherwise cost on every single write. The order
+		// (writes -> commit timestamp -> COMMIT) matches the pre-batch behavior.
+		writeCount := tailBatch.Len()
+		tailBatch.Queue(cds.transactionNowQuery)
+
+		if err := querier.SendBatchFunc(ctx, tailBatch, func(ctx context.Context, results pgx.BatchResults) error {
+			for range writeCount {
+				if _, err := results.Exec(); err != nil {
+					return err
 				}
-				return nil
-			}); err != nil {
-				return fmt.Errorf("error writing transaction metadata and overlapping keys: %w", err)
 			}
+
+			var hlcNow decimal.Decimal
+			if err := results.QueryRow().Scan(&hlcNow); err != nil {
+				return fmt.Errorf("unable to read commit timestamp: %w", err)
+			}
+
+			rev, err := revisions.NewForHLC(hlcNow)
+			if err != nil {
+				return err
+			}
+			commitTimestamp = rev
+			return nil
+		}); err != nil {
+			return fmt.Errorf("error writing transaction tail (metadata, overlap keys, commit timestamp): %w", err)
 		}
 
-		var cerr error
-		commitTimestamp, cerr = cds.readTransactionCommitRev(ctx, querier)
-		if cerr != nil {
-			return fmt.Errorf("error getting commit timestamp: %w", cerr)
-		}
 		return nil
 	})
 	if err != nil {
@@ -662,20 +676,6 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 	}
 
 	return &features, nil
-}
-
-func (cds *crdbDatastore) readTransactionCommitRev(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "readTransactionCommitRev")
-	defer span.End()
-
-	var hlcNow decimal.Decimal
-	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-		return row.Scan(&hlcNow)
-	}, cds.transactionNowQuery); err != nil {
-		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
-	}
-
-	return revisions.NewForHLC(hlcNow)
 }
 
 func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
