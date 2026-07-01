@@ -27,7 +27,7 @@ jobs:
         with:
           skipLabels: "Skip-Changelog,dependencies,tests"
           missingUpdateErrorMessage: "If your PR has a change that users might care about, please add an entry to CHANGELOG.md, run 'npx keep-a-changelog', and commit the changes. Otherwise, add the Skip-Changelog label to your PR."
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@v7"
       - uses: "actions/setup-node@v6"
       - run: "npx keep-a-changelog@2.8.0"
       - run: |
