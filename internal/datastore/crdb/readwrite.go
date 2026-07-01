@@ -55,6 +55,23 @@ type crdbReadWriteTXN struct {
 	hasNonExpiredDeletionChange bool
 	changelogWatchEnabled       bool
 	gcWindow                    time.Duration
+	changelogOrdinal            int
+}
+
+// nextChangelogOrdinal returns the next ordinal to use for a changelog row
+// appended within this transaction, and increments the counter.
+//
+// change_ts for changelog rows is derived from cluster_logical_timestamp(),
+// which is constant for the lifetime of a CockroachDB transaction. Since the
+// changelog primary key is (change_ts, ordinal), the ordinal must be unique
+// across the entire transaction rather than reset per call-site; otherwise
+// concurrent changelog-appending operations within the same transaction
+// (e.g. relationship writes, schema writes, bulk loads) would collide on the
+// same (change_ts, ordinal) pair.
+func (rwt *crdbReadWriteTXN) nextChangelogOrdinal() int {
+	n := rwt.changelogOrdinal
+	rwt.changelogOrdinal++
+	return n
 }
 
 var (
@@ -294,7 +311,6 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	if rwt.changelogWatchEnabled {
 		changelogTTL = time.Now().Add(rwt.gcWindow).Add(1 * time.Minute)
 	}
-	changelogOrdinal := 0
 
 	// Process the actual updates
 	for _, mutation := range mutations {
@@ -366,10 +382,9 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		}
 
 		if rwt.changelogWatchEnabled {
-			if err := rwt.appendRelationshipChangelog(ctx, rel, mutation.Operation, changelogOrdinal, changelogTTL); err != nil {
+			if err := rwt.appendRelationshipChangelog(ctx, rel, mutation.Operation, rwt.nextChangelogOrdinal(), changelogTTL); err != nil {
 				return err
 			}
-			changelogOrdinal++
 		}
 	}
 

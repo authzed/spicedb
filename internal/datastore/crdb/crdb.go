@@ -358,6 +358,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 			hasNonExpiredDeletionChange: false,
 			changelogWatchEnabled:       cds.changelogWatchEnabled,
 			gcWindow:                    cds.gcWindow,
+			changelogOrdinal:            0,
 		}
 
 		if config.SchemaHashPrecondition != "" {
