@@ -35,6 +35,13 @@ func (srqf strictReaderQueryFuncs) QueryRowFunc(ctx context.Context, rowFunc fun
 	return srqf.rewriteError(srqf.wrapped.QueryRowFunc(ctx, rowFunc, srqf.addAssertToSelectSQL(sql), append([]any{pgx.QueryExecModeSimpleProtocol}, args...)...))
 }
 
+func (srqf strictReaderQueryFuncs) SendBatchFunc(ctx context.Context, batch *pgx.Batch, resultsFunc func(ctx context.Context, results pgx.BatchResults) error) error {
+	// The strict reader only wraps read paths, which do not batch. Delegate
+	// directly so the type still satisfies DBFuncQuerier; the strict-read
+	// assertion is not applied here as batching is never used for reads.
+	return srqf.rewriteError(srqf.wrapped.SendBatchFunc(ctx, batch, resultsFunc))
+}
+
 func (srqf strictReaderQueryFuncs) rewriteError(err error) error {
 	if err == nil {
 		return nil

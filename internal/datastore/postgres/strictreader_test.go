@@ -28,6 +28,10 @@ func (mc fakeQuerier) ExecFunc(_ context.Context, _ func(ctx context.Context, ta
 	return mc.err
 }
 
+func (mc fakeQuerier) SendBatchFunc(_ context.Context, _ *pgx.Batch, _ func(ctx context.Context, results pgx.BatchResults) error) error {
+	return mc.err
+}
+
 /*
 NOTE: these tests aren't in a tabular format because we want to
 assert require.ErrorsAs against different kinds of errors,

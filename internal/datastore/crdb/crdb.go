@@ -368,8 +368,16 @@ func (cds *crdbDatastore) ReadWriteTx(
 		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watch
 		//    changefeed that the transaction is not a deletion of expired relationships performed
 		//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
+		// Pipeline the metadata insert and the per-key overlap touches into a
+		// single batch: on CockroachDB each of these would otherwise be its own
+		// network round-trip to the gateway node, and a write can emit several
+		// overlap keys. The ordering within the batch is preserved server-side,
+		// so the overlap-key touches still land after the metadata insert.
 		metadata := config.Metadata.AsMap()
 		requiresMetadata := len(metadata) > 0 || (cds.watchEnabled && (config.IncludesExpiredAt || !rwt.hasNonExpiredDeletionChange))
+
+		tailBatch := &pgx.Batch{}
+
 		if requiresMetadata {
 			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
 			// for why this is necessary.
@@ -384,17 +392,26 @@ func (cds *crdbDatastore) ReadWriteTx(
 			if err != nil {
 				return fmt.Errorf("error building metadata insert: %w", err)
 			}
-
-			if _, err := tx.Exec(ctx, sql, args...); err != nil {
-				return fmt.Errorf("error writing metadata: %w", err)
-			}
+			tailBatch.Queue(sql, args...)
 		}
 
-		// Touching the transaction key happens last so that the "write intent" for
+		// Touching the transaction keys happens last so that the "write intent" for
 		// the transaction as a whole lands in a range for the affected tuples.
 		for k := range rwt.overlapKeySet {
-			if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
-				return fmt.Errorf("error writing overlapping keys: %w", err)
+			tailBatch.Queue(queryTouchTransaction, k)
+		}
+
+		if tailBatch.Len() > 0 {
+			queued := tailBatch.Len()
+			if err := querier.SendBatchFunc(ctx, tailBatch, func(ctx context.Context, results pgx.BatchResults) error {
+				for range queued {
+					if _, err := results.Exec(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
+				return fmt.Errorf("error writing transaction metadata and overlapping keys: %w", err)
 			}
 		}
 

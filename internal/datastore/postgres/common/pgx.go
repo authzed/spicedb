@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -220,6 +221,21 @@ type DBFuncQuerier interface {
 	ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error
 	QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error
 	QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error
+
+	// SendBatchFunc pipelines all statements queued on the batch in a single
+	// network flush, then invokes resultsFunc so the caller can read each result.
+	// The BatchResults are always closed after resultsFunc returns, even on error.
+	//
+	// On CockroachDB this collapses what would otherwise be one client<->gateway
+	// round-trip per statement into a single round-trip, which dominates the
+	// latency of multi-statement writes against a distributed cluster.
+	SendBatchFunc(ctx context.Context, batch *pgx.Batch, resultsFunc func(ctx context.Context, results pgx.BatchResults) error) error
+}
+
+// batchSender is the subset of pgx pools/connections/transactions that can
+// pipeline a batch. pgx.Tx, *pgxpool.Conn and *pgxpool.Pool all satisfy it.
+type batchSender interface {
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
 
 // PoolOptions is the set of configuration used for a pgx connection pool.
@@ -317,6 +333,24 @@ func (t *QuerierFuncs) QueryFunc(ctx context.Context, rowsFunc func(ctx context.
 
 func (t *QuerierFuncs) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
 	return rowFunc(ctx, t.d.QueryRow(ctx, sql, optionsAndArgs...))
+}
+
+func (t *QuerierFuncs) SendBatchFunc(ctx context.Context, batch *pgx.Batch, resultsFunc func(ctx context.Context, results pgx.BatchResults) error) error {
+	sender, ok := t.d.(batchSender)
+	if !ok {
+		return fmt.Errorf("underlying querier of type %T does not support batching", t.d)
+	}
+
+	results := sender.SendBatch(ctx, batch)
+	err := resultsFunc(ctx, results)
+
+	// Always close the BatchResults, even on error: if resultsFunc stopped early
+	// (e.g. a queued statement failed) the remaining results must still be drained
+	// or the connection is left in an unusable state.
+	if cerr := results.Close(); cerr != nil && err == nil {
+		err = cerr
+	}
+	return err
 }
 
 func QuerierFuncsFor(d Querier) DBFuncQuerier {

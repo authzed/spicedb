@@ -357,16 +357,19 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		}
 	}
 
+	// Pipeline the delete, create and touch statements into a single batch so
+	// they cost one client<->gateway round-trip instead of one per statement.
+	// This matters on CockroachDB, where each in-transaction statement is an
+	// independent network round-trip to a (potentially remote) gateway node.
+	batch := &pgx.Batch{}
+
 	if bulkDeleteCount > 0 {
 		bulkDelete = bulkDelete.Where(bulkDeleteOr)
 		sql, args, err := bulkDelete.ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
-
-		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
-		}
+		batch.Queue(sql, args...)
 	}
 
 	bulkUpdateQueries := make([]sq.InsertBuilder, 0, 2)
@@ -382,10 +385,23 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
+		batch.Queue(sql, args...)
+	}
 
-		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+	if batch.Len() == 0 {
+		return nil
+	}
+
+	queued := batch.Len()
+	if err := rwt.query.SendBatchFunc(ctx, batch, func(ctx context.Context, results pgx.BatchResults) error {
+		for range queued {
+			if _, err := results.Exec(); err != nil {
+				return err
+			}
 		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
 	return nil

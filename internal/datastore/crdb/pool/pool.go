@@ -211,6 +211,16 @@ func (p *RetryPool) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.C
 	})
 }
 
+// SendBatchFunc is a replacement for pgxpool.pgxPool.SendBatch that allows
+// resetting the connection on error, or retrying on a retryable error. The
+// entire batch is retried as a unit, which is only safe for idempotent batches
+// or batches run inside an enclosing retryable transaction.
+func (p *RetryPool) SendBatchFunc(ctx context.Context, batch *pgx.Batch, resultsFunc func(ctx context.Context, results pgx.BatchResults) error) error {
+	return p.withRetries(ctx, 0, func(conn *pgxpool.Conn) error {
+		return pgxcommon.QuerierFuncsFor(conn.Conn()).SendBatchFunc(ctx, batch, resultsFunc)
+	})
+}
+
 // BeginFunc is a replacement for pgxpool.BeginFunc that allows resetting
 // the connection on error, or retrying on a retryable error.
 func (p *RetryPool) BeginFunc(ctx context.Context, txFunc func(pgx.Tx) error) error {
