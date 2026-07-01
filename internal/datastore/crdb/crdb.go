@@ -196,6 +196,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		supportsIntegrity:            config.withIntegrity,
 		gcWindow:                     config.gcWindow,
 		watchEnabled:                 !config.watchDisabled,
+		changelogWatchEnabled:        config.changelogWatchEnabled,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
@@ -283,12 +284,13 @@ type crdbDatastore struct {
 	cachedFeatures *datastore.Features // GUARDED_BY(featuresLock)
 	featuresLock   sync.Mutex
 
-	pruneGroup           *errgroup.Group
-	ctx                  context.Context
-	cancel               context.CancelFunc
-	filterMaximumIDCount uint16
-	supportsIntegrity    bool
-	watchEnabled         bool
+	pruneGroup            *errgroup.Group
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	filterMaximumIDCount  uint16
+	supportsIntegrity     bool
+	watchEnabled          bool
+	changelogWatchEnabled bool
 
 	uniqueID atomic.Pointer[string]
 }
@@ -343,10 +345,11 @@ func (cds *crdbDatastore) ReadWriteTx(
 		}
 
 		rwt := &crdbReadWriteTXN{
-			reader,
-			tx,
-			0,
-			false,
+			crdbReader:                  reader,
+			tx:                          tx,
+			relCountChange:              0,
+			hasNonExpiredDeletionChange: false,
+			changelogWatchEnabled:       cds.changelogWatchEnabled,
 		}
 
 		if config.SchemaHashPrecondition != "" {

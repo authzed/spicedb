@@ -146,13 +146,14 @@ type Config struct {
 	RequestHedgingQuantile         float64       `debugmap:"visible"`
 
 	// CRDB
-	FollowerReadDelay         time.Duration `debugmap:"visible" default:"4800ms"`
-	MaxRetries                int           `debugmap:"visible" default:"10"`
-	OverlapKey                string        `debugmap:"visible" default:"key"`
-	OverlapStrategy           string        `debugmap:"visible" default:"static"`
-	EnableConnectionBalancing bool          `debugmap:"visible" default:"true"`
-	ConnectRate               time.Duration `debugmap:"visible" default:"100ms"`
-	WriteAcquisitionTimeout   time.Duration `debugmap:"visible" default:"30ms"`
+	FollowerReadDelay              time.Duration `debugmap:"visible" default:"4800ms"`
+	MaxRetries                     int           `debugmap:"visible" default:"10"`
+	OverlapKey                     string        `debugmap:"visible" default:"key"`
+	OverlapStrategy                string        `debugmap:"visible" default:"static"`
+	EnableConnectionBalancing      bool          `debugmap:"visible" default:"true"`
+	ConnectRate                    time.Duration `debugmap:"visible" default:"100ms"`
+	WriteAcquisitionTimeout        time.Duration `debugmap:"visible" default:"30ms"`
+	ExperimentalCRDBChangelogWatch bool          `debugmap:"visible" default:"false"`
 
 	// Postgres
 	GCInterval            time.Duration `debugmap:"visible" default:"3m"`
@@ -347,6 +348,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), DefaultFollowerReadDelay, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only)")
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
 	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", "strategy to generate transaction overlap keys (\"request\", \"prefix\", \"static\", \"insecure\") (CockroachDB driver only - see "+sharederrors.CrdbOverlapErrorLink+" for details)")
+	flagSet.BoolVar(&opts.ExperimentalCRDBChangelogWatch, flagName("datastore-experimental-crdb-changelog-watch"), false, "EXPERIMENTAL: use a dual-written changelog table polled at a closed timestamp for Watch instead of a changefeed (CockroachDB driver only). Keeps Watch advancing during bulk loads at the cost of write latency.")
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only)")
 	flagSet.BoolVar(&opts.EnableConnectionBalancing, flagName("datastore-connection-balancing"), defaults.EnableConnectionBalancing, "enable connection balancing between database nodes (CockroachDB driver only)")
 	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 100*time.Millisecond, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only)")
@@ -425,6 +427,7 @@ func DefaultDatastoreConfig() *Config {
 		MaxRetries:                       10,
 		OverlapKey:                       "key",
 		OverlapStrategy:                  "static",
+		ExperimentalCRDBChangelogWatch:   false,
 		ConnectRate:                      100 * time.Millisecond,
 		EnableConnectionBalancing:        true,
 		GCInterval:                       3 * time.Minute,
@@ -657,6 +660,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 		crdb.WithWatchDisabled(opts.DisableWatchSupport),
+		crdb.ExperimentalChangelogWatch(opts.ExperimentalCRDBChangelogWatch),
 	)
 }
 

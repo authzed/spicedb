@@ -35,6 +35,7 @@ type crdbOptions struct {
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 	watchDisabled                  bool
+	changelogWatchEnabled          bool
 	acquireTimeout                 time.Duration
 }
 
@@ -423,4 +424,12 @@ func WithWatchDisabled(isDisabled bool) Option {
 // from the pool with Try* methods before applying backpressure.
 func WithAcquireTimeout(timeout time.Duration) Option {
 	return func(po *crdbOptions) { po.acquireTimeout = timeout }
+}
+
+// ExperimentalChangelogWatch enables the experimental changelog-table Watch
+// path for CockroachDB: writes dual-write into a relationship_changelog table
+// and Watch polls that table at a closed timestamp instead of using a
+// changefeed. Defaults to off.
+func ExperimentalChangelogWatch(enabled bool) Option {
+	return func(po *crdbOptions) { po.changelogWatchEnabled = enabled }
 }

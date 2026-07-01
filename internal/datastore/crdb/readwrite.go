@@ -52,6 +52,7 @@ type crdbReadWriteTXN struct {
 	tx                          pgx.Tx
 	relCountChange              int64
 	hasNonExpiredDeletionChange bool
+	changelogWatchEnabled       bool
 }
 
 var (
