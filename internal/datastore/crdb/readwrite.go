@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast/v2"
@@ -53,6 +54,7 @@ type crdbReadWriteTXN struct {
 	relCountChange              int64
 	hasNonExpiredDeletionChange bool
 	changelogWatchEnabled       bool
+	gcWindow                    time.Duration
 }
 
 var (
@@ -288,6 +290,12 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	bulkDeleteOr := sq.Or{}
 	var bulkDeleteCount int64
 
+	var changelogTTL time.Time
+	if rwt.changelogWatchEnabled {
+		changelogTTL = time.Now().Add(rwt.gcWindow).Add(1 * time.Minute)
+	}
+	changelogOrdinal := 0
+
 	// Process the actual updates
 	for _, mutation := range mutations {
 		rel := mutation.Relationship
@@ -355,6 +363,13 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		default:
 			log.Ctx(ctx).Error().Msg("unknown operation type")
 			return fmt.Errorf("unknown mutation operation: %v", mutation.Operation)
+		}
+
+		if rwt.changelogWatchEnabled {
+			if err := rwt.appendRelationshipChangelog(ctx, rel, mutation.Operation, changelogOrdinal, changelogTTL); err != nil {
+				return err
+			}
+			changelogOrdinal++
 		}
 	}
 
