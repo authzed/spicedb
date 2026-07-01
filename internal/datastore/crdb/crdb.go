@@ -651,14 +651,7 @@ func (cds *crdbDatastore) readTransactionCommitRev(ctx context.Context, reader p
 	ctx, span := tracer.Start(ctx, "readTransactionCommitRev")
 	defer span.End()
 
-	var hlcNow decimal.Decimal
-	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-		return row.Scan(&hlcNow)
-	}, cds.transactionNowQuery); err != nil {
-		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
-	}
-
-	return revisions.NewForHLC(hlcNow)
+	return revisions.NewHLCForTime(time.Now()), nil
 }
 
 func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
