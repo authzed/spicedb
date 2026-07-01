@@ -4,6 +4,9 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/log"
+	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,12 +34,9 @@ import (
 func TestServe(t *testing.T) {
 	requireParent := require.New(t)
 
-	// TODO:
 	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
 		sdbtestcontainer.WithBootstrapSchema(defaultSchema),
-		testcontainers.WithEnv(map[string]string{
-			"SPICEDB_GRPC_PRESHARED_KEY": "firstkey,secondkey",
-		}),
+		sdbtestcontainer.WithPresharedKeys("firstkey", "secondkey"),
 	)
 	requireParent.NoError(err)
 	testcontainers.CleanupContainer(t, container)
@@ -45,7 +47,6 @@ func TestServe(t *testing.T) {
 		"secondkey":  true,
 		"anotherkey": false,
 	} {
-		key := key
 		t.Run(key, func(t *testing.T) {
 			require := require.New(t)
 
@@ -156,8 +157,12 @@ func TestGracefulShutdown(t *testing.T) {
 		t.Run(driverName, func(t *testing.T) {
 			ctx := t.Context()
 
-			// TODO: supply a network?
-			engine := testdatastore.RunDatastoreEngine(t, driverName)
+			// Create an internal network
+			net, err := network.New(ctx)
+			testcontainers.CleanupNetwork(t, net)
+			require.NoError(t, err)
+
+			engine := testdatastore.RunDatastoreEngine(t, driverName, network.WithNetwork([]string{driverName}, net))
 
 			// TODO: figure out what's going on here
 			envVars := map[string]string{}
@@ -172,42 +177,60 @@ func TestGracefulShutdown(t *testing.T) {
 
 			db := engine.NewDatabase(t)
 
+			envVars["SPICEDB_DATASTORE_ENGINE"] = driverName
+			envVars["SPICEDB_DATASTORE_CONN_URI"] = internalConnString(t, db, driverName)
+
+			// if the driver is spanner, we need to set the environment variable that it
+			// reaches for within the container.
+			if driverName == "spanner" {
+				envVars["SPANNER_EMULATOR_HOST"] = fmt.Sprintf("spanner:%s", engineDefaultPortMap["spanner"])
+			}
+
+			// if the driver is mysql, we handle it separately, because the DSN for it
+			// isn't a normal URL and has a `tcp(localhost:xxxx)` block in it. We need
+			// to point that at the internal network.
+			if driverName == "mysql" {
+				envVars["SPICEDB_DATASTORE_CONN_URI"] = regexp.MustCompile(`localhost:\d+`).ReplaceAllString(db, fmt.Sprintf("%s:%s", driverName, engineDefaultPortMap["mysql"]))
+			}
+
 			// Run the migrate command and wait for it to complete.
-			// TODO: figure out what the CI tag is
-			migrateContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+			migrateContainer, err := testcontainers.Run(ctx, ciImage,
+				network.WithNetwork([]string{"migrate"}, net),
+				testcontainers.WithLogger(log.TestLogger(t)),
 				testcontainers.WithCmd("migrate", "head"),
-				testcontainers.WithEnv(map[string]string{
-					"SPICEDB_DATASTORE_ENGINE":   driverName,
-					"SPICEDB_DATASTORE_CONN_URI": db,
-				}),
+				testcontainers.WithEnv(envVars),
 				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
 			)
 			require.NoError(t, err)
 			testcontainers.CleanupContainer(t, migrateContainer)
 
 			// Ensure the command completed successfully.
-			exitCode, err := migrateContainer.State(ctx)
+			containerState, err := migrateContainer.State(ctx)
+			if containerState.ExitCode != 0 {
+				logReader, err := migrateContainer.Logs(t.Context())
+				require.NoError(t, err)
+				out, err := io.ReadAll(logReader)
+				require.NoError(t, err)
+				t.Log("Container logs:")
+				t.Log(string(out))
+			}
 			require.NoError(t, err)
-			require.Equal(t, 0, exitCode.ExitCode)
+			require.Equal(t, 0, containerState.ExitCode)
 
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
 			ww := &logWaiter{c: make(chan bool, 1), expectedString: "running garbage collection worker"}
-			serveReq := testcontainers.ContainerRequest{
-				Image: "authzed/spicedb:ci",
-				Cmd:   []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", ""},
-				Env:   envVars,
-			}
-			if awaitGC {
-				// Consume logs so we can ensure GC has run before starting a graceful shutdown.
-				serveReq.LogConsumerCfg = &testcontainers.LogConsumerConfig{
-					Consumers: []testcontainers.LogConsumer{ww},
-				}
-			}
 
-			serveContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-				ContainerRequest: serveReq,
-				Started:          true,
-			})
+			// Set the gc interval to 1s so we have something to look for in logs
+			envVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"
+
+			serveContainer, err := sdbtestcontainer.Run(ctx, ciImage,
+				network.WithNetwork([]string{"spicedb"}, net),
+				testcontainers.WithLogger(log.TestLogger(t)),
+				testcontainers.WithEnv(envVars),
+				testcontainers.WithLogConsumerConfig(&testcontainers.LogConsumerConfig{
+					Consumers: []testcontainers.LogConsumer{ww},
+				}),
+			)
 			require.NoError(t, err)
 			testcontainers.CleanupContainer(t, serveContainer)
 

@@ -49,6 +49,10 @@ func TestTestServer(t *testing.T) {
 	container, err := sdbtestcontainer.Run(t.Context(), ciImage,
 		defaultSchemaOption,
 		testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
+		sdbtestcontainer.WithHTTP(),
+		testcontainers.WithEnv(map[string]string{
+			"SPICEDB_READONLY_HTTP_ENABLED": "true",
+		}),
 		testcontainers.WithCmd("serve-testing"),
 	)
 	require.NoError(err)
@@ -65,7 +69,10 @@ func TestTestServer(t *testing.T) {
 	})
 
 	containerHost, err := container.Host(t.Context())
-	readOnlyGRPCEndpoint := net.JoinHostPort(containerHost, readOnlyGRPCPort)
+	require.NoError(err)
+	roMapped, err := container.MappedPort(t.Context(), "50052/tcp")
+	require.NoError(err)
+	readOnlyGRPCEndpoint := net.JoinHostPort(containerHost, roMapped.Port())
 	require.NoError(err)
 	roConn, err := grpc.NewClient(readOnlyGRPCEndpoint, options...)
 	require.NoError(err)
@@ -162,7 +169,6 @@ func TestTestServer(t *testing.T) {
 
 	// Make an HTTP call and ensure it succeeds.
 	httpEndpoint := container.HTTPEndpoint()
-	require.NoError(err)
 	readURL := fmt.Sprintf("http://%s/v1/schema/read", httpEndpoint)
 	req, err := http.NewRequest("POST", readURL, nil)
 	require.NoError(err)
@@ -182,17 +188,19 @@ func TestTestServer(t *testing.T) {
 	require.Contains(string(body), "definition resource")
 
 	// Attempt to write to the read only HTTP and ensure it fails.
-	readOnlyHTTPEndpoint := net.JoinHostPort(containerHost, readOnlyHTTPPort)
+	roHTTPMapped, err := container.MappedPort(t.Context(), "8444/tcp")
+	require.NoError(err)
+	readOnlyHTTPEndpoint := net.JoinHostPort(containerHost, roHTTPMapped.Port())
 	writeURL := fmt.Sprintf("http://%s/v1/schema/write", readOnlyHTTPEndpoint)
 	requestBody := strings.NewReader(`{
 		"schemaText": "definition user {}\ndefinition resource {\nrelation reader: user\nrelation writer: user\nrelation foobar: user\n}"
 	}`)
 	//nolint:gosec  // this is test code
 	wresp, err := http.Post(writeURL, "application/json", requestBody)
+	require.NoError(err)
 	t.Cleanup(func() {
 		_ = wresp.Body.Close()
 	})
-	require.NoError(err)
 	require.Equal(503, wresp.StatusCode)
 
 	body, err = io.ReadAll(wresp.Body)

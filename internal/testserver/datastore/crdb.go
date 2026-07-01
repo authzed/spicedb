@@ -47,6 +47,7 @@ func RunCRDBForTesting(t testing.TB, crdbVersion string, opts ...testcontainers.
 	require.NoError(t, err)
 	require.Equal(t, 0, code)
 
+	// TODO: why is this needed? can't we just use the conn string?
 	host, err := container.Host(ctx)
 	require.NoError(t, err)
 	mappedPort, err := container.MappedPort(ctx, "26257/tcp")

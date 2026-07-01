@@ -87,6 +87,12 @@ func Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustom
 			return nil, fmt.Errorf("generate preshared key: %w", err)
 		}
 		cfg.presharedKeys = []string{key}
+	} else {
+		for _, key := range cfg.presharedKeys {
+			if strings.Contains(key, ",") {
+				return nil, errors.New("cannot provide a preshared key that contains a comma - it's interpreted as two keys by SpiceDB")
+			}
+		}
 	}
 
 	exposed := []string{grpcPort}

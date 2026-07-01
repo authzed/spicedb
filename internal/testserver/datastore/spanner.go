@@ -29,12 +29,18 @@ type spannerTest struct {
 }
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
-func RunSpannerForTesting(t testing.TB, targetMigration string) RunningEngineForTest {
+func RunSpannerForTesting(t testing.TB, targetMigration string, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
 	ctx := t.Context()
 
-	container, err := testcontainers.Run(ctx, "gcr.io/cloud-spanner-emulator/emulator:1.5.41",
+	options := make([]testcontainers.ContainerCustomizer, 0, len(opts)+2)
+	options = append(options, 
 		testcontainers.WithExposedPorts("9010/tcp"),
 		testcontainers.WithWaitStrategy(wait.ForListeningPort("9010/tcp").WithStartupTimeout(time.Minute)),
+	)
+	options = append(options, opts...)
+
+	container, err := testcontainers.Run(ctx, "gcr.io/cloud-spanner-emulator/emulator:1.5.41",
+		options...
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)

@@ -46,8 +46,8 @@ type MySQLTesterOptions struct {
 
 // RunMySQLForTesting returns a RunningEngineForTest for the mysql driver
 // backed by a MySQL instance with RunningEngineForTest options - no prefix is added, and datastore migration is run.
-func RunMySQLForTesting(t testing.TB) RunningEngineForTest {
-	return RunMySQLForTestingWithOptions(t, MySQLTesterOptions{Prefix: "", MigrateForNewDatastore: true})
+func RunMySQLForTesting(t testing.TB, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
+	return RunMySQLForTestingWithOptions(t, MySQLTesterOptions{Prefix: "", MigrateForNewDatastore: true}, opts...)
 }
 
 //go:embed config/mysql.cnf
@@ -55,12 +55,11 @@ var mysqlConf []byte
 
 // RunMySQLForTestingWithOptions returns a RunningEngineForTest for the mysql driver
 // backed by a MySQL instance, while allowing options to be forwarded
-func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) RunningEngineForTest {
+func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
 	ctx := t.Context()
 
-	image := "mirror.gcr.io/library/mysql:" + version.MinimumSupportedMySQLVersion
-	container, err := mysql.Run(ctx,
-		image,
+	containerOptions := make([]testcontainers.ContainerCustomizer, 0, len(opts)+3)
+	containerOptions = append(containerOptions, 
 		// NOTE: we're doing this instead of using mysql.WithConfigFile
 		// because this function is invoked from more places than just
 		// this file, which means that embedding is easier than providing
@@ -73,6 +72,13 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions) Run
 		mysql.WithDatabase(initialDB),
 		// Sets MYSQL_ROOT_PASSWORD so we can connect as root below.
 		mysql.WithPassword(mysqlRootPassword),
+	)
+	containerOptions = append(containerOptions, opts...)
+
+	image := "mirror.gcr.io/library/mysql:" + version.MinimumSupportedMySQLVersion
+	container, err := mysql.Run(ctx,
+		image,
+		containerOptions...
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)

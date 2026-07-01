@@ -3,9 +3,10 @@
 package integration_test
 
 import (
+	"fmt"
+	"io"
 	"maps"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,33 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
+
+// This is needed because the containers speak over their
+// default ports, not over the host-mapped ports that the
+// container exposes.
+var engineDefaultPortMap = map[string]string{
+	"cockroachdb": "26257",
+	"postgres":    "5432",
+	"mysql":       "3306",
+	"spanner":     "9010",
+}
+
+func internalConnString(t testing.TB, dbConnString, driverName string) string {
+	t.Helper()
+	dbURL, err := url.Parse(dbConnString)
+	require.NoError(t, err)
+	defaultPort, ok := engineDefaultPortMap[driverName]
+	require.True(t, ok, "missing default port for %s", driverName)
+	// NOTE: we need to replace this because the migrate container
+	// lives on the same network as the DB container - it uses
+	// the internal hostname and port.
+	// We ignore the case where the host is unset because that's spanner
+	// and spanner is a special child.
+	if dbURL.Host != "" {
+		dbURL.Host = fmt.Sprintf("%s:%s", driverName, defaultPort)
+	}
+	return dbURL.String()
+}
 
 func TestSchemaWatch(t *testing.T) {
 	engines := map[string]bool{
@@ -43,10 +71,11 @@ func TestSchemaWatch(t *testing.T) {
 			testcontainers.CleanupNetwork(t, net)
 			require.NoError(t, err)
 
-			// This is the part that needs access to the network. ugh.
-			// TODO: it's unclear whether host networking is sufficient here,
-			// or if we need to set up a network for these things to talk to each other.
-			engine := testdatastore.RunDatastoreEngine(t, driverName)
+			engine := testdatastore.RunDatastoreEngine(t,
+				driverName,
+				// Pass in a network so that the spicedb and migrate containers
+				// can talk to the database container
+				network.WithNetwork([]string{driverName}, net))
 
 			envVars := map[string]string{}
 			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
@@ -59,21 +88,14 @@ func TestSchemaWatch(t *testing.T) {
 			}
 
 			db := engine.NewDatabase(t)
-			dbURL, err := url.Parse(db)
-			require.NoError(t, err)
-			portString := dbURL.Port()
-			port, err := strconv.Atoi(portString)
-			require.NoError(t, err)
-			dbURL.Host = testcontainers.HostInternal+":"+string(portString)
-			require.NoError(t, err)
 
 			envVars["SPICEDB_DATASTORE_ENGINE"] = driverName
-			envVars["SPICEDB_DATASTORE_CONN_URI"] = dbURL.String()
+			envVars["SPICEDB_DATASTORE_CONN_URI"] = internalConnString(t, db, driverName)
 
 			// Run the migrate command and wait for it to complete.
 			migrateContainer, err := testcontainers.Run(ctx, ciImage,
+				network.WithNetwork([]string{"migrate"}, net),
 				testcontainers.WithLogger(log.TestLogger(t)),
-				testcontainers.WithHostPortAccess(port),
 				testcontainers.WithCmd("migrate", "head"),
 				testcontainers.WithEnv(envVars),
 				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
@@ -82,9 +104,17 @@ func TestSchemaWatch(t *testing.T) {
 			testcontainers.CleanupContainer(t, migrateContainer)
 
 			// Ensure the command completed successfully.
-			exitCode, err := migrateContainer.State(ctx)
+			containerState, err := migrateContainer.State(ctx)
+			if containerState.ExitCode != 0 {
+				logReader, err := migrateContainer.Logs(t.Context())
+				require.NoError(t, err)
+				out, err := io.ReadAll(logReader)
+				require.NoError(t, err)
+				t.Log("Container logs:")
+				t.Log(string(out))
+			}
 			require.NoError(t, err)
-			require.Equal(t, 0, exitCode.ExitCode)
+			require.Equal(t, 0, containerState.ExitCode)
 			t.Log("finished migrating")
 
 			spicedbEnvVars := make(map[string]string)
@@ -97,7 +127,7 @@ func TestSchemaWatch(t *testing.T) {
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
 			// Consume logs so we can ensure schema watch has started before graceful shutdown.
 			ww := &logWaiter{c: make(chan bool, 1), expectedString: "starting watching cache"}
-			serveContainer, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+			serveContainer, err := sdbtestcontainer.Run(ctx, ciImage,
 				network.WithNetwork([]string{"spicedb"}, net),
 				testcontainers.WithLogConsumerConfig(&testcontainers.LogConsumerConfig{
 					Consumers: []testcontainers.LogConsumer{ww},

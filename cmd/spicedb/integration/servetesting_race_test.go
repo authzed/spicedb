@@ -25,9 +25,11 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 	bootstrapReader := strings.NewReader(bootstrapContents)
 	containerFilePath := "/mnt/spicedb_bootstrap.yaml"
 	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
+		testcontainers.WithCmd("serve-testing"),
 		testcontainers.WithFiles(testcontainers.ContainerFile{
 			Reader:            bootstrapReader,
 			ContainerFilePath: containerFilePath,
+			FileMode:          0o644,
 		}),
 		testcontainers.WithEnv(map[string]string{
 			"SPICEDB_LOAD_CONFIGS": containerFilePath,
