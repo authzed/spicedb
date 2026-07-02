@@ -1933,7 +1933,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(crdb_client_resets_count{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(crdb_client_resets_sum{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "resets/sec ({{instance}})",
               "range": true,
               "refId": "A"
