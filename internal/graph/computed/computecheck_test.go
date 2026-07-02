@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -933,6 +934,89 @@ func TestComputeBulkCheck(t *testing.T) {
 	require.Equal(t, v1.ResourceCheckResult_MEMBER, resp["first"].Membership)
 	require.Equal(t, v1.ResourceCheckResult_CAVEATED_MEMBER, resp["second"].Membership)
 	require.Equal(t, v1.ResourceCheckResult_NOT_MEMBER, resp["third"].Membership)
+}
+
+// TestComputeCheckTraceTimingAndDatastoreQueries verifies that, with trace
+// debugging enabled, every node of the dispatch trace carries a wall-clock
+// start_time and that the datastore reads issued during the check are attributed
+// to nodes as DatastoreQuery events. The memdb datastore is wrapped in the
+// observable proxy here, mirroring the production datastore chain.
+func TestComputeCheckTraceTimingAndDatastoreQueries(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+	req.NoError(err)
+	ds := proxy.NewObservableDatastoreProxy(rawDS)
+
+	dispatch, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+	req.NoError(err)
+	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+	req.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+
+	revision, err := writeCaveatedTuples(ctx, t, ds, `
+	definition user {}
+
+	definition group {
+		relation member: user
+	}
+
+	definition document {
+		relation viewer: user | group#member
+		permission view = viewer
+	}
+	`, []caveatedUpdate{
+		{tuple.UpdateOperationCreate, "document:foo#viewer@group:eng#member", "", nil},
+		{tuple.UpdateOperationCreate, "group:eng#member@user:tom", "", nil},
+	})
+	req.NoError(err)
+
+	results, _, debugInfos, err := computed.ComputeBulkCheck(ctx, dispatch,
+		caveattypes.Default.TypeSet,
+		computed.CheckParameters{
+			ResourceType: tuple.RR("document", "view"),
+			Subject:      tuple.ONR("user", "tom", "..."),
+			AtRevision:   revision,
+			MaximumDepth: 50,
+			DebugOption:  computed.TraceDebuggingEnabled,
+			SchemaHash:   datalayer.NoSchemaHashForTesting,
+		},
+		[]string{"foo"},
+		100,
+	)
+	req.NoError(err)
+	req.Equal(v1.ResourceCheckResult_MEMBER, results["foo"].Membership)
+	req.NotEmpty(debugInfos)
+
+	var nodeCount, queryCount int
+	var walk func(tr *v1.CheckDebugTrace)
+	walk = func(tr *v1.CheckDebugTrace) {
+		if tr == nil {
+			return
+		}
+		nodeCount++
+
+		// Cached nodes have no request and don't re-stamp timing; skip them.
+		if !tr.IsCachedResult && tr.Request != nil {
+			req.NotNil(tr.StartTime, "every executed check node must carry a start_time")
+		}
+
+		for _, q := range tr.DatastoreQueries {
+			queryCount++
+			req.NotEmpty(q.QueryShape)
+			req.NotNil(q.StartTime, "datastore query must have a start_time")
+			req.NotNil(q.Duration, "datastore query must have a duration")
+		}
+
+		for _, sp := range tr.SubProblems {
+			walk(sp)
+		}
+	}
+	for _, di := range debugInfos {
+		walk(di.Check)
+	}
+
+	req.Positive(nodeCount)
+	req.Positive(queryCount, "expected at least one datastore query attributed in the trace")
 }
 
 func writeCaveatedTuples(ctx context.Context, _ *testing.T, ds datastore.Datastore, schema string, updates []caveatedUpdate) (datastore.Revision, error) {

@@ -13,7 +13,10 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/internal/dstrace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -358,6 +361,90 @@ func TestObservableProxy_ReaderMethodsWithMetrics(t *testing.T) {
 			readerMock.AssertExpectations(t)
 		})
 	}
+}
+
+func TestObservableProxy_RecordsDatastoreQueriesToCollector(t *testing.T) {
+	t.Run("QueryRelationships", func(t *testing.T) {
+		dsMock, readerMock, _ := newMocks()
+		twoRelIter := datastore.RelationshipIterator(func(yield func(tuple.Relationship, error) bool) {
+			if !yield(tuple.MustParse("document:1#viewer@user:1"), nil) {
+				return
+			}
+			yield(tuple.MustParse("document:1#viewer@user:2"), nil)
+		})
+		readerMock.On("QueryRelationships", datastore.RelationshipsFilter{OptionalResourceType: "document"}, mock.Anything).
+			Return(twoRelIter, nil).Once()
+
+		sut := NewObservableDatastoreProxy(dsMock)
+		ctx, collector := dstrace.WithCollector(t.Context())
+
+		iter, err := sut.SnapshotReader(testRev).QueryRelationships(
+			ctx,
+			datastore.RelationshipsFilter{OptionalResourceType: "document"},
+			options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
+		)
+		require.NoError(t, err)
+		for range iter {
+		}
+
+		queries := collector.Queries()
+		require.Len(t, queries, 1)
+		require.Equal(t, string(queryshape.CheckPermissionSelectDirectSubjects), queries[0].QueryShape)
+		require.Equal(t, uint64(2), queries[0].RelationshipCount)
+		require.NotNil(t, queries[0].StartTime)
+		require.NotNil(t, queries[0].Duration)
+
+		dsMock.AssertExpectations(t)
+		readerMock.AssertExpectations(t)
+	})
+
+	t.Run("ReverseQueryRelationships", func(t *testing.T) {
+		dsMock, readerMock, _ := newMocks()
+		oneRelIter := datastore.RelationshipIterator(func(yield func(tuple.Relationship, error) bool) {
+			yield(tuple.MustParse("document:1#viewer@user:1"), nil)
+		})
+		readerMock.On("ReverseQueryRelationships", datastore.SubjectsFilter{SubjectType: "user"}, mock.Anything).
+			Return(oneRelIter, nil).Once()
+
+		sut := NewObservableDatastoreProxy(dsMock)
+		ctx, collector := dstrace.WithCollector(t.Context())
+
+		iter, err := sut.SnapshotReader(testRev).ReverseQueryRelationships(
+			ctx,
+			datastore.SubjectsFilter{SubjectType: "user"},
+			options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+		)
+		require.NoError(t, err)
+		for range iter {
+		}
+
+		queries := collector.Queries()
+		require.Len(t, queries, 1)
+		require.Equal(t, string(queryshape.MatchingResourcesForSubject), queries[0].QueryShape)
+		require.Equal(t, uint64(1), queries[0].RelationshipCount)
+
+		dsMock.AssertExpectations(t)
+		readerMock.AssertExpectations(t)
+	})
+
+	t.Run("no collector is a no-op", func(t *testing.T) {
+		dsMock, readerMock, _ := newMocks()
+		iter := datastore.RelationshipIterator(func(yield func(tuple.Relationship, error) bool) {
+			yield(tuple.MustParse("document:1#viewer@user:1"), nil)
+		})
+		readerMock.On("QueryRelationships", datastore.RelationshipsFilter{OptionalResourceType: "document"}).
+			Return(iter, nil).Once()
+
+		sut := NewObservableDatastoreProxy(dsMock)
+		got, err := sut.SnapshotReader(testRev).QueryRelationships(
+			t.Context(), datastore.RelationshipsFilter{OptionalResourceType: "document"})
+		require.NoError(t, err)
+		for range got {
+		}
+
+		dsMock.AssertExpectations(t)
+		readerMock.AssertExpectations(t)
+	})
 }
 
 func TestObservableProxy_RWTMethodsWithMetrics(t *testing.T) {
