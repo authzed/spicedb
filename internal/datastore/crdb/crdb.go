@@ -144,6 +144,13 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		config.gcWindow = time.Duration(clusterTTLNanos) * time.Nanosecond
 	}
 
+	// If watch is enabled, ensure the relationship tables suppress row-level TTL
+	// deletes from changefeeds, so that the Watch API does not emit deletions
+	// performed by CockroachDB's TTL job for expired relationships.
+	if !config.watchDisabled {
+		ensureTTLChangefeedReplicationDisabled(initCtx, initPool, version)
+	}
+
 	keySetInit := newKeySet
 	var keyer overlapKeyer
 	switch config.overlapStrategy {
@@ -346,7 +353,6 @@ func (cds *crdbDatastore) ReadWriteTx(
 			reader,
 			tx,
 			0,
-			false,
 		}
 
 		if config.SchemaHashPrecondition != "" {
@@ -359,22 +365,10 @@ func (cds *crdbDatastore) ReadWriteTx(
 			return err
 		}
 
-		// A transaction metadata entry is required if either:
-		// 1) len(metadata) > 0, which requires writing the metadata provided
-		// 2) metadata is required to mark the transaction as not matching
-		//    a deletion of expired relationships.
-		//
-		//    A transaction is marked as such IF and only IF the operations in the transaction
-		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watch
-		//    changefeed that the transaction is not a deletion of expired relationships performed
-		//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
+		// If the user supplied transaction metadata, write it to the metadata
+		// table so the Watch API can attach it to the revision's changes.
 		metadata := config.Metadata.AsMap()
-		requiresMetadata := len(metadata) > 0 || (cds.watchEnabled && (config.IncludesExpiredAt || !rwt.hasNonExpiredDeletionChange))
-		if requiresMetadata {
-			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
-			// for why this is necessary.
-			metadata[spicedbTransactionKey] = true
-
+		if len(metadata) > 0 {
 			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
 			insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
 				Columns(schema.ColExpiresAt, schema.ColMetadata).

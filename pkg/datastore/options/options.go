@@ -124,9 +124,8 @@ type ResourceRelation struct {
 // RWTOptions are options that can affect the way a read-write transaction is
 // executed.
 type RWTOptions struct {
-	DisableRetries    bool             `debugmap:"visible"`
-	Metadata          *structpb.Struct `debugmap:"visible"`
-	IncludesExpiredAt bool             `debugmap:"visible"`
+	DisableRetries bool             `debugmap:"visible"`
+	Metadata       *structpb.Struct `debugmap:"visible"`
 	// SchemaHashPrecondition, when non-empty, causes ReadWriteTx to verify the
 	// stored schema hash equals this value before invoking the user callback.
 	// Returns ErrSchemaHashPreconditionFailed if the hash differs.

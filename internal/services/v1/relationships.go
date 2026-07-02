@@ -371,8 +371,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		)
 	}
 
-	includesExpiresAt := false
-
 	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
@@ -396,10 +394,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				ctx,
 				errors.New("support for expiring relationships is not enabled"),
 			)
-		}
-
-		if update.Relationship.OptionalExpiresAt != nil {
-			includesExpiresAt = true
 		}
 	}
 	span.AddEvent(otelconv.EventRelationshipsMutationsValidated)
@@ -450,7 +444,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		errWrite := rwt.WriteRelationships(ctx, relUpdates)
 		span.AddEvent(otelconv.EventRelationshipsWritten)
 		return errWrite
-	}, options.WithMetadata(req.OptionalTransactionMetadata), options.WithIncludesExpiredAt(includesExpiresAt))
+	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	span.AddEvent(otelconv.EventRelationshipsReadWriteExecuted)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)

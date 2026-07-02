@@ -49,9 +49,8 @@ var (
 
 type crdbReadWriteTXN struct {
 	*crdbReader
-	tx                          pgx.Tx
-	relCountChange              int64
-	hasNonExpiredDeletionChange bool
+	tx             pgx.Tx
+	relCountChange int64
 }
 
 var (
@@ -175,8 +174,6 @@ func (rwt *crdbReadWriteTXN) queryTouchTuple() sq.InsertBuilder {
 }
 
 func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
-	rwt.hasNonExpiredDeletionChange = true
-
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
@@ -216,8 +213,6 @@ func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, name string, f
 }
 
 func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
-	rwt.hasNonExpiredDeletionChange = true
-
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
@@ -242,8 +237,6 @@ func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, name string)
 }
 
 func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
-	rwt.hasNonExpiredDeletionChange = true
-
 	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
@@ -290,10 +283,6 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	// Process the actual updates
 	for _, mutation := range mutations {
 		rel := mutation.Relationship
-
-		if mutation.Operation != tuple.UpdateOperationDelete {
-			rwt.hasNonExpiredDeletionChange = true
-		}
 
 		var caveatContext map[string]any
 		var caveatName string
@@ -482,8 +471,6 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 }
 
 func (rwt *crdbReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
-	rwt.hasNonExpiredDeletionChange = true
-
 	query := queryWriteNamespace
 
 	for _, newConfig := range newConfigs {
@@ -512,8 +499,6 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames
 	if len(nsNames) == 0 {
 		return nil
 	}
-
-	rwt.hasNonExpiredDeletionChange = true
 
 	querier := pgxcommon.QuerierFuncsFor(rwt.tx)
 	// For each namespace, check they exist and collect predicates for the
@@ -591,8 +576,6 @@ var copyColsWithIntegrity = []string{
 }
 
 func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
-	rwt.hasNonExpiredDeletionChange = true
-
 	if rwt.withIntegrity {
 		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyColsWithIntegrity, iter)
 	}
