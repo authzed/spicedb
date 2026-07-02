@@ -249,6 +249,51 @@ func TestWarnings(t *testing.T) {
 			`,
 			expectedWarning: nil,
 		},
+		{
+			name:   "mixed operators exclusion and intersection",
+			schema: "definition user {}\ndefinition doc {\nrelation viewer: user\nrelation editor: user\nrelation blocked: user\npermission view = viewer - blocked & editor\n}",
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       6,
+				Column:     28,
+				SourceCode: "view",
+			},
+		},
+		{
+			name:   "mixed operators union and exclusion",
+			schema: "definition user {}\ndefinition doc {\nrelation a1a: user\nrelation b1b: user\nrelation c1c: user\npermission view = a1a + b1b - c1c\n}",
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       6,
+				Column:     19,
+				SourceCode: "view",
+			},
+		},
+		{
+			name:            "mixed operators with explicit parentheses",
+			schema:          "definition user {}\ndefinition doc {\nrelation a1a: user\nrelation b1b: user\nrelation c1c: user\npermission view = (a1a - b1b) & c1c\n}",
+			expectedWarning: nil,
+		},
+		{
+			name:   "mixed operators within nested parentheses",
+			schema: "definition user {}\ndefinition doc {\nrelation a1a: user\nrelation b1b: user\nrelation c1c: user\nrelation d1d: user\npermission view = a1a & (b1b + c1c - d1d)\n}",
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       7,
+				Column:     26,
+				SourceCode: "view",
+			},
+		},
+		{
+			name:            "mixed operators suppressed via ignore-warning comment",
+			schema:          "definition user {}\ndefinition doc {\nrelation viewer: user\nrelation editor: user\nrelation blocked: user\n// spicedb-ignore-warning: mixed-operators-without-parentheses\npermission view = viewer - blocked & editor\n}",
+			expectedWarning: nil,
+		},
+		{
+			name:            "same operator repeated is not mixed",
+			schema:          "definition user {}\ndefinition doc {\nrelation a1a: user\nrelation b1b: user\nrelation c1c: user\npermission view = a1a + b1b + c1c\n}",
+			expectedWarning: nil,
+		},
 	}
 
 	for _, tc := range tcs {
