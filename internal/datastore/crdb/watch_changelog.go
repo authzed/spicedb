@@ -177,12 +177,45 @@ func (cds *crdbDatastore) pollChangelogOnce(
 		return cursor, err
 	}
 
+	if err := cds.pollChangelogRange(ctx, tx, opts, cursor, target, watchBufferSize, sendChange); err != nil {
+		return cursor, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return cursor, err
+	}
+
+	// Nothing new since last poll: cursor is unchanged so the next poll re-reads
+	// the same open window; otherwise advance to the closed target.
+	if target.LessThanOrEqual(cursor) {
+		return cursor, nil
+	}
+	return target, nil
+}
+
+// pollChangelogRange reads all changelog rows in (cursor, target] using the
+// provided (already AOST-pinned) transaction, emits them grouped by revision,
+// and emits a checkpoint at target when checkpoints are requested. target is
+// passed in explicitly so tests can pin it to a known value; production derives
+// it from cluster_logical_timestamp() on the AOST transaction.
+//
+// Emission is INCLUSIVE of target: the SQL bound is change_ts <= target and the
+// tracker is created fresh for this range, so every accumulated row is
+// guaranteed to satisfy cursor < change_ts <= target. We therefore emit
+// everything accumulated (AsRevisionChanges) rather than the strict "< target"
+// filter, which would drop any row whose change_ts exactly equals target.
+func (cds *crdbDatastore) pollChangelogRange(
+	ctx context.Context,
+	tx pgx.Tx,
+	opts datastore.WatchOptions,
+	cursor decimal.Decimal,
+	target decimal.Decimal,
+	watchBufferSize uint64,
+	sendChange sendChangeFunc,
+) error {
 	// Nothing new since last poll: still emit a checkpoint so consumers advance.
 	if target.LessThanOrEqual(cursor) {
-		if err := cds.emitChangelogCheckpoint(opts, target, sendChange); err != nil {
-			return cursor, err
-		}
-		return cursor, tx.Commit(ctx)
+		return cds.emitChangelogCheckpoint(opts, target, sendChange)
 	}
 
 	tracked := common.NewChanges(revisions.HLCKeyFunc, opts.Content, watchBufferSize)
@@ -194,31 +227,25 @@ func (cds *crdbDatastore) pollChangelogOnce(
 	)
 	rows, err := tx.Query(ctx, query, cursor, target)
 	if err != nil {
-		return cursor, err
+		return err
 	}
 	if err := cds.accumulateChangelogRows(ctx, rows, tracked); err != nil {
-		return cursor, err
+		return err
 	}
 
-	targetRev, err := revisions.NewForHLC(target)
-	if err != nil {
-		return cursor, err
-	}
-	filtered := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, targetRev)
-	for revChange, err := range filtered {
+	// Emit every accumulated change in ascending revision order. Every row read
+	// is by construction in (cursor, target], so emitting all of them is exactly
+	// the (cursor, target] window, inclusive of target.
+	for revChange, err := range tracked.AsRevisionChanges(revisions.HLCKeyLessThanFunc) {
 		if err != nil {
-			return cursor, err
+			return err
 		}
 		if err := sendChange(revChange); err != nil {
-			return cursor, err
+			return err
 		}
 	}
 
-	if err := cds.emitChangelogCheckpoint(opts, target, sendChange); err != nil {
-		return cursor, err
-	}
-
-	return target, tx.Commit(ctx)
+	return cds.emitChangelogCheckpoint(opts, target, sendChange)
 }
 
 // emitChangelogCheckpoint emits a checkpoint at target if WatchCheckpoints is set.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
@@ -143,5 +144,69 @@ func TestChangelogWatchReceivesWrite(t *testing.T) {
 				t.Fatal("did not receive the write over changelog watch")
 			}
 		}
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
+// TestChangelogPollEmitsRowAtExactlyTarget is a boundary regression test for the
+// off-by-one where a changelog row whose change_ts exactly equals a poll's
+// target revision was read into the tracker but never emitted (the strict
+// "< target" filter dropped it) while the cursor still advanced to target,
+// permanently losing that row.
+//
+// It inserts a changelog row with a KNOWN explicit change_ts value T (bypassing
+// dual-write so change_ts is under test control), then invokes the poll range
+// helper with cursor < T and target == T, and asserts the row is emitted exactly
+// once. Against the pre-fix strict filter this fails (the row is dropped); with
+// the inclusive emission it passes.
+func TestChangelogPollEmitsRowAtExactlyTarget(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx := t.Context()
+		cds := extractCRDBDatastore(t, ds)
+
+		conn, err := pgx.Connect(ctx, cds.dburl)
+		require.NoError(t, err)
+		defer func() { _ = conn.Close(ctx) }()
+
+		// Choose T from the cluster's own logical clock so it is a valid HLC value,
+		// then insert a relationship changelog row stamped at exactly T.
+		var target decimal.Decimal
+		require.NoError(t, conn.QueryRow(ctx, "SELECT cluster_logical_timestamp()").Scan(&target))
+
+		insert := "INSERT INTO " + schema.TableRelationshipChangelog + " (" +
+			schema.ColChangeTS + ", " + schema.ColChangeOrdinal + ", " + schema.ColChangeKind + ", " +
+			schema.ColNamespace + ", " + schema.ColObjectID + ", " + schema.ColRelation + ", " +
+			schema.ColUsersetNamespace + ", " + schema.ColUsersetObjectID + ", " + schema.ColUsersetRelation + ", " +
+			schema.ColChangeOperation + ", " + schema.ColChangeTTLExpiration +
+			") VALUES ($1, 0, 'rel', 'document', 'boundary', 'viewer', 'user', 'alice', '...', 'touch', $2)"
+		_, err = conn.Exec(ctx, insert, target, time.Now().Add(1*time.Hour))
+		require.NoError(t, err)
+
+		// cursor strictly less than T; target exactly equal to T.
+		cursor := target.Sub(decimal.NewFromInt(1))
+
+		tx, err := conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		var emitted []datastore.RevisionChanges
+		sendChange := func(change datastore.RevisionChanges) error {
+			emitted = append(emitted, change)
+			return nil
+		}
+
+		require.NoError(t, cds.pollChangelogRange(ctx, tx, datastore.WatchOptions{
+			Content: datastore.WatchRelationships,
+		}, cursor, target, cds.watchChangeBufferMaximumSize, sendChange))
+
+		count := 0
+		for _, change := range emitted {
+			for _, rc := range change.RelationshipChanges {
+				if rc.Relationship.Resource.ObjectID == "boundary" {
+					count++
+				}
+			}
+		}
+		require.Equal(t, 1, count, "row at exactly the poll target must be emitted exactly once")
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
