@@ -140,7 +140,7 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	err = ds.CheckRevision(t.Context(), lowestRevision.Revision)
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
-	_, err = ds.OptimizedRevision(t.Context())
+	_, _, _, err = ds.OptimizedRevision(t.Context())
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
 	reader := ds.SnapshotReader(datastore.NoRevision)

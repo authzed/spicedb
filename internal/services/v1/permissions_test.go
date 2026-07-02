@@ -525,7 +525,7 @@ func (c *readStoredSchemaCounter) ReadWriteTx(ctx context.Context, fn datastore.
 	return c.ds.ReadWriteTx(ctx, fn, opts...)
 }
 
-func (c *readStoredSchemaCounter) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+func (c *readStoredSchemaCounter) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 	return c.ds.OptimizedRevision(ctx)
 }
 

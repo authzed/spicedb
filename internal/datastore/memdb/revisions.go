@@ -68,17 +68,20 @@ func (mdb *memdbDatastore) headRevisionNoLock() revisions.TimestampRevision {
 	return mdb.revisions[len(mdb.revisions)-1].revision
 }
 
-func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
+func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, time.Duration, string, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 	if err := mdb.checkNotClosed(); err != nil {
-		return datastore.RevisionWithSchemaHash{}, err
+		return datastore.NoRevision, 0, "", err
 	}
 
 	now := nowRevision()
 	var optimized revisions.TimestampRevision
+	var validFor time.Duration
 	if mdb.quantizationPeriod > 0 {
-		optimized = revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod)
+		afterLastQuantization := now.TimestampNanoSec() % mdb.quantizationPeriod
+		optimized = revisions.NewForTimestamp(now.TimestampNanoSec() - afterLastQuantization)
+		validFor = time.Duration(mdb.quantizationPeriod-afterLastQuantization) * time.Nanosecond
 	} else {
 		optimized = now
 	}
@@ -94,7 +97,7 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 		}
 	}
 
-	return datastore.RevisionWithSchemaHash{Revision: optimized, SchemaHash: hash}, nil
+	return optimized, validFor, hash, nil
 }
 
 func (mdb *memdbDatastore) CheckRevision(_ context.Context, dr datastore.Revision) error {

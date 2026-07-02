@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"time"
 
 	"resenje.org/singleflight"
 
@@ -17,9 +18,18 @@ func NewSingleflightDatastoreProxy(d datastore.Datastore) datastore.Datastore {
 
 type singleflightProxy struct {
 	headRevGroup  singleflight.Group[string, datastore.RevisionWithSchemaHash]
+	optRevGroup   singleflight.Group[string, optimizedRevision]
 	checkRevGroup singleflight.Group[string, string]
 	statsGroup    singleflight.Group[string, datastore.Stats]
 	delegate      datastore.Datastore
+}
+
+// optimizedRevision carries the multi-valued result of OptimizedRevision through
+// the singleflight group.
+type optimizedRevision struct {
+	revision   datastore.Revision
+	validFor   time.Duration
+	schemaHash string
 }
 
 var _ datastore.Datastore = (*singleflightProxy)(nil)
@@ -40,10 +50,15 @@ func (p *singleflightProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserF
 	return p.delegate.ReadWriteTx(ctx, f, opts...)
 }
 
-func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
-	// NOTE: Optimized revisions are singleflighted by the underlying datastore via the
-	// CachedOptimizedRevisions struct.
-	return p.delegate.OptimizedRevision(ctx)
+func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+	ctx, span := tracer.Start(ctx, "singleflightProxy.OptimizedRevision")
+	defer span.End()
+
+	res, _, err := p.optRevGroup.Do(ctx, "", func(ctx context.Context) (optimizedRevision, error) {
+		rev, validFor, schemaHash, err := p.delegate.OptimizedRevision(ctx)
+		return optimizedRevision{revision: rev, validFor: validFor, schemaHash: schemaHash}, err
+	})
+	return res.revision, res.validFor, res.schemaHash, err
 }
 
 func (p *singleflightProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {

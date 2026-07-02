@@ -39,9 +39,8 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			ctx := t.Context()
-			veryFirstRevisionResult, err := ds.OptimizedRevision(ctx)
+			veryFirstRevision, _, _, err := ds.OptimizedRevision(ctx)
 			require.NoError(err)
-			veryFirstRevision := veryFirstRevisionResult.Revision
 
 			postSetupRevision := setupDatastore(t, ds)
 			require.True(postSetupRevision.GreaterThan(veryFirstRevision), "post-setup revision should be greater than the first revision")
@@ -65,9 +64,8 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 
 			// Now we should ONLY get revisions later than the now revision
 			for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
-				testRevisionResult, err := ds.OptimizedRevision(ctx)
+				testRevision, _, _, err := ds.OptimizedRevision(ctx)
 				require.NoError(err)
-				testRevision := testRevisionResult.Revision
 				require.True(nowRevision.LessThan(testRevision) || nowRevision.Equal(testRevision))
 			}
 		})
