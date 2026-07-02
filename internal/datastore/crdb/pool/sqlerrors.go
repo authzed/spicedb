@@ -12,6 +12,9 @@ import (
 const (
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#restart-transaction
 	CrdbRetryErrCode = "40001"
+	// CrdbQueryCanceledErrCode is the SQLSTATE returned when a query is
+	// canceled, e.g. via CANCEL QUERIES or the pgwire cancel protocol.
+	CrdbQueryCanceledErrCode = "57014"
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	CrdbAmbiguousErrorCode = "40003"
 	// https://www.cockroachlabs.com/docs/stable/node-shutdown.html#connection-retry-loop
