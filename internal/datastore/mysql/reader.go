@@ -172,6 +172,9 @@ func (mr *mysqlReader) QueryRelationships(
 		return nil, err
 	}
 
+	builtOpts := options.NewQueryOptionsWithOptions(opts...)
+	qBuilder = qBuilder.WithIndexingHint(IndexingHintForQueryShape(builtOpts.QueryShape))
+
 	return mr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
@@ -194,6 +197,8 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
+
+	qBuilder = qBuilder.WithIndexingHint(IndexingHintForQueryShape(queryOpts.QueryShapeForReverse))
 
 	return mr.executor.ExecuteQuery(
 		ctx,
