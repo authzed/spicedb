@@ -195,50 +195,77 @@ func (c *capturingBulkSource) Next(ctx context.Context) (*tuple.Relationship, er
 	return rel, nil
 }
 
+// changelogInsertChunkSize caps how many relationship rows are combined into
+// a single multi-row changelog INSERT. Postgres (and pgx, which CRDB's wire
+// protocol emulates) caps the number of bound parameters on a single
+// statement at 65535. Each changelog row binds 14 columns, so this table's
+// bulk-load path -- which can be handed many thousands of relationships in
+// one transaction -- must split the INSERT into chunks well under that
+// limit. It is a package-level var (rather than a const) so tests can lower
+// it to exercise the multi-chunk path without loading a huge number of rows.
+var changelogInsertChunkSize = 4000
+
 // appendRelationshipChangelogBatch inserts one 'create' changelog row per
-// relationship in a single multi-row INSERT, all stamped with the
-// transaction's cluster_logical_timestamp(). Each row gets a unique ordinal
-// from rwt.nextChangelogOrdinal() so it cannot collide with any other
-// changelog row (relationship, schema, or another bulk batch) appended
-// within the same transaction.
+// relationship, split across one or more multi-row INSERTs of at most
+// changelogInsertChunkSize rows each, all executed within rwt.tx and all
+// stamped with the transaction's cluster_logical_timestamp(). Chunking
+// exists solely to stay under the ~65535 bound-parameter limit enforced by
+// the Postgres wire protocol (14 columns per row); it does not introduce
+// separate transactions, so it has no effect on atomicity.
+//
+// Every row -- across every chunk -- gets a unique ordinal from
+// rwt.nextChangelogOrdinal(), called exactly once per relationship in
+// original order. The ordinal counter is NOT reset between chunks: since
+// change_ts is derived from cluster_logical_timestamp() and is therefore
+// constant for the whole transaction, uniqueness of the (change_ts,
+// ordinal) primary key depends entirely on the ordinal being monotonically
+// increasing across the entire batch, not just within one chunk.
 func (rwt *crdbReadWriteTXN) appendRelationshipChangelogBatch(ctx context.Context, rels []tuple.Relationship, ttlExpiration time.Time) error {
 	if len(rels) == 0 {
 		return nil
 	}
-	insert := psql.Insert(schema.TableRelationshipChangelog).Columns(
-		schema.ColChangeTS,
-		schema.ColChangeOrdinal,
-		schema.ColChangeKind,
-		schema.ColNamespace, schema.ColObjectID, schema.ColRelation,
-		schema.ColUsersetNamespace, schema.ColUsersetObjectID, schema.ColUsersetRelation,
-		schema.ColCaveatContextName, schema.ColCaveatContext, schema.ColChangeRelExpiration,
-		schema.ColChangeOperation,
-		schema.ColChangeTTLExpiration,
-	)
-	for _, rel := range rels {
-		var caveatName string
-		var caveatContext map[string]any
-		if rel.OptionalCaveat != nil {
-			caveatName = rel.OptionalCaveat.CaveatName
-			caveatContext = rel.OptionalCaveat.Context.AsMap()
+
+	for start := 0; start < len(rels); start += changelogInsertChunkSize {
+		end := start + changelogInsertChunkSize
+		if end > len(rels) {
+			end = len(rels)
 		}
-		insert = insert.Values(
-			sq.Expr("cluster_logical_timestamp()"),
-			rwt.nextChangelogOrdinal(),
-			"rel",
-			rel.Resource.ObjectType, rel.Resource.ObjectID, rel.Resource.Relation,
-			rel.Subject.ObjectType, rel.Subject.ObjectID, rel.Subject.Relation,
-			caveatName, caveatContext, rel.OptionalExpiration,
-			"create",
-			ttlExpiration,
+
+		insert := psql.Insert(schema.TableRelationshipChangelog).Columns(
+			schema.ColChangeTS,
+			schema.ColChangeOrdinal,
+			schema.ColChangeKind,
+			schema.ColNamespace, schema.ColObjectID, schema.ColRelation,
+			schema.ColUsersetNamespace, schema.ColUsersetObjectID, schema.ColUsersetRelation,
+			schema.ColCaveatContextName, schema.ColCaveatContext, schema.ColChangeRelExpiration,
+			schema.ColChangeOperation,
+			schema.ColChangeTTLExpiration,
 		)
-	}
-	sql, args, err := insert.ToSql()
-	if err != nil {
-		return fmt.Errorf("unable to build bulk changelog insert: %w", err)
-	}
-	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf("unable to write bulk changelog rows: %w", err)
+		for _, rel := range rels[start:end] {
+			var caveatName string
+			var caveatContext map[string]any
+			if rel.OptionalCaveat != nil {
+				caveatName = rel.OptionalCaveat.CaveatName
+				caveatContext = rel.OptionalCaveat.Context.AsMap()
+			}
+			insert = insert.Values(
+				sq.Expr("cluster_logical_timestamp()"),
+				rwt.nextChangelogOrdinal(),
+				"rel",
+				rel.Resource.ObjectType, rel.Resource.ObjectID, rel.Resource.Relation,
+				rel.Subject.ObjectType, rel.Subject.ObjectID, rel.Subject.Relation,
+				caveatName, caveatContext, rel.OptionalExpiration,
+				"create",
+				ttlExpiration,
+			)
+		}
+		sql, args, err := insert.ToSql()
+		if err != nil {
+			return fmt.Errorf("unable to build bulk changelog insert: %w", err)
+		}
+		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+			return fmt.Errorf("unable to write bulk changelog rows: %w", err)
+		}
 	}
 	return nil
 }

@@ -362,3 +362,66 @@ func TestChangelogWatchSeesBulkLoad(t *testing.T) {
 		}
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
+
+// TestChangelogWatchSeesBulkLoadAcrossChunks is a regression test for
+// chunking the bulk changelog INSERT in appendRelationshipChangelogBatch.
+// Postgres/pgx cap bound parameters at 65535 per statement; at 14 columns
+// per changelog row, a single multi-row INSERT can only hold a few thousand
+// rows before it would overflow that limit. appendRelationshipChangelogBatch
+// splits large batches into chunks, but must keep every row's ordinal
+// unique and monotonically increasing across chunks (change_ts is constant
+// for the whole transaction via cluster_logical_timestamp(), so uniqueness
+// of the (change_ts, ordinal) primary key depends entirely on the ordinal).
+//
+// This test lowers changelogInsertChunkSize to a tiny value so a small
+// bulk load spans multiple chunks, then asserts every relationship is
+// still observed over the changelog Watch -- proving all chunks landed and
+// no ordinals collided across chunk boundaries.
+func TestChangelogWatchSeesBulkLoadAcrossChunks(t *testing.T) {
+	const testChunkSize = 3
+	original := changelogInsertChunkSize
+	changelogInsertChunkSize = testChunkSize
+	t.Cleanup(func() { changelogInsertChunkSize = original })
+
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+		changes, errchan := ds.Watch(ctx, head.Revision, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 100 * time.Millisecond,
+		})
+
+		// 7 rows over a chunk size of 3 forces 3 chunks (3 + 3 + 1), so the
+		// ordinal counter must span multiple INSERT statements correctly.
+		const total = 7
+		rels := make([]tuple.Relationship, 0, total)
+		for i := 0; i < total; i++ {
+			rels = append(rels, tuple.MustParse(fmt.Sprintf("document:chunkdoc%d#viewer@user:alice", i)))
+		}
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			_, berr := rwt.BulkLoad(ctx, &testBulkSource{rels: rels})
+			return berr
+		})
+		require.NoError(t, err)
+
+		seen := map[string]struct{}{}
+		deadline := time.After(30 * time.Second)
+		for len(seen) < total {
+			select {
+			case change, ok := <-changes:
+				require.True(t, ok)
+				for _, rc := range change.RelationshipChanges {
+					seen[rc.Relationship.Resource.ObjectID] = struct{}{}
+				}
+			case err := <-errchan:
+				require.NoError(t, err)
+			case <-deadline:
+				t.Fatalf("only saw %d/%d bulk-loaded relationships over changelog watch across chunks", len(seen), total)
+			}
+		}
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
