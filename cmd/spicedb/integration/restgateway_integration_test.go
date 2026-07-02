@@ -8,26 +8,28 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
+
+var ciImage = sdbtestcontainer.DefaultImage + ":ci"
 
 func TestRESTGateway(t *testing.T) {
 	require := require.New(t)
 
-	tester, err := newTester(t,
-		&dockertest.RunOptions{
-			Repository:   "authzed/spicedb",
-			Tag:          "ci",
-			Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", "somerandomkeyhere", "--http-enabled"},
-			ExposedPorts: []string{"50051/tcp", "8443/tcp"},
-		},
-		"somerandomkeyhere",
-		false,
+	container, err := sdbtestcontainer.Run(t.Context(), ciImage,
+		defaultSchemaOption,
+		sdbtestcontainer.WithHTTP(),
+		testcontainers.WithExposedPorts(readOnlyGRPCPort, readOnlyHTTPPort),
+		testcontainers.WithCmd("serve-testing"),
 	)
 	require.NoError(err)
+	testcontainers.CleanupContainer(t, container)
+	require.NoError(err)
 
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", tester.HTTPPort))
+	resp, err := http.Get(fmt.Sprintf("http://%s", container.HTTPEndpoint()))
 	require.NoError(err)
 	t.Cleanup(func() {
 		_ = resp.Body.Close()
@@ -38,7 +40,7 @@ func TestRESTGateway(t *testing.T) {
 	require.JSONEq(`{"code":5,"message":"Not Found","details":[]}`, string(body))
 
 	// Attempt to read schema without a valid Auth header.
-	readURL := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.HTTPPort)
+	readURL := fmt.Sprintf("http://%s/v1/schema/read", container.HTTPEndpoint())
 	resp, err = http.Post(readURL, "", nil) //nolint:gosec
 	require.NoError(err)
 
@@ -68,7 +70,7 @@ func TestRESTGateway(t *testing.T) {
 	// Read with the correct token.
 	req, err = http.NewRequest("POST", readURL, nil)
 	require.NoError(err)
-	req.Header.Add("Authorization", "Bearer somerandomkeyhere")
+	req.Header.Add("Authorization", "Bearer "+container.PresharedKey())
 
 	resp, err = http.DefaultClient.Do(req) //nolint:gosec  // SSRF isn't an issue in a test
 	require.NoError(err)
@@ -80,7 +82,7 @@ func TestRESTGateway(t *testing.T) {
 	require.Contains(string(body), "definition user {")
 
 	// Execute a watch call with an invalid auth header and ensure it 403s.
-	watchURL := fmt.Sprintf("http://localhost:%s/v1/watch", tester.HTTPPort)
+	watchURL := fmt.Sprintf("http://%s/v1/watch", container.HTTPEndpoint())
 	watchReq, err := http.NewRequest("POST", watchURL, nil)
 	require.NoError(err)
 	watchReq.Header.Add("Authorization", "Bearer notcorrect")

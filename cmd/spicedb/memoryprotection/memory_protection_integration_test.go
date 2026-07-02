@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -21,6 +21,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection/rtml"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func init() {
@@ -28,30 +29,25 @@ func init() {
 }
 
 func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
+	t.Parallel()
 
-	serverToken := "mykey"
-	serveResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository:   "authzed/spicedb",
-		Tag:          "ci",
-		Cmd:          []string{"serve", "--log-level=debug", "--grpc-preshared-key", serverToken, "--telemetry-endpoint=\"\""},
-		ExposedPorts: []string{"50051/tcp"},
-		Env:          []string{"GOMEMLIMIT=1B"}, // NOTE: Absurdly low on purpose
-	}, func(config *docker.HostConfig) {
-		config.RestartPolicy = docker.RestartPolicy{
-			Name: "no",
-		}
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(serveResource))
-	})
+	ctx := t.Context()
 
-	serverPort := serveResource.GetPort("50051/tcp")
+	container, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
+		testcontainers.WithEnv(map[string]string{
+			"GOMEMLIMIT": "1B", // NOTE: Absurdly low on purpose
+		}),
+	)
+	require.NoError(t, err)
+	testcontainers.CleanupContainer(t, container)
+
+	mappedPort, err := container.MappedPort(ctx, "50051")
+	require.NoError(t, err)
+	serverPort := mappedPort.Port()
+
 	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", serverPort),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpcutil.WithInsecureBearerToken(serverToken),
+		grpcutil.WithInsecureBearerToken(container.PresharedKey()),
 	)
 
 	require.NoError(t, err)
@@ -60,9 +56,12 @@ func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 	})
 
 	// Health requests bypass the memory middleware
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-		return err == nil && resp.GetStatus() == healthpb.HealthCheckResponse_SERVING
+		if !assert.NoError(collect, err) {
+			return
+		}
+		assert.Equal(collect, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 	}, 5*time.Second, 1*time.Second, "server never became healthy")
 
 	// Other requests have the memory middleware

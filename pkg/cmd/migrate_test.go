@@ -1,17 +1,15 @@
 package cmd
 
 import (
-	"bytes"
-	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -21,6 +19,7 @@ import (
 	datastoreTest "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func TestExecuteMigrateErrorsOut(t *testing.T) {
@@ -178,11 +177,6 @@ func TestExecuteMigrateWithNoDataSucceeds(t *testing.T) {
 // TestExecuteMigrateWithDataSucceeds verifies that migrations introduced on v1.53.0
 // apply on top of a database that has data written by v1.52.0.
 func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
-	presharedKey := uuid.NewString()
-
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
-
 	for _, engineKey := range datastore.Engines {
 		if engineKey == "memory" {
 			continue
@@ -191,32 +185,34 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 		t.Run(engineKey, func(t *testing.T) {
 			r := datastoreTest.RunDatastoreEngine(t, engineKey)
 			db := r.NewDatabase(t)
-			containerDB := hostInternalize(db)
 
-			envVars := []string{}
+			envVars := map[string]string{}
 			if wev, ok := r.(datastoreTest.RunningEngineForTestWithEnvVars); ok {
 				for _, ev := range wev.ExternalEnvVars() {
-					envVars = append(envVars, hostInternalize(ev))
+					parts := strings.SplitN(ev, "=", 2)
+					if len(parts) == 2 {
+						envVars[parts[0]] = parts[1]
+					}
 				}
 			}
 
 			// 1. Migrate using SpiceDB v1.52.0.
-			runMigrateHeadWithContainer(t, pool, "v1.52.0", "", engineKey, containerDB, envVars)
+			runMigrateHeadWithContainer(t, "v1.52.0", engineKey, db, envVars)
 
 			// 2. Run v1.52.0 serve and write a schema.
-			_, grpcPort := runServe(t, pool, "v1.52.0", "", engineKey, containerDB, presharedKey, envVars)
+			serveContainer := runServe(t, "v1.52.0", engineKey, db, envVars)
 
 			conn, err := grpc.NewClient(
-				fmt.Sprintf("localhost:%s", grpcPort),
+				serveContainer.GRPCEndpoint(),
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpcutil.WithInsecureBearerToken(presharedKey),
+				grpcutil.WithInsecureBearerToken(serveContainer.PresharedKey()),
 			)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_ = conn.Close()
 			})
 
-			require.NoError(t, pool.Retry(func() error {
+			require.Eventually(t, func() bool {
 				_, err := v1.NewSchemaServiceClient(conn).WriteSchema(t.Context(), &v1.WriteSchemaRequest{
 					Schema: `
 						caveat is_public(public bool) {
@@ -230,8 +226,8 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 						}
 					`,
 				})
-				return err
-			}))
+				return err == nil
+			}, 30*time.Second, 1*time.Second)
 
 			// 3. Migrate using the current branch's code, in-process,
 			// so the migration code is included in the coverage profile.
@@ -248,69 +244,49 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 
 // runMigrateHeadWithContainer launches a docker container that runs `spicedb migrate head`
 // Use this when you need to exercise a released SpiceDB binary.
-func runMigrateHeadWithContainer(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetworkName, engineKey, db string, envVars []string) {
+func runMigrateHeadWithContainer(t *testing.T, spiceDBImageTag, engineKey, db string, envVars map[string]string) {
 	t.Helper()
 
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "authzed/spicedb",
-		Tag:        spiceDBImageTag,
-		Cmd:        []string{"migrate", "head", "--datastore-engine", engineKey, "--datastore-conn-uri", db},
-		NetworkID:  bridgeNetworkName,
-		Env:        envVars,
-	}, func(config *docker.HostConfig) {
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-		config.ExtraHosts = append(config.ExtraHosts, "host.docker.internal:host-gateway")
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = pool.Purge(resource)
-	})
-
-	status, err := pool.Client.WaitContainerWithContext(resource.Container.ID, t.Context())
-	require.NoError(t, err)
-
-	if status != 0 {
-		stream := new(bytes.Buffer)
-		lerr := pool.Client.Logs(docker.LogsOptions{
-			Context:      t.Context(),
-			OutputStream: stream,
-			ErrorStream:  stream,
-			Stdout:       true,
-			Stderr:       true,
-			Container:    resource.Container.ID,
-		})
-		require.NoError(t, lerr)
-		require.Failf(t, "migrate head exited with non-zero exit code", "image=%s engine=%s status=%d logs:\n%s", spiceDBImageTag, engineKey, status, stream.String())
+	containerVars := map[string]string{
+		"SPICEDB_DATASTORE_ENGINE":   engineKey,
+		"SPICEDB_DATASTORE_CONN_URI": db,
 	}
+
+	maps.Copy(containerVars, envVars)
+
+	container, err := sdbtestcontainer.Run(
+		t.Context(),
+		"authzed/spicedb:"+spiceDBImageTag,
+		testcontainers.WithEnv(containerVars),
+		testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
+	)
+	require.NoError(t, err)
+	testcontainers.CleanupContainer(t, container)
+
+	state, err := container.State(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 0, state.ExitCode)
 }
 
-func runServe(t *testing.T, pool *dockertest.Pool, spiceDBImageTag, bridgeNetworkName, engineKey, dbConnection, presharedKey string, envVars []string) (*dockertest.Resource, string) {
+func runServe(t *testing.T, spiceDBImageTag, engineKey, dbConnection string, envVars map[string]string) *sdbtestcontainer.Container {
 	t.Helper()
 
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository:   "authzed/spicedb",
-		Tag:          spiceDBImageTag,
-		Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", presharedKey, "--datastore-engine", engineKey, "--datastore-conn-uri", dbConnection, "--telemetry-endpoint", ""},
-		NetworkID:    bridgeNetworkName,
-		Env:          envVars,
-		ExposedPorts: []string{"50051/tcp"},
-	}, func(config *docker.HostConfig) {
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-		config.ExtraHosts = append(config.ExtraHosts, "host.docker.internal:host-gateway")
-	})
+	containerVars := map[string]string{
+		"SPICEDB_DATASTORE_ENGINE":   engineKey,
+		"SPICEDB_DATASTORE_CONN_URI": dbConnection,
+	}
+
+	maps.Copy(containerVars, envVars)
+
+	container, err := sdbtestcontainer.Run(
+		t.Context(),
+		"authzed/spicedb:"+spiceDBImageTag,
+		testcontainers.WithEnv(containerVars),
+	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = pool.Purge(resource)
-	})
+	testcontainers.CleanupContainer(t, container)
 
-	port := resource.GetPort("50051/tcp")
-	require.NotEmpty(t, port, "serve container did not expose a host port for 50051/tcp")
-
-	return resource, port
-}
-
-func hostInternalize(uri string) string {
-	return strings.ReplaceAll(uri, "localhost", "host.docker.internal")
+	return container
 }
 
 func TestMigrateRun(t *testing.T) {
