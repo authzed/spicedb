@@ -168,6 +168,58 @@ func TestChangelogWatchReceivesWrite(t *testing.T) {
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
 
+// TestChangelogWatchNudgeDeliversQuickly verifies that the changefeed "nudge"
+// wakes the poll loop well before the (deliberately long) ticker interval
+// fires. It opens a watch with a 30s CheckpointInterval, waits long enough
+// for the nudge's underlying changefeed job to finish standing up (CRDB
+// changefeed job creation is a several-second, one-time cost, distinct from
+// the per-event latency under test), then writes a relationship and asserts
+// the change arrives well under the interval -- which is only possible if
+// the nudge, and not the 30s ticker, triggered the poll.
+func TestChangelogWatchNudgeDeliversQuickly(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+		changes, errchan := ds.Watch(ctx, head.Revision, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 30 * time.Second,
+		})
+
+		// Let the nudge's changefeed job finish standing up. Job creation in
+		// CockroachDB is a several-second, one-time fixed cost, orthogonal to
+		// how quickly a nudge wakes the poll loop once the changefeed is
+		// live; draining it here isolates the per-event latency we actually
+		// want to measure below.
+		time.Sleep(10 * time.Second)
+
+		start := time.Now()
+		rel := tuple.MustParse("document:doc1#viewer@user:alice")
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{tuple.Touch(rel)})
+		})
+		require.NoError(t, err)
+		for {
+			select {
+			case change, ok := <-changes:
+				require.True(t, ok)
+				for _, rc := range change.RelationshipChanges {
+					if rc.Relationship.Resource.ObjectID == "doc1" {
+						require.Less(t, time.Since(start), 10*time.Second, "nudge should deliver well before the 30s interval")
+						return
+					}
+				}
+			case err := <-errchan:
+				require.NoError(t, err)
+			case <-time.After(15 * time.Second):
+				t.Fatal("nudge did not deliver before near the interval")
+			}
+		}
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
 // TestChangelogPollEmitsRowAtExactlyTarget is a boundary regression test for the
 // off-by-one where a changelog row whose change_ts exactly equals a poll's
 // target revision was read into the tracker but never emitted (the strict

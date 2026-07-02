@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -131,6 +132,16 @@ func (cds *crdbDatastore) watchViaChangelog(
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	// The nudge is a purely optional low-latency wake for the poll loop: a
+	// lightweight changefeed on the changelog table whose payload we never
+	// inspect. Any row event is a signal to poll sooner than the next tick.
+	// The ticker above remains the correctness backstop -- if the nudge
+	// changefeed stalls or fails to start (e.g. during the exact bulk-load
+	// scenario this feature routes around), polling still advances on the
+	// timer, so nothing here may affect correctness, only latency.
+	nudge := make(chan struct{}, 1)
+	go cds.runChangelogNudge(ctx, nudge)
+
 	for {
 		newCursor, err := cds.pollChangelogOnce(ctx, conn, opts, cursor, watchBufferSize, sendChange)
 		if err != nil {
@@ -144,7 +155,50 @@ func (cds *crdbDatastore) watchViaChangelog(
 			sendError(ctx.Err())
 			return
 		case <-ticker.C:
+		case <-nudge:
 		}
+	}
+}
+
+// runChangelogNudge opens a best-effort CRDB changefeed on the changelog
+// table purely to wake watchViaChangelog's poll loop early on new activity.
+// The changefeed payload is never parsed -- any row event is a signal to
+// poll sooner. This is strictly a latency optimization: the poll loop's
+// ticker is the correctness backstop, so any failure here is logged and the
+// goroutine simply exits without affecting the watch.
+func (cds *crdbDatastore) runChangelogNudge(ctx context.Context, nudge chan<- struct{}) {
+	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, cds.watchConnectTimeout)
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Msg("changelog nudge changefeed unavailable; falling back to interval polling")
+		return
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	head, err := cds.HeadRevision(ctx)
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Msg("changelog nudge changefeed could not determine head revision; falling back to interval polling")
+		return
+	}
+
+	query := fmt.Sprintf(cds.beginChangefeedQuery, schema.TableRelationshipChangelog, head.Revision, "1s")
+	rows, err := conn.Query(ctx, query)
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Msg("changelog nudge changefeed failed to start; falling back to interval polling")
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		// Non-blocking: the poll loop only needs to know that *something*
+		// happened, not how many times. If a nudge is already pending, drop
+		// this one rather than blocking the changefeed read loop.
+		select {
+		case nudge <- struct{}{}:
+		default:
+		}
+	}
+	if err := rows.Err(); err != nil && !errors.Is(ctx.Err(), context.Canceled) {
+		log.Ctx(ctx).Warn().Err(err).Msg("changelog nudge changefeed ended with an error; falling back to interval polling")
 	}
 }
 
