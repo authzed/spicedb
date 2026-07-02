@@ -108,6 +108,22 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		GCWindow(veryLargeGCWindow),
 		WithAcquireTimeout(5*time.Second),
 	))
+
+	t.Run("TestTTLChangefeedSuppressionParam", createDatastoreTest(
+		b,
+		TTLChangefeedSuppressionParamTest,
+		RevisionQuantization(0),
+		GCWindow(veryLargeGCWindow),
+		WithAcquireTimeout(5*time.Second),
+	))
+
+	t.Run("TestTTLChangefeedSuppressionWatch", createDatastoreTest(
+		b,
+		TTLChangefeedSuppressionWatchTest,
+		RevisionQuantization(0),
+		GCWindow(veryLargeGCWindow),
+		WithAcquireTimeout(5*time.Second),
+	))
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
@@ -717,7 +733,8 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
 	require.NoError(err)
 
-	// Only delete rels, which should result in a transaction metadata entry.
+	// Only delete rels; with TTL deletes suppressed at the changefeed level,
+	// this must NOT result in a transaction metadata entry.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Delete(tuple.MustParse("resource:foo#viewer@user:fred")),
@@ -732,13 +749,14 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 			var count int
 			err := rows.Scan(&count)
 			require.NoError(err)
-			require.Equal(1, count)
+			require.Equal(0, count)
 		}
 		return nil
 	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
 	require.NoError(err)
 
-	// Write some rels with metadata, which should also result in a transaction metadata entry.
+	// Write some rels with user-supplied metadata, which is the only case that
+	// results in a transaction metadata entry.
 	metadata, err := structpb.NewStruct(map[string]any{
 		"key1": "value1",
 	})
@@ -758,33 +776,109 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 			var count int
 			err := rows.Scan(&count)
 			require.NoError(err)
-			require.Equal(2, count)
+			require.Equal(1, count)
 		}
 		return nil
 	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
 	require.NoError(err)
+}
 
-	// Write one rel with expiration and one without, which should result in one transaction metadata entry.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
-			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:tom[expiration:2300-01-01T00:00:00Z]")),
-			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:fred")),
-		})
+func TTLChangefeedSuppressionParamTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+	ctx := t.Context()
+
+	cds := datastore.UnwrapAs[*crdbDatastore](ds)
+	require.NotNil(cds)
+
+	// The datastore constructor should have set ttl_disable_changefeed_replication
+	// on both relationship tables (CRDB under test is >= 24.1).
+	for _, tableName := range []string{schema.TableTuple, schema.TableTupleWithIntegrity} {
+		var createStatement string
+		err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+			return row.Scan(&createStatement)
+		}, fmt.Sprintf("SELECT create_statement FROM [SHOW CREATE TABLE %s]", tableName))
 		require.NoError(err)
-		return nil
-	}, options.WithIncludesExpiredAt(true))
+		require.Contains(createStatement, "ttl_disable_changefeed_replication",
+			"expected %s to have ttl_disable_changefeed_replication set", tableName)
+	}
+}
+
+func TTLChangefeedSuppressionWatchTest(t *testing.T, rawDS datastore.Datastore) {
+	require := require.New(t)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
+		definition user {}
+
+		definition resource {
+			relation viewer: user
+		}
+	`, []tuple.Relationship{
+		tuple.MustParse("resource:first#viewer@user:tom"),
+		tuple.MustParse("resource:second#viewer@user:fred"),
+	})
+	ctx := t.Context()
+
+	cds := datastore.UnwrapAs[*crdbDatastore](ds)
+	require.NotNil(cds)
+
+	headRev, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	err = cds.readPool.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
-		for rows.Next() {
-			var count int
-			err := rows.Scan(&count)
-			require.NoError(err)
-			require.Equal(3, count)
-		}
-		return nil
-	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
+	changes, errchan := ds.Watch(ctx, headRev.Revision, datastore.WatchOptions{
+		Content:            datastore.WatchRelationships,
+		CheckpointInterval: 100 * time.Millisecond,
+	})
+
+	// Delete a row in a session with changefeed replication disabled. This sets
+	// the same OmitInRangefeeds transaction flag that CRDB's row-level TTL job
+	// sets when ttl_disable_changefeed_replication is enabled on the table, so
+	// the delete must NOT be emitted by the Watch API.
+	conn, err := pgx.Connect(ctx, cds.dburl)
 	require.NoError(err)
+	_, err = conn.Exec(ctx, "SET disable_changefeed_replication = true")
+	require.NoError(err)
+	tag, err := conn.Exec(ctx, "DELETE FROM "+cds.schema.RelationshipTableName+" WHERE object_id = 'first'")
+	require.NoError(err)
+	require.Equal(int64(1), tag.RowsAffected())
+	require.NoError(conn.Close(ctx))
+
+	// Then delete a row normally; it MUST be emitted. Receiving it also proves
+	// the suppressed delete (which committed earlier) was skipped rather than
+	// still in flight.
+	conn2, err := pgx.Connect(ctx, cds.dburl)
+	require.NoError(err)
+	tag, err = conn2.Exec(ctx, "DELETE FROM "+cds.schema.RelationshipTableName+" WHERE object_id = 'second'")
+	require.NoError(err)
+	require.Equal(int64(1), tag.RowsAffected())
+	require.NoError(conn2.Close(ctx))
+
+	timeout := time.After(30 * time.Second)
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(ok, "changes channel closed unexpectedly")
+			if change.IsCheckpoint {
+				continue
+			}
+			if len(change.RelationshipChanges) == 0 {
+				continue
+			}
+			// The first (and only) relationship event must be the deletion of
+			// resource:second; resource:first was suppressed.
+			for _, rc := range change.RelationshipChanges {
+				require.Equal(tuple.UpdateOperationDelete, rc.Operation)
+				require.Equal("second", rc.Relationship.Resource.ObjectID,
+					"the suppressed delete of resource:first leaked into the Watch API")
+			}
+			return
+
+		case werr := <-errchan:
+			require.NoError(werr, "unexpected watch error")
+
+		case <-timeout:
+			require.Fail("timed out waiting for the non-suppressed delete event")
+		}
+	}
 }
 
 func StreamingWatchTest(t *testing.T, rawDS datastore.Datastore) {
