@@ -338,15 +338,16 @@ jobs:
           fail_ci_if_error: false
 
   e2e:
-    name: "E2E"
+    # NOTE: the name is hardcoded (rather than using a matrix) so that the check context stays
+    # "E2E (22.1.5)" whether the job runs or is skipped. A matrix job that is skipped via a
+    # job-level `if` reports as bare "E2E", which never satisfies the required "E2E (22.1.5)"
+    # branch-protection check, leaving non-code PRs stuck on "Expected — Waiting for status".
+    # TODO update to 25.x when we figure out how to override the clock
+    name: "E2E (22.1.5)"
     # NOTE: the e2e tests can't be run on ARM because chaosd (which is used in the cockroach e2e consistency tests)
     # doesn't support ARM and it doesn't appear that it will.
     runs-on: "depot-ubuntu-24.04-8"
     needs: "paths-filter"
-    strategy:
-      fail-fast: false
-      matrix:
-        crdbversion: ["22.1.5"] # TODO update to 25.x when we figure out how to override the clock
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
@@ -356,7 +357,7 @@ jobs:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
       - name: "Run e2e"
-        run: "go run mage.go test:e2e ${{ matrix.crdbversion }}"
+        run: "go run mage.go test:e2e 22.1.5"
       - uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
