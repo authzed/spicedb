@@ -124,6 +124,18 @@ func (cds *crdbDatastore) watchViaChangelog(
 		return
 	}
 
+	// Guard against a cursor older than the changelog's GC/TTL window: rows
+	// covering that span may already have been reaped, so polling forward
+	// from it could silently skip history rather than replay it. Fail fast
+	// with the same stale-revision error the changefeed watch path surfaces
+	// (via the "must be after replica GC threshold" mapping in sendError
+	// above) instead of relying solely on the AOST read to notice.
+	cursorTime := time.Unix(0, hlcAfter.TimestampNanoSec())
+	if time.Since(cursorTime) > cds.gcWindow {
+		sendError(datastore.NewInvalidRevisionErr(afterRevision, datastore.RevisionStale))
+		return
+	}
+
 	watchBufferSize := opts.MaximumBufferedChangesByteSize
 	if watchBufferSize == 0 {
 		watchBufferSize = cds.watchChangeBufferMaximumSize

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -281,6 +282,36 @@ func TestChangelogPollEmitsRowAtExactlyTarget(t *testing.T) {
 			}
 		}
 		require.Equal(t, 1, count, "row at exactly the poll target must be emitted exactly once")
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
+// TestChangelogWatchRejectsStaleCursor verifies that opening a changelog
+// Watch with an afterRevision far older than the datastore's GC window fails
+// fast with the standard stale-revision error, rather than silently polling
+// forward from a cursor whose changelog history may have already been
+// garbage collected.
+func TestChangelogWatchRejectsStaleCursor(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		// A revision far older than the GC window.
+		staleDecimal := decimal.NewFromInt(1) // ~1970, well outside gc window
+		stale, err := revisions.NewForHLC(staleDecimal)
+		require.NoError(t, err)
+
+		_, errchan := ds.Watch(ctx, stale, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 100 * time.Millisecond,
+		})
+		select {
+		case err := <-errchan:
+			require.Error(t, err)
+			require.ErrorAs(t, err, &datastore.InvalidRevisionError{})
+		case <-time.After(10 * time.Second):
+			t.Fatal("expected a stale-revision error")
+		}
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
 
