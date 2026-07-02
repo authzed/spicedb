@@ -532,6 +532,14 @@ func (ld *localDispatcher) DispatchQueryPlan(
 		return err
 	}
 
+	// Re-advise against the receiver's locally accumulated stats. The sender
+	// baked its hint choices (arrow direction) into the wire bytes against its
+	// own stats; this call gives the receiver a chance to refine those choices
+	// using whatever counts it has observed. Structurally inert — the iterator
+	// tree shape (and therefore its canonical key, and therefore the cache key
+	// the upstream caching layer computed from req.Plan) does not change.
+	ld.queryPlanMetadata.ReAdviseIterator(it)
+
 	// Use DispatchExecutor so nested alias boundaries in the subtree re-dispatch
 	// through the full dispatch chain.
 	dl := datalayer.MustFromContext(ctx)
@@ -624,6 +632,21 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES:
 		// Iterate CheckImpl directly: dispatch boundary already crossed for this
 		// alias. qctx still uses DispatchExecutor, so nested aliases re-dispatch.
+		//
+		// shortCircuit: when the user-facing op is CHECK, the whole chain only
+		// needs a single yes/no — once any entry yields an uncaveated match the
+		// remaining entries can't change the outcome, so we stop the loop and
+		// the sender's CheckMany result map fills the unvisited slots with nil
+		// (which the BatchedArrow caller treats as "no match" and skips over).
+		// CAVEAT: this is *unsafe* for IntersectionArrow-rooted callers, whose
+		// AND semantics require knowing whether each entry actually matched —
+		// a short-circuit nil and a true nil are indistinguishable on the wire,
+		// so an early stop can produce false negatives for `relation.all(...)`.
+		// Today we accept that risk because Arrow is by far the common case;
+		// fixing IntersectionArrow correctness here will need a per-call hint
+		// (e.g. a new CHECK_ANY_* op, or a flag on the request) so the receiver
+		// only short-circuits when the caller opts in.
+		shortCircuit := req.PlanContext.GetTopLevelOperation() == v1.PlanOperation_PLAN_OPERATION_CHECK
 		for _, res := range req.Many {
 			resource := query.Object{ObjectType: res.Namespace, ObjectID: res.ObjectId}
 			path, err := it.CheckImpl(qctx, resource, subject)
@@ -636,11 +659,17 @@ func (ld *localDispatcher) DispatchQueryPlan(
 				}); err != nil {
 					return err
 				}
+				if shortCircuit && path.Caveat == nil {
+					return nil
+				}
 			}
 		}
 		return nil
 
 	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
+		// See CHECK_MANY_RESOURCES above for the shortCircuit rationale and the
+		// IntersectionArrow caveat — the two cases are symmetric.
+		shortCircuit := req.PlanContext.GetTopLevelOperation() == v1.PlanOperation_PLAN_OPERATION_CHECK
 		for _, sub := range req.Many {
 			subject := query.ObjectAndRelation{
 				ObjectType: sub.Namespace,
@@ -656,6 +685,9 @@ func (ld *localDispatcher) DispatchQueryPlan(
 					Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
 				}); err != nil {
 					return err
+				}
+				if shortCircuit && path.Caveat == nil {
+					return nil
 				}
 			}
 		}

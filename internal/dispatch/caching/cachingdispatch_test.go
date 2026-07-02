@@ -307,10 +307,10 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 		Operation: v1.PlanOperation_PLAN_OPERATION_CHECK,
 		Resource:  tuple.ONRStringToCore("document", "doc1", "viewer"),
 		Subject:   tuple.ONRStringToCore("user", "alice", "..."),
+		Plan:      []byte("document#viewer"),
 		PlanContext: &v1.PlanContext{
-			Revision:       "1",
-			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
-			InProgressKeys: []string{"document#viewer"},
+			Revision:   "1",
+			SchemaHash: []byte(datalayer.NoSchemaHashForTesting),
 		},
 	}
 

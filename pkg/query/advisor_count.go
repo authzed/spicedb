@@ -23,12 +23,19 @@ func (a *CountAdvisor) GetHints(outline Outline, keySource CanonicalKeySource) (
 	if outline.Type != ArrowIteratorType || len(outline.SubOutlines) != 2 {
 		return nil, nil
 	}
-
 	leftKey := keySource.GetCanonicalKey(outline.SubOutlines[0].ID)
 	rightKey := keySource.GetCanonicalKey(outline.SubOutlines[1].ID)
+	return []Hint{ArrowDirectionHint(chooseArrowDirection(leftKey, rightKey, a.stats))}, nil
+}
 
-	leftStats := a.stats[leftKey]
-	rightStats := a.stats[rightKey]
+// chooseArrowDirection picks the arrow execution direction by comparing
+// observed left/right fan-outs. Shared between the outline-time advisor
+// (compile-time hint emission) and the iterator-time re-advise on dispatch
+// receipt — both need the same comparison logic against the same stats map,
+// just sourced from different points in the pipeline.
+func chooseArrowDirection(leftKey, rightKey CanonicalKey, stats map[CanonicalKey]CountStats) arrowDirection {
+	leftStats := stats[leftKey]
+	rightStats := stats[rightKey]
 
 	leftFanout := defaultArrowFanout
 	rightFanout := defaultArrowFanout
@@ -36,15 +43,14 @@ func (a *CountAdvisor) GetHints(outline Outline, keySource CanonicalKeySource) (
 	if leftStats.IterSubjectsCalls != 0 {
 		leftFanout = float64(leftStats.IterSubjectsResults) / float64(leftStats.IterSubjectsCalls)
 	}
-
 	if rightStats.IterResourcesCalls != 0 {
 		rightFanout = float64(rightStats.IterResourcesResults) / float64(rightStats.IterResourcesCalls)
 	}
 
 	if rightFanout < leftFanout {
-		return []Hint{ArrowDirectionHint(rightToLeft)}, nil
+		return rightToLeft
 	}
-	return []Hint{ArrowDirectionHint(leftToRight)}, nil
+	return leftToRight
 }
 
 // GetMutations is a stub — no structural mutations from count data yet.
