@@ -53,6 +53,7 @@ const (
 	ColChangeDefinitionName       = "definition_name"
 	ColChangeSerializedDefinition = "serialized_definition"
 	ColChangeTTLExpiration        = "ttl_expiration"
+	ColChangeMetadata             = "metadata"
 )
 
 func Schema(colOptimizationOpt common.ColumnOptimizationOption, withIntegrity bool, expirationDisabled bool) *common.SchemaInformation {

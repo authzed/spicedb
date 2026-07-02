@@ -43,6 +43,7 @@ func createChangelogTableSQL(gcWindow time.Duration) string {
 	%s STRING, %s JSONB, %s TIMESTAMPTZ,
 	%s STRING,
 	%s STRING, %s STRING, %s BYTES,
+	%s JSONB,
 	%s TIMESTAMPTZ NOT NULL,
 	PRIMARY KEY (%s, %s) USING HASH
 ) WITH (
@@ -59,6 +60,7 @@ func createChangelogTableSQL(gcWindow time.Duration) string {
 		schema.ColCaveatContextName, schema.ColCaveatContext, schema.ColChangeRelExpiration,
 		schema.ColChangeOperation,
 		schema.ColChangeSchemaKind, schema.ColChangeDefinitionName, schema.ColChangeSerializedDefinition,
+		schema.ColChangeMetadata,
 		schema.ColChangeTTLExpiration,
 		schema.ColChangeTS, schema.ColChangeOrdinal,
 		schema.ColChangeTTLExpiration,
@@ -156,6 +158,42 @@ func (rwt *crdbReadWriteTXN) appendSchemaChangelog(ctx context.Context, schemaKi
 	}
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf("unable to write schema changelog row: %w", err)
+	}
+	return nil
+}
+
+// appendMetadataChangelog inserts a single kind='metadata' changelog row
+// carrying the raw user-supplied transaction metadata. All other typed
+// columns are left null; only change_ts (via cluster_logical_timestamp()),
+// ordinal, the metadata JSONB payload, and ttl_expiration are set.
+//
+// This is the changelog-mode replacement for the legacy transaction_metadata
+// side-table: since the changelog only ever contains rows SpiceDB explicitly
+// wrote, there is no ambiguity for a changefeed consumer to disambiguate
+// (unlike the changefeed-on-relation_tuple path, where a TTL-driven deletion
+// of expired relationships could otherwise be mistaken for a SpiceDB write),
+// so no $spicedb_transaction_key marker is needed here.
+func (rwt *crdbReadWriteTXN) appendMetadataChangelog(ctx context.Context, metadata map[string]any, ordinal int, ttlExpiration time.Time) error {
+	insert := psql.Insert(schema.TableRelationshipChangelog).Columns(
+		schema.ColChangeTS,
+		schema.ColChangeOrdinal,
+		schema.ColChangeKind,
+		schema.ColChangeMetadata,
+		schema.ColChangeTTLExpiration,
+	).Values(
+		sq.Expr("cluster_logical_timestamp()"),
+		ordinal,
+		"metadata",
+		metadata,
+		ttlExpiration,
+	)
+
+	sql, args, err := insert.ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to build metadata changelog insert: %w", err)
+	}
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("unable to write metadata changelog row: %w", err)
 	}
 	return nil
 }

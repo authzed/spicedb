@@ -16,4 +16,5 @@ func TestCreateChangelogTableSQL(t *testing.T) {
 	require.Contains(t, sql, "ttl_expiration_expression")
 	require.Contains(t, sql, schema.ColChangeTTLExpiration)
 	require.Contains(t, sql, "ttl_disable_changefeed_replication")
+	require.Contains(t, sql, schema.ColChangeMetadata+" JSONB")
 }

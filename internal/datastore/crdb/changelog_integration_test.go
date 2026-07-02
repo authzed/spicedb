@@ -11,11 +11,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -166,6 +168,72 @@ func TestChangelogWatchReceivesWrite(t *testing.T) {
 				t.Fatal("did not receive the write over changelog watch")
 			}
 		}
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
+// TestChangelogWatchEmitsMetadata verifies that, in changelog-watch mode,
+// per-transaction metadata passed via options.WithMetadata is carried through
+// the changelog itself (as a kind='metadata' row) and surfaced on the
+// corresponding RevisionChanges.Metadatas over Watch. It also asserts that
+// the legacy transaction_metadata side-table is never written to in this
+// mode -- the changelog fully replaces its purpose here, including the
+// TTL-delete disambiguation marker, since the changelog only ever contains
+// rows SpiceDB explicitly wrote.
+func TestChangelogWatchEmitsMetadata(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+
+		changes, errchan := ds.Watch(ctx, head.Revision, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 100 * time.Millisecond,
+		})
+
+		metadata, err := structpb.NewStruct(map[string]any{
+			"reason": "integration-test",
+			"count":  float64(7),
+		})
+		require.NoError(t, err)
+
+		rel := tuple.MustParse("document:metadoc#viewer@user:alice")
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{tuple.Touch(rel)})
+		}, options.WithMetadata(metadata))
+		require.NoError(t, err)
+
+		found := false
+		deadline := time.After(30 * time.Second)
+		for !found {
+			select {
+			case change, ok := <-changes:
+				require.True(t, ok)
+				for _, rc := range change.RelationshipChanges {
+					if rc.Relationship.Resource.ObjectID == "metadoc" {
+						require.Len(t, change.Metadatas, 1)
+						require.Equal(t, metadata.AsMap(), change.Metadatas[0].AsMap())
+						found = true
+					}
+				}
+			case err := <-errchan:
+				require.NoError(t, err)
+			case <-deadline:
+				t.Fatal("did not receive the metadata-bearing write over changelog watch")
+			}
+		}
+
+		// The legacy transaction_metadata table is unused entirely in
+		// changelog mode -- the changelog row above is the sole carrier for
+		// this transaction's metadata.
+		cds := extractCRDBDatastore(t, ds)
+		var count int
+		require.NoError(t, cds.readPool.QueryRowFunc(ctx, func(_ context.Context, row pgx.Row) error {
+			return row.Scan(&count)
+		}, "SELECT count(*) FROM "+schema.TableTransactionMetadata))
+		require.Equal(t, 0, count, "transaction_metadata must not be written in changelog mode")
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
 

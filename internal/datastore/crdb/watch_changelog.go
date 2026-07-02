@@ -29,7 +29,8 @@ const changelogSelectColumns = schema.ColChangeTS + ", " + schema.ColChangeKind 
 	schema.ColUsersetNamespace + ", " + schema.ColUsersetObjectID + ", " + schema.ColUsersetRelation + ", " +
 	schema.ColCaveatContextName + ", " + schema.ColCaveatContext + ", " +
 	schema.ColChangeRelExpiration + ", " + schema.ColChangeOperation + ", " +
-	schema.ColChangeSchemaKind + ", " + schema.ColChangeDefinitionName + ", " + schema.ColChangeSerializedDefinition
+	schema.ColChangeSchemaKind + ", " + schema.ColChangeDefinitionName + ", " + schema.ColChangeSerializedDefinition + ", " +
+	schema.ColChangeMetadata
 
 // watchViaChangelog serves Watch by repeatedly polling the changelog table at a
 // guaranteed-closed past timestamp, instead of consuming a CRDB changefeed.
@@ -351,10 +352,12 @@ func (cds *crdbDatastore) accumulateChangelogRows(ctx context.Context, rows pgx.
 		var operation *string
 		var schemaKind, definitionName *string
 		var serializedDefinition []byte
+		var metadata map[string]any
 
 		if err := rows.Scan(&changeTS, &kind, &nsName, &objectID, &relation,
 			&usNs, &usObjectID, &usRelation, &caveatName, &caveatContext,
-			&relExpiration, &operation, &schemaKind, &definitionName, &serializedDefinition); err != nil {
+			&relExpiration, &operation, &schemaKind, &definitionName, &serializedDefinition,
+			&metadata); err != nil {
 			return err
 		}
 
@@ -428,6 +431,16 @@ func (cds *crdbDatastore) accumulateChangelogRows(ctx context.Context, rows pgx.
 					}
 				default:
 					return spiceerrors.MustBugf("unknown schema_kind in changelog: %s", deref(schemaKind))
+				}
+			}
+		case "metadata":
+			// Metadata emission is independent of opts.Content, matching the
+			// changefeed path (AddRevisionMetadata is not content-gated). We
+			// never wrote $spicedbTransactionKey in changelog mode, so unlike
+			// the changefeed path there is no key to strip here.
+			if len(metadata) > 0 {
+				if err := tracked.AddRevisionMetadata(ctx, rev, metadata); err != nil {
+					return err
 				}
 			}
 		default:
