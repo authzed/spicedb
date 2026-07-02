@@ -21,7 +21,7 @@ jobs:
     name: "License Check"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@v7"
       - uses: "authzed/actions/setup-go@main"
       - name: "Check Licenses"
         uses: "authzed/actions/go-license-check@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
@@ -31,11 +31,11 @@ jobs:
     name: "Ensure Docs are up to date"
     runs-on: "depot-ubuntu-24.04-4"
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@v7"
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate docs"
         run: "go run mage.go gen:docs"
-      - uses: "chainguard-dev/actions/nodiff@c69a264ec2a5934c3186c618f368fc1c86f16cff" # main
+      - uses: "chainguard-dev/actions/nodiff@f0be69916b439d0fcced2451b23d0f27cd46d545" # main
         with:
           path: ""
           fixup-command: "mage gen:docs"
@@ -43,11 +43,11 @@ jobs:
     name: "Lint Everything"
     runs-on: "depot-ubuntu-24.04-4"
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@v7"
       - uses: "authzed/actions/setup-go@main"
       - name: "Lint Everything"
         run: "go run mage.go lint:all"
-      - uses: "chainguard-dev/actions/nodiff@c69a264ec2a5934c3186c618f368fc1c86f16cff" # main
+      - uses: "chainguard-dev/actions/nodiff@f0be69916b439d0fcced2451b23d0f27cd46d545" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:all"

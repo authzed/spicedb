@@ -17,7 +17,7 @@ jobs:
     runs-on: "depot-ubuntu-24.04-arm-8" # same as build-test.yaml
     timeout-minutes: 15
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@v7"
         with:
           fetch-depth: 0
 
@@ -32,7 +32,7 @@ jobs:
           echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
 
       - name: "Restore benchmark from cache"
-        uses: "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae" # v5.0.5
+        uses: "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
         with:
           path: "./cache/benchmark-data.json"
           key: "${{ steps.prev-sha.outputs.sha }}-${{ runner.os }}-go-benchmark"
@@ -76,7 +76,7 @@ jobs:
       - name: "Save benchmark JSON"
         # Run even if the compare step failed on a regression, so the next run has a baseline.
         if: "${{ !cancelled() || failure() }}"
-        uses: "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae" # v5.0.5
+        uses: "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
         with:
           path: "./cache/benchmark-data.json"
           # Save with commit hash to avoid "cache already exists"
