@@ -309,7 +309,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 
 	var changelogTTL time.Time
 	if rwt.changelogWatchEnabled {
-		changelogTTL = time.Now().Add(rwt.gcWindow).Add(1 * time.Minute)
+		changelogTTL = rwt.changelogTTL()
 	}
 
 	// Process the actual updates
@@ -536,6 +536,19 @@ func (rwt *crdbReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfi
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
+	if rwt.changelogWatchEnabled {
+		ttl := rwt.changelogTTL()
+		for _, newConfig := range newConfigs {
+			serialized, err := newConfig.MarshalVT()
+			if err != nil {
+				return fmt.Errorf(errUnableToWriteConfig, err)
+			}
+			if err := rwt.appendSchemaChangelog(ctx, "namespace", newConfig.Name, serialized, rwt.nextChangelogOrdinal(), ttl); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -574,6 +587,15 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames
 	_, err = rwt.tx.Exec(ctx, delSQL, delArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	if rwt.changelogWatchEnabled {
+		ttl := rwt.changelogTTL()
+		for _, nsName := range nsNames {
+			if err := rwt.appendSchemaChangelog(ctx, "namespace", nsName, nil, rwt.nextChangelogOrdinal(), ttl); err != nil {
+				return err
+			}
+		}
 	}
 
 	if delOption == datastore.DeleteNamespacesAndRelationships {

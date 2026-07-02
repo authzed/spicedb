@@ -129,3 +129,35 @@ func (rwt *crdbReadWriteTXN) appendRelationshipChangelog(ctx context.Context, re
 	}
 	return nil
 }
+
+// appendSchemaChangelog inserts a single schema change row. A nil serialized
+// payload records a deletion of definitionName.
+func (rwt *crdbReadWriteTXN) appendSchemaChangelog(ctx context.Context, schemaKind, definitionName string, serialized []byte, ordinal int, ttlExpiration time.Time) error {
+	insert := psql.Insert(schema.TableRelationshipChangelog).Columns(
+		schema.ColChangeTS,
+		schema.ColChangeOrdinal,
+		schema.ColChangeKind,
+		schema.ColChangeSchemaKind, schema.ColChangeDefinitionName, schema.ColChangeSerializedDefinition,
+		schema.ColChangeTTLExpiration,
+	).Values(
+		sq.Expr("cluster_logical_timestamp()"),
+		ordinal,
+		"schema",
+		schemaKind, definitionName, serialized,
+		ttlExpiration,
+	)
+
+	sql, args, err := insert.ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to build schema changelog insert: %w", err)
+	}
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("unable to write schema changelog row: %w", err)
+	}
+	return nil
+}
+
+// changelogTTL returns the TTL expiration to stamp on changelog rows.
+func (rwt *crdbReadWriteTXN) changelogTTL() time.Time {
+	return time.Now().Add(rwt.gcWindow).Add(1 * time.Minute)
+}

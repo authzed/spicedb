@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -75,5 +76,27 @@ func TestRelationshipDualWrite(t *testing.T) {
 			return row.Scan(&count)
 		}, "SELECT count(*) FROM "+schema.TableRelationshipChangelog+" WHERE kind = 'rel' AND object_id = 'doc1'"))
 		require.Equal(t, 1, count, "expected exactly one changelog row for the write")
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
+// TestSchemaDualWrite verifies that LegacyWriteNamespaces also inserts a
+// self-contained schema changelog row in the same transaction, when the
+// changelog-watch flag is enabled.
+func TestSchemaDualWrite(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx := t.Context()
+		nsDef := ns.Namespace("document", ns.MustRelation("viewer", nil))
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.LegacyWriteNamespaces(ctx, nsDef)
+		})
+		require.NoError(t, err)
+
+		cds := extractCRDBDatastore(t, ds)
+		var count int
+		require.NoError(t, cds.readPool.QueryRowFunc(ctx, func(_ context.Context, row pgx.Row) error {
+			return row.Scan(&count)
+		}, "SELECT count(*) FROM "+schema.TableRelationshipChangelog+" WHERE kind = 'schema' AND schema_kind = 'namespace' AND definition_name = 'document'"))
+		require.Equal(t, 1, count)
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
