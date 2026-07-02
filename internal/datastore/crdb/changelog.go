@@ -7,9 +7,12 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgconn"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
+	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -160,4 +163,82 @@ func (rwt *crdbReadWriteTXN) appendSchemaChangelog(ctx context.Context, schemaKi
 // changelogTTL returns the TTL expiration to stamp on changelog rows.
 func (rwt *crdbReadWriteTXN) changelogTTL() time.Time {
 	return time.Now().Add(rwt.gcWindow).Add(1 * time.Minute)
+}
+
+// capturingBulkSource wraps a datastore.BulkWriteRelationshipSource, recording
+// a copy of each relationship it yields so the changelog can be populated
+// after the underlying COPY completes.
+//
+// datastore.BulkWriteRelationshipSource documents that sources "may re-use
+// the same memory address for every tuple" across calls to Next, so this
+// wrapper cannot simply retain the returned pointer: it copies the
+// Relationship value and, defensively, deep-copies the caveat proto (the one
+// nested pointer a source implementation might otherwise mutate/reuse
+// in-place) before storing it.
+type capturingBulkSource struct {
+	inner datastore.BulkWriteRelationshipSource
+	seen  []tuple.Relationship
+}
+
+func (c *capturingBulkSource) Next(ctx context.Context) (*tuple.Relationship, error) {
+	rel, err := c.inner.Next(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if rel != nil {
+		captured := *rel
+		if rel.OptionalCaveat != nil {
+			captured.OptionalCaveat = proto.Clone(rel.OptionalCaveat).(*core.ContextualizedCaveat)
+		}
+		c.seen = append(c.seen, captured)
+	}
+	return rel, nil
+}
+
+// appendRelationshipChangelogBatch inserts one 'create' changelog row per
+// relationship in a single multi-row INSERT, all stamped with the
+// transaction's cluster_logical_timestamp(). Each row gets a unique ordinal
+// from rwt.nextChangelogOrdinal() so it cannot collide with any other
+// changelog row (relationship, schema, or another bulk batch) appended
+// within the same transaction.
+func (rwt *crdbReadWriteTXN) appendRelationshipChangelogBatch(ctx context.Context, rels []tuple.Relationship, ttlExpiration time.Time) error {
+	if len(rels) == 0 {
+		return nil
+	}
+	insert := psql.Insert(schema.TableRelationshipChangelog).Columns(
+		schema.ColChangeTS,
+		schema.ColChangeOrdinal,
+		schema.ColChangeKind,
+		schema.ColNamespace, schema.ColObjectID, schema.ColRelation,
+		schema.ColUsersetNamespace, schema.ColUsersetObjectID, schema.ColUsersetRelation,
+		schema.ColCaveatContextName, schema.ColCaveatContext, schema.ColChangeRelExpiration,
+		schema.ColChangeOperation,
+		schema.ColChangeTTLExpiration,
+	)
+	for _, rel := range rels {
+		var caveatName string
+		var caveatContext map[string]any
+		if rel.OptionalCaveat != nil {
+			caveatName = rel.OptionalCaveat.CaveatName
+			caveatContext = rel.OptionalCaveat.Context.AsMap()
+		}
+		insert = insert.Values(
+			sq.Expr("cluster_logical_timestamp()"),
+			rwt.nextChangelogOrdinal(),
+			"rel",
+			rel.Resource.ObjectType, rel.Resource.ObjectID, rel.Resource.Relation,
+			rel.Subject.ObjectType, rel.Subject.ObjectID, rel.Subject.Relation,
+			caveatName, caveatContext, rel.OptionalExpiration,
+			"create",
+			ttlExpiration,
+		)
+	}
+	sql, args, err := insert.ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to build bulk changelog insert: %w", err)
+	}
+	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf("unable to write bulk changelog rows: %w", err)
+	}
+	return nil
 }

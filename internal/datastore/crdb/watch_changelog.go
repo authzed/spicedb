@@ -305,6 +305,16 @@ func (cds *crdbDatastore) accumulateChangelogRows(ctx context.Context, rows pgx.
 			if err != nil {
 				return err
 			}
+			// The shared change tracker (internal/datastore/common.Changes,
+			// also used by the Postgres and MySQL watch implementations) only
+			// distinguishes Touch vs Delete: at the row level a physical
+			// insert is indistinguishable from a touch of a previously
+			// nonexistent row, so every other backend reports inserts as
+			// UpdateOperationTouch. Normalize the changelog's "create"
+			// operation the same way here.
+			if op == tuple.UpdateOperationCreate {
+				op = tuple.UpdateOperationTouch
+			}
 			if err := tracked.AddRelationshipChange(ctx, rev, rel, op); err != nil {
 				return err
 			}

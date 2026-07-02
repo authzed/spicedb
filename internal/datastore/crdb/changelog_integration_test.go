@@ -4,6 +4,7 @@ package crdb
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,6 +18,26 @@ import (
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// testBulkSource is a slice-backed datastore.BulkWriteRelationshipSource for
+// exercising BulkLoad in tests. It yields a fresh *tuple.Relationship on each
+// call (never reusing the same pointer), mirroring the shape of
+// testfixtures.BulkRelationshipGenerator.
+type testBulkSource struct {
+	rels []tuple.Relationship
+	next int
+}
+
+func (s *testBulkSource) Next(_ context.Context) (*tuple.Relationship, error) {
+	if s.next >= len(s.rels) {
+		return nil, nil
+	}
+	rel := s.rels[s.next]
+	s.next++
+	return &rel, nil
+}
+
+var _ datastore.BulkWriteRelationshipSource = &testBulkSource{}
 
 // TestChangelogTableCreatedWhenEnabled verifies that newCRDBDatastore creates
 // the experimental relationship_changelog table when the changelog-watch flag
@@ -208,5 +229,53 @@ func TestChangelogPollEmitsRowAtExactlyTarget(t *testing.T) {
 			}
 		}
 		require.Equal(t, 1, count, "row at exactly the poll target must be emitted exactly once")
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
+// TestChangelogWatchSeesBulkLoad is the motivating scenario for the
+// changelog-table Watch feature: CRDB changefeeds stall resolved timestamps
+// during bulk loads, so the poll-based Watch must be able to observe
+// bulk-loaded relationships via the changelog table instead. It bulk-loads a
+// batch of relationships in a single transaction and asserts every one of
+// them arrives over the poll-based watch.
+func TestChangelogWatchSeesBulkLoad(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+		changes, errchan := ds.Watch(ctx, head.Revision, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 100 * time.Millisecond,
+		})
+
+		const total = 500
+		rels := make([]tuple.Relationship, 0, total)
+		for i := 0; i < total; i++ {
+			rels = append(rels, tuple.MustParse(fmt.Sprintf("document:doc%d#viewer@user:alice", i)))
+		}
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			_, berr := rwt.BulkLoad(ctx, &testBulkSource{rels: rels})
+			return berr
+		})
+		require.NoError(t, err)
+
+		seen := map[string]struct{}{}
+		deadline := time.After(60 * time.Second)
+		for len(seen) < total {
+			select {
+			case change, ok := <-changes:
+				require.True(t, ok)
+				for _, rc := range change.RelationshipChanges {
+					seen[rc.Relationship.Resource.ObjectID] = struct{}{}
+				}
+			case err := <-errchan:
+				require.NoError(t, err)
+			case <-deadline:
+				t.Fatalf("only saw %d/%d bulk-loaded relationships over changelog watch", len(seen), total)
+			}
+		}
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }

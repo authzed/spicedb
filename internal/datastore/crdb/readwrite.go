@@ -646,11 +646,29 @@ var copyColsWithIntegrity = []string{
 func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	rwt.hasNonExpiredDeletionChange = true
 
+	cols := copyCols
 	if rwt.withIntegrity {
-		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyColsWithIntegrity, iter)
+		cols = copyColsWithIntegrity
 	}
 
-	return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyCols, iter)
+	if !rwt.changelogWatchEnabled {
+		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, cols, iter)
+	}
+
+	// CRDB changefeeds stall resolved timestamps during bulk loads, which is
+	// the motivating reason the changelog-table Watch exists. When it is
+	// enabled, tee every bulk-loaded relationship into the changelog (in the
+	// same transaction as the COPY) so the poll-based Watch can observe
+	// bulk-loaded data.
+	captured := &capturingBulkSource{inner: iter}
+	loaded, err := pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, cols, captured)
+	if err != nil {
+		return loaded, err
+	}
+	if err := rwt.appendRelationshipChangelogBatch(ctx, captured.seen, rwt.changelogTTL()); err != nil {
+		return loaded, err
+	}
+	return loaded, nil
 }
 
 var _ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}
