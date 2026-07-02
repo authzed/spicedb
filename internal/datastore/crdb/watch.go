@@ -239,6 +239,11 @@ type changeTracker[R datastore.Revision, K comparable] interface {
 // normalizing changes, and waiting for a checkpoints to the caller.
 //
 // It's used when WatchOptions.EmissionStrategy is set to EmitImmediatelyStrategy.
+//
+// NOTE: this provider is only used internally (EmitImmediatelyStrategy) and
+// performs no filtering of any kind; on CRDB < 24.1 (where row-level TTL
+// deletes are not suppressed at the changefeed level), TTL deletes of expired
+// relationships will reach these consumers as ordinary DELETE events.
 type streamingChangeProvider struct {
 	content    datastore.WatchContent
 	sendChange sendChangeFunc
@@ -385,45 +390,13 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 					return
 				}
 
-				// TODO(jschorr): Change this to a new event type if/when we decide to report these
-				// row GCs.
-
-				// Filter out any DELETEs that occurred due to a relationship being expired and CRDB
-				// performing GC of the row.
-				// As CRDB does not (currently) provide a means for differentiating rows deleted by a user
-				// and rows deleted by the system, we use a set of heuristics to determine when to filter:
-				//
-				// 1) Rows deleted by the TTL cleanup in CRDB will not have any metadata associated with the
-				//    transaction.
-				// 2) No other operations besides DELETE will be performed by the TTL cleanup.
-				// 3) Only filter rows that had an expires_at that are before the current time.
-				if len(revChange.Metadatas) == 0 {
-					if len(revChange.ChangedDefinitions) == 0 && len(revChange.DeletedNamespaces) == 0 &&
-						len(revChange.DeletedCaveats) == 0 {
-						hasNonTTLEvent := false
-						for _, relChange := range revChange.RelationshipChanges {
-							if relChange.Operation != tuple.UpdateOperationDelete {
-								hasNonTTLEvent = true
-								break
-							}
-
-							if relChange.Relationship.OptionalExpiration == nil {
-								hasNonTTLEvent = true
-								break
-							}
-
-							if relChange.Relationship.OptionalExpiration.After(time.Now()) {
-								hasNonTTLEvent = true
-								break
-							}
-						}
-
-						if !hasNonTTLEvent {
-							// Skip this event.
-							continue
-						}
-					}
-				}
+				// NOTE: deletions of expired relationships performed by CockroachDB's
+				// row-level TTL job are suppressed at the source via the
+				// ttl_disable_changefeed_replication storage parameter (see
+				// ttl_changefeed.go) and therefore never appear here on CRDB >= 24.1.
+				// On older versions there is no way to distinguish them (CRDB provides
+				// no per-event origin marker; see cockroachdb/cockroach#106694), and
+				// they WILL be emitted as normal DELETE events.
 
 				if err := sendChange(revChange); err != nil {
 					sendError(err)
