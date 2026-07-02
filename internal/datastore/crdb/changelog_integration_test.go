@@ -453,6 +453,87 @@ func TestChangelogPollEmitsRowAtExactlyTarget(t *testing.T) {
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
 
+// TestChangelogImmediateCursorAndDedup deterministically exercises the two
+// load-bearing properties of the immediate-emission poll without relying on
+// real clock skew, by calling pollChangelogImmediate directly with pinned
+// clusterNow/safeTS across three polls:
+//   - INV1: the completeness cursor advances only to safeTS, never clusterNow.
+//   - INV6: a provisional-window row (safeTS < change_ts <= clusterNow) is
+//     emitted exactly once even though later polls re-read it, and its dedup
+//     key is pruned once safeTS passes it.
+func TestChangelogImmediateCursorAndDedup(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx := t.Context()
+		cds := extractCRDBDatastore(t, ds)
+
+		conn, err := pgx.Connect(ctx, cds.dburl)
+		require.NoError(t, err)
+		defer func() { _ = conn.Close(ctx) }()
+
+		// Base the row's change_ts (TR) on the cluster clock so it is a valid
+		// HLC, then insert a single relationship changelog row stamped at TR.
+		var tr decimal.Decimal
+		require.NoError(t, conn.QueryRow(ctx, "SELECT cluster_logical_timestamp()").Scan(&tr))
+
+		insert := "INSERT INTO " + schema.TableRelationshipChangelog + " (" +
+			schema.ColChangeTS + ", " + schema.ColChangeOrdinal + ", " + schema.ColChangeKind + ", " +
+			schema.ColNamespace + ", " + schema.ColObjectID + ", " + schema.ColRelation + ", " +
+			schema.ColUsersetNamespace + ", " + schema.ColUsersetObjectID + ", " + schema.ColUsersetRelation + ", " +
+			schema.ColChangeOperation + ", " + schema.ColChangeTTLExpiration +
+			") VALUES ($1, 0, 'rel', 'document', 'provrow', 'viewer', 'user', 'alice', '...', 'create', $2)"
+		_, err = conn.Exec(ctx, insert, tr, time.Now().Add(1*time.Hour))
+		require.NoError(t, err)
+
+		emittedWindow := make(map[changelogRowKey]struct{})
+		provCount := 0
+		sendChange := func(change datastore.RevisionChanges) error {
+			for _, rc := range change.RelationshipChanges {
+				if rc.Relationship.Resource.ObjectID == "provrow" {
+					provCount++
+				}
+			}
+			return nil
+		}
+		opts := datastore.WatchOptions{Content: datastore.WatchRelationships | datastore.WatchCheckpoints}
+
+		poll := func(cursor, clusterNow, safeTS decimal.Decimal) decimal.Decimal {
+			tx, err := conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+			require.NoError(t, err)
+			defer func() { _ = tx.Rollback(ctx) }()
+			newCursor, err := cds.pollChangelogImmediate(ctx, tx, opts, cursor, clusterNow, safeTS, emittedWindow, sendChange)
+			require.NoError(t, err)
+			return newCursor
+		}
+
+		one := decimal.NewFromInt(1)
+		ten := decimal.NewFromInt(10)
+		nine := decimal.NewFromInt(9)
+
+		// Poll 1: TR is provisional (safeTS = TR-1 < TR <= clusterNow = TR). The
+		// cursor must advance only to safeTS (TR-1), NOT clusterNow (TR).
+		c1 := poll(tr.Sub(ten), tr, tr.Sub(one))
+		require.True(t, c1.Equal(tr.Sub(one)), "cursor must advance to safeTS (TR-1), got %s", c1)
+		require.Equal(t, 1, provCount, "provisional row emitted once on the first poll")
+		require.Len(t, emittedWindow, 1, "provisional row key retained for dedup")
+
+		// Poll 2: still provisional; the row is re-read but must be deduped, and
+		// the cursor is unchanged (safeTS == cursor, so no advance).
+		c2 := poll(c1, tr, tr.Sub(one))
+		require.True(t, c2.Equal(tr.Sub(one)), "cursor unchanged while safeTS does not advance")
+		require.Equal(t, 1, provCount, "provisional row must not be re-emitted (dedup)")
+		require.Len(t, emittedWindow, 1, "dedup key retained while safeTS has not passed TR")
+
+		// Poll 3: safeTS advances past TR (clusterNow = TR+10, safeTS = TR+9). The
+		// row is re-read but deduped; the cursor advances to safeTS (TR+9), not
+		// clusterNow (TR+10); the key is pruned since TR <= newCursor.
+		c3 := poll(c2, tr.Add(ten), tr.Add(nine))
+		require.True(t, c3.Equal(tr.Add(nine)), "cursor must advance to safeTS (TR+9), not clusterNow, got %s", c3)
+		require.Equal(t, 1, provCount, "provisional row still emitted exactly once in total")
+		require.Empty(t, emittedWindow, "dedup key pruned once safeTS passed TR")
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
 // TestChangelogWatchRejectsStaleCursor verifies that opening a changelog
 // Watch with an afterRevision far older than the datastore's GC window fails
 // fast with the standard stale-revision error, rather than silently polling
