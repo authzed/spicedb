@@ -461,16 +461,15 @@ import "broken2.zed"
 	require.Equal(t, lsp.Error, resp.Items[0].Severity)
 	require.Contains(t, resp.Items[0].Message, "could not lookup definition `organization` for relation `viewer`: object definition `organization` not found")
 
-	// TODO this doesn't pass
-	//// broken2.zed has one error
-	// resp, _ = sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
-	//	TextDocumentDiagnosticParams{
-	//		TextDocument: TextDocument{URI: "file:///testdir/broken2.zed"},
-	//	})
-	// require.Equal(t, "full", resp.Kind)
-	// require.Len(t, resp.Items, 1)
-	// require.Equal(t, lsp.Error, resp.Items[0].Severity)
-	// require.Contains(t, resp.Items[0].Message, "could not lookup definition `organization` for relation `viewer`: object definition `organization` not found")}
+	// broken2.zed has one error
+	resp, _ = sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///testdir/broken2.zed"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.Error, resp.Items[0].Severity)
+	require.Contains(t, resp.Items[0].Message, "could not lookup definition `organization` for relation `viewer`: object definition `organization` not found")
 }
 
 func TestMultiFileBrokenImportDiagnostics(t *testing.T) {

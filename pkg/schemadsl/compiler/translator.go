@@ -36,6 +36,13 @@ type translationContext struct {
 	// The mapping of partial name -> relations represented by the partial
 	compiledPartials map[string][]*core.Relation
 
+	// The mapping of *core.Relation -> the partial path in which the relation
+	// was originally declared. Relations inherited via `...other_partial` splat
+	// retain the original partial as the origin (the same pointer is reused).
+	// Used by downstream validation to attribute partial-body errors to the
+	// partial that actually declared the offending relation.
+	partialRelationOrigins map[*core.Relation]string
+
 	// A mapping of partial name -> partial DSL nodes whose resolution depends on
 	// the resolution of the named partial
 	unresolvedPartials *mapz.MultiMap[string, *dslNode]
@@ -140,11 +147,13 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 	}
 
 	return &CompiledSchema{
-		CaveatDefinitions:  caveatDefinitions,
-		ObjectDefinitions:  objectDefinitions,
-		OrderedDefinitions: orderedDefinitions,
-		rootNode:           root,
-		mapper:             tctx.mapper,
+		CaveatDefinitions:      caveatDefinitions,
+		ObjectDefinitions:      objectDefinitions,
+		OrderedDefinitions:     orderedDefinitions,
+		CompiledPartials:       tctx.compiledPartials,
+		PartialRelationOrigins: tctx.partialRelationOrigins,
+		rootNode:               root,
+		mapper:                 tctx.mapper,
 	}, nil
 }
 
@@ -951,6 +960,18 @@ func translatePartial(tctx *translationContext, partialNode *dslNode) error {
 	}
 
 	tctx.compiledPartials[partialPath] = relationsAndPermissions
+
+	// Record the partial in which each relation was originally declared.
+	// Relations inherited via `...other_partial` splat retain the original
+	// partial as origin (the same *core.Relation pointer is reused), so
+	// we only record an origin the first time we see a given pointer.
+	if tctx.partialRelationOrigins != nil {
+		for _, rel := range relationsAndPermissions {
+			if _, exists := tctx.partialRelationOrigins[rel]; !exists {
+				tctx.partialRelationOrigins[rel] = partialPath
+			}
+		}
+	}
 
 	// Since we've successfully compiled a partial, check the unresolved partials to see if any other partial was
 	// waiting on this partial

@@ -277,6 +277,11 @@ func loadCompiled(
 	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
 	ts := schema.NewTypeSystem(schema.ResolverForCompiledSchema(compiled))
 
+	// Validate partial bodies up front so errors are reported against the
+	// partial's own source location rather than against whatever definition
+	// happens to reference the partial later.
+	errors = append(errors, validateCompiledPartials(ctx, compiled)...)
+
 	var validDefs []datastore.SchemaDefinition
 
 	for _, caveatDef := range compiled.CaveatDefinitions {
