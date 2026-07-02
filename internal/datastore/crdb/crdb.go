@@ -204,6 +204,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		gcWindow:                     config.gcWindow,
 		watchEnabled:                 !config.watchDisabled,
 		changelogWatchEnabled:        config.changelogWatchEnabled,
+		changelogWatchMaxOffset:      config.changelogWatchMaxOffset,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
@@ -291,13 +292,14 @@ type crdbDatastore struct {
 	cachedFeatures *datastore.Features // GUARDED_BY(featuresLock)
 	featuresLock   sync.Mutex
 
-	pruneGroup            *errgroup.Group
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	filterMaximumIDCount  uint16
-	supportsIntegrity     bool
-	watchEnabled          bool
-	changelogWatchEnabled bool
+	pruneGroup              *errgroup.Group
+	ctx                     context.Context
+	cancel                  context.CancelFunc
+	filterMaximumIDCount    uint16
+	supportsIntegrity       bool
+	watchEnabled            bool
+	changelogWatchEnabled   bool
+	changelogWatchMaxOffset time.Duration
 
 	uniqueID atomic.Pointer[string]
 }

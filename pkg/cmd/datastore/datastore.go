@@ -154,6 +154,7 @@ type Config struct {
 	ConnectRate                    time.Duration `debugmap:"visible" default:"100ms"`
 	WriteAcquisitionTimeout        time.Duration `debugmap:"visible" default:"30ms"`
 	ExperimentalCRDBChangelogWatch bool          `debugmap:"visible" default:"false"`
+	ChangelogWatchMaxOffset        time.Duration `debugmap:"visible" default:"250ms"`
 
 	// Postgres
 	GCInterval            time.Duration `debugmap:"visible" default:"3m"`
@@ -349,6 +350,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
 	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", "strategy to generate transaction overlap keys (\"request\", \"prefix\", \"static\", \"insecure\") (CockroachDB driver only - see "+sharederrors.CrdbOverlapErrorLink+" for details)")
 	flagSet.BoolVar(&opts.ExperimentalCRDBChangelogWatch, flagName("datastore-experimental-crdb-changelog-watch"), false, "EXPERIMENTAL: use a dual-written changelog table polled at a closed timestamp for Watch instead of a changefeed (CockroachDB driver only). Keeps Watch advancing during bulk loads at the cost of write latency.")
+	flagSet.DurationVar(&opts.ChangelogWatchMaxOffset, flagName("datastore-experimental-crdb-changelog-watch-max-offset"), 250*time.Millisecond, "EXPERIMENTAL: safety margin subtracted from the cluster clock to derive the changelog Watch completeness cursor/checkpoint; MUST be >= the cluster's --max-offset (CockroachDB default 500ms) or Watch can miss commits (CockroachDB driver only)")
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only)")
 	flagSet.BoolVar(&opts.EnableConnectionBalancing, flagName("datastore-connection-balancing"), defaults.EnableConnectionBalancing, "enable connection balancing between database nodes (CockroachDB driver only)")
 	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 100*time.Millisecond, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only)")
@@ -428,6 +430,7 @@ func DefaultDatastoreConfig() *Config {
 		OverlapKey:                       "key",
 		OverlapStrategy:                  "static",
 		ExperimentalCRDBChangelogWatch:   false,
+		ChangelogWatchMaxOffset:          250 * time.Millisecond,
 		ConnectRate:                      100 * time.Millisecond,
 		EnableConnectionBalancing:        true,
 		GCInterval:                       3 * time.Minute,
@@ -661,6 +664,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 		crdb.WithWatchDisabled(opts.DisableWatchSupport),
 		crdb.ExperimentalChangelogWatch(opts.ExperimentalCRDBChangelogWatch),
+		crdb.ChangelogWatchMaxOffset(opts.ChangelogWatchMaxOffset),
 	)
 }
 

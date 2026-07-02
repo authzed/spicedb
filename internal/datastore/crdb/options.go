@@ -36,6 +36,7 @@ type crdbOptions struct {
 	includeQueryParametersInTraces bool
 	watchDisabled                  bool
 	changelogWatchEnabled          bool
+	changelogWatchMaxOffset        time.Duration
 	acquireTimeout                 time.Duration
 }
 
@@ -68,6 +69,12 @@ const (
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionStaticValues
 	defaultIncludeQueryParametersInTraces = false
 	defaultWatchDisabled                  = false
+
+	// defaultChangelogWatchMaxOffset is the safety margin subtracted from the
+	// cluster logical clock to derive the changelog-watch completeness cursor
+	// (see ChangelogWatchMaxOffset). It MUST be >= the cluster's --max-offset or
+	// Watch can miss commits; CRDB's default max-offset is 500ms.
+	defaultChangelogWatchMaxOffset = 250 * time.Millisecond
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -94,6 +101,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		watchDisabled:                  defaultWatchDisabled,
+		changelogWatchMaxOffset:        defaultChangelogWatchMaxOffset,
 		acquireTimeout:                 defaultAcquireTimeout,
 	}
 
@@ -428,13 +436,31 @@ func WithAcquireTimeout(timeout time.Duration) Option {
 
 // ExperimentalChangelogWatch enables the experimental changelog-table Watch
 // path for CockroachDB: writes dual-write into a relationship_changelog table
-// and Watch polls that table at a closed timestamp instead of using a
-// changefeed. Defaults to off.
+// and Watch polls that table at present time instead of using a changefeed.
+// Defaults to off.
 //
-// Note: this path always uses buffered, checkpoint-grouped emission and does
-// not honor a caller's datastore.EmitImmediatelyStrategy request (see
-// watchViaChangelog), even though this datastore otherwise advertises
-// WatchEmitsImmediately support.
+// This path honors the caller's datastore.EmissionStrategy: with
+// datastore.EmitImmediatelyStrategy each change is emitted as soon as it is
+// read (latency ≈ the poll/nudge interval), while the default
+// datastore.EmitWhenCheckpointedStrategy releases changes grouped-by-revision
+// with the checkpoint. Checkpoint latency is bounded by
+// ChangelogWatchMaxOffset regardless of strategy.
 func ExperimentalChangelogWatch(enabled bool) Option {
 	return func(po *crdbOptions) { po.changelogWatchEnabled = enabled }
+}
+
+// ChangelogWatchMaxOffset sets the safety margin the experimental changelog
+// Watch path subtracts from the cluster logical clock to derive its
+// completeness cursor. Each poll reads the changelog at present time, then
+// advances the "you have seen everything up to here" cursor (and emits its
+// checkpoint) only to clusterNow - ChangelogWatchMaxOffset. Any transaction
+// that has not yet become visible cluster-wide commits with a timestamp above
+// this floor and is therefore caught by a later poll rather than skipped.
+//
+// This value MUST be >= the cluster's --max-offset setting, or Watch can miss
+// commits (a straggler could commit below the cursor and never be re-read).
+// CockroachDB's default --max-offset is 500ms. This defaults to 250ms; raise
+// it to match or exceed your cluster's configured --max-offset.
+func ChangelogWatchMaxOffset(maxOffset time.Duration) Option {
+	return func(po *crdbOptions) { po.changelogWatchMaxOffset = maxOffset }
 }

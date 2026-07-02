@@ -237,6 +237,106 @@ func TestChangelogWatchEmitsMetadata(t *testing.T) {
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
 
+// TestChangelogWatchEmitsImmediately verifies that, with
+// EmitImmediatelyStrategy, the changelog poll emits a change as soon as it is
+// read (rather than buffering until a checkpoint) and preserves the Create
+// operation — the buffered path normalizes Create to Touch, so observing a
+// Create on the wire is a mode-distinguishing signal that the immediate path
+// is actually taken. It also confirms checkpoints still flow.
+func TestChangelogWatchEmitsImmediately(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+
+		changes, errchan := ds.Watch(ctx, head.Revision, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 100 * time.Millisecond,
+			EmissionStrategy:   datastore.EmitImmediatelyStrategy,
+		})
+
+		rel := tuple.MustParse("document:immdoc#viewer@user:alice")
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{tuple.Create(rel)})
+		})
+		require.NoError(t, err)
+
+		gotChange, gotCheckpoint := false, false
+		deadline := time.After(30 * time.Second)
+		for !(gotChange && gotCheckpoint) {
+			select {
+			case change, ok := <-changes:
+				require.True(t, ok)
+				if change.IsCheckpoint {
+					gotCheckpoint = true
+				}
+				for _, rc := range change.RelationshipChanges {
+					if rc.Relationship.Resource.ObjectID == "immdoc" {
+						require.Equal(t, tuple.UpdateOperationCreate, rc.Operation,
+							"immediate mode must preserve Create (buffered would normalize to Touch)")
+						gotChange = true
+					}
+				}
+			case err := <-errchan:
+				require.NoError(t, err)
+			case <-deadline:
+				t.Fatal("did not receive immediate change + checkpoint over changelog watch")
+			}
+		}
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
+// TestChangelogWatchAdvancesCheckpointsWhenIdle verifies that checkpoints keep
+// advancing on an idle watch with no writes: each poll re-reads
+// cluster_logical_timestamp(), so safeTS (and thus the emitted checkpoint
+// revision) moves forward on the ticker even when nothing is being written.
+func TestChangelogWatchAdvancesCheckpointsWhenIdle(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+
+		changes, errchan := ds.Watch(ctx, head.Revision, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 100 * time.Millisecond,
+		})
+
+		// No writes. Capture the first checkpoint, then wait for one strictly
+		// greater (there may be an initial plateau while safeTS climbs past the
+		// starting cursor).
+		var first datastore.Revision
+		haveFirst := false
+		deadline := time.After(30 * time.Second)
+		for {
+			select {
+			case change, ok := <-changes:
+				require.True(t, ok)
+				if !change.IsCheckpoint {
+					continue
+				}
+				if !haveFirst {
+					first = change.Revision
+					haveFirst = true
+					continue
+				}
+				if change.Revision.GreaterThan(first) {
+					return
+				}
+			case err := <-errchan:
+				require.NoError(t, err)
+			case <-deadline:
+				t.Fatal("idle changelog watch did not emit an advancing checkpoint")
+			}
+		}
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
+
 // TestChangelogWatchNudgeDeliversQuickly verifies that the changefeed "nudge"
 // wakes the poll loop well before the (deliberately long) ticker interval
 // fires. It opens a watch with a 30s CheckpointInterval, waits long enough
