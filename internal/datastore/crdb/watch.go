@@ -98,7 +98,11 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
-	go cds.watch(ctx, afterRevision, options, updates, errs)
+	if cds.changelogWatchEnabled {
+		go cds.watchViaChangelog(ctx, afterRevision, options, updates, errs)
+	} else {
+		go cds.watch(ctx, afterRevision, options, updates, errs)
+	}
 
 	return updates, errs
 }

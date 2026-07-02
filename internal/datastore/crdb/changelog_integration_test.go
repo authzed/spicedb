@@ -100,3 +100,48 @@ func TestSchemaDualWrite(t *testing.T) {
 		require.Equal(t, 1, count)
 	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
 }
+
+// TestChangelogWatchReceivesWrite verifies that, when the changelog-watch flag
+// is enabled, Watch serves relationship changes by polling the changelog table
+// at a closed timestamp rather than by consuming a CRDB changefeed. It opens a
+// watch from HeadRevision, writes a relationship, and asserts the change is
+// delivered over the watch channel.
+func TestChangelogWatchReceivesWrite(t *testing.T) {
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	createDatastoreTest(engine, func(t *testing.T, ds datastore.Datastore) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+
+		changes, errchan := ds.Watch(ctx, head.Revision, datastore.WatchOptions{
+			Content:            datastore.WatchRelationships | datastore.WatchCheckpoints,
+			CheckpointInterval: 100 * time.Millisecond,
+		})
+
+		rel := tuple.MustParse("document:doc1#viewer@user:alice")
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{tuple.Touch(rel)})
+		})
+		require.NoError(t, err)
+
+		found := false
+		deadline := time.After(30 * time.Second)
+		for !found {
+			select {
+			case change, ok := <-changes:
+				require.True(t, ok)
+				for _, rc := range change.RelationshipChanges {
+					if rc.Relationship.Resource.ObjectID == "doc1" {
+						found = true
+					}
+				}
+			case err := <-errchan:
+				require.NoError(t, err)
+			case <-deadline:
+				t.Fatal("did not receive the write over changelog watch")
+			}
+		}
+	}, ExperimentalChangelogWatch(true), WithAcquireTimeout(5*time.Second))(t)
+}
