@@ -430,6 +430,11 @@ func WithAcquireTimeout(timeout time.Duration) Option {
 // path for CockroachDB: writes dual-write into a relationship_changelog table
 // and Watch polls that table at a closed timestamp instead of using a
 // changefeed. Defaults to off.
+//
+// Note: this path always uses buffered, checkpoint-grouped emission and does
+// not honor a caller's datastore.EmitImmediatelyStrategy request (see
+// watchViaChangelog), even though this datastore otherwise advertises
+// WatchEmitsImmediately support.
 func ExperimentalChangelogWatch(enabled bool) Option {
 	return func(po *crdbOptions) { po.changelogWatchEnabled = enabled }
 }

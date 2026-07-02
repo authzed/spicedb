@@ -39,6 +39,16 @@ const changelogSelectColumns = schema.ColChangeTS + ", " + schema.ColChangeKind 
 // changelog row in (cursor, target]. Because the read is at a closed timestamp,
 // it observes every committed write with commit ts <= target regardless of
 // changefeed health, which is what lets this path survive bulk loads.
+//
+// Emission strategy: every poll buffers and dedups the rows in the window via
+// common.NewChanges (grouping by revision, collapsing touch/delete pairs) and
+// emits once per checkpoint interval/nudge. This path does NOT honor
+// opts.EmissionStrategy -- a caller requesting datastore.EmitImmediatelyStrategy
+// still gets buffered, checkpoint-grouped delivery, and a bare insert is
+// reported as a Touch rather than a Create (see the "create" normalization in
+// accumulateChangelogRows). This is a known, accepted limitation of the
+// experimental changelog-table Watch path: immediate emission is moot anyway
+// given the follower-read latency floor imposed by follower_read_timestamp().
 func (cds *crdbDatastore) watchViaChangelog(
 	ctx context.Context,
 	afterRevision datastore.Revision,
