@@ -80,6 +80,18 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 		return d.delegate.DispatchCheck(ctx, req)
 	}
 
+	// Debug-enabled checks must not share a flight with non-debug checks: the
+	// dispatch key does not depend on req.Debug, so an identical concurrent
+	// request with a different debug level would otherwise collapse into the
+	// same flight. A non-debug leader would deny a tracing follower its trace,
+	// and a debug leader would leak its trace to a non-debug follower (the
+	// latter has panicked CheckBulkPermissions, see #3159). Dispatch directly
+	// so the response carries exactly the debug info this caller asked for.
+	if req.Debug != v1.DispatchCheckRequest_NO_DEBUG {
+		singleFlightCount.WithLabelValues("DispatchCheck", "debug").Inc()
+		return d.delegate.DispatchCheck(ctx, req)
+	}
+
 	sharedResp, isShared, err := d.checkGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchCheckResponse, error) {
 		return d.delegate.DispatchCheck(innerCtx, req)
 	})

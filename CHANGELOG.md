@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Server handles: `GRPCDialContext` as a handle on the server used deprecated gRPC methods. We modernized it and renamed it to `NewClient` (https://github.com/authzed/spicedb/pull/3147)
 
 ### Fixed
+- Fixed a nil pointer dereference panic in `CheckBulkPermissions` that could occur under concurrent load when a tracing-enabled check shared a singleflight dispatch with a non-tracing bulk check. Debug-enabled checks are no longer singleflighted together with non-debug checks. (https://github.com/authzed/spicedb/pull/3174)
 - The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)
 - Watch consumers that request `WatchCheckpoints` now eventually observe every revision returned by `WriteRelationships` as a checkpoint. MemDB regressed this in https://github.com/authzed/spicedb/pull/2578 for no-op writes and MySQL never emitted checkpoints at all prior to now. Both now emit a checkpoint at the new revision. (https://github.com/authzed/spicedb/pull/3114)
 - When Query Planner evaluates a union, short-circuit if one of the branches yields a positive un-caveated result (https://github.com/authzed/spicedb/pull/3120)
