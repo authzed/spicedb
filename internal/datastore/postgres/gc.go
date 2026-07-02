@@ -7,7 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -56,14 +56,6 @@ func (pgd *pgDatastore) ResetGCCompleted() {
 func (pgg *pgGarbageCollector) Close() {
 	pgg.isClosed = true
 	pgg.conn.Release()
-}
-
-func (pgg *pgGarbageCollector) LockForGCRun(ctx context.Context) (bool, error) {
-	return pgg.pgd.tryAcquireLock(ctx, pgg.conn, gcRunLock)
-}
-
-func (pgg *pgGarbageCollector) UnlockAfterGCRun() error {
-	return pgg.pgd.releaseLock(context.Background(), pgg.conn, gcRunLock)
 }
 
 func (pgg *pgGarbageCollector) Now(ctx context.Context) (time.Time, error) {
@@ -136,10 +128,6 @@ func (pgg *pgGarbageCollector) DeleteExpiredRels(ctx context.Context) (int64, er
 	)
 }
 
-type exec interface {
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
-
 func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (datastore.DeletionCounts, error) {
 	if pgg.isClosed {
 		return datastore.DeletionCounts{}, spiceerrors.MustBugf("pgGarbageCollector is closed")
@@ -148,7 +136,14 @@ func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastor
 	return pgg.deleteBeforeTx(ctx, pgg.conn, txID)
 }
 
-func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, txID datastore.Revision) (datastore.DeletionCounts, error) {
+// txBeginner is satisfied by *pgxpool.Conn (used in production) and by any
+// ConnPooler (used in tests to route batch transactions through the
+// QueryInterceptor).
+type txBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, beginner txBeginner, txID datastore.Revision) (datastore.DeletionCounts, error) {
 	revision := txID.(postgresRevision)
 
 	minTxAlive := NewXid8(revision.snapshot.xmin)
@@ -157,7 +152,7 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 	// Delete any relationship rows that were already dead when this transaction started
 	removed.Relationships, err = pgg.batchDelete(
 		ctx,
-		conn,
+		beginner,
 		schema.TableTuple,
 		gcPKCols,
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
@@ -173,7 +168,7 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 	// one transaction present.
 	removed.Transactions, err = pgg.batchDelete(
 		ctx,
-		conn,
+		beginner,
 		schema.TableTransaction,
 		gcPKCols,
 		sq.Lt{schema.ColXID: minTxAlive},
@@ -186,7 +181,7 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
 	removed.Namespaces, err = pgg.batchDelete(
 		ctx,
-		conn,
+		beginner,
 		schema.TableNamespace,
 		gcPKCols,
 		sq.Lt{schema.ColDeletedXid: minTxAlive},
@@ -201,7 +196,7 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 
 func (pgg *pgGarbageCollector) batchDelete(
 	ctx context.Context,
-	conn exec,
+	beginner txBeginner,
 	tableName string,
 	pkCols []string,
 	filter sqlFilter,
@@ -224,12 +219,28 @@ func (pgg *pgGarbageCollector) batchDelete(
 
 	var deletedCount int64
 	for {
-		cr, err := conn.Exec(ctx, query, args...)
-		if err != nil {
+		var rowsDeleted int64
+		if err := pgx.BeginFunc(ctx, beginner, func(tx pgx.Tx) error {
+			locked, err := pgg.pgd.tryAcquireXactLock(ctx, tx, gcRunLock)
+			if err != nil {
+				return fmt.Errorf("error acquiring gc lock: %w", err)
+			}
+
+			if !locked {
+				return datastore.ErrGCPreempted
+			}
+
+			cr, err := tx.Exec(ctx, query, args...)
+			if err != nil {
+				return err
+			}
+
+			rowsDeleted = cr.RowsAffected()
+			return nil
+		}); err != nil {
 			return deletedCount, err
 		}
 
-		rowsDeleted := cr.RowsAffected()
 		deletedCount += rowsDeleted
 		if rowsDeleted < gcBatchDeleteSize {
 			break
