@@ -9,11 +9,9 @@ import (
 	caveatsimpl "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt"
-	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -28,35 +26,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(atRevision, schemaHash)
 
-	// Load all namespace and caveat definitions to build the schema
-	// TODO: Better schema caching
-	sr, err := reader.ReadSchema(ctx)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	namespaces, err := sr.ListAllTypeDefinitions(ctx)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	caveats, err := sr.ListAllCaveatDefinitions(ctx)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	// Build schema from definitions
-	fullSchema, err := schema.BuildSchemaFromDefinitions(
-		datastore.DefinitionsOf(namespaces),
-		datastore.DefinitionsOf(caveats),
-	)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	// Build and optimize the outline, then compile to an iterator tree.
-	// TODO: Better outline caching
-	co, err := query.BuildOutlineFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
+	co, err := ps.queryPlanCache.getOrBuildOutline(ctx, reader, schemaHash, req.Resource.ObjectType, req.Permission)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -173,32 +143,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(atRevision, schemaHash)
 
-	// Load schema
-	sr, err := reader.ReadSchema(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	namespaces, err := sr.ListAllTypeDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	caveats, err := sr.ListAllCaveatDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	fullSchema, err := schema.BuildSchemaFromDefinitions(
-		datastore.DefinitionsOf(namespaces),
-		datastore.DefinitionsOf(caveats),
-	)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	// Build and compile the iterator tree for the requested resource type and permission
-	co, err := query.BuildOutlineFromSchema(fullSchema, req.ResourceObjectType, req.Permission)
+	co, err := ps.queryPlanCache.getOrBuildOutline(ctx, reader, schemaHash, req.ResourceObjectType, req.Permission)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -308,32 +253,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(atRevision, schemaHash)
 
-	// Load schema
-	sr, err := reader.ReadSchema(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	namespaces, err := sr.ListAllTypeDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	caveats, err := sr.ListAllCaveatDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	fullSchema, err := schema.BuildSchemaFromDefinitions(
-		datastore.DefinitionsOf(namespaces),
-		datastore.DefinitionsOf(caveats),
-	)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	// Build and compile the iterator tree for the resource type and permission
-	co, err := query.BuildOutlineFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
+	co, err := ps.queryPlanCache.getOrBuildOutline(ctx, reader, schemaHash, req.Resource.ObjectType, req.Permission)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
