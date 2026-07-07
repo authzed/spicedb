@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ccoveille/go-safecast/v2"
@@ -52,6 +53,25 @@ type crdbReadWriteTXN struct {
 	tx                          pgx.Tx
 	relCountChange              int64
 	hasNonExpiredDeletionChange bool
+	changelogWatchEnabled       bool
+	gcWindow                    time.Duration
+	changelogOrdinal            int
+}
+
+// nextChangelogOrdinal returns the next ordinal to use for a changelog row
+// appended within this transaction, and increments the counter.
+//
+// change_ts for changelog rows is derived from cluster_logical_timestamp(),
+// which is constant for the lifetime of a CockroachDB transaction. Since the
+// changelog primary key is (change_ts, ordinal), the ordinal must be unique
+// across the entire transaction rather than reset per call-site; otherwise
+// concurrent changelog-appending operations within the same transaction
+// (e.g. relationship writes, schema writes, bulk loads) would collide on the
+// same (change_ts, ordinal) pair.
+func (rwt *crdbReadWriteTXN) nextChangelogOrdinal() int {
+	n := rwt.changelogOrdinal
+	rwt.changelogOrdinal++
+	return n
 }
 
 var (
@@ -287,6 +307,11 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	bulkDeleteOr := sq.Or{}
 	var bulkDeleteCount int64
 
+	var changelogTTL time.Time
+	if rwt.changelogWatchEnabled {
+		changelogTTL = rwt.changelogTTL()
+	}
+
 	// Process the actual updates
 	for _, mutation := range mutations {
 		rel := mutation.Relationship
@@ -354,6 +379,12 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		default:
 			log.Ctx(ctx).Error().Msg("unknown operation type")
 			return fmt.Errorf("unknown mutation operation: %v", mutation.Operation)
+		}
+
+		if rwt.changelogWatchEnabled {
+			if err := rwt.appendRelationshipChangelog(ctx, rel, mutation.Operation, rwt.nextChangelogOrdinal(), changelogTTL); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -505,6 +536,19 @@ func (rwt *crdbReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfi
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
+	if rwt.changelogWatchEnabled {
+		ttl := rwt.changelogTTL()
+		for _, newConfig := range newConfigs {
+			serialized, err := newConfig.MarshalVT()
+			if err != nil {
+				return fmt.Errorf(errUnableToWriteConfig, err)
+			}
+			if err := rwt.appendSchemaChangelog(ctx, "namespace", newConfig.Name, serialized, rwt.nextChangelogOrdinal(), ttl); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -543,6 +587,15 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNames
 	_, err = rwt.tx.Exec(ctx, delSQL, delArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	if rwt.changelogWatchEnabled {
+		ttl := rwt.changelogTTL()
+		for _, nsName := range nsNames {
+			if err := rwt.appendSchemaChangelog(ctx, "namespace", nsName, nil, rwt.nextChangelogOrdinal(), ttl); err != nil {
+				return err
+			}
+		}
 	}
 
 	if delOption == datastore.DeleteNamespacesAndRelationships {
@@ -593,11 +646,29 @@ var copyColsWithIntegrity = []string{
 func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	rwt.hasNonExpiredDeletionChange = true
 
+	cols := copyCols
 	if rwt.withIntegrity {
-		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyColsWithIntegrity, iter)
+		cols = copyColsWithIntegrity
 	}
 
-	return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyCols, iter)
+	if !rwt.changelogWatchEnabled {
+		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, cols, iter)
+	}
+
+	// CRDB changefeeds stall resolved timestamps during bulk loads, which is
+	// the motivating reason the changelog-table Watch exists. When it is
+	// enabled, tee every bulk-loaded relationship into the changelog (in the
+	// same transaction as the COPY) so the poll-based Watch can observe
+	// bulk-loaded data.
+	captured := &capturingBulkSource{inner: iter}
+	loaded, err := pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, cols, captured)
+	if err != nil {
+		return loaded, err
+	}
+	if err := rwt.appendRelationshipChangelogBatch(ctx, captured.seen, rwt.changelogTTL()); err != nil {
+		return loaded, err
+	}
+	return loaded, nil
 }
 
 var _ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}

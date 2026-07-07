@@ -144,6 +144,13 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		config.gcWindow = time.Duration(clusterTTLNanos) * time.Nanosecond
 	}
 
+	if config.changelogWatchEnabled {
+		if err := ensureChangelogTable(initCtx, initPool, config.gcWindow); err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+		}
+		log.Ctx(initCtx).Info().Msg("experimental CRDB changelog-watch table ensured")
+	}
+
 	keySetInit := newKeySet
 	var keyer overlapKeyer
 	switch config.overlapStrategy {
@@ -196,6 +203,8 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		supportsIntegrity:            config.withIntegrity,
 		gcWindow:                     config.gcWindow,
 		watchEnabled:                 !config.watchDisabled,
+		changelogWatchEnabled:        config.changelogWatchEnabled,
+		changelogWatchMaxOffset:      config.changelogWatchMaxOffset,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 	ds.SetNowFunc(ds.headRevisionInternal)
@@ -283,12 +292,14 @@ type crdbDatastore struct {
 	cachedFeatures *datastore.Features // GUARDED_BY(featuresLock)
 	featuresLock   sync.Mutex
 
-	pruneGroup           *errgroup.Group
-	ctx                  context.Context
-	cancel               context.CancelFunc
-	filterMaximumIDCount uint16
-	supportsIntegrity    bool
-	watchEnabled         bool
+	pruneGroup              *errgroup.Group
+	ctx                     context.Context
+	cancel                  context.CancelFunc
+	filterMaximumIDCount    uint16
+	supportsIntegrity       bool
+	watchEnabled            bool
+	changelogWatchEnabled   bool
+	changelogWatchMaxOffset time.Duration
 
 	uniqueID atomic.Pointer[string]
 }
@@ -343,10 +354,13 @@ func (cds *crdbDatastore) ReadWriteTx(
 		}
 
 		rwt := &crdbReadWriteTXN{
-			reader,
-			tx,
-			0,
-			false,
+			crdbReader:                  reader,
+			tx:                          tx,
+			relCountChange:              0,
+			hasNonExpiredDeletionChange: false,
+			changelogWatchEnabled:       cds.changelogWatchEnabled,
+			gcWindow:                    cds.gcWindow,
+			changelogOrdinal:            0,
 		}
 
 		if config.SchemaHashPrecondition != "" {
@@ -359,34 +373,48 @@ func (cds *crdbDatastore) ReadWriteTx(
 			return err
 		}
 
-		// A transaction metadata entry is required if either:
-		// 1) len(metadata) > 0, which requires writing the metadata provided
-		// 2) metadata is required to mark the transaction as not matching
-		//    a deletion of expired relationships.
-		//
-		//    A transaction is marked as such IF and only IF the operations in the transaction
-		//    consist solely of deletions, as in that scenario, we cannot be certain in the Watch
-		//    changefeed that the transaction is not a deletion of expired relationships performed
-		//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
 		metadata := config.Metadata.AsMap()
-		requiresMetadata := len(metadata) > 0 || (cds.watchEnabled && (config.IncludesExpiredAt || !rwt.hasNonExpiredDeletionChange))
-		if requiresMetadata {
-			// Mark the transaction as coming from SpiceDB. See the comment in watch.go
-			// for why this is necessary.
-			metadata[spicedbTransactionKey] = true
-
-			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
-			insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
-				Columns(schema.ColExpiresAt, schema.ColMetadata).
-				Values(expiresAt, metadata)
-
-			sql, args, err := insertTransactionMetadata.ToSql()
-			if err != nil {
-				return fmt.Errorf("error building metadata insert: %w", err)
+		if cds.changelogWatchEnabled {
+			// In changelog mode, the changelog table itself replaces
+			// transaction_metadata entirely: it only ever contains rows
+			// SpiceDB explicitly wrote, so the changefeed path's TTL-delete
+			// disambiguation marker ($spicedbTransactionKey) is unnecessary
+			// here. If the caller supplied metadata, carry it as a single
+			// kind='metadata' changelog row; otherwise write nothing.
+			if len(metadata) > 0 {
+				if err := rwt.appendMetadataChangelog(ctx, metadata, rwt.nextChangelogOrdinal(), rwt.changelogTTL()); err != nil {
+					return err
+				}
 			}
+		} else {
+			// A transaction metadata entry is required if either:
+			// 1) len(metadata) > 0, which requires writing the metadata provided
+			// 2) metadata is required to mark the transaction as not matching
+			//    a deletion of expired relationships.
+			//
+			//    A transaction is marked as such IF and only IF the operations in the transaction
+			//    consist solely of deletions, as in that scenario, we cannot be certain in the Watch
+			//    changefeed that the transaction is not a deletion of expired relationships performed
+			//    by CRDB itself. This is also only necessary if both expiration and watch are enabled.
+			requiresMetadata := len(metadata) > 0 || (cds.watchEnabled && (config.IncludesExpiredAt || !rwt.hasNonExpiredDeletionChange))
+			if requiresMetadata {
+				// Mark the transaction as coming from SpiceDB. See the comment in watch.go
+				// for why this is necessary.
+				metadata[spicedbTransactionKey] = true
 
-			if _, err := tx.Exec(ctx, sql, args...); err != nil {
-				return fmt.Errorf("error writing metadata: %w", err)
+				expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
+				insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
+					Columns(schema.ColExpiresAt, schema.ColMetadata).
+					Values(expiresAt, metadata)
+
+				sql, args, err := insertTransactionMetadata.ToSql()
+				if err != nil {
+					return fmt.Errorf("error building metadata insert: %w", err)
+				}
+
+				if _, err := tx.Exec(ctx, sql, args...); err != nil {
+					return fmt.Errorf("error writing metadata: %w", err)
+				}
 			}
 		}
 

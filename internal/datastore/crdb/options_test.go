@@ -65,3 +65,13 @@ func TestConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestExperimentalChangelogWatchOption(t *testing.T) {
+	cfg, err := generateConfig([]Option{ExperimentalChangelogWatch(true)})
+	require.NoError(t, err)
+	require.True(t, cfg.changelogWatchEnabled)
+
+	defaultCfg, err := generateConfig(nil)
+	require.NoError(t, err)
+	require.False(t, defaultCfg.changelogWatchEnabled, "must default to off")
+}

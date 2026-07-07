@@ -270,7 +270,7 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 	case *core.CaveatDefinition:
 		delete(record.caveatsDeleted, t.Name)
 
-		if existing, ok := record.definitionsChanged[nsPrefix+t.Name]; ok {
+		if existing, ok := record.definitionsChanged[caveatPrefix+t.Name]; ok {
 			if err := ch.adjustByteSize(existing, -1); err != nil {
 				return err
 			}

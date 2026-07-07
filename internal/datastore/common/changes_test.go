@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -826,6 +827,39 @@ func TestMaximumSizeReplacement(t *testing.T) {
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), tuple.UpdateOperationDelete)
 	require.NoError(t, err)
 	require.Equal(t, int64(243), ch.currentByteSize)
+}
+
+// TestMaximumSizeCaveatReplacement is a regression test for a byte-accounting
+// bug where re-changing the same caveat within one window looked up the
+// prior entry under the namespace-prefixed key (nsPrefix+name) instead of the
+// caveat-prefixed key it was actually stored under (caveatPrefix+name). That
+// mismatch meant the prior entry's byte size was never decremented before the
+// new one was added, so currentByteSize was over-counted on every repeated
+// change to the same caveat. With the fix, replacing a caveat definition
+// leaves currentByteSize unchanged (matching the analogous namespace
+// behavior verified by TestMaximumSizeReplacement).
+func TestMaximumSizeCaveatReplacement(t *testing.T) {
+	ctx := t.Context()
+
+	caveatDef := &core.CaveatDefinition{Name: "somecaveat"}
+	size := caveatDef.SizeVT()
+
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, safecast.MustConvert[uint64](size))
+	require.True(t, ch.IsEmpty())
+
+	rev0, err := revisions.HLCRevisionFromString("1")
+	require.NoError(t, err)
+
+	err = ch.AddChangedDefinition(ctx, rev0, caveatDef)
+	require.NoError(t, err)
+	require.EqualValues(t, size, ch.currentByteSize)
+
+	// Changing the same caveat again must not accumulate byte size: the
+	// prior entry should be found (under caveatPrefix, not nsPrefix) and its
+	// size decremented before the new size is added back in.
+	err = ch.AddChangedDefinition(ctx, rev0, caveatDef)
+	require.NoError(t, err)
+	require.EqualValues(t, size, ch.currentByteSize)
 }
 
 func TestCanonicalize(t *testing.T) {

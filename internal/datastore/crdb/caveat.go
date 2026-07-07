@@ -155,6 +155,20 @@ func (rwt *crdbReadWriteTXN) LegacyWriteCaveats(ctx context.Context, caveats []*
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errWriteCaveat, err)
 	}
+
+	if rwt.changelogWatchEnabled {
+		ttl := rwt.changelogTTL()
+		for _, caveat := range caveats {
+			serialized, err := caveat.MarshalVT()
+			if err != nil {
+				return fmt.Errorf(errWriteCaveat, err)
+			}
+			if err := rwt.appendSchemaChangelog(ctx, "caveat", caveat.Name, serialized, rwt.nextChangelogOrdinal(), ttl); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -170,5 +184,15 @@ func (rwt *crdbReadWriteTXN) LegacyDeleteCaveats(ctx context.Context, names []st
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errDeleteCaveats, err)
 	}
+
+	if rwt.changelogWatchEnabled {
+		ttl := rwt.changelogTTL()
+		for _, name := range names {
+			if err := rwt.appendSchemaChangelog(ctx, "caveat", name, nil, rwt.nextChangelogOrdinal(), ttl); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
