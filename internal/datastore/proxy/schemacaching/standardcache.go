@@ -24,6 +24,8 @@ type definitionCachingProxy struct {
 	readGroup singleflight.Group[string, *cacheEntry]
 }
 
+// The caller MUST call Close on the returned proxy when it is no longer needed.
+// If a nil cache is passed, one is created, so Close is needed to stop its cleanup goroutine.
 func NewDefinitionCachingProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry]) *definitionCachingProxy {
 	if c == nil {
 		c, _ = cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
