@@ -106,12 +106,12 @@ func TestBreadthFirstIterResources_MaxDepth(t *testing.T) {
 	seq, err := recursive.IterResourcesImpl(ctx, ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, NoObjectFilter())
 	require.NoError(err)
 
-	paths, err := CollectAll(seq)
-	require.NoError(err)
-
-	// Should terminate at max depth, not infinite loop
-	// Each ply generates one new path, so we expect at most 3 paths
-	require.LessOrEqual(len(paths), 3, "Should terminate at max depth")
+	// The iterator never converges, so the traversal exhausts its depth budget.
+	// It must terminate with a MaxRecursionDepthError rather than either looping
+	// forever or silently returning a truncated result set.
+	_, err = CollectAll(seq)
+	require.Error(err, "Should terminate at max depth with an error, not silently truncate")
+	require.ErrorAs(err, &MaxRecursionDepthError{})
 }
 
 // TestBreadthFirstIterResources_ErrorHandling tests error paths in BFS IterResources
