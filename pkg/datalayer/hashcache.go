@@ -36,7 +36,6 @@ func (k SchemaCacheKey) KeyString() string { return string(k) }
 type SchemaCache interface {
 	Get(key SchemaCacheKey) (*datastore.ReadOnlyStoredSchema, bool)
 	Set(key SchemaCacheKey, entry *datastore.ReadOnlyStoredSchema, cost int64) bool
-	Wait()
 }
 
 // latestSchemaEntry holds the most recent schema entry for fast-path lookups.

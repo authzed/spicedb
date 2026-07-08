@@ -75,13 +75,6 @@ type Cache[K KeyString, V any] interface {
 	// implementation, so writes are best-effort.
 	Set(key K, entry V, cost int64) bool
 
-	// Wait blocks until buffered Set calls have been processed by the
-	// underlying implementation. Required for read-your-own-writes
-	// semantics with implementations that buffer writes (e.g. Ristretto);
-	// a no-op on the current Otter-backed implementation, which applies
-	// writes synchronously.
-	Wait()
-
 	// Close stops the cache's background workers (if any) and tears down
 	// associated metrics registration, if one was set up.
 	Close()
@@ -118,7 +111,6 @@ var _ Cache[StringKey, any] = (*noopCache[StringKey, any])(nil)
 func (no *noopCache[K, V]) Get(_ K) (V, bool)          { return *new(V), false }
 func (no *noopCache[K, V]) GetTTL() time.Duration      { return time.Duration(0) }
 func (no *noopCache[K, V]) Set(_ K, _ V, _ int64) bool { return false }
-func (no *noopCache[K, V]) Wait()                      {}
 func (no *noopCache[K, V]) Close()                     {}
 func (no *noopCache[K, V]) GetMetrics() Metrics        { return &noopMetrics{} }
 func (no *noopCache[K, V]) MarshalZerologObject(e *zerolog.Event) {

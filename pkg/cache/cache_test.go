@@ -3,9 +3,11 @@ package cache
 import (
 	"math"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +34,6 @@ func TestCostAddedIncludesKey(t *testing.T) {
 	const key = "some-key"
 	const payloadCost = 10
 	require.True(t, cache.Set(StringKey(key), "value", payloadCost))
-	cache.Wait()
 
 	// costAdded must reflect the full entry weight (payload + key bytes), not
 	// just the caller-supplied payload cost.
@@ -68,9 +69,6 @@ func TestCacheWithMetrics(t *testing.T) {
 			require.True(t, ok)
 		}
 
-		// Wait for all sets to be processed
-		cache.Wait()
-
 		// Verify all entries
 		for _, entry := range entries {
 			retrieved, found := cache.Get(entry.key)
@@ -86,7 +84,6 @@ func TestCacheWithMetrics(t *testing.T) {
 
 		ok := cache.Set(StringKey("metric-key-1"), "value1", 10)
 		require.True(t, ok)
-		cache.Wait()
 		val, found := cache.Get("metric-key-1")
 		require.True(t, found)
 		require.Equal(t, "value1", val)
@@ -94,7 +91,6 @@ func TestCacheWithMetrics(t *testing.T) {
 		// same key set, diff value
 		ok = cache.Set(StringKey("metric-key-1"), "value2", 10)
 		require.True(t, ok)
-		cache.Wait()
 		val, found = cache.Get("metric-key-1")
 		require.True(t, found)
 		require.Equal(t, "value2", val)
@@ -120,15 +116,15 @@ func TestCacheWithMetrics(t *testing.T) {
 	t.Run("GetMetrics", func(t *testing.T) {
 		cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", config)
 		require.NoError(t, err)
-		defer cache.Close()
+		t.Cleanup(func() {
+			cache.Close()
+		})
 
 		// Set some values
 		ok := cache.Set(StringKey("metric-key-1"), "value1", 10)
 		require.True(t, ok)
 		ok = cache.Set(StringKey("metric-key-2"), "value2", 20)
 		require.True(t, ok)
-
-		cache.Wait()
 
 		// Perform some gets (hits and misses)
 		_, ok = cache.Get(StringKey("metric-key-1")) // hit
@@ -150,5 +146,39 @@ func TestCacheWithMetrics(t *testing.T) {
 		// Verify cost tracking
 		costAdded := metrics.CostAdded()
 		require.GreaterOrEqual(t, costAdded, uint64(10), "expected cost to be tracked")
+	})
+
+	t.Run("TTL Behavior", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", &Config{
+				MaxCost: 1000,
+				// set a lower TTL
+				DefaultTTL: 1 * time.Minute,
+			})
+			//nolint:testifylint  // we're in a goroutine
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			// Set and get a key
+			ok := cache.Set(StringKey("a key"), "a value", 10)
+			assert.True(t, ok)
+
+			// retrieve the key
+			retrieved, found := cache.Get(StringKey("a key"))
+			assert.True(t, found, "expected key %s to be found", "a key")
+			assert.Equal(t, "a value", retrieved, "expected value for key %s to match", "a key")
+
+			// wait for a bit
+			time.Sleep(3 * time.Minute)
+
+			// Retrieve the original key again; we're expecting not to find it.
+			_, found = cache.Get(StringKey("a key"))
+			assert.False(t, found, "expected key %s to be found", "a key")
+
+			cache.Close()
+
+			synctest.Wait()
+		})
 	})
 }
