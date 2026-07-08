@@ -287,6 +287,38 @@ func validateQueryShape(queryShape queryshape.Shape, filter datastore.Relationsh
 		}
 		return nil
 
+	case queryshape.MatchingResourcesForSubject:
+		// The forward form of this shape, as issued by pkg/query/reader.go's
+		// QueryResources: the resource type and relation are pinned, the resource
+		// ID is never specified, and exactly one subject selector fully specifies
+		// the subject type and ID. The subject relation is possibly-specified, so
+		// it is intentionally not validated (mirroring the reverse validator).
+		if err := validateCaveatFilter(filter, queryShape); err != nil {
+			return err
+		}
+		if err := validateResourceType(filter.OptionalResourceType, queryShape, true); err != nil {
+			return err
+		}
+		if err := validateResourceIDs(filter.OptionalResourceIds, queryShape, false); err != nil {
+			return err
+		}
+		if err := validateResourceRelation(filter.OptionalResourceRelation, queryShape, true); err != nil {
+			return err
+		}
+		if err := validateSubjectsSelectors(filter.OptionalSubjectsSelectors, queryShape, true); err != nil {
+			return err
+		}
+		if len(filter.OptionalSubjectsSelectors) != 1 {
+			return fmt.Errorf("exactly one subjects selector required for %s", queryShape)
+		}
+		if err := validateSubjectType(filter.OptionalSubjectsSelectors[0].OptionalSubjectType, queryShape); err != nil {
+			return err
+		}
+		if err := validateSubjectIDs(filter.OptionalSubjectsSelectors[0].OptionalSubjectIds, queryShape, true); err != nil {
+			return err
+		}
+		return nil
+
 	case queryshape.Varying:
 		// Nothing to validate.
 		return nil
