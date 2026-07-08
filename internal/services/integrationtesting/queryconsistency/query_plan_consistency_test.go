@@ -81,24 +81,23 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	runQueryPlanAssertions(t, handle)
 
 	t.Run("lookup_resources", func(t *testing.T) {
-		if os.Getenv("TEST_QUERY_PLAN_RESOURCES") == "" {
-			t.Skip("Skipping IterResources tests due to deprectation: Set TEST_QUERY_PLAN_RESOURCES=true to enable")
-		}
 		runQueryPlanLookupResources(t, handle)
 	})
 
 	t.Run("lookup_subjects", func(t *testing.T) {
+		// LookupSubjects consistency is still gated: the query planner diverges from
+		// the dispatcher on wildcard-with-exclusion schemas (e.g. wildcardnested.yaml,
+		// publicwithexclusion.yaml). That is a separate defect from the recursion work
+		// and must be fixed before this gate can be removed. Set TEST_QUERY_PLAN_SUBJECTS=true
+		// to run it anyway.
 		if os.Getenv("TEST_QUERY_PLAN_SUBJECTS") == "" {
-			t.Skip("Skipping IterSubjects tests due to deprectation: Set TEST_QUERY_PLAN_SUBJECTS=true to enable")
+			t.Skip("Skipping IterSubjects consistency: known wildcard-exclusion divergence. Set TEST_QUERY_PLAN_SUBJECTS=true to enable")
 		}
 		runQueryPlanLookupSubjects(t, handle)
 	})
 }
 
 func runQueryPlanAssertions(t *testing.T, handle *queryPlanConsistencyHandle) {
-	if os.Getenv("TEST_QUERY_PLAN_CHECK") == "" {
-		t.Skip("Skipping Check tests due to deprecation. Set TEST_QUERY_PLAN_CHECK=true to enable")
-	}
 	t.Run("assertions", func(t *testing.T) {
 		for _, parsedFile := range handle.populated.ParsedFiles {
 			for _, entry := range []struct {
