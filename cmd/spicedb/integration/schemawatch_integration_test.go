@@ -3,10 +3,8 @@
 package integration_test
 
 import (
-	"fmt"
 	"io"
 	"maps"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -19,35 +17,9 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
-
-// This is needed because the containers speak over their
-// default ports, not over the host-mapped ports that the
-// container exposes.
-var engineDefaultPortMap = map[string]string{
-	"cockroachdb": "26257",
-	"postgres":    "5432",
-	"mysql":       "3306",
-	"spanner":     "9010",
-}
-
-func internalConnString(t testing.TB, dbConnString, driverName string) string {
-	t.Helper()
-	dbURL, err := url.Parse(dbConnString)
-	require.NoError(t, err)
-	defaultPort, ok := engineDefaultPortMap[driverName]
-	require.True(t, ok, "missing default port for %s", driverName)
-	// NOTE: we need to replace this because the migrate container
-	// lives on the same network as the DB container - it uses
-	// the internal hostname and port.
-	// We ignore the case where the host is unset because that's spanner
-	// and spanner is a special child.
-	if dbURL.Host != "" {
-		dbURL.Host = fmt.Sprintf("%s:%s", driverName, defaultPort)
-	}
-	return dbURL.String()
-}
 
 func TestSchemaWatch(t *testing.T) {
 	engines := map[string]bool{
@@ -89,8 +61,9 @@ func TestSchemaWatch(t *testing.T) {
 
 			db := engine.NewDatabase(t)
 
-			envVars["SPICEDB_DATASTORE_ENGINE"] = driverName
-			envVars["SPICEDB_DATASTORE_CONN_URI"] = internalConnString(t, db, driverName)
+			connectionVars, err := testutil.InternalConnectionEnvVars(db, driverName)
+			require.NoError(t, err)
+			maps.Copy(envVars, connectionVars)
 
 			// Run the migrate command and wait for it to complete.
 			migrateContainer, err := testcontainers.Run(ctx, ciImage,

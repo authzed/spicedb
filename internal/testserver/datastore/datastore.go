@@ -4,11 +4,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/testcontainers/testcontainers-go"
+
 	crdbversion "github.com/authzed/spicedb/internal/datastore/crdb/version"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
-	"github.com/testcontainers/testcontainers-go"
 )
 
 // InitFunc initializes a datastore instance from a uri that has been

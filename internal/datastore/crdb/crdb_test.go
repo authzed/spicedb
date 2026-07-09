@@ -314,8 +314,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			t.Cleanup(cancel)
+			ctx := t.Context()
 			adminConn, connStrings := newCRDBWithUser(t)
 
 			migrationDriver, err := crdbmigrations.NewCRDBDriver(connStrings[testuser])

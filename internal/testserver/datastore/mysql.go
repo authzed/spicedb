@@ -59,7 +59,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, opt
 	ctx := t.Context()
 
 	containerOptions := make([]testcontainers.ContainerCustomizer, 0, len(opts)+3)
-	containerOptions = append(containerOptions, 
+	containerOptions = append(containerOptions,
 		// NOTE: we're doing this instead of using mysql.WithConfigFile
 		// because this function is invoked from more places than just
 		// this file, which means that embedding is easier than providing
@@ -78,7 +78,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, opt
 	image := "mirror.gcr.io/library/mysql:" + version.MinimumSupportedMySQLVersion
 	container, err := mysql.Run(ctx,
 		image,
-		containerOptions...
+		containerOptions...,
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)

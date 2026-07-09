@@ -33,14 +33,14 @@ func RunSpannerForTesting(t testing.TB, targetMigration string, opts ...testcont
 	ctx := t.Context()
 
 	options := make([]testcontainers.ContainerCustomizer, 0, len(opts)+2)
-	options = append(options, 
+	options = append(options,
 		testcontainers.WithExposedPorts("9010/tcp"),
 		testcontainers.WithWaitStrategy(wait.ForListeningPort("9010/tcp").WithStartupTimeout(time.Minute)),
 	)
 	options = append(options, opts...)
 
 	container, err := testcontainers.Run(ctx, "gcr.io/cloud-spanner-emulator/emulator:1.5.41",
-		options...
+		options...,
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)

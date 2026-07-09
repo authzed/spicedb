@@ -4,9 +4,8 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"regexp"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +27,7 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
@@ -177,21 +177,9 @@ func TestGracefulShutdown(t *testing.T) {
 
 			db := engine.NewDatabase(t)
 
-			envVars["SPICEDB_DATASTORE_ENGINE"] = driverName
-			envVars["SPICEDB_DATASTORE_CONN_URI"] = internalConnString(t, db, driverName)
-
-			// if the driver is spanner, we need to set the environment variable that it
-			// reaches for within the container.
-			if driverName == "spanner" {
-				envVars["SPANNER_EMULATOR_HOST"] = fmt.Sprintf("spanner:%s", engineDefaultPortMap["spanner"])
-			}
-
-			// if the driver is mysql, we handle it separately, because the DSN for it
-			// isn't a normal URL and has a `tcp(localhost:xxxx)` block in it. We need
-			// to point that at the internal network.
-			if driverName == "mysql" {
-				envVars["SPICEDB_DATASTORE_CONN_URI"] = regexp.MustCompile(`localhost:\d+`).ReplaceAllString(db, fmt.Sprintf("%s:%s", driverName, engineDefaultPortMap["mysql"]))
-			}
+			connectionVars, err := testutil.InternalConnectionEnvVars(db, driverName)
+			require.NoError(t, err)
+			maps.Copy(envVars, connectionVars)
 
 			// Run the migrate command and wait for it to complete.
 			migrateContainer, err := testcontainers.Run(ctx, ciImage,

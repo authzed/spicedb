@@ -34,7 +34,7 @@ func RunCRDBForTesting(t testing.TB, crdbVersion string, opts ...testcontainers.
 
 	container, err := cockroachdb.Run(ctx,
 		"mirror.gcr.io/cockroachdb/cockroach:v"+crdbVersion,
-		options...
+		options...,
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)
