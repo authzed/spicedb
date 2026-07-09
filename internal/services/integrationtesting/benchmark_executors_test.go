@@ -55,7 +55,7 @@ const classicDispatchDepthRemaining = 50
 func BenchmarkExecutors(b *testing.B) {
 	for _, engineID := range enginesToBenchmark {
 		if testing.Short() && engineID != "memory" {
-			continue
+			b.Skip("skipping non-memory driver benchmarks in -short mode")
 		}
 		b.Run(engineID, func(b *testing.B) {
 			for _, scenarioName := range executorScenarios {

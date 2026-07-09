@@ -299,10 +299,8 @@ var allScenarios = []benchmarkScenario{
 // Hierarchy: engine → scenario (test data) → operation → {dispatch, queryplan}
 func BenchmarkServices(b *testing.B) {
 	for _, engineID := range enginesToBenchmark {
-		if testing.Short() {
-			if engineID != "memory" {
-				continue
-			}
+		if testing.Short() && engineID != "memory" {
+			b.Skip("skipping non-memory driver benchmarks in -short mode")
 		}
 		b.Run(engineID, func(b *testing.B) {
 			for _, scenario := range allScenarios {
