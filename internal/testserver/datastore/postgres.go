@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"net/url"
 	"testing"
 	"time"
 
@@ -77,8 +78,18 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 
 	connURI, err := b.pgContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
+	if b.pgbouncerProxy != nil {
+		connURI, err = b.pgbouncerProxy.ConnectionString(ctx, "sslmode=disable")
+		require.NoError(t, err)
+	}
 
-	return connURI
+	// ConnectionString always references the container's default database;
+	// point it at the database we just created instead.
+	u, err := url.Parse(connURI)
+	require.NoError(t, err)
+	u.Path = "/" + newDBName
+
+	return u.String()
 }
 
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
