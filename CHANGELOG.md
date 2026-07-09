@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)
 - Updated the Prometheus buckets for `grpc_server_handling_seconds` and `spicedb_datastore_query_latency` to be able to correlate them (https://github.com/authzed/spicedb/pull/3188)
+- Use `testcontainers` instead of `ory/dockertest` for running containers in integration tests (https://github.com/authzed/spicedb/pull/2782)
 
 ### Fixed
 - Fixed a nil pointer dereference panic in `CheckBulkPermissions` that could occur under concurrent load when a tracing-enabled check shared a singleflight dispatch with a non-tracing bulk check. Debug-enabled checks are no longer singleflighted together with non-debug checks. (https://github.com/authzed/spicedb/pull/3174)
