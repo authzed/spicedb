@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -672,6 +673,31 @@ func errorRetryable(err error) bool {
 
 	log.Warn().Err(err).Msg("unable to determine if pgx error is retryable")
 	return false
+}
+
+// readErrorRetryable returns whether an error from an idempotent, read-only query may
+// be retried. Unlike errorRetryable, it also covers connection-level failures such as
+// i/o timeouts: those surface when a pooled connection is torn down underneath the
+// query, and pgx discards the connection afterward, so a retry acquires a fresh one.
+// It never retries once the calling context itself is done.
+func readErrorRetryable(ctx context.Context, err error) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	if pgconn.SafeToRetry(err) {
+		return true
+	}
+
+	if netErr, ok := errors.AsType[net.Error](err); ok && netErr.Timeout() {
+		return true
+	}
+
+	return common.IsResettableError(err)
 }
 
 func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {

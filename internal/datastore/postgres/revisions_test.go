@@ -1,12 +1,17 @@
 package postgres
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net"
+	"os"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -216,4 +221,34 @@ func FuzzRevision(f *testing.F) {
 			t.Errorf("decimal revision \"%s\" is a valid proto revision %#v", decimalRev, rev)
 		}
 	})
+}
+
+func TestReadErrorRetryable(t *testing.T) {
+	canceledCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	ioTimeout := &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded}
+
+	testCases := []struct {
+		name      string
+		ctx       context.Context
+		err       error
+		retryable bool
+	}{
+		{"io timeout", t.Context(), ioTimeout, true},
+		{"wrapped io timeout", t.Context(), fmt.Errorf("unable to find revision: %w", ioTimeout), true},
+		{"connection reset", t.Context(), errors.New("connection reset by peer"), true},
+		{"context canceled", t.Context(), context.Canceled, false},
+		{"context deadline exceeded", t.Context(), context.DeadlineExceeded, false},
+		{"wrapped context deadline exceeded", t.Context(), fmt.Errorf("query failed: %w", context.DeadlineExceeded), false},
+		{"caller context done", canceledCtx, ioTimeout, false},
+		{"no rows", t.Context(), pgx.ErrNoRows, false},
+		{"generic error", t.Context(), errors.New("syntax error"), false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.retryable, readErrorRetryable(tc.ctx, tc.err))
+		})
+	}
 }
