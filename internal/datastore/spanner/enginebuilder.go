@@ -5,12 +5,19 @@ import (
 	"errors"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore/dsconfig"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/migration"
 )
 
 func init() {
 	datastorecfg.RegisterEngine(Engine, newDatastoreFromConfig)
+	migration.RegisterMigratableEngine(Engine, migrations.SpannerMigrations, newMigrationDriverFromConfig, "add-schema-tables")
+}
+
+func newMigrationDriverFromConfig(ctx context.Context, cfg *migration.Config) (*migrations.SpannerMigrationDriver, error) {
+	return migrations.NewSpannerDriver(ctx, cfg.DatastoreURI, cfg.SpannerCredentialsFile, cfg.SpannerEmulatorHost)
 }
 
 func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {

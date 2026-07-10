@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -185,6 +186,28 @@ func (m *Manager[D, C, T]) HeadRevision() (string, error) {
 	}
 
 	return allHeads[0], nil
+}
+
+// MigrationNames returns the names of every registered migration, ordered
+// from oldest to newest (head).
+func (m *Manager[D, C, T]) MigrationNames() ([]string, error) {
+	head, err := m.HeadRevision()
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(m.migrations))
+	for revision := head; revision != None; {
+		registered, ok := m.migrations[revision]
+		if !ok {
+			// The oldest registered migration replaces one that is no longer registered.
+			break
+		}
+		names = append(names, revision)
+		revision = registered.replaces
+	}
+	slices.Reverse(names)
+	return names, nil
 }
 
 func (m *Manager[D, C, T]) IsHeadCompatible(revision string) (bool, error) {

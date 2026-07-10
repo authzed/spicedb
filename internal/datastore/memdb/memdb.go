@@ -112,6 +112,10 @@ func (mdb *memdbDatastore) MetricsID() (string, error) {
 	return "memdb", nil
 }
 
+func (mdb *memdbDatastore) EngineName() string {
+	return Engine
+}
+
 func (mdb *memdbDatastore) UniqueID(_ context.Context) (string, error) {
 	return mdb.uniqueID, nil
 }

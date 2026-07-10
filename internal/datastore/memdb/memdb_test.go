@@ -1,4 +1,4 @@
-package memdb
+package memdb_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	test "github.com/authzed/spicedb/pkg/datastore/test"
@@ -19,24 +20,25 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var memdbFactory = test.NewTesterFactory(ErrSerialization)
+var memdbFactory = test.NewTesterFactory(memdb.ErrSerialization)
 
 type memDBTest struct{}
 
 func (memDBTest) New(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
+	return memdb.NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
 }
 
 func TestMemdbDatastore(t *testing.T) {
 	// ConcurrentWrite tests require row-level locking; memdb uses a global write lock
 	// and would deadlock if two write transactions were opened concurrently.
-	test.AllWithExceptions(t, memdbFactory.NewTester(memDBTest{}), test.WithCategories(test.ConcurrentWriteCategory))
+	// Migration tests are excluded because memdb has no schema migrations.
+	test.AllWithExceptions(t, memdbFactory.NewTester(memDBTest{}), test.WithCategories(test.ConcurrentWriteCategory, test.MigrationCategory))
 }
 
 func TestConcurrentWritePanic(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -87,7 +89,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 func TestConcurrentWriteRelsSucceed(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -116,7 +118,7 @@ func TestConcurrentWriteRelsSucceed(t *testing.T) {
 func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
 	lowestRevision, err := ds.HeadRevision(t.Context())
@@ -129,21 +131,21 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 
 	select {
 	case err := <-errChan:
-		require.ErrorIs(err, ErrMemDBIsClosed)
+		require.ErrorIs(err, memdb.ErrMemDBIsClosed)
 	case <-time.After(time.Second):
 		require.Fail("expected an error but waited too long")
 	}
 
 	_, err = ds.Statistics(t.Context())
-	require.ErrorIs(err, ErrMemDBIsClosed)
+	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
 
 	err = ds.CheckRevision(t.Context(), lowestRevision.Revision)
-	require.ErrorIs(err, ErrMemDBIsClosed)
+	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
 
 	_, err = ds.OptimizedRevision(t.Context())
-	require.ErrorIs(err, ErrMemDBIsClosed)
+	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
 
 	reader := ds.SnapshotReader(datastore.NoRevision)
 	_, err = reader.CountRelationships(t.Context(), "blah")
-	require.ErrorIs(err, ErrMemDBIsClosed)
+	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
 }

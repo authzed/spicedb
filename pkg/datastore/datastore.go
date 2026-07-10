@@ -887,6 +887,14 @@ type UnwrappableDatastore interface {
 	Unwrap() Datastore
 }
 
+// EngineIdentifiable is optionally implemented by datastores that can report
+// the name of the engine that backs them. Use UnwrapAs to find it behind
+// wrapping proxies.
+type EngineIdentifiable interface {
+	// EngineName returns the datastore engine name, e.g. "postgres".
+	EngineName() string
+}
+
 // UnwrapAs recursively attempts to unwrap the datastore into the specified type
 // In none of the layers of the datastore implement the specified type, nil is returned.
 func UnwrapAs[T any](datastore Datastore) T {

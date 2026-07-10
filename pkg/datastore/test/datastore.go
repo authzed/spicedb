@@ -95,6 +95,11 @@ func (c Categories) ConcurrentWrite() bool {
 	return ok
 }
 
+func (c Categories) Migration() bool {
+	_, ok := c[MigrationCategory]
+	return ok
+}
+
 var noException = Categories{}
 
 const (
@@ -107,6 +112,9 @@ const (
 	// ConcurrentWriteCategory marks tests that open two write transactions concurrently.
 	// Datastores with a global write lock (e.g. memdb) must exclude this category.
 	ConcurrentWriteCategory = "ConcurrentWrite"
+	// MigrationCategory marks tests that check that database migrations apply
+	// successfully and preserve the data written before them.
+	MigrationCategory = "Migration"
 )
 
 func WithCategories(cats ...string) Categories {
@@ -269,6 +277,10 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	}
 	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
 	t.Run("TestOptimizedRevisionSchemaHash", runner(tester, OptimizedRevisionSchemaHashTest))
+
+	if !except.Migration() {
+		t.Run("TestMigration", runner(tester, MigrationTest))
+	}
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester) {

@@ -6,15 +6,34 @@ import (
 	"fmt"
 
 	"github.com/ccoveille/go-safecast/v2"
+	sqlDriver "github.com/go-sql-driver/mysql"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore/dsconfig"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/migration"
 )
 
 func init() {
 	datastorecfg.RegisterEngine(Engine, newDatastoreFromConfig)
+	migration.RegisterMigratableEngine(Engine, migrations.Manager, newMigrationDriverFromConfig, "add_schema_tables")
+}
+
+func newMigrationDriverFromConfig(ctx context.Context, cfg *migration.Config) (*migrations.MySQLDriver, error) {
+	credentialsProvider, err := cfg.CredentialsProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Do this outside NewMySQLDriverFromDSN to avoid races on MySQL datastore tests
+	if err := sqlDriver.SetLogger(&log.Logger); err != nil {
+		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
+	}
+
+	return migrations.NewMySQLDriverFromDSN(cfg.DatastoreURI, cfg.MySQLTablePrefix, credentialsProvider)
 }
 
 func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {

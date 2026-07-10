@@ -7,12 +7,19 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore/dsconfig"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/migration"
 )
 
 func init() {
 	datastorecfg.RegisterEngine(Engine, newDatastoreFromConfig)
+	migration.RegisterMigratableEngine(Engine, migrations.CRDBMigrations, newMigrationDriverFromConfig, "add-schema-tables")
+}
+
+func newMigrationDriverFromConfig(_ context.Context, cfg *migration.Config) (*migrations.CRDBDriver, error) {
+	return migrations.NewCRDBDriver(cfg.DatastoreURI)
 }
 
 func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {

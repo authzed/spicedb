@@ -26,6 +26,8 @@ import (
 	"github.com/authzed/authzed-go/v1"
 	"github.com/authzed/grpcutil"
 
+	// Register all datastore engines defined in this repository.
+	_ "github.com/authzed/spicedb/internal/datastore/engines"
 	"github.com/authzed/spicedb/internal/fdw"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	spicedbserver "github.com/authzed/spicedb/pkg/cmd/server"

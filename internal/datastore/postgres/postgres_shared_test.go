@@ -334,7 +334,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		})), test.WithCategories(test.WatchCategory, test.GCCategory))
+		})), test.WithCategories(test.WatchCategory, test.GCCategory, test.MigrationCategory))
 	})
 
 	t.Run(fmt.Sprintf("postgres-%s-gc", pgVersion), func(t *testing.T) {

@@ -320,6 +320,10 @@ func (cds *crdbDatastore) MetricsID() (string, error) {
 	return common.MetricsIDFromURL(cds.dburl)
 }
 
+func (cds *crdbDatastore) EngineName() string {
+	return Engine
+}
+
 func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,

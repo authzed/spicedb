@@ -8,13 +8,24 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore/dsconfig"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/migration"
 )
 
 func init() {
 	datastorecfg.RegisterEngine(Engine, newDatastoreFromConfig)
+	migration.RegisterMigratableEngine(Engine, migrations.DatabaseMigrations, newMigrationDriverFromConfig, "add-schema-tables")
+}
+
+func newMigrationDriverFromConfig(ctx context.Context, cfg *migration.Config) (*migrations.AlembicPostgresDriver, error) {
+	credentialsProvider, err := cfg.CredentialsProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return migrations.NewAlembicPostgresDriver(ctx, cfg.DatastoreURI, credentialsProvider, false)
 }
 
 func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {
