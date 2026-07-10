@@ -26,6 +26,8 @@ import (
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	// Register all datastore engines defined in this repository.
+	_ "github.com/authzed/spicedb/internal/datastore/engines"
 	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"

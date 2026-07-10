@@ -1,4 +1,4 @@
-package datastore
+package datastore_test
 
 import (
 	"os"
@@ -6,22 +6,26 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
+
+	// Register all datastore engines defined in this repository.
+	_ "github.com/authzed/spicedb/internal/datastore/engines"
+	"github.com/authzed/spicedb/pkg/cmd/datastore"
 )
 
 func TestDefaults(t *testing.T) {
 	f := pflag.FlagSet{}
-	expected := NewConfigWithOptionsAndDefaults()
-	err := RegisterDatastoreFlagsWithPrefix(&f, "", expected)
+	expected := datastore.NewConfigWithOptionsAndDefaults()
+	err := datastore.RegisterDatastoreFlagsWithPrefix(&f, "", expected)
 	require.NoError(t, err)
-	received := DefaultDatastoreConfig()
+	received := datastore.DefaultDatastoreConfig()
 	require.Equal(t, expected, received)
 }
 
 func TestLoadDatastoreFromFileContents(t *testing.T) {
 	ctx := t.Context()
-	ds, err := NewDatastore(ctx,
-		SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition user{}")}),
-		WithEngine(MemoryEngine))
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition user{}")}),
+		datastore.WithEngine(datastore.MemoryEngine))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ds.Close()
@@ -43,9 +47,9 @@ func TestLoadDatastoreFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := t.Context()
-	ds, err := NewDatastore(ctx,
-		SetBootstrapFiles([]string{file.Name()}),
-		WithEngine(MemoryEngine))
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.SetBootstrapFiles([]string{file.Name()}),
+		datastore.WithEngine(datastore.MemoryEngine))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ds.Close()
@@ -85,9 +89,9 @@ relationships: |-
 	require.NoError(t, err)
 
 	ctx := t.Context()
-	ds, err := NewDatastore(ctx,
-		SetBootstrapFiles([]string{file.Name()}),
-		WithEngine(MemoryEngine))
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.SetBootstrapFiles([]string{file.Name()}),
+		datastore.WithEngine(datastore.MemoryEngine))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ds.Close()
@@ -109,10 +113,10 @@ func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := t.Context()
-	ds, err := NewDatastore(ctx,
-		SetBootstrapFiles([]string{file.Name()}),
-		SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition user{}")}),
-		WithEngine(MemoryEngine))
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.SetBootstrapFiles([]string{file.Name()}),
+		datastore.SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition user{}")}),
+		datastore.WithEngine(datastore.MemoryEngine))
 	require.NoError(t, err)
 
 	revisionResult, err := ds.HeadRevision(ctx)

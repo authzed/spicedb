@@ -11,6 +11,8 @@ import (
 	"github.com/muesli/roff"
 	"github.com/spf13/cobra"
 
+	// Register all datastore engines defined in this repository.
+	_ "github.com/authzed/spicedb/internal/datastore/engines"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"

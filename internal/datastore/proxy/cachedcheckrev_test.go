@@ -8,36 +8,35 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 )
 
 func TestCachedCheckRevision(t *testing.T) {
 	ds := &fakeBrokenDatastore{checkCount: 0}
 
 	wrapped := newCachedCheckRevision(ds)
-	err := wrapped.CheckRevision(t.Context(), revisionparsing.MustParseRevisionForTest("10"))
+	err := wrapped.CheckRevision(t.Context(), mustParseRevisionForTest("10"))
 	require.NoError(t, err)
 
 	// Check again for the same revision, should not call the underlying datastore.
-	err = wrapped.CheckRevision(t.Context(), revisionparsing.MustParseRevisionForTest("10"))
+	err = wrapped.CheckRevision(t.Context(), mustParseRevisionForTest("10"))
 	require.NoError(t, err)
 
 	// Check again for a lesser revision, should not call the underlying datastore.
-	err = wrapped.CheckRevision(t.Context(), revisionparsing.MustParseRevisionForTest("10"))
+	err = wrapped.CheckRevision(t.Context(), mustParseRevisionForTest("10"))
 	require.NoError(t, err)
 
 	// Check again for a higher revision, which should call the datastore.
-	err = wrapped.CheckRevision(t.Context(), revisionparsing.MustParseRevisionForTest("11"))
+	err = wrapped.CheckRevision(t.Context(), mustParseRevisionForTest("11"))
 	require.Error(t, err)
 
-	err = wrapped.CheckRevision(t.Context(), revisionparsing.MustParseRevisionForTest("11"))
+	err = wrapped.CheckRevision(t.Context(), mustParseRevisionForTest("11"))
 	require.Error(t, err)
 
-	err = wrapped.CheckRevision(t.Context(), revisionparsing.MustParseRevisionForTest("12"))
+	err = wrapped.CheckRevision(t.Context(), mustParseRevisionForTest("12"))
 	require.Error(t, err)
 
 	// Ensure the older revision still works.
-	err = wrapped.CheckRevision(t.Context(), revisionparsing.MustParseRevisionForTest("10"))
+	err = wrapped.CheckRevision(t.Context(), mustParseRevisionForTest("10"))
 	require.NoError(t, err)
 }
 
