@@ -759,6 +759,7 @@ func (r *RecursiveIterator) Serialize(w io.Writer) error {
 			return err
 		}
 		if nonDefault {
+			//nolint:gosec  // checkStrategy is a constant iota that will fit in byte
 			if _, err := buf.Write([]byte{byte(r.checkStrategy)}); err != nil {
 				return err
 			}

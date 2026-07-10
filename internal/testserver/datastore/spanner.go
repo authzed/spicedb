@@ -22,13 +22,12 @@ import (
 )
 
 type spannerTest struct {
-	hostname        string
-	port            string
-	targetMigration string
+	hostname string
+	port     string
 }
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
-func RunSpannerForTesting(t testing.TB, targetMigration string, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
+func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
 	ctx := t.Context()
 
 	options := make([]testcontainers.ContainerCustomizer, 0, len(opts)+2)
@@ -74,9 +73,8 @@ func RunSpannerForTesting(t testing.TB, targetMigration string, opts ...testcont
 	}, time.Minute, 500*time.Millisecond)
 
 	builder := &spannerTest{
-		hostname:        host,
-		port:            mappedPort.Port(),
-		targetMigration: targetMigration,
+		hostname: host,
+		port:     mappedPort.Port(),
 	}
 	return builder
 }
@@ -135,7 +133,7 @@ func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Da
 		migrationDriver.Close(t.Context())
 	}()
 
-	err = migrations.SpannerMigrations.Run(t.Context(), migrationDriver, b.targetMigration, migrate.LiveRun)
+	err = migrations.SpannerMigrations.Run(t.Context(), migrationDriver, "head", migrate.LiveRun)
 	require.NoError(t, err)
 
 	return initFunc("spanner", db)

@@ -33,22 +33,19 @@ const (
 )
 
 type postgresTester struct {
-	targetMigration string
-	pgbouncerProxy  *postgres.PostgresContainer
-	pgContainer     *postgres.PostgresContainer
+	pgbouncerProxy *postgres.PostgresContainer
+	pgContainer    *postgres.PostgresContainer
 }
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
-func RunPostgresForTesting(t testing.TB, targetMigration string, pgVersion string, enablePgbouncer bool, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
-	return RunPostgresForTestingWithCommitTimestamps(t, targetMigration, true, pgVersion, enablePgbouncer, opts...)
+func RunPostgresForTesting(t testing.TB, pgVersion string, enablePgbouncer bool, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
+	return RunPostgresForTestingWithCommitTimestamps(t, true, pgVersion, enablePgbouncer, opts...)
 }
 
-func RunPostgresForTestingWithCommitTimestamps(t testing.TB, targetMigration string, withCommitTimestamps bool, pgVersion string, enablePgbouncer bool, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
+func RunPostgresForTestingWithCommitTimestamps(t testing.TB, withCommitTimestamps bool, pgVersion string, enablePgbouncer bool, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
 	t.Helper()
 
-	builder := &postgresTester{
-		targetMigration: targetMigration,
-	}
+	builder := &postgresTester{}
 
 	if enablePgbouncer {
 		// if we are running with pgbouncer enabled then set it up
@@ -131,7 +128,7 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 		defer func() {
 			migrationDriver.Close(ctx)
 		}()
-		if !assert.NoError(collect, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun)) {
+		if !assert.NoError(collect, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, "head", migrate.LiveRun)) {
 			return
 		}
 		uri = connectStr

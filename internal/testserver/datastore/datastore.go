@@ -9,7 +9,6 @@ import (
 	crdbversion "github.com/authzed/spicedb/internal/datastore/crdb/version"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 // InitFunc initializes a datastore instance from a uri that has been
@@ -50,11 +49,11 @@ func RunDatastoreEngine(t testing.TB, engine string, opts ...testcontainers.Cont
 		if ver == "" {
 			ver = pgversion.LatestTestedPostgresVersion
 		}
-		return RunPostgresForTesting(t, migrate.Head, ver, false, opts...)
+		return RunPostgresForTesting(t, ver, false, opts...)
 	case "mysql":
 		return RunMySQLForTesting(t, opts...)
 	case "spanner":
-		return RunSpannerForTesting(t, migrate.Head, opts...)
+		return RunSpannerForTesting(t, opts...)
 	default:
 		t.Fatalf("found missing engine for RunDatastoreEngine: %s", engine)
 		return nil

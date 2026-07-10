@@ -26,7 +26,7 @@ func postgresTestVersion() string {
 	return version.LatestTestedPostgresVersion
 }
 
-var postgresConfig = postgresTestConfig{"head", "", postgresTestVersion(), false}
+var postgresConfig = postgresTestConfig{"", postgresTestVersion(), false}
 
 func TestPostgresDatastore(t *testing.T) {
 	testPostgresDatastore(t, postgresConfig)
@@ -42,10 +42,10 @@ func TestPostgresDatastoreGC(t *testing.T) {
 	if config.pgbouncer {
 		pgbouncerStr = "pgbouncer-"
 	}
-	t.Run(fmt.Sprintf("%spostgres-gc-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
+	t.Run(fmt.Sprintf("%spostgres-gc-%s-%s", pgbouncerStr, config.pgVersion, config.migrationPhase), func(t *testing.T) {
 		t.Parallel()
 
-		b := testdatastore.RunPostgresForTesting(t, config.targetMigration, config.pgVersion, config.pgbouncer)
+		b := testdatastore.RunPostgresForTesting(t, config.pgVersion, config.pgbouncer)
 
 		t.Run("GarbageCollection", createDatastoreTest(
 			b,

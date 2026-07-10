@@ -414,6 +414,7 @@ func deserializePath(r byteReader) (Path, error) {
 		if err != nil {
 			return Path{}, fmt.Errorf("expiration: %w", err)
 		}
+		//nolint:gosec  // this is intentional reinterpretation
 		t := time.Unix(0, int64(ns))
 		p.Expiration = &t
 	}
