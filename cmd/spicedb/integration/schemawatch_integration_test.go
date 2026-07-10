@@ -5,7 +5,6 @@ package integration_test
 import (
 	"io"
 	"maps"
-	"strings"
 	"testing"
 	"time"
 
@@ -49,28 +48,17 @@ func TestSchemaWatch(t *testing.T) {
 				// can talk to the database container
 				network.WithNetwork([]string{driverName}, net))
 
-			envVars := map[string]string{}
-			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
-				for _, env := range wev.ExternalEnvVars() {
-					parts := strings.SplitN(env, "=", 2)
-					if len(parts) == 2 {
-						envVars[parts[0]] = parts[1]
-					}
-				}
-			}
-
 			db := engine.NewDatabase(t)
 
 			connectionVars, err := testutil.InternalConnectionEnvVars(db, driverName)
 			require.NoError(t, err)
-			maps.Copy(envVars, connectionVars)
 
 			// Run the migrate command and wait for it to complete.
 			migrateContainer, err := testcontainers.Run(ctx, ciImage,
 				network.WithNetwork([]string{"migrate"}, net),
 				testcontainers.WithLogger(log.TestLogger(t)),
 				testcontainers.WithCmd("migrate", "head"),
-				testcontainers.WithEnv(envVars),
+				testcontainers.WithEnv(connectionVars),
 				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
 			)
 			require.NoError(t, err)
@@ -91,7 +79,7 @@ func TestSchemaWatch(t *testing.T) {
 			t.Log("finished migrating")
 
 			spicedbEnvVars := make(map[string]string)
-			maps.Copy(spicedbEnvVars, envVars)
+			maps.Copy(spicedbEnvVars, connectionVars)
 
 			spicedbEnvVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"
 			spicedbEnvVars["SPICEDB_LOG_LEVEL"] = "trace"

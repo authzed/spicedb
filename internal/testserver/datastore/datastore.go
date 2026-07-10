@@ -30,15 +30,6 @@ type RunningEngineForTest interface {
 	NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore
 }
 
-// RunningEngineForTestWithEnvVars represents an instance of a datastore engine running, that also
-// requires env vars set to use from an external source (like a container).
-type RunningEngineForTestWithEnvVars interface {
-	RunningEngineForTest
-
-	// ExternalEnvVars are the environment variables to be set.
-	ExternalEnvVars() []string
-}
-
 // RunDatastoreEngine starts the backing database or service necessary for the given engine
 // for testing and sets the defaults for that database or service. Note that this does *NOT*
 // create the logical database nor call migrate; callers can do so via NewDatabase and NewDatastore

@@ -78,8 +78,6 @@ func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.Datastore
 		}
 	} else {
 		// One Docker instance per engine, reused across all test files.
-		// TODO
-		// Seems like there's collision here somehow? but why would it be happening now?
 		rde := testdatastore.RunDatastoreEngine(t, engineID)
 		newDatastore = func(t *testing.T) datastore.Datastore {
 			return rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,

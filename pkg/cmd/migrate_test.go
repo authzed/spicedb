@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"io"
-	"maps"
-	"strings"
 	"testing"
 	"time"
 
@@ -198,21 +196,11 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 			r := datastoreTest.RunDatastoreEngine(t, engineKey, network.WithNetwork([]string{engineKey}, net))
 			db := r.NewDatabase(t)
 
-			envVars := map[string]string{}
-			if wev, ok := r.(datastoreTest.RunningEngineForTestWithEnvVars); ok {
-				for _, ev := range wev.ExternalEnvVars() {
-					parts := strings.SplitN(ev, "=", 2)
-					if len(parts) == 2 {
-						envVars[parts[0]] = parts[1]
-					}
-				}
-			}
-
 			// 1. Migrate using SpiceDB v1.52.0.
-			runMigrateHeadWithContainer(t, "v1.52.0", engineKey, db, net, envVars)
+			runMigrateHeadWithContainer(t, "v1.52.0", engineKey, db, net)
 
 			// 2. Run v1.52.0 serve and write a schema.
-			serveContainer := runServe(t, "v1.52.0", engineKey, db, net, envVars)
+			serveContainer := runServe(t, "v1.52.0", engineKey, db, net)
 
 			conn, err := grpc.NewClient(
 				serveContainer.GRPCEndpoint(),
@@ -256,22 +244,20 @@ func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
 
 // runMigrateHeadWithContainer launches a docker container that runs `spicedb migrate head`
 // Use this when you need to exercise a released SpiceDB binary.
-func runMigrateHeadWithContainer(t *testing.T, spiceDBImageTag, engineKey, db string, net *testcontainers.DockerNetwork, envVars map[string]string) {
+func runMigrateHeadWithContainer(t *testing.T, spiceDBImageTag, engineKey, db string, net *testcontainers.DockerNetwork) {
 	t.Helper()
 
 	ctx := t.Context()
 
 	connectionVars, err := testutil.InternalConnectionEnvVars(db, engineKey)
 	require.NoError(t, err)
-	containerVars := maps.Clone(envVars)
-	maps.Copy(containerVars, connectionVars)
 
 	migrateContainer, err := testcontainers.Run(ctx,
 		"authzed/spicedb:"+spiceDBImageTag,
 		network.WithNetwork([]string{"migrate"}, net),
 		testcontainers.WithLogger(log.TestLogger(t)),
 		testcontainers.WithCmd("migrate", "head"),
-		testcontainers.WithEnv(containerVars),
+		testcontainers.WithEnv(connectionVars),
 		testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
 	)
 	require.NoError(t, err)
@@ -291,20 +277,17 @@ func runMigrateHeadWithContainer(t *testing.T, spiceDBImageTag, engineKey, db st
 	require.Equal(t, 0, containerState.ExitCode)
 }
 
-func runServe(t *testing.T, spiceDBImageTag, engineKey, dbConnection string, net *testcontainers.DockerNetwork, envVars map[string]string) *sdbtestcontainer.Container {
+func runServe(t *testing.T, spiceDBImageTag, engineKey, dbConnection string, net *testcontainers.DockerNetwork) *sdbtestcontainer.Container {
 	t.Helper()
 
 	connectionVars, err := testutil.InternalConnectionEnvVars(dbConnection, engineKey)
 	require.NoError(t, err)
 
-	containerVars := maps.Clone(envVars)
-	maps.Copy(containerVars, connectionVars)
-
 	container, err := sdbtestcontainer.Run(
 		t.Context(),
 		"authzed/spicedb:"+spiceDBImageTag,
 		network.WithNetwork([]string{"spicedb"}, net),
-		testcontainers.WithEnv(containerVars),
+		testcontainers.WithEnv(connectionVars),
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)

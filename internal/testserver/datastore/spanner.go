@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"testing"
@@ -80,10 +79,6 @@ func RunSpannerForTesting(t testing.TB, targetMigration string, opts ...testcont
 		targetMigration: targetMigration,
 	}
 	return builder
-}
-
-func (b *spannerTest) ExternalEnvVars() []string {
-	return []string{fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:%s", b.hostname, b.port)}
 }
 
 func (b *spannerTest) NewDatabase(t testing.TB) string {

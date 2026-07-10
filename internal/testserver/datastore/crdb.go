@@ -47,7 +47,9 @@ func RunCRDBForTesting(t testing.TB, crdbVersion string, opts ...testcontainers.
 	require.NoError(t, err)
 	require.Equal(t, 0, code)
 
-	// TODO: why is this needed? can't we just use the conn string?
+	// NOTE: we pass this around because we can't use the conn string in most cases;
+	// the one returned by testcontainers depends on implicit pgx registration,
+	// which we don't want to necessarily use.
 	host, err := container.Host(ctx)
 	require.NoError(t, err)
 	mappedPort, err := container.MappedPort(ctx, "26257/tcp")

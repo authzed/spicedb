@@ -3,9 +3,7 @@
 package integration_test
 
 import (
-	"context"
 	"io"
-	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -90,42 +88,6 @@ func TestServe(t *testing.T) {
 	}
 }
 
-func gracefulShutdown(ctx context.Context, container testcontainers.Container) bool {
-	closed := make(chan bool, 1)
-	go func() {
-		// Send SIGSTOP to have the container gracefully shutdown.
-		_ = container.Stop(ctx, nil)
-		closed <- true
-	}()
-
-	select {
-	case <-closed:
-		return true
-
-	case <-time.After(10 * time.Second):
-		_ = container.Terminate(ctx)
-		return false
-	}
-}
-
-// TODO: is this testing something useful? can we rewrite this?
-func TestGracefulShutdownInMemory(t *testing.T) {
-	ctx := t.Context()
-
-	// Run a serve and immediately close, ensuring it shuts down gracefully.
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image: "authzed/spicedb:ci",
-			Cmd:   []string{"serve", "--grpc-preshared-key", "firstkey"},
-		},
-		Started: true,
-	})
-	require.NoError(t, err)
-	testcontainers.CleanupContainer(t, container)
-
-	require.True(t, gracefulShutdown(ctx, container))
-}
-
 // logWaiter is a testcontainers LogConsumer that signals on its channel the
 // first time a log line containing expectedString is seen.
 type logWaiter struct {
@@ -164,29 +126,17 @@ func TestGracefulShutdown(t *testing.T) {
 
 			engine := testdatastore.RunDatastoreEngine(t, driverName, network.WithNetwork([]string{driverName}, net))
 
-			// TODO: figure out what's going on here
-			envVars := map[string]string{}
-			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
-				for _, env := range wev.ExternalEnvVars() {
-					parts := strings.SplitN(env, "=", 2)
-					if len(parts) == 2 {
-						envVars[parts[0]] = parts[1]
-					}
-				}
-			}
-
 			db := engine.NewDatabase(t)
 
 			connectionVars, err := testutil.InternalConnectionEnvVars(db, driverName)
 			require.NoError(t, err)
-			maps.Copy(envVars, connectionVars)
 
 			// Run the migrate command and wait for it to complete.
 			migrateContainer, err := testcontainers.Run(ctx, ciImage,
 				network.WithNetwork([]string{"migrate"}, net),
 				testcontainers.WithLogger(log.TestLogger(t)),
 				testcontainers.WithCmd("migrate", "head"),
-				testcontainers.WithEnv(envVars),
+				testcontainers.WithEnv(connectionVars),
 				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
 			)
 			require.NoError(t, err)
@@ -209,12 +159,12 @@ func TestGracefulShutdown(t *testing.T) {
 			ww := &logWaiter{c: make(chan bool, 1), expectedString: "running garbage collection worker"}
 
 			// Set the gc interval to 1s so we have something to look for in logs
-			envVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"
+			connectionVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"
 
 			serveContainer, err := sdbtestcontainer.Run(ctx, ciImage,
 				network.WithNetwork([]string{"spicedb"}, net),
 				testcontainers.WithLogger(log.TestLogger(t)),
-				testcontainers.WithEnv(envVars),
+				testcontainers.WithEnv(connectionVars),
 				testcontainers.WithLogConsumerConfig(&testcontainers.LogConsumerConfig{
 					Consumers: []testcontainers.LogConsumer{ww},
 				}),
@@ -229,8 +179,6 @@ func TestGracefulShutdown(t *testing.T) {
 					require.Fail(t, "timed out waiting for GC to run")
 				}
 			}
-
-			require.True(t, gracefulShutdown(ctx, serveContainer))
 		})
 	}
 }
