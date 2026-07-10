@@ -3,21 +3,12 @@
 package crdb
 
 import (
-	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/hex"
-	"encoding/pem"
 	"fmt"
 	"math"
-	"math/big"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -31,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/testcontainers/testcontainers-go/modules/cockroachdb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -359,141 +350,21 @@ const (
 )
 
 func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisionedUser]string) {
-	// in order to create users, cockroach must be running with
-	// real certs, and the root user must be authenticated with
-	// client certs.
-	certDir := t.TempDir()
-
-	ca := &x509.Certificate{
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(1 * time.Hour),
-		SerialNumber:          big.NewInt(0),
-		Subject:               pkix.Name{Organization: []string{"Cockroach"}, CommonName: "Cockroach CA"},
-		IsCA:                  true,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	caPublicKey := &caPrivateKey.PublicKey
-	caCertBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, caPublicKey, caPrivateKey)
-	require.NoError(t, err)
-	caCert, err := x509.ParseCertificate(caCertBytes)
-	require.NoError(t, err)
-	caFile, err := os.Create(filepath.Join(certDir, "ca.crt"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		caFile.Close()
-	})
-	require.NoError(t, pem.Encode(caFile, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caCert.Raw,
-	}))
-
-	certData := &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(1 * time.Hour),
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-		DNSNames:              []string{"localhost", "node"},
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
-	}
-	certPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	certPublicKey := &certPrivateKey.PublicKey
-	certBytes, err := x509.CreateCertificate(rand.Reader, certData, caCert, certPublicKey, caPrivateKey)
-	require.NoError(t, err)
-	cert, err := x509.ParseCertificate(certBytes)
-	require.NoError(t, err)
-
-	keyFile, err := os.OpenFile(filepath.Join(certDir, "node.key"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
-	require.NoError(t, err)
-	keyBytes, err := x509.MarshalECPrivateKey(certPrivateKey)
-	require.NoError(t, err)
-	require.NoError(t, pem.Encode(keyFile, &pem.Block{
-		Type:  "EC PRIVATE KEY",
-		Bytes: keyBytes,
-	}))
-	require.NoError(t, keyFile.Close())
-
-	certFile, err := os.OpenFile(filepath.Join(certDir, "node.crt"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
-	require.NoError(t, err)
-	require.NoError(t, pem.Encode(certFile, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: cert.Raw,
-	}))
-	require.NoError(t, certFile.Close())
-
-	rootUserCertData := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			Organization: []string{"Cockroach"},
-			CommonName:   "root",
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(1 * time.Hour),
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-		DNSNames:              []string{"root"},
-	}
-	rootUserPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	rootUserPublicKey := &rootUserPrivateKey.PublicKey
-	rootUserCertBytes, err := x509.CreateCertificate(rand.Reader, rootUserCertData, caCert, rootUserPublicKey, caPrivateKey)
-	require.NoError(t, err)
-	rootUserCert, err := x509.ParseCertificate(rootUserCertBytes)
-	require.NoError(t, err)
-
-	var rootKeyFileBuffer bytes.Buffer
-	rootKeyBytes, err := x509.MarshalECPrivateKey(rootUserPrivateKey)
-	require.NoError(t, err)
-	require.NoError(t, pem.Encode(&rootKeyFileBuffer, &pem.Block{
-		Type:  "EC PRIVATE KEY",
-		Bytes: rootKeyBytes,
-	}))
-
-	var rootCertFileBuffer bytes.Buffer
-	require.NoError(t, err)
-	require.NoError(t, pem.Encode(&rootCertFileBuffer, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: rootUserCert.Raw,
-	}))
-
-	// Run cockroach in secure mode using the certs generated above. The
-	// cockroachdb testcontainers module can't be used here because it forces
-	// --insecure, which conflicts with --certs-dir.
-	container, err := testcontainers.Run(
+	container, err := cockroachdb.Run(
 		t.Context(),
 		"mirror.gcr.io/cockroachdb/cockroach:v"+crdbTestVersion(),
-		testcontainers.WithCmd("start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"),
-		testcontainers.WithExposedPorts("26257/tcp"),
-		testcontainers.WithWaitStrategy(wait.ForListeningPort("26257/tcp").WithStartupTimeout(time.Minute)),
-		testcontainers.WithFiles(testcontainers.ContainerFile{
-			ContainerFilePath: "/certs/client.root.key",
-			Reader:            &rootKeyFileBuffer,
-		}, testcontainers.ContainerFile{
-			ContainerFilePath: "/certs/client.root.crt",
-			Reader:            &rootCertFileBuffer,
-		}),
 	)
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, container)
 
-	// TODO: see testcontainers/testcontainers-go@main/modules/cockroachdb/cockroachdb.go#L194-L208
-	mappedPort, err := container.MappedPort(t.Context(), "26257/tcp")
-	require.NoError(t, err)
-	port := mappedPort.Port()
-
-	adminConnString := fmt.Sprintf("postgresql://root:unused@localhost:%[1]s?sslmode=require&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir)
-
-	require.Eventually(t, func() bool {
-		adminConn, err = pgx.Connect(t.Context(), adminConnString)
-		return err == nil
-	}, 30*time.Second, 1*time.Second)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		config, err := container.ConnectionConfig(t.Context())
+		if !assert.NoError(t, err) {
+			return
+		}
+		adminConn, err = pgx.ConnectConfig(t.Context(), config)
+		assert.NoError(collect, err)
+	}, 5*time.Second, 1*time.Second)
 
 	// create a non-admin user
 	_, err = adminConn.Exec(t.Context(), `
@@ -503,9 +374,15 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 	`)
 	require.NoError(t, err)
 
+	host, err := container.Host(t.Context())
+	require.NoError(t, err)
+	port, err := container.MappedPort(t.Context(), "26257/tcp")
+	require.NoError(t, err)
+	hostAndPort := net.JoinHostPort(host, port.Port())
+
 	connStrings = map[provisionedUser]string{
-		testuser:     fmt.Sprintf("postgresql://testuser:testpass@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
-		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
+		testuser:     fmt.Sprintf("postgresql://testuser:testpass@%[1]s/testspicedb?sslmode=require", hostAndPort),
+		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@%[1]s/testspicedb?sslmode=require", hostAndPort),
 	}
 
 	return adminConn, connStrings

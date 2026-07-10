@@ -339,7 +339,7 @@ func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQueri
 }
 
 func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	clause := sq.Or{}
+	clause := make(sq.Or, 0, len(nsNames))
 	for _, nsName := range nsNames {
 		clause = append(clause, sq.Eq{schema.ColNamespace: nsName})
 	}
