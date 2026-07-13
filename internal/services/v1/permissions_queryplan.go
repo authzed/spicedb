@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 
+	"github.com/ccoveille/go-safecast/v2"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	caveatsimpl "github.com/authzed/spicedb/internal/caveats"
@@ -99,7 +101,11 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	countObserver := query.NewCountObserver()
 
 	// Create query context backed by a DispatchExecutor.
-	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, maximumAPIDepth, 0)
 	qctx := dispatch.NewQueryContext(
 		ctx,
 		ps.dispatch,
@@ -239,7 +245,11 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 
 	countObserver := query.NewCountObserver()
 
-	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, maximumAPIDepth, 0)
 	qctx := dispatch.NewQueryContext(
 		ctx,
 		ps.dispatch,
@@ -374,7 +384,11 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 
 	countObserver := query.NewCountObserver()
 
-	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, int(ps.config.MaximumAPIDepth), 0)
+	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, maximumAPIDepth, 0)
 	qctx := dispatch.NewQueryContext(
 		ctx,
 		ps.dispatch,
