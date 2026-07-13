@@ -64,11 +64,11 @@ type CaveatRunner struct {
 	caveatDefs          map[string]*core.CaveatDefinition
 	deserializedCaveats map[string]*caveats.CompiledCaveat
 
-	// schemaCache, when non-nil, is a compiled-caveat cache tied to the stored schema
+	// compiledCaveatCache, when non-nil, is a compiled-caveat cache tied to the stored schema
 	// (and thus shared across checks and invalidated on schema change). It is discovered
 	// from the reader on first use. When nil, deserializedCaveats provides per-runner
 	// caching only (the legacy behavior).
-	schemaCache *CompiledCaveatCache
+	compiledCaveatCache *CompiledCaveatCache
 }
 
 // NewCaveatRunner creates a new CaveatRunner.
@@ -107,14 +107,14 @@ func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, ex
 	// If the reader is backed by a unified stored schema, use the compiled-caveat cache
 	// tied to that schema version so deserialization (which rebuilds the CEL environment)
 	// is paid once per schema rather than once per check.
-	if cr.schemaCache == nil {
+	if cr.compiledCaveatCache == nil {
 		if provider, ok := reader.(cachedSchemaProvider); ok {
 			if stored := provider.StoredSchema(); stored != nil {
-				schemaCache, err := CompiledCaveatCacheFor(stored)
+				compiledCaveatCache, err := CompiledCaveatCacheFor(stored)
 				if err != nil {
 					return err
 				}
-				cr.schemaCache = schemaCache
+				cr.compiledCaveatCache = compiledCaveatCache
 			}
 		}
 	}
@@ -178,8 +178,8 @@ func (cr *CaveatRunner) get(caveatDefName string) (*core.CaveatDefinition, *cave
 	// per-runner compilation otherwise.
 	var justDeserialized *caveats.CompiledCaveat
 	var err error
-	if cr.schemaCache != nil {
-		justDeserialized, err = cr.schemaCache.GetOrCompile(caveatDefName, compile)
+	if cr.compiledCaveatCache != nil {
+		justDeserialized, err = cr.compiledCaveatCache.GetOrCompile(caveatDefName, compile)
 	} else {
 		justDeserialized, err = compile()
 	}

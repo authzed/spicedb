@@ -35,6 +35,9 @@ type Config struct {
 	// Defaults to caveattypes.Default.
 	CaveatTypeSet *caveattypes.TypeSet
 
+	// TODO(jschorr): once the unified (new) schema mode is the default, default SchemaMode to
+	// it and enable the stored-schema cache by default instead of requiring these opt-ins.
+
 	// SchemaMode controls how schema is read. The zero value reads legacy per-definition
 	// schema. Use datalayer.SchemaModeReadNewWriteNew (or *Both) for the unified schema.
 	SchemaMode datalayer.SchemaMode
@@ -53,11 +56,12 @@ type Config struct {
 
 // Permissions issues in-process permission checks against a datastore.
 type Permissions struct {
-	dl         datalayer.DataLayer
-	dispatcher dispatch.Dispatcher
-	cts        *caveattypes.TypeSet
-	chunkSize  uint16
-	maxDepth   uint32
+	dl          datalayer.DataLayer
+	dispatcher  dispatch.Dispatcher
+	cts         *caveattypes.TypeSet
+	chunkSize   uint16
+	maxDepth    uint32
+	schemaCache cache.Cache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema] // nil when caching disabled
 }
 
 // NewPermissions builds an in-process permissions checker from the given config.
@@ -83,14 +87,16 @@ func NewPermissions(cfg Config) (*Permissions, error) {
 		maxDepth = defaultMaxDepth
 	}
 
+	var schemaCache cache.Cache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema]
 	dlOpts := []datalayer.DataLayerOption{datalayer.WithSchemaMode(cfg.SchemaMode)}
 	if cfg.SchemaCacheMaxCostBytes > 0 {
-		schemaCache, err := cache.NewStandardCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&cache.Config{
+		sc, err := cache.NewStandardCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&cache.Config{
 			MaxCost: cfg.SchemaCacheMaxCostBytes,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("embedded: failed to create stored schema cache: %w", err)
 		}
+		schemaCache = sc
 		dlOpts = append(dlOpts, datalayer.WithSchemaCache(schemaCache))
 	}
 	dl := datalayer.NewDataLayer(cfg.Datastore, dlOpts...)
@@ -105,11 +111,12 @@ func NewPermissions(cfg Config) (*Permissions, error) {
 	}
 
 	return &Permissions{
-		dl:         dl,
-		dispatcher: dispatcher,
-		cts:        cts,
-		chunkSize:  chunkSize,
-		maxDepth:   maxDepth,
+		dl:          dl,
+		dispatcher:  dispatcher,
+		cts:         cts,
+		chunkSize:   chunkSize,
+		maxDepth:    maxDepth,
+		schemaCache: schemaCache,
 	}, nil
 }
 
@@ -183,5 +190,9 @@ func (p *Permissions) Check(ctx context.Context, req CheckRequest) (CheckResult,
 
 // Close releases resources held by the checker. It does not close the datastore.
 func (p *Permissions) Close() error {
-	return p.dispatcher.Close()
+	err := p.dispatcher.Close()
+	if p.schemaCache != nil {
+		p.schemaCache.Close()
+	}
+	return err
 }
