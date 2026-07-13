@@ -57,6 +57,10 @@ var sortOrders = map[string]options.SortOrder{
 }
 
 func BenchmarkDatastoreDriver(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping datastore driver benchmarks in -short mode")
+	}
+
 	for _, driver := range drivers {
 		b.Run(driver.name+driver.suffix, func(b *testing.B) {
 			b.StopTimer()

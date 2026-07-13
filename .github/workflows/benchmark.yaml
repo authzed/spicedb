@@ -15,7 +15,7 @@ jobs:
   benchmarks:
     name: "Run Full Go benchmarks on Main"
     runs-on: "depot-ubuntu-24.04-arm-8" # same as build-test.yaml
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: "actions/checkout@v7"
         with:
