@@ -11,6 +11,7 @@ import (
 	adminpb "cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	instances "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -22,8 +23,7 @@ import (
 )
 
 type spannerTest struct {
-	hostname string
-	port     string
+	instancesClient *instances.InstanceAdminClient
 }
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
@@ -52,13 +52,18 @@ func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomiz
 	// before any admin client is created below.
 	t.Setenv("SPANNER_EMULATOR_HOST", net.JoinHostPort(host, mappedPort.Port()))
 
+	builder := &spannerTest{}
+
 	// Wait until the emulator's admin API is responsive by creating an initial instance.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		instancesClient, err := instances.NewInstanceAdminClient(ctx)
-		if err != nil {
-			return false
+		if !assert.NoError(t, err) {
+			return
 		}
-		defer instancesClient.Close()
+		t.Cleanup(func() {
+			_ = instancesClient.Close()
+		})
+		builder.instancesClient = instancesClient
 
 		_, err = instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
 			Parent:     "projects/fake-project-id",
@@ -69,13 +74,9 @@ func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomiz
 				NodeCount:   1,
 			},
 		})
-		return err == nil
+		assert.NoError(t, err)
 	}, time.Minute, 500*time.Millisecond)
 
-	builder := &spannerTest{
-		hostname: host,
-		port:     mappedPort.Port(),
-	}
 	return builder
 }
 
@@ -90,11 +91,7 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	instancesClient, err := instances.NewInstanceAdminClient(ctx)
-	require.NoError(t, err)
-	defer instancesClient.Close()
-
-	createInstanceOp, err := instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
+	createInstanceOp, err := b.instancesClient.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
 		Parent:     "projects/fake-project-id",
 		InstanceId: newInstanceName,
 		Instance: &instancepb.Instance{
