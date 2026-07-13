@@ -226,8 +226,8 @@ SPICEDB_SHUTDOWN_GRACE_PERIOD
 | `subject_type` | text | Subject type |
 | `subject_id` | text | Subject ID |
 | `optional_subject_relation` | text | Optional subject relation |
-| `optional_caveat_name` | text | Optional caveat name |
-| `optional_caveat_context` | jsonb | Optional caveat context |
+| `caveat_name` | text | Optional caveat name |
+| `caveat_context` | text | Optional caveat context |
 | `consistency` | text | Consistency token (ZedToken) |
 
 **Supported Operations:**
