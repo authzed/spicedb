@@ -239,13 +239,14 @@ message PlanContext {
   int32 max_recursion_depth = 3;
   uint64 optional_datastore_limit = 4;
   bytes schema_hash = 5;
-  // in_progress_keys are the dispatch canonical keys (\"def#rel\") that ancestors
-  // of this dispatch are currently computing. The receiver-side DispatchExecutor
-  // refuses to dispatch any alias whose key is in this set, falling back to local
-  // execution. This is what breaks dispatch loops that arise when the standalone
-  // plan for a key contains another structurally complete instance of itself
-  // (cross-relation recursion the sentinel machinery can't see).
-  repeated string in_progress_keys = 6;
+  // Tag 6 was `repeated string in_progress_keys`, the receiver-side
+  // cross-relation cycle guard. Removed once the serialize-over-wire plan
+  // change eliminated receiver-side outline rebuilds: the compiler emits
+  // RecursiveIterator + RecursiveSentinelIterator for every cyclic schema
+  // (`pkg/query/build_tree.go`), so a finite compiled plan can't contain
+  // nested same-key dispatches, and the runtime guard is unreachable.
+  reserved 6;
+  reserved "in_progress_keys";
   // top_level_operation carries the user-facing operation (Check / LookupSubjects
   // / LookupResources) that started the dispatch chain. The receiver pre-seals
   // its qctx with this value so iterators that consult TopLevelOperation (e.g.
@@ -258,10 +259,9 @@ message PlanContext {
 
 message DispatchQueryPlanRequest {
   PlanOperation operation = 1;
-  // Tag 2 was `string canonical_key`, removed once `plan` carried the
-  // iterator subtree on the wire and the sender-side caching/routing layers
-  // were taught to read the current dispatch's "def#rel" key from the last
-  // entry of PlanContext.in_progress_keys instead.
+  // Tag 2 was `string canonical_key`. The receiver no longer needs a key —
+  // the plan bytes are the dispatch identity (sender-side caching/routing
+  // layers hash `plan` directly).
   reserved 2;
   reserved "canonical_key";
   // For CHECK_MANY_RESOURCES, resource is empty and `many` carries the resources.

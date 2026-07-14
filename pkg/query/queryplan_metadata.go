@@ -60,3 +60,36 @@ func (m *QueryPlanMetadata) ApplyAdvisor(co CanonicalOutline) (CanonicalOutline,
 	}
 	return ApplyAdvisor(co, NewCountAdvisor(stats))
 }
+
+// ReAdviseIterator walks a compiled iterator tree and refreshes per-iterator
+// optimization choices against the locally accumulated stats. Structurally
+// inert — only hint-level fields (currently ArrowIterator.direction) change,
+// so the iterator's CanonicalKey is preserved and the cache key the receiver
+// computed from req.Plan bytes remains valid.
+//
+// Used by the dispatch receiver: the sender baked its hints into the wire
+// bytes against its stats; ReAdviseIterator gives the receiver one shot to
+// adjust those choices against its own stats before execution.
+func (m *QueryPlanMetadata) ReAdviseIterator(it Iterator) {
+	stats := m.GetStats()
+	if len(stats) == 0 {
+		return
+	}
+	reAdviseIterator(it, stats)
+}
+
+// reAdviseIterator is the recursive worker for ReAdviseIterator. Walks the
+// iterator tree depth-first; for each ArrowIterator pulls its left/right
+// sub-iterators' canonical keys and updates the direction field directly via
+// chooseArrowDirection. No new iterators allocated, no decompile/recompile.
+func reAdviseIterator(it Iterator, stats map[CanonicalKey]CountStats) {
+	if arrow, ok := it.(*ArrowIterator); ok {
+		subs := arrow.Subiterators()
+		if len(subs) == 2 {
+			arrow.direction = chooseArrowDirection(subs[0].CanonicalKey(), subs[1].CanonicalKey(), stats)
+		}
+	}
+	for _, sub := range it.Subiterators() {
+		reAdviseIterator(sub, stats)
+	}
+}

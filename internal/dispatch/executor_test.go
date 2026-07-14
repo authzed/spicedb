@@ -63,8 +63,15 @@ func (d *testDispatcher) ReadyState() ReadyState { return ReadyState{IsReady: tr
 
 var _ Dispatcher = &testDispatcher{}
 
-func newTestContext() *query.Context {
-	return query.NewLocalContext(context.Background())
+// newTestContext returns a query.Context pre-sealed with topLevelOp so that
+// the DispatchExecutor's shouldDispatch sees a matching TopLevelOperation
+// and actually fires (in production this seal happens in ctx.Check /
+// ctx.IterX / on dispatch receipt via MarkAsOperation; the executor unit
+// tests bypass those entry points and drive the executor directly).
+func newTestContext(topLevelOp query.Operation) *query.Context {
+	ctx := query.NewLocalContext(context.Background())
+	ctx.TopLevelOperation = topLevelOp
+	return ctx
 }
 
 func TestDispatchExecutor_Check_AliasDispatches(t *testing.T) {
@@ -82,7 +89,7 @@ func TestDispatchExecutor_Check_AliasDispatches(t *testing.T) {
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	// AliasIterator wrapping a FixedIterator — should trigger dispatch
 	inner := query.NewFixedIterator()
@@ -105,7 +112,7 @@ func TestDispatchExecutor_Check_NonAliasLocal(t *testing.T) {
 	receiver := &testDispatcher{}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	// FixedIterator (not an alias) — should delegate locally, no dispatch
 	fixed := query.NewFixedIterator(query.Path{
@@ -131,7 +138,7 @@ func TestDispatchExecutor_Check_AliasNoResult(t *testing.T) {
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
@@ -152,7 +159,7 @@ func TestDispatchExecutor_IterSubjects_AliasDispatches(t *testing.T) {
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationIterSubjects)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
@@ -173,7 +180,7 @@ func TestDispatchExecutor_IterSubjects_NonAliasLocal(t *testing.T) {
 	receiver := &testDispatcher{}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationIterSubjects)
 
 	fixed := query.NewFixedIterator(
 		query.Path{
@@ -208,7 +215,7 @@ func TestDispatchExecutor_IterResources_AliasDispatches(t *testing.T) {
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationIterResources)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
@@ -229,7 +236,7 @@ func TestDispatchExecutor_IterResources_NonAliasLocal(t *testing.T) {
 	receiver := &testDispatcher{}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationIterResources)
 
 	fixed := query.NewFixedIterator(
 		query.Path{
@@ -248,60 +255,11 @@ func TestDispatchExecutor_IterResources_NonAliasLocal(t *testing.T) {
 	require.Empty(t, receiver.planCalls)
 }
 
-func TestDispatchExecutor_Check_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	// AliasIterator wrapping a RecursiveSentinel — should NOT dispatch
-	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("", "viewer", sentinel)
-
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
-	require.NoError(t, err)
-	// RecursiveSentinel.CheckImpl returns nil
-	require.Nil(t, path)
-
-	// Verify NO dispatch was called
-	require.Empty(t, receiver.planCalls)
-}
-
-func TestDispatchExecutor_IterSubjects_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("", "viewer", sentinel)
-
-	pathSeq, err := sender.IterSubjects(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
-	require.NoError(t, err)
-
-	paths, err := query.CollectAll(pathSeq)
-	require.NoError(t, err)
-	require.Empty(t, paths)
-	require.Empty(t, receiver.planCalls)
-}
-
-func TestDispatchExecutor_IterResources_AliasWithRecursiveSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
-	alias := query.NewAliasIterator("", "viewer", sentinel)
-
-	pathSeq, err := sender.IterResources(ctx, NewDispatchIterator(alias), query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
-	require.NoError(t, err)
-
-	paths, err := query.CollectAll(pathSeq)
-	require.NoError(t, err)
-	require.Empty(t, paths)
-	require.Empty(t, receiver.planCalls)
-}
+// Sentinel-skip behavior is now enforced by the dispatch-wrap optimizer
+// (containsUnmatchedRecursiveSentinelOutline in dispatch_optimizer.go) at
+// planning time — the executor trusts the wrap and dispatches whenever one
+// is present. The optimizer's outline-level check has its own coverage in
+// dispatch_optimizer_test.go.
 
 func TestDispatchExecutor_Check_AliasWithSentinelInsideRecursiveDispatches(t *testing.T) {
 	receiver := &testDispatcher{
@@ -318,7 +276,7 @@ func TestDispatchExecutor_Check_AliasWithSentinelInsideRecursiveDispatches(t *te
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	// AliasIterator wrapping a RecursiveIterator that contains a RecursiveSentinel.
 	// The sentinel is managed by the RecursiveIterator's context, so dispatch is allowed.
@@ -350,7 +308,7 @@ func TestDispatchExecutor_IterSubjects_AliasWithSentinelInsideRecursiveDispatche
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationIterSubjects)
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
@@ -382,7 +340,7 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationIterResources)
 
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
@@ -397,28 +355,6 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 	require.Equal(t, "doc1", paths[0].Resource.ObjectID)
 
 	require.Len(t, receiver.planCalls, 1)
-}
-
-func TestDispatchExecutor_Check_DoubleRecursionUnmatchedSentinelDoesNotDispatch(t *testing.T) {
-	receiver := &testDispatcher{}
-
-	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
-
-	// Double recursion: RecursiveIterator for "folder#viewer" contains a
-	// RecursiveSentinelIterator for "document#reader" in its subtree.
-	// The document#reader sentinel is unmatched (no RecursiveIterator for it),
-	// so dispatch should be blocked.
-	documentSentinel := query.NewRecursiveSentinelIterator("document", "reader", false)
-	folderRecursive := query.NewRecursiveIterator(documentSentinel, "folder", "viewer")
-	alias := query.NewAliasIterator("", "viewer", folderRecursive)
-
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
-	require.NoError(t, err)
-	require.Nil(t, path)
-
-	// Verify NO dispatch was called — unmatched sentinel blocks dispatch
-	require.Empty(t, receiver.planCalls)
 }
 
 func TestDispatchExecutor_Check_DoubleRecursionBothMatchedDispatches(t *testing.T) {
@@ -436,7 +372,7 @@ func TestDispatchExecutor_Check_DoubleRecursionBothMatchedDispatches(t *testing.
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	// Double recursion with both pairs matched:
 	// RecursiveIterator(folder#viewer) contains RecursiveIterator(document#reader)
@@ -471,7 +407,7 @@ func TestDispatchExecutor_StreamBatching(t *testing.T) {
 	}
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationIterResources)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
@@ -497,7 +433,7 @@ func TestDispatchExecutor_PlanContextForwarded(t *testing.T) {
 		OptionalDatastoreLimit: 100,
 	}
 	sender := NewDispatchExecutor(receiver, pc, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	_, _ = sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
@@ -518,6 +454,7 @@ func TestDispatchExecutor_ContextCancellation(t *testing.T) {
 
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
 	qctx := query.NewLocalContext(ctx)
+	qctx.TopLevelOperation = query.OperationCheck
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	_, err := sender.Check(qctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
@@ -644,7 +581,7 @@ func TestPaginationLimitFromPlanContext_Zero(t *testing.T) {
 func TestDispatchExecutor_CheckManyResources_NonAliasLocal(t *testing.T) {
 	receiver := &testDispatcher{}
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	// FixedIterator (not an alias) — must delegate locally, no dispatch.
 	fixed := query.NewFixedIterator(query.Path{
@@ -677,7 +614,7 @@ func TestDispatchExecutor_CheckManyResources_AliasDispatchesAndPairsByONR(t *tes
 		}},
 	}
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	resources := []query.Object{
@@ -711,7 +648,7 @@ func TestDispatchExecutor_CheckManySubjects_AliasDispatches(t *testing.T) {
 		}},
 	}
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	subjects := []query.ObjectAndRelation{
@@ -797,7 +734,7 @@ func TestDispatchExecutor_CheckManyResources_ChunksByDispatchChunkSize(t *testin
 		},
 	}
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, chunkSize)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
@@ -844,7 +781,7 @@ func TestDispatchExecutor_CheckManySubjects_ChunksByDispatchChunkSize(t *testing
 		},
 	}
 	sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, chunkSize)
-	ctx := newTestContext()
+	ctx := newTestContext(query.OperationCheck)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 	subjects := make([]query.ObjectAndRelation, total)

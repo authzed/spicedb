@@ -84,17 +84,18 @@ type LookupSubjects interface {
 // PlanStream is an alias for the stream to which plan results will be written.
 type PlanStream = Stream[*v1.DispatchQueryPlanResponse]
 
-// PlanCheckLookup is the small, cheap-to-construct descriptor a caller passes
-// to LookupPlanCheck to consult dispatcher caches before paying to serialize a
-// full iterator subtree into a DispatchQueryPlanRequest. The fields mirror the
-// inputs the Plan-Check cache key hashes over (see keys.PlanCheckLookupKey):
-// callers that produce identical descriptors for the same underlying problem
-// will hit the same cache entry as the corresponding DispatchQueryPlan call.
+// PlanCheckLookup is the descriptor a caller passes to LookupPlanCheck to
+// consult dispatcher caches without going through DispatchQueryPlan's full
+// request/stream machinery. The serialized iterator bytes are the dispatch
+// identity: two lookups with the same Plan bytes (and same resource/subject/
+// plan context) target the same cache slot, identical to the slot the
+// corresponding DispatchQueryPlan request would compute (see
+// keys.PlanCheckLookupKey).
 type PlanCheckLookup struct {
-	CanonicalKey string
-	Resource     *core.ObjectAndRelation
-	Subject      *core.ObjectAndRelation
-	PlanContext  *v1.PlanContext
+	Plan        []byte
+	Resource    *core.ObjectAndRelation
+	Subject     *core.ObjectAndRelation
+	PlanContext *v1.PlanContext
 }
 
 // Plan interface describes the methods required to dispatch plan-based query planner requests.

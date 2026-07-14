@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/ccoveille/go-safecast/v2"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -759,7 +761,11 @@ func (r *RecursiveIterator) Serialize(w io.Writer) error {
 			return err
 		}
 		if nonDefault {
-			if _, err := buf.Write([]byte{byte(r.checkStrategy)}); err != nil {
+			writeableCheckStrategy, err := safecast.Convert[byte](r.checkStrategy)
+			if err != nil {
+				return err
+			}
+			if _, err := buf.Write([]byte{writeableCheckStrategy}); err != nil {
 				return err
 			}
 		}
