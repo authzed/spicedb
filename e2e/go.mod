@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb/e2e
 
-go 1.26.4
+go 1.26.5
 
 replace github.com/authzed/spicedb => ../
 
