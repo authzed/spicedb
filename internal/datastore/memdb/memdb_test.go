@@ -113,15 +113,7 @@ func TestConcurrentWriteRelsSucceed(t *testing.T) {
 	require.NoError(g.Wait())
 }
 
-// TestConcurrentWriteRevisionInversionLosesRead deterministically reproduces
-// https://github.com/authzed/spicedb/issues/3212: newRevisionID is stamped
-// before the write-serialization lock is acquired, so a transaction (B) that
-// starts after another (A) can still commit before it, even though B's
-// revision number is numerically greater than A's. Recording snapshots in
-// commit order rather than revision order breaks the sortedness that
-// SnapshotReader's binary search relies on, and a fully-consistent read at
-// A's own acknowledged revision ends up resolving to B's earlier snapshot,
-// which does not contain A's write.
+// TestConcurrentWriteRevisionInversionLosesRead reproduces concurrent writes to MemDB
 func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 	require := require.New(t)
 
@@ -140,10 +132,6 @@ func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 	go func() {
 		defer close(aDone)
 		revA, errA = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			// newRevisionID has already been called for this transaction by the
-			// time f runs, so closing this channel signals that A's revision
-			// number has been stamped, even though A hasn't touched the
-			// write-transaction lock yet.
 			close(aEntered)
 			<-releaseA
 			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
@@ -165,14 +153,8 @@ func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 	<-aDone
 	require.NoError(errA)
 
-	// Sanity check on the harness itself: B was assigned its revision strictly
-	// after A signaled entry, so it must be the numerically greater one. This
-	// holds regardless of whether the storage-ordering bug is present.
 	require.True(revB.GreaterThan(revA), "expected B's revision (%v) to be greater than A's (%v)", revB, revA)
 
-	// Diagnostic only (not an invariant the fix must preserve either way):
-	// log where each ended up in storage order, for visibility into whether
-	// commit order matched revision order on this run.
 	indexOf := func(r datastore.Revision) int {
 		mds.RLock()
 		defer mds.RUnlock()
@@ -185,9 +167,6 @@ func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 	}
 	t.Logf("storage order: A(rev=%v) at index %d, B(rev=%v) at index %d", revA, indexOf(revA), revB, indexOf(revB))
 
-	// The actual bug/fix boundary: a fully-consistent read at A's own
-	// acknowledged revision must see A's write. Before the fix, this could
-	// resolve to B's earlier snapshot instead, since B committed first.
 	reader := ds.SnapshotReader(revA)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: "document"})
 	require.NoError(err)

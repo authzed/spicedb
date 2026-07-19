@@ -42,13 +42,6 @@ func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
 	return created
 }
 
-// insertRevisionSnapshot records a newly committed snapshot in mdb.revisions,
-// maintaining ascending revision order. Revision IDs are stamped when a
-// transaction starts (see newRevisionID), before it acquires the write lock
-// that serializes commits, so a transaction with a numerically later revision
-// can still commit -- and need to be recorded -- before one with an earlier
-// revision. A plain append would leave mdb.revisions unsorted in that case,
-// which breaks the binary search in SnapshotReader.
 func (mdb *memdbDatastore) insertRevisionSnapshot(newRevision revisions.TimestampRevision, schemaHash string, snap *memdb.MemDB) {
 	insertAt := sort.Search(len(mdb.revisions), func(i int) bool {
 		return mdb.revisions[i].revision.GreaterThan(newRevision)
