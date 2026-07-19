@@ -374,7 +374,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		// Create a snapshot and add it to the revisions slice
 		schemaHash := mdb.getCurrentSchemaHashNoLock()
 		snap := mdb.db.Snapshot()
-		mdb.revisions = append(mdb.revisions, snapshot{newRevision, schemaHash, snap})
+		mdb.insertRevisionSnapshot(newRevision, schemaHash, snap)
 		return newRevision, nil
 	}
 
