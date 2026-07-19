@@ -179,7 +179,7 @@ func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 			sawA = true
 		}
 	}
-	require.True(sawA, "BUG REPRODUCED: relationship written by transaction A is invisible when reading at A's own returned revision %v", revA)
+	require.True(sawA, "relationship written by transaction A is invisible when reading at A's own returned revision %v", revA)
 }
 
 func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
