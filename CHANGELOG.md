@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Fixed
+- Postgres: read replicas no longer intermittently return `object definition not found` under load. The strict read-replica guard now verifies that the replica's snapshot has caught up to the revision being read (snapshot domination) instead of checking a single transaction id, and raises from within the read itself rather than from a trailing assertion, so a replica that catches up mid-query can no longer let an incomplete read through. In both cases the read correctly falls back to the primary. (https://github.com/authzed/spicedb/pull/3243)
 - Prevent ReadRelationships from doing work that's immediately discarded when the `optional_limit` parameter is used (https://github.com/authzed/spicedb/pull/3253)
 - MemDB: overlapping write transactions could violate every snapshot-consistency invariant of the datastore — a committed write could be invisible at its own returned revision (breaking read-your-writes, e.g. an at-exact-snapshot `Check` right after `WriteRelationships`), a later commit could leak into reads at an earlier revision, a write visible at one revision could be missing at a later one (including head), and two concurrent transactions could be assigned the same revision. Revisions are now assigned at write-transaction acquisition, where writer serialization makes the two orders identical. (https://github.com/authzed/spicedb/pull/3239)
 

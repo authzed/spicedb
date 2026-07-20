@@ -52,23 +52,101 @@ func (srqf strictReaderQueryFuncs) addAssertToSelectSQL(sql string) string {
 		return strings.HasPrefix(sql, "SELECT ")
 	}, "strictReaderQueryFuncs can only wrap SELECT queries")
 
-	// The assertion checks that the transaction is not reading from the future or from a
-	// transaction that is still in-progress on the replica. If the transaction is not yet
-	// available on the replica at all, the call to `pg_xact_status` will fail with an invalid
-	// argument error and a message indicating that the xid "is in the future". If the transaction
-	// does exist, but has not yet been committed (or aborted), the call to `pg_xact_status` will return
-	// "in progress". rewriteError will catch these cases and return a RevisionUnavailableError.
+	// The guard checks that the replica's current snapshot contains every
+	// transaction that is visible in the revision being read; i.e. that the
+	// revision's data is fully present on this replica. This is the inline
+	// equivalent of the revision comparison CheckRevision performs, evaluated on
+	// the replica's own connection so it is valid even when a load balancer sits in
+	// front of the read pool. When it does not hold, the read raises and
+	// rewriteError maps the "replica missing revision" error to a
+	// RevisionUnavailableError so the caller can fall back to the primary.
 	//
-	// We run the query *first* (but filtered) as PGX will not be able to read rows if the assertion
-	// is run first. However, we do not want to return any rows if the assertion will fail, so we add it
-	// as a filter to the select as well.
+	// The guard *must* raise from within the SELECT itself: it is the only
+	// statement whose verdict is tied to the snapshot the rows are actually read
+	// under. See replicaRevisionGuardExpression.
+	//
+	// The trailing DO block re-checks the same condition against the replica's
+	// snapshot at that later point. It is a backstop, not the guard: it can only
+	// turn a read that slipped through into an error, never the reverse, because
+	// snapshots only advance and this condition is monotonic in that advance. We
+	// run the query *first* as PGX will not be able to read rows if the assertion
+	// is run first.
 	wrapped := fmt.Sprintf(`
-		SELECT * FROM (%s) AS results WHERE pg_xact_status(%d::text::xid8) != 'in progress';
+		SELECT * FROM (%s) AS results WHERE %s;
 		DO $$
 		BEGIN
-			ASSERT (select pg_xact_status(%d::text::xid8) != 'in progress'), 'replica missing revision';
+			ASSERT (select %s), 'replica missing revision';
 		END
 		$$;
-	`, sql, srqf.revision.snapshot.xmin-1, srqf.revision.snapshot.xmin-1)
+	`, sql,
+		srqf.revision.snapshot.replicaRevisionGuardExpression(),
+		srqf.revision.snapshot.replicaContainsRevisionPredicate())
 	return wrapped
+}
+
+// replicaRevisionGuardExpression returns a SQL boolean expression, to be used as
+// the WHERE clause of the wrapped SELECT, which is true when the replica's
+// current snapshot contains every transaction visible in s (see
+// replicaContainsRevisionPredicate) and otherwise *raises*.
+//
+// Raising, rather than filtering the rows away, is what makes the guard sound.
+// Under READ COMMITTED every statement of a multi-statement query takes its own
+// snapshot, so a filter-only guard paired with a trailing assertion has a race:
+// if the replica catches up between the two statements, the filter drops every
+// row (its snapshot was behind) while the assertion passes (its snapshot is not),
+// and the caller sees zero rows and no error, i.e. reports the object as not
+// existing. Raising from the reading statement ties the verdict to the snapshot
+// the rows are read under.
+//
+// SQL expressions cannot raise directly, so the failure is expressed as a cast
+// that cannot succeed, whose message embeds the marker IsReplicationLagError
+// looks for. The cast target is boolean because its input function rejects
+// invalid input on every supported Postgres version; xid8's does not (before
+// Postgres 15 it silently parses unparseable text as 0, which would disable the
+// guard entirely).
+//
+// The expression is deliberately built only from stable and parallel-safe
+// functions: those properties are what make Postgres treat it as a gating
+// "One-Time Filter", evaluated exactly once before the scan and regardless of
+// how many rows match (a volatile expression is instead pushed into the scan's
+// per-row filter, where it would never run for a query that matches nothing),
+// and let the read still use parallel plans. Only the CASE's untaken branch
+// raises, and a stable function keeps the planner from folding it into a
+// plan-time error.
+func (s pgSnapshot) replicaRevisionGuardExpression() string {
+	return fmt.Sprintf(
+		`CASE WHEN %s THEN true ELSE (`+
+			`'replica missing revision (replica snapshot ' || pg_current_snapshot()::text || `+
+			`' does not contain revision %s)')::boolean END`,
+		s.replicaContainsRevisionPredicate(), s.String(),
+	)
+}
+
+// replicaContainsRevisionPredicate returns a SQL boolean expression, to be
+// evaluated on a replica's connection, that is true when the replica's current
+// snapshot contains every transaction visible in s. It is the SQL form of "the
+// replica's live snapshot dominates this revision":
+//
+//   - the replica's frontier (its snapshot xmax) must have reached the revision's
+//     xmax, so no transaction the revision can see is still in the replica's
+//     future; and
+//   - the replica must not still consider in-progress any transaction below the
+//     revision's xmax that the revision treats as committed (i.e. that is not in
+//     the revision's own in-progress list). Commit order does not follow xid
+//     order, so a lower-xid transaction the revision sees as committed can still be
+//     replaying on the replica even once higher xids have been applied; such a
+//     transaction would otherwise be silently missing.
+func (s pgSnapshot) replicaContainsRevisionPredicate() string {
+	revisionXip := make([]string, 0, len(s.xipList))
+	for _, xip := range s.xipList {
+		revisionXip = append(revisionXip, fmt.Sprintf("'%d'::xid8", xip))
+	}
+
+	return fmt.Sprintf(
+		`pg_snapshot_xmax(pg_current_snapshot()) >= '%d'::xid8 `+
+			`AND NOT EXISTS (`+
+			`SELECT 1 FROM pg_snapshot_xip(pg_current_snapshot()) AS replica_xip `+
+			`WHERE replica_xip < '%d'::xid8 AND replica_xip <> ALL (ARRAY[%s]::xid8[]))`,
+		s.xmax, s.xmax, strings.Join(revisionXip, ", "),
+	)
 }
