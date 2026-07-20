@@ -9,8 +9,6 @@ import (
 
 	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -44,14 +42,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
-
-var writeUpdateCounter = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "v1",
-	Name:      "write_relationships_updates",
-	Help:      "The update counts for the WriteRelationships calls",
-	Buckets:   []float64{0, 1, 2, 5, 10, 15, 25, 50, 100, 250, 500, 1000},
-}, []string{"kind"})
 
 const MaximumTransactionMetadataSize = 65000 // bytes. Limited by the BLOB size used in MySQL driver
 
@@ -122,6 +112,12 @@ type PermissionsServerConfig struct {
 	// ExperimentalQueryPlan configures which API operations use the experimental query plan.
 	ExperimentalQueryPlan ExperimentalQueryPlanConfig
 
+	// Metrics holds the metrics shared by the v1 services. It is meant to be
+	// built once (via NewMetrics) when the server is assembled and passed to
+	// every service constructor sharing this config. When nil, a fresh,
+	// unregistered (and therefore unexported) instance is used.
+	Metrics *Metrics
+
 	// QueryPlanMetadata is the shared per-server stats store that drives the
 	// count-based plan advisor. When nil, NewPermissionsServer allocates a fresh
 	// instance. To share stats with a co-located dispatcher (so receiver-side
@@ -166,10 +162,14 @@ func NewPermissionsServer(
 		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
+		Metrics:                            config.Metrics,
 		QueryPlanMetadata:                  config.QueryPlanMetadata,
 	}
 	if configWithDefaults.QueryPlanMetadata == nil {
 		configWithDefaults.QueryPlanMetadata = query.NewQueryPlanMetadata()
+	}
+	if configWithDefaults.Metrics == nil {
+		configWithDefaults.Metrics = NewMetrics(nil)
 	}
 	return &permissionServer{
 		dispatch: dispatch,
@@ -198,6 +198,7 @@ func NewPermissionsServer(
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
 		queryPlanMetadata: configWithDefaults.QueryPlanMetadata,
+		metrics:           configWithDefaults.Metrics,
 	}
 }
 
@@ -210,6 +211,7 @@ type permissionServer struct {
 
 	bulkChecker       *bulkChecker
 	queryPlanMetadata *query.QueryPlanMetadata
+	metrics           *Metrics
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
@@ -457,7 +459,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	for kind, count := range updateCountByOperation {
-		writeUpdateCounter.WithLabelValues(v1.RelationshipUpdate_Operation_name[int32(kind)]).Observe(float64(count))
+		ps.metrics.RecordWriteRelationshipsUpdates(kind, count)
 	}
 
 	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)

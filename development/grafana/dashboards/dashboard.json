@@ -513,7 +513,7 @@
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum(rate(spicedb_perf_insights_api_shape_latency_seconds{job=\"spicedb\",instance=~\"$instance\",resource_type!=\"\"}[$__rate_interval])) by (api_kind, resource_type, resource_relation, subject_type, subject_relation))",
-          "legendFormat": "{{api_kind}} {{resource_type}}:{{resource_relation}} → {{subject_type}}#{{subject_relation}}",
+          "legendFormat": "{{api_kind}} {{resource_type}}:{{resource_relation}} \u2192 {{subject_type}}#{{subject_relation}}",
           "range": true,
           "refId": "A"
         }
@@ -526,7 +526,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Average logical checks per second across all APIs. Counts each item within a CheckBulk and each result returned from LookupResources/LookupSubjects separately. This measures workload intensity independently of gRPC RPS — a single LookupResources call can account for hundreds of logical checks.",
+      "description": "Average logical checks per second across all APIs. Counts each item within a CheckBulk and each result returned from LookupResources/LookupSubjects separately. This measures workload intensity independently of gRPC RPS \u2014 a single LookupResources call can account for hundreds of logical checks.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -705,6 +705,101 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Percentage of check results (CheckPermission and CheckBulkPermissions, each bulk item counted individually) that return HAS_PERMISSION, aggregated across all instances. CONDITIONAL_PERMISSION and NO_PERMISSION results count toward the denominator. Only successful checks are counted; errored checks are excluded.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 81,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 *\nsum by(method) (rate(spicedb_v1_check_permissionship_total{job=\"spicedb\",permissionship=\"HAS_PERMISSION\"}[$__rate_interval]))\n/\n(sum by(method) (rate(spicedb_v1_check_permissionship_total{job=\"spicedb\"}[$__rate_interval])) > 0)",
+          "legendFormat": "HAS_PERMISSION % ({{method}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Check HAS_PERMISSION Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "description": "Distribution of request rate across instances. If one instance receives significantly more traffic than others, there may be a load balancing issue in front of the instances.",
       "fieldConfig": {
         "defaults": {
@@ -762,7 +857,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 47
       },
       "id": 45,
       "options": {
@@ -855,7 +950,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 55
       },
       "id": 46,
       "options": {
@@ -892,7 +987,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 63
       },
       "id": 70,
       "panels": [
@@ -901,7 +996,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Cache hit ratio for each dispatch operation type, split by dispatcher layer. High ratios (>80%) for check operations are expected under steady workloads. Low ratios indicate cache churn, highly diverse queries, or an undersized cache. Per-instance variance is expected and normal: the dispatch cache is local in-process (not shared across instances), and every cache key is scoped to a specific revision — so any write that advances the revision causes all instances to miss on subsequent requests until they re-warm at the new revision. Instances that recently restarted or received the first requests after a revision bump will show lower ratios than instances with a warm cache at a stable revision.",
+          "description": "Cache hit ratio for each dispatch operation type, split by dispatcher layer. High ratios (>80%) for check operations are expected under steady workloads. Low ratios indicate cache churn, highly diverse queries, or an undersized cache. Per-instance variance is expected and normal: the dispatch cache is local in-process (not shared across instances), and every cache key is scoped to a specific revision \u2014 so any write that advances the revision causes all instances to miss on subsequent requests until they re-warm at the new revision. Instances that recently restarted or received the first requests after a revision bump will show lower ratios than instances with a warm cache at a stable revision.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1050,7 +1145,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "p99 of the number of chunks dispatched per Check request. Each chunk holds up to dispatch-chunk-size subjects (default: 100) and is processed in parallel. A value of N means the check fanned out to N×chunk-size subjects of the same type. Consistently high values indicate broad permission checks with large subject fan-out.",
+          "description": "p99 of the number of chunks dispatched per Check request. Each chunk holds up to dispatch-chunk-size subjects (default: 100) and is processed in parallel. A value of N means the check fanned out to N\u00d7chunk-size subjects of the same type. Consistently high values indicate broad permission checks with large subject fan-out.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1155,7 +1250,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 64
       },
       "id": 42,
       "panels": [
@@ -1164,7 +1259,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Hit ratio per cache, from spicedb_cache_hits_total and spicedb_cache_misses_total. Three caches emit metrics:\n\n• namespace (32MiB): caches parsed namespace and caveat definitions. Should be near 100% — schemas change infrequently. A sustained drop means schema writes are frequent or the cache is undersized.\n\n• dispatch (default: 30% of free memory): caches sub-problem results for dispatches this node sends out (outbound). Revision-scoped — every write that advances the revision invalidates prior entries.\n\n• cluster_dispatch (default: 70% of free memory): caches sub-problem results for dispatches this node receives from other nodes (inbound). Also revision-scoped. Larger by default because in a multi-node cluster this node handles a proportionally larger share of inbound sub-problems.",
+          "description": "Hit ratio per cache, from spicedb_cache_hits_total and spicedb_cache_misses_total. Three caches emit metrics:\n\n\u2022 namespace (32MiB): caches parsed namespace and caveat definitions. Should be near 100% \u2014 schemas change infrequently. A sustained drop means schema writes are frequent or the cache is undersized.\n\n\u2022 dispatch (default: 30% of free memory): caches sub-problem results for dispatches this node sends out (outbound). Revision-scoped \u2014 every write that advances the revision invalidates prior entries.\n\n\u2022 cluster_dispatch (default: 70% of free memory): caches sub-problem results for dispatches this node receives from other nodes (inbound). Also revision-scoped. Larger by default because in a multi-node cluster this node handles a proportionally larger share of inbound sub-problems.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1295,7 +1390,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 57
+        "y": 65
       },
       "id": 30,
       "panels": [
@@ -1583,7 +1678,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "p99 of the number of relationship updates per WriteRelationships call, split by update kind (CREATE, TOUCH, DELETE). Large batches (>1000) can cause write amplification and lock contention in the datastore.",
+          "description": "p99 of the number of relationship updates per write call, split by update kind (CREATE, TOUCH, DELETE). Includes WriteRelationships calls and bulk imports (ImportBulkRelationships and the deprecated BulkImportRelationships), whose imported relationships are counted as CREATE. Large batches (>1000) can cause write amplification and lock contention in the datastore. Uses the metric's native histogram representation, which has no bucket cap, so large bulk imports report accurate percentiles.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1658,13 +1753,13 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, rate(spicedb_v1_write_relationships_updates_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "histogram_quantile(0.99, rate(spicedb_v1_write_relationships_updates{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "{{kind}} ({{instance}})",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "p99 WriteRelationships Batch Size - $instance",
+          "title": "p99 Write Batch Size (WriteRelationships + bulk imports) - $instance",
           "type": "timeseries"
         }
       ],
@@ -1677,7 +1772,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 66
       },
       "id": 65,
       "panels": [
@@ -1828,7 +1923,7 @@
               },
               "editorMode": "code",
               "expr": "crdb_connections_per_node{job=\"spicedb\",instance=~\"$instance\"}",
-              "legendFormat": "{{pool}} → node {{node_id}} ({{instance}})",
+              "legendFormat": "{{pool}} \u2192 node {{node_id}} ({{instance}})",
               "range": true,
               "refId": "A"
             }
@@ -2067,7 +2162,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 67
       },
       "id": 48,
       "panels": [
@@ -2983,7 +3078,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 68
       },
       "id": 51,
       "panels": [
@@ -3256,7 +3351,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 69
       },
       "id": 54,
       "panels": [
@@ -3265,7 +3360,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Ratios (0–1) reflecting Spanner session pool health. max_allowed_sessions_ratio approaching 1 means the pool is near its configured limit. max_in_use_sessions_ratio shows peak concurrent session usage. num_sessions_in_pool_ratio and open_session_count_ratio show current utilization.",
+          "description": "Ratios (0\u20131) reflecting Spanner session pool health. max_allowed_sessions_ratio approaching 1 means the pool is near its configured limit. max_in_use_sessions_ratio shows peak concurrent session usage. num_sessions_in_pool_ratio and open_session_count_ratio show current utilization.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3389,7 +3484,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Rate of Spanner sessions acquired and released from the pool, plus the rate of GFE (Google Front End) responses missing the server-timing header — a non-zero gfe_header_missing_count may indicate requests bypassing the GFE or connectivity issues.",
+          "description": "Rate of Spanner sessions acquired and released from the pool, plus the rate of GFE (Google Front End) responses missing the server-timing header \u2014 a non-zero gfe_header_missing_count may indicate requests bypassing the GFE or connectivity issues.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3507,7 +3602,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 70
       },
       "id": 74,
       "panels": [
@@ -3836,7 +3931,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 63
+        "y": 71
       },
       "id": 4,
       "panels": [

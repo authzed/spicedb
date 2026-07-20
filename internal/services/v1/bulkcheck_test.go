@@ -122,7 +122,7 @@ func runBulkCheck(t *testing.T, d dispatch.Dispatcher, withTracing bool) *v1.Che
 		dispatchChunkSize:    100,
 	}
 
-	resp, err := bc.checkBulkPermissions(ctx, req)
+	resp, err := bc.checkBulkPermissions(ctx, req, NewMetrics(nil))
 	require.NoError(err)
 	return resp
 }

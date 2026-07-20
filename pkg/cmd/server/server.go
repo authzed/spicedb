@@ -522,6 +522,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			LookupResources: slices.Contains(c.ExperimentalQueryPlan, "lr"),
 			LookupSubjects:  slices.Contains(c.ExperimentalQueryPlan, "ls"),
 		},
+		Metrics:           v1svc.NewMetrics(c.OTel.PrometheusRegistry),
 		QueryPlanMetadata: queryPlanMetadata,
 	}
 
