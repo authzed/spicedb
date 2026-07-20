@@ -1,98 +1,82 @@
 package datastore
 
 import (
-	"fmt"
-	"sync"
+	"sync/atomic"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// DerivedCacheKey identifies a kind of schema-derived cache (e.g. compiled caveats) hung off a
-// ReadOnlyStoredSchema. Create one per kind, typically as a package-level var, via
-// NewDerivedCacheKey.
-type DerivedCacheKey struct{ name string }
+// compiledCaveatOverheadBytes is a rough per-caveat allowance for the memory a compiled caveat
+// (a built CEL environment and program) adds on top of its serialized expression. It is used
+// only for cache-cost budgeting of the schema-derived compiled-caveat cache (built lazily by
+// internal/caveats and hung off the stored schema); it is a deliberately conservative,
+// order-of-magnitude figure.
+const compiledCaveatOverheadBytes = 8 * 1024
 
-// NewDerivedCacheKey returns a DerivedCacheKey with the given (debug) name.
-func NewDerivedCacheKey(name string) DerivedCacheKey { return DerivedCacheKey{name: name} }
+// derivedCacheKeyIDs hands each DerivedCacheKey a distinct identity, so different cache kinds
+// never collide even though they share a schema's derived-cache map.
+var derivedCacheKeyIDs atomic.Uint64
 
-// Name returns the human-readable name of the key.
-func (k DerivedCacheKey) Name() string { return k.name }
-
-// derivedCacheRegistration bundles the lazy factory for a derived cache kind with an estimator
-// of how many bytes that cache adds, when fully populated, on top of the schema it hangs off.
-type derivedCacheRegistration struct {
-	factory   func() any
-	estimator func(*ReadOnlyStoredSchema) int64
+// DerivedCacheKey identifies one kind of schema-derived cache (compiled caveats, type systems,
+// reachability, ...) hung off a ReadOnlyStoredSchema, and binds that kind to the cache's Go type
+// T. Create exactly one per kind, as a package-level var, via NewDerivedCacheKey. The type
+// parameter makes LoadOrStoreDerived type-safe at compile time — there are no string keys and no
+// reflection; lookup is a single uint64-keyed map access.
+type DerivedCacheKey[T any] struct {
+	id uint64
 }
 
-// derivedCacheFactories maps a DerivedCacheKey to its registration. Registered once at init
-// time via RegisterDerivedCache.
-var derivedCacheFactories sync.Map // map[DerivedCacheKey]derivedCacheRegistration
+// NewDerivedCacheKey mints a fresh key identifying a new kind of schema-derived cache of type T.
+// Call it once per kind and store the result in a package-level var; minting a key per call would
+// defeat sharing (each key is a distinct cache).
+func NewDerivedCacheKey[T any]() DerivedCacheKey[T] {
+	return DerivedCacheKey[T]{id: derivedCacheKeyIDs.Add(1)}
+}
 
-// RegisterDerivedCache registers a derived cache kind. factory returns a fresh, empty cache and
-// is invoked at most once per ReadOnlyStoredSchema instance (i.e. once per schema version).
-// estimator returns a rough byte size that this cache adds, when populated, on top of the
-// schema; it is summed into the schema's cache cost (see ReadOnlyStoredSchema.EstimatedSize) and
-// may be nil to contribute nothing. Intended to be called from an init() function. It returns an
-// error if a kind is already registered for the key.
-func RegisterDerivedCache(key DerivedCacheKey, factory func() any, estimator func(*ReadOnlyStoredSchema) int64) error {
-	reg := derivedCacheRegistration{factory: factory, estimator: estimator}
-	if _, loaded := derivedCacheFactories.LoadOrStore(key, reg); loaded {
-		return fmt.Errorf("derived schema cache already registered for key %q", key.name)
+// LoadOrStoreDerived returns the schema-derived cache identified by key for the given stored
+// schema, building it lazily (via build) on first access and reusing it thereafter. The cache
+// lives exactly as long as the ReadOnlyStoredSchema it hangs off — a single schema version — and
+// is discarded with it. This lets internal packages (compiled caveats, type systems,
+// reachability, ...) attach schema-version-scoped caches to the stored schema without
+// pkg/datastore depending on them.
+//
+// build is invoked at most once per (schema, key), on the goroutine that wins the race;
+// concurrent first accesses may each build, but only one result is retained. key's type parameter
+// binds the stored value's type, so the returned error is a defensive guard that should never
+// fire in practice.
+func LoadOrStoreDerived[T any](r *ReadOnlyStoredSchema, key DerivedCacheKey[T], build func() T) (T, error) {
+	var zero T
+	if v, ok := r.derived.Load(key.id); ok {
+		typed, ok := v.(T)
+		if !ok {
+			return zero, spiceerrors.MustBugf("derived schema cache has type %T, wanted %T", v, zero)
+		}
+		return typed, nil
 	}
-	return nil
+
+	actual, _ := r.derived.LoadOrStore(key.id, build())
+	typed, ok := actual.(T)
+	if !ok {
+		return zero, spiceerrors.MustBugf("derived schema cache has type %T, wanted %T", actual, zero)
+	}
+	return typed, nil
 }
 
-// EstimatedSize returns a rough byte size for this stored schema: the schema's own size plus,
-// for every registered derived cache kind, that kind's estimate of the additional bytes it adds
-// when populated. It is intended as the cost when caching the schema, so the cache's max-cost
-// budget accounts for the derived caches the schema will accrete (compiled caveats, etc.), not
-// just the schema blob. The estimate is deliberately rough and conservative (it assumes every
-// kind will be populated).
+// EstimatedSize returns a rough byte size for this stored schema, used as the cost when caching
+// it so the cache's max-cost budget reflects memory rather than entry count. It is the schema's
+// own size plus a conservative allowance for the compiled-caveat cache the schema accretes when
+// checks run: per caveat, its serialized expression plus a fixed compiled-CEL overhead. The
+// estimate is deliberately rough and assumes every caveat will be compiled and cached.
 func (r *ReadOnlyStoredSchema) EstimatedSize() int64 {
 	if r == nil {
 		return 0
 	}
+
 	size := r.schemaSize
-	derivedCacheFactories.Range(func(_, v any) bool {
-		if reg := v.(derivedCacheRegistration); reg.estimator != nil {
-			size += reg.estimator(r)
+	if v1 := r.schema.GetV1(); v1 != nil {
+		for _, caveat := range v1.GetCaveatDefinitions() {
+			size += spiceerrors.MustSafecast[int64](len(caveat.GetSerializedExpression())) + compiledCaveatOverheadBytes
 		}
-		return true
-	})
+	}
 	return size
-}
-
-// derivedCache returns the derived cache registered under key for this schema, building it
-// once (lazily) on first access. It returns an error if no factory is registered for key,
-// which indicates a programming error (a cache kind accessed without being registered at
-// init).
-func (r *ReadOnlyStoredSchema) derivedCache(key DerivedCacheKey) (any, error) {
-	if v, ok := r.derived.Load(key); ok {
-		return v, nil
-	}
-	reg, ok := derivedCacheFactories.Load(key)
-	if !ok {
-		return nil, spiceerrors.MustBugf("no derived schema cache registered for key %q", key.name)
-	}
-	built := reg.(derivedCacheRegistration).factory()
-	actual, _ := r.derived.LoadOrStore(key, built)
-	return actual, nil
-}
-
-// GetDerivedCache returns the schema-derived cache of type T registered under key for the given
-// stored schema, building it lazily on first access. It returns an error if no factory is
-// registered for key or if the registered factory produced a value of a type other than T,
-// both of which indicate a programming error.
-func GetDerivedCache[T any](r *ReadOnlyStoredSchema, key DerivedCacheKey) (T, error) {
-	var zero T
-	v, err := r.derivedCache(key)
-	if err != nil {
-		return zero, err
-	}
-	typed, ok := v.(T)
-	if !ok {
-		return zero, spiceerrors.MustBugf("derived schema cache for key %q has type %T, wanted %T", key.name, v, zero)
-	}
-	return typed, nil
 }

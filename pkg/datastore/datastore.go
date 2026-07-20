@@ -520,7 +520,7 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 // and must not be modified, as it may be shared across multiple callers via caching.
 //
 // A ReadOnlyStoredSchema also hosts lazily-built, schema-derived caches (for example
-// compiled caveats; see GetDerivedCache). Because a single instance is shared across
+// compiled caveats; see LoadOrStoreDerived). Because a single instance is shared across
 // callers for a given schema version via the stored-schema cache, those derived caches
 // live exactly as long as the schema version they belong to and are discarded, together,
 // when the schema changes. The underlying schema itself remains immutable; only the
@@ -528,7 +528,7 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 type ReadOnlyStoredSchema struct {
 	schema     *core.StoredSchema
 	schemaSize int64    // rough byte size of the schema, used as a cache-cost base (see EstimatedSize)
-	derived    sync.Map // map[DerivedCacheKey]any
+	derived    sync.Map // derived-cache kinds keyed by DerivedCacheKey id; see LoadOrStoreDerived
 }
 
 // NewReadOnlyStoredSchema wraps a StoredSchema as read-only. Returns nil if the provided

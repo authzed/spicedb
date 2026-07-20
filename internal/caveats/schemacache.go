@@ -5,40 +5,12 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// compiledCaveatCacheKey identifies the schema-derived cache of compiled (deserialized)
-// caveats. The cache is tied to a single stored-schema version (via datastore.ReadOnlyStoredSchema)
+// compiledCaveatCacheKey identifies the schema-derived cache of compiled (deserialized) caveats
+// hung off a datastore.ReadOnlyStoredSchema. The cache is tied to a single stored-schema version
 // and is discarded when the schema changes.
-var compiledCaveatCacheKey = datastore.NewDerivedCacheKey("caveats.compiled")
-
-// compiledCaveatOverheadBytes is a rough per-caveat estimate of the memory a compiled caveat
-// adds on top of its serialized expression. A compiled caveat embeds a built CEL environment
-// and program, which dwarf the serialized expression; this is a deliberately conservative,
-// order-of-magnitude figure used only for cache-cost budgeting.
-const compiledCaveatOverheadBytes = 8 * 1024
-
-func init() {
-	if err := datastore.RegisterDerivedCache(compiledCaveatCacheKey, func() any { return &CompiledCaveatCache{} }, estimateCompiledCaveatCacheSize); err != nil {
-		spiceerrors.MustPanicf("failed to register compiled caveat cache: %v", err)
-	}
-}
-
-// estimateCompiledCaveatCacheSize roughly estimates the bytes the compiled-caveat cache adds for
-// the given schema when fully populated: per caveat, the serialized expression plus a fixed
-// overhead for its compiled CEL environment.
-func estimateCompiledCaveatCacheSize(s *datastore.ReadOnlyStoredSchema) int64 {
-	v1 := s.Get().GetV1()
-	if v1 == nil {
-		return 0
-	}
-	total := 0
-	for _, caveat := range v1.GetCaveatDefinitions() {
-		total += len(caveat.GetSerializedExpression()) + compiledCaveatOverheadBytes
-	}
-	return int64(total)
-}
+var compiledCaveatCacheKey = datastore.NewDerivedCacheKey[*CompiledCaveatCache]()
 
 // CompiledCaveatCache caches deserialized caveats (which embed a built CEL environment) by
 // caveat name, for a single schema version. Deserializing a caveat rebuilds its CEL
@@ -66,5 +38,7 @@ func (c *CompiledCaveatCache) GetOrCompile(name string, compile func() (*caveats
 // CompiledCaveatCacheFor returns the compiled-caveat cache tied to the given stored schema,
 // building it lazily on first access.
 func CompiledCaveatCacheFor(s *datastore.ReadOnlyStoredSchema) (*CompiledCaveatCache, error) {
-	return datastore.GetDerivedCache[*CompiledCaveatCache](s, compiledCaveatCacheKey)
+	return datastore.LoadOrStoreDerived(s, compiledCaveatCacheKey, func() *CompiledCaveatCache {
+		return &CompiledCaveatCache{}
+	})
 }
