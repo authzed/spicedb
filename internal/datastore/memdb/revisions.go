@@ -42,11 +42,26 @@ func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
 	return created
 }
 
+// insertRevisionSnapshot records a newly committed snapshot at its sorted position
 func (mdb *memdbDatastore) insertRevisionSnapshot(newRevision revisions.TimestampRevision, schemaHash string, snap *memdb.MemDB) {
 	insertAt := sort.Search(len(mdb.revisions), func(i int) bool {
 		return mdb.revisions[i].revision.GreaterThan(newRevision)
 	})
 	mdb.revisions = slices.Insert(mdb.revisions, insertAt, snapshot{newRevision, schemaHash, snap})
+}
+
+// indexOfRevision returns the index of the snapshot recorded for the exact given revision
+func (mdb *memdbDatastore) indexOfRevision(r datastore.Revision) int {
+	mdb.RLock()
+	defer mdb.RUnlock()
+
+	i := sort.Search(len(mdb.revisions), func(i int) bool {
+		return !mdb.revisions[i].revision.LessThan(r)
+	})
+	if i < len(mdb.revisions) && mdb.revisions[i].revision.Equal(r) {
+		return i
+	}
+	return -1
 }
 
 func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {

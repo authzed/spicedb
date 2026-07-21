@@ -114,6 +114,11 @@ func TestConcurrentWriteRelsSucceed(t *testing.T) {
 }
 
 // TestConcurrentWriteRevisionInversionLosesRead reproduces concurrent writes to MemDB
+// where the test simulates a scenario: two goroutines A and B begin execution
+// concurrently. A gets an earlier revision number than B, but the test holds A
+// until B has fully committed, forcing B's snapshot to be recorded first despite
+// having the later revision. It then asserts that reading at A's own revision
+// still returns A's write.
 func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 	require := require.New(t)
 
@@ -123,9 +128,9 @@ func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 
 	ctx := t.Context()
 
-	aEntered := make(chan struct{})
-	releaseA := make(chan struct{})
-	aDone := make(chan struct{})
+	aEntered := make(chan struct{}) // A's transaction has started running.
+	releaseA := make(chan struct{}) // B has completed its execution
+	aDone := make(chan struct{})    // A's ReadWriteTx call has fully returned, so it's safe to read revision
 
 	var revA datastore.Revision
 	var errA error
@@ -133,15 +138,16 @@ func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 		defer close(aDone)
 		revA, errA = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			close(aEntered)
-			<-releaseA
+			<-releaseA // held until B has fully committed below
 			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 				tuple.Touch(tuple.MustParse("document:doc-a#viewer@user:tom")),
 			})
 		}, options.WithDisableRetries(true))
 	}()
 
-	<-aEntered
+	<-aEntered // A's revision number is assigned. A is now paused
 
+	// B is assigned a later revision number and runs to completion while A is still paused.
 	revB, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Touch(tuple.MustParse("document:doc-b#viewer@user:tom")),
@@ -149,23 +155,13 @@ func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
 	}, options.WithDisableRetries(true))
 	require.NoError(err)
 
-	close(releaseA)
-	<-aDone
+	close(releaseA) // mark the completion of B so that A can commit its revision
+	<-aDone         // Block until A completes its execution so that revision can be read
 	require.NoError(errA)
 
 	require.True(revB.GreaterThan(revA), "expected B's revision (%v) to be greater than A's (%v)", revB, revA)
 
-	indexOf := func(r datastore.Revision) int {
-		mds.RLock()
-		defer mds.RUnlock()
-		for i, snap := range mds.revisions {
-			if snap.revision.Equal(r) {
-				return i
-			}
-		}
-		return -1
-	}
-	t.Logf("storage order: A(rev=%v) at index %d, B(rev=%v) at index %d", revA, indexOf(revA), revB, indexOf(revB))
+	t.Logf("storage order: A(rev=%v) at index %d, B(rev=%v) at index %d", revA, mds.indexOfRevision(revA), revB, mds.indexOfRevision(revB))
 
 	reader := ds.SnapshotReader(revA)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: "document"})
