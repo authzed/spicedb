@@ -113,69 +113,120 @@ func TestConcurrentWriteRelsSucceed(t *testing.T) {
 	require.NoError(g.Wait())
 }
 
-// TestConcurrentWriteRevisionInversionLosesRead reproduces concurrent writes to MemDB
-// where the test simulates a scenario: two goroutines A and B begin execution
-// concurrently. A gets an earlier revision number than B, but the test holds A
-// until B has fully committed, forcing B's snapshot to be recorded first despite
-// having the later revision. It then asserts that reading at A's own revision
-// still returns A's write.
-func TestConcurrentWriteRevisionInversionLosesRead(t *testing.T) {
-	require := require.New(t)
-
+// TestConcurrentWrite covers revision visibility when two write transactions overlap.
+//   - each transaction's write should be visible when reading at its own returned revision (read-your-writes)
+//   - a write should NOT be visible at revisions below its own (consistent snapshot)
+//   - a write SHOULD be visible at every revision at or above its own
+//   - the head revision sees every committed write
+// TODO: should this be a datastore conformance test (not specific to memdb)?
+func TestConcurrentWrite(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
-	require.NoError(err)
-	mds := ds.(*memdbDatastore)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, ds.Close())
+	})
 
-	ctx := t.Context()
+	// docsAt returns the set of document object IDs visible at the given revision.
+	docsAt := func(rev datastore.Revision) map[string]bool {
+		reader := ds.SnapshotReader(rev)
+		it, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{OptionalResourceType: "document"})
+		require.NoError(t, err)
+		rels, err := datastore.IteratorToSlice(it)
+		require.NoError(t, err)
 
-	aEntered := make(chan struct{}) // A's transaction has started running.
-	releaseA := make(chan struct{}) // B has completed its execution
-	aDone := make(chan struct{})    // A's ReadWriteTx call has fully returned, so it's safe to read revision
+		seen := map[string]bool{}
+		for _, rel := range rels {
+			seen[rel.Resource.ObjectID] = true
+		}
+		return seen
+	}
 
-	var revA datastore.Revision
-	var errA error
-	go func() {
-		defer close(aDone)
-		revA, errA = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			close(aEntered)
-			<-releaseA // held until B has fully committed below
+	// Execute many iterations so that one run is enough to expose ordering problems
+	const iterations = 10_000
+	for i := 0; i < iterations; i++ {
+		// Unique names per iteration so that visibility assertions cannot be
+		// satisfied by a previous iteration's writes.
+		docA := fmt.Sprintf("doc-a-%d", i)
+		docB := fmt.Sprintf("doc-b-%d", i)
+		relA := tuple.MustParse(fmt.Sprintf("document:%s#viewer@user:tom", docA))
+		relB := tuple.MustParse(fmt.Sprintf("document:%s#viewer@user:tom", docB))
+
+		var (
+			revA                datastore.Revision
+			errA                error
+			waitUntilAStarts    = make(chan struct{}, 1)
+			waitUntilBCompletes = make(chan struct{}, 1)
+			waitUntilADone      = make(chan struct{})
+		)
+		go func() {
+			defer close(waitUntilADone)
+			revA, errA = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				waitUntilAStarts <- struct{}{}
+				<-waitUntilBCompletes // held until B has fully committed below
+				return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+					tuple.Touch(relA),
+				})
+			}, options.WithDisableRetries(true))
+		}()
+
+		<-waitUntilAStarts // A is now blocked
+
+		// Transaction B runs to completion while A is blocked
+		revB, err := ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
-				tuple.Touch(tuple.MustParse("document:doc-a#viewer@user:tom")),
+				tuple.Touch(relB),
 			})
 		}, options.WithDisableRetries(true))
-	}()
+		require.NoError(t, err)
 
-	<-aEntered // A's revision number is assigned. A is now paused
+		waitUntilBCompletes <- struct{}{} // unblocks A
+		<-waitUntilADone
+		require.NoError(t, errA)
 
-	// B is assigned a later revision number and runs to completion while A is still paused.
-	revB, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
-			tuple.Touch(tuple.MustParse("document:doc-b#viewer@user:tom")),
-		})
-	}, options.WithDisableRetries(true))
-	require.NoError(err)
+		require.False(t, revA.Equal(revB), "iteration %d: concurrent transactions must be assigned distinct revisions, both got %v", i, revA)
 
-	close(releaseA) // mark the completion of B so that A can commit its revision
-	<-aDone         // Block until A completes its execution so that revision can be read
-	require.NoError(errA)
+		// Each transaction's write must be visible at its own returned revision.
+		require.True(t, docsAt(revA)[docA], "iteration %d: A's write is invisible when reading at A's own returned revision %v", i, revA)
+		require.True(t, docsAt(revB)[docB], "iteration %d: B's write is invisible when reading at B's own returned revision %v", i, revB)
 
-	require.True(revB.GreaterThan(revA), "expected B's revision (%v) to be greater than A's (%v)", revB, revA)
-
-	t.Logf("storage order: A(rev=%v) at index %d, B(rev=%v) at index %d", revA, mds.indexOfRevision(revA), revB, mds.indexOfRevision(revB))
-
-	reader := ds.SnapshotReader(revA)
-	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: "document"})
-	require.NoError(err)
-	rels, err := datastore.IteratorToSlice(it)
-	require.NoError(err)
-
-	var sawA bool
-	for _, rel := range rels {
-		if rel.Resource.ObjectID == "doc-a" {
-			sawA = true
+		type write struct {
+			rev datastore.Revision
+			doc string
 		}
+		earlier, later := write{revA, docA}, write{revB, docB}
+		if later.rev.LessThan(earlier.rev) {
+			earlier, later = later, earlier
+		}
+
+		// The write committed at the later revision must not be visible at the earlier revision
+		atEarlier := docsAt(earlier.rev)
+		require.True(t, atEarlier[earlier.doc], "iteration %d: %s is invisible at its own revision %v", i, earlier.doc, earlier.rev)
+		require.False(t, atEarlier[later.doc], "iteration %d: %s was committed at later revision %v but is visible at earlier revision %v", i, later.doc, later.rev, earlier.rev)
+
+		// Both writes must be visible at the later revision
+		atLater := docsAt(later.rev)
+		require.True(t, atLater[earlier.doc], "iteration %d: %s is visible at revision %v but disappears at later revision %v", i, earlier.doc, earlier.rev, later.rev)
+		require.True(t, atLater[later.doc], "iteration %d: %s is invisible at its own revision %v", i, later.doc, later.rev)
+
+		// The head revision must see every committed write
+		head, err := ds.HeadRevision(t.Context())
+		require.NoError(t, err)
+		atHead := docsAt(head.Revision)
+		require.True(t, atHead[docA] && atHead[docB], "iteration %d: head revision %v is missing committed writes: %v", i, head.Revision, atHead)
+
+		// Delete this iteration's relationships so the relationship table does
+		// not grow across iterations: memdb scans the whole namespace per
+		// query, so an ever-growing table would make this test quadratic.
+		// Earlier revisions retain their snapshots, so this does not affect
+		// the assertions above.
+		_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+				tuple.Delete(relA),
+				tuple.Delete(relB),
+			})
+		}, options.WithDisableRetries(true))
+		require.NoError(t, err)
 	}
-	require.True(sawA, "relationship written by transaction A is invisible when reading at A's own returned revision %v", revA)
 }
 
 func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
