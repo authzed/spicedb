@@ -118,6 +118,7 @@ func TestConcurrentWriteRelsSucceed(t *testing.T) {
 //   - a write should NOT be visible at revisions below its own (consistent snapshot)
 //   - a write SHOULD be visible at every revision at or above its own
 //   - the head revision sees every committed write
+//
 // TODO: should this be a datastore conformance test (not specific to memdb)?
 func TestConcurrentWrite(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
