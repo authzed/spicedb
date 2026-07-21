@@ -132,11 +132,10 @@ services:
       timeout: "30s"
       retries: 3
   prometheus:
-    image: "prom/prometheus:v2.47.0"
+    image: "prom/prometheus:v3.13.1"
     command:
       - "--config.file=/etc/prometheus/prometheus.yaml"
       - "--storage.tsdb.path=/prometheus"
-      - "--enable-feature=native-histograms"
     volumes:
       - "./development/prometheus.yaml:/etc/prometheus/prometheus.yaml"
     ports:

@@ -512,7 +512,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(spicedb_perf_insights_api_shape_latency_seconds_bucket{job=\"spicedb\",instance=~\"$instance\",resource_type!=\"\"}[$__rate_interval])) by (le, api_kind, resource_type, resource_relation, subject_type, subject_relation))",
+          "expr": "histogram_quantile(0.99, sum(rate(spicedb_perf_insights_api_shape_latency_seconds{job=\"spicedb\",instance=~\"$instance\",resource_type!=\"\"}[$__rate_interval])) by (api_kind, resource_type, resource_relation, subject_type, subject_relation))",
           "legendFormat": "{{api_kind}} {{resource_type}}:{{resource_relation}} → {{subject_type}}#{{subject_relation}}",
           "range": true,
           "refId": "A"
