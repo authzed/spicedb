@@ -43,6 +43,7 @@ func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
 }
 
 // insertRevisionSnapshot records a newly committed snapshot at its sorted position
+// The caller must already hold mdb's write lock.
 func (mdb *memdbDatastore) insertRevisionSnapshot(newRevision revisions.TimestampRevision, schemaHash string, snap *memdb.MemDB) {
 	insertAt := sort.Search(len(mdb.revisions), func(i int) bool {
 		return mdb.revisions[i].revision.GreaterThan(newRevision)
@@ -51,6 +52,7 @@ func (mdb *memdbDatastore) insertRevisionSnapshot(newRevision revisions.Timestam
 }
 
 // indexOfRevision returns the index of the snapshot recorded for the exact given revision
+// Performs binary search for finding the revision, returns -1 if none exists
 func (mdb *memdbDatastore) indexOfRevision(r datastore.Revision) int {
 	mdb.RLock()
 	defer mdb.RUnlock()
