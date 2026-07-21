@@ -16,8 +16,8 @@ import (
 func TestReadOnlyStoredSchemaEstimatedSize(t *testing.T) {
 	// Nil-safe: a nil wrapper and a wrapper around nil both report 0.
 	var nilSchema *ReadOnlyStoredSchema
-	require.Equal(t, 0, nilSchema.EstimatedSize())
-	require.Equal(t, 0, NewReadOnlyStoredSchema(nil).EstimatedSize())
+	require.Equal(t, int64(0), nilSchema.EstimatedSize())
+	require.Equal(t, int64(0), NewReadOnlyStoredSchema(nil).EstimatedSize())
 
 	// A populated schema reports its serialized size (greater than zero), and a
 	// larger schema reports a larger size.
@@ -33,7 +33,7 @@ func TestReadOnlyStoredSchemaEstimatedSize(t *testing.T) {
 	})
 	require.Positive(t, small.EstimatedSize())
 	require.Greater(t, large.EstimatedSize(), small.EstimatedSize())
-	require.Equal(t, len(small.Get().GetV1().SchemaText), small.EstimatedSize())
+	require.Equal(t, int64(len(small.Get().GetV1().SchemaText)), small.EstimatedSize())
 }
 
 func TestRelationshipsFilterFromPublicFilter(t *testing.T) {

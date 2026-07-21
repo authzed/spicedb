@@ -731,6 +731,70 @@ func TestCaveatRunnerPopulateCaveatDefinitionsForExpr(t *testing.T) {
 	req.True(result.IsPartial())
 }
 
+// storedSchemaCaveatReader wraps a CaveatDefinitionLookup so it also advertises a stored
+// schema. That is what makes CaveatRunner discover and use the schema-tied compiled-caveat
+// cache (the cachedSchemaProvider path) rather than per-runner compilation.
+type storedSchemaCaveatReader struct {
+	CaveatDefinitionLookup
+	stored *datastore.ReadOnlyStoredSchema
+}
+
+func (r storedSchemaCaveatReader) StoredSchema() *datastore.ReadOnlyStoredSchema {
+	return r.stored
+}
+
+func TestCaveatRunnerUsesSchemaTiedCompiledCaveatCache(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
+		caveat first_caveat(firstparam int) {
+			firstparam == 42
+		}
+		`, nil)
+
+	headRevisionResult, err := ds.HeadRevision(t.Context())
+	req.NoError(err)
+
+	dl := datalayer.NewDataLayer(ds)
+	sr, err := dl.SnapshotReader(headRevisionResult.Revision, datalayer.NoSchemaHashForTesting).ReadSchema(t.Context())
+	req.NoError(err)
+
+	// A stored schema is what a unified-schema reader exposes; wrapping the real reader with
+	// one drives the schema-tied cache path.
+	stored := datastore.NewReadOnlyStoredSchema(&core.StoredSchema{
+		VersionOneof: &core.StoredSchema_V1{
+			V1: &core.StoredSchema_V1StoredSchema{SchemaText: "caveat first_caveat(firstparam int) { firstparam == 42 }"},
+		},
+	})
+	reader := storedSchemaCaveatReader{CaveatDefinitionLookup: sr, stored: stored}
+
+	runner := NewCaveatRunner(types.Default.TypeSet)
+	expr := caveatexpr("first_caveat")
+
+	result, err := runner.RunCaveatExpression(t.Context(), expr,
+		map[string]any{"firstparam": int64(42)}, reader, RunCaveatExpressionNoDebugging)
+	req.NoError(err)
+	req.True(result.Value())
+
+	// The runner discovered the schema-tied cache...
+	req.NotNil(runner.compiledCaveatCache)
+	shared, err := CompiledCaveatCacheFor(stored)
+	req.NoError(err)
+	req.Same(runner.compiledCaveatCache, shared) // ...and it is THE cache hung off that schema.
+
+	// ...and the run populated it: the compiled caveat is now cached, so GetOrCompile
+	// returns it without recompiling (proving the cache is actually used across checks).
+	got, err := shared.GetOrCompile("first_caveat", func() (*pkgcaveats.CompiledCaveat, error) {
+		t.Fatal("compile should not be called; first_caveat should already be cached")
+		return nil, nil
+	})
+	req.NoError(err)
+	req.NotNil(got)
+}
+
 func TestCaveatRunnerEmptyExpression(t *testing.T) {
 	req := require.New(t)
 

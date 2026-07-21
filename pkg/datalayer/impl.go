@@ -82,7 +82,8 @@ type defaultDataLayer struct {
 // Ignored for empty or bypass-sentinel values.
 func (d *defaultDataLayer) observeSchemaHash(h SchemaHash) {
 	if h != "" && !h.IsBypassSentinel() {
-		d.lastSchemaHash.Store(new(string(h)))
+		s := string(h)
+		d.lastSchemaHash.Store(&s)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -517,34 +518,44 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 
 // ReadOnlyStoredSchema wraps a *core.StoredSchema to indicate it is read-only
 // and must not be modified, as it may be shared across multiple callers via caching.
+//
+// A ReadOnlyStoredSchema also hosts lazily-built, schema-derived caches (for example
+// compiled caveats; see LoadOrStoreDerived). Because a single instance is shared across
+// callers for a given schema version via the stored-schema cache, those derived caches
+// live exactly as long as the schema version they belong to and are discarded, together,
+// when the schema changes. The underlying schema itself remains immutable; only the
+// concurrency-safe derived caches are populated on demand.
 type ReadOnlyStoredSchema struct {
-	schema *core.StoredSchema
+	schema     *core.StoredSchema
+	schemaSize int64    // rough byte size of the schema, used as a cache-cost base (see EstimatedSize)
+	derived    sync.Map // derived-cache kinds keyed by DerivedCacheKey id; see LoadOrStoreDerived
 }
 
-// NewReadOnlyStoredSchema wraps a StoredSchema as read-only.
-// Returns nil if the provided schema is nil.
+// NewReadOnlyStoredSchema wraps a StoredSchema as read-only. Returns nil if the provided
+// schema is nil. The schema's byte size is estimated cheaply from its schema text; callers
+// that have the exact serialized size on hand (e.g. datastore readers that just unmarshaled
+// it) should prefer NewReadOnlyStoredSchemaWithSize.
 func NewReadOnlyStoredSchema(schema *core.StoredSchema) *ReadOnlyStoredSchema {
 	if schema == nil {
 		return nil
 	}
-	return &ReadOnlyStoredSchema{schema: schema}
+	return NewReadOnlyStoredSchemaWithSize(schema, len(schema.GetV1().GetSchemaText()))
+}
+
+// NewReadOnlyStoredSchemaWithSize wraps a StoredSchema as read-only, recording sizeBytes as a
+// rough byte size of the schema for cache-cost accounting (see EstimatedSize). Returns nil if
+// the provided schema is nil. sizeBytes need not be exact; the serialized length the schema
+// was read from is a good value.
+func NewReadOnlyStoredSchemaWithSize(schema *core.StoredSchema, sizeBytes int) *ReadOnlyStoredSchema {
+	if schema == nil {
+		return nil
+	}
+	return &ReadOnlyStoredSchema{schema: schema, schemaSize: int64(sizeBytes)}
 }
 
 // Get returns the underlying StoredSchema. Callers must not modify the returned value.
 func (r *ReadOnlyStoredSchema) Get() *core.StoredSchema {
 	return r.schema
-}
-
-// EstimatedSize returns an approximate size of the stored schema in bytes,
-// using the length of the schema string as a proxy.
-// It is used for cache cost accounting; the live in-memory object graph is
-// somewhat larger than the serialized size, but this is a decent estimate.
-// Returns 0 for a nil schema.
-func (r *ReadOnlyStoredSchema) EstimatedSize() int {
-	if r == nil || r.schema == nil {
-		return 0
-	}
-	return len(r.schema.GetV1().SchemaText)
 }
 
 // Reader is an interface for reading relationships from the datastore.
