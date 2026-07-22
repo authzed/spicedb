@@ -198,6 +198,7 @@ func NewPermissionsServer(
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
 		queryPlanMetadata: configWithDefaults.QueryPlanMetadata,
+		queryPlanCache:    newQueryPlanCache(),
 	}
 }
 
@@ -210,6 +211,7 @@ type permissionServer struct {
 
 	bulkChecker       *bulkChecker
 	queryPlanMetadata *query.QueryPlanMetadata
+	queryPlanCache    *queryPlanCache
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {

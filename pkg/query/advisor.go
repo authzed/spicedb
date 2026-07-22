@@ -1,6 +1,8 @@
 package query
 
 import (
+	"maps"
+
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -40,22 +42,24 @@ type PlanAdvisor interface {
 // and a fully populated Hints map.
 func ApplyAdvisor(co CanonicalOutline, advisor PlanAdvisor) (CanonicalOutline, error) {
 	// Phase 1: apply mutations bottom-up.
-	mutatedRoot, err := applyAdvisorMutations(co.Root, co, advisor)
+	mutatedRoot, extendedKeys, err := applyAdvisorMutations(co.Root, co, advisor)
 	if err != nil {
 		return CanonicalOutline{}, err
 	}
 
+	mutatedCO := CanonicalOutline{
+		Root:          mutatedRoot,
+		CanonicalKeys: extendedKeys,
+	}
+
 	// Phase 2: collect hints using the post-mutation outline as the key source.
 	hints := make(map[OutlineNodeID][]Hint)
-	if err := collectAdvisorHints(mutatedRoot, co, advisor, hints); err != nil {
+	if err := collectAdvisorHints(mutatedRoot, mutatedCO, advisor, hints); err != nil {
 		return CanonicalOutline{}, err
 	}
 
-	return CanonicalOutline{
-		Root:          mutatedRoot,
-		CanonicalKeys: co.CanonicalKeys,
-		Hints:         hints,
-	}, nil
+	mutatedCO.Hints = hints
+	return mutatedCO, nil
 }
 
 // applyAdvisorMutations walks the outline tree bottom-up via WalkOutlineBottomUp.
@@ -65,7 +69,7 @@ func ApplyAdvisor(co CanonicalOutline, advisor PlanAdvisor) (CanonicalOutline, e
 // After all mutations are applied, any newly synthesized nodes (ID==0) receive
 // fresh IDs via FillMissingNodeIDs, and their CanonicalKeys are recorded in
 // the provided keys map.
-func applyAdvisorMutations(outline Outline, co CanonicalOutline, advisor PlanAdvisor) (Outline, error) {
+func applyAdvisorMutations(outline Outline, co CanonicalOutline, advisor PlanAdvisor) (Outline, map[OutlineNodeID]CanonicalKey, error) {
 	mutated, err := WalkOutlineBottomUp(outline, func(node Outline) (Outline, error) {
 		mutations, err := advisor.GetMutations(node, co)
 		if err != nil {
@@ -85,9 +89,11 @@ func applyAdvisorMutations(outline Outline, co CanonicalOutline, advisor PlanAdv
 		return result, nil
 	})
 	if err != nil {
-		return Outline{}, err
+		return Outline{}, nil, err
 	}
-	return FillMissingNodeIDs(mutated, co.CanonicalKeys), nil
+
+	extendedKeys := maps.Clone(co.CanonicalKeys)
+	return FillMissingNodeIDs(mutated, extendedKeys), extendedKeys, nil
 }
 
 // collectAdvisorHints walks the outline tree pre-order via WalkOutlinePreOrder,
