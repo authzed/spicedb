@@ -7,9 +7,6 @@ go 1.26.5
 // upgrade Kubernetes to a version that uses a newer version of `cel-go`.
 require github.com/authzed/cel-go v0.20.2
 
-// Bring https://github.com/fsnotify/fsnotify/pull/650
-replace github.com/fsnotify/fsnotify => github.com/fsnotify/fsnotify v1.9.0
-
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260709200747-435963d16310.1
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.11-20260707164124-2360da55afce.1
@@ -43,7 +40,7 @@ require (
 	github.com/exaring/otelpgx v0.11.1
 	github.com/fatih/color v1.19.0
 	github.com/felixge/fgprof v0.9.5
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-errors/errors v1.5.1
 	github.com/go-logr/zerologr v1.2.3
 	github.com/go-sql-driver/mysql v1.10.0
