@@ -2263,6 +2263,136 @@ func ConcurrentWriteDeadlockTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+// ConcurrentWriteRevisionVisibilityTest covers revision visibility when two
+// write transactions overlap: transaction A opens first but is held open while
+// transaction B starts and commits, and only then does A write and commit.
+//   - each transaction's write must be visible when reading at its own
+//     returned revision (read-your-writes)
+//   - when the two revisions are comparable, the later revision must see the
+//     earlier write, and the earlier revision must NOT see the later write
+//   - when the two revisions are concurrent (e.g. Postgres snapshots of
+//     overlapping transactions), neither write may be visible at the other's
+//     revision
+//   - the head revision must see every committed write
+//
+// This test is safe even for datastores that serialize write transactions with
+// a global lock (e.g. memdb): transaction A performs no reads or writes until
+// transaction B has fully committed, so the two never contend for the write
+// lock.
+func ConcurrentWriteRevisionVisibilityTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
+
+	// docsAt returns which of the given resource object IDs are visible at the
+	// given revision.
+	docsAt := func(rev datastore.Revision, resourceIDs ...string) map[string]bool {
+		reader := ds.SnapshotReader(rev)
+		it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			OptionalResourceType: testResourceNamespace,
+			OptionalResourceIds:  resourceIDs,
+		}, options.WithQueryShape(queryshape.Varying))
+		require.NoError(t, err)
+		rels, err := datastore.IteratorToSlice(it)
+		require.NoError(t, err)
+
+		seen := map[string]bool{}
+		for _, rel := range rels {
+			seen[rel.Resource.ObjectID] = true
+		}
+		return seen
+	}
+
+	// Execute many iterations so that one run is enough to expose ordering problems.
+	const iterations = 1000
+	for i := 0; i < iterations; i++ {
+		// Unique names per iteration so that visibility assertions cannot be
+		// satisfied by a previous iteration's writes.
+		docA := fmt.Sprintf("doc-a-%d", i)
+		docB := fmt.Sprintf("doc-b-%d", i)
+		relA := tuple.Touch(makeTestRel(docA, "tom"))
+		relB := tuple.Touch(makeTestRel(docB, "tom"))
+
+		var (
+			revA         datastore.Revision
+			errA         error
+			aStarted     = make(chan struct{})
+			aStartedOnce = sync.Once{}
+			bCompleted   = make(chan struct{})
+			aDone        = make(chan struct{})
+		)
+		go func() {
+			defer close(aDone)
+			// The transaction function may be re-run on retryable errors,
+			// either by the datastore's retry loop or by the backend client
+			// itself (e.g. Spanner and CockroachDB re-run on aborts). The
+			// sync.Once and the closed channels make re-runs proceed
+			// immediately instead of hanging.
+			revA, errA = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				aStartedOnce.Do(func() { close(aStarted) })
+				<-bCompleted // held until B has fully committed below
+				return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{relA})
+			})
+		}()
+
+		<-aStarted // A's transaction is now open and blocked
+
+		// Transaction B runs to completion while A remains open.
+		revB, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{relB})
+		})
+		require.NoError(t, err)
+
+		close(bCompleted) // unblocks A
+		<-aDone
+		require.NoError(t, errA)
+
+		require.False(t, revA.Equal(revB), "iteration %d: concurrent transactions must be assigned distinct revisions, both got %v", i, revA)
+
+		// Each transaction's write must be visible at its own returned revision.
+		require.True(t, docsAt(revA, docA)[docA], "iteration %d: A's write is invisible when reading at A's own returned revision %v", i, revA)
+		require.True(t, docsAt(revB, docB)[docB], "iteration %d: B's write is invisible when reading at B's own returned revision %v", i, revB)
+
+		if revA.LessThan(revB) || revB.LessThan(revA) {
+			// The revisions are comparable: the datastore assigned the two
+			// transactions a total order.
+			type write struct {
+				rev datastore.Revision
+				doc string
+			}
+			earlier, later := write{revA, docA}, write{revB, docB}
+			if later.rev.LessThan(earlier.rev) {
+				earlier, later = later, earlier
+			}
+
+			// The write committed at the later revision must not be visible at
+			// the earlier revision.
+			atEarlier := docsAt(earlier.rev, docA, docB)
+			require.True(t, atEarlier[earlier.doc], "iteration %d: %s is invisible at its own revision %v", i, earlier.doc, earlier.rev)
+			require.False(t, atEarlier[later.doc], "iteration %d: %s was committed at later revision %v but is visible at earlier revision %v", i, later.doc, later.rev, earlier.rev)
+
+			// Both writes must be visible at the later revision.
+			atLater := docsAt(later.rev, docA, docB)
+			require.True(t, atLater[earlier.doc], "iteration %d: %s is visible at revision %v but disappears at later revision %v", i, earlier.doc, earlier.rev, later.rev)
+			require.True(t, atLater[later.doc], "iteration %d: %s is invisible at its own revision %v", i, later.doc, later.rev)
+		} else {
+			// The revisions are concurrent (e.g. Postgres snapshots of
+			// overlapping transactions): each transaction's snapshot must
+			// exclude the other's write.
+			require.False(t, docsAt(revA, docB)[docB], "iteration %d: %s was committed by a concurrent transaction at revision %v but is visible at revision %v", i, docB, revB, revA)
+			require.False(t, docsAt(revB, docA)[docA], "iteration %d: %s was committed by a concurrent transaction at revision %v but is visible at revision %v", i, docA, revA, revB)
+		}
+
+		// The head revision must see every committed write.
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+		atHead := docsAt(head.Revision, docA, docB)
+		require.True(t, atHead[docA] && atHead[docB], "iteration %d: head revision %v is missing committed writes: %v", i, head.Revision, atHead)
+	}
+}
+
 func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
