@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
@@ -91,6 +92,8 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs, cts)
 	healthManager := health.NewHealthManager(dispatcher, &datastoreReady{})
 
+	metrics := v1svc.NewMetrics(prometheus.DefaultRegisterer)
+
 	registerServices := func(srv *grpc.Server) {
 		services.RegisterGrpcServices(
 			srv,
@@ -99,6 +102,7 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 			services.V1SchemaServiceEnabled,
 			services.WatchServiceEnabled,
 			v1svc.PermissionsServerConfig{
+				Metrics:                         metrics,
 				MaxPreconditionsCount:           c.MaximumPreconditionCount,
 				MaxUpdatesPerWrite:              c.MaximumUpdatesPerWrite,
 				MaximumAPIDepth:                 maxDepth,

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -30,6 +31,10 @@ type ServerConfig struct {
 	CaveatTypeSet                      *caveattypes.TypeSet
 	EnableExperimentalLookupResources3 bool
 	DataLayerOpts                      []datalayer.DataLayerOption
+
+	// MetricsRegistry, when non-nil, is the Prometheus registry the server's
+	// metrics are registered with, allowing tests to make assertions on them.
+	MetricsRegistry prometheus.Registerer
 }
 
 var DefaultTestServerConfig = ServerConfig{
@@ -65,9 +70,17 @@ func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
 	require.NoError(t, err)
 
+	metricsRegistry := config.MetricsRegistry
+	if metricsRegistry == nil {
+		metricsRegistry = prometheus.NewRegistry()
+	}
+
 	cfg := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
 		server.WithDispatcher(dispatcher),
+		server.WithOTel(*server.NewOTelConfigWithOptionsAndDefaults(
+			server.WithPrometheusRegistry(metricsRegistry),
+		)),
 		server.WithTelemetryEndpoint(""),
 		server.WithSilentlyDisableTelemetry(true),
 		server.WithQueryPlanMetadata(queryPlanMetadata),

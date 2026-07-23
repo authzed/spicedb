@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- New metric `check_permissionship_total` for CheckPermission and CheckBulkPermissions that counts the number of requests that returned HAS_PERMISSION. Also, `write_relationships_updates` also includes BulkImport calls (https://github.com/authzed/spicedb/pull/3240)
+
 ### Changed
 - Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)
 - Updated the Prometheus buckets for `grpc_server_handling_seconds` and `spicedb_datastore_query_latency` to be able to correlate them (https://github.com/authzed/spicedb/pull/3188)
