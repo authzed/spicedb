@@ -27,6 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Memory: If SpiceDB couldn't determine the memory available to it (such as can happen in AWS ECS), it assumed that its memory was unbounded. We changed how memory detection works to make conservative estimates in these cases and made some improvements to cache entry cost estimation. (https://github.com/authzed/spicedb/pull/3201)
 - Datastore: raw datastore driver errors that could leak engine internals (such as SQLSTATE codes or opaque `COPY` wrappers) are no longer returned to clients. Unhandled Postgres, MySQL, and CockroachDB driver errors — including CockroachDB's transient retryable/resettable errors — are now surfaced as descriptive, engine-agnostic gRPC statuses (with the full error logged server-side), and an aborted bulk-import `COPY` now reports the underlying source error instead of the driver's opaque wrapper. (https://github.com/authzed/spicedb/pull/3202)
 
+### Security
+- Bumped `google.golang.org/grpc` to v1.82.1 to address GHSA-hrxh-6v49-42gf (gRPC-Go: xDS RBAC and HTTP/2 vulnerabilities) (https://github.com/authzed/spicedb/pull/3246)
+
 ## [1.54.0] - 2026-06-18
 ### Added
 - Query Planner: fast serialize/deserialize for query plans (https://github.com/authzed/spicedb/pull/3122)
