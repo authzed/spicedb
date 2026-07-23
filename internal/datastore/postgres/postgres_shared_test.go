@@ -1695,6 +1695,11 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngin
 		case strings.HasPrefix(explanation, "Delete on namespace_config"):
 			fallthrough
 
+		// Recorded commit positions are collected alongside the transactions
+		// they describe, served by the position table's primary key.
+		case strings.HasPrefix(explanation, "Delete on ledger_xid_lsn"):
+			fallthrough
+
 		case strings.HasPrefix(explanation, "Delete on relation_tuple"):
 			require.Contains(explanation, "Index Scan")
 

@@ -231,6 +231,12 @@ func newPostgresDatastore(
 		return nil, err
 	}
 
+	cursorWatchEnabled := config.cursorWatchEnabled && isPrimary && !config.watchDisabled
+
+	// Both watches require track_commit_timestamp. The polling watch orders every
+	// revision by it; the cursor watch orders by recorded commit LSN, but replays
+	// a gap the ledger could not record in true commit order, which is the one
+	// thing only a commit timestamp can supply once the WAL holding it is gone.
 	watchEnabled := trackTSOn == "on" && !config.watchDisabled
 	if !watchEnabled {
 		if config.watchDisabled {
@@ -328,6 +334,17 @@ func newPostgresDatastore(
 		schema:                       *schema.Schema(config.columnOptimizationOption, false),
 		quantizationPeriodNanos:      quantizationPeriodNanos,
 		isolationLevel:               isolationLevel,
+		cursorWatchEnabled:           cursorWatchEnabled,
+		watchBatchSize:               config.watchBatchSize,
+		watchPollInterval:            config.watchPollInterval,
+		logicalWatchStatusInterval:   config.logicalWatchStatusInterval,
+
+		logicalWatchLedgerSlotName:        config.logicalWatchLedgerSlotName,
+		logicalWatchLedgerPublicationName: config.logicalWatchLedgerPublicationName,
+		logicalWatchLedgerBatchSize:       config.logicalWatchLedgerBatchSize,
+		logicalWatchLedgerFlushMaxDelay:   config.logicalWatchLedgerFlushMaxDelay,
+		logicalWatchLedgerRetryInterval:   config.logicalWatchLedgerRetryInterval,
+		logicalWatchLedgerWaitTimeout:     config.logicalWatchLedgerWaitTimeout,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -338,6 +355,17 @@ func newPostgresDatastore(
 		datastore.writePool = pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor)
 	}
 
+	if cursorWatchEnabled {
+		if err := datastore.prepareCursorWatch(initializationContext); err != nil {
+			return nil, fmt.Errorf("failed to prepare the cursor watch: %w", err)
+		}
+	} else if isPrimary {
+		// The feature being off does not remove the durable ledger slot an
+		// earlier configuration may have left behind, and nothing else would
+		// notice it retaining WAL.
+		datastore.warnIfAbandonedLedgerSlot(initializationContext)
+	}
+
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
 
 	// Start a goroutine for garbage collection and the revision heartbeat.
@@ -346,6 +374,16 @@ func newPostgresDatastore(
 		if config.revisionHeartbeatEnabled {
 			datastore.workerGroup.Go(func() error {
 				return datastore.startRevisionHeartbeat(datastore.workerCtx)
+			})
+		}
+
+		// The commit LSN ledger records the commit position of every write,
+		// which is the order the cursor watch delivers in and the frontier it
+		// bounds delivery by. Every instance runs it; the replication slot
+		// admits one at a time.
+		if cursorWatchEnabled {
+			datastore.workerGroup.Go(func() error {
+				return datastore.runCommitLSNLedger(datastore.workerCtx)
 			})
 		}
 
@@ -402,6 +440,24 @@ type pgDatastore struct {
 	filterMaximumIDCount    uint16
 	quantizationPeriodNanos int64
 	isolationLevel          pgx.TxIsoLevel
+
+	cursorWatchEnabled         bool
+	watchBatchSize             int
+	watchPollInterval          time.Duration
+	logicalWatchStatusInterval time.Duration
+
+	logicalWatchLedgerSlotName        string
+	logicalWatchLedgerPublicationName string
+	logicalWatchLedgerBatchSize       int
+	logicalWatchLedgerFlushMaxDelay   time.Duration
+	logicalWatchLedgerRetryInterval   time.Duration
+	logicalWatchLedgerWaitTimeout     time.Duration
+
+	// ledgerSlotName is logicalWatchLedgerSlotName qualified for this database,
+	// and ledgerDatabase is the database it decodes. Both are resolved once,
+	// while the logical watch is being prepared, before any worker starts.
+	ledgerSlotName string
+	ledgerDatabase string
 }
 
 func (pgd *pgDatastore) MetricsID() (string, error) {
@@ -715,12 +771,17 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 		watchStatus = datastore.FeatureSupported
 	}
 
+	watchEmitsImmediatelyStatus := datastore.FeatureUnsupported
+	if pgd.watchEnabled && pgd.cursorWatchEnabled {
+		watchEmitsImmediatelyStatus = datastore.FeatureSupported
+	}
+
 	return &datastore.Features{
 		Watch: datastore.Feature{
 			Status: watchStatus,
 		},
 		WatchEmitsImmediately: datastore.Feature{
-			Status: datastore.FeatureUnsupported,
+			Status: watchEmitsImmediatelyStatus,
 		},
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
@@ -843,6 +904,12 @@ func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, rea
 			return collectors, err
 		}
 		collectors = append(collectors, gcCollectors...)
+
+		ledgerCollectors, err := registerLedgerMetrics()
+		if err != nil {
+			return collectors, err
+		}
+		collectors = append(collectors, ledgerCollectors...)
 	}
 
 	return collectors, nil

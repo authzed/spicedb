@@ -12,16 +12,22 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
+// PostgreSQL catalog type OIDs of the types SpiceDB registers custom codecs for.
+const (
+	pgSnapshotTypeOID = 5038
+	xid8TypeOID       = 5069
+)
+
 // RegisterTypes registers pgSnapshot and xid8 with a pgtype.ConnInfo.
 func RegisterTypes(m *pgtype.Map) {
 	m.RegisterType(&pgtype.Type{
 		Name:  "snapshot",
-		OID:   5038,
+		OID:   pgSnapshotTypeOID,
 		Codec: SnapshotCodec{},
 	})
 	m.RegisterType(&pgtype.Type{
 		Name:  "xid",
-		OID:   5069,
+		OID:   xid8TypeOID,
 		Codec: Uint64Codec{},
 	})
 	m.RegisterDefaultPgType(pgSnapshot{}, "snapshot")

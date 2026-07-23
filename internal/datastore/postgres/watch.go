@@ -82,6 +82,10 @@ func (pgd *pgDatastore) Watch(
 		return updates, errs
 	}
 
+	if pgd.cursorWatchEnabled {
+		return pgd.cursorWatch(ctx, afterRevisionRaw, options, updates, errs)
+	}
+
 	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
 		close(updates)
 		errs <- errors.New("emit immediately strategy is unsupported in Postgres")

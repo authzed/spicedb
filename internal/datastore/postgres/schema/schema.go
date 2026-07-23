@@ -12,8 +12,12 @@ const (
 	TableTuple               = "relation_tuple"
 	TableCaveat              = "caveat"
 	TableRelationshipCounter = "relationship_counter"
+	TableLedgerXidLSN        = "ledger_xid_lsn"
+	TableLedgerState         = "ledger_state"
+	TableLedgerGap           = "ledger_gap"
 
 	ColXID               = "xid"
+	ColCommitLSN         = "commit_lsn"
 	ColTimestamp         = "timestamp"
 	ColMetadata          = "metadata"
 	ColNamespace         = "namespace"
@@ -36,6 +40,18 @@ const (
 	ColCounterFilter       = "serialized_filter"
 	ColCounterCurrentCount = "current_count"
 	ColCounterSnapshot     = "updated_revision_snapshot"
+
+	ColLedgerSingleton        = "singleton"
+	ColLedgerGenesisSnapshot  = "genesis_snapshot"
+	ColLedgerGenesisLSN       = "genesis_lsn"
+	ColLedgerBackfillOffset   = "backfill_offset"
+	ColLedgerBackfillComplete = "backfill_complete"
+	ColLedgerSlotRecreations  = "slot_recreations"
+	ColLedgerUpdatedAt        = "updated_at"
+
+	ColGapFromLSN    = "from_lsn"
+	ColGapToLSN      = "to_lsn"
+	ColGapDetectedAt = "detected_at"
 )
 
 func Schema(colOptimizationOpt common.ColumnOptimizationOption, expirationDisabled bool) *common.SchemaInformation {

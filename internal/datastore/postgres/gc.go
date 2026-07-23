@@ -12,6 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -181,6 +182,37 @@ func (pgg *pgGarbageCollector) deleteBeforeTx(ctx context.Context, conn exec, tx
 	)
 	if err != nil {
 		return removed, fmt.Errorf("failed to GC transactions table: %w", err)
+	}
+
+	// Then the commit positions of those same transactions, if the commit LSN
+	// ledger is in use.
+	//
+	// This must run *after* the transactions above, and the order is not
+	// cosmetic. These are separate statements, so there is always a moment
+	// between them, and a crash can make that moment permanent. Deleting
+	// positions first would leave transaction rows that appear to have no
+	// recorded position, which is exactly how a transaction lost to a
+	// replication slot recreation appears — a watch reading them would refuse to
+	// deliver and tell its consumer to re-bootstrap. Deleting them second leaves
+	// the opposite: positions whose transaction is gone, which every reader
+	// joins away.
+	//
+	// ledger_gap is deliberately not pruned. It gains one row per slot
+	// invalidation, which should be rare enough to alert on, and a gap row stops
+	// matching watches on its own once every consumer's cursor is above it.
+	positionsRemoved, err := pgg.batchDelete(
+		ctx,
+		conn,
+		schema.TableLedgerXidLSN,
+		gcPKCols,
+		sq.Lt{schema.ColXID: minTxAlive},
+		nil,
+	)
+	if err != nil {
+		return removed, fmt.Errorf("failed to GC commit positions table: %w", err)
+	}
+	if positionsRemoved > 0 {
+		log.Ctx(ctx).Trace().Int64("commit-positions", positionsRemoved).Msg("deleted recorded commit positions")
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.

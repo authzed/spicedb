@@ -25,6 +25,17 @@ const (
 	errCheckRevision  = "unable to check revision: %w"
 	errRevisionFormat = "invalid revision format: %w"
 
+	// lsnRevisionSeparator separates the fixed-width hex-encoded commit LSN prefix
+	// from the base64-encoded snapshot proto in the string form of an LSN-carrying
+	// revision. This character should not be part of the standard base64 alphabet,
+	// so the two forms cannot be confused.
+	lsnRevisionSeparator = '.'
+
+	// lsnHexLength is the number of hex characters used to encode the commit LSN in
+	// the string form of an LSN-carrying revision. Fixed-width, big-endian hex means
+	// lexicographic ordering of the string prefix matches the numeric LSN ordering.
+	lsnHexLength = 16
+
 	//   %[1] Name of xid column
 	//   %[2] Relationship tuple transaction table
 	//   %[3] Name of timestamp column
@@ -195,13 +206,23 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 	return nil
 }
 
-// RevisionFromString reverses the encoding process performed by MarshalBinary and String.
+// RevisionFromString reverses the encoding process performed by String. Note that
+// MarshalBinary covers only the snapshot proto. The position prefix of a
+// position-carrying revision is added by String and is not part of the binary form.
 func (pgd *pgDatastore) RevisionFromString(revisionStr string) (datastore.Revision, error) {
 	return ParseRevisionString(revisionStr)
 }
 
 // ParseRevisionString parses a revision string into a Postgres revision.
 func ParseRevisionString(revisionStr string) (rev datastore.Revision, err error) {
+	lsnRev, isPositioned, err := parseLSNRevisionString(revisionStr)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+	if isPositioned {
+		return lsnRev, nil
+	}
+
 	rev, err = parseRevisionProto(revisionStr)
 	if err != nil {
 		decimalRev, decimalErr := parseRevisionDecimal(revisionStr)
@@ -212,6 +233,52 @@ func ParseRevisionString(revisionStr string) (rev datastore.Revision, err error)
 		return decimalRev, nil
 	}
 	return rev, err
+}
+
+// parseLSNRevisionString parses the string form of a position-carrying revision.
+// It consists of a fixed-width hex-encoded commit LSN, a separator, and the
+// base64 proto form of the snapshot revision.
+func parseLSNRevisionString(revisionStr string) (postgresRevision, bool, error) {
+	if len(revisionStr) <= lsnHexLength || revisionStr[lsnHexLength] != lsnRevisionSeparator {
+		return postgresRevision{}, false, nil
+	}
+
+	if len(revisionStr) < lsnHexLength+2 {
+		return postgresRevision{}, true, fmt.Errorf(
+			errRevisionFormat,
+			errors.New("missing revision payload after commit LSN prefix"),
+		)
+	}
+
+	lsn, err := strconv.ParseUint(revisionStr[:lsnHexLength], 16, 64)
+	if err != nil {
+		return postgresRevision{}, true, fmt.Errorf(
+			errRevisionFormat,
+			fmt.Errorf("invalid commit LSN prefix: %w", err),
+		)
+	}
+	if lsn == 0 {
+		return postgresRevision{}, true, fmt.Errorf(
+			errRevisionFormat,
+			errors.New("commit LSN must be non-zero"),
+		)
+	}
+
+	parsed, err := parseRevisionProto(revisionStr[lsnHexLength+1:])
+	if err != nil {
+		return postgresRevision{}, true, err
+	}
+
+	rev, ok := parsed.(postgresRevision)
+	if !ok {
+		return postgresRevision{}, true, fmt.Errorf(
+			errRevisionFormat,
+			errors.New("decoded revision is not a Postgres revision"),
+		)
+	}
+
+	rev.optionalCommitLSN = lsn
+	return rev, true, nil
 }
 
 func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
@@ -351,15 +418,38 @@ type postgresRevision struct {
 	// be overlapping)
 	optionalInexactNanosTimestamp uint64
 	optionalMetadata              dscommon.TransactionMetadata
+
+	// optionalCommitLSN is the WAL commit LSN of the transaction that produced this
+	// revision, when known. It is only set on revisions emitted by the logical
+	// replication watch, where it provides a byte-sortable total commit order that
+	// the MVCC snapshot (a partial order) cannot. When both revisions in a
+	// comparison carry an LSN, ordering is by LSN, otherwise snapshot semantics
+	// are used. Note that zero is not a valid PostgreSQL WAL position.
+	//
+	// The value is a property of the transaction, not of the watch call that
+	// emitted it: the commit LSN ledger records it once, from the WAL, and both
+	// the live stream and the catch-up replay report that same value.
+	optionalCommitLSN uint64
 }
 
+// ByteSortable reports whether this revision carries a commit position, in which
+// case the fixed-width hex prefix of its String form sorts lexicographically in
+// commit order.
 func (pr postgresRevision) ByteSortable() bool {
-	return false
+	return pr.optionalCommitLSN != 0
 }
 
 func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
 	rhs, ok := rhsRaw.(postgresRevision)
-	return ok && pr.snapshot.Equal(rhs.snapshot)
+	if !ok {
+		return false
+	}
+
+	if pr.ByteSortable() && rhs.ByteSortable() {
+		return pr.optionalCommitLSN == rhs.optionalCommitLSN
+	}
+
+	return pr.snapshot.Equal(rhs.snapshot)
 }
 
 func (pr postgresRevision) GreaterThan(rhsRaw datastore.Revision) bool {
@@ -368,20 +458,45 @@ func (pr postgresRevision) GreaterThan(rhsRaw datastore.Revision) bool {
 	}
 
 	rhs, ok := rhsRaw.(postgresRevision)
-	return ok && pr.snapshot.GreaterThan(rhs.snapshot)
+	if !ok {
+		return false
+	}
+
+	if pr.ByteSortable() && rhs.ByteSortable() {
+		return pr.optionalCommitLSN > rhs.optionalCommitLSN
+	}
+
+	return pr.snapshot.GreaterThan(rhs.snapshot)
 }
 
 func (pr postgresRevision) LessThan(rhsRaw datastore.Revision) bool {
 	rhs, ok := rhsRaw.(postgresRevision)
-	return ok && pr.snapshot.LessThan(rhs.snapshot)
+	if !ok {
+		return false
+	}
+
+	if pr.ByteSortable() && rhs.ByteSortable() {
+		return pr.optionalCommitLSN < rhs.optionalCommitLSN
+	}
+
+	return pr.snapshot.LessThan(rhs.snapshot)
 }
 
 func (pr postgresRevision) DebugString() string {
+	if pr.optionalCommitLSN != 0 {
+		return fmt.Sprintf("%s@%X/%X", pr.snapshot.String(), pr.optionalCommitLSN>>32, pr.optionalCommitLSN&0xFFFFFFFF)
+	}
+
 	return pr.snapshot.String()
 }
 
 func (pr postgresRevision) String() string {
-	return base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
+	encoded := base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
+	if pr.optionalCommitLSN != 0 {
+		return fmt.Sprintf("%016x", pr.optionalCommitLSN) + string(lsnRevisionSeparator) + encoded
+	}
+
+	return encoded
 }
 
 func (pr postgresRevision) mustMarshalBinary() []byte {

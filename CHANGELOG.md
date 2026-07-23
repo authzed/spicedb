@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Added
 - New metric `check_permissionship_total` for CheckPermission and CheckBulkPermissions that counts the number of requests that returned HAS_PERMISSION. Also, `write_relationships_updates` also includes BulkImport calls (https://github.com/authzed/spicedb/pull/3240)
+- Postgres: opt-in logical-replication-based Watch API implementation (`--datastore-watch-logical-replication-enabled`) that streams changes from the WAL in exact commit order through a temporary replication slot, instead of polling the transactions table. Watch revisions gain a byte-sortable commit-LSN component (embedded alongside the usual snapshot, so ZedTokens remain fully usable across the rest of the API), watch no longer requires `track_commit_timestamp=on` in this mode, and `EmitImmediatelyStrategy` is now supported on Postgres. Requires `wal_level=logical` and the `REPLICATION` privilege; the polling watch remains the default (https://github.com/authzed/spicedb/pull/3245)
 
 ### Changed
 - Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)

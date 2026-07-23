@@ -96,6 +96,7 @@ spicedb datastore gc [flags]
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres driver only) (default 1m0s)
       --datastore-gc-window duration                                          amount of time before revisions are garbage collected (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-logical-replication-watch                                   serve the Watch API in true commit order, keyed by commit LSNs recorded from a logical replication slot; requires wal_level=logical and the REPLICATION privilege (Postgres driver only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
@@ -241,6 +242,7 @@ spicedb datastore repair [flags]
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres driver only) (default 1m0s)
       --datastore-gc-window duration                                          amount of time before revisions are garbage collected (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-logical-replication-watch                                   serve the Watch API in true commit order, keyed by commit LSNs recorded from a logical replication slot; requires wal_level=logical and the REPLICATION privilege (Postgres driver only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
@@ -419,6 +421,7 @@ spicedb serve [flags]
       --datastore-gc-max-operation-time duration                                        maximum amount of time a garbage collection pass can operate before timing out (Postgres driver only) (default 1m0s)
       --datastore-gc-window duration                                                    amount of time before revisions are garbage collected (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                                    include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-logical-replication-watch                                             serve the Watch API in true commit order, keyed by commit LSNs recorded from a logical replication slot; requires wal_level=logical and the REPLICATION privilege (Postgres driver only)
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables

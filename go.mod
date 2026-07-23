@@ -56,6 +56,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/hashicorp/go-memdb v1.3.5
 	github.com/jackc/pgio v1.0.0
+	github.com/jackc/pglogrepl v0.0.0-20260401131349-e37c41485510
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jeroenrinzema/psql-wire v0.17.0

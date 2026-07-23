@@ -27,6 +27,18 @@ type postgresOptions struct {
 	maxRetries                   uint8
 	filterMaximumIDCount         uint16
 
+	cursorWatchEnabled         bool
+	watchBatchSize             int
+	watchPollInterval          time.Duration
+	logicalWatchStatusInterval time.Duration
+
+	logicalWatchLedgerSlotName        string
+	logicalWatchLedgerPublicationName string
+	logicalWatchLedgerBatchSize       int
+	logicalWatchLedgerFlushMaxDelay   time.Duration
+	logicalWatchLedgerRetryInterval   time.Duration
+	logicalWatchLedgerWaitTimeout     time.Duration
+
 	enablePrometheusStats          bool
 	analyzeBeforeStatistics        bool
 	gcEnabled                      bool
@@ -82,6 +94,18 @@ const (
 	defaultFollowerReadDelay     = 0
 	defaultRevisionHeartbeat     = true
 	defaultRelaxedIsolationLevel = false
+
+	defaultCursorWatchEnabled         = false
+	defaultWatchBatchSize             = 1024
+	defaultWatchPollInterval          = 25 * time.Millisecond
+	defaultLogicalWatchStatusInterval = 10 * time.Second
+
+	defaultLogicalWatchLedgerSlotName        = "spicedb_ledger"
+	defaultLogicalWatchLedgerPublicationName = "spicedb_ledger"
+	defaultLogicalWatchLedgerBatchSize       = 256
+	defaultLogicalWatchLedgerFlushMaxDelay   = time.Second
+	defaultLogicalWatchLedgerRetryInterval   = 5 * time.Second
+	defaultLogicalWatchLedgerWaitTimeout     = 30 * time.Second
 )
 
 // Option provides the facility to configure how clients within the
@@ -110,6 +134,17 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		followerReadDelay:              defaultFollowerReadDelay,
 		revisionHeartbeatEnabled:       defaultRevisionHeartbeat,
 		relaxedIsolationLevel:          defaultRelaxedIsolationLevel,
+		cursorWatchEnabled:             defaultCursorWatchEnabled,
+		watchBatchSize:                 defaultWatchBatchSize,
+		watchPollInterval:              defaultWatchPollInterval,
+		logicalWatchStatusInterval:     defaultLogicalWatchStatusInterval,
+
+		logicalWatchLedgerSlotName:        defaultLogicalWatchLedgerSlotName,
+		logicalWatchLedgerPublicationName: defaultLogicalWatchLedgerPublicationName,
+		logicalWatchLedgerBatchSize:       defaultLogicalWatchLedgerBatchSize,
+		logicalWatchLedgerFlushMaxDelay:   defaultLogicalWatchLedgerFlushMaxDelay,
+		logicalWatchLedgerRetryInterval:   defaultLogicalWatchLedgerRetryInterval,
+		logicalWatchLedgerWaitTimeout:     defaultLogicalWatchLedgerWaitTimeout,
 	}
 
 	for _, option := range options {
@@ -457,6 +492,102 @@ func WithRevisionHeartbeat(isEnabled bool) Option {
 // WithWatchDisabled disables the watch functionality.
 func WithWatchDisabled(isDisabled bool) Option {
 	return func(po *postgresOptions) { po.watchDisabled = isDisabled }
+}
+
+// WithLogicalWatch enables the cursor-based Watch implementation, which
+// delivers transactions in true commit order, keyed by the commit positions
+// the commit LSN ledger records from the WAL through a logical replication
+// slot (hence the name: logical replication is the operator-visible
+// prerequisite). Revisions carry byte-sortable commit-LSN tokens. Requires the
+// connected PostgreSQL server to run with wal_level=logical and the connected
+// user to have the REPLICATION privilege. Only takes effect on primary
+// (writable) datastores.
+//
+// Disabled by default; the polling watch remains the default implementation.
+func WithLogicalWatch(isEnabled bool) Option {
+	return func(po *postgresOptions) { po.cursorWatchEnabled = isEnabled }
+}
+
+// WatchBatchSize sets the number of transactions the cursor watch loads and
+// emits per discovery poll, and per backfill batch. Consecutive full batches
+// are drained without sleeping, so this bounds memory rather than throughput.
+//
+// This value defaults to 1024 transactions.
+func WatchBatchSize(batchSize int) Option {
+	return func(po *postgresOptions) { po.watchBatchSize = batchSize }
+}
+
+// WatchPollInterval sets how often the cursor watch polls its discovery query
+// when the previous poll found nothing to deliver. It is the dominant term in
+// commit-to-consumer latency, and each poll costs one indexed query plus one
+// replication-slot catalog read per active watch.
+//
+// This value defaults to 25 milliseconds.
+func WatchPollInterval(interval time.Duration) Option {
+	return func(po *postgresOptions) { po.watchPollInterval = interval }
+}
+
+// LogicalWatchStatusInterval sets the interval at which the commit LSN ledger
+// sends standby status updates (flush feedback) to the server.
+//
+// This value defaults to 10 seconds.
+func LogicalWatchStatusInterval(interval time.Duration) Option {
+	return func(po *postgresOptions) { po.logicalWatchStatusInterval = interval }
+}
+
+// LogicalWatchLedgerSlotName sets the name of the durable replication slot the
+// commit LSN ledger consumes. The slot is created at startup if it does not
+// exist, and is shared by every instance: exactly one holds it at a time.
+//
+// This value defaults to "spicedb_ledger".
+func LogicalWatchLedgerSlotName(name string) Option {
+	return func(po *postgresOptions) { po.logicalWatchLedgerSlotName = name }
+}
+
+// LogicalWatchLedgerPublicationName sets the name of the publication the commit
+// LSN ledger consumes, which publishes inserts on the transactions table only.
+//
+// This value defaults to "spicedb_ledger".
+func LogicalWatchLedgerPublicationName(name string) Option {
+	return func(po *postgresOptions) { po.logicalWatchLedgerPublicationName = name }
+}
+
+// LogicalWatchLedgerBatchSize sets how many recorded commit positions the commit
+// LSN ledger writes back per transaction. Larger batches amortize the write at
+// the cost of a longer replay after a crash.
+//
+// This value defaults to 256 transactions.
+func LogicalWatchLedgerBatchSize(batchSize int) Option {
+	return func(po *postgresOptions) { po.logicalWatchLedgerBatchSize = batchSize }
+}
+
+// LogicalWatchLedgerFlushMaxDelay bounds how long the commit LSN ledger holds a
+// partial batch when writes keep arriving. A quiet stream flushes promptly
+// regardless, so this only takes effect under continuous load.
+//
+// This value defaults to 1 second.
+func LogicalWatchLedgerFlushMaxDelay(delay time.Duration) Option {
+	return func(po *postgresOptions) { po.logicalWatchLedgerFlushMaxDelay = delay }
+}
+
+// LogicalWatchLedgerRetryInterval sets how long an instance waits before trying
+// to take over the commit LSN ledger's slot again. It bounds how long recording
+// pauses after the holding instance dies.
+//
+// This value defaults to 5 seconds.
+func LogicalWatchLedgerRetryInterval(interval time.Duration) Option {
+	return func(po *postgresOptions) { po.logicalWatchLedgerRetryInterval = interval }
+}
+
+// LogicalWatchLedgerWaitTimeout bounds how long a starting Watch call waits for
+// the commit LSN ledger to record the position of its own marker transaction,
+// which is what proves every transaction it is about to replay has a recorded
+// commit position. Exceeding it fails the Watch call with an explicit error
+// rather than replaying transactions at unknown positions.
+//
+// This value defaults to 30 seconds.
+func LogicalWatchLedgerWaitTimeout(timeout time.Duration) Option {
+	return func(po *postgresOptions) { po.logicalWatchLedgerWaitTimeout = timeout }
 }
 
 // WithRelaxedIsolationLevel relaxes the required Serializable isolation level to run SpiceDB on Postgres.

@@ -1,13 +1,17 @@
 package postgres
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (
@@ -194,6 +198,182 @@ func TestCombinedRevisionParsing(t *testing.T) {
 func TestBrokenInvalidRevision(t *testing.T) {
 	_, err := ParseRevisionString("1693540940373045727.0000000001")
 	require.Error(t, err)
+}
+
+// TestParseLSNRevisionString tests parsing and serialization of position-carrying
+// revision tokens used by watch consumers. It checks legacy-versus-position format
+// handling, validation rules (such as disallowing a zero commit LSN, which is reserved
+// for legacy revisions), and verifies that the string round-trip preserves byte-sortable,
+// fixed-width leading-zero formatting.
+func TestParseLSNRevisionString(t *testing.T) {
+	// MarshalBinary encodes only the snapshot proto, never the commit LSN, so a
+	// legacy token is exactly the payload that follows the position prefix.
+	base := postgresRevision{
+		snapshot:                      pgSnapshot{xmin: 1000, xmax: 1005, xipList: []uint64{1002, 1003}},
+		optionalTxID:                  NewXid8(1004),
+		optionalInexactNanosTimestamp: 1_700_000_000_000_000_000,
+	}
+	legacyToken := base.String()
+	require.NotContains(t, legacyToken, string(lsnRevisionSeparator), "a legacy token must not contain the position separator")
+
+	positionToken := func(lsn uint64) string {
+		rev := base
+		rev.optionalCommitLSN = lsn
+		return rev.String()
+	}
+
+	t.Run("round-trips", func(t *testing.T) {
+		roundTrips := []struct {
+			name string
+			lsn  uint64
+		}{
+			{"a typical commit LSN", 0x16CD3F0000028},
+			{"minimal non-zero LSN keeps its leading zeros", 1},
+			{"maximum LSN", 0xFFFFFFFFFFFFFFFF},
+		}
+		for _, tc := range roundTrips {
+			t.Run(tc.name, func(t *testing.T) {
+				token := positionToken(tc.lsn)
+
+				prefix, _, found := strings.Cut(token, string(lsnRevisionSeparator))
+				require.True(t, found, "a position token must contain the separator")
+				require.Len(t, prefix, lsnHexLength, "the position prefix must be fixed width so tokens sort byte-wise")
+
+				rev, ok, err := parseLSNRevisionString(token)
+				require.NoError(t, err)
+				require.True(t, ok)
+				require.Equal(t, tc.lsn, rev.optionalCommitLSN)
+				require.Equal(t, base.snapshot, rev.snapshot)
+				require.Equal(t, base.optionalTxID, rev.optionalTxID)
+				require.True(t, rev.ByteSortable())
+			})
+		}
+	})
+
+	t.Run("guards", func(t *testing.T) {
+		// A well-formed prefix for LSN 0x500, used to isolate the payload guards
+		// from the prefix guards.
+		const validPrefix = "0000000000000500"
+		sep := string(lsnRevisionSeparator)
+
+		guardCases := []struct {
+			name        string
+			input       string
+			wantOK      bool
+			errContains string // empty means no error expected
+		}{
+			{
+				name:   "a legacy token is not a position token",
+				input:  legacyToken,
+				wantOK: false,
+			},
+			{
+				name:        "missing payload after the position prefix",
+				input:       validPrefix + sep,
+				wantOK:      true,
+				errContains: "missing revision payload",
+			},
+			{
+				name:        "a non-hex commit LSN prefix",
+				input:       "zzzzzzzzzzzzzzzz" + sep + legacyToken,
+				wantOK:      true,
+				errContains: "invalid commit LSN prefix",
+			},
+			{
+				name:        "a zero commit LSN is reserved for legacy revisions",
+				input:       "0000000000000000" + sep + legacyToken,
+				wantOK:      true,
+				errContains: "commit LSN must be non-zero",
+			},
+			{
+				name:        "a payload that is not valid base64",
+				input:       validPrefix + sep + "!!!not base64!!!",
+				wantOK:      true,
+				errContains: "invalid revision format",
+			},
+			{
+				name:        "a payload that is valid base64 but not a revision proto",
+				input:       validPrefix + sep + base64.StdEncoding.EncodeToString([]byte{0xff, 0xff, 0xff, 0xff}),
+				wantOK:      true,
+				errContains: "invalid revision format",
+			},
+		}
+		for _, tc := range guardCases {
+			t.Run(tc.name, func(t *testing.T) {
+				rev, ok, err := parseLSNRevisionString(tc.input)
+				require.Equal(t, tc.wantOK, ok, "ok reports whether the input is a position token")
+				if tc.errContains == "" {
+					require.NoError(t, err)
+					require.Zero(t, rev.optionalCommitLSN)
+				} else {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tc.errContains)
+				}
+			})
+		}
+	})
+
+	// ParseRevisionString must route a position token through the position
+	// parser, accept a legacy token, and surface a malformed position token as
+	// an error instead of silently misreading it as a legacy revision.
+	t.Run("ParseRevisionString routes position tokens", func(t *testing.T) {
+		parsed, err := ParseRevisionString(positionToken(0x900))
+		require.NoError(t, err)
+		rev, ok := parsed.(postgresRevision)
+		require.True(t, ok)
+		require.Equal(t, uint64(0x900), rev.optionalCommitLSN)
+	})
+
+	t.Run("ParseRevisionString accepts a legacy token", func(t *testing.T) {
+		parsed, err := ParseRevisionString(legacyToken)
+		require.NoError(t, err)
+		rev, ok := parsed.(postgresRevision)
+		require.True(t, ok)
+		require.False(t, rev.ByteSortable())
+	})
+
+	// A malformed position token must surface as an error paired with NoRevision,
+	// rather than falling through to the legacy parsers or handing back a
+	// zero-valued revision that compares like a real one.
+	t.Run("ParseRevisionString surfaces a malformed position token", func(t *testing.T) {
+		sep := string(lsnRevisionSeparator)
+
+		malformed := []struct {
+			name        string
+			input       string
+			errContains string
+		}{
+			{
+				name:        "zero commit LSN",
+				input:       "0000000000000000" + sep + legacyToken,
+				errContains: "commit LSN must be non-zero",
+			},
+			{
+				name:        "non-hex commit LSN",
+				input:       "zzzzzzzzzzzzzzzz" + sep + legacyToken,
+				errContains: "invalid commit LSN prefix",
+			},
+			{
+				name:        "empty payload",
+				input:       "0000000000000500" + sep,
+				errContains: "missing revision payload",
+			},
+			{
+				name:        "payload that is not a revision proto",
+				input:       "0000000000000500" + sep + "!!!not base64!!!",
+				errContains: "invalid revision format",
+			},
+		}
+
+		for _, tc := range malformed {
+			t.Run(tc.name, func(t *testing.T) {
+				parsed, err := ParseRevisionString(tc.input)
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.errContains)
+				require.Equal(t, datastore.NoRevision, parsed, "a failed parse must yield NoRevision")
+			})
+		}
+	})
 }
 
 func FuzzRevision(f *testing.F) {

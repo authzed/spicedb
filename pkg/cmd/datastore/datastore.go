@@ -158,9 +158,10 @@ type Config struct {
 	WriteAcquisitionTimeout   time.Duration `debugmap:"visible" default:"30ms"`
 
 	// Postgres
-	GCInterval            time.Duration `debugmap:"visible" default:"3m"`
-	GCMaxOperationTime    time.Duration `debugmap:"visible" default:"1m"`
-	RelaxedIsolationLevel bool          `debugmap:"visible"`
+	GCInterval                    time.Duration `debugmap:"visible" default:"3m"`
+	GCMaxOperationTime            time.Duration `debugmap:"visible" default:"1m"`
+	RelaxedIsolationLevel         bool          `debugmap:"visible"`
+	EnableLogicalReplicationWatch bool          `debugmap:"visible"`
 
 	// Spanner
 	// SpannerCredentialsFile is a filename reference to a file containing
@@ -378,6 +379,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
 	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only)")
 	flagSet.BoolVar(&opts.DisableWatchSupport, flagName("datastore-disable-watch-support"), false, "disable watch support (only enable if you absolutely do not need watch)")
+	flagSet.BoolVar(&opts.EnableLogicalReplicationWatch, flagName("datastore-logical-replication-watch"), false, "serve the Watch API in true commit order, keyed by commit LSNs recorded from a logical replication slot; requires wal_level=logical and the REPLICATION privilege (Postgres driver only)")
 	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (Postgres and CockroachDB drivers only)")
 	flagSet.DurationVar(&opts.WriteAcquisitionTimeout, flagName("write-conn-acquisition-timeout"), defaults.WriteAcquisitionTimeout, "amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only)")
 
@@ -437,6 +439,7 @@ func DefaultDatastoreConfig() *Config {
 		WatchBufferWriteTimeout:          1 * time.Second,
 		WatchConnectTimeout:              1 * time.Second,
 		DisableWatchSupport:              false,
+		EnableLogicalReplicationWatch:    false,
 		EnableDatastoreMetrics:           true,
 		DisableStats:                     false,
 		BootstrapFiles:                   []string{},
@@ -763,6 +766,7 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.AllowedMigrations(opts.AllowedMigrations),
 		postgres.WithRevisionHeartbeat(opts.EnableRevisionHeartbeat),
 		postgres.WithRelaxedIsolationLevel(opts.RelaxedIsolationLevel),
+		postgres.WithLogicalWatch(opts.EnableLogicalReplicationWatch),
 	}
 
 	commonOptions, err := commonPostgresDatastoreOptions(opts)

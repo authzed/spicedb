@@ -71,6 +71,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.RelaxedIsolationLevel = c.RelaxedIsolationLevel
+		to.EnableLogicalReplicationWatch = c.EnableLogicalReplicationWatch
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 		to.SpannerCredentialsJSON = c.SpannerCredentialsJSON
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
@@ -255,6 +256,7 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["GCMaxOperationTime"] = c.GCMaxOperationTime
 	}
 	debugMap["RelaxedIsolationLevel"] = c.RelaxedIsolationLevel
+	debugMap["EnableLogicalReplicationWatch"] = c.EnableLogicalReplicationWatch
 	if c.SpannerCredentialsFile == "" {
 		debugMap["SpannerCredentialsFile"] = "(empty)"
 	} else {
@@ -647,6 +649,13 @@ func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 func WithRelaxedIsolationLevel(relaxedIsolationLevel bool) ConfigOption {
 	return func(c *Config) {
 		c.RelaxedIsolationLevel = relaxedIsolationLevel
+	}
+}
+
+// WithEnableLogicalReplicationWatch returns an option that can set EnableLogicalReplicationWatch on a Config
+func WithEnableLogicalReplicationWatch(enableLogicalReplicationWatch bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableLogicalReplicationWatch = enableLogicalReplicationWatch
 	}
 }
 

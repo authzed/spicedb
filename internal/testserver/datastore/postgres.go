@@ -57,6 +57,18 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, withCommitTimestamp
 	return builder
 }
 
+// RunPostgresForTestingWithLogicalReplication returns a RunningEngineForTest
+// for postgres configured with wal_level=logical (plus commit timestamps), as
+// required by the logical-replication watch. pgbouncer is not supported:
+// replication connections cannot be proxied through it.
+func RunPostgresForTestingWithLogicalReplication(t testing.TB, pgVersion string, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
+	t.Helper()
+
+	builder := &postgresTester{}
+	builder.runPostgresForTestingWithConfig(t, pgVersion, postgresLogicalReplicationConf, opts...)
+	return builder
+}
+
 func (b *postgresTester) NewDatabase(t testing.TB) string {
 	t.Helper()
 	uri, err := b.newDatabase(t.Context())
@@ -168,7 +180,8 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 	}
 
 	postgresOptions := make([]testcontainers.ContainerCustomizer, 0, len(opts)+4)
-	postgresOptions = append(postgresOptions,
+	postgresOptions = append(
+		postgresOptions,
 		testcontainers.WithEnv(map[string]string{
 			// use md5 auth to align postgres and pgbouncer auth methods
 			"POSTGRES_HOST_AUTH_METHOD": "md5",
@@ -184,7 +197,8 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 	postgresOptions = append(postgresOptions, opts...)
 
 	image := "mirror.gcr.io/library/postgres:" + pgVersion
-	pgContainer, err := postgres.Run(ctx, image,
+	pgContainer, err := postgres.Run(
+		ctx, image,
 		postgresOptions...,
 	)
 	require.NoError(t, err)
@@ -194,7 +208,8 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 	// set up the bouncer container
 	// NOTE: this is a bit of a bodge; a pgbouncer container is not the same as a postgres container,
 	// so we have to undo some of what the postgres container wrapper is doing.
-	bouncerContainer, err := postgres.Run(ctx, "mirror.gcr.io/edoburu/pgbouncer:latest",
+	bouncerContainer, err := postgres.Run(
+		ctx, "mirror.gcr.io/edoburu/pgbouncer:latest",
 		network.WithNetwork([]string{"pgbouncer"}, testNetwork),
 		testcontainers.WithLogger(log.TestLogger(t)),
 		postgres.WithUsername(PgTestUser),
@@ -238,6 +253,9 @@ var postgresConf []byte
 //go:embed config/postgres-with-timestamps.conf
 var postgresWithTimestampsConf []byte
 
+//go:embed config/postgres-logical-replication.conf
+var postgresLogicalReplicationConf []byte
+
 // postgresConfOption is basically postgres.WithConfigFile but using the `Reader`
 // interface on ContainerFile instead of `HostFilePath`, which is difficult to use
 // when this code is invoked from different places.
@@ -258,15 +276,22 @@ func postgresConfOption(confBytes []byte) testcontainers.CustomizeRequestOption 
 
 func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, withCommitTimestamps bool, opts ...testcontainers.ContainerCustomizer) {
 	t.Helper()
-	ctx := t.Context()
-	logger := log.TestLogger(t)
 	configBytes := postgresConf
 	if withCommitTimestamps {
 		configBytes = postgresWithTimestampsConf
 	}
 
+	b.runPostgresForTestingWithConfig(t, pgVersion, configBytes, opts...)
+}
+
+func (b *postgresTester) runPostgresForTestingWithConfig(t testing.TB, pgVersion string, configBytes []byte, opts ...testcontainers.ContainerCustomizer) {
+	t.Helper()
+	ctx := t.Context()
+	logger := log.TestLogger(t)
+
 	options := make([]testcontainers.ContainerCustomizer, 0, len(opts)+5)
-	options = append(options,
+	options = append(
+		options,
 		testcontainers.WithLogger(logger),
 		// contains the config for commit timestamps and max conns
 		postgresConfOption(configBytes),
@@ -277,7 +302,8 @@ func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, w
 	options = append(options, opts...)
 
 	image := "mirror.gcr.io/library/postgres:" + pgVersion
-	container, err := postgres.Run(ctx, image,
+	container, err := postgres.Run(
+		ctx, image,
 		options...,
 	)
 	testcontainers.CleanupContainer(t, container)
