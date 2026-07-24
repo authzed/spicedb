@@ -55,7 +55,14 @@ func (Test) unit(ctx context.Context, coverage bool) error {
 // Image Run tests that run the built image
 func (Test) Image(ctx context.Context) error {
 	mg.Deps(Build{}.Testimage)
-	return goDirTest(ctx, "./cmd/spicedb", "./...", "-tags", "image")
+	dirs, err := findDirsWithBuildTag("image")
+	if err != nil {
+		return err
+	}
+	if len(dirs) == 0 {
+		return fmt.Errorf("no packages found with //go:build image")
+	}
+	return goDirTests(ctx, dirs, "-tags", "image", "-timeout", "30m")
 }
 
 // Integration Run integration tests
