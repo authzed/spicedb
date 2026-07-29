@@ -37,6 +37,7 @@ type CacheEntry = *cacheEntry
 
 // NewCachingDatastoreProxy creates a new datastore proxy which caches definitions that
 // are loaded at specific datastore revisions.
+// The caller MUST call Close on the returned proxy when it is no longer needed.
 func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, CacheEntry], gcWindow time.Duration, cachingMode CachingMode, watchHeartbeat time.Duration) datastore.Datastore {
 	standardCachingProxy := NewDefinitionCachingProxy(delegate, c)
 

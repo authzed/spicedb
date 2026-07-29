@@ -13,8 +13,13 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
+	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -59,7 +64,24 @@ func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string) {
 		server.WithExperimentalQueryPlan("ls"),
 	}
 
-	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
+	require.NoError(t, err)
+
+	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), types.Default.TypeSet, []string{filePath})
+	require.NoError(t, err)
+
+	connections := testserver.TestClusterWithDispatch(t, 1, ds, options...)
+
+	dl := datalayer.NewDataLayer(ds)
+
+	dsCtx := datalayer.ContextWithHandle(t.Context())
+	require.NoError(t, datalayer.SetInContext(dsCtx, dl))
+	cad := consistencytestutil.ConsistencyClusterAndData{
+		Conn:      connections[0],
+		DataStore: ds,
+		Ctx:       dsCtx,
+		Populated: populated,
+	}
 
 	headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
 	require.NoError(t, err)
@@ -278,12 +300,10 @@ func testForEachResourceInPopulated(
 }
 
 func requireSubsetOf(t *testing.T, found []string, expected []string) {
-	if len(expected) == 0 {
+	expectedSet := mapz.NewSet(expected...)
+	if expectedSet.IsSubsetOf(mapz.NewSet(found...)) {
 		return
 	}
 
-	foundSet := mapz.NewSet(found...)
-	for _, expectedObjectID := range expected {
-		require.True(t, foundSet.Has(expectedObjectID), "missing expected object ID %s", expectedObjectID)
-	}
+	require.Empty(t, expectedSet.Subtract(mapz.NewSet(found...)).AsSlice(), "missing expected object IDs")
 }

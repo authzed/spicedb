@@ -3,19 +3,21 @@
 package integration_test
 
 import (
-	"context"
-	"fmt"
+	"io"
+	"maps"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/log"
+	"github.com/testcontainers/testcontainers-go/network"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func TestSchemaWatch(t *testing.T) {
@@ -33,96 +35,74 @@ func TestSchemaWatch(t *testing.T) {
 		}
 
 		t.Run(driverName, func(t *testing.T) {
-			bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
+			ctx := t.Context()
 
-			pool, err := dockertest.NewPool("")
+			// Create an internal network
+			net, err := network.New(ctx)
+			testcontainers.CleanupNetwork(t, net)
 			require.NoError(t, err)
 
-			// Create a bridge network for testing.
-			network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{
-				Name: bridgeNetworkName,
-			})
+			engine := testdatastore.RunDatastoreEngine(t,
+				driverName,
+				// Pass in a network so that the spicedb and migrate containers
+				// can talk to the database container
+				network.WithNetwork([]string{driverName}, net))
+
+			db := engine.NewDatabase(t)
+
+			connectionVars, err := testutil.InternalConnectionEnvVars(db, driverName)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = pool.Client.RemoveNetwork(network.ID)
-			})
-
-			engine := testdatastore.RunDatastoreEngineWithBridge(t, driverName, bridgeNetworkName)
-
-			envVars := []string{}
-			if wev, ok := engine.(testdatastore.RunningEngineForTestWithEnvVars); ok {
-				envVars = wev.ExternalEnvVars()
-			}
 
 			// Run the migrate command and wait for it to complete.
-			db := engine.NewDatabase(t)
-			migrateResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-				Repository: "authzed/spicedb",
-				Tag:        "ci",
-				Cmd:        []string{"migrate", "head", "--datastore-engine", driverName, "--datastore-conn-uri", db},
-				NetworkID:  bridgeNetworkName,
-				Env:        envVars,
-			}, func(config *docker.HostConfig) {
-				config.RestartPolicy = docker.RestartPolicy{
-					Name: "no",
-				}
-			})
+			migrateContainer, err := testcontainers.Run(ctx, ciImage,
+				network.WithNetwork([]string{"migrate"}, net),
+				testcontainers.WithLogger(log.TestLogger(t)),
+				testcontainers.WithCmd("migrate", "head"),
+				testcontainers.WithEnv(connectionVars),
+				testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
+			)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = pool.Purge(migrateResource)
-			})
+			testcontainers.CleanupContainer(t, migrateContainer)
 
 			// Ensure the command completed successfully.
-			status, err := pool.Client.WaitContainerWithContext(migrateResource.Container.ID, t.Context())
+			containerState, err := migrateContainer.State(ctx)
+			if containerState.ExitCode != 0 {
+				logReader, err := migrateContainer.Logs(t.Context())
+				require.NoError(t, err)
+				out, err := io.ReadAll(logReader)
+				require.NoError(t, err)
+				t.Log("Container logs:")
+				t.Log(string(out))
+			}
 			require.NoError(t, err)
-			require.Equal(t, 0, status)
+			require.Equal(t, 0, containerState.ExitCode)
+			t.Log("finished migrating")
+
+			spicedbEnvVars := make(map[string]string)
+			maps.Copy(spicedbEnvVars, connectionVars)
+
+			spicedbEnvVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"
+			spicedbEnvVars["SPICEDB_LOG_LEVEL"] = "trace"
+			spicedbEnvVars["SPICEDB_ENABLE_EXPERIMENTAL_WATCHABLE_SCHEMA_CACHE"] = "true"
 
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
-			serveResource, err := pool.RunWithOptions(&dockertest.RunOptions{
-				Repository: "authzed/spicedb",
-				Tag:        "ci",
-				Cmd:        []string{"serve", "--grpc-preshared-key", "firstkey", "--datastore-engine", driverName, "--datastore-conn-uri", db, "--datastore-gc-interval", "1s", "--telemetry-endpoint", "", "--log-level", "trace", "--enable-experimental-watchable-schema-cache"},
-				NetworkID:  bridgeNetworkName,
-				Env:        envVars,
-			}, func(config *docker.HostConfig) {
-				config.RestartPolicy = docker.RestartPolicy{
-					Name: "no",
-				}
-			})
+			// Consume logs so we can ensure schema watch has started before graceful shutdown.
+			ww := &logWaiter{c: make(chan bool, 1), expectedString: "starting watching cache"}
+			serveContainer, err := sdbtestcontainer.Run(ctx, ciImage,
+				network.WithNetwork([]string{"spicedb"}, net),
+				testcontainers.WithLogConsumerConfig(&testcontainers.LogConsumerConfig{
+					Consumers: []testcontainers.LogConsumer{ww},
+				}),
+				testcontainers.WithEnv(spicedbEnvVars),
+			)
+			testcontainers.CleanupContainer(t, serveContainer)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = pool.Purge(serveResource)
-			})
-
-			ww := &watchingWriter{make(chan bool, 1), "starting watching cache"}
-
-			// Grab logs and ensure GC has run before starting a graceful shutdown.
-			opts := docker.LogsOptions{
-				// nolint:usetesting // t.Context() is canceled when the test ends, which kills the Follow goroutine prematurely
-				Context:      context.Background(),
-				Stderr:       true,
-				Stdout:       true,
-				Follow:       true,
-				Timestamps:   true,
-				RawTerminal:  true,
-				Container:    serveResource.Container.ID,
-				OutputStream: ww,
-			}
-
-			go (func() {
-				err = pool.Client.Logs(opts)
-				assert.NoError(t, err)
-			})()
 
 			select {
 			case <-ww.c:
-				break
-
 			case <-time.After(10 * time.Second):
 				require.Fail(t, "timed out waiting for schema watch to run")
 			}
-
-			require.True(t, gracefulShutdown(pool, serveResource))
 		})
 	}
 }

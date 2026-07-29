@@ -113,7 +113,14 @@ func (c *schemaHashCache) Set(schemaHash SchemaHash, schema *datastore.ReadOnlyS
 		schema: schema,
 	})
 
-	c.cache.Set(SchemaCacheKey(schemaHash), schema, 1)
+	// Cost the entry by the schema's estimated byte size (schema blob plus the schema-derived
+	// caches it will accrete), so the cache's max-cost budget is in bytes. Floor at 1 so an
+	// (effectively empty) schema is still admitted with a non-zero weight.
+	cost := schema.EstimatedSize()
+	if cost < 1 {
+		cost = 1
+	}
+	c.cache.Set(SchemaCacheKey(schemaHash), schema, cost)
 	return nil
 }
 

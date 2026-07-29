@@ -1,5 +1,5 @@
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-FROM golang:1.26.4-alpine@sha256:f23e8b227fb4493eabe03bede4d5a32d04092da71962f1fb79b5f7d1e6c2a17f AS spicedb-builder
+FROM golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS spicedb-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 COPY . .
@@ -7,10 +7,10 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -tags memoryprotection -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
 
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-FROM cgr.dev/chainguard/static@sha256:99a5f826e71115aef9f63368120a6aa518323e052297718e9bf084fb84def93c
+FROM cgr.dev/chainguard/static@sha256:60582b2ae6074f641094af0f370d4ab241aab271858a66223dcde7eee9f51638
 # NOTE: the copy target location differs from Dockerfile.release for historical reasons. It's referenced in
 # compose files and elsewhere so we're keeping it the way it is.
-COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.52 /ko-app/grpc-health-probe /bin/grpc_health_probe
+COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.53 /ko-app/grpc-health-probe /bin/grpc_health_probe
 COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
 ENV PATH="$PATH:/usr/local/bin"
 EXPOSE 50051

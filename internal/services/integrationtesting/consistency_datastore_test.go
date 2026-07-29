@@ -3,74 +3,28 @@
 package integrationtesting_test
 
 import (
-	"path"
-	"runtime"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
-	"github.com/authzed/spicedb/internal/dispatch/graph"
-	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
-	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
-	"github.com/authzed/spicedb/internal/testserver/datastore/config"
-	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
+	consistencytest "github.com/authzed/spicedb/pkg/consistency/test"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+// TestConsistencyPerDatastore is a system-wide consistency test suite that reads in
+// the various validation files in the testconfigs directory and executes the full set
+// of APIs against the data within, ensuring that all results of the various APIs are
+// consistent with one another. It runs the suite against every supported datastore
+// engine, the local and caching dispatchers, and multiple dispatch chunk sizes.
+//
+// This test suite acts as essentially a full integration test for the API,
+// dispatching, caching, computation and datastore layers. It should reflect
+// both real-world schemas, as well as the full set of hand-constructed corner
+// cases so that the system can be fully exercised.
 func TestConsistencyPerDatastore(t *testing.T) {
-	//nolint:tparallel
-	// TODO(jschorr): Re-enable for *all* files once we make this faster.
-	_, filename, _, _ := runtime.Caller(0)
-	consistencyTestFiles := []string{
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "document.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "basicrbac.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "public.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "nil.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "basiccaveat.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "relexpiration.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "expirationwithcaveat.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "simplewildcard.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "caveatarrow.yaml"),
-		path.Join(path.Join(path.Dir(filename), "testconfigs"), "intersectionarrow.yaml"),
-	}
+	// TODO inmemory?
 
 	for _, engineID := range datastore.Engines {
 		t.Run(engineID, func(t *testing.T) {
-			for _, filePath := range consistencyTestFiles {
-				rde := testdatastore.RunDatastoreEngine(t, engineID)
-				baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
-					dsconfig.WithWatchBufferLength(0),
-					dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-					dsconfig.WithRevisionQuantization(10),
-					dsconfig.WithMaxRetries(50),
-					dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
-				ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
-
-				cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
-				dispatcher, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
-				require.NoError(t, err)
-				t.Cleanup(func() { dispatcher.Close() })
-				accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad.Ctx, cad.Populated, cad.DataStore)
-
-				headRevisionResult, err := cad.DataStore.HeadRevision(cad.Ctx)
-				require.NoError(t, err)
-
-				// Run the assertions within each file.
-				tester := consistencytestutil.NewServiceTester(cad.Conn)
-				vctx := validationContext{
-					clusterAndData:   cad,
-					accessibilitySet: accessibilitySet,
-					serviceTester:    tester,
-					revision:         headRevisionResult.Revision,
-					dispatcher:       dispatcher,
-				}
-
-				t.Run(path.Base(filePath)+"/"+tester.Name(), func(t *testing.T) {
-					runAssertions(t, vctx)
-				})
-			}
+			consistencytest.ConsistencyForEngine(t, engineID, nil)
 		})
 	}
 }

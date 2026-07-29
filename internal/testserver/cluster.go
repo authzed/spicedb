@@ -74,8 +74,7 @@ func init() {
 // SafeManualResolverBuilder is a resolver builder that builds SafeManualResolvers
 // it is similar to manual.Resolver in grpc, but is thread safe
 type SafeManualResolverBuilder struct {
-	resolvers sync.Map
-	addrs     sync.Map
+	addrs sync.Map
 }
 
 func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
@@ -95,7 +94,6 @@ func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.Cl
 		opts:   opts,
 		addrs:  addrs,
 	}
-	b.resolvers.Store(target.URL.Hostname(), r)
 	// Push addresses immediately so the gRPC channel can proceed without
 	// requiring a separate ResolveNow call after the resolver is built.
 	r.ResolveNow(resolver.ResolveNowOptions{})
@@ -108,15 +106,6 @@ func (b *SafeManualResolverBuilder) Scheme() string {
 
 func (b *SafeManualResolverBuilder) SetAddrs(prefix string, addrs []resolver.Address) {
 	b.addrs.Store(prefix, addrs)
-}
-
-func (b *SafeManualResolverBuilder) ResolveNow(prefix string) {
-	r, ok := b.resolvers.Load(prefix)
-	if !ok {
-		fmt.Println("NO RESOLVER YET") // shouldn't happen, but log
-		return
-	}
-	r.(*SafeManualResolver).ResolveNow(resolver.ResolveNowOptions{})
 }
 
 // SafeManualResolver is the resolver type that SafeManualResolverBuilder builds
@@ -250,9 +239,6 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 		})
 		conns = append(conns, conn)
 	}
-
-	// resolve after dialers have been set to initialize connections
-	testResolverBuilder.ResolveNow(prefix)
 
 	return conns
 }

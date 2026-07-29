@@ -59,6 +59,7 @@ func newOutlineGenerator(data []byte) *outlineGenerator {
 	// Use the fuzz data to seed the random number generator
 	seed := int64(0)
 	if len(data) >= 8 {
+		//nolint:gosec  // this is an intentional reinterpretation
 		seed = int64(binary.LittleEndian.Uint64(data[:8]))
 	}
 

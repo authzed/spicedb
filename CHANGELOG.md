@@ -4,17 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- New metric `check_permissionship_total` for CheckPermission and CheckBulkPermissions that counts the number of requests that returned HAS_PERMISSION. Also, `write_relationships_updates` also includes BulkImport calls (https://github.com/authzed/spicedb/pull/3240)
+
 ### Changed
 - Schema: reads inside write transactions now use a cheap hash-only lookup (`schema_revision`) to check the cache before loading the full schema blob, reducing DB round-trips on cache hits (https://github.com/authzed/spicedb/pull/3160)
 - Updated the Prometheus buckets for `grpc_server_handling_seconds` and `spicedb_datastore_query_latency` to be able to correlate them (https://github.com/authzed/spicedb/pull/3188)
+- Use `testcontainers` instead of `ory/dockertest` for running containers in integration tests (https://github.com/authzed/spicedb/pull/2782)
+- Embedded: add `pkg/embedded`, an in-process library for running permission checks against a datastore via the dispatch engine, without standing up a gRPC server (https://github.com/authzed/spicedb/pull/3166)
+- Caveats: compiled caveats (and their CEL environments) are now cached per schema version — hung off the stored schema (`ReadOnlyStoredSchema`) and rebuilt only when the schema changes — rather than rebuilt on every check, reducing check cost for schemas with many caveats (https://github.com/authzed/spicedb/pull/3166)
 
 ### Fixed
+- Fixed a nil pointer dereference panic in `CheckBulkPermissions` that could occur under concurrent load when a tracing-enabled check shared a singleflight dispatch with a non-tracing bulk check. Debug-enabled checks are no longer singleflighted together with non-debug checks. (https://github.com/authzed/spicedb/pull/3174)
+- Fixed a nil pointer dereference panic in the Postgres FDW (https://github.com/authzed/spicedb/pull/3235)
+- CockroachDB: deletes performed by CockroachDB's row-level TTL job for expired relationships are no longer emitted as `DELETE` events by the Watch API. On CockroachDB ≥ 24.1, SpiceDB sets the `ttl_disable_changefeed_replication` storage parameter on the relationship tables at startup (if it lacks `ALTER TABLE` privileges, it logs a warning with the statement to run manually); on older versions a startup warning is logged and TTL deletes continue to be emitted. Note that the parameter affects any changefeed over these tables — external changefeeds that want TTL deletes can opt back in with `ignore_disable_changefeed_replication`. Delete-only transactions also no longer write an internal transaction-metadata marker row, reducing write amplification. (https://github.com/authzed/spicedb/pull/3210)
 - When SpiceDB loses a connection to a CockroachDB node, every read happening in the server blocks for a short period of time (https://github.com/authzed/spicedb/pull/3181)
 - LSP: hover and go-to-definition now resolve identifiers on the right-hand side of arrow expressions (`->`, `.any(...)`, `.all(...)`) (https://github.com/authzed/spicedb/pull/3157)
 - The `in_cidr` caveat now matches IPv4-mapped IPv6 addresses (e.g. `::ffff:10.1.2.3`) against IPv4 CIDRs, the same as the dotted form (https://github.com/authzed/spicedb/pull/3184)
 - MySQL: MySQL deadlocks on `WriteRelationships` (https://github.com/authzed/spicedb/pull/3187)
 - Datastore: a hung datastore round-trip while computing the optimized revision can no longer wedge the server. The revision is computed under singleflight, which detaches the work from the caller's context (stripping its gRPC deadline); a stuck computation (e.g. a half-open connection silently dropped by a load balancer) therefore pinned the latency of *every* concurrent caller and inflated whole-system P99. The shared computation is now aggressively bounded (2s), with a direct, deadline-respecting retry outside singleflight on failure so a transient wedge does not fail the request. Applies to all datastores. (https://github.com/authzed/spicedb/pull/3142)
 - Postgres & CockroachDB: pooled connections that have gone idle are now liveness-pinged with a bounded timeout (default 5s) before being handed to a query, so a half-open connection is discarded and replaced instead of hanging the acquiring request. (https://github.com/authzed/spicedb/pull/3142)
+- Memory: If SpiceDB couldn't determine the memory available to it (such as can happen in AWS ECS), it assumed that its memory was unbounded. We changed how memory detection works to make conservative estimates in these cases and made some improvements to cache entry cost estimation. (https://github.com/authzed/spicedb/pull/3201, https://github.com/authzed/spicedb/pull/3247)
+- Datastore: raw datastore driver errors that could leak engine internals (such as SQLSTATE codes or opaque `COPY` wrappers) are no longer returned to clients. Unhandled Postgres, MySQL, and CockroachDB driver errors — including CockroachDB's transient retryable/resettable errors — are now surfaced as descriptive, engine-agnostic gRPC statuses (with the full error logged server-side), and an aborted bulk-import `COPY` now reports the underlying source error instead of the driver's opaque wrapper. (https://github.com/authzed/spicedb/pull/3202)
+
+### Security
+- Bumped `google.golang.org/grpc` to v1.82.1 to address GHSA-hrxh-6v49-42gf (gRPC-Go: xDS RBAC and HTTP/2 vulnerabilities) (https://github.com/authzed/spicedb/pull/3246)
 
 ## [1.54.0] - 2026-06-18
 ### Added
@@ -23,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Cache: switch to [otter](https://maypok86.github.io/otter/) as the primary cache implementation (https://github.com/authzed/spicedb/pull/3112)
 - Server handles: `GRPCDialContext` as a handle on the server used deprecated gRPC methods. We modernized it and renamed it to `NewClient` (https://github.com/authzed/spicedb/pull/3147)
+- MySQL: relationship reads now force the index that matches each query shape (and its sort order), rather than relying on the MySQL optimizer to pick one. This avoids cases where the optimizer chose a suboptimal index for `Check`, `LookupResources`, `LookupSubjects`, and `ReadRelationships`/reverse-relationship queries. (https://github.com/authzed/spicedb/pull/3173)
 
 ### Fixed
 - The watching schema cache (`--enable-experimental-watchable-schema-cache`) no longer enters permanent fallback on transient watch errors. A new supervisor restarts the watch cycle with bounded exponential backoff and only treats caller-driven cancellation or unsupported-watch as terminal (https://github.com/authzed/spicedb/pull/3134)

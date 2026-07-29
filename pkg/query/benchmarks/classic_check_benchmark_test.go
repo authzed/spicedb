@@ -106,6 +106,7 @@ func requireMember(b *testing.B, resp *v1.DispatchCheckResponse, resourceID stri
 // convention of 50.
 func classicDepth(qs *bm.QuerySets) uint32 {
 	if qs.MaxRecursionDepth > 0 {
+		//nolint:gosec  // it'd be hard to overflow this reasonably
 		return uint32(qs.MaxRecursionDepth)
 	}
 	return classicDepthRemaining

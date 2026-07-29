@@ -33,7 +33,7 @@ jobs:
       contents: "read"
 
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@v7"
       - uses: "authzed/actions/setup-go@main"
       - uses: "authzed/actions/codeql@main"
 
@@ -41,7 +41,7 @@ jobs:
     name: "Analyze Code and Docker Image with Trivvy"
     runs-on: "depot-ubuntu-24.04"
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@v7"
         with:
           # Only a single commit is fetched by default, for the ref/SHA that triggered the workflow. Set fetch-depth: 0
           # to fetch all history for all branches and tags. Refer here to learn which commit $GITHUB_SHA
@@ -51,7 +51,7 @@ jobs:
           # trivy does not flag an old SpiceDB version
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - uses: "docker/login-action@v4.1.0" # v3.7.0
+      - uses: "docker/login-action@v4.3.0" # v3.7.0
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
@@ -71,7 +71,7 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db"
           TRIVY_JAVA_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-java-db"
-      - uses: "goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8" # v7.2.1
+      - uses: "goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94" # v7.2.3
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"

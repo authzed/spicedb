@@ -3,53 +3,44 @@
 package integration_test
 
 import (
-	"fmt"
-	"path"
-	"path/filepath"
-	"runtime"
+	_ "embed"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
+
+//go:embed testdata/bootstrap.yaml
+var bootstrapContents string
 
 // Based on a test originally written by https://github.com/wscalf
 func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
-	_, b, _, _ := runtime.Caller(0)
-	basepath := filepath.Dir(b)
-	tester, err := newTester(t,
-		&dockertest.RunOptions{
-			Repository:   "authzed/spicedb",
-			Tag:          "ci",
-			Cmd:          []string{"serve-testing", "--load-configs", "/mnt/spicedb_bootstrap.yaml"},
-			Mounts:       []string{path.Join(basepath, "testdata/bootstrap.yaml") + ":/mnt/spicedb_bootstrap.yaml"},
-			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
-		},
-		uuid.NewString(),
-		true,
+	bootstrapReader := strings.NewReader(bootstrapContents)
+	containerFilePath := "/mnt/spicedb_bootstrap.yaml"
+	container, err := sdbtestcontainer.Run(t.Context(), sdbtestcontainer.DefaultImageReference,
+		testcontainers.WithCmd("serve-testing"),
+		testcontainers.WithFiles(testcontainers.ContainerFile{
+			Reader:            bootstrapReader,
+			ContainerFilePath: containerFilePath,
+			FileMode:          0o644,
+		}),
+		testcontainers.WithEnv(map[string]string{
+			"SPICEDB_LOAD_CONFIGS": containerFilePath,
+		}),
 	)
 	require.NoError(t, err)
 
-	for i := 0; i < 1000; i++ {
-		conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", tester.port),
+	for i := range 1000 {
+		conn, err := grpc.NewClient(container.GRPCEndpoint(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
-
-		require.Eventually(t, func() bool {
-			resp, err := healthpb.NewHealthClient(conn).Check(t.Context(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-			if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-				return false
-			}
-
-			return true
-		}, 5*time.Second, 1*time.Millisecond, "was unable to connect to running service")
 
 		client := v1.NewPermissionsServiceClient(conn)
 		result, err := client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{

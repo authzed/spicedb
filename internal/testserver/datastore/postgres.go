@@ -1,16 +1,23 @@
 package datastore
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/moby/moby/api/types/container"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/log"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/network"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	pgmigrations "github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -19,247 +26,261 @@ import (
 )
 
 const (
-	PostgresTestUser           = "postgres"
-	PostgresTestPassword       = "secret"
-	PostgresTestPort           = "5432"
+	// NOTE: this is used in this file but also duplicated in postgres.conf.
 	PostgresTestMaxConnections = "3000"
-	PgbouncerTestPort          = "6432"
+	PgTestPass                 = "testpass"
+	PgTestUser                 = "testuser"
 )
 
-type container struct {
-	hostHostname      string
-	hostPort          string
-	containerHostname string
-	containerPort     string
-}
-
 type postgresTester struct {
-	container
-	creds                string
-	targetMigration      string
-	pgbouncerProxy       *container
-	pool                 *dockertest.Pool
-	useContainerHostname bool
+	pgbouncerProxy *postgres.PostgresContainer
+	pgContainer    *postgres.PostgresContainer
 }
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
-func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigration string, pgVersion string, enablePgbouncer bool) RunningEngineForTest {
-	return RunPostgresForTestingWithCommitTimestamps(t, bridgeNetworkName, targetMigration, true, pgVersion, enablePgbouncer)
+func RunPostgresForTesting(t testing.TB, pgVersion string, enablePgbouncer bool, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
+	return RunPostgresForTestingWithCommitTimestamps(t, true, pgVersion, enablePgbouncer, opts...)
 }
 
-func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName string, targetMigration string, withCommitTimestamps bool, pgVersion string, enablePgbouncer bool) RunningEngineForTest {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
+func RunPostgresForTestingWithCommitTimestamps(t testing.TB, withCommitTimestamps bool, pgVersion string, enablePgbouncer bool, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
+	t.Helper()
 
-	bridgeSupplied := bridgeNetworkName != ""
-	if enablePgbouncer && !bridgeSupplied {
-		// We will need a network bridge if we're running pgbouncer
-		bridgeNetworkName = createNetworkBridge(t, pool)
-	}
-
-	postgresContainerHostname := "postgres-" + uuid.New().String()
-
-	cmd := []string{"-N", PostgresTestMaxConnections}
-	if withCommitTimestamps {
-		cmd = append(cmd, "-c", "track_commit_timestamp=1")
-	}
-
-	// Turn off autovacuum. This shouldn't meaningfully change the behavior of postgres
-	// on the timescale of our tests and should allow the XID consumption test to run without
-	// failing.
-	cmd = append(cmd, "-c", "autovacuum=off")
-
-	postgres, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       postgresContainerHostname,
-		Repository: "postgres",
-		Tag:        pgVersion,
-		Env: []string{
-			"POSTGRES_USER=" + PostgresTestUser,
-			"POSTGRES_PASSWORD=" + PostgresTestPassword,
-			// use md5 auth to align postgres and pgbouncer auth methods
-			"POSTGRES_HOST_AUTH_METHOD=md5",
-			"POSTGRES_INITDB_ARGS=--auth=md5",
-		},
-		ExposedPorts: []string{PostgresTestPort + "/tcp"},
-		NetworkID:    bridgeNetworkName,
-		Cmd:          cmd,
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
-	require.NoError(t, err)
-
-	builder := &postgresTester{
-		container: container{
-			hostHostname:      "localhost",
-			hostPort:          postgres.GetPort(PostgresTestPort + "/tcp"),
-			containerHostname: postgresContainerHostname,
-			containerPort:     PostgresTestPort,
-		},
-		creds:                PostgresTestUser + ":" + PostgresTestPassword,
-		targetMigration:      targetMigration,
-		useContainerHostname: bridgeSupplied,
-		pool:                 pool,
-	}
-
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(postgres))
-	})
+	builder := &postgresTester{}
 
 	if enablePgbouncer {
 		// if we are running with pgbouncer enabled then set it up
-		builder.runPgbouncerForTesting(t, pool, bridgeNetworkName)
+		builder.runPgbouncerForTesting(t, pgVersion, withCommitTimestamps, opts...)
+	} else {
+		builder.runPostgresForTesting(t, pgVersion, withCommitTimestamps, opts...)
 	}
 
 	return builder
 }
 
 func (b *postgresTester) NewDatabase(t testing.TB) string {
-	uniquePortion, err := secrets.TokenHex(4)
+	t.Helper()
+	uri, err := b.newDatabase(t.Context())
 	require.NoError(t, err)
+	return uri
+}
+
+// newDatabase creates a new database on the running postgres instance and
+// returns its connection URI, reporting failures as errors so it is safe to
+// call from retry loops and non-test goroutines.
+func (b *postgresTester) newDatabase(ctx context.Context) (string, error) {
+	uniquePortion, err := secrets.TokenHex(4)
+	if err != nil {
+		return "", err
+	}
 
 	newDBName := "db" + uniquePortion
 
-	ctx := t.Context()
-	conn := b.initializeHostConnection(t)
+	connURI, err := b.hostConnectionString(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	conn, err := pgx.Connect(ctx, connURI)
+	if err != nil {
+		return "", err
+	}
 	defer conn.Close(ctx)
 
-	_, err = conn.Exec(ctx, "CREATE DATABASE "+newDBName)
-	require.NoError(t, err)
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+newDBName); err != nil {
+		return "", fmt.Errorf("creating database %s: %w", newDBName, err)
+	}
 
-	row := conn.QueryRow(ctx, "SELECT datname FROM pg_catalog.pg_database WHERE datname = $1", newDBName)
-	var dbName string
-	err = row.Scan(&dbName)
-	require.NoError(t, err)
-	require.Equal(t, newDBName, dbName)
+	// ConnectionString always references the container's default database;
+	// point it at the database we just created instead.
+	u, err := url.Parse(connURI)
+	if err != nil {
+		return "", err
+	}
+	u.Path = "/" + newDBName
 
-	hostname, port := b.getHostnameAndPort()
-	return fmt.Sprintf(
-		"postgres://%s@%s:%s/%s?sslmode=disable",
-		b.creds,
-		hostname,
-		port,
-		newDBName,
-	)
+	return u.String(), nil
 }
 
-const (
-	retryCount         = 4
-	timeBetweenRetries = 1 * time.Second
-)
+// hostConnectionString returns the URI for connecting to the datastore from
+// the host, routed through pgbouncer when it is enabled.
+func (b *postgresTester) hostConnectionString(ctx context.Context) (string, error) {
+	if b.pgbouncerProxy != nil {
+		return b.pgbouncerProxy.ConnectionString(ctx, "sslmode=disable")
+	}
+	return b.pgContainer.ConnectionString(ctx, "sslmode=disable")
+}
 
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	for i := 1; i <= retryCount; i++ {
-		connectStr := b.NewDatabase(t)
+	t.Helper()
+	ctx := context.WithValue(t.Context(), migrate.BackfillBatchSize, uint64(1000))
 
-		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(t.Context(), connectStr, datastore.NoCredentialsProvider, false)
-		if err == nil {
-			ctx := context.WithValue(t.Context(), migrate.BackfillBatchSize, uint64(1000))
-			require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
-			return initFunc("postgres", connectStr)
+	var uri string
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		connectStr, err := b.newDatabase(ctx)
+		if !assert.NoError(collect, err) {
+			return
+		}
+		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(ctx, connectStr, datastore.NoCredentialsProvider, false)
+		if !assert.NoError(collect, err) {
+			return
 		}
 		defer func() {
-			migrationDriver.Close(t.Context())
+			migrationDriver.Close(ctx)
 		}()
-
-		if i == retryCount {
-			require.NoError(t, err, "got error when trying to create migration driver")
-		} else {
-			t.Logf("failed to create migration driver: %v, retrying... %d", err, i)
+		if !assert.NoError(collect, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, "head", migrate.LiveRun)) {
+			return
 		}
+		uri = connectStr
+	}, 5*time.Second, 500*time.Millisecond)
 
-		time.Sleep(time.Duration(i) * timeBetweenRetries)
+	ds := initFunc("postgres", uri)
+
+	// The generic datastore test suites do not close the datastores they
+	// create. Close them when the owning test finishes; otherwise their
+	// connections accumulate for the lifetime of the container and can
+	// exhaust pgbouncer's max_client_conn.
+	t.Cleanup(func() {
+		if ds != nil {
+			_ = ds.Close()
+		}
+	})
+
+	return ds
+}
+
+// runPgbouncerForTesting stands up the network, the postgres container, and the pgbouncer container
+// for a test run.
+func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, withCommitTimestamps bool, opts ...testcontainers.ContainerCustomizer) {
+	t.Helper()
+	ctx := t.Context()
+
+	// set up the network for pgbouncer
+	// NOTE: this does not conflict with additional networks supplied by opts
+	testNetwork, err := network.New(ctx)
+	testcontainers.CleanupNetwork(t, testNetwork)
+	require.NoError(t, err)
+
+	// set up the pg container
+	configBytes := postgresConf
+	if withCommitTimestamps {
+		configBytes = postgresWithTimestampsConf
 	}
 
-	require.Fail(t, "failed to create datastore for testing")
-	return nil
-}
+	postgresOptions := make([]testcontainers.ContainerCustomizer, 0, len(opts)+4)
+	postgresOptions = append(postgresOptions,
+		testcontainers.WithEnv(map[string]string{
+			// use md5 auth to align postgres and pgbouncer auth methods
+			"POSTGRES_HOST_AUTH_METHOD": "md5",
+			"POSTGRES_INITDB_ARGS":      "--auth=md5",
+		}),
+		// contains the config for commit timestamps and max conns
+		postgresConfOption(configBytes),
+		postgres.WithUsername(PgTestUser),
+		postgres.WithPassword(PgTestPass),
+		network.WithNetwork([]string{"postgres"}, testNetwork),
+		postgres.BasicWaitStrategies(),
+	)
+	postgresOptions = append(postgresOptions, opts...)
 
-func createNetworkBridge(t testing.TB, pool *dockertest.Pool) string {
-	bridgeNetworkName := "bridge-" + uuid.New().String()
-	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: bridgeNetworkName})
+	image := "mirror.gcr.io/library/postgres:" + pgVersion
+	pgContainer, err := postgres.Run(ctx, image,
+		postgresOptions...,
+	)
+	require.NoError(t, err)
+	testcontainers.CleanupContainer(t, pgContainer)
+	b.pgContainer = pgContainer
+
+	// set up the bouncer container
+	// NOTE: this is a bit of a bodge; a pgbouncer container is not the same as a postgres container,
+	// so we have to undo some of what the postgres container wrapper is doing.
+	bouncerContainer, err := postgres.Run(ctx, "mirror.gcr.io/edoburu/pgbouncer:latest",
+		network.WithNetwork([]string{"pgbouncer"}, testNetwork),
+		testcontainers.WithLogger(log.TestLogger(t)),
+		postgres.WithUsername(PgTestUser),
+		postgres.WithPassword(PgTestPass),
+		testcontainers.WithEnv(map[string]string{
+			"DB_NAME":             "*", // Needed to make pgbouncer okay with the randomly named databases generated by the test suite
+			"DB_HOST":             "postgres",
+			"DB_PORT":             "5432",
+			"DB_USER":             PgTestUser,
+			"DB_PASSWORD":         PgTestPass,
+			"AUTH_TYPE":           "md5", // use the same auth type as postgres
+			"MAX_CLIENT_CONN":     PostgresTestMaxConnections,
+			"SERVER_IDLE_TIMEOUT": "10", // close idle conns after 10s
+			"AUTODB_IDLE_TIMEOUT": "60", // reap unused wildcard-db pools after 60s instead of 60min
+		}),
+		// pgbouncer needs one fd per client conn plus one per server conn;
+		// docker's default soft limit of 1024 starves it partway through a
+		// suite run (it warns "max expected fd use: 3012" at startup).
+		testcontainers.WithHostConfigModifier(func(hostConfig *container.HostConfig) {
+			hostConfig.Ulimits = []*container.Ulimit{{Name: "nofile", Soft: 16384, Hard: 16384}}
+		}),
+		// NOTE: this is the original command from the pgbouncer container, which
+		// the postgres testcontainers wrapper overwrites.
+		testcontainers.WithCmd(
+			"/usr/bin/pgbouncer",
+			"/etc/pgbouncer/pgbouncer.ini",
+		),
+		// This is what pgbouncer logs out
+		testcontainers.WithWaitStrategy(wait.ForLog("LOG process up")),
+	)
+	require.NoError(t, err)
+	testcontainers.CleanupContainer(t, bouncerContainer)
 
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = pool.Client.RemoveNetwork(network.ID)
-	})
-
-	return bridgeNetworkName
+	b.pgbouncerProxy = bouncerContainer
 }
 
-func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pool *dockertest.Pool, bridgeNetworkName string) {
-	uniqueID := uuid.New().String()
-	pgbouncerContainerHostname := "pgbouncer-" + uniqueID
+//go:embed config/postgres.conf
+var postgresConf []byte
 
-	pgbouncer, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       pgbouncerContainerHostname,
-		Repository: "edoburu/pgbouncer",
-		Tag:        "latest",
-		Env: []string{
-			"DB_USER=" + PostgresTestUser,
-			"DB_PASSWORD=" + PostgresTestPassword,
-			"DB_HOST=" + b.containerHostname,
-			"DB_PORT=" + b.containerPort,
-			"LISTEN_PORT=" + PgbouncerTestPort,
-			"DB_NAME=*",     // Needed to make pgbouncer okay with the randomly named databases generated by the test suite
-			"AUTH_TYPE=md5", // use the same auth type as postgres
-			"MAX_CLIENT_CONN=" + PostgresTestMaxConnections,
-		},
-		ExposedPorts: []string{PgbouncerTestPort + "/tcp"},
-		NetworkID:    bridgeNetworkName,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(pgbouncer))
-	})
+//go:embed config/postgres-with-timestamps.conf
+var postgresWithTimestampsConf []byte
 
-	b.pgbouncerProxy = &container{
-		hostHostname:      "localhost",
-		hostPort:          pgbouncer.GetPort(PgbouncerTestPort + "/tcp"),
-		containerHostname: pgbouncerContainerHostname,
-		containerPort:     PgbouncerTestPort,
-	}
-}
-
-func (b *postgresTester) initializeHostConnection(t testing.TB) (conn *pgx.Conn) {
-	hostname, port := b.getHostHostnameAndPort()
-	uri := fmt.Sprintf("postgresql://%s@%s:%s/?sslmode=disable", b.creds, hostname, port)
-	err := b.pool.Retry(func() error {
-		var err error
-		ctx, cancelConnect := context.WithTimeout(t.Context(), dockerBootTimeout)
-		defer cancelConnect()
-		conn, err = pgx.Connect(ctx, uri)
-		if err != nil {
+// postgresConfOption is basically postgres.WithConfigFile but using the `Reader`
+// interface on ContainerFile instead of `HostFilePath`, which is difficult to use
+// when this code is invoked from different places.
+func postgresConfOption(confBytes []byte) testcontainers.CustomizeRequestOption {
+	return func(req *testcontainers.GenericContainerRequest) error {
+		file := testcontainers.ContainerFile{
+			Reader:            bytes.NewBuffer(confBytes),
+			ContainerFilePath: "/etc/postgresql.conf",
+			FileMode:          0o644,
+		}
+		if err := testcontainers.WithFiles(file)(req); err != nil {
 			return err
 		}
-		return nil
-	})
+
+		return testcontainers.WithCmdArgs("-c", "config_file=/etc/postgresql.conf")(req)
+	}
+}
+
+func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, withCommitTimestamps bool, opts ...testcontainers.ContainerCustomizer) {
+	t.Helper()
+	ctx := t.Context()
+	logger := log.TestLogger(t)
+	configBytes := postgresConf
+	if withCommitTimestamps {
+		configBytes = postgresWithTimestampsConf
+	}
+
+	options := make([]testcontainers.ContainerCustomizer, 0, len(opts)+5)
+	options = append(options,
+		testcontainers.WithLogger(logger),
+		// contains the config for commit timestamps and max conns
+		postgresConfOption(configBytes),
+		postgres.WithUsername(PgTestUser),
+		postgres.WithPassword(PgTestPass),
+		postgres.BasicWaitStrategies(),
+	)
+	options = append(options, opts...)
+
+	image := "mirror.gcr.io/library/postgres:" + pgVersion
+	container, err := postgres.Run(ctx, image,
+		options...,
+	)
+	testcontainers.CleanupContainer(t, container)
+	b.pgContainer = container
 	require.NoError(t, err)
-	return conn
-}
-
-func (b *postgresTester) getHostnameAndPort() (string, string) {
-	// If a bridgeNetworkName is supplied then we will return the container
-	// hostname and port that is resolvable from within the container network.
-	// If bridgeNetworkName is not supplied then the hostname and port will be
-	// resolvable from the host.
-	if b.useContainerHostname {
-		return b.getContainerHostnameAndPort()
-	}
-	return b.getHostHostnameAndPort()
-}
-
-func (b *postgresTester) getHostHostnameAndPort() (string, string) {
-	if b.pgbouncerProxy != nil {
-		return b.pgbouncerProxy.hostHostname, b.pgbouncerProxy.hostPort
-	}
-	return b.hostHostname, b.hostPort
-}
-
-func (b *postgresTester) getContainerHostnameAndPort() (string, string) {
-	if b.pgbouncerProxy != nil {
-		return b.pgbouncerProxy.containerHostname, b.pgbouncerProxy.containerPort
-	}
-	return b.containerHostname, b.containerPort
 }

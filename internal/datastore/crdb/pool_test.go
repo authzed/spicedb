@@ -25,7 +25,7 @@ const (
 var testUserNS = namespace.Namespace(testUserNamespace)
 
 func TestTxReset(t *testing.T) {
-	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
+	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
 	cases := []struct {
 		name        string
@@ -97,7 +97,6 @@ func TestTxReset(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 

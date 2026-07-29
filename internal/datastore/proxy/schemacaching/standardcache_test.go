@@ -355,6 +355,8 @@ func TestOldRWTCaching(t *testing.T) {
 			ctx := t.Context()
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			dsMock.On("Close").Return(nil).Maybe()
+			t.Cleanup(func() { _ = ds.Close() })
 
 			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				_, updatedA, err := tester.readSingleFunc(ctx, rwt, nsA)
@@ -390,6 +392,8 @@ func TestRWTCaching(t *testing.T) {
 	ctx := t.Context()
 
 	ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+	dsMock.On("Close").Return(nil).Maybe()
+	t.Cleanup(func() { _ = ds.Close() })
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// read the namespace
@@ -436,6 +440,8 @@ func TestOldRWTCacheWithWrites(t *testing.T) {
 			ctx := t.Context()
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			dsMock.On("Close").Return(nil).Maybe()
+			t.Cleanup(func() { _ = ds.Close() })
 
 			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				// Cache the 404
@@ -486,6 +492,8 @@ func TestOldSingleFlight(t *testing.T) {
 			require := require.New(t)
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			dsMock.On("Close").Return(nil).Maybe()
+			t.Cleanup(func() { _ = ds.Close() })
 
 			readNamespace := func() error {
 				_, updatedAt, err := tester.readSingleFunc(t.Context(), ds.SnapshotReader(one), nsA)
@@ -609,6 +617,7 @@ func TestOldSnapshotCachingRealDatastore(t *testing.T) {
 
 			ctx := t.Context()
 			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			t.Cleanup(func() { _ = ds.Close() })
 
 			if tc.nsDef != nil {
 				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -687,6 +696,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 
 			ctx := t.Context()
 			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			t.Cleanup(func() { _ = ds.Close() })
 
 			if tc.nsDef != nil {
 				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -755,6 +765,8 @@ func TestOldSingleFlightCancelled(t *testing.T) {
 			dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			dsMock.On("Close").Return(nil).Maybe()
+			t.Cleanup(func() { _ = ds.Close() })
 
 			g := sync.WaitGroup{}
 			var d2 datastore.SchemaDefinition

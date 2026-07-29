@@ -136,6 +136,19 @@ func (s *Set[T]) Equal(other *Set[T]) bool {
 	return maps.Equal(s.values, other.values)
 }
 
+// IsSubsetOf returns true if every element of this set is present in the other set.
+func (s *Set[T]) IsSubsetOf(other *Set[T]) bool {
+	if s.Len() > other.Len() {
+		return false
+	}
+	for value := range s.values {
+		if !other.Has(value) {
+			return false
+		}
+	}
+	return true
+}
+
 // IsEmpty returns true if the set is empty.
 func (s *Set[T]) IsEmpty() bool {
 	return len(s.values) == 0

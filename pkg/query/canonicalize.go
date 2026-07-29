@@ -58,7 +58,7 @@ func extractCaveats(outline Outline) (Outline, []*core.ContextualizedCaveat, err
 		caveat := outline.Args.Caveat
 		var err error
 		var childTree Outline
-		var childCaveats []*core.ContextualizedCaveat
+		childCaveats := make([]*core.ContextualizedCaveat, 0, 1)
 
 		if len(outline.SubOutlines) > 0 {
 			childTree, childCaveats, err = extractCaveats(outline.SubOutlines[0])

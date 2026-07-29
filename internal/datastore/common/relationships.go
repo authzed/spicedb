@@ -81,6 +81,10 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 			explainBuilder.WriteString(explain + "\n")
 		}
 
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf(errUnableToQueryRels, err)
+		}
+
 		explainString := explainBuilder.String()
 		if explainString == "" {
 			return errors.New("received empty explain")

@@ -1,12 +1,46 @@
 package cache
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
+
+func TestEntryWeight(t *testing.T) {
+	// Empty key, zero payload.
+	require.Equal(t, uint32(0), entryWeight("", 0))
+
+	// Payload + key bytes.
+	require.Equal(t, uint32(10+3), entryWeight("abc", 10))
+
+	// Saturates rather than overflowing uint32.
+	require.Equal(t, uint32(math.MaxUint32), entryWeight("x", math.MaxUint32))
+	require.Equal(t, uint32(math.MaxUint32), entryWeight("x", math.MaxUint32-1))
+}
+
+func TestCostAddedIncludesKey(t *testing.T) {
+	cache, err := NewOtterCacheWithMetrics[StringKey, string](
+		prometheus.NewRegistry(), "test-otter",
+		&Config{MaxCost: 100000, DefaultTTL: 10 * time.Hour},
+	)
+	require.NoError(t, err)
+	defer cache.Close()
+
+	const key = "some-key"
+	const payloadCost = 10
+	require.True(t, cache.Set(StringKey(key), "value", payloadCost))
+	cache.Wait()
+
+	// costAdded must reflect the full entry weight (payload + key bytes), not
+	// just the caller-supplied payload cost.
+	require.Equal(t,
+		uint64(payloadCost+len(key)),
+		cache.GetMetrics().CostAdded(),
+	)
+}
 
 func TestCacheWithMetrics(t *testing.T) {
 	config := &Config{

@@ -31,7 +31,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
-	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -45,10 +44,9 @@ const (
 var pgFactory = test.NewTesterFactory(&pgconn.PgError{Code: pgSerializationFailure})
 
 type postgresTestConfig struct {
-	targetMigration string
-	migrationPhase  string
-	pgVersion       string
-	pgbouncer       bool
+	migrationPhase string
+	pgVersion      string
+	pgbouncer      bool
 }
 
 // the global OTel tracer is used everywhere, so we synchronize tests over a global test tracer
@@ -70,12 +68,12 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 		pgbouncerStr = "pgbouncer-"
 	}
 
-	t.Run(fmt.Sprintf("%spostgres-%s-%s-%s-gc", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
-		b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion, config.pgbouncer)
+	t.Run(fmt.Sprintf("%spostgres-%s-%s-gc", pgbouncerStr, config.pgVersion, config.migrationPhase), func(t *testing.T) {
+		b := testdatastore.RunPostgresForTesting(t, config.pgVersion, config.pgbouncer)
 		ctx := t.Context()
 
 		// NOTE: gc tests take exclusive locks, so they are run under non-parallel.
-		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
@@ -107,11 +105,12 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 		))
 	})
 
-	t.Run(fmt.Sprintf("%spostgres-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
-		b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion, config.pgbouncer)
+	t.Run(fmt.Sprintf("%spostgres-%s-%s", pgbouncerStr, config.pgVersion, config.migrationPhase), func(t *testing.T) {
+		t.Parallel()
+		b := testdatastore.RunPostgresForTesting(t, config.pgVersion, config.pgbouncer)
 		ctx := t.Context()
 
-		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
@@ -314,12 +313,14 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 	pgVersion := config.pgVersion
 	enablePgbouncer := config.pgbouncer
 	t.Run(fmt.Sprintf("postgres-%s", pgVersion), func(t *testing.T) {
+		t.Parallel()
+
 		ctx := t.Context()
-		b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false, pgVersion, enablePgbouncer)
+		b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, false, pgVersion, enablePgbouncer)
 
 		// NOTE: watch API requires the commit timestamps, so we skip those tests here.
 		// NOTE: gc tests take exclusive locks, so they are run under non-parallel.
-		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
@@ -338,8 +339,8 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 
 	t.Run(fmt.Sprintf("postgres-%s-gc", pgVersion), func(t *testing.T) {
 		ctx := t.Context()
-		b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false, pgVersion, enablePgbouncer)
-		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, false, pgVersion, enablePgbouncer)
+		test.OnlyGCTests(t, test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionQuantization),
@@ -1472,7 +1473,7 @@ func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
 func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgVersion string) {
 	require := require.New(t)
 
-	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ctx := t.Context()
 		ds, err := newPostgresDatastore(ctx, uri,
 			primaryInstanceID,
@@ -1484,7 +1485,9 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 		require.NoError(err)
 		return ds
 	})
-	defer ds.Close()
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
 	ds, revision := testfixtures.StandardDatastoreWithData(t, ds)
 	_, errChan := ds.Watch(
@@ -1498,9 +1501,10 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 }
 
 func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.QueryInterceptor, pgVersion string) datastore.Datastore {
+	t.Helper()
 	require := require.New(t)
 
-	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ctx := t.Context()
 		ds, err := newPostgresDatastore(ctx, uri,
 			primaryInstanceID,

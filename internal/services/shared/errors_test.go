@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -241,6 +243,97 @@ func TestRewriteError(t *testing.T) {
 			t.Log(errorRewritten.Error())
 			if tt.expectedContains != "" {
 				require.ErrorContains(t, errorRewritten, tt.expectedContains)
+			}
+		})
+	}
+}
+
+func TestRewriteErrorSanitizesDatastoreDriverErrors(t *testing.T) {
+	// Datastore-internal substrings that must never appear in a client-facing message.
+	internalSubstrings := []string{"SQLSTATE", "COPY", "57014", "23505", "40001", "PermissionDenied", "pg_", "Deadlock", "1213", "restart transaction", "TransactionRetry"}
+
+	// CockroachDB uses the pgx driver, so its raw errors are *pgconn.PgError. The retry pool
+	// additionally wraps them in engine-specific error types; all of them must be sanitized.
+	crdbRetryErr := &pgconn.PgError{
+		Severity: "ERROR",
+		Code:     "40001",
+		Message:  "restart transaction: TransactionRetryWithProtoRefreshError: retry txn",
+	}
+
+	tests := []struct {
+		name         string
+		inputError   error
+		expectedCode codes.Code
+	}{
+		{
+			name: "postgres COPY-abort wrapper (query canceled)",
+			inputError: &pgconn.PgError{
+				Severity: "ERROR",
+				Code:     "57014",
+				Message:  "COPY from stdin failed: rpc error: code = PermissionDenied desc = unauthorized operation",
+			},
+			expectedCode: codes.Canceled,
+		},
+		{
+			name: "postgres serialization failure",
+			inputError: &pgconn.PgError{
+				Severity: "ERROR",
+				Code:     "40001",
+				Message:  "could not serialize access due to concurrent update",
+			},
+			expectedCode: codes.Aborted,
+		},
+		{
+			name: "postgres unexpected error",
+			inputError: &pgconn.PgError{
+				Severity: "ERROR",
+				Code:     "42P01",
+				Message:  `relation "relation_tuple" does not exist`,
+			},
+			expectedCode: codes.Internal,
+		},
+		{
+			name:         "mysql deadlock",
+			inputError:   &mysql.MySQLError{Number: 1213, Message: "Deadlock found when trying to get lock"},
+			expectedCode: codes.Aborted,
+		},
+		{
+			name:         "mysql unexpected error",
+			inputError:   &mysql.MySQLError{Number: 1146, Message: "Table 'spicedb.relation_tuple' doesn't exist"},
+			expectedCode: codes.Internal,
+		},
+		{
+			name:         "cockroachdb bare serialization failure",
+			inputError:   crdbRetryErr,
+			expectedCode: codes.Aborted,
+		},
+		{
+			name:         "cockroachdb error wrapped in MaxRetryError",
+			inputError:   &pool.MaxRetryError{MaxRetries: 3, LastErr: crdbRetryErr},
+			expectedCode: codes.Aborted,
+		},
+		{
+			name:         "cockroachdb error wrapped in ResettableError",
+			inputError:   &pool.ResettableError{Err: crdbRetryErr},
+			expectedCode: codes.Unavailable,
+		},
+		{
+			name:         "cockroachdb error wrapped in RetryableError",
+			inputError:   &pool.RetryableError{Err: crdbRetryErr},
+			expectedCode: codes.Unavailable,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rewritten := RewriteError(t.Context(), tt.inputError, nil)
+			require.Error(t, rewritten)
+			grpcutil.RequireStatus(t, tt.expectedCode, rewritten)
+
+			st, ok := status.FromError(rewritten)
+			require.True(t, ok, "sanitized error must be a gRPC status")
+			for _, internal := range internalSubstrings {
+				require.NotContains(t, st.Message(), internal, "sanitized message must not contain datastore internals")
 			}
 		})
 	}

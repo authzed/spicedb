@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -44,6 +45,24 @@ func TestSchemaHashCache_BasicGetSet(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, retrieved)
 	require.Equal(t, schema.Get().GetV1().SchemaText, retrieved.Get().GetV1().SchemaText)
+}
+
+func TestSchemaHashCache_SetCostsBySize(t *testing.T) {
+	tc := newTestSchemaCache()
+	shc := newSchemaHashCache(tc)
+
+	// A larger schema must be costed higher than a smaller one, and the cost
+	// must match the schema's estimated (serialized) size rather than a flat 1.
+	small := makeTestSchema("definition user {}")
+	large := makeTestSchema("definition user {}" + string(make([]byte, 4096)))
+
+	require.NoError(t, shc.Set(SchemaHash("small"), small))
+	require.NoError(t, shc.Set(SchemaHash("large"), large))
+
+	require.Equal(t, small.EstimatedSize(), tc.cost(SchemaCacheKey("small")))
+	require.Equal(t, large.EstimatedSize(), tc.cost(SchemaCacheKey("large")))
+	require.Greater(t, tc.cost(SchemaCacheKey("large")), tc.cost(SchemaCacheKey("small")))
+	require.Greater(t, tc.cost(SchemaCacheKey("small")), int64(1))
 }
 
 func TestSchemaHashCache_EmptyHash(t *testing.T) {
@@ -94,48 +113,37 @@ func TestSchemaHashCache_GetOrLoadEmptyHash(t *testing.T) {
 func TestSchemaHashCache_Singleflight(t *testing.T) {
 	shc := newSchemaHashCache(newTestSchemaCache())
 
-	loadCalls := 0
+	var loadCalls atomic.Int32
 	loadStarted := make(chan struct{})
 	loadContinue := make(chan struct{})
 
 	loader := func(_ context.Context) (*datastore.ReadOnlyStoredSchema, error) {
-		loadCalls++
-		close(loadStarted)
+		if loadCalls.Add(1) == 1 {
+			close(loadStarted)
+		}
 		<-loadContinue
 		return makeTestSchema("loaded definition"), nil
 	}
 
 	const numGoroutines = 10
-	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
-
-	results := make(chan error, numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func() {
-			defer wg.Done()
+	var g errgroup.Group
+	for range numGoroutines {
+		g.Go(func() error {
 			schema, err := shc.GetOrLoad(t.Context(), datastore.NoRevision, SchemaHash("hash1"), loader)
 			if err != nil {
-				results <- err
-				return
+				return err
 			}
 			if schema == nil {
-				results <- fmt.Errorf("schema is nil")
-				return
+				return fmt.Errorf("schema is nil")
 			}
-			results <- nil
-		}()
+			return nil
+		})
 	}
 
 	<-loadStarted
 	close(loadContinue)
-	wg.Wait()
-	close(results)
-
-	for err := range results {
-		require.NoError(t, err)
-	}
-
-	require.Equal(t, 1, loadCalls)
+	require.NoError(t, g.Wait())
+	require.Equal(t, int32(1), loadCalls.Load())
 }
 
 func TestSchemaHashCache_LoadError(t *testing.T) {

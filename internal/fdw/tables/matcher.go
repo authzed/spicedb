@@ -112,8 +112,9 @@ func (l literalPattern) Match(node *pg_query.Node) (MatchResult, bool) {
 	}
 
 	result := MatchResult{Values: make(map[string]any)}
-	if l.CaptureName != "" {
-		result.Values[l.CaptureName] = aConst.GetSval().Sval
+	aConstSval := aConst.GetSval()
+	if l.CaptureName != "" && aConstSval != nil {
+		result.Values[l.CaptureName] = aConstSval.Sval
 	}
 
 	return result, true

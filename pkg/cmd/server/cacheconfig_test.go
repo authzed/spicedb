@@ -32,6 +32,25 @@ func TestParsePercent(t *testing.T) {
 	}
 }
 
+func TestResolveMaxCost(t *testing.T) {
+	t.Run("absolute byte value ignores available memory", func(t *testing.T) {
+		got, err := resolveMaxCost(&CacheConfig{Name: "test", MaxCost: "1GiB"}, 0)
+		require.NoError(t, err)
+		require.Equal(t, int64(1024*1024*1024), got)
+	})
+
+	t.Run("percent resolves against available memory", func(t *testing.T) {
+		got, err := resolveMaxCost(&CacheConfig{Name: "test", MaxCost: "25%"}, 1000)
+		require.NoError(t, err)
+		require.Equal(t, int64(250), got)
+	})
+
+	t.Run("invalid value errors", func(t *testing.T) {
+		_, err := resolveMaxCost(&CacheConfig{Name: "test", MaxCost: "not-a-size"}, 1000)
+		require.Error(t, err)
+	})
+}
+
 func TestWithRevisionParameters(t *testing.T) {
 	table := []struct {
 		name                 string

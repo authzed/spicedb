@@ -166,6 +166,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}
 
 	permissionship, partialCaveat := checkResultToAPITypes(cr)
+	ps.metrics.RecordCheckResult("CheckPermission", permissionship)
 
 	return &v1.CheckPermissionResponse{
 		CheckedAt:         checkedAt,
@@ -194,7 +195,7 @@ func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.Ch
 	// NOTE: perfinsights are added for the individual check results as well, so there is no shape here.
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
-	res, err := ps.bulkChecker.checkBulkPermissions(ctx, req)
+	res, err := ps.bulkChecker.checkBulkPermissions(ctx, req, ps.metrics)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -202,8 +203,9 @@ func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.Ch
 	return res, nil
 }
 
-func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult, debugTrace *v1.DebugInformation) *v1.CheckBulkPermissionsPair_Item {
+func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult, debugTrace *v1.DebugInformation, metrics *Metrics) *v1.CheckBulkPermissionsPair_Item {
 	permissionship, partialCaveat := checkResultToAPITypes(checkResult)
+	metrics.RecordCheckResult("CheckBulkPermissions", permissionship)
 	return &v1.CheckBulkPermissionsPair_Item{
 		Item: &v1.CheckBulkPermissionsResponseItem{
 			Permissionship:    permissionship,
@@ -1176,6 +1178,8 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 		// One request for the whole load
 		DispatchCount: 1,
 	})
+
+	ps.metrics.RecordBulkImportedRelationships(numWritten)
 
 	return stream.SendAndClose(&v1.ImportBulkRelationshipsResponse{
 		NumLoaded: numWritten,

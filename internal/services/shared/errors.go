@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
@@ -14,6 +16,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
@@ -23,6 +26,48 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
+
+// MySQL server error numbers for transient/retryable failures. Mirrors the values in the
+// mysql datastore package (which are unexported).
+// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html
+const (
+	mysqlErrLockWaitTimeout = 1205
+	mysqlErrDeadlock        = 1213
+)
+
+const genericDatastoreErrorMessage = "an internal error occurred while accessing the datastore"
+
+// sanitizeDatastoreDriverError converts a raw datastore driver error — which may embed
+// engine-specific internals such as SQLSTATE codes — into a descriptive, engine-agnostic
+// gRPC status. It returns (status, true) when err is a recognized raw driver error, and
+// (nil, false) otherwise. The full error is logged server-side for diagnosis.
+func sanitizeDatastoreDriverError(ctx context.Context, err error) (error, bool) {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		log.Ctx(ctx).Err(err).Msg("received internal datastore error")
+		switch {
+		case pgxcommon.IsQueryCanceledError(err):
+			return status.Error(codes.Canceled, "the datastore operation was canceled"), true
+		case pgxcommon.IsSerializationError(err):
+			return status.Error(codes.Aborted, "the operation conflicted with a concurrent transaction; please retry"), true
+		default:
+			return status.Error(codes.Internal, genericDatastoreErrorMessage), true
+		}
+	}
+
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) {
+		log.Ctx(ctx).Err(err).Msg("received internal datastore error")
+		switch mysqlErr.Number {
+		case mysqlErrDeadlock, mysqlErrLockWaitTimeout:
+			return status.Error(codes.Aborted, "the operation conflicted with a concurrent transaction; please retry"), true
+		default:
+			return status.Error(codes.Internal, genericDatastoreErrorMessage), true
+		}
+	}
+
+	return nil, false
+}
 
 // ErrServiceReadOnly is an extended GRPC error returned when a service is in read-only mode.
 var ErrServiceReadOnly = mustMakeStatusReadonly()
@@ -213,6 +258,9 @@ func rewriteError(ctx context.Context, err error, _ *ConfigForErrors) error {
 
 		return status.Errorf(codes.Canceled, "context canceled")
 	default:
+		if sanitized, ok := sanitizeDatastoreDriverError(ctx, err); ok {
+			return sanitized
+		}
 		log.Ctx(ctx).Err(err).Msg("received unexpected error")
 		return err
 	}

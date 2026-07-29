@@ -4,6 +4,7 @@ package datastore
 import (
 	"fmt"
 	types "github.com/authzed/spicedb/pkg/caveats/types"
+	datalayer "github.com/authzed/spicedb/pkg/datalayer"
 	defaults "github.com/creasty/defaults"
 	"time"
 )
@@ -55,6 +56,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.BootstrapOverwrite = c.BootstrapOverwrite
 		to.BootstrapTimeout = c.BootstrapTimeout
 		to.CaveatTypeSet = c.CaveatTypeSet
+		to.BootstrapSchemaMode = c.BootstrapSchemaMode
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
 		to.RequestHedgingInitialSlowValue = c.RequestHedgingInitialSlowValue
 		to.RequestHedgingMaxRequests = c.RequestHedgingMaxRequests
@@ -187,6 +189,13 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["BootstrapTimeout"] = dm.DebugMap()
 	} else {
 		debugMap["BootstrapTimeout"] = c.BootstrapTimeout
+	}
+	if dm, ok := any(&c.BootstrapSchemaMode).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["BootstrapSchemaMode"] = dm.DebugMap()
+	} else {
+		debugMap["BootstrapSchemaMode"] = c.BootstrapSchemaMode
 	}
 	debugMap["RequestHedgingEnabled"] = c.RequestHedgingEnabled
 	if dm, ok := any(&c.RequestHedgingInitialSlowValue).(interface {
@@ -533,6 +542,13 @@ func WithBootstrapTimeout(bootstrapTimeout time.Duration) ConfigOption {
 func WithCaveatTypeSet(caveatTypeSet *types.TypeSet) ConfigOption {
 	return func(c *Config) {
 		c.CaveatTypeSet = caveatTypeSet
+	}
+}
+
+// WithBootstrapSchemaMode returns an option that can set BootstrapSchemaMode on a Config
+func WithBootstrapSchemaMode(bootstrapSchemaMode datalayer.SchemaMode) ConfigOption {
+	return func(c *Config) {
+		c.BootstrapSchemaMode = bootstrapSchemaMode
 	}
 }
 

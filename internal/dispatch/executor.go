@@ -629,10 +629,10 @@ func NewQueryContext(
 }
 
 // NewPlanContext builds a PlanContext proto from query.Context fields.
-func NewPlanContext(revision string, schemaHash datalayer.SchemaHash, caveatContext map[string]any, maxRecursionDepth int, datastoreLimit uint64) *v1.PlanContext {
+func NewPlanContext(revision string, schemaHash datalayer.SchemaHash, caveatContext map[string]any, maxRecursionDepth int32, datastoreLimit uint64) *v1.PlanContext {
 	pc := &v1.PlanContext{
 		Revision:               revision,
-		MaxRecursionDepth:      int32(maxRecursionDepth),
+		MaxRecursionDepth:      maxRecursionDepth,
 		OptionalDatastoreLimit: datastoreLimit,
 		SchemaHash:             []byte(schemaHash),
 	}

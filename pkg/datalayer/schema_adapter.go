@@ -352,6 +352,15 @@ func newStoredSchemaReaderAdapter(ctx context.Context, reader storedSchemaReader
 	return &storedSchemaReaderAdapter{storedSchema: storedSchema, lastWrittenRevision: lastWrittenRevision}, nil
 }
 
+// StoredSchema returns the shared, per-schema-version stored schema backing this reader. It is
+// shared across readers for a single schema version (via the stored-schema cache) and hosts
+// schema-derived caches (see datastore.LoadOrStoreDerived). Consumers may type-assert a
+// SchemaReader to the (structural) interface { StoredSchema() *datastore.ReadOnlyStoredSchema }
+// to access it.
+func (s *storedSchemaReaderAdapter) StoredSchema() *datastore.ReadOnlyStoredSchema {
+	return s.storedSchema
+}
+
 func (s *storedSchemaReaderAdapter) v1() *core.StoredSchema_V1StoredSchema {
 	if v1 := s.storedSchema.Get().GetV1(); v1 != nil {
 		return v1

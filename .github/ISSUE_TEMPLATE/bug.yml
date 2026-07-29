@@ -3,29 +3,6 @@ name: "🐞 Bug Report"
 description: "Tell us about something that's not working the way we (probably) intend."
 labels: ["kind/bug", "state/triage"]
 body:
-  - type: "dropdown"
-    id: "platform"
-    validations:
-      required: true
-    attributes:
-      label: "What platforms are affected?"
-      multiple: true
-      options:
-        - "linux"
-        - "macos"
-        - "windows"
-        - "others"
-  - type: "dropdown"
-    id: "arch"
-    validations:
-      required: true
-    attributes:
-      label: "What architectures are affected?"
-      multiple: true
-      options:
-        - "amd64"
-        - "arm64"
-        - "others"
   - type: "textarea"
     id: "version"
     validations:
@@ -42,6 +19,18 @@ body:
       placeholder: |-
         1. --datastore-engine=...
         2. --enable-experimental-watchable-schema-cache=...
+
+        SpiceDB emits a log line with `message: configuration` printing them all out.
+  - type: "textarea"
+    id: "config"
+    validations:
+      required: false
+    attributes:
+      label: "Any other details?"
+      placeholder: |-
+        - `zed schema read` will print the schema. This is helpful to debug some correctness and performance issues.
+        - What traffic was SpiceDB getting at the time of the event? (e.g. 100 RPS for `CheckPermissions` via the zed client)
+        - What environment are you running in? (e.g. Kubernetes, ECS, etc.)
   - type: "textarea"
     id: "repro"
     validations:

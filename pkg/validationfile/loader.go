@@ -168,7 +168,13 @@ func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, cave
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		resolver, err := schema.ResolverForSchemaReader(ctx, rwt)
 		if err != nil {
-			return err
+			if !errors.Is(err, datastore.ErrSchemaNotFound) {
+				return err
+			}
+			// No existing schema yet (the first write under the unified schema): resolve
+			// only against the definitions being written, which are supplied as predefined
+			// elements below. A nil-backed resolver returns not-found for everything else.
+			resolver = schema.ResolverFor(nil)
 		}
 		ts := schema.NewTypeSystem(resolver.WithPredefinedElements(schema.PredefinedElements{
 			Definitions: objectDefs,

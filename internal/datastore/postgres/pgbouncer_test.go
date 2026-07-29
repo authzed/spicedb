@@ -18,7 +18,7 @@ func pgbouncerTestVersion() string {
 	return version.LatestTestedPostgresVersion
 }
 
-var pgbouncerConfig = postgresTestConfig{"head", "", pgbouncerTestVersion(), true}
+var pgbouncerConfig = postgresTestConfig{"", pgbouncerTestVersion(), true}
 
 func TestPostgresWithPgBouncerDatastore(t *testing.T) {
 	testPostgresDatastore(t, pgbouncerConfig)

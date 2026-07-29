@@ -249,6 +249,9 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 				ExitCode(sysexits.Config).
 				Error()
 		}
+	} else {
+		// the server didn't create this datastore, so it should not close it
+		ds = NoCloseProxy(ds)
 	}
 
 	cachingMode := schemacaching.JustInTimeCaching
@@ -519,6 +522,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			LookupResources: slices.Contains(c.ExperimentalQueryPlan, "lr"),
 			LookupSubjects:  slices.Contains(c.ExperimentalQueryPlan, "ls"),
 		},
+		Metrics:           v1svc.NewMetrics(c.OTel.PrometheusRegistry),
 		QueryPlanMetadata: queryPlanMetadata,
 	}
 
@@ -891,3 +895,19 @@ func (c *completedServerConfig) NewClient(opts ...grpc.DialOption) (*grpc.Client
 	}
 	return grpc.NewClient(c.gRPCServer.Address(), opts...)
 }
+
+// noCloseDatastore wraps a datastore so that Close is a no-op.
+// It is used when the server is handed a datastore it did not create: the creator is responsible for closing them.
+type noCloseDatastore struct {
+	datastore.Datastore
+}
+
+// NoCloseProxy wraps the given datastore so that calls to Close are ignored. The
+// underlying datastore remains the responsibility of whoever created it.
+func NoCloseProxy(ds datastore.Datastore) datastore.Datastore {
+	return &noCloseDatastore{Datastore: ds}
+}
+
+func (p *noCloseDatastore) Close() error { return nil }
+
+func (p *noCloseDatastore) Unwrap() datastore.Datastore { return p.Datastore }

@@ -59,7 +59,8 @@ func (s *SQLSingleStoreSchemaReaderWriter[T]) ReadStoredSchema(ctx context.Conte
 		return nil, fmt.Errorf("failed to unmarshal schema: %w", err)
 	}
 
-	return datastore.NewReadOnlyStoredSchema(storedSchema), nil
+	// len(data) is the exact serialized size, used as the rough schema-size base for cache cost.
+	return datastore.NewReadOnlyStoredSchemaWithSize(storedSchema, len(data)), nil
 }
 
 // WriteStoredSchema writes the stored schema to the unified schema table.

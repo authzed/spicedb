@@ -58,6 +58,36 @@ func TestPatternMatcher(t *testing.T) {
 			query:          "SELECT * FROM relationships",
 			expectedFields: map[string]valueOrRef{},
 		},
+		{
+			name:          "integer literal",
+			query:         `SELECT * FROM relationships WHERE resource_id = 1`,
+			expectedError: "literal pattern did not capture string value",
+		},
+		{
+			name:          "integer literal on unknown column",
+			query:         `SELECT * FROM relationships WHERE "limit" = 1`,
+			expectedError: "literal pattern did not capture string value",
+		},
+		{
+			name:          "float literal",
+			query:         `SELECT * FROM relationships WHERE resource_id = 1.5`,
+			expectedError: "literal pattern did not capture string value",
+		},
+		{
+			name:          "boolean literal",
+			query:         `SELECT * FROM relationships WHERE resource_id = true`,
+			expectedError: "literal pattern did not capture string value",
+		},
+		{
+			name:          "null literal",
+			query:         `SELECT * FROM relationships WHERE resource_id = NULL`,
+			expectedError: "literal pattern did not capture string value",
+		},
+		{
+			name:          "integer literal in AND condition",
+			query:         `SELECT * FROM relationships WHERE resource_type = 'document' AND "limit" = 1`,
+			expectedError: "literal pattern did not capture string value",
+		},
 	}
 
 	for _, tc := range testCases {

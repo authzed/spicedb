@@ -95,6 +95,11 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		chunkSize = 100
 	}
 
+	metrics := permServerConfig.Metrics
+	if metrics == nil {
+		metrics = NewMetrics(nil)
+	}
+
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
@@ -113,6 +118,7 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		},
 		maxBatchSize:  uint64(config.MaxExportBatchSize),
 		caveatTypeSet: caveattypes.TypeSetOrDefault(permServerConfig.CaveatTypeSet),
+		metrics:       metrics,
 		bulkChecker: &bulkChecker{
 			maxAPIDepth:          permServerConfig.MaximumAPIDepth,
 			maxCaveatContextSize: permServerConfig.MaxCaveatContextSize,
@@ -132,6 +138,7 @@ type experimentalServer struct {
 
 	bulkChecker   *bulkChecker
 	caveatTypeSet *caveattypes.TypeSet
+	metrics       *Metrics
 }
 
 type bulkLoadAdapter struct {
@@ -308,6 +315,8 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 		// One request for the whole load
 		DispatchCount: 1,
 	})
+
+	es.metrics.RecordBulkImportedRelationships(numWritten)
 
 	return stream.SendAndClose(&v1.BulkImportRelationshipsResponse{
 		NumLoaded: numWritten,
@@ -507,7 +516,7 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	convertedReq := toCheckBulkPermissionsRequest(req)
-	res, err := es.bulkChecker.checkBulkPermissions(ctx, convertedReq)
+	res, err := es.bulkChecker.checkBulkPermissions(ctx, convertedReq, es.metrics)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
