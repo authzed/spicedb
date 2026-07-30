@@ -1,4 +1,4 @@
-package memdb_test
+package memdb
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	test "github.com/authzed/spicedb/pkg/datastore/test"
@@ -20,12 +19,12 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var memdbFactory = test.NewTesterFactory(memdb.ErrSerialization)
+var memdbFactory = test.NewTesterFactory(ErrSerialization)
 
 type memDBTest struct{}
 
 func (memDBTest) New(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return memdb.NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
+	return NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
 }
 
 func TestMemdbDatastore(t *testing.T) {
@@ -38,7 +37,7 @@ func TestMemdbDatastore(t *testing.T) {
 func TestConcurrentWritePanic(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -89,7 +88,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 func TestConcurrentWriteRelsSucceed(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -118,7 +117,7 @@ func TestConcurrentWriteRelsSucceed(t *testing.T) {
 func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	require.NoError(err)
 
 	lowestRevision, err := ds.HeadRevision(t.Context())
@@ -131,21 +130,21 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 
 	select {
 	case err := <-errChan:
-		require.ErrorIs(err, memdb.ErrMemDBIsClosed)
+		require.ErrorIs(err, ErrMemDBIsClosed)
 	case <-time.After(time.Second):
 		require.Fail("expected an error but waited too long")
 	}
 
 	_, err = ds.Statistics(t.Context())
-	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
+	require.ErrorIs(err, ErrMemDBIsClosed)
 
 	err = ds.CheckRevision(t.Context(), lowestRevision.Revision)
-	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
+	require.ErrorIs(err, ErrMemDBIsClosed)
 
 	_, err = ds.OptimizedRevision(t.Context())
-	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
+	require.ErrorIs(err, ErrMemDBIsClosed)
 
 	reader := ds.SnapshotReader(datastore.NoRevision)
 	_, err = reader.CountRelationships(t.Context(), "blah")
-	require.ErrorIs(err, memdb.ErrMemDBIsClosed)
+	require.ErrorIs(err, ErrMemDBIsClosed)
 }
