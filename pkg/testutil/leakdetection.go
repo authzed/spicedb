@@ -9,5 +9,7 @@ func GoLeakIgnores() []goleak.Option {
 		// TODO: https://github.com/googleapis/google-cloud-go/issues/14228
 		// when that is complete, remove this line
 		goleak.IgnoreAnyFunction("go.opencensus.io/stats/view.(*worker).start"),
+		// This came in in v1.94.0
+		goleak.IgnoreAnyFunction("cloud.google.com/go/spanner.(*endpointLatencyRegistry).runCleanup"),
 	}
 }
