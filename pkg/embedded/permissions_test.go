@@ -5,8 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	// Register all datastore engines defined in this repository.
-	_ "github.com/authzed/spicedb/internal/datastore/engines"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	dscfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datalayer"

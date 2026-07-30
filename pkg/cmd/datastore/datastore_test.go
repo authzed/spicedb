@@ -7,8 +7,6 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
-	// Register all datastore engines defined in this repository.
-	_ "github.com/authzed/spicedb/internal/datastore/engines"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 )
 

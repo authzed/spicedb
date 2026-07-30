@@ -34,8 +34,8 @@ const (
 // BuilderForEngine holds the builder for each datastore engine, keyed by
 // engine name. Engines register themselves via RegisterEngine from an init
 // function; importing an engine package makes it available to
-// pkg/cmd/datastore.NewDatastore. internal/datastore/engines registers every
-// engine defined in this repository.
+// pkg/cmd/datastore.NewDatastore. pkg/cmd/datastore links every engine defined
+// in this repository, so those are always available.
 var BuilderForEngine = map[string]EngineBuilderFunc{}
 
 // RegisterEngine makes a datastore engine available to

@@ -6,15 +6,24 @@ import (
 	"testing"
 	"time"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/internal/grpchelpers"
+	log "github.com/authzed/spicedb/internal/logging"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
-	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/cmd/datastore/dsconfig"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/migration"
+	"github.com/authzed/spicedb/pkg/genutil"
+	"github.com/authzed/spicedb/pkg/middleware/consistency"
 )
 
 var migrationTestConfigs = map[string]func(t *testing.T) string{}
@@ -34,11 +43,12 @@ func RegisterMigrationTestConfig(engineKey string, provider func(t *testing.T) s
 //  1. Each migration is applied one at a time, verifying that it applies
 //     cleanly and that the recorded version advances to it.
 //  2. Once the datastore reaches the engine's verifiable migration (the
-//     earliest one the current code can operate against), a SpiceDB server is
-//     stood up against it and a schema is written and read back through its API.
+//     earliest one the current code can operate against), SpiceDB's schema
+//     service is served against it and a schema is written and read back
+//     through the WriteSchema and ReadSchema APIs.
 //  3. Before each remaining migration a new schema is written; after the
 //     migration that schema must still be readable, verifying that each
-//     migration preserves the data written by the server running before it.
+//     migration preserves the data written through the API before it.
 func MigrationTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
 	require.NoError(t, err)
@@ -108,25 +118,63 @@ func MigrationTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
-// startMigrationTestServer stands up a SpiceDB server against the given
-// database and returns a schema service client for it.
+// startMigrationTestServer opens the given database at the migrations applied
+// so far, serves SpiceDB's schema service against it over an in-process
+// connection, and returns a client for that service.
+//
+// The datastore is built through the engine's own registered builder rather
+// than through pkg/cmd/datastore.NewDatastore, and only the schema service is
+// served rather than the whole command server. Both keep this package free of
+// pkg/cmd/datastore and pkg/cmd/server: an engine's tests drive this suite from
+// the engine's own package, so a dependency on either would be an import cycle
+// once pkg/cmd/datastore links the engines.
 func startMigrationTestServer(t *testing.T, engineKey, datastoreURI string, allowedMigrations []string) v1.SchemaServiceClient {
-	dsOpts := []datastorecfg.ConfigOption{
-		datastorecfg.WithEngine(engineKey),
-		datastorecfg.WithURI(datastoreURI),
-		datastorecfg.WithRevisionQuantization(0),
-		datastorecfg.WithRequestHedgingEnabled(false),
-		datastorecfg.SetAllowedMigrations(allowedMigrations),
-	}
-	ds, err := datastorecfg.NewDatastore(t.Context(), dsOpts...)
+	builder, ok := dsconfig.BuilderForEngine[engineKey]
+	require.Truef(t, ok, "no datastore builder is registered for engine %q", engineKey)
+
+	dsCfg := dsconfig.DefaultDatastoreConfig()
+	dsCfg.Engine = engineKey
+	dsCfg.URI = datastoreURI
+	dsCfg.RevisionQuantization = 0
+	dsCfg.RequestHedgingEnabled = false
+	dsCfg.AllowedMigrations = allowedMigrations
+
+	ds, err := builder(t.Context(), *dsCfg)
 	require.NoError(t, err)
 
-	conn, _, _ := testserver.NewTestServerWithConfigAndDatastore(t, false, testserver.DefaultTestServerConfig, ds,
-		func(_ testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
-			return ds, datastore.NoRevision
-		})
+	dl := datalayer.NewDataLayer(ds)
+	validator, err := genutil.NewProtoValidator()
+	require.NoError(t, err)
+
+	listener := bufconn.Listen(humanize.MiByte)
+	srv := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			datalayer.UnaryServerInterceptor(dl),
+			consistency.UnaryServerInterceptor("migrationtest", consistency.TreatMismatchingTokensAsError),
+		),
+		grpc.ChainStreamInterceptor(
+			datalayer.StreamServerInterceptor(dl),
+			consistency.StreamServerInterceptor("migrationtest", consistency.TreatMismatchingTokensAsError),
+		),
+	)
+	v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(v1svc.SchemaServerConfig{
+		CaveatTypeSet:       caveattypes.Default.TypeSet,
+		ExpiringRelsEnabled: true,
+	}, validator))
+
+	go func() {
+		if err := srv.Serve(listener); err != nil {
+			log.Err(err).Msg("migration test schema service stopped serving")
+		}
+	}()
+
+	conn, err := grpchelpers.NewBufferedClient(listener)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		require.NoError(t, conn.Close())
+		srv.Stop()
+		require.NoError(t, listener.Close())
 		require.NoError(t, ds.Close())
 	})
 	return v1.NewSchemaServiceClient(conn)
