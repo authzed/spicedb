@@ -14,6 +14,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -42,10 +44,11 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			postSetupRevision := setupDatastore(t, ds)
 			require.True(postSetupRevision.GreaterThan(veryFirstRevision), "post-setup revision should be greater than the first revision")
 
-			// Create some revisions
+			// Create some revisions (a brand new relationship each time to force a new revision)
 			var writtenAt datastore.Revision
-			tpl := makeTestRel("first", "owner")
-			for range 10 {
+
+			for i := range 10 {
+				tpl := makeTestRel(fmt.Sprint(i), "owner")
 				writtenAt, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl)
 				require.NoError(err)
 			}
@@ -68,6 +71,95 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			}
 		})
 	}
+}
+
+// SnapshotReadStabilityTest asserts that the revision returned by
+// OptimizedRevision behaves like a snapshot: reads at it are repeatable, and
+// they never observe a write committed after it.
+//
+// An optimized revision is allowed to be *stale* — that is its entire purpose —
+// but it is not allowed to be *unstable*. Callers resolve a revision once and
+// then read at it many times: the dispatcher fans subrequests out at a single
+// revision, the schema and relationship caches key on one, and a streaming API
+// call serves its whole response from one. If two reads at the same revision
+// disagree, every consistency guarantee layered on top of that revision is
+// void, and the failure surfaces far from the datastore as a phantom read.
+//
+// The test deliberately arranges for the quantization boundary to precede the
+// datastore's own creation: it sleeps until just after a boundary before
+// calling New, leaving a full quantization window in which every write it makes
+// lands after that boundary. A datastore that implements historical reads with
+// real MVCC visibility returns a stable (possibly empty) view. A datastore that
+// approximates them by snapping to the nearest snapshot it happens to know
+// about can instead hand back a live, moving view.
+//
+// This test is not gated on a category: staleness is configurable, but snapshot
+// stability is part of the Datastore contract, so every engine must satisfy it.
+func SnapshotReadStabilityTest(t *testing.T, tester DatastoreTester) {
+	// Large enough that the whole test body fits inside one window on any
+	// engine, small enough that the resulting read timestamp stays well within
+	// the historical-read retention limits of hosted backends (Spanner allows
+	// one hour).
+	const quantization = 1 * time.Second
+
+	// Align to just after a boundary *before* the datastore exists, so the
+	// boundary OptimizedRevision rounds back to is older than anything this
+	// test writes.
+	now := time.Now()
+	time.Sleep(now.Truncate(quantization).Add(quantization).Sub(now))
+
+	ds, err := tester.New(t, DefaultRevisionParameters().WithQuantization(quantization), 1)
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	setupDatastore(t, ds)
+
+	const docA = "stability-doc-a"
+	const docB = "stability-doc-b"
+
+	// docsAt reports which of the two documents are visible at the given revision.
+	docsAt := func(rev datastore.Revision) map[string]bool {
+		reader := ds.SnapshotReader(rev)
+		it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			OptionalResourceType: testResourceNamespace,
+			OptionalResourceIds:  []string{docA, docB},
+		}, options.WithQueryShape(queryshape.Varying))
+		require.NoError(t, err)
+		rels, err := datastore.IteratorToSlice(it)
+		require.NoError(t, err)
+
+		seen := map[string]bool{}
+		for _, rel := range rels {
+			seen[rel.Resource.ObjectID] = true
+		}
+		return seen
+	}
+
+	revA, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, makeTestRel(docA, "tom"))
+	require.NoError(t, err)
+
+	// Resolve the revision once, the way a request would.
+	opt, err := ds.OptimizedRevision(ctx)
+	require.NoError(t, err)
+
+	// Whether docA is visible here is not asserted: the optimized revision may
+	// legitimately predate it. Only stability is contractual.
+	before := docsAt(opt.Revision)
+
+	revB, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, makeTestRel(docB, "tom"))
+	require.NoError(t, err)
+
+	after := docsAt(opt.Revision)
+
+	require.Equal(t, before, after,
+		"two reads at the same revision %v returned different data (%v, then %v after an unrelated write at %v)",
+		opt.Revision, before, after, revB)
+	require.False(t, after[docB],
+		"%s was committed at revision %v, which is after the read revision %v, but is visible there",
+		docB, revB, opt.Revision)
+	require.False(t, opt.Revision.GreaterThan(revA) && !before[docA],
+		"revision %v is at or after %v where %s was written, but %s is not visible there",
+		opt.Revision, revA, docA, docA)
 }
 
 // RevisionSerializationTest tests whether the revisions generated by this datastore can
@@ -231,6 +323,81 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(ds.CheckRevision(ctx, newerRev), "expected newer head revision to be within GC Window")
 	require.Error(ds.CheckRevision(ctx, previousRev), "expected revision head-1 to be outside GC Window")
+}
+
+// QuantizedRevisionStaysReadableTest asserts that
+// OptimizedRevision never hands out a revision that CheckRevision would reject,
+// i.e. quantization must stay smaller than the GC retention window.
+// TODO: rewrite using synctest
+func QuantizedRevisionStaysReadableTest(t *testing.T, tester DatastoreTester) {
+	const (
+		quantization = 1 * time.Second
+		gcWindow     = 2 * time.Second
+
+		// How far the sleeps below stay clear of a bucket boundary, instead of
+		// landing right on it. This test picks its timings from its own clock,
+		// but Postgres, MySQL and CRDB derive buckets from the database's clock:
+		// a write this test believes is just inside a new bucket can land just
+		// before it in the datastore, which would put it in the previous bucket
+		// and test nothing. This margin absorbs any skew smaller than itself.
+		clockSkewBuffer = 100 * time.Millisecond
+	)
+
+	require := require.New(t)
+
+	ds, err := tester.New(t, DefaultRevisionParameters().
+		WithQuantization(quantization).
+		WithGCRetentionWindow(GCRetentionWindow(gcWindow)), 1)
+	require.NoError(err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+
+	setupDatastore(t, ds)
+
+	// Land just inside a fresh bucket and write there, so that what gets
+	// advertised for the rest of the bucket dates from the top of it. Postgres
+	// and MySQL advertise the first transaction in the bucket, which is this
+	// write; memdb, CRDB and Spanner advertise the bucket start itself.
+	time.Sleep(time.Until(nextQuantizationBoundary(time.Now(), quantization)) + clockSkewBuffer)
+
+	rel := makeTestRel("photo", "owner")
+	writtenAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rel)
+	require.NoError(err)
+	require.NoError(ds.CheckRevision(ctx, writtenAt))
+
+	// Sleep to the far end of the bucket, where the advertised revision is at
+	// its oldest and closest to aging out.
+	time.Sleep(time.Until(nextQuantizationBoundary(time.Now(), quantization)) - clockSkewBuffer)
+
+	// Sample a few times: every request in this bucket gets the same revision,
+	// so an aged-out one fails for all of them, not just one.
+	for range 5 {
+		optimized, err := ds.OptimizedRevision(ctx)
+		require.NoError(err)
+		require.NoError(ds.CheckRevision(ctx, optimized.Revision),
+			"revision advertised at the end of the quantization window must still be within the GC window")
+	}
+
+	// Now age the write out of the retention window. The second write gives the
+	// datastores that read the oldest valid revision off the transaction log a
+	// newer transaction to compare against.
+	time.Sleep(gcWindow)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel)
+	require.NoError(err)
+
+	// This stale error is what every request would get, for the tail of every
+	// bucket, if quantization outgrew the retention window.
+	revisionErr := datastore.InvalidRevisionError{}
+	require.ErrorAs(ds.CheckRevision(ctx, writtenAt), &revisionErr)
+	require.Equal(datastore.RevisionStale, revisionErr.Reason())
+}
+
+// nextQuantizationBoundary returns the start of the bucket after the one
+// containing now.
+func nextQuantizationBoundary(now time.Time, quantization time.Duration) time.Time {
+	return now.Truncate(quantization).Add(quantization)
 }
 
 func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
