@@ -50,7 +50,7 @@ func writeSchema(ctx context.Context, t *testing.T, ds datastore.Datastore,
 func StoredSchemaNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -68,7 +68,7 @@ func StoredSchemaNotFoundTest(t *testing.T, tester DatastoreTester) {
 func StoredSchemaWriteReadTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -133,7 +133,7 @@ definition document {
 func StoredSchemaRevisionTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -204,7 +204,7 @@ func StoredSchemaRevisionTest(t *testing.T, tester DatastoreTester) {
 func StoredSchemaUpdateTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -262,7 +262,7 @@ func StoredSchemaUpdateTest(t *testing.T, tester DatastoreTester) {
 func StoredSchemaMultipleRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -312,7 +312,7 @@ func StoredSchemaMultipleRevisionsTest(t *testing.T, tester DatastoreTester) {
 func StoredSchemaReadWithinTransactionTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -347,7 +347,7 @@ func StoredSchemaReadWithinTransactionTest(t *testing.T, tester DatastoreTester)
 func StoredSchemaStableTextTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -445,7 +445,7 @@ definition middle {
 // it first reads the schema written by the previous phase to verify continuity, then
 // writes an updated schema and verifies the change is reflected.
 func StoredSchemaPhaseMigrationTest(t *testing.T, tester DatastoreTester) {
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -634,7 +634,7 @@ definition document {
 func StoredSchemaLargeTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -674,7 +674,7 @@ func StoredSchemaLargeTest(t *testing.T, tester DatastoreTester) {
 func HeadRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -737,7 +737,7 @@ func HeadRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx := t.Context()
@@ -818,7 +818,7 @@ definition document {
 
 	for _, tc := range modes {
 		t.Run(tc.name, func(t *testing.T) {
-			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(t, err)
 
 			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(tc.mode))
@@ -875,7 +875,7 @@ func StoredSchemaReadInWriteTxMemoizedTest(t *testing.T, tester DatastoreTester)
 
 	for _, tc := range modes {
 		t.Run(tc.name, func(t *testing.T) {
-			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(t, err)
 
 			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(tc.mode))
@@ -920,7 +920,7 @@ func StoredSchemaAssertHashPreconditionTest(t *testing.T, tester DatastoreTester
 	require := require.New(t)
 	ctx := t.Context()
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	defs := []compiler.SchemaDefinition{ns.Namespace("user")}
@@ -965,7 +965,7 @@ func StoredSchemaConcurrentSchemaWinsTest(t *testing.T, tester DatastoreTester) 
 	req := require.New(t)
 	ctx := t.Context()
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	req.NoError(err)
 
 	// Write initial schema (schema V1 = "user").
@@ -1043,7 +1043,7 @@ func StoredSchemaWriteSucceedsUnderRelWriteTrafficTest(t *testing.T, tester Data
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	req.NoError(err)
 
 	// Write initial schema V1: a namespace with a relation so traffic goroutines can write rels.

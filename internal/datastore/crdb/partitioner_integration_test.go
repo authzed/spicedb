@@ -28,7 +28,7 @@ func TestPartitionedExportEndToEnd(t *testing.T) {
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connectStr = uri
 		ds, err := NewCRDBDatastore(ctx, uri,
-			GCWindow(veryLargeGCWindow),
+			GCWindow(retainAllRevisions),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
 		)
@@ -96,7 +96,7 @@ func TestStreamPartitionedExportBoundCombinations(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			connectStr = uri
 			ds, err := NewCRDBDatastore(ctx, uri,
-				GCWindow(veryLargeGCWindow),
+				GCWindow(retainAllRevisions),
 				RevisionQuantization(0),
 				WithAcquireTimeout(30*time.Second),
 			)
@@ -215,7 +215,7 @@ func TestCRDBSpecialCharEncodingInRangeKeys(t *testing.T) {
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connectStr = uri
 		ds, err := NewCRDBDatastore(ctx, uri,
-			GCWindow(veryLargeGCWindow),
+			GCWindow(retainAllRevisions),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
 		)
@@ -355,7 +355,7 @@ func TestCRDBExhaustiveEscapeScan(t *testing.T) {
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connStr = uri
 		ds, err := NewCRDBDatastore(ctx, uri,
-			GCWindow(veryLargeGCWindow),
+			GCWindow(retainAllRevisions),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
 		)
@@ -448,7 +448,7 @@ func TestExplainPartitionedQuery(t *testing.T) {
 
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(ctx, uri,
-				GCWindow(veryLargeGCWindow),
+				GCWindow(retainAllRevisions),
 				RevisionQuantization(0),
 				WithAcquireTimeout(30*time.Second),
 			)

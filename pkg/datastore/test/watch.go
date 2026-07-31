@@ -60,7 +60,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 		t.Run(fmt.Sprintf("%d-%v", tc.numTuples, tc.expectFallBehind), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+			ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 			require.NoError(err)
 
 			setupDatastore(t, ds)
@@ -240,7 +240,7 @@ func setOfChanges(changes []tuple.RelationshipUpdate) *mapz.Set[string] {
 func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	startWatchRevision := setupDatastore(t, ds)
@@ -286,7 +286,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -392,7 +392,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -438,7 +438,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -478,7 +478,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -571,7 +571,7 @@ func verifyNoUpdates(
 func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -664,7 +664,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -797,7 +797,7 @@ func verifyMixedUpdates(
 func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -833,7 +833,7 @@ func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester Datastor
 func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(err)
 
 	setupDatastore(t, ds)
@@ -926,7 +926,7 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 // revision X on the watch stream — even when the write produced no actual
 // changes (e.g., a TOUCH that exactly matches an existing relationship).
 func WatchObservesEveryReturnedRevisionTest(t *testing.T, tester DatastoreTester) {
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(t, err)
 
 	setupDatastore(t, ds)
@@ -979,7 +979,7 @@ func verifyWatchReachesRevision(
 // WatchEmitsCheckpointAfterWriteWithChangesTest verifies that when a consumer asks for checkpoints,
 // every revision returned by WriteRelationships must eventually be observable as a checkpoint.
 func WatchEmitsCheckpointAfterWriteWithChangesTest(t *testing.T, tester DatastoreTester) {
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(t, err)
 
 	setupDatastore(t, ds)

@@ -36,13 +36,6 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-// veryLargeGCWindow is a very large time duration which, when passed to a datastore
-// constructor, effectively disables garbage collection.
-const (
-	veryLargeGCWindow   = 90000 * time.Second
-	veryLargeGCInterval = 90000 * time.Second
-)
-
 // AllConsistency runs the full system-wide consistency suite against the datastore
 // produced by the given tester. It is the consistency analog of test.All and lets any
 // DatastoreTester be exercised by the consistency suite.
@@ -72,7 +65,7 @@ func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.Datastore
 	var newDatastore func(t *testing.T) datastore.Datastore
 	if tester != nil {
 		newDatastore = func(t *testing.T) datastore.Datastore {
-			ds, err := tester.New(t, 10, veryLargeGCInterval, veryLargeGCWindow, 0)
+			ds, err := tester.New(t, dstest.DefaultRevisionParameters().WithQuantization(10), 0)
 			require.NoError(t, err)
 			return ds
 		}

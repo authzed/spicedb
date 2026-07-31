@@ -40,7 +40,7 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(err)
 
 			ctx, cancel := context.WithTimeout(t.Context(), 1500*time.Millisecond)

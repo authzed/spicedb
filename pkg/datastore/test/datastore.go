@@ -16,24 +16,100 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// veryLargeGCWindow is a very large time duration, which when passed to a constructor should
-// effectively disable garbage collection.
+// GCRunInterval is how often the background GC worker wakes up to delete data
+// that has aged out of the retention window.
+//
+// It affects disk usage only: it never changes which revisions are readable.
+// A datastore whose worker never ticks still rejects revisions older than its
+// GCRetentionWindow, because validity is computed from the window and the
+// current clock rather than from what has physically been deleted.
+//
+// It is a defined type rather than a plain time.Duration so that it cannot be
+// passed where a GCRetentionWindow is expected.
+type GCRunInterval time.Duration
+
+// GCRetentionWindow is how far into the past revisions remain readable.
+//
+// Revisions older than it are rejected as stale, whether or not their data has
+// actually been deleted yet. This is the knob that governs revision validity.
+//
+// It is a defined type rather than a plain time.Duration so that it cannot be
+// passed where a GCRunInterval is expected.
+type GCRetentionWindow time.Duration
+
 const (
-	veryLargeGCWindow   = 90000 * time.Second
-	veryLargeGCInterval = 90000 * time.Second
+	// RetainAllRevisions is a retention window large enough that every revision
+	// written during a test stays readable for the whole test.
+	RetainAllRevisions GCRetentionWindow = GCRetentionWindow(90000 * time.Second)
+
+	// DisableBackgroundGC is a run interval large enough that the background GC
+	// worker never ticks during a test. It does not extend revision validity;
+	// it only prevents aged-out data from being deleted at an arbitrary moment.
+	// Tests that need collection to happen call datastore.RunGarbageCollection
+	// directly, at a deterministic point.
+	DisableBackgroundGC GCRunInterval = GCRunInterval(90000 * time.Second)
 )
+
+// RevisionParameters configures the revision-related behavior of a datastore
+// under test. Build one with DefaultRevisionParameters and override only what
+// the test actually exercises.
+type RevisionParameters struct {
+	// Quantization is the boundary interval to which revisions are rounded.
+	// Zero disables quantization.
+	Quantization time.Duration
+
+	// GCRunInterval is how often the background GC worker runs.
+	GCRunInterval GCRunInterval
+
+	// GCRetentionWindow is how far into the past revisions remain readable.
+	GCRetentionWindow GCRetentionWindow
+}
+
+// DefaultRevisionParameters returns the parameters appropriate for a test that
+// is not itself about revisions or garbage collection: quantization off, the
+// background GC worker disabled, and every revision retained.
+//
+// This keeps unrelated tests insulated from both sources of nondeterminism — a
+// GC pass firing mid-test, and a revision going stale underneath an assertion.
+func DefaultRevisionParameters() RevisionParameters {
+	return RevisionParameters{
+		Quantization:      0,
+		GCRunInterval:     DisableBackgroundGC,
+		GCRetentionWindow: RetainAllRevisions,
+	}
+}
+
+// WithQuantization returns a copy with the revision quantization set.
+func (rp RevisionParameters) WithQuantization(quantization time.Duration) RevisionParameters {
+	rp.Quantization = quantization
+	return rp
+}
+
+// WithGCRunInterval returns a copy with the background GC run interval set.
+// Use this only when the test asserts that the worker actually ran.
+func (rp RevisionParameters) WithGCRunInterval(interval GCRunInterval) RevisionParameters {
+	rp.GCRunInterval = interval
+	return rp
+}
+
+// WithGCRetentionWindow returns a copy with the retention window set.
+// Use this when the test needs revisions to go stale within its lifetime.
+func (rp RevisionParameters) WithGCRetentionWindow(window GCRetentionWindow) RevisionParameters {
+	rp.GCRetentionWindow = window
+	return rp
+}
 
 // DatastoreTester provides a generic datastore suite a means of initializing
 // a particular datastore.
 type DatastoreTester interface {
 	// New creates a new datastore instance for a single test.
-	New(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+	New(tb testing.TB, revisionParameters RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
-type DatastoreTesterFunc func(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+type DatastoreTesterFunc func(tb testing.TB, revisionParameters RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error)
 
-func (f DatastoreTesterFunc) New(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return f(tb, revisionQuantization, gcInterval, gcWindow, watchBufferLength)
+func (f DatastoreTesterFunc) New(tb testing.TB, revisionParameters RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+	return f(tb, revisionParameters, watchBufferLength)
 }
 
 // TesterFactory creates DatastoreTesters with a known retryable error for use in RetryTest.

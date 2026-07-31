@@ -16,7 +16,7 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 	ctx := t.Context()
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ = testfixtures.StandardDatastoreWithData(t, ds)

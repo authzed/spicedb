@@ -18,7 +18,7 @@ import (
 )
 
 func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(t, err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -69,7 +69,7 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 }
 
 func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(t, err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -112,7 +112,7 @@ func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTe
 }
 
 func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -215,7 +215,7 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 }
 
 func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(t, err)
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
@@ -257,7 +257,7 @@ func RelationshipCountersWithOddFilterTest(t *testing.T, tester DatastoreTester)
 }
 
 func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -342,7 +342,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 // case-insensitive (e.g. MySQL's utf8mb4_0900_ai_ci), which would otherwise collide
 // "casecounter" with "CaseCounter".
 func CounterCaseSensitivityTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(t, err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
