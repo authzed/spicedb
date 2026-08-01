@@ -35,7 +35,7 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate docs"
         run: "go run mage.go gen:docs"
-      - uses: "chainguard-dev/actions/nodiff@f0be69916b439d0fcced2451b23d0f27cd46d545" # main
+      - uses: "chainguard-dev/actions/nodiff@b2555de0cf9724fb9b49d050ff18bd1f49562ba7" # main
         with:
           path: ""
           fixup-command: "mage gen:docs"
@@ -47,7 +47,7 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
       - name: "Lint Everything"
         run: "go run mage.go lint:all"
-      - uses: "chainguard-dev/actions/nodiff@f0be69916b439d0fcced2451b23d0f27cd46d545" # main
+      - uses: "chainguard-dev/actions/nodiff@b2555de0cf9724fb9b49d050ff18bd1f49562ba7" # main
         with:
           path: ""
           fixup-command: "go run mage.go lint:all"
