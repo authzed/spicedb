@@ -326,10 +326,6 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 			return ps.rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", err))
 		}
 
-		if limit > 0 && returnedCount >= limit {
-			break
-		}
-
 		dispatchCursor.Sections[0] = tuple.StringWithoutCaveatOrExpiration(rel)
 		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision, schemaHash, nil)
 		if err != nil {
@@ -344,6 +340,12 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 			return ps.rewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
 		}
 		returnedCount++
+
+		// Check and break on returnedCount before restarting the loop
+		// so that we don't overfetch from the iterator
+		if limit > 0 && returnedCount >= limit {
+			break
+		}
 	}
 	return nil
 }

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- Prevent ReadRelationships from doing work that's immediately discarded when the `optional_limit` parameter is used (https://github.com/authzed/spicedb/pull/3253)
+
+## [1.56.0] - 2026-07-24
 ### Added
 - New metric `check_permissionship_total` for CheckPermission and CheckBulkPermissions that counts the number of requests that returned HAS_PERMISSION. Also, `write_relationships_updates` also includes BulkImport calls (https://github.com/authzed/spicedb/pull/3240)
 
@@ -3667,7 +3671,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.54.0...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.56.0...HEAD
+[1.56.0]: https://github.com/authzed/spicedb/compare/v1.54.0...v1.56.0
 [1.54.0]: https://github.com/authzed/spicedb/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/authzed/spicedb/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/authzed/spicedb/compare/v1.51.1...v1.52.0
