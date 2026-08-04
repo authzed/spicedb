@@ -177,8 +177,6 @@ func TestCacheWithMetrics(t *testing.T) {
 			assert.False(t, found, "expected key %s to be found", "a key")
 
 			cache.Close()
-
-			synctest.Wait()
 		})
 	})
 }
