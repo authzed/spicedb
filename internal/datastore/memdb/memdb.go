@@ -90,10 +90,11 @@ type memdbDatastore struct {
 	revisions.CommonDecoder
 
 	// NOTE: call checkNotClosed before using
-	db             *memdb.MemDB // GUARDED_BY(RWMutex)
-	revisions      []snapshot   // GUARDED_BY(RWMutex)
-	activeWriteTxn *memdb.Txn   // GUARDED_BY(RWMutex)
-	writeTxReady   *sync.Cond   // broadcast when activeWriteTxn becomes nil
+	db *memdb.MemDB // GUARDED_BY(RWMutex)
+	// revisions MUST be sorted in strictly increasing revision order.
+	revisions      []snapshot // GUARDED_BY(RWMutex)
+	activeWriteTxn *memdb.Txn // GUARDED_BY(RWMutex)
+	writeTxReady   *sync.Cond // broadcast when activeWriteTxn becomes nil
 
 	negativeGCWindow        int64
 	quantizationPeriod      int64
@@ -116,6 +117,9 @@ func (mdb *memdbDatastore) UniqueID(_ context.Context) (string, error) {
 	return mdb.uniqueID, nil
 }
 
+// SnapshotReader returns a reader for the snapshot visible at the given
+// revision: the first entry in mdb.revisions at or after it, located by
+// binary search.
 func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
@@ -188,6 +192,8 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 	for i := 0; i < txNumAttempts; i++ {
 		var tx *memdb.Txn
+		var newRevision revisions.TimestampRevision
+		rwt := &memdbReadWriteTx{}
 		createTxOnce := sync.Once{}
 		txSrc := func() (*memdb.Txn, error) {
 			var err error
@@ -208,13 +214,16 @@ func (mdb *memdbDatastore) ReadWriteTx(
 				tx = mdb.db.Txn(true)
 				tx.TrackChanges()
 				mdb.activeWriteTxn = tx
+
+				// Assign the transaction's revision now, while holding the exclusive write transaction.
+				// Writers are serialized from this point until the revision is appended at commit.
+				newRevision = mdb.newRevisionIDNoLock()
+				rwt.newRevision = newRevision
 			})
 
 			return tx, err
 		}
-
-		newRevision := mdb.newRevisionID()
-		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now()}, newRevision}
+		rwt.memdbReader = memdbReader{&sync.Mutex{}, txSrc, nil, time.Now()}
 		if config.SchemaHashPrecondition != "" {
 			if err := assertSchemaHash(ctx, rwt, config.SchemaHashPrecondition); err != nil {
 				mdb.Lock()
@@ -247,123 +256,130 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		mdb.Lock()
-		defer mdb.Unlock()
+		defer mdb.Unlock() // TODO is this defer correct? it runs at the end of the function, not at the end of the for loop's iteration
+
+		// The user function never used the transaction: nothing was written,
+		// so no new revision is created and the head revision is returned.
+		if tx == nil {
+			if err := mdb.checkNotClosed(); err != nil {
+				return datastore.NoRevision, err
+			}
+			return mdb.headRevisionNoLock(), nil
+		}
 
 		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
-		if tx != nil {
-			if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
-				if err := tracked.AddRevisionMetadata(ctx, newRevision, config.Metadata.AsMap()); err != nil {
-					return datastore.NoRevision, err
-				}
+		if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
+			if err := tracked.AddRevisionMetadata(ctx, newRevision, config.Metadata.AsMap()); err != nil {
+				return datastore.NoRevision, err
 			}
-
-			for _, change := range tx.Changes() {
-				switch change.Table {
-				case tableRelationship:
-					switch {
-					case change.After != nil:
-						rt, err := change.After.(*relationship).Relationship()
-						if err != nil {
-							return datastore.NoRevision, err
-						}
-
-						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationTouch); err != nil {
-							return datastore.NoRevision, err
-						}
-					case change.After == nil && change.Before != nil:
-						rt, err := change.Before.(*relationship).Relationship()
-						if err != nil {
-							return datastore.NoRevision, err
-						}
-
-						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationDelete); err != nil {
-							return datastore.NoRevision, err
-						}
-					default:
-						return datastore.NoRevision, spiceerrors.MustBugf("unexpected relationship change")
-					}
-				case tableNamespace:
-					switch {
-					case change.After != nil:
-						loaded := &corev1.NamespaceDefinition{}
-						if err := loaded.UnmarshalVT(change.After.(*namespace).configBytes); err != nil {
-							return datastore.NoRevision, err
-						}
-
-						err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
-						if err != nil {
-							return datastore.NoRevision, err
-						}
-					case change.After == nil && change.Before != nil:
-						err := tracked.AddDeletedNamespace(ctx, newRevision, change.Before.(*namespace).name)
-						if err != nil {
-							return datastore.NoRevision, err
-						}
-					default:
-						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
-					}
-				case tableCaveats:
-					switch {
-					case change.After != nil:
-						loaded := &corev1.CaveatDefinition{}
-						if err := loaded.UnmarshalVT(change.After.(*caveat).definition); err != nil {
-							return datastore.NoRevision, err
-						}
-
-						err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
-						if err != nil {
-							return datastore.NoRevision, err
-						}
-					case change.After == nil && change.Before != nil:
-						err := tracked.AddDeletedCaveat(ctx, newRevision, change.Before.(*caveat).name)
-						if err != nil {
-							return datastore.NoRevision, err
-						}
-					default:
-						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
-					}
-				}
-			}
-
-			changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
-			wroteChangelog := false
-			for rc, err := range changes {
-				if err != nil {
-					return datastore.NoRevision, err
-				}
-
-				if wroteChangelog {
-					return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
-				}
-
-				change := &changelog{
-					revisionNanos: newRevision.TimestampNanoSec(),
-					changes:       rc,
-				}
-				if err := tx.Insert(tableChangelog, change); err != nil {
-					return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
-				}
-
-				wroteChangelog = true
-			}
-
-			// Always emit a changelog entry for the committed revision, even
-			// when the transaction produced no observable changes (e.g., a
-			// TOUCH that matched the existing relationship). The changes
-			// payload is intentionally empty — the watch goroutine constructs the
-			// checkpoint event itself based on each consumer's options.
-			if !wroteChangelog {
-				change := &changelog{
-					revisionNanos: newRevision.TimestampNanoSec(),
-					changes:       datastore.RevisionChanges{},
-				}
-				if err := tx.Insert(tableChangelog, change); err != nil {
-					return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
-				}
-			}
-
-			tx.Commit()
 		}
+
+		for _, change := range tx.Changes() {
+			switch change.Table {
+			case tableRelationship:
+				switch {
+				case change.After != nil:
+					rt, err := change.After.(*relationship).Relationship()
+					if err != nil {
+						return datastore.NoRevision, err
+					}
+
+					if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationTouch); err != nil {
+						return datastore.NoRevision, err
+					}
+				case change.After == nil && change.Before != nil:
+					rt, err := change.Before.(*relationship).Relationship()
+					if err != nil {
+						return datastore.NoRevision, err
+					}
+
+					if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationDelete); err != nil {
+						return datastore.NoRevision, err
+					}
+				default:
+					return datastore.NoRevision, spiceerrors.MustBugf("unexpected relationship change")
+				}
+			case tableNamespace:
+				switch {
+				case change.After != nil:
+					loaded := &corev1.NamespaceDefinition{}
+					if err := loaded.UnmarshalVT(change.After.(*namespace).configBytes); err != nil {
+						return datastore.NoRevision, err
+					}
+
+					err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
+					if err != nil {
+						return datastore.NoRevision, err
+					}
+				case change.After == nil && change.Before != nil:
+					err := tracked.AddDeletedNamespace(ctx, newRevision, change.Before.(*namespace).name)
+					if err != nil {
+						return datastore.NoRevision, err
+					}
+				default:
+					return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
+				}
+			case tableCaveats:
+				switch {
+				case change.After != nil:
+					loaded := &corev1.CaveatDefinition{}
+					if err := loaded.UnmarshalVT(change.After.(*caveat).definition); err != nil {
+						return datastore.NoRevision, err
+					}
+
+					err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
+					if err != nil {
+						return datastore.NoRevision, err
+					}
+				case change.After == nil && change.Before != nil:
+					err := tracked.AddDeletedCaveat(ctx, newRevision, change.Before.(*caveat).name)
+					if err != nil {
+						return datastore.NoRevision, err
+					}
+				default:
+					return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
+				}
+			}
+		}
+
+		changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+		wroteChangelog := false
+		for rc, err := range changes {
+			if err != nil {
+				return datastore.NoRevision, err
+			}
+
+			if wroteChangelog {
+				return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
+			}
+
+			change := &changelog{
+				revisionNanos: newRevision.TimestampNanoSec(),
+				changes:       rc,
+			}
+			if err := tx.Insert(tableChangelog, change); err != nil {
+				return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
+			}
+
+			wroteChangelog = true
+		}
+
+		// Always emit a changelog entry for the committed revision, even
+		// when the transaction produced no observable changes (e.g., a
+		// TOUCH that matched the existing relationship). The changes
+		// payload is intentionally empty — the watch goroutine constructs the
+		// checkpoint event itself based on each consumer's options.
+		if !wroteChangelog {
+			change := &changelog{
+				revisionNanos: newRevision.TimestampNanoSec(),
+				changes:       datastore.RevisionChanges{},
+			}
+			if err := tx.Insert(tableChangelog, change); err != nil {
+				return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
+			}
+		}
+
+		tx.Commit()
 		mdb.activeWriteTxn = nil
 		mdb.writeTxReady.Signal()
 

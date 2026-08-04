@@ -172,6 +172,10 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 		t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
 		t.Run("TestConcurrentWriteDeadlock", runner(tester, ConcurrentWriteDeadlockTest))
 	}
+	// Not gated on the ConcurrentWrite category: the overlapping transactions
+	// never contend for the write lock, so even datastores with a global write
+	// lock (e.g. memdb) must pass it. See the test's doc comment.
+	t.Run("TestConcurrentWriteRevisionVisibility", runner(tester, ConcurrentWriteRevisionVisibilityTest))
 
 	t.Run("TestOrdering", runner(tester, OrderingTest))
 	t.Run("TestLimit", runner(tester, LimitTest))

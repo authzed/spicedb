@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Fixed
 - Prevent ReadRelationships from doing work that's immediately discarded when the `optional_limit` parameter is used (https://github.com/authzed/spicedb/pull/3253)
+- MemDB: overlapping write transactions could violate every snapshot-consistency invariant of the datastore — a committed write could be invisible at its own returned revision (breaking read-your-writes, e.g. an at-exact-snapshot `Check` right after `WriteRelationships`), a later commit could leak into reads at an earlier revision, a write visible at one revision could be missing at a later one (including head), and two concurrent transactions could be assigned the same revision. Revisions are now assigned at write-transaction acquisition, where writer serialization makes the two orders identical. (https://github.com/authzed/spicedb/pull/3239)
 
 ## [1.56.0] - 2026-07-24
 ### Added
