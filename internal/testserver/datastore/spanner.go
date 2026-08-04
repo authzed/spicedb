@@ -23,8 +23,12 @@ import (
 )
 
 type spannerTest struct {
+	pausableContainer
+
 	instancesClient *instances.InstanceAdminClient
 }
+
+var _ PausableEngineForTest = (*spannerTest)(nil)
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
 func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
@@ -52,7 +56,7 @@ func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomiz
 	// before any admin client is created below.
 	t.Setenv("SPANNER_EMULATOR_HOST", net.JoinHostPort(host, mappedPort.Port()))
 
-	builder := &spannerTest{}
+	builder := &spannerTest{pausableContainer: pausableContainer{container: container}}
 
 	// Wait until the emulator's admin API is responsive by creating an initial instance.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {

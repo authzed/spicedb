@@ -33,9 +33,15 @@ const (
 )
 
 type postgresTester struct {
+	// pausableContainer freezes the postgres container itself, even when
+	// clients reach it through pgbouncer.
+	pausableContainer
+
 	pgbouncerProxy *postgres.PostgresContainer
 	pgContainer    *postgres.PostgresContainer
 }
+
+var _ PausableEngineForTest = (*postgresTester)(nil)
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
 func RunPostgresForTesting(t testing.TB, pgVersion string, enablePgbouncer bool, opts ...testcontainers.ContainerCustomizer) RunningEngineForTest {
@@ -190,6 +196,7 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pgVersion string, 
 	require.NoError(t, err)
 	testcontainers.CleanupContainer(t, pgContainer)
 	b.pgContainer = pgContainer
+	b.container = pgContainer
 
 	// set up the bouncer container
 	// NOTE: this is a bit of a bodge; a pgbouncer container is not the same as a postgres container,
@@ -282,5 +289,6 @@ func (b *postgresTester) runPostgresForTesting(t testing.TB, pgVersion string, w
 	)
 	testcontainers.CleanupContainer(t, container)
 	b.pgContainer = container
+	b.container = container
 	require.NoError(t, err)
 }

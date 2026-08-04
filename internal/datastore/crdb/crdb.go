@@ -90,17 +90,17 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
-	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer initCancel()
-
 	healthChecker, err := pool.NewNodeHealthChecker(url)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
 	// The initPool is a 1-connection pool that is only used for setup tasks.
-	// The actual pools are not given the initCtx, since cancellation can
-	// interfere with pool setup.
+	// If the database is completely unreachable (e.g. wrong credentials),
+	// this will block for 15 seconds and then error out.
+	// TODO(miparnisari): remove this initCtx once spicedb has a k8s startup probe. It will become unnecessary.
+	initCtx, initCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer initCancel()
 	initPoolConfig := readPoolConfig.Copy()
 	initPoolConfig.MinConns = 1
 	initPool, err := pool.NewRetryPool(initCtx, "init", initPoolConfig, healthChecker, config.maxRetries, config.connectRate)
@@ -208,7 +208,8 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	ds.SetNowFunc(ds.headRevisionInternal)
 	ds.SetNowOnlyFunc(ds.headRevisionInternalNoHash)
 
-	// this ctx and cancel is tied to the lifetime of the datastore
+	// The actual pools are not given the initCtx.
+	// This ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
 	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
@@ -426,7 +427,7 @@ func wrapError(err error) error {
 // to be ready to receive traffic, and total connections counts connections in the constructing
 // state, which cannot receive traffic.
 func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
-	currentRevision, err := migrations.NewCRDBDriver(cds.dburl)
+	currentRevision, err := migrations.NewCRDBDriver(ctx, cds.dburl)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}

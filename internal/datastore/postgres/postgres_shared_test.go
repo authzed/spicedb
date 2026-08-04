@@ -110,7 +110,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 		b := testdatastore.RunPostgresForTesting(t, config.pgVersion, config.pgbouncer)
 		ctx := t.Context()
 
-		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.AllWithExceptions(t, pgFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionParameters.Quantization),
@@ -125,7 +125,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 			})
 			return ds, nil
-		})), test.WithCategories(test.GCCategory))
+		}), b)), test.WithCategories(test.GCCategory))
 
 		t.Run("TransactionTimestamps", createDatastoreTest(
 			b,
@@ -320,7 +320,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 
 		// NOTE: watch API requires the commit timestamps, so we skip those tests here.
 		// NOTE: gc tests take exclusive locks, so they are run under non-parallel.
-		test.AllWithExceptions(t, pgFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+		test.AllWithExceptions(t, pgFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 					RevisionQuantization(revisionParameters.Quantization),
@@ -334,7 +334,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		})), test.WithCategories(test.WatchCategory, test.GCCategory, test.MigrationCategory))
+		}), b)), test.WithCategories(test.WatchCategory, test.GCCategory, test.MigrationCategory))
 	})
 
 	t.Run(fmt.Sprintf("postgres-%s-gc", pgVersion), func(t *testing.T) {

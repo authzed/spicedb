@@ -134,6 +134,8 @@ type retryableTester struct {
 
 func (r *retryableTester) RetryableError() error { return r.retryErr }
 
+func (r *retryableTester) unwrap() DatastoreTester { return r.DatastoreTester }
+
 type Categories map[string]struct{}
 
 func (c Categories) GC() bool {
@@ -214,6 +216,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 
 	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
 	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
+	t.Run("TestReadyStateWhenPaused", runner(tester, ReadyStateWhenPausedTest))
 
 	t.Run("TestNamespaceNotFound", runner(tester, NamespaceNotFoundTest))
 	t.Run("TestNamespaceWrite", runner(tester, NamespaceWriteTest))
