@@ -45,9 +45,12 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// Plain time.Duration spellings of the shared test constants, for the option
+// constructors in this package. See test.RetainAllRevisions and
+// test.DisableBackgroundGC for what they mean.
 const (
-	veryLargeGCWindow   = 90000 * time.Second
-	veryLargeGCInterval = 90000 * time.Second
+	retainAllRevisions  = time.Duration(test.RetainAllRevisions)
+	disableBackgroundGC = time.Duration(test.DisableBackgroundGC)
 )
 
 var crdbFactory = test.NewTesterFactory(&pgconn.PgError{Code: pool.CrdbRetryErrCode})
@@ -64,14 +67,14 @@ func crdbTestVersion() string {
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
-	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
 				ctx,
 				uri,
-				GCWindow(gcWindow),
-				RevisionQuantization(revisionQuantization),
+				GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
+				RevisionQuantization(revisionParameters.Quantization),
 				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
@@ -91,7 +94,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		b,
 		StreamingWatchTest,
 		RevisionQuantization(0),
-		GCWindow(veryLargeGCWindow),
+		GCWindow(retainAllRevisions),
 		WithAcquireTimeout(5*time.Second),
 	))
 
@@ -99,7 +102,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		b,
 		TransactionMetadataMarkingTest,
 		RevisionQuantization(0),
-		GCWindow(veryLargeGCWindow),
+		GCWindow(retainAllRevisions),
 		WithAcquireTimeout(5*time.Second),
 	))
 
@@ -107,7 +110,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		b,
 		TTLChangefeedSuppressionParamTest,
 		RevisionQuantization(0),
-		GCWindow(veryLargeGCWindow),
+		GCWindow(retainAllRevisions),
 		WithAcquireTimeout(5*time.Second),
 	))
 
@@ -115,7 +118,7 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		b,
 		TTLChangefeedSuppressionWatchTest,
 		RevisionQuantization(0),
-		GCWindow(veryLargeGCWindow),
+		GCWindow(retainAllRevisions),
 		WithAcquireTimeout(5*time.Second),
 	))
 }
@@ -206,14 +209,14 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
-	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
 				ctx,
 				uri,
-				GCWindow(gcWindow),
-				RevisionQuantization(revisionQuantization),
+				GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
+				RevisionQuantization(revisionParameters.Quantization),
 				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
@@ -233,14 +236,14 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 		return ds, nil
 	})))
 
-	unwrappedTester := test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	unwrappedTester := test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
 				ctx,
 				uri,
-				GCWindow(gcWindow),
-				RevisionQuantization(revisionQuantization),
+				GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
+				RevisionQuantization(revisionParameters.Quantization),
 				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 				DebugAnalyzeBeforeStatistics(),
@@ -391,7 +394,7 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, test.DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -455,7 +458,7 @@ func (f *fakeSource) Next(ctx context.Context) (*tuple.Relationship, error) {
 func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, test.DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -505,7 +508,7 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, test.DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, rev := testfixtures.StandardDatastoreWithSchema(t, rawDS)

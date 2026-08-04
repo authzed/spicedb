@@ -20,22 +20,18 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// RevisionQuantizationTest tests whether or not the requirements for revisions hold
-// for a particular datastore.
+// RevisionQuantizationTest tests that revision quantization works correctly
 func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
-	testCases := []struct {
-		quantizationRange        time.Duration
-		expectFindLowerRevisions bool
-	}{
-		{0 * time.Second, false},
-		{100 * time.Millisecond, true},
+	quantizationRanges := []time.Duration{
+		0 * time.Second,
+		100 * time.Millisecond,
 	}
 
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("quantization%s", tc.quantizationRange), func(t *testing.T) {
+	for _, quantizationRange := range quantizationRanges {
+		t.Run(fmt.Sprintf("quantization%s", quantizationRange), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(t, tc.quantizationRange, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, DefaultRevisionParameters().WithQuantization(quantizationRange), 1)
 			require.NoError(err)
 
 			ctx := t.Context()
@@ -61,7 +57,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			nowRevision := nowRevisionResult.Revision
 
 			// Let the quantization window expire
-			time.Sleep(tc.quantizationRange)
+			time.Sleep(quantizationRange)
 
 			// Now we should ONLY get revisions later than the now revision
 			for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
@@ -79,7 +75,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
@@ -103,11 +99,16 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 // TODO: rewrite using synctest
 func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-	gcWindow := 300 * time.Millisecond
-	gcInterval := 500 * time.Millisecond
-
-	ds, err := tester.New(t, 0, gcInterval, gcWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters().
+		WithGCRunInterval(GCRunInterval(500*time.Millisecond)).
+		WithGCRetentionWindow(GCRetentionWindow(300*time.Millisecond)), 1)
 	require.NoError(err)
+
+	// NOTE: this test runs for all datastores, but only some datastores have GC logic.
+	gcable, ok := ds.(datastore.GarbageCollectableDatastore)
+	if !ok {
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
@@ -128,16 +129,11 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	gcable, ok := ds.(datastore.GarbageCollectableDatastore)
-	if !ok {
-		return
-	}
-
 	// Reset that GC was run.
 	gcable.ResetGCCompleted()
 
 	// Wait the GC interval + a bit more time.
-	time.Sleep(gcInterval + 100*time.Millisecond)
+	time.Sleep(500*time.Millisecond + 100*time.Millisecond)
 
 	// Ensure GC was run.
 	require.True(gcable.HasGCRun(), "GC was never run as expected")
@@ -150,8 +146,9 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	gcWindow := 300 * time.Millisecond
 
-	// NOTE: we disable the background GC process here and instead manually run it below.
-	ds, err := tester.New(t, 0, veryLargeGCInterval, gcWindow, 1)
+	// NOTE: we leave the background GC process disabled here and instead manually run it below.
+	ds, err := tester.New(t, DefaultRevisionParameters().
+		WithGCRetentionWindow(GCRetentionWindow(gcWindow)), 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -238,11 +235,12 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 
 func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-
-	ds, err := tester.New(t, 0, 1000*time.Second, 300*time.Minute, 1)
+	gcRunInterval := 10 * time.Second
+	ds, err := tester.New(t, DefaultRevisionParameters().
+		WithGCRunInterval(GCRunInterval(gcRunInterval)), 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), gcRunInterval)
 	defer cancel()
 
 	// Write a new revision.
@@ -278,13 +276,15 @@ func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
 }
 
+// SequentialRevisionsTest asserts that calls to HeadRevision move the revision forward
 func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-
-	ds, err := tester.New(t, 0, 10*time.Second, 300*time.Minute, 1)
+	gcRunInterval := 10 * time.Second
+	ds, err := tester.New(t, DefaultRevisionParameters().
+		WithGCRunInterval(GCRunInterval(gcRunInterval)), 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), gcRunInterval)
 	defer cancel()
 
 	var previous datastore.Revision
@@ -302,13 +302,15 @@ func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+// ConcurrentRevisionsTest asserts that concurrent calls to HeadRevision move the revision forward
 func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
-
-	ds, err := tester.New(t, 0, 10*time.Second, 300*time.Minute, 1)
+	gcRunInterval := 10 * time.Second
+	ds, err := tester.New(t, DefaultRevisionParameters().
+		WithGCRunInterval(GCRunInterval(gcRunInterval)), 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), gcRunInterval)
 	defer cancel()
 
 	var wg sync.WaitGroup

@@ -39,13 +39,13 @@ type datastoreTester struct {
 	prefix string
 }
 
-func (dst *datastoreTester) createDatastore(tb testing.TB, revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+func (dst *datastoreTester) createDatastore(tb testing.TB, revisionParameters test.RevisionParameters, _ uint16) (datastore.Datastore, error) {
 	ctx := tb.Context()
 	ds := dst.b.NewDatastore(tb, func(engine, uri string) datastore.Datastore {
 		ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID,
-			RevisionQuantization(revisionQuantization),
-			GCWindow(gcWindow),
-			GCInterval(gcInterval),
+			RevisionQuantization(revisionParameters.Quantization),
+			GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
+			GCInterval(time.Duration(revisionParameters.GCRunInterval)),
 			TablePrefix(dst.prefix),
 			DebugAnalyzeBeforeStatistics(),
 			OverrideLockWaitTimeout(1),

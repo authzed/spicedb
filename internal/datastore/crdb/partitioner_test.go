@@ -28,7 +28,7 @@ func TestPlanPartitionedExport(t *testing.T) {
 	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		connectStr = uri
 		ds, err := NewCRDBDatastore(ctx, uri,
-			GCWindow(veryLargeGCWindow),
+			GCWindow(retainAllRevisions),
 			RevisionQuantization(0),
 			WithAcquireTimeout(30*time.Second),
 		)
@@ -181,7 +181,7 @@ func TestUnwrapAsBulkExportPartitioner(t *testing.T) {
 		partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](ds)
 		require.NotNil(t, partitioner, "expected datastore to be unwrappable as BulkExportPartitioner")
 	},
-		GCWindow(veryLargeGCWindow),
+		GCWindow(retainAllRevisions),
 		RevisionQuantization(0),
 		WithAcquireTimeout(30*time.Second),
 	))
@@ -191,7 +191,7 @@ func TestUnwrapAsBulkExportPartitioner(t *testing.T) {
 		partitioner := datastore.UnwrapAs[datastore.BulkExportPartitioner](roDS)
 		require.NotNil(t, partitioner, "expected readonly-wrapped datastore to be unwrappable as BulkExportPartitioner")
 	},
-		GCWindow(veryLargeGCWindow),
+		GCWindow(retainAllRevisions),
 		RevisionQuantization(0),
 		WithAcquireTimeout(30*time.Second),
 	))
@@ -216,7 +216,7 @@ func TestPlanPartitionsOnlyUsesPrimaryIndex(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			connectStr = uri
 			ds, err := NewCRDBDatastore(ctx, uri,
-				GCWindow(veryLargeGCWindow),
+				GCWindow(retainAllRevisions),
 				RevisionQuantization(0),
 				WithAcquireTimeout(30*time.Second),
 			)
