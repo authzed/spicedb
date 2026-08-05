@@ -168,10 +168,6 @@ func listAndCache[T schemaDefinition](
 			entry := &cacheEntry{def.Definition, def.LastWrittenRevision, estimatedDefinitionSize, err}
 			r.p.c.Set(cache.StringKey(cacheRevisionKey), entry, entry.Size())
 		}
-
-		// We have to call wait here or else Ristretto may not have the key(s)
-		// available to a subsequent caller.
-		r.p.c.Wait()
 	}
 
 	return foundDefs, nil
@@ -203,9 +199,6 @@ func readAndCache[T schemaDefinition](
 			entry := &cacheEntry{loaded, updatedRev, estimatedDefinitionSize, err}
 			r.p.c.Set(cache.StringKey(cacheRevisionKey), entry, entry.Size())
 
-			// We have to call wait here or else Ristretto may not have the key
-			// available to a subsequent caller.
-			r.p.c.Wait()
 			return entry, nil
 		})
 		if err != nil {

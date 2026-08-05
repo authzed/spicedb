@@ -50,7 +50,7 @@ func RegisterMigrationTestConfig(engineKey string, provider func(t *testing.T) s
 //     migration that schema must still be readable, verifying that each
 //     migration preserves the data written through the API before it.
 func MigrationTest(t *testing.T, tester DatastoreTester) {
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
 	require.NoError(t, err)
 
 	identifiable := datastore.UnwrapAs[datastore.EngineIdentifiable](ds)

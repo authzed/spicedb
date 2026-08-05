@@ -23,8 +23,8 @@ var memdbFactory = test.NewTesterFactory(ErrSerialization)
 
 type memDBTest struct{}
 
-func (memDBTest) New(_ testing.TB, revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
+func (memDBTest) New(_ testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+	return NewMemdbDatastore(watchBufferLength, revisionParameters.Quantization, time.Duration(revisionParameters.GCRetentionWindow))
 }
 
 func TestMemdbDatastore(t *testing.T) {

@@ -28,7 +28,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 			require := require.New(t)
 			ctx := t.Context()
 
-			rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(err)
 
 			ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -68,7 +68,7 @@ func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	ctx := t.Context()
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -88,7 +88,7 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 	require := require.New(t)
 	ctx := t.Context()
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -127,7 +127,7 @@ func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	ctx := t.Context()
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -169,7 +169,7 @@ func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	ctx := t.Context()
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -207,7 +207,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	ctx := t.Context()
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -273,7 +273,7 @@ func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	ctx := t.Context()
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)

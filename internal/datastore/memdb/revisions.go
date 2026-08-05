@@ -14,10 +14,9 @@ func nowRevision() revisions.TimestampRevision {
 	return revisions.NewForTime(time.Now().UTC())
 }
 
-func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
-	mdb.Lock()
-	defer mdb.Unlock()
-
+// newRevisionIDNoLock returns a revision strictly greater than the current head revision.
+// The caller must hold the RWMutex.
+func (mdb *memdbDatastore) newRevisionIDNoLock() revisions.TimestampRevision {
 	existing := mdb.revisions[len(mdb.revisions)-1].revision
 	created := nowRevision()
 
@@ -25,14 +24,14 @@ func (mdb *memdbDatastore) newRevisionID() revisions.TimestampRevision {
 	// precision on macOS Monterey in Go 1.19.1. This means that HeadRevision
 	// and the result of a ReadWriteTx could return the *same* transaction ID
 	// if both are executed in sequence without any other forms of delay on
-	// macOS. We therefore check if the created transaction ID matches that
-	// previously created and, if not, add to it.
+	// macOS. We therefore check if the created transaction ID is at or before
+	// the head revision and, if so, advance past the head.
 	//
 	// See: https://github.com/golang/go/issues/22037 which appeared to fix
 	// this in Go 1.9.2, but there appears to have been a reversion with either
 	// the new version of macOS or Go.
-	if created.Equal(existing) {
-		return revisions.NewForTimestamp(created.TimestampNanoSec() + 1)
+	if !created.GreaterThan(existing) {
+		return revisions.NewForTimestamp(existing.TimestampNanoSec() + 1)
 	}
 
 	return created
@@ -120,7 +119,7 @@ func (mdb *memdbDatastore) checkRevisionLocalCallerMustLock(dr datastore.Revisio
 	// HEAD revision is behind it.
 	if dr.GreaterThan(now) {
 		// If the revision is in the "future", then check to ensure that it is <= of HEAD to handle
-		// the microsecond granularity on macos (see comment above in newRevisionID)
+		// the microsecond granularity on macos (see comment above in newRevisionIDNoLock)
 		headRevision := mdb.headRevisionNoLock()
 		if dr.LessThan(headRevision) || dr.Equal(headRevision) {
 			return nil

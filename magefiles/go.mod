@@ -145,7 +145,7 @@ require (
 	github.com/golangci/plugin-module-register v0.1.1 // indirect
 	github.com/golangci/revgrep v0.8.0 // indirect
 	github.com/golangci/unconvert v0.0.0-20250410112200-a129a6e6413e // indirect
-	github.com/google/cel-go v0.27.0 // indirect
+	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.21.3 // indirect
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect

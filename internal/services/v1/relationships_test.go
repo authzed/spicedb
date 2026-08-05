@@ -8,6 +8,7 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -1368,6 +1370,73 @@ func TestReadRelationshipsBeyondAllowedLimit(t *testing.T) {
 	_, err = resp.Recv()
 	require.Error(err)
 	require.Contains(err.Error(), "provided limit 1005 is greater than maximum allowed of 1000")
+}
+
+// queryCountingDatastore wraps a datastore, counting the number of calls made to
+// QueryRelationships on its snapshot readers.
+type queryCountingDatastore struct {
+	datastore.Datastore
+	queryCount *atomic.Uint64
+}
+
+func (q queryCountingDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	return queryCountingReader{q.Datastore.SnapshotReader(rev), q.queryCount}
+}
+
+type queryCountingReader struct {
+	datastore.Reader
+	queryCount *atomic.Uint64
+}
+
+func (q queryCountingReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+	q.queryCount.Add(1)
+	return q.Reader.QueryRelationships(ctx, filter, opts...)
+}
+
+// TestReadRelationshipsWithLimitIssuesNoTrailingQuery ensures that a ReadRelationships call with a
+// limit does not issue an additional datastore query once the limit has been reached. Because the
+// page size is capped at the limit, the final page is always exactly full, so asking the paginated
+// iterator for one more relationship would kick off a wholly unnecessary query, whose latency the
+// caller pays for as a stream that hangs after the last relationship has already been delivered.
+func TestReadRelationshipsWithLimitIssuesNoTrailingQuery(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
+	// The number of relationships requested must be less than the total number of relationships
+	// matching the filter, so that a trailing page would in fact have results to return.
+	limit := uint32(3)
+
+	queryCount := &atomic.Uint64{}
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			ds, rev := tf.StandardDatastoreWithData(t, ds)
+			return queryCountingDatastore{ds, queryCount}, rev
+		})
+	client := v1.NewPermissionsServiceClient(conn)
+
+	resp, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType: tf.DocumentNS.Name,
+		},
+		OptionalLimit: limit,
+	})
+	require.NoError(t, err)
+
+	var received int
+	for {
+		_, err := resp.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		received++
+	}
+
+	require.Equal(t, int(limit), received)
+	require.Equal(t, 1, safecast.RequireConvert[int](t, queryCount.Load()),
+		"expected a single datastore query for a limit that fits within a single page")
 }
 
 func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {

@@ -43,7 +43,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 	for _, numRels := range testCases {
 		t.Run(strconv.Itoa(numRels), func(t *testing.T) {
-			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(t, err)
 			defer ds.Close()
 
@@ -270,7 +270,7 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 			ctx := t.Context()
 			require := require.New(t)
 
-			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(err)
 			defer ds.Close()
 
@@ -316,7 +316,7 @@ func CaseSensitivityTest(t *testing.T, tester DatastoreTester) {
 	ctx := t.Context()
 	require := require.New(t)
 
-	ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 	defer ds.Close()
 
@@ -452,7 +452,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			require := require.New(t)
 			ctx := t.Context()
 
-			ds, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(err)
 			defer ds.Close()
 
@@ -496,7 +496,8 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 
 		require := require.New(t)
 
-		ds, err := tester.New(t, 0, veryLargeGCInterval, testGCDuration, 1)
+		ds, err := tester.New(t, DefaultRevisionParameters().
+			WithGCRetentionWindow(GCRetentionWindow(testGCDuration)), 1)
 		require.NoError(err)
 		defer ds.Close()
 
@@ -540,7 +541,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -561,7 +562,7 @@ func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
 func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -596,7 +597,7 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -623,7 +624,7 @@ func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
 func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -653,7 +654,7 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -683,7 +684,7 @@ func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 func CreateDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -712,7 +713,7 @@ func CreateDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 func DeleteOneThousandIndividualInOneCallTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -747,7 +748,7 @@ func DeleteOneThousandIndividualInOneCallTest(t *testing.T, tester DatastoreTest
 func DeleteWithInvalidPrefixTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -767,7 +768,7 @@ func DeleteWithInvalidPrefixTest(t *testing.T, tester DatastoreTester) {
 func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -878,7 +879,7 @@ func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
 func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -968,7 +969,7 @@ func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
 func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -1022,7 +1023,7 @@ func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
 func DeleteCaveatedTupleTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -1142,7 +1143,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 				t.Run(fmt.Sprintf("withLimit=%v", withLimit), func(t *testing.T) {
 					require := require.New(t)
 
-					rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+					rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 					require.NoError(err)
 
 					// Write the initial relationships.
@@ -1238,7 +1239,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 func RecreateRelationshipsAfterDeleteWithFilter(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -1813,7 +1814,7 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 			require.NoError(err)
 
 			ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
@@ -1847,7 +1848,7 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 func RelationshipCaveatFilteringTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -1928,7 +1929,7 @@ func RelationshipCaveatFilteringTest(t *testing.T, tester DatastoreTester) {
 func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -1992,7 +1993,7 @@ func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2014,7 +2015,7 @@ func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 func TypedTouchAlreadyExistingWithCaveatTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2039,7 +2040,7 @@ func TypedTouchAlreadyExistingWithCaveatTest(t *testing.T, tester DatastoreTeste
 func CreateTouchDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2073,7 +2074,7 @@ func CreateTouchDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 func TouchAlreadyExistingCaveatedTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2098,7 +2099,7 @@ func TouchAlreadyExistingCaveatedTest(t *testing.T, tester DatastoreTester) {
 func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2131,7 +2132,7 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 func WriteAndReadInRWT(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2168,7 +2169,7 @@ func WriteAndReadInRWT(t *testing.T, tester DatastoreTester) {
 func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2233,7 +2234,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 func ConcurrentWriteDeadlockTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
@@ -2263,10 +2264,140 @@ func ConcurrentWriteDeadlockTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+// ConcurrentWriteRevisionVisibilityTest covers revision visibility when two
+// write transactions overlap: transaction A opens first but is held open while
+// transaction B starts and commits, and only then does A write and commit.
+//   - each transaction's write must be visible when reading at its own
+//     returned revision (read-your-writes)
+//   - when the two revisions are comparable, the later revision must see the
+//     earlier write, and the earlier revision must NOT see the later write
+//   - when the two revisions are concurrent (e.g. Postgres snapshots of
+//     overlapping transactions), neither write may be visible at the other's
+//     revision
+//   - the head revision must see every committed write
+//
+// This test is safe even for datastores that serialize write transactions with
+// a global lock (e.g. memdb): transaction A performs no reads or writes until
+// transaction B has fully committed, so the two never contend for the write
+// lock.
+func ConcurrentWriteRevisionVisibilityTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
+	require.NoError(t, err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
+
+	// docsAt returns which of the given resource object IDs are visible at the
+	// given revision.
+	docsAt := func(rev datastore.Revision, resourceIDs ...string) map[string]bool {
+		reader := ds.SnapshotReader(rev)
+		it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			OptionalResourceType: testResourceNamespace,
+			OptionalResourceIds:  resourceIDs,
+		}, options.WithQueryShape(queryshape.Varying))
+		require.NoError(t, err)
+		rels, err := datastore.IteratorToSlice(it)
+		require.NoError(t, err)
+
+		seen := map[string]bool{}
+		for _, rel := range rels {
+			seen[rel.Resource.ObjectID] = true
+		}
+		return seen
+	}
+
+	// Execute many iterations so that one run is enough to expose ordering problems.
+	const iterations = 1000
+	for i := range iterations {
+		// Unique names per iteration so that visibility assertions cannot be
+		// satisfied by a previous iteration's writes.
+		docA := fmt.Sprintf("doc-a-%d", i)
+		docB := fmt.Sprintf("doc-b-%d", i)
+		relA := tuple.Touch(makeTestRel(docA, "tom"))
+		relB := tuple.Touch(makeTestRel(docB, "tom"))
+
+		var (
+			revA         datastore.Revision
+			errA         error
+			aStarted     = make(chan struct{})
+			aStartedOnce = sync.Once{}
+			bCompleted   = make(chan struct{})
+			aDone        = make(chan struct{})
+		)
+		go func() {
+			defer close(aDone)
+			// The transaction function may be re-run on retryable errors,
+			// either by the datastore's retry loop or by the backend client
+			// itself (e.g. Spanner and CockroachDB re-run on aborts). The
+			// sync.Once and the closed channels make re-runs proceed
+			// immediately instead of hanging.
+			revA, errA = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				aStartedOnce.Do(func() { close(aStarted) })
+				<-bCompleted // held until B has fully committed below
+				return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{relA})
+			})
+		}()
+
+		<-aStarted // A's transaction is now open and blocked
+
+		// Transaction B runs to completion while A remains open.
+		revB, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{relB})
+		})
+		require.NoError(t, err)
+
+		close(bCompleted) // unblocks A
+		<-aDone
+		require.NoError(t, errA)
+
+		require.False(t, revA.Equal(revB), "iteration %d: concurrent transactions must be assigned distinct revisions, both got %v", i, revA)
+
+		// Each transaction's write must be visible at its own returned revision.
+		require.True(t, docsAt(revA, docA)[docA], "iteration %d: A's write is invisible when reading at A's own returned revision %v", i, revA)
+		require.True(t, docsAt(revB, docB)[docB], "iteration %d: B's write is invisible when reading at B's own returned revision %v", i, revB)
+
+		if revA.LessThan(revB) || revB.LessThan(revA) {
+			// The revisions are comparable: the datastore assigned the two
+			// transactions a total order.
+			type write struct {
+				rev datastore.Revision
+				doc string
+			}
+			earlier, later := write{revA, docA}, write{revB, docB}
+			if later.rev.LessThan(earlier.rev) {
+				earlier, later = later, earlier
+			}
+
+			// The write committed at the later revision must not be visible at
+			// the earlier revision.
+			atEarlier := docsAt(earlier.rev, docA, docB)
+			require.True(t, atEarlier[earlier.doc], "iteration %d: %s is invisible at its own revision %v", i, earlier.doc, earlier.rev)
+			require.False(t, atEarlier[later.doc], "iteration %d: %s was committed at later revision %v but is visible at earlier revision %v", i, later.doc, later.rev, earlier.rev)
+
+			// Both writes must be visible at the later revision.
+			atLater := docsAt(later.rev, docA, docB)
+			require.True(t, atLater[earlier.doc], "iteration %d: %s is visible at revision %v but disappears at later revision %v", i, earlier.doc, earlier.rev, later.rev)
+			require.True(t, atLater[later.doc], "iteration %d: %s is invisible at its own revision %v", i, later.doc, later.rev)
+		} else {
+			// The revisions are concurrent (e.g. Postgres snapshots of
+			// overlapping transactions): each transaction's snapshot must
+			// exclude the other's write.
+			require.False(t, docsAt(revA, docB)[docB], "iteration %d: %s was committed by a concurrent transaction at revision %v but is visible at revision %v", i, docB, revB, revA)
+			require.False(t, docsAt(revB, docA)[docA], "iteration %d: %s was committed by a concurrent transaction at revision %v but is visible at revision %v", i, docA, revA, revB)
+		}
+
+		// The head revision must see every committed write.
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+		atHead := docsAt(head.Revision, docA, docB)
+		require.True(t, atHead[docA] && atHead[docB], "iteration %d: head revision %v is missing committed writes: %v", i, head.Revision, atHead)
+	}
+}
+
 func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(t, 0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)

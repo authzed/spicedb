@@ -29,10 +29,10 @@ func TestSpannerDatastore(t *testing.T) {
 	b := testdatastore.RunSpannerForTesting(t)
 
 	// Transaction tests are excluded because, for reasons unknown, one cannot read its own write in one transaction in the Spanner emulator.
-	test.AllWithExceptions(t, spannerFactory.NewTester(test.DatastoreTesterFunc(func(_ testing.TB, revisionQuantization, _, _ time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.AllWithExceptions(t, spannerFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri,
-				RevisionQuantization(revisionQuantization),
+				RevisionQuantization(revisionParameters.Quantization),
 				WatchBufferLength(watchBufferLength),
 				WithDatastoreMetricsOption(DatastoreMetricsOptionOpenTelemetry),
 			)
