@@ -916,8 +916,6 @@ func (c *testSchemaCache) cost(key SchemaCacheKey) int64 {
 	return c.lastCosts[key]
 }
 
-func (c *testSchemaCache) Wait() {}
-
 // countingDatastore wraps a datastore.Datastore and counts ReadStoredSchema calls.
 type countingDatastore struct {
 	datastore.Datastore

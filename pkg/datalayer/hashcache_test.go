@@ -39,8 +39,6 @@ func TestSchemaHashCache_BasicGetSet(t *testing.T) {
 	err = shc.Set(SchemaHash("hash1"), schema)
 	require.NoError(t, err)
 
-	shc.cache.Wait()
-
 	retrieved, err = shc.get(SchemaHash("hash1"))
 	require.NoError(t, err)
 	require.NotNil(t, retrieved)
@@ -279,8 +277,6 @@ func TestSchemaHashCache_SlowPathCacheHit(t *testing.T) {
 	require.NoError(t, err)
 	err = shc.Set(SchemaHash("hash2"), schema2)
 	require.NoError(t, err)
-
-	shc.cache.Wait()
 
 	// Get hash1 — latest is hash2, so fast path misses,
 	// but backing cache should have it (slow path hit, line 95)
