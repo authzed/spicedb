@@ -35,8 +35,18 @@ var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
 })
 
+// UnexpectedCancellationErrors counts queries that observed SQLSTATE 57014
+// (query canceled) although their own context was never canceled. With
+// in-band query cancellation enabled this must remain zero: a nonzero value
+// means a cancellation landed on a query it was not intended for.
+var UnexpectedCancellationErrors = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "crdb_unexpected_cancellation_errors_total",
+	Help: "Number of queries that received SQLSTATE 57014 (query canceled) although their own context was not canceled.",
+})
+
 func init() {
 	prometheus.MustRegister(resetHistogram)
+	prometheus.MustRegister(UnexpectedCancellationErrors)
 }
 
 type ctxDisableRetries struct{}
@@ -472,6 +482,13 @@ func wrapRetryableError(ctx context.Context, err error) error {
 	if errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, context.Canceled) {
 		return err
+	}
+
+	if sqlErrorCode(err) == CrdbQueryCanceledErrCode {
+		// The context checks above did not trigger, so this query was
+		// canceled without its own context being canceled.
+		UnexpectedCancellationErrors.Inc()
+		log.Ctx(ctx).Warn().Err(err).Msg("query canceled error received without a canceled context")
 	}
 
 	if IsResettableError(ctx, err) {

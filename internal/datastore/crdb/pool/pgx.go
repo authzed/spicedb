@@ -33,11 +33,14 @@ import (
 //	OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 //	WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// beginFuncExec is copied directly from pgx
+// beginFuncExec is adapted from pgx
 // src: https://github.com/jackc/pgx/blob/f59e8bf5551f403e6b7ec0912097bce85ea21351/tx.go#L410-L425
+// It diverges from upstream by severing the context for rollbacks: the
+// surrounding context is often already canceled when rollback runs, and the
+// rollback must still reach the server to keep the connection reusable.
 func beginFuncExec(ctx context.Context, tx pgx.Tx, fn func(pgx.Tx) error) (err error) {
 	defer func() {
-		rollbackErr := tx.Rollback(ctx)
+		rollbackErr := tx.Rollback(context.WithoutCancel(ctx))
 		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
 			err = rollbackErr
 		}
@@ -45,7 +48,7 @@ func beginFuncExec(ctx context.Context, tx pgx.Tx, fn func(pgx.Tx) error) (err e
 
 	fErr := fn(tx)
 	if fErr != nil {
-		_ = tx.Rollback(ctx) // ignore rollback error as there is already an error to return
+		_ = tx.Rollback(context.WithoutCancel(ctx)) // ignore rollback error as there is already an error to return
 		return fErr
 	}
 

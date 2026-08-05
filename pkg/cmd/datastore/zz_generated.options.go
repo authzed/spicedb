@@ -68,6 +68,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableConnectionBalancing = c.EnableConnectionBalancing
 		to.ConnectRate = c.ConnectRate
 		to.WriteAcquisitionTimeout = c.WriteAcquisitionTimeout
+		to.ExperimentalCRDBQueryCancellation = c.ExperimentalCRDBQueryCancellation
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.RelaxedIsolationLevel = c.RelaxedIsolationLevel
@@ -240,6 +241,7 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["WriteAcquisitionTimeout"] = c.WriteAcquisitionTimeout
 	}
+	debugMap["ExperimentalCRDBQueryCancellation"] = c.ExperimentalCRDBQueryCancellation
 	if dm, ok := any(&c.GCInterval).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -626,6 +628,13 @@ func WithConnectRate(connectRate time.Duration) ConfigOption {
 func WithWriteAcquisitionTimeout(writeAcquisitionTimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.WriteAcquisitionTimeout = writeAcquisitionTimeout
+	}
+}
+
+// WithExperimentalCRDBQueryCancellation returns an option that can set ExperimentalCRDBQueryCancellation on a Config
+func WithExperimentalCRDBQueryCancellation(experimentalCRDBQueryCancellation bool) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalCRDBQueryCancellation = experimentalCRDBQueryCancellation
 	}
 }
 
