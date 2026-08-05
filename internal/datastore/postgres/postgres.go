@@ -408,6 +408,10 @@ func (pgd *pgDatastore) MetricsID() (string, error) {
 	return common.MetricsIDFromURL(pgd.dburl)
 }
 
+func (pgd *pgDatastore) EngineName() string {
+	return Engine
+}
+
 func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
 	return pgd.inStrictReadMode
 }

@@ -30,7 +30,8 @@ func (memDBTest) New(_ testing.TB, revisionParameters test.RevisionParameters, w
 func TestMemdbDatastore(t *testing.T) {
 	// ConcurrentWrite tests require row-level locking; memdb uses a global write lock
 	// and would deadlock if two write transactions were opened concurrently.
-	test.AllWithExceptions(t, memdbFactory.NewTester(memDBTest{}), test.WithCategories(test.ConcurrentWriteCategory))
+	// Migration tests are excluded because memdb has no schema migrations.
+	test.AllWithExceptions(t, memdbFactory.NewTester(memDBTest{}), test.WithCategories(test.ConcurrentWriteCategory, test.MigrationCategory))
 }
 
 func TestConcurrentWritePanic(t *testing.T) {

@@ -2324,6 +2324,44 @@ func (mr *MockUnwrappableDatastoreMockRecorder) Unwrap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unwrap", reflect.TypeOf((*MockUnwrappableDatastore)(nil).Unwrap))
 }
 
+// MockEngineIdentifiable is a mock of EngineIdentifiable interface.
+type MockEngineIdentifiable struct {
+	ctrl     *gomock.Controller
+	recorder *MockEngineIdentifiableMockRecorder
+	isgomock struct{}
+}
+
+// MockEngineIdentifiableMockRecorder is the mock recorder for MockEngineIdentifiable.
+type MockEngineIdentifiableMockRecorder struct {
+	mock *MockEngineIdentifiable
+}
+
+// NewMockEngineIdentifiable creates a new mock instance.
+func NewMockEngineIdentifiable(ctrl *gomock.Controller) *MockEngineIdentifiable {
+	mock := &MockEngineIdentifiable{ctrl: ctrl}
+	mock.recorder = &MockEngineIdentifiableMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockEngineIdentifiable) EXPECT() *MockEngineIdentifiableMockRecorder {
+	return m.recorder
+}
+
+// EngineName mocks base method.
+func (m *MockEngineIdentifiable) EngineName() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EngineName")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// EngineName indicates an expected call of EngineName.
+func (mr *MockEngineIdentifiableMockRecorder) EngineName() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EngineName", reflect.TypeOf((*MockEngineIdentifiable)(nil).EngineName))
+}
+
 // MockRevision is a mock of Revision interface.
 type MockRevision struct {
 	ctrl     *gomock.Controller

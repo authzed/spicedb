@@ -11,13 +11,12 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
-	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestCheckingReplicatedWithNoReplicasReturnsPrimary(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
 
 	ds, err := NewCheckingReplicatedDatastore(primary)
 	require.NoError(t, err)
@@ -25,9 +24,9 @@ func TestCheckingReplicatedWithNoReplicasReturnsPrimary(t *testing.T) {
 }
 
 func TestCheckingReplicatedRoundRobinsAcrossReplicas(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replicaA := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replicaB := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("2"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replicaA := fakeDatastore{"replica", mustParseRevisionForTest("2"), nil}
+	replicaB := fakeDatastore{"replica", mustParseRevisionForTest("2"), nil}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replicaA, replicaB)
 	require.NoError(t, err)
@@ -47,13 +46,13 @@ func TestCheckingReplicatedRoundRobinsAcrossReplicas(t *testing.T) {
 }
 
 func TestCheckingReplicatedReaderWrapsAllReadMethods(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("2"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", mustParseRevisionForTest("2"), nil}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+	reader := replicated.SnapshotReader(mustParseRevisionForTest("1"))
 
 	// fakeSnapshotReader returns "not implemented" for caveats and counters;
 	// the wrapper just needs to invoke them via the chosen reader.
@@ -95,14 +94,14 @@ func TestCheckingReplicatedReaderWrapsAllReadMethods(t *testing.T) {
 }
 
 func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", mustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
 	// Try at revision 1, which should use the replica.
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+	reader := replicated.SnapshotReader(mustParseRevisionForTest("1"))
 	ns, err := reader.LegacyListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
@@ -110,7 +109,7 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 	require.False(t, reader.(*checkingStableReader).chosePrimaryForTest)
 
 	// Try at revision 2, which should use the primary.
-	reader = replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("2"))
+	reader = replicated.SnapshotReader(mustParseRevisionForTest("2"))
 	ns, err = reader.LegacyListAllNamespaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, ns)
@@ -119,13 +118,13 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 }
 
 func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", mustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader := replicated.SnapshotReader(mustParseRevisionForTest("3"))
 	ns, err := reader.LegacyLookupNamespacesWithNames(t.Context(), []string{"ns1"})
 	require.NoError(t, err)
 	require.Len(t, ns, 1)
@@ -134,8 +133,8 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t
 func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 	for _, requireCheck := range []bool{true, false} {
 		t.Run(fmt.Sprintf("requireCheck=%v", requireCheck), func(t *testing.T) {
-			primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-			replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
+			primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+			replica := fakeDatastore{"replica", mustParseRevisionForTest("1"), nil}
 
 			var ds datastore.Datastore
 			if requireCheck {
@@ -149,7 +148,7 @@ func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 			}
 
 			// Try at revision 1, which should use the replica.
-			reader := ds.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+			reader := ds.SnapshotReader(mustParseRevisionForTest("1"))
 			_, _, err := reader.LegacyReadNamespaceByName(t.Context(), "expecterror")
 			require.Error(t, err)
 			require.ErrorContains(t, err, "raising an expected error")
@@ -259,12 +258,12 @@ func (fsr fakeSnapshotReader) LegacyLookupNamespacesWithNames(_ context.Context,
 				Definition: &corev1.NamespaceDefinition{
 					Name: "ns1",
 				},
-				LastWrittenRevision: revisionparsing.MustParseRevisionForTest("2"),
+				LastWrittenRevision: mustParseRevisionForTest("2"),
 			},
 		}, nil
 	}
 
-	if fsr.revision.GreaterThan(revisionparsing.MustParseRevisionForTest("2")) {
+	if fsr.revision.GreaterThan(mustParseRevisionForTest("2")) {
 		return nil, common.NewRevisionUnavailableError(fmt.Errorf("revision not available"))
 	}
 
@@ -360,7 +359,7 @@ func fakeIterator(fsr fakeSnapshotReader, explainCallback options.SQLExplainCall
 			return
 		}
 
-		if fsr.revision.GreaterThan(revisionparsing.MustParseRevisionForTest("2")) {
+		if fsr.revision.GreaterThan(mustParseRevisionForTest("2")) {
 			yield(tuple.Relationship{}, common.NewRevisionUnavailableError(fmt.Errorf("revision not available")))
 			return
 		}
