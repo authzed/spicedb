@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 )
 
 // nonStrictDatastore wraps a fakeDatastore but reports strict read mode disabled,
@@ -20,7 +19,7 @@ func (nonStrictDatastore) IsStrictReadModeEnabled() bool {
 }
 
 func TestStrictReplicatedReaderWithOnlyPrimary(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary)
 	require.NoError(t, err)
@@ -29,14 +28,14 @@ func TestStrictReplicatedReaderWithOnlyPrimary(t *testing.T) {
 }
 
 func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", mustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
 	// Query the replicated, which should fallback to the primary.
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader := replicated.SnapshotReader(mustParseRevisionForTest("3"))
 	iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -56,7 +55,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.Len(t, revfound, 2)
 
 	// Query the replica directly, which should error.
-	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader = replica.SnapshotReader(mustParseRevisionForTest("3"))
 	iter, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -76,7 +75,7 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	require.ErrorContains(t, err, "revision not available")
 
 	// Query the replica for a different revision, which should work.
-	reader = replica.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+	reader = replica.SnapshotReader(mustParseRevisionForTest("1"))
 	iter, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -98,14 +97,14 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 }
 
 func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := fakeDatastore{"replica-with-normal-error", revisionparsing.MustParseRevisionForTest("1"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica-with-normal-error", mustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
 	// Query the replicated, which should return the error.
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader := replicated.SnapshotReader(mustParseRevisionForTest("3"))
 	_, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
@@ -113,8 +112,8 @@ func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {
 }
 
 func TestStrictReplicatedRejectsReplicaWithoutStrictMode(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := nonStrictDatastore{fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := nonStrictDatastore{fakeDatastore{"replica", mustParseRevisionForTest("1"), nil}}
 
 	_, err := NewStrictReplicatedDatastore(primary, replica)
 	require.Error(t, err)
@@ -127,13 +126,13 @@ func TestStrictReplicatedRejectsReplicaWithoutStrictMode(t *testing.T) {
 // these calls do not trigger a primary fallback; they simply confirm the wrappers
 // invoke the replica's reader.
 func TestStrictReplicatedReaderWrapperMethods(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("2"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", mustParseRevisionForTest("2"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("1"))
+	reader := replicated.SnapshotReader(mustParseRevisionForTest("1"))
 
 	_, _, err = reader.LegacyReadCaveatByName(t.Context(), "is_weekend")
 	require.ErrorContains(t, err, "not implemented")
@@ -161,13 +160,13 @@ func TestStrictReplicatedReaderWrapperMethods(t *testing.T) {
 // RevisionUnavailableError. The fake returns that error when queried beyond
 // revision 2.
 func TestStrictReplicatedReaderFallsbackForNamespaceLookups(t *testing.T) {
-	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2"), nil}
-	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1"), nil}
+	primary := fakeDatastore{"primary", mustParseRevisionForTest("2"), nil}
+	replica := fakeDatastore{"replica", mustParseRevisionForTest("1"), nil}
 
 	replicated, err := NewStrictReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
 
-	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	reader := replicated.SnapshotReader(mustParseRevisionForTest("3"))
 	ns, err := reader.LegacyLookupNamespacesWithNames(t.Context(), []string{"ns1"})
 	require.NoError(t, err)
 	require.Len(t, ns, 1)

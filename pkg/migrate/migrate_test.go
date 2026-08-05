@@ -152,6 +152,28 @@ func TestComputeHeadRevision(t *testing.T) {
 	}
 }
 
+func TestMigrationNames(t *testing.T) {
+	testCases := []struct {
+		migrations  map[string]migration[fakeConnPool, fakeTx]
+		names       []string
+		expectError bool
+	}{
+		{noMigrations, nil, true},
+		{simpleMigrations, []string{"123"}, false},
+		{singleHeadedChain, []string{"123", "456", "789"}, false},
+		{multiHeadedChain, nil, true},
+		{missingEarlyMigrations, []string{"456", "789", "10"}, false},
+	}
+
+	req := require.New(t)
+	for _, tc := range testCases {
+		m := Manager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]{migrations: tc.migrations}
+		names, err := m.MigrationNames()
+		req.Equal(tc.expectError, err != nil, err)
+		req.Equal(tc.names, names)
+	}
+}
+
 func TestIsHeadCompatible(t *testing.T) {
 	testCases := []struct {
 		migrations       map[string]migration[fakeConnPool, fakeTx]

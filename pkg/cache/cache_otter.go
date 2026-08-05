@@ -189,7 +189,6 @@ func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
 	return true
 }
 
-func (wtc *otterCache[K, V]) Wait() {}
 func (wtc *otterCache[K, V]) Close() {
 	// Stops the pending goroutine that Otter spins off
 	wtc.cache.StopAllGoroutines()

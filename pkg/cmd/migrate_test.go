@@ -1,28 +1,17 @@
 package cmd
 
 import (
-	"io"
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/log"
-	"github.com/testcontainers/testcontainers-go/network"
-	"github.com/testcontainers/testcontainers-go/wait"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 
 	datastoreTest "github.com/authzed/spicedb/internal/testserver/datastore"
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/migration"
 	"github.com/authzed/spicedb/pkg/migrate"
-	"github.com/authzed/spicedb/pkg/testutil"
-	"github.com/authzed/spicedb/pkg/testutil/sdbtestcontainer"
 )
 
 func TestExecuteMigrateErrorsOut(t *testing.T) {
@@ -146,7 +135,7 @@ func TestExecuteMigrateErrorsOut(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.cfgBuilder(t)
 
-			err := executeMigrate(t.Context(), cfg, tt.revision)
+			err := migration.Run(t.Context(), cfg, tt.revision)
 			if tt.expectedError == "" {
 				require.NoError(t, err)
 				return
@@ -157,11 +146,7 @@ func TestExecuteMigrateErrorsOut(t *testing.T) {
 }
 
 func TestExecuteMigrateWithNoDataSucceeds(t *testing.T) {
-	for _, engineKey := range datastore.Engines {
-		if engineKey == "memory" {
-			continue
-		}
-
+	for _, engineKey := range migration.Engines() {
 		t.Run(engineKey, func(t *testing.T) {
 			r := datastoreTest.RunDatastoreEngine(t, engineKey)
 			db := r.NewDatabase(t)
@@ -172,128 +157,52 @@ func TestExecuteMigrateWithNoDataSucceeds(t *testing.T) {
 				Timeout:         1 * time.Hour,
 				BatchSize:       1000,
 			}
-			require.NoError(t, executeMigrate(t.Context(), cfg, migrate.Head))
+			require.NoError(t, migration.Run(t.Context(), cfg, migrate.Head))
 		})
 	}
 }
 
-// TestExecuteMigrateWithDataSucceeds verifies that migrations introduced on v1.53.0
-// apply on top of a database that has data written by v1.52.0.
-func TestExecuteMigrateWithDataSucceeds(t *testing.T) {
-	for _, engineKey := range datastore.Engines {
-		if engineKey == "memory" {
-			continue
-		}
+// TestMigrateRunPassesFlagsAsExtraConfig verifies that flags registered on the
+// migrate command by an engine defined outside this repository reach its
+// migration driver via MigrateConfig.ExtraConfig.
+func TestMigrateRunPassesFlagsAsExtraConfig(t *testing.T) {
+	const engineName = "a-new-engine"
+	const flagName = "a-new-flag"
 
-		ctx := t.Context()
+	var received *MigrateConfig
+	RegisterMigratableEngine(engineName, migrate.NewManager[*nilDriver, any, any](),
+		func(_ context.Context, cfg *MigrateConfig) (*nilDriver, error) {
+			received = cfg
+			return nil, errors.New("driver construction stops here")
+		}, "")
+	t.Cleanup(func() { migration.UnregisterMigratableEngineForTesting(engineName) })
 
-		// Create an internal network
-		net, err := network.New(ctx)
-		testcontainers.CleanupNetwork(t, net)
-		require.NoError(t, err)
+	cmd := &cobra.Command{Use: "migrate [revision]", RunE: migrateRun}
+	RegisterMigrateFlags(cmd)
+	cmd.Flags().String(flagName, "", "a new hidden flag")
+	require.NoError(t, cmd.Flags().Set("datastore-engine", engineName))
+	require.NoError(t, cmd.Flags().Set(flagName, "very-hidden"))
+	cmd.SetArgs([]string{"head"})
 
-		t.Run(engineKey, func(t *testing.T) {
-			r := datastoreTest.RunDatastoreEngine(t, engineKey, network.WithNetwork([]string{engineKey}, net))
-			db := r.NewDatabase(t)
-
-			// 1. Migrate using SpiceDB v1.52.0.
-			runMigrateHeadWithContainer(t, "v1.52.0", engineKey, db, net)
-
-			// 2. Run v1.52.0 serve and write a schema.
-			serveContainer := runServe(t, "v1.52.0", engineKey, db, net)
-
-			conn, err := grpc.NewClient(
-				serveContainer.GRPCEndpoint(),
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpcutil.WithInsecureBearerToken(serveContainer.PresharedKey()),
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = conn.Close()
-			})
-
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				_, err := v1.NewSchemaServiceClient(conn).WriteSchema(t.Context(), &v1.WriteSchemaRequest{
-					Schema: `
-						caveat is_public(public bool) {
-							public
-						}
-
-						definition user {}
-						definition document {
-							relation viewer: user with is_public
-							permission view = viewer
-						}
-					`,
-				})
-				assert.NoError(collect, err)
-			}, 30*time.Second, 1*time.Second)
-
-			// 3. Migrate using the current branch's code, in-process,
-			// so the migration code is included in the coverage profile.
-			cfg := &MigrateConfig{
-				DatastoreEngine: engineKey,
-				DatastoreURI:    db,
-				Timeout:         5 * time.Minute,
-				BatchSize:       1000,
-			}
-			require.NoError(t, executeMigrate(t.Context(), cfg, migrate.Head))
-		})
-	}
+	require.Error(t, cmd.Execute())
+	require.NotNil(t, received)
+	require.Equal(t, "very-hidden", received.ExtraConfig[flagName])
+	require.Equal(t, engineName, received.ExtraConfig["datastore-engine"])
 }
 
-// runMigrateHeadWithContainer launches a docker container that runs `spicedb migrate head`
-// Use this when you need to exercise a released SpiceDB binary.
-func runMigrateHeadWithContainer(t *testing.T, spiceDBImageTag, engineKey, db string, net *testcontainers.DockerNetwork) {
-	t.Helper()
+// nilDriver satisfies migrate.Driver so that a test engine can be registered;
+// no method on it is ever called.
+type nilDriver struct{}
 
-	ctx := t.Context()
+func (*nilDriver) Version(context.Context) (string, error) { return "", nil }
 
-	connectionVars, err := testutil.InternalConnectionEnvVars(db, engineKey)
-	require.NoError(t, err)
+func (*nilDriver) WriteVersion(context.Context, any, string, string) error { return nil }
 
-	migrateContainer, err := testcontainers.Run(ctx,
-		"authzed/spicedb:"+spiceDBImageTag,
-		network.WithNetwork([]string{"migrate"}, net),
-		testcontainers.WithLogger(log.TestLogger(t)),
-		testcontainers.WithCmd("migrate", "head"),
-		testcontainers.WithEnv(connectionVars),
-		testcontainers.WithWaitStrategy(wait.ForExit().WithExitTimeout(time.Minute)),
-	)
-	require.NoError(t, err)
-	testcontainers.CleanupContainer(t, migrateContainer)
+func (*nilDriver) Conn() any { return nil }
 
-	// Ensure the command completed successfully.
-	containerState, err := migrateContainer.State(ctx)
-	if containerState.ExitCode != 0 {
-		logReader, err := migrateContainer.Logs(t.Context())
-		require.NoError(t, err)
-		out, err := io.ReadAll(logReader)
-		require.NoError(t, err)
-		t.Log("Container logs:")
-		t.Log(string(out))
-	}
-	require.NoError(t, err)
-	require.Equal(t, 0, containerState.ExitCode)
-}
+func (*nilDriver) RunTx(context.Context, migrate.TxMigrationFunc[any]) error { return nil }
 
-func runServe(t *testing.T, spiceDBImageTag, engineKey, dbConnection string, net *testcontainers.DockerNetwork) *sdbtestcontainer.Container {
-	t.Helper()
-
-	connectionVars, err := testutil.InternalConnectionEnvVars(dbConnection, engineKey)
-	require.NoError(t, err)
-
-	container, err := sdbtestcontainer.Run(
-		t.Context(),
-		"authzed/spicedb:"+spiceDBImageTag,
-		network.WithNetwork([]string{"spicedb"}, net),
-		testcontainers.WithEnv(connectionVars),
-	)
-	require.NoError(t, err)
-	testcontainers.CleanupContainer(t, container)
-
-	return container
-}
+func (*nilDriver) Close(context.Context) error { return nil }
 
 func TestMigrateRun(t *testing.T) {
 	tests := []struct {

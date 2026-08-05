@@ -209,7 +209,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
-	test.All(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.AllWithExceptions(t, crdbFactory.NewTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -234,7 +234,7 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 		})
 
 		return ds, nil
-	})))
+	})), test.WithCategories(test.MigrationCategory))
 
 	unwrappedTester := test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := t.Context()
