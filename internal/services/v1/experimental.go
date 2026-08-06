@@ -114,13 +114,12 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(
 					config.StreamReadTimeout,
-					// Bulk export/import are designed to run for arbitrarily long
-					// periods on large datasets; their inter-batch gaps regularly
-					// exceed the streaming-api timeout that catches hung clients
-					// on the bounded streaming reads.
+					// See NewPermissionsServer: bulk export goes quiet while fetching each
+					// datastore page and holds nothing between them, while bulk import is
+					// left bounded because it holds an open write transaction and its
+					// receives from the client count as activity.
 					streamtimeout.WithExemptMethods(
 						v1.ExperimentalService_BulkExportRelationships_FullMethodName,
-						v1.ExperimentalService_BulkImportRelationships_FullMethodName,
 					),
 				),
 				perfinsights.StreamServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),

@@ -2,7 +2,9 @@ package streamtimeout
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -139,4 +141,130 @@ func (s *exemptTestSuite) TestExemptedMethodIsNotCanceled() {
 
 	_, err = stream.Recv()
 	s.Require().ErrorContains(err, "EOF")
+}
+
+type recvActivityTestServer struct {
+	testpb.UnimplementedTestServiceServer
+}
+
+// PingClientStream mirrors the shape of ImportBulkRelationships: it consumes
+// batches from the client and does not send anything until SendAndClose.
+func (t recvActivityTestServer) PingClientStream(server testpb.TestService_PingClientStreamServer) error {
+	var received int32
+	for {
+		_, err := server.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		received++
+	}
+
+	// The client has half-closed, so nothing further will arrive to reset the timer.
+	// Committing the received work must not be bounded by the timeout either, so stay
+	// quiet well past it before responding.
+	time.Sleep(150 * time.Millisecond)
+	if err := server.Context().Err(); err != nil {
+		return fmt.Errorf("context canceled after client half-close: %w", err)
+	}
+
+	return server.SendAndClose(&testpb.PingClientStreamResponse{Counter: received})
+}
+
+type recvActivityTestSuite struct {
+	*testpb.InterceptorTestSuite
+}
+
+func TestStreamTimeoutResetByReceives(t *testing.T) {
+	s := &recvActivityTestSuite{
+		InterceptorTestSuite: &testpb.InterceptorTestSuite{
+			TestService: &recvActivityTestServer{},
+			ServerOpts: []grpc.ServerOption{
+				grpc.StreamInterceptor(MustStreamServerInterceptor(50 * time.Millisecond)),
+			},
+		},
+	}
+	suite.Run(t, s)
+}
+
+func (s *recvActivityTestSuite) TestReceivesResetTheTimeout() {
+	stream, err := s.Client.PingClientStream(s.SimpleCtx())
+	s.Require().NoError(err)
+
+	// Send batches spaced under the 50ms timeout but totaling well over it. Each
+	// receive has to reset the timer, otherwise the call is canceled partway through
+	// even though the client never stopped sending.
+	for range 5 {
+		s.Require().NoError(stream.Send(&testpb.PingClientStreamRequest{Value: "batch"}))
+		time.Sleep(30 * time.Millisecond)
+	}
+
+	resp, err := stream.CloseAndRecv()
+	s.Require().NoError(err, "client-streaming call must not be canceled while the client is sending")
+	s.Require().Equal(int32(5), resp.Counter)
+}
+
+type mixedTestServer struct {
+	testpb.UnimplementedTestServiceServer
+}
+
+func (t mixedTestServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
+	time.Sleep(150 * time.Millisecond)
+	if err := server.Context().Err(); err != nil {
+		return fmt.Errorf("exempt method was canceled: %w", err)
+	}
+	return server.Send(&testpb.PingListResponse{Counter: 1})
+}
+
+// PingStream is quiet in both directions and is not exempt, so the timer must fire.
+// It waits on the context rather than blocking in Recv, because canceling the
+// interceptor's derived context does not unblock a receive already in flight.
+func (t mixedTestServer) PingStream(server testpb.TestService_PingStreamServer) error {
+	select {
+	case <-server.Context().Done():
+		return server.Context().Err()
+	case <-time.After(time.Second):
+		return fmt.Errorf("non-exempt method was not canceled by streamtimeout")
+	}
+}
+
+type mixedTestSuite struct {
+	*testpb.InterceptorTestSuite
+}
+
+// TestStreamTimeoutMixedExemptions guards against an exemption that applies too
+// broadly: one interceptor exempts PingList while PingStream must still time out.
+func TestStreamTimeoutMixedExemptions(t *testing.T) {
+	s := &mixedTestSuite{
+		InterceptorTestSuite: &testpb.InterceptorTestSuite{
+			TestService: &mixedTestServer{},
+			ServerOpts: []grpc.ServerOption{
+				grpc.StreamInterceptor(MustStreamServerInterceptor(
+					50*time.Millisecond,
+					WithExemptMethods(testpb.TestService_PingList_FullMethodName),
+				)),
+			},
+		},
+	}
+	suite.Run(t, s)
+}
+
+func (s *mixedTestSuite) TestExemptMethodSurvives() {
+	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{Value: "exempt"})
+	s.Require().NoError(err)
+
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.Require().Equal(int32(1), resp.Counter)
+}
+
+func (s *mixedTestSuite) TestNonExemptMethodStillTimesOut() {
+	stream, err := s.Client.PingStream(s.SimpleCtx())
+	s.Require().NoError(err)
+
+	_, err = stream.Recv()
+	s.Require().Error(err, "non-exempt method must still be canceled by streamtimeout")
+	s.Require().ErrorContains(err, "context canceled")
 }
