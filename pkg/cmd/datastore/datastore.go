@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -68,6 +69,14 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+
+	// Granular connection parameters, used to build the URI when datastore-conn-uri is not provided.
+	flagSet.StringVar(&opts.Host, flagName("datastore-host"), defaults.Host, "datastore host (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Port, flagName("datastore-port"), defaults.Port, "datastore port (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Username, flagName("datastore-username"), defaults.Username, "datastore username (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Password, flagName("datastore-password"), defaults.Password, "datastore password (used to build connection URI if datastore-conn-uri is not provided)")
+	flagSet.StringVar(&opts.Database, flagName("datastore-database"), defaults.Database, "datastore database name (used to build connection URI if datastore-conn-uri is not provided)")
+
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
 	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). (Postgres and MySQL drivers only).")
@@ -215,11 +224,66 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	return nil
 }
 
+// buildConnectionURI constructs a connection URI from granular connection parameters.
+// Returns an empty string if the engine does not support URI-based connections.
+func buildConnectionURI(engine, host, port, username, password, database string) string {
+	if host == "" {
+		return ""
+	}
+
+	if port == "" {
+		switch engine {
+		case PostgresEngine:
+			port = "5432"
+		case CockroachEngine:
+			port = "26257"
+		case MySQLEngine:
+			port = "3306"
+		}
+	}
+
+	// Credentials are escaped so that special characters such as @, : and / do
+	// not terminate the userinfo section early.
+	userinfo := url.QueryEscape(username)
+	if password != "" {
+		userinfo += ":" + url.QueryEscape(password)
+	}
+
+	switch engine {
+	case PostgresEngine, CockroachEngine:
+		uri := fmt.Sprintf("postgres://%s@%s:%s", userinfo, host, port)
+		if database != "" {
+			uri += "/" + url.PathEscape(database)
+		}
+		return uri
+	case MySQLEngine:
+		// go-sql-driver/mysql expects a DSN rather than a URL:
+		// username:password@tcp(host:port)/database?parseTime=true
+		dsn := fmt.Sprintf("%s@tcp(%s:%s)", userinfo, host, port)
+		if database != "" {
+			dsn += "/" + database
+		}
+		// parseTime=true is required for MySQL to scan into time.Time.
+		dsn += "?parseTime=true"
+		return dsn
+	default:
+		return ""
+	}
+}
+
 // NewDatastore initializes a datastore given the options
 func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datastore, error) {
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
+	}
+
+	// If URI is not provided but granular connection parameters are, build the URI.
+	if opts.URI == "" && opts.Host != "" {
+		opts.URI = buildConnectionURI(opts.Engine, opts.Host, opts.Port, opts.Username, opts.Password, opts.Database)
+		if opts.URI == "" {
+			return nil, fmt.Errorf("unable to build connection URI from provided parameters for engine: %s", opts.Engine)
+		}
 	}
 
 	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
