@@ -50,6 +50,7 @@ const (
 	TokenTypeHash       // #
 	TokenTypeEllipsis   // ...
 	TokenTypeStar       // *
+	TokenTypeAt         // @
 
 	// Additional tokens for CEL: https://github.com/google/cel-spec/blob/master/doc/langdef.md#syntax
 	TokenTypeQuestionMark       // ?
@@ -190,6 +191,9 @@ Loop:
 
 		case r == '*':
 			l.emit(TokenTypeStar)
+
+		case r == '@':
+			l.emit(TokenTypeAt)
 
 		case r == '.':
 			if l.acceptString("..") {

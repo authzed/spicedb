@@ -1,0 +1,40 @@
+NodeTypeFile
+  end-rune = 59
+  input-source = decorator malformed parameter trailing comma test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 17
+      input-source = decorator malformed parameter trailing comma test
+      start-rune = 0
+      use-flag-name = testdecorators
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 58
+      input-source = decorator malformed parameter trailing comma test
+      start-rune = 41
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testall
+          end-rune = 39
+          input-source = decorator malformed parameter trailing comma test
+          start-rune = 20
+          decorator-parameters =>
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = identifier
+              decorator-parameter-name = needed
+              decorator-parameter-value = 1
+              end-rune = 37
+              input-source = decorator malformed parameter trailing comma test
+              start-rune = 29
+            NodeTypeDecoratorParameter
+              end-rune = 38
+              input-source = decorator malformed parameter trailing comma test
+              start-rune = 39
+              child-node =>
+                NodeTypeError
+                  end-rune = 38
+                  error-message = Expected identifier, found token TokenTypeRightParen
+                  error-source = )
+                  input-source = decorator malformed parameter trailing comma test
+                  start-rune = 39

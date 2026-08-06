@@ -1,0 +1,14 @@
+use testdecorators
+
+definition user {}
+
+definition document {
+	relation parent: @testsub document | folder
+	relation viewer: user | @testall(needed: 1) user:* | @testsub user with somecaveat
+}
+
+definition folder {}
+
+caveat somecaveat(someparam int) {
+	someparam == 42
+}

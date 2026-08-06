@@ -277,3 +277,41 @@ func TestCaveatDiff(t *testing.T) {
 		})
 	}
 }
+
+func TestDiffCaveatDecorators(t *testing.T) {
+	t.Parallel()
+
+	withDecorator := func(name string) *core.Decorator {
+		return &core.Decorator{Name: name, RequiredFlag: "testdecorators"}
+	}
+
+	newCaveat := func(decorators ...*core.Decorator) *core.CaveatDefinition {
+		cd := ns.MustCaveatDefinition(
+			caveats.MustEnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+				"someparam": caveattypes.Default.IntType,
+			}),
+			"somecaveat",
+			"true",
+		)
+		cd.Decorators = decorators
+		return cd
+	}
+
+	t.Run("caveat decorator added", func(t *testing.T) {
+		t.Parallel()
+		diff, err := DiffCaveats(newCaveat(), newCaveat(withDecorator("testcaveat")), caveattypes.Default.TypeSet)
+		require.NoError(t, err)
+		require.Equal(t, []Delta{{Type: CaveatDecoratorsChanged}}, diff.Deltas())
+	})
+
+	t.Run("no decorator change produces no delta", func(t *testing.T) {
+		t.Parallel()
+		diff, err := DiffCaveats(
+			newCaveat(withDecorator("testcaveat")),
+			newCaveat(withDecorator("testcaveat")),
+			caveattypes.Default.TypeSet,
+		)
+		require.NoError(t, err)
+		require.Empty(t, diff.Deltas())
+	})
+}

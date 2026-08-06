@@ -1,0 +1,130 @@
+NodeTypeFile
+  end-rune = 269
+  input-source = decorator on subject type test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 17
+      input-source = decorator on subject type test
+      start-rune = 0
+      use-flag-name = testdecorators
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 37
+      input-source = decorator on subject type test
+      start-rune = 20
+    NodeTypeDefinition
+      definition-name = document
+      end-rune = 191
+      input-source = decorator on subject type test
+      start-rune = 40
+      child-node =>
+        NodeTypeRelation
+          end-rune = 105
+          input-source = decorator on subject type test
+          relation-name = parent
+          start-rune = 63
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 105
+              input-source = decorator on subject type test
+              start-rune = 80
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 96
+                  input-source = decorator on subject type test
+                  start-rune = 89
+                  type-name = document
+                  decorator =>
+                    NodeTypeDecorator
+                      decorator-name = testsub
+                      end-rune = 87
+                      input-source = decorator on subject type test
+                      start-rune = 80
+                NodeTypeSpecificTypeReference
+                  end-rune = 105
+                  input-source = decorator on subject type test
+                  start-rune = 100
+                  type-name = folder
+        NodeTypeRelation
+          end-rune = 189
+          input-source = decorator on subject type test
+          relation-name = viewer
+          start-rune = 108
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 189
+              input-source = decorator on subject type test
+              start-rune = 125
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 128
+                  input-source = decorator on subject type test
+                  start-rune = 125
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 157
+                  input-source = decorator on subject type test
+                  start-rune = 152
+                  type-name = user
+                  type-wildcard = true
+                  decorator =>
+                    NodeTypeDecorator
+                      decorator-name = testall
+                      end-rune = 150
+                      input-source = decorator on subject type test
+                      start-rune = 132
+                      decorator-parameters =>
+                        NodeTypeDecoratorParameter
+                          decorator-parameter-kind = identifier
+                          decorator-parameter-name = needed
+                          decorator-parameter-value = 1
+                          end-rune = 149
+                          input-source = decorator on subject type test
+                          start-rune = 141
+                NodeTypeSpecificTypeReference
+                  end-rune = 189
+                  input-source = decorator on subject type test
+                  start-rune = 170
+                  type-name = user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = somecaveat
+                      end-rune = 189
+                      input-source = decorator on subject type test
+                      start-rune = 180
+                  decorator =>
+                    NodeTypeDecorator
+                      decorator-name = testsub
+                      end-rune = 168
+                      input-source = decorator on subject type test
+                      start-rune = 161
+    NodeTypeDefinition
+      definition-name = folder
+      end-rune = 213
+      input-source = decorator on subject type test
+      start-rune = 194
+    NodeTypeCaveatDefinition
+      caveat-definition-name = somecaveat
+      end-rune = 268
+      input-source = decorator on subject type test
+      start-rune = 216
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = someparam == 42
+
+          end-rune = 267
+          input-source = decorator on subject type test
+          start-rune = 252
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = someparam
+          end-rune = 246
+          input-source = decorator on subject type test
+          start-rune = 234
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 246
+              input-source = decorator on subject type test
+              start-rune = 244
+              type-name = int

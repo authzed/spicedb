@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,9 +12,12 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
@@ -1596,5 +1600,157 @@ func TestCompileWithCustomCaveatTypeSet(t *testing.T) {
 	_, err = Compile(InputSchema{
 		input.Source("sometest"), schema,
 	}, AllowUnprefixedObjectType(), CaveatTypeSet(sts.TypeSet))
+	require.NoError(t, err)
+}
+
+func TestDisallowFlags(t *testing.T) {
+	t.Parallel()
+
+	_, err := Compile(InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: "use expiration\ndefinition user {}",
+	}, AllowUnprefixedObjectType(), DisallowFlags("expiration"))
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "the `expiration` flag is not allowed")
+}
+
+// TestUseFlagsCollectedBeforePartials pins the ordering guarantee that `use` flags are fully
+// collected into tctx.enabledFlags before collectPartials runs, which Task 7 decorators inside
+// partial bodies will depend on.
+//
+// This drives translate() directly (rather than through the public Compile entry point) using
+// a hand-built translationContext, so it can install testBeforePartialCollection and observe
+// tctx.enabledFlags at the exact moment collectPartials is about to run. A black-box test
+// through Compile alone cannot distinguish "flags collected before partials" from "flags
+// collected at some other point before Compile returns": nothing in the current partial-
+// translation call chain (collectPartials -> translatePartial -> translateRelationsAndPermissions
+// -> ... -> addWithExpiration) reads tctx.enabledFlags; addWithExpiration checks
+// tctx.allowedFlags (the deployment's permission list) instead, so the ordering invariant this
+// test is named for would otherwise have zero coverage.
+//
+// Verified this fails as intended: temporarily commenting out the `collectUseFlags(tctx, root)`
+// call in translate leaves enabledFlags empty at collection time (nothing else populates it,
+// since the main loop's NodeTypeUseFlag case is a bare continue), and
+// enabledFlagsBeforePartials below came back empty, failing the require.ElementsMatch. The
+// call was restored immediately after confirming this.
+func TestUseFlagsCollectedBeforePartials(t *testing.T) {
+	t.Parallel()
+
+	schemaString := `use expiration
+use partial
+
+partial base {
+	relation viewer: user with expiration
+}
+
+definition user {}
+
+definition document {
+	...base
+}`
+
+	root, mapper, err := parseSchema(InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schemaString,
+	})
+	require.NoError(t, err)
+
+	var enabledFlagsBeforePartials []string
+
+	var tctx *translationContext
+	tctx = &translationContext{
+		objectTypePrefix:   new(string), // unprefixed, as with AllowUnprefixedObjectType()
+		mapper:             mapper,
+		allowedFlags:       mapz.NewSet("expiration", "partial"),
+		enabledFlags:       mapz.NewSet[string](),
+		existingNames:      mapz.NewSet[string](),
+		compiledPartials:   make(map[string][]*core.Relation),
+		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
+		caveatTypeSet:      caveattypes.TypeSetOrDefault(nil),
+		testBeforePartialCollection: func() {
+			enabledFlagsBeforePartials = tctx.enabledFlags.AsSlice()
+		},
+	}
+
+	compiled, err := translate(tctx, root)
+	require.NoError(t, err)
+	require.Len(t, compiled.ObjectDefinitions, 2)
+
+	require.ElementsMatch(t, []string{"expiration", "partial"}, enabledFlagsBeforePartials,
+		"use flags must already be collected by the time collectPartials runs")
+}
+
+// TestAllLexerFlagsAllowedByDefault guards against the two flag registries
+// (lexer.AllUseFlags and the compiler's default allowedFlags) drifting apart. Every flag the
+// lexer recognizes via `use <flag>` must also be accepted by a default (no Disallow* options)
+// Compile call, since a flag that lexes but never compiles is unusable and would silently
+// break any feature built on top of it (as `testdecorators` did before allowedFlags() was
+// switched to derive from lexer.AllUseFlags instead of a hand-maintained list).
+//
+// `use import` is included in this loop deliberately: a bare `use import` directive with no
+// accompanying `import "..."` statement never triggers the import-resolution machinery (which
+// needs a configured source FS), so it exercises only the flag-allowance path being tested
+// here and needs no special-casing.
+func TestAllLexerFlagsAllowedByDefault(t *testing.T) {
+	t.Parallel()
+
+	// Six, not just "non-empty": the five production flags (expiration, self, typechecking,
+	// partial, import) plus the testing.Testing()-gated decorators test flag. A single-element
+	// slice would satisfy a bare NotEmpty check without actually exercising every flag.
+	require.Len(t, lexer.AllUseFlags, 6, "expected exactly the five production flags plus the decorators test flag")
+
+	for _, flag := range lexer.AllUseFlags {
+		t.Run(flag, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Compile(InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: "use " + flag + "\ndefinition user {}",
+			}, AllowUnprefixedObjectType())
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestProductionUseFlagsUnchanged pins the production allowed-flag set now that allowedFlags()
+// derives from lexer.AllUseFlags rather than a hardcoded list (see the fix for the flag-drift
+// defect above). lexer.AllUseFlags in this test binary is the five production flags plus
+// decorators.TestFlag, which lexer/flags.go registers only behind a testing.Testing() guard;
+// this test asserts that subtracting exactly that one known test-only flag from
+// lexer.AllUseFlags yields precisely the five flags this compiler shipped with before this
+// change (referencing the same named constants DisallowExpirationFlag/DisallowImportFlag use,
+// so selfFlag/typeCheckingFlag/partialFlag stay load-bearing instead of becoming dead code).
+//
+// If the testing.Testing() guard were ever loosened or removed, or a future contributor
+// registered another test-only flag without gating it, this test - being itself a test binary
+// - could not observe that regression directly; TestAllLexerFlagsAllowedByDefault's exact-count
+// assertion above is the guard for that case instead. Production behavior (a non-test binary
+// having lexer.AllUseFlags equal to exactly the five flags below, and rejecting `use
+// testdecorators`) was confirmed empirically out-of-band; see the task report.
+func TestProductionUseFlagsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	prod := slices.DeleteFunc(slices.Clone(lexer.AllUseFlags),
+		func(f string) bool { return f == decorators.TestFlag })
+
+	require.ElementsMatch(t,
+		[]string{expirationFlag, selfFlag, typeCheckingFlag, partialFlag, importFlag}, prod)
+}
+
+// TestDecoratorsTestFlagAllowedByDefault specifically pins that `use testdecorators` compiles
+// under a default Compile call. Task 7's decorator tests are built almost entirely on schemas
+// declaring this flag, so it must remain compilable; this is called out on its own in addition
+// to TestAllLexerFlagsAllowedByDefault above so a future change that removes or renames the
+// flag fails with an obviously-relevant test name.
+func TestDecoratorsTestFlagAllowedByDefault(t *testing.T) {
+	t.Parallel()
+
+	_, err := Compile(InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: "use testdecorators\ndefinition user {}",
+	}, AllowUnprefixedObjectType())
+
 	require.NoError(t, err)
 }

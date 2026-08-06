@@ -1,0 +1,34 @@
+NodeTypeFile
+  end-rune = 60
+  input-source = decorator malformed parameter with nested parens test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 17
+      input-source = decorator malformed parameter with nested parens test
+      start-rune = 0
+      use-flag-name = testdecorators
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 59
+      input-source = decorator malformed parameter with nested parens test
+      start-rune = 42
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testall
+          end-rune = 40
+          input-source = decorator malformed parameter with nested parens test
+          start-rune = 20
+          decorator-parameters =>
+            NodeTypeDecoratorParameter
+              decorator-parameter-name = needed
+              end-rune = 35
+              input-source = decorator malformed parameter with nested parens test
+              start-rune = 29
+              child-node =>
+                NodeTypeError
+                  end-rune = 35
+                  error-message = Expected a decorator parameter value, found token TokenTypeLeftParen
+                  error-source = (
+                  input-source = decorator malformed parameter with nested parens test
+                  start-rune = 37

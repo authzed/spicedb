@@ -59,28 +59,44 @@ Loop:
 		// definition foobar { ... }
 		// caveat somecaveat (...) { ... }
 
+		decorators, decoratorComments := p.tryConsumeDecorators()
+
+		var consumed AstNode
 		switch {
 		case p.isIdentifier("use"):
-			rootNode.Connect(dslshape.NodePredicateChild, p.consumeUseFlag(hasSeenDefinition))
+			if len(decorators) > 0 {
+				p.emitErrorf("Decorators cannot be applied to a `use` flag")
+			}
+			consumed = p.consumeUseFlag(hasSeenDefinition)
 
 		case p.isKeyword("definition"):
 			hasSeenDefinition = true
-			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDefinition())
+			consumed = p.consumeDefinition()
 
 		case p.isKeyword("caveat"):
 			hasSeenDefinition = true
-			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
+			consumed = p.consumeCaveat()
 
 		case p.isKeyword("import"):
-			rootNode.Connect(dslshape.NodePredicateChild, p.consumeImport())
+			if len(decorators) > 0 {
+				p.emitErrorf("Decorators cannot be applied to an `import`")
+			}
+			consumed = p.consumeImport()
 
 		case p.isKeyword("partial"):
-			rootNode.Connect(dslshape.NodePredicateChild, p.consumePartial())
+			consumed = p.consumePartial()
 
 		default:
-			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
+			if len(decorators) > 0 {
+				p.emitErrorf("Expected definition, caveat or partial after decorator, found token %v", p.currentToken.Kind)
+			} else {
+				p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
+			}
 			break Loop
 		}
+
+		p.attachDecorators(consumed, decorators, decoratorComments)
+		rootNode.Connect(dslshape.NodePredicateChild, consumed)
 	}
 
 	return rootNode
@@ -338,22 +354,38 @@ func (p *sourceParser) consumeDefinitionOrPartialImpl(node AstNode) AstNode {
 
 	// Relations and permissions.
 	for {
+		decorators, decoratorComments := p.tryConsumeDecorators()
+
 		// }
 		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			if len(decorators) > 0 {
+				p.emitErrorf("Expected relation or permission after decorator, found `}`")
+			}
 			break
 		}
 
 		// relation ...
 		// permission ...
+		var consumed AstNode
 		switch {
 		case p.isKeyword("relation"):
-			node.Connect(dslshape.NodePredicateChild, p.consumeRelation())
+			consumed = p.consumeRelation()
 
 		case p.isKeyword("permission"):
-			node.Connect(dslshape.NodePredicateChild, p.consumePermission())
+			consumed = p.consumePermission()
 
 		case p.isToken(lexer.TokenTypeEllipsis):
-			node.Connect(dslshape.NodePredicateChild, p.consumePartialReference())
+			if len(decorators) > 0 {
+				p.emitErrorf("Decorators cannot be applied to a partial reference")
+			}
+			consumed = p.consumePartialReference()
+		}
+
+		if consumed != nil {
+			p.attachDecorators(consumed, decorators, decoratorComments)
+			node.Connect(dslshape.NodePredicateChild, consumed)
+		} else if len(decorators) > 0 {
+			p.emitErrorf("Expected relation or permission after decorator, found token %v", p.currentToken.Kind)
 		}
 
 		ok := p.consumeStatementTerminator()
@@ -399,7 +431,12 @@ func (p *sourceParser) consumeTypeReference() AstNode {
 	defer p.mustFinishNode()
 
 	for {
-		refNode.Connect(dslshape.NodeTypeReferencePredicateType, p.consumeSpecificTypeWithCaveat())
+		decorators, decoratorComments := p.tryConsumeDecorators()
+
+		specificNode := p.consumeSpecificTypeWithCaveat()
+		p.attachDecorators(specificNode, decorators, decoratorComments)
+		refNode.Connect(dslshape.NodeTypeReferencePredicateType, specificNode)
+
 		if _, ok := p.tryConsume(lexer.TokenTypePipe); !ok {
 			break
 		}

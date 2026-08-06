@@ -189,7 +189,7 @@ func (x ReachabilityEntrypoint_ReachabilityEntrypointKind) Number() protoreflect
 
 // Deprecated: Use ReachabilityEntrypoint_ReachabilityEntrypointKind.Descriptor instead.
 func (ReachabilityEntrypoint_ReachabilityEntrypointKind) EnumDescriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{18, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{20, 0}
 }
 
 type ReachabilityEntrypoint_EntrypointResultStatus int32
@@ -242,7 +242,7 @@ func (x ReachabilityEntrypoint_EntrypointResultStatus) Number() protoreflect.Enu
 
 // Deprecated: Use ReachabilityEntrypoint_EntrypointResultStatus.Descriptor instead.
 func (ReachabilityEntrypoint_EntrypointResultStatus) EnumDescriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{18, 1}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{20, 1}
 }
 
 type FunctionedTupleToUserset_Function int32
@@ -291,7 +291,7 @@ func (x FunctionedTupleToUserset_Function) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FunctionedTupleToUserset_Function.Descriptor instead.
 func (FunctionedTupleToUserset_Function) EnumDescriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{26, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{28, 0}
 }
 
 type ComputedUserset_Object int32
@@ -337,7 +337,7 @@ func (x ComputedUserset_Object) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ComputedUserset_Object.Descriptor instead.
 func (ComputedUserset_Object) EnumDescriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{27, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{29, 0}
 }
 
 type CaveatOperation_Operation int32
@@ -389,7 +389,7 @@ func (x CaveatOperation_Operation) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CaveatOperation_Operation.Descriptor instead.
 func (CaveatOperation_Operation) EnumDescriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{30, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{32, 0}
 }
 
 type RelationTuple struct {
@@ -605,8 +605,10 @@ type CaveatDefinition struct {
 	Metadata *Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// * source_position contains the position of the caveat in the source schema, if any
 	SourcePosition *SourcePosition `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// * decorators are the decorators applied to this caveat
+	Decorators    []*Decorator `protobuf:"bytes,6,rep,name=decorators,proto3" json:"decorators,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CaveatDefinition) Reset() {
@@ -670,6 +672,13 @@ func (x *CaveatDefinition) GetMetadata() *Metadata {
 func (x *CaveatDefinition) GetSourcePosition() *SourcePosition {
 	if x != nil {
 		return x.SourcePosition
+	}
+	return nil
+}
+
+func (x *CaveatDefinition) GetDecorators() []*Decorator {
+	if x != nil {
+		return x.Decorators
 	}
 	return nil
 }
@@ -1233,6 +1242,198 @@ func (x *Metadata) GetMetadataMessage() []*anypb.Any {
 }
 
 // *
+// Decorator is a `@name(param: value)` annotation applied to a definition,
+// relation, permission, caveat or subject type in a schema.
+type Decorator struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// * name is the decorator's name, without the leading `@`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// * parameters are the decorator's arguments, in source order
+	Parameters []*DecoratorParameter `protobuf:"bytes,2,rep,name=parameters,proto3" json:"parameters,omitempty"`
+	// *
+	// required_flag is the `use` feature flag that enables this decorator. It is stored
+	// so that schema generation can re-emit the necessary `use` lines without consulting
+	// the decorator registry.
+	RequiredFlag  string `protobuf:"bytes,3,opt,name=required_flag,json=requiredFlag,proto3" json:"required_flag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Decorator) Reset() {
+	*x = Decorator{}
+	mi := &file_core_v1_core_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Decorator) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Decorator) ProtoMessage() {}
+
+func (x *Decorator) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Decorator.ProtoReflect.Descriptor instead.
+func (*Decorator) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Decorator) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Decorator) GetParameters() []*DecoratorParameter {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+func (x *Decorator) GetRequiredFlag() string {
+	if x != nil {
+		return x.RequiredFlag
+	}
+	return ""
+}
+
+// * DecoratorParameter is a single named argument to a Decorator.
+type DecoratorParameter struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Types that are valid to be assigned to Value:
+	//
+	//	*DecoratorParameter_IntValue
+	//	*DecoratorParameter_StringValue
+	//	*DecoratorParameter_BoolValue
+	//	*DecoratorParameter_EnumValue
+	Value         isDecoratorParameter_Value `protobuf_oneof:"value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DecoratorParameter) Reset() {
+	*x = DecoratorParameter{}
+	mi := &file_core_v1_core_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DecoratorParameter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecoratorParameter) ProtoMessage() {}
+
+func (x *DecoratorParameter) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecoratorParameter.ProtoReflect.Descriptor instead.
+func (*DecoratorParameter) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *DecoratorParameter) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DecoratorParameter) GetValue() isDecoratorParameter_Value {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *DecoratorParameter) GetIntValue() int64 {
+	if x != nil {
+		if x, ok := x.Value.(*DecoratorParameter_IntValue); ok {
+			return x.IntValue
+		}
+	}
+	return 0
+}
+
+func (x *DecoratorParameter) GetStringValue() string {
+	if x != nil {
+		if x, ok := x.Value.(*DecoratorParameter_StringValue); ok {
+			return x.StringValue
+		}
+	}
+	return ""
+}
+
+func (x *DecoratorParameter) GetBoolValue() bool {
+	if x != nil {
+		if x, ok := x.Value.(*DecoratorParameter_BoolValue); ok {
+			return x.BoolValue
+		}
+	}
+	return false
+}
+
+func (x *DecoratorParameter) GetEnumValue() string {
+	if x != nil {
+		if x, ok := x.Value.(*DecoratorParameter_EnumValue); ok {
+			return x.EnumValue
+		}
+	}
+	return ""
+}
+
+type isDecoratorParameter_Value interface {
+	isDecoratorParameter_Value()
+}
+
+type DecoratorParameter_IntValue struct {
+	IntValue int64 `protobuf:"varint,2,opt,name=int_value,json=intValue,proto3,oneof"`
+}
+
+type DecoratorParameter_StringValue struct {
+	StringValue string `protobuf:"bytes,3,opt,name=string_value,json=stringValue,proto3,oneof"`
+}
+
+type DecoratorParameter_BoolValue struct {
+	BoolValue bool `protobuf:"varint,4,opt,name=bool_value,json=boolValue,proto3,oneof"`
+}
+
+type DecoratorParameter_EnumValue struct {
+	EnumValue string `protobuf:"bytes,5,opt,name=enum_value,json=enumValue,proto3,oneof"`
+}
+
+func (*DecoratorParameter_IntValue) isDecoratorParameter_Value() {}
+
+func (*DecoratorParameter_StringValue) isDecoratorParameter_Value() {}
+
+func (*DecoratorParameter_BoolValue) isDecoratorParameter_Value() {}
+
+func (*DecoratorParameter_EnumValue) isDecoratorParameter_Value() {}
+
+// *
 // NamespaceDefinition represents a single definition of an object type
 type NamespaceDefinition struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1244,13 +1445,15 @@ type NamespaceDefinition struct {
 	Metadata *Metadata `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// * source_position contains the position of the namespace in the source schema, if any
 	SourcePosition *SourcePosition `protobuf:"bytes,4,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// * decorators are the decorators applied to this definition
+	Decorators    []*Decorator `protobuf:"bytes,5,rep,name=decorators,proto3" json:"decorators,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NamespaceDefinition) Reset() {
 	*x = NamespaceDefinition{}
-	mi := &file_core_v1_core_proto_msgTypes[14]
+	mi := &file_core_v1_core_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1262,7 +1465,7 @@ func (x *NamespaceDefinition) String() string {
 func (*NamespaceDefinition) ProtoMessage() {}
 
 func (x *NamespaceDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[14]
+	mi := &file_core_v1_core_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1275,7 +1478,7 @@ func (x *NamespaceDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NamespaceDefinition.ProtoReflect.Descriptor instead.
 func (*NamespaceDefinition) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{14}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *NamespaceDefinition) GetName() string {
@@ -1306,6 +1509,13 @@ func (x *NamespaceDefinition) GetSourcePosition() *SourcePosition {
 	return nil
 }
 
+func (x *NamespaceDefinition) GetDecorators() []*Decorator {
+	if x != nil {
+		return x.Decorators
+	}
+	return nil
+}
+
 // *
 // Relation represents the definition of a relation or permission under a namespace.
 type Relation struct {
@@ -1324,13 +1534,15 @@ type Relation struct {
 	SourcePosition    *SourcePosition `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
 	AliasingRelation  string          `protobuf:"bytes,6,opt,name=aliasing_relation,json=aliasingRelation,proto3" json:"aliasing_relation,omitempty"`
 	CanonicalCacheKey string          `protobuf:"bytes,7,opt,name=canonical_cache_key,json=canonicalCacheKey,proto3" json:"canonical_cache_key,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// * decorators are the decorators applied to this relation or permission
+	Decorators    []*Decorator `protobuf:"bytes,8,rep,name=decorators,proto3" json:"decorators,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Relation) Reset() {
 	*x = Relation{}
-	mi := &file_core_v1_core_proto_msgTypes[15]
+	mi := &file_core_v1_core_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1342,7 +1554,7 @@ func (x *Relation) String() string {
 func (*Relation) ProtoMessage() {}
 
 func (x *Relation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[15]
+	mi := &file_core_v1_core_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1355,7 +1567,7 @@ func (x *Relation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Relation.ProtoReflect.Descriptor instead.
 func (*Relation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{15}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Relation) GetName() string {
@@ -1407,6 +1619,13 @@ func (x *Relation) GetCanonicalCacheKey() string {
 	return ""
 }
 
+func (x *Relation) GetDecorators() []*Decorator {
+	if x != nil {
+		return x.Decorators
+	}
+	return nil
+}
+
 // *
 // ReachabilityGraph is a serialized form of a reachability graph, representing how a relation can
 // be reached from one or more subject types.
@@ -1455,7 +1674,7 @@ type ReachabilityGraph struct {
 
 func (x *ReachabilityGraph) Reset() {
 	*x = ReachabilityGraph{}
-	mi := &file_core_v1_core_proto_msgTypes[16]
+	mi := &file_core_v1_core_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1467,7 +1686,7 @@ func (x *ReachabilityGraph) String() string {
 func (*ReachabilityGraph) ProtoMessage() {}
 
 func (x *ReachabilityGraph) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[16]
+	mi := &file_core_v1_core_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1480,7 +1699,7 @@ func (x *ReachabilityGraph) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReachabilityGraph.ProtoReflect.Descriptor instead.
 func (*ReachabilityGraph) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{16}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ReachabilityGraph) GetEntrypointsBySubjectType() map[string]*ReachabilityEntrypoints {
@@ -1519,7 +1738,7 @@ type ReachabilityEntrypoints struct {
 
 func (x *ReachabilityEntrypoints) Reset() {
 	*x = ReachabilityEntrypoints{}
-	mi := &file_core_v1_core_proto_msgTypes[17]
+	mi := &file_core_v1_core_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1531,7 +1750,7 @@ func (x *ReachabilityEntrypoints) String() string {
 func (*ReachabilityEntrypoints) ProtoMessage() {}
 
 func (x *ReachabilityEntrypoints) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[17]
+	mi := &file_core_v1_core_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1544,7 +1763,7 @@ func (x *ReachabilityEntrypoints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReachabilityEntrypoints.ProtoReflect.Descriptor instead.
 func (*ReachabilityEntrypoints) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{17}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ReachabilityEntrypoints) GetEntrypoints() []*ReachabilityEntrypoint {
@@ -1597,7 +1816,7 @@ type ReachabilityEntrypoint struct {
 
 func (x *ReachabilityEntrypoint) Reset() {
 	*x = ReachabilityEntrypoint{}
-	mi := &file_core_v1_core_proto_msgTypes[18]
+	mi := &file_core_v1_core_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1609,7 +1828,7 @@ func (x *ReachabilityEntrypoint) String() string {
 func (*ReachabilityEntrypoint) ProtoMessage() {}
 
 func (x *ReachabilityEntrypoint) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[18]
+	mi := &file_core_v1_core_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1622,7 +1841,7 @@ func (x *ReachabilityEntrypoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReachabilityEntrypoint.ProtoReflect.Descriptor instead.
 func (*ReachabilityEntrypoint) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{18}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ReachabilityEntrypoint) GetKind() ReachabilityEntrypoint_ReachabilityEntrypointKind {
@@ -1674,7 +1893,7 @@ type TypeInformation struct {
 
 func (x *TypeInformation) Reset() {
 	*x = TypeInformation{}
-	mi := &file_core_v1_core_proto_msgTypes[19]
+	mi := &file_core_v1_core_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1686,7 +1905,7 @@ func (x *TypeInformation) String() string {
 func (*TypeInformation) ProtoMessage() {}
 
 func (x *TypeInformation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[19]
+	mi := &file_core_v1_core_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1699,7 +1918,7 @@ func (x *TypeInformation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeInformation.ProtoReflect.Descriptor instead.
 func (*TypeInformation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{19}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *TypeInformation) GetAllowedDirectRelations() []*AllowedRelation {
@@ -1731,13 +1950,15 @@ type AllowedRelation struct {
 	// *
 	// required_expiration defines the required expiration on this relation.
 	RequiredExpiration *ExpirationTrait `protobuf:"bytes,7,opt,name=required_expiration,json=requiredExpiration,proto3" json:"required_expiration,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// * decorators are the decorators applied to this subject type
+	Decorators    []*Decorator `protobuf:"bytes,8,rep,name=decorators,proto3" json:"decorators,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AllowedRelation) Reset() {
 	*x = AllowedRelation{}
-	mi := &file_core_v1_core_proto_msgTypes[20]
+	mi := &file_core_v1_core_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1749,7 +1970,7 @@ func (x *AllowedRelation) String() string {
 func (*AllowedRelation) ProtoMessage() {}
 
 func (x *AllowedRelation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[20]
+	mi := &file_core_v1_core_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1762,7 +1983,7 @@ func (x *AllowedRelation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowedRelation.ProtoReflect.Descriptor instead.
 func (*AllowedRelation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{20}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *AllowedRelation) GetNamespace() string {
@@ -1818,6 +2039,13 @@ func (x *AllowedRelation) GetRequiredExpiration() *ExpirationTrait {
 	return nil
 }
 
+func (x *AllowedRelation) GetDecorators() []*Decorator {
+	if x != nil {
+		return x.Decorators
+	}
+	return nil
+}
+
 type isAllowedRelation_RelationOrWildcard interface {
 	isAllowedRelation_RelationOrWildcard()
 }
@@ -1844,7 +2072,7 @@ type ExpirationTrait struct {
 
 func (x *ExpirationTrait) Reset() {
 	*x = ExpirationTrait{}
-	mi := &file_core_v1_core_proto_msgTypes[21]
+	mi := &file_core_v1_core_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1856,7 +2084,7 @@ func (x *ExpirationTrait) String() string {
 func (*ExpirationTrait) ProtoMessage() {}
 
 func (x *ExpirationTrait) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[21]
+	mi := &file_core_v1_core_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1869,7 +2097,7 @@ func (x *ExpirationTrait) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExpirationTrait.ProtoReflect.Descriptor instead.
 func (*ExpirationTrait) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{21}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{23}
 }
 
 // *
@@ -1885,7 +2113,7 @@ type AllowedCaveat struct {
 
 func (x *AllowedCaveat) Reset() {
 	*x = AllowedCaveat{}
-	mi := &file_core_v1_core_proto_msgTypes[22]
+	mi := &file_core_v1_core_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1897,7 +2125,7 @@ func (x *AllowedCaveat) String() string {
 func (*AllowedCaveat) ProtoMessage() {}
 
 func (x *AllowedCaveat) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[22]
+	mi := &file_core_v1_core_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1910,7 +2138,7 @@ func (x *AllowedCaveat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowedCaveat.ProtoReflect.Descriptor instead.
 func (*AllowedCaveat) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{22}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AllowedCaveat) GetCaveatName() string {
@@ -1935,7 +2163,7 @@ type UsersetRewrite struct {
 
 func (x *UsersetRewrite) Reset() {
 	*x = UsersetRewrite{}
-	mi := &file_core_v1_core_proto_msgTypes[23]
+	mi := &file_core_v1_core_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1947,7 +2175,7 @@ func (x *UsersetRewrite) String() string {
 func (*UsersetRewrite) ProtoMessage() {}
 
 func (x *UsersetRewrite) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[23]
+	mi := &file_core_v1_core_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1960,7 +2188,7 @@ func (x *UsersetRewrite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsersetRewrite.ProtoReflect.Descriptor instead.
 func (*UsersetRewrite) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{23}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *UsersetRewrite) GetRewriteOperation() isUsersetRewrite_RewriteOperation {
@@ -2035,7 +2263,7 @@ type SetOperation struct {
 
 func (x *SetOperation) Reset() {
 	*x = SetOperation{}
-	mi := &file_core_v1_core_proto_msgTypes[24]
+	mi := &file_core_v1_core_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2047,7 +2275,7 @@ func (x *SetOperation) String() string {
 func (*SetOperation) ProtoMessage() {}
 
 func (x *SetOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[24]
+	mi := &file_core_v1_core_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2060,7 +2288,7 @@ func (x *SetOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation.ProtoReflect.Descriptor instead.
 func (*SetOperation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{24}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SetOperation) GetChild() []*SetOperation_Child {
@@ -2081,7 +2309,7 @@ type TupleToUserset struct {
 
 func (x *TupleToUserset) Reset() {
 	*x = TupleToUserset{}
-	mi := &file_core_v1_core_proto_msgTypes[25]
+	mi := &file_core_v1_core_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2093,7 +2321,7 @@ func (x *TupleToUserset) String() string {
 func (*TupleToUserset) ProtoMessage() {}
 
 func (x *TupleToUserset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[25]
+	mi := &file_core_v1_core_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2106,7 +2334,7 @@ func (x *TupleToUserset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TupleToUserset.ProtoReflect.Descriptor instead.
 func (*TupleToUserset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{25}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *TupleToUserset) GetTupleset() *TupleToUserset_Tupleset {
@@ -2142,7 +2370,7 @@ type FunctionedTupleToUserset struct {
 
 func (x *FunctionedTupleToUserset) Reset() {
 	*x = FunctionedTupleToUserset{}
-	mi := &file_core_v1_core_proto_msgTypes[26]
+	mi := &file_core_v1_core_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2154,7 +2382,7 @@ func (x *FunctionedTupleToUserset) String() string {
 func (*FunctionedTupleToUserset) ProtoMessage() {}
 
 func (x *FunctionedTupleToUserset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[26]
+	mi := &file_core_v1_core_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2167,7 +2395,7 @@ func (x *FunctionedTupleToUserset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FunctionedTupleToUserset.ProtoReflect.Descriptor instead.
 func (*FunctionedTupleToUserset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{26}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *FunctionedTupleToUserset) GetFunction() FunctionedTupleToUserset_Function {
@@ -2209,7 +2437,7 @@ type ComputedUserset struct {
 
 func (x *ComputedUserset) Reset() {
 	*x = ComputedUserset{}
-	mi := &file_core_v1_core_proto_msgTypes[27]
+	mi := &file_core_v1_core_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2221,7 +2449,7 @@ func (x *ComputedUserset) String() string {
 func (*ComputedUserset) ProtoMessage() {}
 
 func (x *ComputedUserset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[27]
+	mi := &file_core_v1_core_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2234,7 +2462,7 @@ func (x *ComputedUserset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputedUserset.ProtoReflect.Descriptor instead.
 func (*ComputedUserset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{27}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ComputedUserset) GetObject() ComputedUserset_Object {
@@ -2268,7 +2496,7 @@ type SourcePosition struct {
 
 func (x *SourcePosition) Reset() {
 	*x = SourcePosition{}
-	mi := &file_core_v1_core_proto_msgTypes[28]
+	mi := &file_core_v1_core_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2280,7 +2508,7 @@ func (x *SourcePosition) String() string {
 func (*SourcePosition) ProtoMessage() {}
 
 func (x *SourcePosition) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[28]
+	mi := &file_core_v1_core_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2293,7 +2521,7 @@ func (x *SourcePosition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SourcePosition.ProtoReflect.Descriptor instead.
 func (*SourcePosition) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{28}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SourcePosition) GetZeroIndexedLineNumber() uint64 {
@@ -2323,7 +2551,7 @@ type CaveatExpression struct {
 
 func (x *CaveatExpression) Reset() {
 	*x = CaveatExpression{}
-	mi := &file_core_v1_core_proto_msgTypes[29]
+	mi := &file_core_v1_core_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2335,7 +2563,7 @@ func (x *CaveatExpression) String() string {
 func (*CaveatExpression) ProtoMessage() {}
 
 func (x *CaveatExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[29]
+	mi := &file_core_v1_core_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2348,7 +2576,7 @@ func (x *CaveatExpression) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CaveatExpression.ProtoReflect.Descriptor instead.
 func (*CaveatExpression) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{29}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CaveatExpression) GetOperationOrCaveat() isCaveatExpression_OperationOrCaveat {
@@ -2402,7 +2630,7 @@ type CaveatOperation struct {
 
 func (x *CaveatOperation) Reset() {
 	*x = CaveatOperation{}
-	mi := &file_core_v1_core_proto_msgTypes[30]
+	mi := &file_core_v1_core_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2414,7 +2642,7 @@ func (x *CaveatOperation) String() string {
 func (*CaveatOperation) ProtoMessage() {}
 
 func (x *CaveatOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[30]
+	mi := &file_core_v1_core_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2427,7 +2655,7 @@ func (x *CaveatOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CaveatOperation.ProtoReflect.Descriptor instead.
 func (*CaveatOperation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{30}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *CaveatOperation) GetOp() CaveatOperation_Operation {
@@ -2465,7 +2693,7 @@ type RelationshipFilter struct {
 
 func (x *RelationshipFilter) Reset() {
 	*x = RelationshipFilter{}
-	mi := &file_core_v1_core_proto_msgTypes[31]
+	mi := &file_core_v1_core_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2477,7 +2705,7 @@ func (x *RelationshipFilter) String() string {
 func (*RelationshipFilter) ProtoMessage() {}
 
 func (x *RelationshipFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[31]
+	mi := &file_core_v1_core_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2490,7 +2718,7 @@ func (x *RelationshipFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelationshipFilter.ProtoReflect.Descriptor instead.
 func (*RelationshipFilter) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{31}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *RelationshipFilter) GetResourceType() string {
@@ -2543,7 +2771,7 @@ type SubjectFilter struct {
 
 func (x *SubjectFilter) Reset() {
 	*x = SubjectFilter{}
-	mi := &file_core_v1_core_proto_msgTypes[32]
+	mi := &file_core_v1_core_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2555,7 +2783,7 @@ func (x *SubjectFilter) String() string {
 func (*SubjectFilter) ProtoMessage() {}
 
 func (x *SubjectFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[32]
+	mi := &file_core_v1_core_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2568,7 +2796,7 @@ func (x *SubjectFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubjectFilter.ProtoReflect.Descriptor instead.
 func (*SubjectFilter) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{32}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *SubjectFilter) GetSubjectType() string {
@@ -2606,7 +2834,7 @@ type StoredSchema struct {
 
 func (x *StoredSchema) Reset() {
 	*x = StoredSchema{}
-	mi := &file_core_v1_core_proto_msgTypes[33]
+	mi := &file_core_v1_core_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2618,7 +2846,7 @@ func (x *StoredSchema) String() string {
 func (*StoredSchema) ProtoMessage() {}
 
 func (x *StoredSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[33]
+	mi := &file_core_v1_core_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2631,7 +2859,7 @@ func (x *StoredSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoredSchema.ProtoReflect.Descriptor instead.
 func (*StoredSchema) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{33}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *StoredSchema) GetVersion() uint32 {
@@ -2675,7 +2903,7 @@ type AllowedRelation_PublicWildcard struct {
 
 func (x *AllowedRelation_PublicWildcard) Reset() {
 	*x = AllowedRelation_PublicWildcard{}
-	mi := &file_core_v1_core_proto_msgTypes[37]
+	mi := &file_core_v1_core_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2687,7 +2915,7 @@ func (x *AllowedRelation_PublicWildcard) String() string {
 func (*AllowedRelation_PublicWildcard) ProtoMessage() {}
 
 func (x *AllowedRelation_PublicWildcard) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[37]
+	mi := &file_core_v1_core_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2700,7 +2928,7 @@ func (x *AllowedRelation_PublicWildcard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowedRelation_PublicWildcard.ProtoReflect.Descriptor instead.
 func (*AllowedRelation_PublicWildcard) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{20, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{22, 0}
 }
 
 type SetOperation_Child struct {
@@ -2728,7 +2956,7 @@ type SetOperation_Child struct {
 
 func (x *SetOperation_Child) Reset() {
 	*x = SetOperation_Child{}
-	mi := &file_core_v1_core_proto_msgTypes[38]
+	mi := &file_core_v1_core_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2740,7 +2968,7 @@ func (x *SetOperation_Child) String() string {
 func (*SetOperation_Child) ProtoMessage() {}
 
 func (x *SetOperation_Child) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[38]
+	mi := &file_core_v1_core_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2753,7 +2981,7 @@ func (x *SetOperation_Child) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation_Child.ProtoReflect.Descriptor instead.
 func (*SetOperation_Child) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{24, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{26, 0}
 }
 
 func (x *SetOperation_Child) GetChildType() isSetOperation_Child_ChildType {
@@ -2896,7 +3124,7 @@ type SetOperation_Child_This struct {
 
 func (x *SetOperation_Child_This) Reset() {
 	*x = SetOperation_Child_This{}
-	mi := &file_core_v1_core_proto_msgTypes[39]
+	mi := &file_core_v1_core_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2908,7 +3136,7 @@ func (x *SetOperation_Child_This) String() string {
 func (*SetOperation_Child_This) ProtoMessage() {}
 
 func (x *SetOperation_Child_This) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[39]
+	mi := &file_core_v1_core_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2921,7 +3149,7 @@ func (x *SetOperation_Child_This) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation_Child_This.ProtoReflect.Descriptor instead.
 func (*SetOperation_Child_This) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{24, 0, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{26, 0, 0}
 }
 
 type SetOperation_Child_Nil struct {
@@ -2932,7 +3160,7 @@ type SetOperation_Child_Nil struct {
 
 func (x *SetOperation_Child_Nil) Reset() {
 	*x = SetOperation_Child_Nil{}
-	mi := &file_core_v1_core_proto_msgTypes[40]
+	mi := &file_core_v1_core_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2944,7 +3172,7 @@ func (x *SetOperation_Child_Nil) String() string {
 func (*SetOperation_Child_Nil) ProtoMessage() {}
 
 func (x *SetOperation_Child_Nil) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[40]
+	mi := &file_core_v1_core_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2957,7 +3185,7 @@ func (x *SetOperation_Child_Nil) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation_Child_Nil.ProtoReflect.Descriptor instead.
 func (*SetOperation_Child_Nil) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{24, 0, 1}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{26, 0, 1}
 }
 
 // `self` refers to the resource-as-a-subject in a permission computation.
@@ -2969,7 +3197,7 @@ type SetOperation_Child_Self struct {
 
 func (x *SetOperation_Child_Self) Reset() {
 	*x = SetOperation_Child_Self{}
-	mi := &file_core_v1_core_proto_msgTypes[41]
+	mi := &file_core_v1_core_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2981,7 +3209,7 @@ func (x *SetOperation_Child_Self) String() string {
 func (*SetOperation_Child_Self) ProtoMessage() {}
 
 func (x *SetOperation_Child_Self) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[41]
+	mi := &file_core_v1_core_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2994,7 +3222,7 @@ func (x *SetOperation_Child_Self) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation_Child_Self.ProtoReflect.Descriptor instead.
 func (*SetOperation_Child_Self) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{24, 0, 2}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{26, 0, 2}
 }
 
 type TupleToUserset_Tupleset struct {
@@ -3006,7 +3234,7 @@ type TupleToUserset_Tupleset struct {
 
 func (x *TupleToUserset_Tupleset) Reset() {
 	*x = TupleToUserset_Tupleset{}
-	mi := &file_core_v1_core_proto_msgTypes[42]
+	mi := &file_core_v1_core_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3018,7 +3246,7 @@ func (x *TupleToUserset_Tupleset) String() string {
 func (*TupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *TupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[42]
+	mi := &file_core_v1_core_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3031,7 +3259,7 @@ func (x *TupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TupleToUserset_Tupleset.ProtoReflect.Descriptor instead.
 func (*TupleToUserset_Tupleset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{25, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{27, 0}
 }
 
 func (x *TupleToUserset_Tupleset) GetRelation() string {
@@ -3050,7 +3278,7 @@ type FunctionedTupleToUserset_Tupleset struct {
 
 func (x *FunctionedTupleToUserset_Tupleset) Reset() {
 	*x = FunctionedTupleToUserset_Tupleset{}
-	mi := &file_core_v1_core_proto_msgTypes[43]
+	mi := &file_core_v1_core_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3062,7 +3290,7 @@ func (x *FunctionedTupleToUserset_Tupleset) String() string {
 func (*FunctionedTupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *FunctionedTupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[43]
+	mi := &file_core_v1_core_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3075,7 +3303,7 @@ func (x *FunctionedTupleToUserset_Tupleset) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use FunctionedTupleToUserset_Tupleset.ProtoReflect.Descriptor instead.
 func (*FunctionedTupleToUserset_Tupleset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{26, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{28, 0}
 }
 
 func (x *FunctionedTupleToUserset_Tupleset) GetRelation() string {
@@ -3094,7 +3322,7 @@ type SubjectFilter_RelationFilter struct {
 
 func (x *SubjectFilter_RelationFilter) Reset() {
 	*x = SubjectFilter_RelationFilter{}
-	mi := &file_core_v1_core_proto_msgTypes[44]
+	mi := &file_core_v1_core_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3106,7 +3334,7 @@ func (x *SubjectFilter_RelationFilter) String() string {
 func (*SubjectFilter_RelationFilter) ProtoMessage() {}
 
 func (x *SubjectFilter_RelationFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[44]
+	mi := &file_core_v1_core_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3119,7 +3347,7 @@ func (x *SubjectFilter_RelationFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubjectFilter_RelationFilter.ProtoReflect.Descriptor instead.
 func (*SubjectFilter_RelationFilter) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{32, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{34, 0}
 }
 
 func (x *SubjectFilter_RelationFilter) GetRelation() string {
@@ -3147,7 +3375,7 @@ type StoredSchema_V1StoredSchema struct {
 
 func (x *StoredSchema_V1StoredSchema) Reset() {
 	*x = StoredSchema_V1StoredSchema{}
-	mi := &file_core_v1_core_proto_msgTypes[45]
+	mi := &file_core_v1_core_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3159,7 +3387,7 @@ func (x *StoredSchema_V1StoredSchema) String() string {
 func (*StoredSchema_V1StoredSchema) ProtoMessage() {}
 
 func (x *StoredSchema_V1StoredSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[45]
+	mi := &file_core_v1_core_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3172,7 +3400,7 @@ func (x *StoredSchema_V1StoredSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoredSchema_V1StoredSchema.ProtoReflect.Descriptor instead.
 func (*StoredSchema_V1StoredSchema) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{33, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{35, 0}
 }
 
 func (x *StoredSchema_V1StoredSchema) GetSchemaText() string {
@@ -3221,7 +3449,7 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x14ContextualizedCaveat\x12V\n" +
 	"\vcaveat_name\x18\x01 \x01(\tB5\xbaH2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\n" +
 	"caveatName\x129\n" +
-	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructB\x06\xbaH\x03\xc8\x01\x00R\acontext\"\xd4\x03\n" +
+	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructB\x06\xbaH\x03\xc8\x01\x00R\acontext\"\x88\x04\n" +
 	"\x10CaveatDefinition\x12I\n" +
 	"\x04name\x18\x01 \x01(\tB5\xbaH2r0(\x80\x012+^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$R\x04name\x12?\n" +
 	"\x15serialized_expression\x18\x02 \x01(\fB\n" +
@@ -3229,7 +3457,10 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0fparameter_types\x18\x03 \x03(\v2-.core.v1.CaveatDefinition.ParameterTypesEntryB\n" +
 	"\xbaH\a\x9a\x01\x04\b\x01\x10\x14R\x0eparameterTypes\x12-\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
-	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x1a_\n" +
+	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x122\n" +
+	"\n" +
+	"decorators\x18\x06 \x03(\v2\x12.core.v1.DecoratorR\n" +
+	"decorators\x1a_\n" +
 	"\x13ParameterTypesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
 	"\x05value\x18\x02 \x01(\v2\x1c.core.v1.CaveatTypeReferenceR\x05value:\x028\x01\"}\n" +
@@ -3278,12 +3509,30 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x0eDirectSubjects\x122\n" +
 	"\bsubjects\x18\x01 \x03(\v2\x16.core.v1.DirectSubjectR\bsubjects\"\xb7\x01\n" +
 	"\bMetadata\x12\xaa\x01\n" +
-	"\x10metadata_message\x18\x01 \x03(\v2\x14.google.protobuf.AnyBi\xbaHf\xc8\x01\x01\x92\x01`\b\x01\"\\\xc8\x01\x01\xa2\x01V\x12&type.googleapis.com/impl.v1.DocComment\x12,type.googleapis.com/impl.v1.RelationMetadataR\x0fmetadataMessage\"\x93\x02\n" +
+	"\x10metadata_message\x18\x01 \x03(\v2\x14.google.protobuf.AnyBi\xbaHf\xc8\x01\x01\x92\x01`\b\x01\"\\\xc8\x01\x01\xa2\x01V\x12&type.googleapis.com/impl.v1.DocComment\x12,type.googleapis.com/impl.v1.RelationMetadataR\x0fmetadataMessage\"\xaa\x01\n" +
+	"\tDecorator\x12;\n" +
+	"\x04name\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{0,62}[a-z0-9]$R\x04name\x12;\n" +
+	"\n" +
+	"parameters\x18\x02 \x03(\v2\x1b.core.v1.DecoratorParameterR\n" +
+	"parameters\x12#\n" +
+	"\rrequired_flag\x18\x03 \x01(\tR\frequiredFlag\"\xe0\x01\n" +
+	"\x12DecoratorParameter\x12;\n" +
+	"\x04name\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{0,62}[a-z0-9]$R\x04name\x12\x1d\n" +
+	"\tint_value\x18\x02 \x01(\x03H\x00R\bintValue\x12#\n" +
+	"\fstring_value\x18\x03 \x01(\tH\x00R\vstringValue\x12\x1f\n" +
+	"\n" +
+	"bool_value\x18\x04 \x01(\bH\x00R\tboolValue\x12\x1f\n" +
+	"\n" +
+	"enum_value\x18\x05 \x01(\tH\x00R\tenumValueB\a\n" +
+	"\x05value\"\xc7\x02\n" +
 	"\x13NamespaceDefinition\x12\\\n" +
 	"\x04name\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12-\n" +
 	"\brelation\x18\x02 \x03(\v2\x11.core.v1.RelationR\brelation\x12-\n" +
 	"\bmetadata\x18\x03 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
-	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\"\x9c\x03\n" +
+	"\x0fsource_position\x18\x04 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x122\n" +
+	"\n" +
+	"decorators\x18\x05 \x03(\v2\x12.core.v1.DecoratorR\n" +
+	"decorators\"\xd0\x03\n" +
 	"\bRelation\x12;\n" +
 	"\x04name\x18\x01 \x01(\tB'\xbaH$r\"(@2\x1e^[a-z][a-z0-9_]{1,62}[a-z0-9]$R\x04name\x12@\n" +
 	"\x0fuserset_rewrite\x18\x02 \x01(\v2\x17.core.v1.UsersetRewriteR\x0eusersetRewrite\x12C\n" +
@@ -3291,7 +3540,10 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x11.core.v1.MetadataR\bmetadata\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12+\n" +
 	"\x11aliasing_relation\x18\x06 \x01(\tR\x10aliasingRelation\x12.\n" +
-	"\x13canonical_cache_key\x18\a \x01(\tR\x11canonicalCacheKey\"\xf4\x03\n" +
+	"\x13canonical_cache_key\x18\a \x01(\tR\x11canonicalCacheKey\x122\n" +
+	"\n" +
+	"decorators\x18\b \x03(\v2\x12.core.v1.DecoratorR\n" +
+	"decorators\"\xf4\x03\n" +
 	"\x11ReachabilityGraph\x12w\n" +
 	"\x1bentrypoints_by_subject_type\x18\x01 \x03(\v28.core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntryR\x18entrypointsBySubjectType\x12\x83\x01\n" +
 	"\x1fentrypoints_by_subject_relation\x18\x02 \x03(\v2<.core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntryR\x1centrypointsBySubjectRelation\x1am\n" +
@@ -3320,14 +3572,17 @@ const file_core_v1_core_proto_rawDesc = "" +
 	"\x1cREACHABLE_CONDITIONAL_RESULT\x10\x00\x12\x1b\n" +
 	"\x17DIRECT_OPERATION_RESULT\x10\x01J\x04\b\x03\x10\x04\"e\n" +
 	"\x0fTypeInformation\x12R\n" +
-	"\x18allowed_direct_relations\x18\x01 \x03(\v2\x18.core.v1.AllowedRelationR\x16allowedDirectRelations\"\x95\x04\n" +
+	"\x18allowed_direct_relations\x18\x01 \x03(\v2\x18.core.v1.AllowedRelationR\x16allowedDirectRelations\"\xc9\x04\n" +
 	"\x0fAllowedRelation\x12f\n" +
 	"\tnamespace\x18\x01 \x01(\tBH\xbaHErC(\x80\x012>^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$R\tnamespace\x12N\n" +
 	"\brelation\x18\x03 \x01(\tB0\xbaH-r+(@2'^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$H\x00R\brelation\x12R\n" +
 	"\x0fpublic_wildcard\x18\x04 \x01(\v2'.core.v1.AllowedRelation.PublicWildcardH\x00R\x0epublicWildcard\x12@\n" +
 	"\x0fsource_position\x18\x05 \x01(\v2\x17.core.v1.SourcePositionR\x0esourcePosition\x12?\n" +
 	"\x0frequired_caveat\x18\x06 \x01(\v2\x16.core.v1.AllowedCaveatR\x0erequiredCaveat\x12I\n" +
-	"\x13required_expiration\x18\a \x01(\v2\x18.core.v1.ExpirationTraitR\x12requiredExpiration\x1a\x10\n" +
+	"\x13required_expiration\x18\a \x01(\v2\x18.core.v1.ExpirationTraitR\x12requiredExpiration\x122\n" +
+	"\n" +
+	"decorators\x18\b \x03(\v2\x12.core.v1.DecoratorR\n" +
+	"decorators\x1a\x10\n" +
 	"\x0ePublicWildcardB\x16\n" +
 	"\x14relation_or_wildcard\"\x11\n" +
 	"\x0fExpirationTrait\"0\n" +
@@ -3442,7 +3697,7 @@ func file_core_v1_core_proto_rawDescGZIP() []byte {
 }
 
 var file_core_v1_core_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
+var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
 var file_core_v1_core_proto_goTypes = []any{
 	(RelationTupleUpdate_Operation)(0),                     // 0: core.v1.RelationTupleUpdate.Operation
 	(SetOperationUserset_Operation)(0),                     // 1: core.v1.SetOperationUserset.Operation
@@ -3465,128 +3720,135 @@ var file_core_v1_core_proto_goTypes = []any{
 	(*DirectSubject)(nil),                                  // 18: core.v1.DirectSubject
 	(*DirectSubjects)(nil),                                 // 19: core.v1.DirectSubjects
 	(*Metadata)(nil),                                       // 20: core.v1.Metadata
-	(*NamespaceDefinition)(nil),                            // 21: core.v1.NamespaceDefinition
-	(*Relation)(nil),                                       // 22: core.v1.Relation
-	(*ReachabilityGraph)(nil),                              // 23: core.v1.ReachabilityGraph
-	(*ReachabilityEntrypoints)(nil),                        // 24: core.v1.ReachabilityEntrypoints
-	(*ReachabilityEntrypoint)(nil),                         // 25: core.v1.ReachabilityEntrypoint
-	(*TypeInformation)(nil),                                // 26: core.v1.TypeInformation
-	(*AllowedRelation)(nil),                                // 27: core.v1.AllowedRelation
-	(*ExpirationTrait)(nil),                                // 28: core.v1.ExpirationTrait
-	(*AllowedCaveat)(nil),                                  // 29: core.v1.AllowedCaveat
-	(*UsersetRewrite)(nil),                                 // 30: core.v1.UsersetRewrite
-	(*SetOperation)(nil),                                   // 31: core.v1.SetOperation
-	(*TupleToUserset)(nil),                                 // 32: core.v1.TupleToUserset
-	(*FunctionedTupleToUserset)(nil),                       // 33: core.v1.FunctionedTupleToUserset
-	(*ComputedUserset)(nil),                                // 34: core.v1.ComputedUserset
-	(*SourcePosition)(nil),                                 // 35: core.v1.SourcePosition
-	(*CaveatExpression)(nil),                               // 36: core.v1.CaveatExpression
-	(*CaveatOperation)(nil),                                // 37: core.v1.CaveatOperation
-	(*RelationshipFilter)(nil),                             // 38: core.v1.RelationshipFilter
-	(*SubjectFilter)(nil),                                  // 39: core.v1.SubjectFilter
-	(*StoredSchema)(nil),                                   // 40: core.v1.StoredSchema
-	nil,                                                    // 41: core.v1.CaveatDefinition.ParameterTypesEntry
-	nil,                                                    // 42: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
-	nil,                                                    // 43: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
-	(*AllowedRelation_PublicWildcard)(nil),                 // 44: core.v1.AllowedRelation.PublicWildcard
-	(*SetOperation_Child)(nil),                             // 45: core.v1.SetOperation.Child
-	(*SetOperation_Child_This)(nil),                        // 46: core.v1.SetOperation.Child.This
-	(*SetOperation_Child_Nil)(nil),                         // 47: core.v1.SetOperation.Child.Nil
-	(*SetOperation_Child_Self)(nil),                        // 48: core.v1.SetOperation.Child.Self
-	(*TupleToUserset_Tupleset)(nil),                        // 49: core.v1.TupleToUserset.Tupleset
-	(*FunctionedTupleToUserset_Tupleset)(nil),              // 50: core.v1.FunctionedTupleToUserset.Tupleset
-	(*SubjectFilter_RelationFilter)(nil),                   // 51: core.v1.SubjectFilter.RelationFilter
-	(*StoredSchema_V1StoredSchema)(nil),                    // 52: core.v1.StoredSchema.V1StoredSchema
-	nil,                                                    // 53: core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry
-	nil,                                                    // 54: core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry
-	(*timestamppb.Timestamp)(nil),                          // 55: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),                                // 56: google.protobuf.Struct
-	(*anypb.Any)(nil),                                      // 57: google.protobuf.Any
+	(*Decorator)(nil),                                      // 21: core.v1.Decorator
+	(*DecoratorParameter)(nil),                             // 22: core.v1.DecoratorParameter
+	(*NamespaceDefinition)(nil),                            // 23: core.v1.NamespaceDefinition
+	(*Relation)(nil),                                       // 24: core.v1.Relation
+	(*ReachabilityGraph)(nil),                              // 25: core.v1.ReachabilityGraph
+	(*ReachabilityEntrypoints)(nil),                        // 26: core.v1.ReachabilityEntrypoints
+	(*ReachabilityEntrypoint)(nil),                         // 27: core.v1.ReachabilityEntrypoint
+	(*TypeInformation)(nil),                                // 28: core.v1.TypeInformation
+	(*AllowedRelation)(nil),                                // 29: core.v1.AllowedRelation
+	(*ExpirationTrait)(nil),                                // 30: core.v1.ExpirationTrait
+	(*AllowedCaveat)(nil),                                  // 31: core.v1.AllowedCaveat
+	(*UsersetRewrite)(nil),                                 // 32: core.v1.UsersetRewrite
+	(*SetOperation)(nil),                                   // 33: core.v1.SetOperation
+	(*TupleToUserset)(nil),                                 // 34: core.v1.TupleToUserset
+	(*FunctionedTupleToUserset)(nil),                       // 35: core.v1.FunctionedTupleToUserset
+	(*ComputedUserset)(nil),                                // 36: core.v1.ComputedUserset
+	(*SourcePosition)(nil),                                 // 37: core.v1.SourcePosition
+	(*CaveatExpression)(nil),                               // 38: core.v1.CaveatExpression
+	(*CaveatOperation)(nil),                                // 39: core.v1.CaveatOperation
+	(*RelationshipFilter)(nil),                             // 40: core.v1.RelationshipFilter
+	(*SubjectFilter)(nil),                                  // 41: core.v1.SubjectFilter
+	(*StoredSchema)(nil),                                   // 42: core.v1.StoredSchema
+	nil,                                                    // 43: core.v1.CaveatDefinition.ParameterTypesEntry
+	nil,                                                    // 44: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	nil,                                                    // 45: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	(*AllowedRelation_PublicWildcard)(nil),                 // 46: core.v1.AllowedRelation.PublicWildcard
+	(*SetOperation_Child)(nil),                             // 47: core.v1.SetOperation.Child
+	(*SetOperation_Child_This)(nil),                        // 48: core.v1.SetOperation.Child.This
+	(*SetOperation_Child_Nil)(nil),                         // 49: core.v1.SetOperation.Child.Nil
+	(*SetOperation_Child_Self)(nil),                        // 50: core.v1.SetOperation.Child.Self
+	(*TupleToUserset_Tupleset)(nil),                        // 51: core.v1.TupleToUserset.Tupleset
+	(*FunctionedTupleToUserset_Tupleset)(nil),              // 52: core.v1.FunctionedTupleToUserset.Tupleset
+	(*SubjectFilter_RelationFilter)(nil),                   // 53: core.v1.SubjectFilter.RelationFilter
+	(*StoredSchema_V1StoredSchema)(nil),                    // 54: core.v1.StoredSchema.V1StoredSchema
+	nil,                                                    // 55: core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry
+	nil,                                                    // 56: core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry
+	(*timestamppb.Timestamp)(nil),                          // 57: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                                // 58: google.protobuf.Struct
+	(*anypb.Any)(nil),                                      // 59: google.protobuf.Any
 }
 var file_core_v1_core_proto_depIdxs = []int32{
 	12, // 0: core.v1.RelationTuple.resource_and_relation:type_name -> core.v1.ObjectAndRelation
 	12, // 1: core.v1.RelationTuple.subject:type_name -> core.v1.ObjectAndRelation
 	9,  // 2: core.v1.RelationTuple.caveat:type_name -> core.v1.ContextualizedCaveat
 	8,  // 3: core.v1.RelationTuple.integrity:type_name -> core.v1.RelationshipIntegrity
-	55, // 4: core.v1.RelationTuple.optional_expiration_time:type_name -> google.protobuf.Timestamp
-	55, // 5: core.v1.RelationshipIntegrity.hashed_at:type_name -> google.protobuf.Timestamp
-	56, // 6: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
-	41, // 7: core.v1.CaveatDefinition.parameter_types:type_name -> core.v1.CaveatDefinition.ParameterTypesEntry
+	57, // 4: core.v1.RelationTuple.optional_expiration_time:type_name -> google.protobuf.Timestamp
+	57, // 5: core.v1.RelationshipIntegrity.hashed_at:type_name -> google.protobuf.Timestamp
+	58, // 6: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
+	43, // 7: core.v1.CaveatDefinition.parameter_types:type_name -> core.v1.CaveatDefinition.ParameterTypesEntry
 	20, // 8: core.v1.CaveatDefinition.metadata:type_name -> core.v1.Metadata
-	35, // 9: core.v1.CaveatDefinition.source_position:type_name -> core.v1.SourcePosition
-	11, // 10: core.v1.CaveatTypeReference.child_types:type_name -> core.v1.CaveatTypeReference
-	0,  // 11: core.v1.RelationTupleUpdate.operation:type_name -> core.v1.RelationTupleUpdate.Operation
-	7,  // 12: core.v1.RelationTupleUpdate.tuple:type_name -> core.v1.RelationTuple
-	17, // 13: core.v1.RelationTupleTreeNode.intermediate_node:type_name -> core.v1.SetOperationUserset
-	19, // 14: core.v1.RelationTupleTreeNode.leaf_node:type_name -> core.v1.DirectSubjects
-	12, // 15: core.v1.RelationTupleTreeNode.expanded:type_name -> core.v1.ObjectAndRelation
-	36, // 16: core.v1.RelationTupleTreeNode.caveat_expression:type_name -> core.v1.CaveatExpression
-	1,  // 17: core.v1.SetOperationUserset.operation:type_name -> core.v1.SetOperationUserset.Operation
-	16, // 18: core.v1.SetOperationUserset.child_nodes:type_name -> core.v1.RelationTupleTreeNode
-	12, // 19: core.v1.DirectSubject.subject:type_name -> core.v1.ObjectAndRelation
-	36, // 20: core.v1.DirectSubject.caveat_expression:type_name -> core.v1.CaveatExpression
-	18, // 21: core.v1.DirectSubjects.subjects:type_name -> core.v1.DirectSubject
-	57, // 22: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
-	22, // 23: core.v1.NamespaceDefinition.relation:type_name -> core.v1.Relation
-	20, // 24: core.v1.NamespaceDefinition.metadata:type_name -> core.v1.Metadata
-	35, // 25: core.v1.NamespaceDefinition.source_position:type_name -> core.v1.SourcePosition
-	30, // 26: core.v1.Relation.userset_rewrite:type_name -> core.v1.UsersetRewrite
-	26, // 27: core.v1.Relation.type_information:type_name -> core.v1.TypeInformation
-	20, // 28: core.v1.Relation.metadata:type_name -> core.v1.Metadata
-	35, // 29: core.v1.Relation.source_position:type_name -> core.v1.SourcePosition
-	42, // 30: core.v1.ReachabilityGraph.entrypoints_by_subject_type:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
-	43, // 31: core.v1.ReachabilityGraph.entrypoints_by_subject_relation:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
-	25, // 32: core.v1.ReachabilityEntrypoints.entrypoints:type_name -> core.v1.ReachabilityEntrypoint
-	13, // 33: core.v1.ReachabilityEntrypoints.subject_relation:type_name -> core.v1.RelationReference
-	2,  // 34: core.v1.ReachabilityEntrypoint.kind:type_name -> core.v1.ReachabilityEntrypoint.ReachabilityEntrypointKind
-	13, // 35: core.v1.ReachabilityEntrypoint.target_relation:type_name -> core.v1.RelationReference
-	3,  // 36: core.v1.ReachabilityEntrypoint.result_status:type_name -> core.v1.ReachabilityEntrypoint.EntrypointResultStatus
-	27, // 37: core.v1.TypeInformation.allowed_direct_relations:type_name -> core.v1.AllowedRelation
-	44, // 38: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
-	35, // 39: core.v1.AllowedRelation.source_position:type_name -> core.v1.SourcePosition
-	29, // 40: core.v1.AllowedRelation.required_caveat:type_name -> core.v1.AllowedCaveat
-	28, // 41: core.v1.AllowedRelation.required_expiration:type_name -> core.v1.ExpirationTrait
-	31, // 42: core.v1.UsersetRewrite.union:type_name -> core.v1.SetOperation
-	31, // 43: core.v1.UsersetRewrite.intersection:type_name -> core.v1.SetOperation
-	31, // 44: core.v1.UsersetRewrite.exclusion:type_name -> core.v1.SetOperation
-	35, // 45: core.v1.UsersetRewrite.source_position:type_name -> core.v1.SourcePosition
-	45, // 46: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
-	49, // 47: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
-	34, // 48: core.v1.TupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
-	35, // 49: core.v1.TupleToUserset.source_position:type_name -> core.v1.SourcePosition
-	4,  // 50: core.v1.FunctionedTupleToUserset.function:type_name -> core.v1.FunctionedTupleToUserset.Function
-	50, // 51: core.v1.FunctionedTupleToUserset.tupleset:type_name -> core.v1.FunctionedTupleToUserset.Tupleset
-	34, // 52: core.v1.FunctionedTupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
-	35, // 53: core.v1.FunctionedTupleToUserset.source_position:type_name -> core.v1.SourcePosition
-	5,  // 54: core.v1.ComputedUserset.object:type_name -> core.v1.ComputedUserset.Object
-	35, // 55: core.v1.ComputedUserset.source_position:type_name -> core.v1.SourcePosition
-	37, // 56: core.v1.CaveatExpression.operation:type_name -> core.v1.CaveatOperation
-	9,  // 57: core.v1.CaveatExpression.caveat:type_name -> core.v1.ContextualizedCaveat
-	6,  // 58: core.v1.CaveatOperation.op:type_name -> core.v1.CaveatOperation.Operation
-	36, // 59: core.v1.CaveatOperation.children:type_name -> core.v1.CaveatExpression
-	39, // 60: core.v1.RelationshipFilter.optional_subject_filter:type_name -> core.v1.SubjectFilter
-	51, // 61: core.v1.SubjectFilter.optional_relation:type_name -> core.v1.SubjectFilter.RelationFilter
-	52, // 62: core.v1.StoredSchema.v1:type_name -> core.v1.StoredSchema.V1StoredSchema
-	11, // 63: core.v1.CaveatDefinition.ParameterTypesEntry.value:type_name -> core.v1.CaveatTypeReference
-	24, // 64: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
-	24, // 65: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
-	46, // 66: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
-	34, // 67: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
-	32, // 68: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
-	30, // 69: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
-	33, // 70: core.v1.SetOperation.Child.functioned_tuple_to_userset:type_name -> core.v1.FunctionedTupleToUserset
-	47, // 71: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
-	48, // 72: core.v1.SetOperation.Child._self:type_name -> core.v1.SetOperation.Child.Self
-	35, // 73: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
-	53, // 74: core.v1.StoredSchema.V1StoredSchema.namespace_definitions:type_name -> core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry
-	54, // 75: core.v1.StoredSchema.V1StoredSchema.caveat_definitions:type_name -> core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry
-	21, // 76: core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry.value:type_name -> core.v1.NamespaceDefinition
-	10, // 77: core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry.value:type_name -> core.v1.CaveatDefinition
-	78, // [78:78] is the sub-list for method output_type
-	78, // [78:78] is the sub-list for method input_type
-	78, // [78:78] is the sub-list for extension type_name
-	78, // [78:78] is the sub-list for extension extendee
-	0,  // [0:78] is the sub-list for field type_name
+	37, // 9: core.v1.CaveatDefinition.source_position:type_name -> core.v1.SourcePosition
+	21, // 10: core.v1.CaveatDefinition.decorators:type_name -> core.v1.Decorator
+	11, // 11: core.v1.CaveatTypeReference.child_types:type_name -> core.v1.CaveatTypeReference
+	0,  // 12: core.v1.RelationTupleUpdate.operation:type_name -> core.v1.RelationTupleUpdate.Operation
+	7,  // 13: core.v1.RelationTupleUpdate.tuple:type_name -> core.v1.RelationTuple
+	17, // 14: core.v1.RelationTupleTreeNode.intermediate_node:type_name -> core.v1.SetOperationUserset
+	19, // 15: core.v1.RelationTupleTreeNode.leaf_node:type_name -> core.v1.DirectSubjects
+	12, // 16: core.v1.RelationTupleTreeNode.expanded:type_name -> core.v1.ObjectAndRelation
+	38, // 17: core.v1.RelationTupleTreeNode.caveat_expression:type_name -> core.v1.CaveatExpression
+	1,  // 18: core.v1.SetOperationUserset.operation:type_name -> core.v1.SetOperationUserset.Operation
+	16, // 19: core.v1.SetOperationUserset.child_nodes:type_name -> core.v1.RelationTupleTreeNode
+	12, // 20: core.v1.DirectSubject.subject:type_name -> core.v1.ObjectAndRelation
+	38, // 21: core.v1.DirectSubject.caveat_expression:type_name -> core.v1.CaveatExpression
+	18, // 22: core.v1.DirectSubjects.subjects:type_name -> core.v1.DirectSubject
+	59, // 23: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
+	22, // 24: core.v1.Decorator.parameters:type_name -> core.v1.DecoratorParameter
+	24, // 25: core.v1.NamespaceDefinition.relation:type_name -> core.v1.Relation
+	20, // 26: core.v1.NamespaceDefinition.metadata:type_name -> core.v1.Metadata
+	37, // 27: core.v1.NamespaceDefinition.source_position:type_name -> core.v1.SourcePosition
+	21, // 28: core.v1.NamespaceDefinition.decorators:type_name -> core.v1.Decorator
+	32, // 29: core.v1.Relation.userset_rewrite:type_name -> core.v1.UsersetRewrite
+	28, // 30: core.v1.Relation.type_information:type_name -> core.v1.TypeInformation
+	20, // 31: core.v1.Relation.metadata:type_name -> core.v1.Metadata
+	37, // 32: core.v1.Relation.source_position:type_name -> core.v1.SourcePosition
+	21, // 33: core.v1.Relation.decorators:type_name -> core.v1.Decorator
+	44, // 34: core.v1.ReachabilityGraph.entrypoints_by_subject_type:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	45, // 35: core.v1.ReachabilityGraph.entrypoints_by_subject_relation:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	27, // 36: core.v1.ReachabilityEntrypoints.entrypoints:type_name -> core.v1.ReachabilityEntrypoint
+	13, // 37: core.v1.ReachabilityEntrypoints.subject_relation:type_name -> core.v1.RelationReference
+	2,  // 38: core.v1.ReachabilityEntrypoint.kind:type_name -> core.v1.ReachabilityEntrypoint.ReachabilityEntrypointKind
+	13, // 39: core.v1.ReachabilityEntrypoint.target_relation:type_name -> core.v1.RelationReference
+	3,  // 40: core.v1.ReachabilityEntrypoint.result_status:type_name -> core.v1.ReachabilityEntrypoint.EntrypointResultStatus
+	29, // 41: core.v1.TypeInformation.allowed_direct_relations:type_name -> core.v1.AllowedRelation
+	46, // 42: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
+	37, // 43: core.v1.AllowedRelation.source_position:type_name -> core.v1.SourcePosition
+	31, // 44: core.v1.AllowedRelation.required_caveat:type_name -> core.v1.AllowedCaveat
+	30, // 45: core.v1.AllowedRelation.required_expiration:type_name -> core.v1.ExpirationTrait
+	21, // 46: core.v1.AllowedRelation.decorators:type_name -> core.v1.Decorator
+	33, // 47: core.v1.UsersetRewrite.union:type_name -> core.v1.SetOperation
+	33, // 48: core.v1.UsersetRewrite.intersection:type_name -> core.v1.SetOperation
+	33, // 49: core.v1.UsersetRewrite.exclusion:type_name -> core.v1.SetOperation
+	37, // 50: core.v1.UsersetRewrite.source_position:type_name -> core.v1.SourcePosition
+	47, // 51: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
+	51, // 52: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
+	36, // 53: core.v1.TupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
+	37, // 54: core.v1.TupleToUserset.source_position:type_name -> core.v1.SourcePosition
+	4,  // 55: core.v1.FunctionedTupleToUserset.function:type_name -> core.v1.FunctionedTupleToUserset.Function
+	52, // 56: core.v1.FunctionedTupleToUserset.tupleset:type_name -> core.v1.FunctionedTupleToUserset.Tupleset
+	36, // 57: core.v1.FunctionedTupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
+	37, // 58: core.v1.FunctionedTupleToUserset.source_position:type_name -> core.v1.SourcePosition
+	5,  // 59: core.v1.ComputedUserset.object:type_name -> core.v1.ComputedUserset.Object
+	37, // 60: core.v1.ComputedUserset.source_position:type_name -> core.v1.SourcePosition
+	39, // 61: core.v1.CaveatExpression.operation:type_name -> core.v1.CaveatOperation
+	9,  // 62: core.v1.CaveatExpression.caveat:type_name -> core.v1.ContextualizedCaveat
+	6,  // 63: core.v1.CaveatOperation.op:type_name -> core.v1.CaveatOperation.Operation
+	38, // 64: core.v1.CaveatOperation.children:type_name -> core.v1.CaveatExpression
+	41, // 65: core.v1.RelationshipFilter.optional_subject_filter:type_name -> core.v1.SubjectFilter
+	53, // 66: core.v1.SubjectFilter.optional_relation:type_name -> core.v1.SubjectFilter.RelationFilter
+	54, // 67: core.v1.StoredSchema.v1:type_name -> core.v1.StoredSchema.V1StoredSchema
+	11, // 68: core.v1.CaveatDefinition.ParameterTypesEntry.value:type_name -> core.v1.CaveatTypeReference
+	26, // 69: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	26, // 70: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	48, // 71: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
+	36, // 72: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
+	34, // 73: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
+	32, // 74: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
+	35, // 75: core.v1.SetOperation.Child.functioned_tuple_to_userset:type_name -> core.v1.FunctionedTupleToUserset
+	49, // 76: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
+	50, // 77: core.v1.SetOperation.Child._self:type_name -> core.v1.SetOperation.Child.Self
+	37, // 78: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
+	55, // 79: core.v1.StoredSchema.V1StoredSchema.namespace_definitions:type_name -> core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry
+	56, // 80: core.v1.StoredSchema.V1StoredSchema.caveat_definitions:type_name -> core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry
+	23, // 81: core.v1.StoredSchema.V1StoredSchema.NamespaceDefinitionsEntry.value:type_name -> core.v1.NamespaceDefinition
+	10, // 82: core.v1.StoredSchema.V1StoredSchema.CaveatDefinitionsEntry.value:type_name -> core.v1.CaveatDefinition
+	83, // [83:83] is the sub-list for method output_type
+	83, // [83:83] is the sub-list for method input_type
+	83, // [83:83] is the sub-list for extension type_name
+	83, // [83:83] is the sub-list for extension extendee
+	0,  // [0:83] is the sub-list for field type_name
 }
 
 func init() { file_core_v1_core_proto_init() }
@@ -3598,23 +3860,29 @@ func file_core_v1_core_proto_init() {
 		(*RelationTupleTreeNode_IntermediateNode)(nil),
 		(*RelationTupleTreeNode_LeafNode)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[20].OneofWrappers = []any{
+	file_core_v1_core_proto_msgTypes[15].OneofWrappers = []any{
+		(*DecoratorParameter_IntValue)(nil),
+		(*DecoratorParameter_StringValue)(nil),
+		(*DecoratorParameter_BoolValue)(nil),
+		(*DecoratorParameter_EnumValue)(nil),
+	}
+	file_core_v1_core_proto_msgTypes[22].OneofWrappers = []any{
 		(*AllowedRelation_Relation)(nil),
 		(*AllowedRelation_PublicWildcard_)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[23].OneofWrappers = []any{
+	file_core_v1_core_proto_msgTypes[25].OneofWrappers = []any{
 		(*UsersetRewrite_Union)(nil),
 		(*UsersetRewrite_Intersection)(nil),
 		(*UsersetRewrite_Exclusion)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[29].OneofWrappers = []any{
+	file_core_v1_core_proto_msgTypes[31].OneofWrappers = []any{
 		(*CaveatExpression_Operation)(nil),
 		(*CaveatExpression_Caveat)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[33].OneofWrappers = []any{
+	file_core_v1_core_proto_msgTypes[35].OneofWrappers = []any{
 		(*StoredSchema_V1)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[38].OneofWrappers = []any{
+	file_core_v1_core_proto_msgTypes[40].OneofWrappers = []any{
 		(*SetOperation_Child_XThis)(nil),
 		(*SetOperation_Child_ComputedUserset)(nil),
 		(*SetOperation_Child_TupleToUserset)(nil),
@@ -3629,7 +3897,7 @@ func file_core_v1_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_v1_core_proto_rawDesc), len(file_core_v1_core_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   48,
+			NumMessages:   50,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

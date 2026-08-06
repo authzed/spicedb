@@ -3,6 +3,9 @@ package lexer
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
@@ -40,6 +43,13 @@ var lexerTests = []lexerTest{
 
 	{"semicolon", ";", []Lexeme{{TokenTypeSemicolon, 0, ";", ""}, tEOF}},
 	{"star", "*", []Lexeme{{TokenTypeStar, 0, "*", ""}, tEOF}},
+
+	{"at", "@", []Lexeme{{TokenTypeAt, 0, "@", ""}, tEOF}},
+	{"at with identifier", "@circular", []Lexeme{
+		{TokenTypeAt, 0, "@", ""},
+		{TokenTypeIdentifier, 0, "circular", ""},
+		tEOF,
+	}},
 
 	{"right arrow", "->", []Lexeme{{TokenTypeRightArrow, 0, "->", ""}, tEOF}},
 
@@ -319,4 +329,10 @@ func equal(found, expected []Lexeme) bool {
 		}
 	}
 	return true
+}
+
+func TestTestDecoratorsFlagRegistered(t *testing.T) {
+	// Registered here because this is a test binary; see the init() in flags.go.
+	_, ok := Flags[decorators.TestFlag]
+	require.True(t, ok)
 }

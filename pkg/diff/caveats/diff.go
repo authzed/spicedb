@@ -5,6 +5,9 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
@@ -35,6 +38,9 @@ const (
 
 	// CaveatExpressionChanged indicates that the expression of the caveat has changed.
 	CaveatExpressionChanged DeltaType = "expression-has-changed"
+
+	// CaveatDecoratorsChanged indicates that the decorators on the caveat changed.
+	CaveatDecoratorsChanged DeltaType = "caveat-decorators-changed"
 )
 
 // Diff holds the diff between two caveats.
@@ -107,6 +113,10 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 		})
 	}
 
+	if areDifferentDecorators(existing.GetDecorators(), updated.GetDecorators()) {
+		deltas = append(deltas, Delta{Type: CaveatDecoratorsChanged})
+	}
+
 	existingParameterNames := mapz.NewSet(slices.Collect(maps.Keys(existing.ParameterTypes))...)
 	updatedParameterNames := mapz.NewSet(slices.Collect(maps.Keys(updated.ParameterTypes))...)
 
@@ -160,4 +170,11 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 		updated:  updated,
 		deltas:   deltas,
 	}, nil
+}
+
+// areDifferentDecorators returns whether the two sets of decorators differ. As with
+// namespace and relation decorators, comparison is order-sensitive: decorators are stored
+// in source order, and a reordering is a meaningful source-level change.
+func areDifferentDecorators(existing []*core.Decorator, updated []*core.Decorator) bool {
+	return cmp.Diff(existing, updated, protocmp.Transform()) != ""
 }

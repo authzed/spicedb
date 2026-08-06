@@ -95,11 +95,30 @@ func (p *sourceParser) startNode(kind dslshape.NodeType) AstNode {
 	return node
 }
 
+// startNodeWithoutComments creates a new node of the given type and decorates it with the
+// current token's position, but deliberately does NOT claim the token's pending comments.
+//
+// This exists for decorators: a doc comment preceding `@somedecorator` documents the
+// declaration that follows, not the decorator, so the comments are left for the caller
+// to replay onto the decorated node.
+func (p *sourceParser) startNodeWithoutComments(kind dslshape.NodeType) AstNode {
+	node := p.createNode(kind)
+	p.decorateStartRune(node, p.currentToken)
+	p.nodes.push(node)
+	return node
+}
+
+// decorateStartRune decorates the given node with the location of the given token as its
+// starting rune.
+func (p *sourceParser) decorateStartRune(node AstNode, token commentedLexeme) {
+	node.MustDecorate(dslshape.NodePredicateSource, string(p.source))
+	node.MustDecorateWithInt(dslshape.NodePredicateStartRune, int(token.Position))
+}
+
 // decorateStartRuneAndComments decorates the given node with the location of the given token as its
 // starting rune, as well as any comments attached to the token.
 func (p *sourceParser) decorateStartRuneAndComments(node AstNode, token commentedLexeme) {
-	node.MustDecorate(dslshape.NodePredicateSource, string(p.source))
-	node.MustDecorateWithInt(dslshape.NodePredicateStartRune, int(token.Position))
+	p.decorateStartRune(node, token)
 	p.decorateComments(node, token.comments)
 }
 

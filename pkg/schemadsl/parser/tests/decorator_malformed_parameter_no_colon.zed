@@ -1,0 +1,4 @@
+use testdecorators
+
+@testall(bar)
+definition user {}

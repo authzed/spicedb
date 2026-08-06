@@ -3,6 +3,9 @@ package lexer
 import (
 	"maps"
 	"slices"
+	"testing"
+
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 )
 
 const (
@@ -27,7 +30,22 @@ const (
 
 var AllUseFlags []string
 
+// noTransform is the transformer for feature flags that require no lexical change.
+// Decorator feature flags use this: `@name` cannot collide with any identifier, so
+// nothing needs to be promoted to a keyword.
+func noTransform(lexeme Lexeme) (Lexeme, bool) {
+	return lexeme, false
+}
+
 func init() {
+	// The fixture decorators used to exercise the decorator machinery need their flag
+	// to be a valid `use` flag. Register it only in test binaries, so it never reaches
+	// production. testing.Testing() reads a string set by cmd/go via a linker -X flag,
+	// so it is already correct during package initialization.
+	if testing.Testing() {
+		Flags[decorators.TestFlag] = noTransform
+	}
+
 	AllUseFlags = slices.Collect(maps.Keys(Flags))
 	slices.Sort(AllUseFlags)
 }

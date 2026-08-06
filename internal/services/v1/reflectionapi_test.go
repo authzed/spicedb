@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/pkg/diff"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/testutil"
 )
@@ -589,6 +590,71 @@ func TestConvertDiff(t *testing.T) {
 
 		require.Empty(t, allDiffTypes.Subtract(encounteredDiffTypes).AsSlice())
 	}
+}
+
+// TestConvertDiffDecoratorOnlyChanges ensures that a schema change consisting solely of
+// decorator changes (on a namespace, a relation and a caveat) is handled by convertDiff
+// without hitting the `default` arm's spiceerrors.MustBugf, which panics in test binaries.
+// The reflection API has no representation for a decorator diff yet, so the expected
+// result is simply an empty diff list, not a panic.
+func TestConvertDiffDecoratorOnlyChanges(t *testing.T) {
+	existingSchema, err := compiler.Compile(compiler.InputSchema{
+		Source: input.Source("schema"),
+		SchemaString: `use testdecorators
+
+		caveat somecaveat(somevalue int) {
+			somevalue == 42
+		}
+
+		definition user {}
+
+		definition resource {
+			relation viewer: user
+		}`,
+	}, compiler.AllowUnprefixedObjectType(), compiler.WithDecoratorRegistry(decorators.TestRegistry))
+	require.NoError(t, err)
+
+	comparisonSchema, err := compiler.Compile(compiler.InputSchema{
+		Source: input.Source("schema"),
+		SchemaString: `use testdecorators
+
+		@testcaveat
+		caveat somecaveat(somevalue int) {
+			somevalue == 42
+		}
+
+		@testdef
+		definition user {}
+
+		definition resource {
+			@testrel
+			relation viewer: user
+		}`,
+	}, compiler.AllowUnprefixedObjectType(), compiler.WithDecoratorRegistry(decorators.TestRegistry))
+	require.NoError(t, err)
+
+	es := diff.NewDiffableSchemaFromCompiledSchema(existingSchema)
+	cs := diff.NewDiffableSchemaFromCompiledSchema(comparisonSchema)
+
+	schemaDiff, err := diff.DiffSchemas(es, cs, caveattypes.Default.TypeSet)
+	require.NoError(t, err)
+
+	dl, err := dsfortesting.DataLayerForTesting(t, 100, 1*time.Second, 100*time.Minute)
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	ctx = datalayer.ContextWithDataLayer(ctx, dl)
+
+	resp, err := convertDiff(
+		ctx,
+		schemaDiff,
+		&es,
+		&cs,
+		revisionparsing.MustParseRevisionForTest("1"),
+		caveattypes.Default.TypeSet,
+	)
+	require.NoError(t, err)
+	require.Empty(t, resp.Diffs)
 }
 
 type filterCheck func(sf *schemaFilters) bool

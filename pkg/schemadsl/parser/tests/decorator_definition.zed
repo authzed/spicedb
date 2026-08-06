@@ -1,0 +1,21 @@
+use testdecorators
+
+// This comment documents the definition, not the decorator.
+@testdef
+definition user {}
+
+@testall(needed: 1, count: -16, label: "hi", on: true, mode: hash)
+definition document {}
+
+@testdef @testall(needed: 2) definition folder {}
+
+@testcaveat
+caveat somecaveat(someparam int) {
+	someparam == 42
+}
+
+// Comment above the first decorator.
+@testdef
+// Comment between the decorators.
+@testall(needed: 3)
+definition stacked {}

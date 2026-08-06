@@ -11,8 +11,10 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
 	"github.com/authzed/spicedb/pkg/schemadsl/parser"
 )
 
@@ -55,10 +57,11 @@ func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, posit
 }
 
 type config struct {
-	skipValidation   bool
-	objectTypePrefix *string
-	allowedFlags     *mapz.Set[string]
-	caveatTypeSet    *caveattypes.TypeSet
+	skipValidation    bool
+	objectTypePrefix  *string
+	allowedFlags      *mapz.Set[string]
+	caveatTypeSet     *caveattypes.TypeSet
+	decoratorRegistry decorators.Registry
 
 	// In an import context, this is the FS containing
 	// the importing schema (as opposed to imported schemas)
@@ -83,6 +86,12 @@ func CaveatTypeSet(cts *caveattypes.TypeSet) Option {
 	return func(cfg *config) { cfg.caveatTypeSet = cts }
 }
 
+// WithDecoratorRegistry sets the registry used to validate decorators. Defaults to
+// decorators.DefaultRegistry.
+func WithDecoratorRegistry(r decorators.Registry) Option {
+	return func(cfg *config) { cfg.decoratorRegistry = r }
+}
+
 // Config that supplies the root source folder for compilation. Required
 // for relative import syntax to work properly.
 func SourceFolder(sourceFolder string) Option {
@@ -103,8 +112,15 @@ const (
 	importFlag       = "import"
 )
 
+// allowedFlags builds the default set of `use` flags a schema may declare from the lexer's
+// own registry (lexer.AllUseFlags), rather than maintaining a second, independent list here.
+// This keeps the two in sync: whatever the lexer recognizes as a flag is allowed by default,
+// and callers use the Disallow* options to remove specific flags for their deployment. In a
+// production binary this yields exactly the same five flags as before (expiration, self,
+// typechecking, partial, import); in test binaries it additionally includes the decorators
+// test flag registered by lexer/flags.go, which is required for that flag to compile at all.
 func allowedFlags() *mapz.Set[string] {
-	return mapz.NewSet(expirationFlag, selfFlag, typeCheckingFlag, partialFlag, importFlag)
+	return mapz.NewSet(lexer.AllUseFlags...)
 }
 
 func DisallowExpirationFlag() Option {
@@ -119,6 +135,15 @@ func DisallowImportFlag() Option {
 	}
 }
 
+// DisallowFlags removes the named `use` flags from the set a schema may declare.
+func DisallowFlags(names ...string) Option {
+	return func(cfg *config) {
+		for _, name := range names {
+			cfg.allowedFlags.Delete(name)
+		}
+	}
+}
+
 type Option func(*config)
 
 type ObjectPrefixOption func(*config)
@@ -126,7 +151,8 @@ type ObjectPrefixOption func(*config)
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{
-		allowedFlags: allowedFlags(),
+		allowedFlags:      allowedFlags(),
+		decoratorRegistry: decorators.DefaultRegistry,
 	}
 
 	prefix(cfg) // required option
@@ -174,8 +200,10 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		enabledFlags:       mapz.NewSet[string](),
 		existingNames:      mapz.NewSet[string](),
 		compiledPartials:   initialCompiledPartials,
+		partialDecorators:  make(map[string][]*core.Decorator),
 		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
 		caveatTypeSet:      caveatTypeSet,
+		decoratorRegistry:  cfg.decoratorRegistry,
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError

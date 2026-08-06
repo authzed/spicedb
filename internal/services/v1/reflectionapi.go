@@ -429,6 +429,11 @@ func convertDiff(
 			case nsdiff.NamespaceRemoved:
 				return nil, spiceerrors.MustBugf("should be handled above")
 
+			case nsdiff.NamespaceDecoratorsChanged, nsdiff.RelationDecoratorsChanged:
+				// TODO: surface a decorator diff message once a decorator actually
+				// ships; there is no reflection API representation for one yet.
+				continue
+
 			default:
 				return nil, spiceerrors.MustBugf("unexpected delta type %v", delta.Type)
 			}
@@ -512,6 +517,11 @@ func convertDiff(
 
 			case caveatdiff.CaveatRemoved:
 				return nil, spiceerrors.MustBugf("should be handled above")
+
+			case caveatdiff.CaveatDecoratorsChanged:
+				// TODO: surface a decorator diff message once a decorator actually
+				// ships; there is no reflection API representation for one yet.
+				continue
 
 			default:
 				return nil, spiceerrors.MustBugf("unexpected delta type %v", delta.Type)
