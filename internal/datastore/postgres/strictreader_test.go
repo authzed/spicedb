@@ -73,6 +73,26 @@ func TestStrictReaderDetectsLagErrors_MissingRevisionOnReplica(t *testing.T) {
 	}
 }
 
+func TestStrictReaderDetectsLagErrors_GuardRaise(t *testing.T) {
+	// The inline guard raises by casting a marker string to boolean, which
+	// Postgres reports as an invalid-input-syntax error carrying the marker. This
+	// pins the contract between replicaRevisionGuardExpression and the error
+	// classification, since the two are only connected through the message.
+	mc := fakeQuerier{
+		err: &pgconn.PgError{
+			Code:    "22P02",
+			Message: `invalid input syntax for type boolean: "replica missing revision (replica snapshot 100:105:102 does not contain revision 99:104:)"`,
+		},
+	}
+	reader := strictReaderQueryFuncs{
+		wrapped: mc,
+	}
+	var expectedErr common.RevisionUnavailableError
+	for _, err := range runQueries(t.Context(), reader) {
+		require.ErrorAs(t, err, &expectedErr)
+	}
+}
+
 func TestStrictReaderDetectsLagErrors_SerializationError(t *testing.T) {
 	// serialization error due to conflicting WAL changes on replica
 	mc := fakeQuerier{
