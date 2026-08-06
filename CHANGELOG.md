@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Granular datastore connection flags (`--datastore-host`, `--datastore-port`, `--datastore-username`, `--datastore-password`, `--datastore-database`) as an alternative to providing a full `--datastore-conn-uri` (https://github.com/authzed/spicedb/pull/2604)
+
 ### Changed
 - Schema compilation: reduce memory usage when caveats are involved (https://github.com/authzed/spicedb/pull/3266)
 
