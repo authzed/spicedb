@@ -18,11 +18,13 @@ import (
 
 // crdbTester is safe for concurrent use by tests.
 type crdbTester struct {
+	pausableContainer
+
 	// endpoint is the host:port of the cockroach container.
 	endpoint string
 }
 
-var _ RunningEngineForTest = (*crdbTester)(nil)
+var _ PausableEngineForTest = (*crdbTester)(nil)
 
 // RunCRDBForTesting returns a RunningEngineForTest for CRDB
 func RunCRDBForTesting(t testing.TB, crdbVersion string, opts ...testcontainers.ContainerCustomizer) *crdbTester {
@@ -56,7 +58,8 @@ func RunCRDBForTesting(t testing.TB, crdbVersion string, opts ...testcontainers.
 	require.NoError(t, err)
 
 	return &crdbTester{
-		endpoint: net.JoinHostPort(host, mappedPort.Port()),
+		pausableContainer: pausableContainer{container: container},
+		endpoint:          net.JoinHostPort(host, mappedPort.Port()),
 	}
 }
 
@@ -88,7 +91,7 @@ func (r *crdbTester) NewDatabase(t testing.TB) string {
 func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	connectStr := r.NewDatabase(t)
 
-	migrationDriver, err := crdbmigrations.NewCRDBDriver(connectStr)
+	migrationDriver, err := crdbmigrations.NewCRDBDriver(t.Context(), connectStr)
 	require.NoError(t, err)
 	require.NoError(t, crdbmigrations.CRDBMigrations.Run(t.Context(), migrationDriver, migrate.Head, migrate.LiveRun))
 	t.Cleanup(func() {

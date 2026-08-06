@@ -764,6 +764,7 @@ type ReadOnlyDatastore interface {
 	// ReadyState returns a state indicating whether the datastore is ready to accept data.
 	// Datastores that require database schema creation will return not-ready until the migrations
 	// have been run to create the necessary tables.
+	// This call must respect context cancellation and deadlines.
 	ReadyState(ctx context.Context) (ReadyState, error)
 
 	// Features returns an object representing what features this

@@ -18,8 +18,8 @@ func init() {
 	migration.RegisterMigratableEngine(Engine, migrations.CRDBMigrations, newMigrationDriverFromConfig, "add-schema-tables")
 }
 
-func newMigrationDriverFromConfig(_ context.Context, cfg *migration.Config) (*migrations.CRDBDriver, error) {
-	return migrations.NewCRDBDriver(cfg.DatastoreURI)
+func newMigrationDriverFromConfig(ctx context.Context, cfg *migration.Config) (*migrations.CRDBDriver, error) {
+	return migrations.NewCRDBDriver(ctx, cfg.DatastoreURI)
 }
 
 func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {

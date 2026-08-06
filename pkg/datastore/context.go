@@ -81,7 +81,9 @@ func (p *ctxProxy) Statistics(ctx context.Context) (Stats, error) {
 }
 
 func (p *ctxProxy) ReadyState(ctx context.Context) (ReadyState, error) {
-	return p.delegate.ReadyState(context.WithoutCancel(ctx))
+	// We do NOT remove the cancellation or the deadline on this, or we risk a call that never returns
+	// TODO(miparnisari): unit test
+	return p.delegate.ReadyState(ctx)
 }
 
 func (p *ctxProxy) Close() error { return p.delegate.Close() }

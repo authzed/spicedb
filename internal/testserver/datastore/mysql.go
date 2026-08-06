@@ -31,12 +31,16 @@ const (
 )
 
 type mysqlTester struct {
+	pausableContainer
+
 	// db is a connection used to create databases
 	db *sql.DB
 	// endpoint is the host:port of the mysql container
 	endpoint string
 	options  MySQLTesterOptions
 }
+
+var _ PausableEngineForTest = (*mysqlTester)(nil)
 
 // MySQLTesterOptions allows tweaking the behaviour of the builder for the MySQL datastore
 type MySQLTesterOptions struct {
@@ -87,8 +91,9 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, opt
 	require.NoError(t, err)
 
 	builder := &mysqlTester{
-		options:  options,
-		endpoint: endpoint,
+		pausableContainer: pausableContainer{container: container},
+		options:           options,
+		endpoint:          endpoint,
 	}
 
 	builder.db, err = sql.Open("mysql", builder.dsn(initialDB))
