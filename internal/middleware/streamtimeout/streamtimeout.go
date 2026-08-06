@@ -19,11 +19,15 @@ type options struct {
 	exemptMethods map[string]struct{}
 }
 
-// WithExemptMethods exempts the given gRPC full method names (e.g.
-// "/authzed.api.v1.PermissionsService/ExportBulkRelationships") from the
-// streaming timeout. Use for methods where long server-side gaps between
-// sends are expected by design — bulk export, bulk import — and where the
-// interceptor's "client has hung up" purpose does not apply.
+// WithExemptMethods exempts the given gRPC full method names from the streaming
+// timeout entirely. Use only for methods that can legitimately go quiet for
+// arbitrarily long without the stream being unhealthy, and whose handlers hold
+// no per-stream resources while quiet. Prefer the default behavior, which
+// bounds inactivity rather than total duration.
+//
+// Pass the generated <Service>_<Method>_FullMethodName constants rather than
+// string literals: a literal missing the leading slash never matches, and the
+// exemption silently becomes a no-op.
 func WithExemptMethods(methods ...string) Option {
 	return func(o *options) {
 		if o.exemptMethods == nil {
@@ -36,7 +40,10 @@ func WithExemptMethods(methods ...string) Option {
 }
 
 // MustStreamServerInterceptor returns a new stream server interceptor that cancels the context
-// after a timeout if no new data has been received.
+// after a timeout if the stream has been inactive. Messages sent to the client and messages
+// received from it both count as activity, so the timeout bounds inactivity rather than the
+// total duration of the call. The timer is stopped once the stream stops making progress in
+// either direction, including when the client half-closes and RecvMsg returns io.EOF.
 func MustStreamServerInterceptor(timeout time.Duration, opts ...Option) grpc.StreamServerInterceptor {
 	if timeout <= 0 {
 		panic("timeout must be >= 0 for streaming timeout interceptor")
@@ -55,12 +62,12 @@ func MustStreamServerInterceptor(timeout time.Duration, opts ...Option) grpc.Str
 		timer := time.AfterFunc(timeout, func() {
 			internalCancelFn(spiceerrors.WithCodeAndDetailsAsError(fmt.Errorf("operation took longer than allowed %v to complete", timeout), codes.DeadlineExceeded))
 		})
-		wrapper := &sendWrapper{stream, withCancel, timer, timeout}
+		wrapper := &activityWrapper{stream, withCancel, timer, timeout}
 		return handler(srv, wrapper)
 	}
 }
 
-type sendWrapper struct {
+type activityWrapper struct {
 	grpc.ServerStream
 
 	ctx     context.Context
@@ -68,16 +75,31 @@ type sendWrapper struct {
 	timeout time.Duration
 }
 
-func (s *sendWrapper) Context() context.Context {
+func (s *activityWrapper) Context() context.Context {
 	return s.ctx
 }
 
-func (s *sendWrapper) SetTrailer(_ metadata.MD) {
+func (s *activityWrapper) SetTrailer(_ metadata.MD) {
 	s.timer.Stop()
 }
 
-func (s *sendWrapper) SendMsg(m any) error {
+func (s *activityWrapper) SendMsg(m any) error {
 	err := s.ServerStream.SendMsg(m)
+	if err != nil {
+		s.timer.Stop()
+	} else {
+		s.timer.Reset(s.timeout)
+	}
+	return err
+}
+
+// RecvMsg counts a message received from the client as activity. Without this, a
+// client-streaming method such as ImportBulkRelationships would be bounded by the
+// total duration of the call rather than by inactivity, because its handler does
+// not send anything until SendAndClose. Once the client half-closes, RecvMsg
+// returns io.EOF and the timer stops, so committing the work is not bounded either.
+func (s *activityWrapper) RecvMsg(m any) error {
+	err := s.ServerStream.RecvMsg(m)
 	if err != nil {
 		s.timer.Stop()
 	} else {

@@ -187,13 +187,17 @@ func NewPermissionsServer(
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(
 					configWithDefaults.StreamingAPITimeout,
-					// Bulk export/import are designed to run for arbitrarily long
-					// periods on large datasets; their inter-batch gaps regularly
-					// exceed the streaming-api timeout that catches hung clients
-					// on the bounded streaming reads.
+					// Bulk export sends one batch per datastore page and sends nothing
+					// while fetching the next one, so the quiet stretches between sends
+					// scale with the size of the data being exported rather than with
+					// the health of the stream. Its handler holds no transaction and no
+					// connection between pages, so exempting it costs nothing.
+					// Bulk import is deliberately not exempt: it holds an open write
+					// transaction for the life of the stream, and receiving a batch from
+					// the client counts as activity, so the timeout still bounds a client
+					// that stops sending.
 					streamtimeout.WithExemptMethods(
 						v1.PermissionsService_ExportBulkRelationships_FullMethodName,
-						v1.PermissionsService_ImportBulkRelationships_FullMethodName,
 					),
 				),
 				perfinsights.StreamServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
