@@ -2,6 +2,7 @@ package caveats
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/authzed/cel-go/cel"
 
@@ -13,6 +14,9 @@ import (
 type Environment struct {
 	ts        *types.TypeSet
 	variables map[string]types.VariableType
+
+	celEnvMu sync.Mutex
+	celEnv   *cel.Env // GUARDED_BY(celEnvMu)
 }
 
 // NewEnvironmentWithDefaultTypeSet creates and returns a new environment for compiling a caveat,
@@ -76,14 +80,21 @@ func (e *Environment) EncodedParametersTypes() map[string]*core.CaveatTypeRefere
 }
 
 // asCelEnvironment converts the exported Environment into an internal CEL environment.
-func (e *Environment) asCelEnvironment(extraOptions ...cel.EnvOption) (*cel.Env, error) {
+// The result is cached for future use. If you add parameters to this function, make sure that the cached value knows about the parameters.
+func (e *Environment) asCelEnvironment() (*cel.Env, error) {
+	e.celEnvMu.Lock()
+	defer e.celEnvMu.Unlock()
+
+	if e.celEnv != nil {
+		return e.celEnv, nil
+	}
+
 	tsOptions, err := e.ts.EnvOptions()
 	if err != nil {
 		return nil, err
 	}
 
-	opts := make([]cel.EnvOption, 0, len(extraOptions)+len(e.variables)+len(tsOptions)+2)
-	opts = append(opts, extraOptions...)
+	opts := make([]cel.EnvOption, 0, len(e.variables)+len(tsOptions)+2)
 	opts = append(opts, tsOptions...)
 
 	// Set options.
@@ -108,5 +119,11 @@ func (e *Environment) asCelEnvironment(extraOptions ...cel.EnvOption) (*cel.Env,
 	for name, varType := range e.variables {
 		opts = append(opts, cel.Variable(name, varType.CelType()))
 	}
-	return cel.NewEnv(opts...)
+	newCelEnv, err := cel.NewEnv(opts...)
+	if err != nil {
+		return nil, err
+	}
+	e.celEnv = newCelEnv
+
+	return e.celEnv, nil
 }

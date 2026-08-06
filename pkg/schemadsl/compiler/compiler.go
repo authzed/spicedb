@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -169,7 +170,6 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	compiled, err := translate(&translationContext{
 		objectTypePrefix:   cfg.objectTypePrefix,
 		mapper:             mapper,
-		schemaString:       schema.SchemaString,
 		skipValidate:       cfg.skipValidation,
 		allowedFlags:       cfg.allowedFlags,
 		enabledFlags:       mapz.NewSet[string](),
@@ -177,6 +177,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		compiledPartials:   initialCompiledPartials,
 		unresolvedPartials: mapz.NewMultiMap[string, *dslNode](),
 		caveatTypeSet:      caveatTypeSet,
+		env:                caveats.NewEnvironmentWithTypeSet(caveatTypeSet),
 	}, root)
 	if err != nil {
 		var withNodeError withNodeError
