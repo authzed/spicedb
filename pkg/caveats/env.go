@@ -71,6 +71,13 @@ func (e *Environment) AddVariable(name string, varType types.VariableType) error
 	}
 
 	e.variables[name] = varType
+
+	// Invalidate the cached CEL environment, as it no longer reflects the set
+	// of variables defined on this environment.
+	e.celEnvMu.Lock()
+	defer e.celEnvMu.Unlock()
+	e.celEnv = nil
+
 	return nil
 }
 
@@ -80,7 +87,12 @@ func (e *Environment) EncodedParametersTypes() map[string]*core.CaveatTypeRefere
 }
 
 // asCelEnvironment converts the exported Environment into an internal CEL environment.
-// The result is cached for future use. If you add parameters to this function, make sure that the cached value knows about the parameters.
+//
+// The environment is derived from the TypeSet's cached base environment, so
+// the (expensive) standard and custom type declarations are only built once
+// per TypeSet.
+//
+// The result is cached on the Environment and invalidated by AddVariable.
 func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 	e.celEnvMu.Lock()
 	defer e.celEnvMu.Unlock()
@@ -89,37 +101,17 @@ func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 		return e.celEnv, nil
 	}
 
-	tsOptions, err := e.ts.EnvOptions()
+	baseEnv, err := e.ts.BaseCelEnvironment()
 	if err != nil {
 		return nil, err
 	}
 
-	opts := make([]cel.EnvOption, 0, len(e.variables)+len(tsOptions)+2)
-	opts = append(opts, tsOptions...)
-
-	// Set options.
-	// DefaultUTCTimeZone: ensure all timestamps are evaluated at UTC
-	opts = append(opts, cel.DefaultUTCTimeZone(true))
-
-	// OptionalTypes: enable optional typing syntax, e.g. `sometype?.foo`
-	// See: https://github.com/google/cel-spec/wiki/proposal-246
-	opts = append(opts, cel.OptionalTypes(cel.OptionalTypesVersion(0)))
-
-	// EnableMacroCallTracking: enables tracking of call macros so when we call AstToString we get
-	// back out the expected expressions.
-	// See: https://github.com/authzed/cel-go/issues/474
-	opts = append(opts, cel.EnableMacroCallTracking())
-
-	// ParserExpressionSizeLimit: disable the size limit for codepoints in expressions.
-	// This has to be disabled due to us padding out the whitespace in expression parsing based on
-	// schema size. We instead do our own expression size check in the Compile method.
-	// TODO(jschorr): Remove this once the whitespace hack is removed.
-	opts = append(opts, cel.ParserExpressionSizeLimit(-1))
-
+	opts := make([]cel.EnvOption, 0, len(e.variables))
 	for name, varType := range e.variables {
 		opts = append(opts, cel.Variable(name, varType.CelType()))
 	}
-	newCelEnv, err := cel.NewEnv(opts...)
+
+	newCelEnv, err := baseEnv.Extend(opts...)
 	if err != nil {
 		return nil, err
 	}

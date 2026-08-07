@@ -1529,6 +1529,47 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 	require.Len(t, compiled.CaveatDefinitions, 1)
 }
 
+// TestCompileMultipleCaveats ensures each caveat definition is compiled in its
+// own parameter environment: parameter names may be reused across caveats, and
+// a caveat may never reference a parameter belonging to another caveat.
+func TestCompileMultipleCaveats(t *testing.T) {
+	compiled, err := Compile(InputSchema{
+		input.Source("sometest"), `
+			caveat first_caveat(firstcondition int) {
+				firstcondition == 42
+			}
+
+			caveat second_caveat(secondcondition string) {
+				secondcondition == 'hello world'
+			}
+
+			caveat third_caveat(firstcondition bool) {
+				firstcondition
+			}
+		`,
+	}, AllowUnprefixedObjectType())
+	require.NoError(t, err)
+	require.Len(t, compiled.CaveatDefinitions, 3)
+
+	for _, caveatDef := range compiled.CaveatDefinitions {
+		require.Len(t, caveatDef.GetParameterTypes(), 1,
+			"caveat `%s` should only have its own parameter", caveatDef.GetName())
+	}
+
+	_, err = Compile(InputSchema{
+		input.Source("sometest"), `
+			caveat first_caveat(firstcondition int) {
+				firstcondition == 42
+			}
+
+			caveat second_caveat(secondcondition string) {
+				firstcondition == 42
+			}
+		`,
+	}, AllowUnprefixedObjectType())
+	require.ErrorContains(t, err, "undeclared reference to 'firstcondition'")
+}
+
 func TestCompileWithCustomCaveatTypeSet(t *testing.T) {
 	schema := `
 		caveat somecaveat(someparam int, somevar somecustomtype) {

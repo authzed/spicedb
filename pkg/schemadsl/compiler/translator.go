@@ -31,8 +31,6 @@ type translationContext struct {
 	enabledFlags     *mapz.Set[string]
 	existingNames    *mapz.Set[string]
 	caveatTypeSet    *caveattypes.TypeSet
-	// The environment for this translation context. Derived from the caveatTypeSet.
-	env *caveats.Environment
 
 	// The mapping of partial name -> relations represented by the partial
 	compiledPartials map[string][]*core.Relation
@@ -161,6 +159,9 @@ func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		return nil, defNode.WithSourceErrorf(definitionName, "caveat `%s` must have at least one parameter defined", definitionName)
 	}
 
+	// NOTE: the environment must be constructed per caveat definition, as each
+	// caveat has its own, isolated set of parameters.
+	env := caveats.NewEnvironmentWithTypeSet(tctx.caveatTypeSet)
 	parameters := make(map[string]caveattypes.VariableType, len(paramNodes))
 	for _, paramNode := range paramNodes {
 		paramName, err := paramNode.GetString(dslshape.NodeCaveatParameterPredicateName)
@@ -183,7 +184,7 @@ func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		}
 
 		parameters[paramName] = *translatedType
-		err = tctx.env.AddVariable(paramName, *translatedType)
+		err = env.AddVariable(paramName, *translatedType)
 		if err != nil {
 			return nil, paramNode.WithSourceErrorf(paramName, "invalid type for caveat parameter `%s` on caveat `%s`: %w", paramName, definitionName, err)
 		}
@@ -215,12 +216,12 @@ func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		return nil, defNode.WithSourceErrorf(expressionString, "invalid expression: %w", err)
 	}
 
-	compiled, err := caveats.CompileCaveatWithSource(tctx.env, caveatPath, source, rnge.Start())
+	compiled, err := caveats.CompileCaveatWithSource(env, caveatPath, source, rnge.Start())
 	if err != nil {
 		return nil, expressionStringNode.WithSourceErrorf(expressionString, "invalid expression for caveat `%s`: %w", definitionName, err)
 	}
 
-	def, err := namespace.CompiledCaveatDefinition(tctx.env, caveatPath, compiled)
+	def, err := namespace.CompiledCaveatDefinition(env, caveatPath, compiled)
 	if err != nil {
 		return nil, err
 	}
