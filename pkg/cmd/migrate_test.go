@@ -170,11 +170,10 @@ func TestMigrateRunPassesFlagsAsExtraConfig(t *testing.T) {
 	const flagName = "a-new-flag"
 
 	var received *MigrateConfig
-	RegisterMigratableEngine(engineName, migrate.NewManager[*nilDriver, any, any](),
-		func(_ context.Context, cfg *MigrateConfig) (*nilDriver, error) {
-			received = cfg
-			return nil, errors.New("driver construction stops here")
-		}, "")
+	migration.RegisterMigratableEngine(engineName, migrate.NewManager[*nilDriver, any, any](), func(_ context.Context, cfg *MigrateConfig) (*nilDriver, error) {
+		received = cfg
+		return nil, errors.New("driver construction stops here")
+	}, "")
 	t.Cleanup(func() { migration.UnregisterMigratableEngineForTesting(engineName) })
 
 	cmd := &cobra.Command{Use: "migrate [revision]", RunE: migrateRun}
