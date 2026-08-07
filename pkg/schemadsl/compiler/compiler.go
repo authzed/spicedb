@@ -169,7 +169,6 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	compiled, err := translate(&translationContext{
 		objectTypePrefix:   cfg.objectTypePrefix,
 		mapper:             mapper,
-		schemaString:       schema.SchemaString,
 		skipValidate:       cfg.skipValidation,
 		allowedFlags:       cfg.allowedFlags,
 		enabledFlags:       mapz.NewSet[string](),
