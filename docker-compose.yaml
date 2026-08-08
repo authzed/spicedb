@@ -2,7 +2,7 @@
 # FOR DEVELOPMENT ONLY
 services:
   crdb:
-    image: "cockroachdb/cockroach:v25.2.0"
+    image: "cockroachdb/cockroach:v26.2.5"
     command: "start-single-node --insecure --accept-sql-without-tls"
     restart: "unless-stopped"
     ports:
@@ -14,7 +14,7 @@ services:
       timeout: "3s"
       retries: 5
   crdb-init:
-    image: "cockroachdb/cockroach:v25.2.0"
+    image: "cockroachdb/cockroach:v26.2.5"
     depends_on:
       crdb:
         condition: "service_healthy"
