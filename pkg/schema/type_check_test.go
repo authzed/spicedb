@@ -485,6 +485,29 @@ func TestTypeAnnotationsValidation(t *testing.T) {
 			}`,
 			expectedError: "incomplete type annotation on relation `view` in definition `document`: `admin` found as reachable type, but not contained in provided set [`user`]",
 		},
+		{
+			name: "valid prefixed type annotation",
+			schemaText: `use typechecking
+			definition example/user {}
+
+			definition group {
+				relation member: example/user
+				permission perm: example/user = member
+			}`,
+			expectedError: "",
+		},
+		{
+			name: "incomplete prefixed type annotation",
+			schemaText: `use typechecking
+			definition example/user {}
+			definition example/team {}
+
+			definition group {
+				relation member: example/user | example/team
+				permission perm: example/user = member
+			}`,
+			expectedError: "incomplete type annotation on relation `perm` in definition `group`: `example/team` found as reachable type, but not contained in provided set [`example/user`]",
+		},
 	}
 
 	for _, tc := range tcs {

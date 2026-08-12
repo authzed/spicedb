@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -16,6 +17,8 @@ func TestTypeAnnotationsIntegration(t *testing.T) {
 	tests := []struct {
 		name                  string
 		schema                string
+		prefix                ObjectPrefixOption
+		definition            string
 		expectedPermission    string
 		expectedAnnotations   []string
 		shouldContainMetadata bool
@@ -67,21 +70,72 @@ definition document {
 			expectedAnnotations:   []string{"user"},
 			shouldContainMetadata: true,
 		},
+		{
+			name: "prefixed type annotation",
+			schema: `use typechecking
+definition example/user {}
+definition group {
+	relation member: example/user
+	permission perm: example/user = member
+}`,
+			definition:            "group",
+			expectedPermission:    "perm",
+			expectedAnnotations:   []string{"example/user"},
+			shouldContainMetadata: true,
+		},
+		{
+			name: "prefixed type annotation after pipe",
+			schema: `use typechecking
+definition example/user {}
+definition example/team {}
+definition group {
+	relation member: example/user | example/team
+	permission perm: example/user | example/team = member
+}`,
+			definition:            "group",
+			expectedPermission:    "perm",
+			expectedAnnotations:   []string{"example/user", "example/team"},
+			shouldContainMetadata: true,
+		},
+		{
+			name: "type annotation normalized with implicit object prefix",
+			schema: `use typechecking
+definition user {}
+definition document {
+	relation viewer: user
+	permission view: user = viewer
+}`,
+			prefix:                ObjectTypePrefix("theprefix"),
+			definition:            "theprefix/document",
+			expectedPermission:    "view",
+			expectedAnnotations:   []string{"theprefix/user"},
+			shouldContainMetadata: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			prefix := tt.prefix
+			if prefix == nil {
+				prefix = AllowUnprefixedObjectType()
+			}
+
+			definition := tt.definition
+			if definition == "" {
+				definition = "document"
+			}
+
 			compiled, err := Compile(InputSchema{
 				Source:       input.Source("test"),
 				SchemaString: tt.schema,
-			}, AllowUnprefixedObjectType())
+			}, prefix)
 			require.NoError(t, err)
 			require.NotNil(t, compiled)
 
-			// Find the document definition and the expected permission
+			// Find the definition and the expected permission
 			var foundPermission *core.Relation
 			for _, ns := range compiled.ObjectDefinitions {
-				if ns.Name == "document" {
+				if ns.Name == definition {
 					for _, rel := range ns.Relation {
 						if rel.Name == tt.expectedPermission {
 							foundPermission = rel
@@ -148,6 +202,124 @@ definition document {
 			require.Equal(t, tt.expectedAnnotations, retrievedAnnotations)
 		})
 	}
+}
+
+func TestTypeAnnotationPrefixRequired(t *testing.T) {
+	// With a required object prefix, an unprefixed type annotation reports an error,
+	// matching how unprefixed relation type references are handled.
+	schema := `use typechecking
+definition pfx/user {}
+definition pfx/group {
+	relation member: pfx/user
+	permission perm: user = member
+}`
+
+	_, err := Compile(InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schema,
+	}, RequirePrefixedObjectType())
+	require.ErrorContains(t, err, "found reference `user` without prefix")
+}
+
+func TestTypeAnnotationNotNormalizedWithoutTypecheckingFlag(t *testing.T) {
+	// Without the typechecking flag, annotations are stripped from the compiled
+	// schema, so they must not be prefix-normalized (or rejected) either.
+	schema := `definition pfx/user {}
+definition pfx/group {
+	relation member: pfx/user
+	permission perm: user = member
+}`
+
+	compiled, err := Compile(InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schema,
+	}, RequirePrefixedObjectType())
+	require.NoError(t, err)
+
+	for _, def := range compiled.ObjectDefinitions {
+		for _, rel := range def.Relation {
+			require.Empty(t, namespace.GetTypeAnnotations(rel))
+		}
+	}
+}
+
+func TestTypeAnnotationInPartialNormalized(t *testing.T) {
+	// Partials are translated before the main loop processes `use` directives,
+	// so annotation normalization must see the typechecking flag regardless of
+	// translation order.
+	schema := `use typechecking
+use partial
+
+partial view_partial {
+	relation viewer: user
+	permission view: user = viewer
+}
+
+definition user {}
+
+definition document {
+	...view_partial
+}`
+
+	compiled, err := Compile(InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schema,
+	}, ObjectTypePrefix("theprefix"))
+	require.NoError(t, err)
+
+	annotations := annotationsForPermission(t, compiled, "theprefix/document", "view")
+	require.Equal(t, []string{"theprefix/user"}, annotations)
+}
+
+func TestTypeAnnotationInImportNormalized(t *testing.T) {
+	// Imported definitions are hoisted before the root file's nodes, so they are
+	// translated before the root's `use typechecking` directive is reached by
+	// the main loop. The imported file deliberately omits its own directive.
+	fsys := fstest.MapFS{
+		"user.zed": &fstest.MapFile{
+			Data: []byte(`definition user {}
+definition group {
+	relation member: user
+	permission perm: user = member
+}`),
+		},
+	}
+
+	schema := `use import
+use typechecking
+
+import "./user.zed"
+
+definition document {
+	relation viewer: user
+	permission view: user = viewer
+}`
+
+	compiled, err := Compile(InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schema,
+	}, ObjectTypePrefix("theprefix"), SourceFS(fsys))
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"theprefix/user"}, annotationsForPermission(t, compiled, "theprefix/group", "perm"))
+	require.Equal(t, []string{"theprefix/user"}, annotationsForPermission(t, compiled, "theprefix/document", "view"))
+}
+
+func annotationsForPermission(t *testing.T, compiled *CompiledSchema, definition string, permission string) []string {
+	t.Helper()
+
+	for _, def := range compiled.ObjectDefinitions {
+		if def.Name == definition {
+			for _, rel := range def.Relation {
+				if rel.Name == permission {
+					return namespace.GetTypeAnnotations(rel)
+				}
+			}
+		}
+	}
+
+	require.Failf(t, "permission not found", "%s#%s not found in compiled schema", definition, permission)
+	return nil
 }
 
 func TestTypeAnnotationsHelperFunctions(t *testing.T) {
