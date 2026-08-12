@@ -583,7 +583,7 @@ func (p *sourceParser) consumeTypeAnnotation() AstNode {
 	defer p.mustFinishNode()
 
 	// Consume the first type
-	firstType, ok := p.consumeIdentifier()
+	firstType, ok := p.consumeTypePath()
 	if !ok {
 		p.emitErrorf("Expected type identifier in type annotation")
 		return typeAnnotationNode
@@ -601,7 +601,7 @@ func (p *sourceParser) consumeTypeAnnotation() AstNode {
 			break
 		}
 
-		nextType, ok := p.consumeIdentifier()
+		nextType, ok := p.consumeTypePath()
 		if !ok {
 			p.emitErrorf("Expected type identifier after '|' in type annotation")
 			return typeAnnotationNode

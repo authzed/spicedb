@@ -1,0 +1,74 @@
+NodeTypeFile
+  end-rune = 196
+  input-source = use typechecking with prefixed type annotations test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 15
+      input-source = use typechecking with prefixed type annotations test
+      start-rune = 0
+      use-flag-name = typechecking
+    NodeTypeDefinition
+      definition-name = example/user
+      end-rune = 43
+      input-source = use typechecking with prefixed type annotations test
+      start-rune = 18
+    NodeTypeDefinition
+      definition-name = example/team
+      end-rune = 71
+      input-source = use typechecking with prefixed type annotations test
+      start-rune = 46
+    NodeTypeDefinition
+      definition-name = group
+      end-rune = 195
+      input-source = use typechecking with prefixed type annotations test
+      start-rune = 74
+      child-node =>
+        NodeTypeRelation
+          end-rune = 137
+          input-source = use typechecking with prefixed type annotations test
+          relation-name = member
+          start-rune = 94
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 137
+              input-source = use typechecking with prefixed type annotations test
+              start-rune = 111
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 122
+                  input-source = use typechecking with prefixed type annotations test
+                  start-rune = 111
+                  type-name = example/user
+                NodeTypeSpecificTypeReference
+                  end-rune = 137
+                  input-source = use typechecking with prefixed type annotations test
+                  start-rune = 126
+                  type-name = example/team
+        NodeTypePermission
+          end-rune = 193
+          input-source = use typechecking with prefixed type annotations test
+          relation-name = perm
+          start-rune = 141
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 193
+              identifier-value = member
+              input-source = use typechecking with prefixed type annotations test
+              start-rune = 188
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 184
+              input-source = use typechecking with prefixed type annotations test
+              start-rune = 158
+              annotation-types =>
+                NodeTypeIdentifier
+                  end-rune = 169
+                  identifier-value = example/user
+                  input-source = use typechecking with prefixed type annotations test
+                  start-rune = 171
+                NodeTypeIdentifier
+                  end-rune = 184
+                  identifier-value = example/team
+                  input-source = use typechecking with prefixed type annotations test
+                  start-rune = 186
