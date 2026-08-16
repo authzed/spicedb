@@ -29,15 +29,17 @@ const (
 type MiddlewareForTesting struct {
 	datastoreByToken *sync.Map
 	configFilePaths  []string
+	configContents   map[string][]byte
 	caveatTypeSet    *caveattypes.TypeSet
 }
 
 // NewMiddleware returns a new per-token datastore middleware that initializes each datastore with the data in the
 // config files.
-func NewMiddleware(configFilePaths []string, caveatTypeSet *caveattypes.TypeSet) *MiddlewareForTesting {
+func NewMiddleware(configFilePaths []string, configContents map[string][]byte, caveatTypeSet *caveattypes.TypeSet) *MiddlewareForTesting {
 	return &MiddlewareForTesting{
 		datastoreByToken: &sync.Map{},
 		configFilePaths:  configFilePaths,
+		configContents:   configContents,
 		caveatTypeSet:    caveatTypeSet,
 	}
 }
@@ -64,6 +66,13 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 	_, _, err = validationfile.PopulateFromFiles(ctx, datalayer.NewDataLayer(ds), m.caveatTypeSet, m.configFilePaths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config files: %w", err)
+	}
+
+	if len(m.configContents) > 0 {
+		_, _, err = validationfile.PopulateFromFilesContents(ctx, datalayer.NewDataLayer(ds), m.caveatTypeSet, m.configContents)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config contents: %w", err)
+		}
 	}
 
 	// Squash the revisions so that the caller sees all the populated data.
