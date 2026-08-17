@@ -3,7 +3,6 @@
 package integrationtesting_test
 
 import (
-	"embed"
 	"testing"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
+	"github.com/authzed/spicedb/internal/services/integrationtesting/testconfigs"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
@@ -26,9 +26,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
-
-//go:embed testconfigs/*.yaml
-var testFiles embed.FS
 
 var enginesToBenchmark = []string{
 	crdb.Engine,
@@ -60,7 +57,7 @@ type benchmarkScenario struct {
 var allScenarios = []benchmarkScenario{
 	{
 		name:     "basicrbac",
-		fileName: "testconfigs/basicrbac.yaml",
+		fileName: "basicrbac.yaml",
 		check: func(b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 			result, err := tester.Check(b.Context(), tuple.ObjectAndRelation{
 				ObjectType: "example/document",
@@ -89,7 +86,7 @@ var allScenarios = []benchmarkScenario{
 	},
 	{
 		name:     "quay",
-		fileName: "testconfigs/quay.yaml",
+		fileName: "quay.yaml",
 		check: func(b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 			result, err := tester.Check(b.Context(), tuple.ObjectAndRelation{
 				ObjectType: "repo",
@@ -106,7 +103,7 @@ var allScenarios = []benchmarkScenario{
 	},
 	{
 		name:     "simplerecursive",
-		fileName: "testconfigs/simplerecursive.yaml",
+		fileName: "simplerecursive.yaml",
 		lookupResources: func(b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 			results, _, err := tester.LookupResources(b.Context(), tuple.RelationReference{
 				ObjectType: "srrr/resource",
@@ -321,12 +318,7 @@ func BenchmarkServices(b *testing.B) {
 
 					var revision datastore.Revision
 					if scenario.fileName != "" {
-						contents, err := testFiles.ReadFile(scenario.fileName)
-						require.NoError(b, err)
-
-						_, rev, err := validationfile.PopulateFromFilesContents(b.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, map[string][]byte{
-							"testfile": contents,
-						})
+						_, rev, err := validationfile.PopulateFromFS(b.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, testconfigs.FS, scenario.fileName)
 						require.NoError(b, err)
 						revision = rev
 					} else {

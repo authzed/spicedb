@@ -1,12 +1,8 @@
 package schemacaching
 
 import (
-	"os"
-	"path"
-	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/services/integrationtesting/testconfigs"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -23,33 +20,17 @@ import (
 const retryCount = 5
 
 func TestEstimatedDefinitionSizes(t *testing.T) {
-	// Load all consistency and benchmark YAMLs to get a set of sample namespace
-	// definitions for testing.
-	_, filename, _, _ := runtime.Caller(0)
-	integrationTestDirectoryPath := path.Join(path.Dir(filename), "../../../services/integrationtesting")
-
-	consistencyTestFiles := []string{}
-	err := filepath.Walk(integrationTestDirectoryPath, func(path string, info os.FileInfo, err error) error {
-		if info == nil || info.IsDir() {
-			return nil
-		}
-
-		if strings.HasSuffix(info.Name(), ".yaml") {
-			consistencyTestFiles = append(consistencyTestFiles, path)
-		}
-
-		return nil
-	})
+	consistencyTestFiles, err := testconfigs.List()
 	require.NoError(t, err)
 	require.NotEmpty(t, consistencyTestFiles)
 
 	for _, filePath := range consistencyTestFiles {
-		t.Run(path.Base(filePath), func(t *testing.T) {
+		t.Run(filePath, func(t *testing.T) {
 			require := require.New(t)
 			dl, err := dsfortesting.DataLayerForTesting(t, 0, 1*time.Second, memdb.DisableGC)
 			require.NoError(err)
 
-			fullyResolved, _, err := validationfile.PopulateFromFiles(t.Context(), dl, caveattypes.Default.TypeSet, []string{filePath})
+			fullyResolved, _, err := validationfile.PopulateFromFS(t.Context(), dl, caveattypes.Default.TypeSet, testconfigs.FS, filePath)
 			require.NoError(err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {
