@@ -22,6 +22,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/indexcheck"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
+	"github.com/authzed/spicedb/internal/services/integrationtesting/testconfigs"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
@@ -58,7 +59,7 @@ func AllConsistency(t *testing.T, tester dstest.DatastoreTester) {
 // This acts as essentially a full integration test for the API, dispatching, caching,
 // computation and datastore layers.
 func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.DatastoreTester) {
-	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
+	consistencyTestFiles, err := testconfigs.List()
 	require.NoError(t, err)
 
 	// newDatastore creates a fresh datastore for a single consistency test file.
@@ -89,7 +90,7 @@ func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.Datastore
 
 			// Write the schema and relationships.
 			dl := datalayer.NewDataLayer(ds)
-			populated, _, err := validationfile.PopulateFromFiles(t.Context(), dl, types.Default.TypeSet, []string{filePath})
+			populated, _, err := validationfile.PopulateFromFS(t.Context(), dl, types.Default.TypeSet, testconfigs.FS, filePath)
 			require.NoError(t, err)
 
 			dsCtx := datalayer.ContextWithHandle(t.Context())

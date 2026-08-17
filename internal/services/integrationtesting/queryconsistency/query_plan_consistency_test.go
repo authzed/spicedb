@@ -7,7 +7,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
+	"github.com/authzed/spicedb/internal/services/integrationtesting/testconfigs"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -34,7 +34,7 @@ import (
 const testTimedelta = 1 * time.Second
 
 func TestQueryPlanConsistency(t *testing.T) { // nolint:tparallel
-	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
+	consistencyTestFiles, err := testconfigs.List()
 	require.NoError(t, err)
 	for _, filePath := range consistencyTestFiles {
 		t.Run(filepath.Base(filePath), func(t *testing.T) {
@@ -62,7 +62,7 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(err)
-	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{filePath})
+	populated, _, err := validationfile.PopulateFromFS(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, testconfigs.FS, filePath)
 	require.NoError(err)
 
 	headRevisionResult, err := ds.HeadRevision(t.Context())
@@ -340,9 +340,7 @@ func TestAccessibilitySetMethods(t *testing.T) {
 	require.NoError(err)
 
 	// Use a simple test config
-	_, thisFile, _, _ := runtime.Caller(0)
-	testConfigPath := filepath.Join(filepath.Dir(thisFile), "..", "testconfigs", "document.yaml")
-	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, []string{testConfigPath})
+	populated, _, err := validationfile.PopulateFromFS(t.Context(), datalayer.NewDataLayer(ds), caveattypes.Default.TypeSet, testconfigs.FS, "document.yaml")
 	require.NoError(err)
 
 	dsCtx := datalayer.ContextWithHandle(t.Context())

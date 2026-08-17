@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -64,9 +66,32 @@ func PopulateFromFiles(ctx context.Context, dl datalayer.DataLayer, caveatTypeSe
 	return PopulateFromFilesContents(ctx, dl, caveatTypeSet, contents)
 }
 
+// PopulateFromFS populates the given datastore with the namespaces and tuples found in
+// the validation file read from fsys.
+//
+// It is the counterpart of PopulateFromFiles for files that are not on disk, such
+// as those embedded into the binary with //go:embed. Any schemaFile the validation
+// file references is resolved against the same filesystem.
+func PopulateFromFS(ctx context.Context, dl datalayer.DataLayer, caveatTypeSet *caveattypes.TypeSet, fsys fs.FS, filePath string) (*PopulatedValidationFile, datastore.Revision, error) {
+	fileContents, err := fs.ReadFile(fsys, filePath)
+	if err != nil {
+		return nil, datastore.NoRevision, err
+	}
+
+	return populate(ctx, dl, caveatTypeSet, map[string][]byte{filePath: fileContents}, fsys)
+}
+
 // PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
 // the validation file(s) contents specified.
 func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, caveatTypeSet *caveattypes.TypeSet, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
+	return populate(ctx, dl, caveatTypeSet, filesContents, nil)
+}
+
+// populate does the work of the PopulateFrom* functions.
+//
+// A nil fsys means the contents came from disk, and any referenced schemaFile is
+// read from disk as well; otherwise both are resolved against fsys.
+func populate(ctx context.Context, dl datalayer.DataLayer, caveatTypeSet *caveattypes.TypeSet, filesContents map[string][]byte, fsys fs.FS) (*PopulatedValidationFile, datastore.Revision, error) {
 	var schemaBuilder strings.Builder
 	var objectDefs []*core.NamespaceDefinition
 	var caveatDefs []*core.CaveatDefinition
@@ -106,21 +131,41 @@ func PopulateFromFilesContents(ctx context.Context, dl datalayer.DataLayer, cave
 			// to construct the path to the referenced schema file.
 			// NOTE: This does not allow for yaml files to transitively reference
 			// each other's schemaFile fields.
-			schemaPath := filepath.Join(filepath.Dir(filePath), parsed.SchemaFile)
+			var schemaPath string
+			var data []byte
 
-			if !filepath.IsLocal(schemaPath) {
-				// We want to prevent access of files that are outside of the folder
-				// where the command was originally invoked. This should do that.
-				return nil, datastore.NoRevision, fmt.Errorf("schema file %q is not local", schemaPath)
-			}
+			if fsys != nil {
+				// io/fs paths are always slash-separated and rooted at the
+				// filesystem, so fs.ValidPath is the escape check filepath.IsLocal
+				// performs for on-disk paths.
+				schemaPath = path.Join(path.Dir(filePath), parsed.SchemaFile)
 
-			file, err := os.Open(schemaPath)
-			if err != nil {
-				return nil, datastore.NoRevision, fmt.Errorf("error when opening schema file %s: %w", schemaPath, err)
-			}
-			data, err := io.ReadAll(file)
-			if err != nil {
-				return nil, datastore.NoRevision, fmt.Errorf("error when reading schema file %s: %w", schemaPath, err)
+				if !fs.ValidPath(schemaPath) {
+					return nil, datastore.NoRevision, fmt.Errorf("schema file %q is not local", schemaPath)
+				}
+
+				var err error
+				data, err = fs.ReadFile(fsys, schemaPath)
+				if err != nil {
+					return nil, datastore.NoRevision, fmt.Errorf("error when reading schema file %s: %w", schemaPath, err)
+				}
+			} else {
+				schemaPath = filepath.Join(filepath.Dir(filePath), parsed.SchemaFile)
+
+				if !filepath.IsLocal(schemaPath) {
+					// We want to prevent access of files that are outside of the folder
+					// where the command was originally invoked. This should do that.
+					return nil, datastore.NoRevision, fmt.Errorf("schema file %q is not local", schemaPath)
+				}
+
+				file, err := os.Open(schemaPath)
+				if err != nil {
+					return nil, datastore.NoRevision, fmt.Errorf("error when opening schema file %s: %w", schemaPath, err)
+				}
+				data, err = io.ReadAll(file)
+				if err != nil {
+					return nil, datastore.NoRevision, fmt.Errorf("error when reading schema file %s: %w", schemaPath, err)
+				}
 			}
 
 			inputSchema = compiler.InputSchema{
