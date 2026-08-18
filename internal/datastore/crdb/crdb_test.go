@@ -53,7 +53,8 @@ const (
 	disableBackgroundGC = time.Duration(test.DisableBackgroundGC)
 )
 
-var crdbFactory = test.NewTesterFactory(&pgconn.PgError{Code: pool.CrdbRetryErrCode})
+// crdbRetryableError is the error CRDB classifies as retryable.
+var crdbRetryableError error = &pgconn.PgError{Code: pool.CrdbRetryErrCode}
 
 func crdbTestVersion() string {
 	ver := os.Getenv("CRDB_TEST_VERSION")
@@ -64,31 +65,77 @@ func crdbTestVersion() string {
 	return version.LatestTestedCockroachDBVersion
 }
 
+// integrityMode selects how a crdbTester's datastores handle relationship
+// integrity metadata.
+type integrityMode int
+
+const (
+	// integrityDisabled stores relationships in the plain relationship table.
+	integrityDisabled integrityMode = iota
+
+	// integrityEnabled stores relationships in the table that carries the
+	// integrity columns, and hands back the datastore itself, so that a test
+	// can write and read those columns directly.
+	integrityEnabled
+
+	// integrityProxied is integrityEnabled with the proxy that computes and
+	// verifies integrity hashes layered on top. This is what production with
+	// integrity enabled looks like.
+	integrityProxied
+)
+
+// crdbTester creates CockroachDB datastores for the generic datastore suite.
+type crdbTester struct {
+	engine    testdatastore.RunningEngineForTest
+	integrity integrityMode
+}
+
+func (c crdbTester) New(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+	ctx := t.Context()
+
+	options := []Option{
+		GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
+		RevisionQuantization(revisionParameters.Quantization),
+		WatchBufferLength(watchBufferLength),
+		OverlapStrategy(overlapStrategyPrefix),
+		DebugAnalyzeBeforeStatistics(),
+		WithAcquireTimeout(5 * time.Second),
+	}
+	if c.integrity != integrityDisabled {
+		options = append(options, WithIntegrity(true))
+	}
+
+	ds := c.engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewCRDBDatastore(ctx, uri, options...)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = ds.Close()
+		})
+
+		switch c.integrity {
+		case integrityProxied:
+			wrapped, err := proxy.NewRelationshipIntegrityProxy(ds, defaultKeyForTesting, nil)
+			require.NoError(t, err)
+			return wrapped
+
+		case integrityEnabled:
+			return ds
+
+		default:
+			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
+		}
+	})
+
+	return ds, nil
+}
+
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
-	test.All(t, crdbFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
-		ctx := t.Context()
-		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewCRDBDatastore(
-				ctx,
-				uri,
-				GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
-				RevisionQuantization(revisionParameters.Quantization),
-				WatchBufferLength(watchBufferLength),
-				OverlapStrategy(overlapStrategyPrefix),
-				DebugAnalyzeBeforeStatistics(),
-				WithAcquireTimeout(5*time.Second),
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = ds.Close()
-			})
-			return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
-		})
 
-		return ds, nil
-	}), b)))
+	tester := crdbTester{engine: b, integrity: integrityDisabled}
+	pausableTester := test.PausableTester(tester, b)
+	test.All(t, pausableTester, crdbRetryableError)
 
 	t.Run("TestWatchStreaming", createDatastoreTest(
 		b,
@@ -209,56 +256,11 @@ func TestCRDBDatastoreWithIntegrity(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
 
-	test.AllWithExceptions(t, crdbFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
-		ctx := t.Context()
-		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewCRDBDatastore(
-				ctx,
-				uri,
-				GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
-				RevisionQuantization(revisionParameters.Quantization),
-				WatchBufferLength(watchBufferLength),
-				OverlapStrategy(overlapStrategyPrefix),
-				DebugAnalyzeBeforeStatistics(),
-				WithIntegrity(true),
-				WithAcquireTimeout(5*time.Second),
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = ds.Close()
-			})
+	tester := crdbTester{engine: b, integrity: integrityProxied}
+	pausableTester := test.PausableTester(tester, b)
+	test.AllWithExceptions(t, pausableTester, test.WithCategories(test.MigrationCategory), crdbRetryableError)
 
-			wrapped, err := proxy.NewRelationshipIntegrityProxy(ds, defaultKeyForTesting, nil)
-			require.NoError(t, err)
-			return wrapped
-		})
-
-		return ds, nil
-	}), b)), test.WithCategories(test.MigrationCategory))
-
-	unwrappedTester := test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
-		ctx := t.Context()
-		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewCRDBDatastore(
-				ctx,
-				uri,
-				GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
-				RevisionQuantization(revisionParameters.Quantization),
-				WatchBufferLength(watchBufferLength),
-				OverlapStrategy(overlapStrategyPrefix),
-				DebugAnalyzeBeforeStatistics(),
-				WithIntegrity(true),
-				WithAcquireTimeout(5*time.Second),
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = ds.Close()
-			})
-			return ds
-		})
-
-		return ds, nil
-	})
+	unwrappedTester := crdbTester{engine: b, integrity: integrityEnabled}
 
 	t.Run("TestRelationshipIntegrityInfo", func(t *testing.T) { RelationshipIntegrityInfoTest(t, unwrappedTester) })
 	t.Run("TestBulkRelationshipIntegrityInfo", func(t *testing.T) { BulkRelationshipIntegrityInfoTest(t, unwrappedTester) })

@@ -20,30 +20,43 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var spannerFactory = test.NewTesterFactory(status.New(codes.Aborted, "retryable").Err())
+// spannerRetryableError is the error Spanner classifies as retryable.
+var spannerRetryableError = status.New(codes.Aborted, "retryable").Err()
+
+// spannerTester creates Spanner datastores for the generic datastore suite.
+type spannerTester struct {
+	engine testdatastore.RunningEngineForTest
+}
+
+func (s spannerTester) New(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+	ctx := t.Context()
+
+	ds := s.engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewSpannerDatastore(ctx, uri,
+			RevisionQuantization(revisionParameters.Quantization),
+			WatchBufferLength(watchBufferLength),
+			WithDatastoreMetricsOption(DatastoreMetricsOptionOpenTelemetry),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, ds.Close())
+		})
+		return ds
+	})
+
+	return ds, nil
+}
 
 func TestSpannerDatastore(t *testing.T) {
 	// t.Parallel() //nolint:tparallel, the test sets environment variables (the emulator)
 
-	ctx := t.Context()
 	b := testdatastore.RunSpannerForTesting(t)
 
+	tester := spannerTester{engine: b}
+	pausableTester := test.PausableTester(tester, b)
+
 	// Transaction tests are excluded because, for reasons unknown, one cannot read its own write in one transaction in the Spanner emulator.
-	test.AllWithExceptions(t, spannerFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
-		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewSpannerDatastore(ctx, uri,
-				RevisionQuantization(revisionParameters.Quantization),
-				WatchBufferLength(watchBufferLength),
-				WithDatastoreMetricsOption(DatastoreMetricsOptionOpenTelemetry),
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, ds.Close())
-			})
-			return ds
-		})
-		return ds, nil
-	}), b)), test.WithCategories(test.GCCategory, test.StatsCategory, test.TransactionCategory))
+	test.AllWithExceptions(t, pausableTester, test.WithCategories(test.GCCategory, test.StatsCategory, test.TransactionCategory), spannerRetryableError)
 
 	t.Run("TestFakeStats", createDatastoreTest(
 		b,

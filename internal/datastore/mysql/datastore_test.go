@@ -32,21 +32,23 @@ const (
 	chunkRelationshipCount = 2000
 )
 
-var mysqlFactory = test.NewTesterFactory(&mysql.MySQLError{Number: errMysqlDeadlock})
+// mysqlRetryableError is the error MySQL classifies as retryable.
+var mysqlRetryableError error = &mysql.MySQLError{Number: errMysqlDeadlock}
 
-type datastoreTester struct {
-	b      testdatastore.RunningEngineForTest
+// mysqlTester creates MySQL datastores for the generic datastore suite.
+type mysqlTester struct {
+	engine testdatastore.RunningEngineForTest
 	prefix string
 }
 
-func (dst *datastoreTester) createDatastore(tb testing.TB, revisionParameters test.RevisionParameters, _ uint16) (datastore.Datastore, error) {
+func (m mysqlTester) New(tb testing.TB, revisionParameters test.RevisionParameters, _ uint16) (datastore.Datastore, error) {
 	ctx := tb.Context()
-	ds := dst.b.NewDatastore(tb, func(engine, uri string) datastore.Datastore {
+	ds := m.engine.NewDatastore(tb, func(engine, uri string) datastore.Datastore {
 		ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID,
 			RevisionQuantization(revisionParameters.Quantization),
 			GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
 			GCInterval(time.Duration(revisionParameters.GCRunInterval)),
-			TablePrefix(dst.prefix),
+			TablePrefix(m.prefix),
 			DebugAnalyzeBeforeStatistics(),
 			OverrideLockWaitTimeout(1),
 			MaxRetries(3),
@@ -119,8 +121,9 @@ func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 
 func TestMySQL8Datastore(t *testing.T) {
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true})
-	dst := datastoreTester{b: b}
-	test.AllWithExceptions(t, mysqlFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(dst.createDatastore), b)), test.WithCategories(test.WatchSchemaCategory))
+	tester := mysqlTester{engine: b}
+	pausableTester := test.PausableTester(tester, b)
+	test.AllWithExceptions(t, pausableTester, test.WithCategories(test.WatchSchemaCategory), mysqlRetryableError)
 	additionalMySQLTests(t, b)
 }
 
