@@ -47,7 +47,6 @@ type Dispatcher struct {
 
 func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
 	cache, err := cache.NewStandardCache[keys.DispatchCacheKey, any](&cache.Config{
-		NumCounters: 1000,
 		MaxCost:     1 * humanize.MiByte,
 	})
 	require.NoError(t, err)

@@ -122,7 +122,6 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		relationshipChunkCacheConfig := opts.relationshipChunkCacheConfig
 		if relationshipChunkCacheConfig == nil {
 			relationshipChunkCacheConfig = &cache.Config{
-				NumCounters: 1e4,     // 10k
 				MaxCost:     1 << 20, // 1MB
 				DefaultTTL:  30 * time.Second,
 			}

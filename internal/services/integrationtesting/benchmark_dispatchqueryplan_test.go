@@ -170,7 +170,6 @@ func (h *dispatchQueryPlanHandle) newCachedDispatchContext(b *testing.B, caching
 func (h *dispatchQueryPlanHandle) newCachingDispatcher(b *testing.B) *caching.Dispatcher {
 	b.Helper()
 	cacheConfig := &cache.Config{
-		NumCounters: 1e4,
 		MaxCost:     1 << 20,
 	}
 	c, err := cache.NewStandardCache[keys.DispatchCacheKey, any](cacheConfig)

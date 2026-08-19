@@ -115,7 +115,6 @@ func TestWithRevisionParameters(t *testing.T) {
 			cc := &CacheConfig{
 				Name:        "test-cache",
 				MaxCost:     "1MB",
-				NumCounters: 1000,
 				Metrics:     true,
 				Enabled:     true,
 			}

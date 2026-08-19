@@ -72,13 +72,11 @@ func TestCombinedRecursiveCall(t *testing.T) {
 // successfully wires those options through on the no-upstream branch.
 func TestNewDispatcher_AppliesAllOptions_NoUpstream(t *testing.T) {
 	cacheConfig := &cache.Config{
-		NumCounters: 100,
 		MaxCost:     1024,
 		DefaultTTL:  1 * time.Second,
 	}
 
 	dispatchCache, err := cache.NewStandardCache[keys.DispatchCacheKey, any](&cache.Config{
-		NumCounters: 100,
 		MaxCost:     1024,
 		DefaultTTL:  1 * time.Second,
 	})
@@ -118,7 +116,6 @@ func TestNewDispatcher_AppliesAllOptions_NoUpstream(t *testing.T) {
 // inferred in its place.
 func TestNewDispatcher_WithProvidedRelationshipChunkCache(t *testing.T) {
 	c, err := cache.NewStandardCache[cache.StringKey, any](&cache.Config{
-		NumCounters: 100,
 		MaxCost:     1024,
 		DefaultTTL:  1 * time.Second,
 	})

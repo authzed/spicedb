@@ -12,7 +12,7 @@ require (
 	github.com/ecordell/optgen v0.2.6
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/tools v0.48.0
+	golang.org/x/tools v0.49.0
 	google.golang.org/grpc v1.83.0
 	mvdan.cc/gofumpt v0.9.2
 )
@@ -22,7 +22,7 @@ require (
 	buf.build/go/protovalidate v1.3.0 // indirect
 	cel.dev/expr v0.25.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/authzed/cel-go v0.30.0 // indirect
+	github.com/authzed/cel-go v0.32.0 // indirect
 	github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.43.6 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.37 // indirect
@@ -80,11 +80,11 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
-	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/mod v0.40.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260729162451-8efbd57d26e0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260729162451-8efbd57d26e0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
