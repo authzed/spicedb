@@ -140,21 +140,6 @@ func (err MaxDepthExceededError) GRPCStatus() *status.Status {
 	)
 }
 
-// NewMaxDepthExceededError creates a new MaxDepthExceededError.
-func NewMaxDepthExceededError(allowedMaximumDepth uint32, isCheckRequest bool) error {
-	if isCheckRequest {
-		return MaxDepthExceededError{
-			spiceerrors.NewWithAdditionalDetailsError(fmt.Errorf("the check request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. Try running zed with --explain to see the dependency. See "+sharederrors.MaxDepthErrorLink, allowedMaximumDepth)),
-			allowedMaximumDepth,
-		}
-	}
-
-	return MaxDepthExceededError{
-		spiceerrors.NewWithAdditionalDetailsError(fmt.Errorf("the request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. See %s", allowedMaximumDepth, sharederrors.MaxDepthErrorLink)),
-		allowedMaximumDepth,
-	}
-}
-
 func AsValidationError(err error) *SchemaWriteDataValidationError {
 	var validationErr SchemaWriteDataValidationError
 	if errors.As(err, &validationErr) {

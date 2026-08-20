@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
+	"github.com/authzed/spicedb/internal/services/integrationtesting/testconfigs"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -41,7 +42,7 @@ import (
 // only checks set membership rather than running the full validateLookupResources
 // / validateLookupSubjects suite.
 func TestQueryPlanConsistencyGRPC(t *testing.T) { // nolint:tparallel
-	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
+	consistencyTestFiles, err := testconfigs.List()
 	require.NoError(t, err)
 
 	for _, filePath := range consistencyTestFiles {
@@ -67,7 +68,7 @@ func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(t, err)
 
-	populated, _, err := validationfile.PopulateFromFiles(t.Context(), datalayer.NewDataLayer(ds), types.Default.TypeSet, []string{filePath})
+	populated, _, err := validationfile.PopulateFromFS(t.Context(), datalayer.NewDataLayer(ds), types.Default.TypeSet, testconfigs.FS, filePath)
 	require.NoError(t, err)
 
 	connections := testserver.TestClusterWithDispatch(t, 1, ds, options...)

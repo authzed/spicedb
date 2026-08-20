@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -21,21 +20,6 @@ import (
 
 // MigrateConfig holds configuration for running database migrations.
 type MigrateConfig = migration.Config
-
-// RegisterMigratableEngine makes a datastore engine defined outside this
-// package available to the migrate and head commands. Engine-specific
-// command-line flags are available to newDriver via MigrateConfig.ExtraConfig.
-// verifiableMigrationName is the earliest migration at which the engine's
-// current datastore code can open the datastore and read and write data.
-// It must be called before command execution, typically from an init function.
-func RegisterMigratableEngine[D migrate.Driver[C, T], C any, T any](
-	engineName string,
-	manager *migrate.Manager[D, C, T],
-	newDriver func(ctx context.Context, cfg *MigrateConfig) (D, error),
-	verifiableMigrationName string,
-) {
-	migration.RegisterMigratableEngine(engineName, manager, newDriver, verifiableMigrationName)
-}
 
 func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))

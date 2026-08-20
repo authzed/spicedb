@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Changed
+- Schema compilation: reduce memory usage when caveats are involved (https://github.com/authzed/spicedb/pull/3266)
+
 ### Fixed
 - Postgres: read replicas no longer intermittently return `object definition not found` under load. The strict read-replica guard now verifies that the replica's snapshot has caught up to the revision being read (snapshot domination) instead of checking a single transaction id, and raises from within the read itself rather than from a trailing assertion, so a replica that catches up mid-query can no longer let an incomplete read through. In both cases the read correctly falls back to the primary. (https://github.com/authzed/spicedb/pull/3243)
 - Prevent ReadRelationships from doing work that's immediately discarded when the `optional_limit` parameter is used (https://github.com/authzed/spicedb/pull/3253)
