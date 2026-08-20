@@ -112,7 +112,16 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
-				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
+				streamtimeout.MustStreamServerInterceptor(
+					config.StreamReadTimeout,
+					// See NewPermissionsServer: bulk export goes quiet while fetching each
+					// datastore page and holds nothing between them, while bulk import is
+					// left bounded because it holds an open write transaction and its
+					// receives from the client count as activity.
+					streamtimeout.WithExemptMethods(
+						v1.ExperimentalService_BulkExportRelationships_FullMethodName,
+					),
+				),
 				perfinsights.StreamServerInterceptor(permServerConfig.PerformanceInsightMetricsEnabled),
 			),
 		},
