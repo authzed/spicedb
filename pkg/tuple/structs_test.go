@@ -112,10 +112,10 @@ func TestToCoreTuple(t *testing.T) {
 				},
 				Caveat: &core.ContextualizedCaveat{
 					CaveatName: "somecaveat",
-					Context: (func() *structpb.Struct {
+					Context: func() *structpb.Struct {
 						s, _ := structpb.NewStruct(map[string]any{"foo": 42})
 						return s
-					})(),
+					}(),
 				},
 			},
 		},

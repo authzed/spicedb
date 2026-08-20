@@ -113,10 +113,10 @@ func TestWithRevisionParameters(t *testing.T) {
 	for _, tt := range table {
 		t.Run(tt.name, func(t *testing.T) {
 			cc := &CacheConfig{
-				Name:        "test-cache",
-				MaxCost:     "1MB",
-				Metrics:     true,
-				Enabled:     true,
+				Name:    "test-cache",
+				MaxCost: "1MB",
+				Metrics: true,
+				Enabled: true,
 			}
 
 			result := cc.WithRevisionParameters(

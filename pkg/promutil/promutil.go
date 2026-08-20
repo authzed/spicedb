@@ -5,7 +5,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-var _ prometheus.Collector = (CollectorFunc)(nil)
+var _ prometheus.Collector = CollectorFunc(nil)
 
 // CollectorFunc is a convenient way to implement a Prometheus Collector
 // without interface boilerplate.

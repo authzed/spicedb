@@ -126,8 +126,8 @@ func MustNewLocalOnlyDispatcher(params DispatcherParameters) dispatch.Dispatcher
 // NewDefaultDispatcherParametersForTesting returns default dispatcher parameters suitable for testing.
 func NewDefaultDispatcherParametersForTesting() (DispatcherParameters, error) {
 	cacheConfig := &cache.Config{
-		MaxCost:     1 << 20, // 1MB
-		DefaultTTL:  30 * time.Second,
+		MaxCost:    1 << 20, // 1MB
+		DefaultTTL: 30 * time.Second,
 	}
 	chunkCache, err := cache.NewStandardCache[cache.StringKey, any](cacheConfig)
 	if err != nil {
