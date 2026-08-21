@@ -1,0 +1,154 @@
+NodeTypeFile
+  end-rune = 442
+  input-source = decorator on definition test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 17
+      input-source = decorator on definition test
+      start-rune = 0
+      use-flag-name = testdecorators
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 107
+      input-source = decorator on definition test
+      start-rune = 90
+      child-node =>
+        NodeTypeComment
+          comment-value = // This comment documents the definition, not the decorator.
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testdef
+          end-rune = 88
+          input-source = decorator on definition test
+          start-rune = 81
+    NodeTypeDefinition
+      definition-name = document
+      end-rune = 198
+      input-source = decorator on definition test
+      start-rune = 177
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testall
+          end-rune = 175
+          input-source = decorator on definition test
+          start-rune = 110
+          decorator-parameters =>
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = identifier
+              decorator-parameter-name = needed
+              decorator-parameter-value = 1
+              end-rune = 127
+              input-source = decorator on definition test
+              start-rune = 119
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = identifier
+              decorator-parameter-name = count
+              decorator-parameter-value = -16
+              end-rune = 139
+              input-source = decorator on definition test
+              start-rune = 130
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = string
+              decorator-parameter-name = label
+              decorator-parameter-value = hi
+              end-rune = 152
+              input-source = decorator on definition test
+              start-rune = 142
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = identifier
+              decorator-parameter-name = on
+              decorator-parameter-value = true
+              end-rune = 162
+              input-source = decorator on definition test
+              start-rune = 155
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = identifier
+              decorator-parameter-name = mode
+              decorator-parameter-value = hash
+              end-rune = 174
+              input-source = decorator on definition test
+              start-rune = 165
+    NodeTypeDefinition
+      definition-name = folder
+      end-rune = 249
+      input-source = decorator on definition test
+      start-rune = 230
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testdef
+          end-rune = 208
+          input-source = decorator on definition test
+          start-rune = 201
+        NodeTypeDecorator
+          decorator-name = testall
+          end-rune = 228
+          input-source = decorator on definition test
+          start-rune = 210
+          decorator-parameters =>
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = identifier
+              decorator-parameter-name = needed
+              decorator-parameter-value = 2
+              end-rune = 227
+              input-source = decorator on definition test
+              start-rune = 219
+    NodeTypeCaveatDefinition
+      caveat-definition-name = somecaveat
+      end-rune = 316
+      input-source = decorator on definition test
+      start-rune = 264
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = someparam == 42
+
+          end-rune = 315
+          input-source = decorator on definition test
+          start-rune = 300
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testcaveat
+          end-rune = 262
+          input-source = decorator on definition test
+          start-rune = 252
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = someparam
+          end-rune = 294
+          input-source = decorator on definition test
+          start-rune = 282
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 294
+              input-source = decorator on definition test
+              start-rune = 292
+              type-name = int
+    NodeTypeDefinition
+      definition-name = stacked
+      end-rune = 441
+      input-source = decorator on definition test
+      start-rune = 421
+      child-node =>
+        NodeTypeComment
+          comment-value = // Comment above the first decorator.
+        NodeTypeComment
+          comment-value = // Comment between the decorators.
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testdef
+          end-rune = 364
+          input-source = decorator on definition test
+          start-rune = 357
+        NodeTypeDecorator
+          decorator-name = testall
+          end-rune = 419
+          input-source = decorator on definition test
+          start-rune = 401
+          decorator-parameters =>
+            NodeTypeDecoratorParameter
+              decorator-parameter-kind = identifier
+              decorator-parameter-name = needed
+              decorator-parameter-value = 3
+              end-rune = 418
+              input-source = decorator on definition test
+              start-rune = 410

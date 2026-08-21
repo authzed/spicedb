@@ -582,3 +582,90 @@ func TestNamespaceDiff(t *testing.T) {
 		})
 	}
 }
+
+func TestDiffDecorators(t *testing.T) {
+	t.Parallel()
+
+	withDecorator := func(name string) *core.Decorator {
+		return &core.Decorator{Name: name, RequiredFlag: "testdecorators"}
+	}
+
+	t.Run("definition decorator added", func(t *testing.T) {
+		t.Parallel()
+		diff, err := DiffNamespaces(
+			&core.NamespaceDefinition{Name: "document"},
+			&core.NamespaceDefinition{Name: "document", Decorators: []*core.Decorator{withDecorator("testdef")}},
+		)
+		require.NoError(t, err)
+		require.Equal(t, []Delta{{Type: NamespaceDecoratorsChanged}}, diff.Deltas())
+	})
+
+	t.Run("relation decorator changed", func(t *testing.T) {
+		t.Parallel()
+		existing := &core.NamespaceDefinition{
+			Name:     "document",
+			Relation: []*core.Relation{{Name: "viewer"}},
+		}
+		updated := &core.NamespaceDefinition{
+			Name:     "document",
+			Relation: []*core.Relation{{Name: "viewer", Decorators: []*core.Decorator{withDecorator("testrel")}}},
+		}
+		diff, err := DiffNamespaces(existing, updated)
+		require.NoError(t, err)
+		require.Contains(t, diff.Deltas(), Delta{Type: RelationDecoratorsChanged, RelationName: "viewer"})
+	})
+
+	t.Run("permission decorator changed", func(t *testing.T) {
+		t.Parallel()
+		newPerm := func(decorators []*core.Decorator) *core.Relation {
+			perm := ns.MustRelation("view", ns.Union(ns.ComputedUserset("viewer")))
+			perm.Decorators = decorators
+			return perm
+		}
+
+		existing := &core.NamespaceDefinition{
+			Name:     "document",
+			Relation: []*core.Relation{newPerm(nil)},
+		}
+		updated := &core.NamespaceDefinition{
+			Name:     "document",
+			Relation: []*core.Relation{newPerm([]*core.Decorator{withDecorator("testrel")})},
+		}
+		diff, err := DiffNamespaces(existing, updated)
+		require.NoError(t, err)
+		require.Contains(t, diff.Deltas(), Delta{Type: RelationDecoratorsChanged, RelationName: "view"})
+	})
+
+	t.Run("subject type decorator produces add and remove", func(t *testing.T) {
+		t.Parallel()
+		allowed := func(ds ...*core.Decorator) *core.Relation {
+			return &core.Relation{
+				Name: "viewer",
+				TypeInformation: &core.TypeInformation{
+					AllowedDirectRelations: []*core.AllowedRelation{{
+						Namespace:          "user",
+						RelationOrWildcard: &core.AllowedRelation_Relation{Relation: "..."},
+						Decorators:         ds,
+					}},
+				},
+			}
+		}
+
+		diff, err := DiffNamespaces(
+			&core.NamespaceDefinition{Name: "document", Relation: []*core.Relation{allowed()}},
+			&core.NamespaceDefinition{Name: "document", Relation: []*core.Relation{allowed(withDecorator("testsub"))}},
+		)
+		require.NoError(t, err)
+		require.Len(t, diff.Deltas(), 2)
+	})
+
+	t.Run("no decorator change produces no delta", func(t *testing.T) {
+		t.Parallel()
+		ns := func() *core.NamespaceDefinition {
+			return &core.NamespaceDefinition{Name: "document", Decorators: []*core.Decorator{withDecorator("testdef")}}
+		}
+		diff, err := DiffNamespaces(ns(), ns())
+		require.NoError(t, err)
+		require.Empty(t, diff.Deltas())
+	})
+}

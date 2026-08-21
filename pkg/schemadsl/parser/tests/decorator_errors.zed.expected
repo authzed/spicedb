@@ -1,0 +1,28 @@
+NodeTypeFile
+  end-rune = 49
+  input-source = decorator error test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 17
+      input-source = decorator error test
+      start-rune = 0
+      use-flag-name = testdecorators
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 48
+      input-source = decorator error test
+      start-rune = 31
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testdef
+          end-rune = 29
+          input-source = decorator error test
+          start-rune = 20
+          child-node =>
+            NodeTypeError
+              end-rune = 28
+              error-message = Decorator `@testdef` has an empty parameter list; write `@testdef` instead
+              error-source = )
+              input-source = decorator error test
+              start-rune = 29

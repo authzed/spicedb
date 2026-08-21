@@ -11,6 +11,7 @@ import (
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -1550,4 +1551,55 @@ func TestTypeSystemAccessors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHasAllowedRelationIgnoresSubjectTypeDecorators is a regression test for a bug where
+// SourceForAllowedRelation briefly included decorators in its output. HasAllowedRelation's
+// sole production caller (internal/relationships/validation.go, ValidateRelationshipForCreateOrTouch)
+// synthesizes a fresh, decorator-free *core.AllowedRelation from the relationship being
+// written -- relationship writes have no decorator syntax at all, so that synthesized value
+// can never carry decorators. If SourceForAllowedRelation folded decorators into its output,
+// any subject type decorated in the schema (e.g. a future `@circular` on a subject type)
+// would make every valid relationship write to that subject type fail validation with
+// "subjects of type `X` are not allowed on relation", because the schema's allowed-relation
+// source string (decorated) would never match the write's synthesized one (undecorated).
+//
+// This test mirrors exactly what validation.go builds -- a plain ns.AllowedRelation with no
+// decorators -- and checks it against a schema where the matching subject type carries a
+// decorator, asserting the write is still considered valid.
+func TestHasAllowedRelationIgnoresSubjectTypeDecorators(t *testing.T) {
+	schemaString := `use testdecorators
+
+definition user {}
+
+definition document {
+	relation viewer: @testsub user
+}`
+
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType(), compiler.WithDecoratorRegistry(decorators.TestRegistry))
+	require.NoError(t, err)
+
+	// Confirm the schema actually compiled the decorator onto the subject type, so this
+	// test would fail loudly (rather than vacuously pass) if that stopped being true.
+	doc := compiled.ObjectDefinitions[1]
+	require.Equal(t, "document", doc.Name)
+	allowed := doc.Relation[0].TypeInformation.AllowedDirectRelations
+	require.Len(t, allowed, 1)
+	require.Len(t, allowed[0].GetDecorators(), 1, "fixture must have a subject-type decorator for this regression test to be meaningful")
+
+	ctx := t.Context()
+	resolver := ResolverForCompiledSchema(compiled)
+	ts := NewTypeSystem(resolver)
+	vts, err := ts.GetValidatedDefinition(ctx, "document")
+	require.NoError(t, err)
+
+	// Mirrors internal/relationships/validation.go's ns.AllowedRelationWithCaveat(...) call:
+	// a plain, decorator-free AllowedRelation built from the relationship being written.
+	result, err := vts.HasAllowedRelation("viewer", ns.AllowedRelation("user", "..."))
+	require.NoError(t, err)
+	require.Equal(t, AllowedRelationValid, result,
+		"a relationship write to a subject type must remain valid regardless of decorators declared on that subject type in the schema")
 }

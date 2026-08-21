@@ -1,0 +1,4 @@
+use testdecorators
+
+@testdef()
+definition user {}

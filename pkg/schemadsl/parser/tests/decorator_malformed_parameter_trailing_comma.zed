@@ -1,0 +1,4 @@
+use testdecorators
+
+@testall(needed: 1,)
+definition user {}

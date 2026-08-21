@@ -1,0 +1,111 @@
+NodeTypeFile
+  end-rune = 241
+  input-source = decorator on relation and permission test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 17
+      input-source = decorator on relation and permission test
+      start-rune = 0
+      use-flag-name = testdecorators
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 37
+      input-source = decorator on relation and permission test
+      start-rune = 20
+    NodeTypeDefinition
+      definition-name = document
+      end-rune = 240
+      input-source = decorator on relation and permission test
+      start-rune = 40
+      child-node =>
+        NodeTypeRelation
+          end-rune = 134
+          input-source = decorator on relation and permission test
+          relation-name = viewer
+          start-rune = 114
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 134
+              input-source = decorator on relation and permission test
+              start-rune = 131
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 134
+                  input-source = decorator on relation and permission test
+                  start-rune = 131
+                  type-name = user
+          child-node =>
+            NodeTypeComment
+              comment-value = // This comment documents the relation.
+          decorator =>
+            NodeTypeDecorator
+              decorator-name = testrel
+              end-rune = 111
+              input-source = decorator on relation and permission test
+              start-rune = 104
+        NodeTypeRelation
+          end-rune = 192
+          input-source = decorator on relation and permission test
+          relation-name = editor
+          start-rune = 172
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 192
+              input-source = decorator on relation and permission test
+              start-rune = 189
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 192
+                  input-source = decorator on relation and permission test
+                  start-rune = 189
+                  type-name = user
+          decorator =>
+            NodeTypeDecorator
+              decorator-name = testall
+              end-rune = 169
+              input-source = decorator on relation and permission test
+              start-rune = 138
+              decorator-parameters =>
+                NodeTypeDecoratorParameter
+                  decorator-parameter-kind = identifier
+                  decorator-parameter-name = needed
+                  decorator-parameter-value = 1
+                  end-rune = 155
+                  input-source = decorator on relation and permission test
+                  start-rune = 147
+                NodeTypeDecoratorParameter
+                  decorator-parameter-kind = identifier
+                  decorator-parameter-name = mode
+                  decorator-parameter-value = range
+                  end-rune = 168
+                  input-source = decorator on relation and permission test
+                  start-rune = 158
+        NodeTypePermission
+          end-rune = 238
+          input-source = decorator on relation and permission test
+          relation-name = view
+          start-rune = 206
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 238
+              input-source = decorator on relation and permission test
+              start-rune = 224
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 229
+                  identifier-value = viewer
+                  input-source = decorator on relation and permission test
+                  start-rune = 224
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 238
+                  identifier-value = editor
+                  input-source = decorator on relation and permission test
+                  start-rune = 233
+          decorator =>
+            NodeTypeDecorator
+              decorator-name = testrel
+              end-rune = 203
+              input-source = decorator on relation and permission test
+              start-rune = 196

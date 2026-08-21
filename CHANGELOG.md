@@ -4,8 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Schema: generic `@decorator` syntax in the schema DSL. This change is machinery only — no decorator is defined yet, and the shipped registry is empty.
+
 ### Changed
 - Schema compilation: reduce memory usage when caveats are involved (https://github.com/authzed/spicedb/pull/3266)
+- Schema: `use` flags are now validated against the deployment's allowed set at compile time. A bare `use import` (or `use expiration` where expiration is disabled) submitted to `WriteSchema` now errors where it previously compiled, because `WriteSchema` applies `DisallowImportFlag()` unconditionally.
+- `generator.GenerateCaveatSource` changed signature from `(string, bool, error)` to `(string, []string, bool, error)`; it previously discarded the `use` flags a caveat requires. This is a breaking change for downstream Go consumers.
 
 ### Fixed
 - Postgres: read replicas no longer intermittently return `object definition not found` under load. The strict read-replica guard now verifies that the replica's snapshot has caught up to the revision being read (snapshot domination) instead of checking a single transaction id, and raises from within the read itself rather than from a trailing assertion, so a replica that catches up mid-query can no longer let an incomplete read through. In both cases the read correctly falls back to the primary. (https://github.com/authzed/spicedb/pull/3243)

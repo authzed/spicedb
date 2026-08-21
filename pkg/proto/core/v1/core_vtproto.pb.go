@@ -107,6 +107,13 @@ func (m *CaveatDefinition) CloneVT() *CaveatDefinition {
 		}
 		r.ParameterTypes = tmpContainer
 	}
+	if rhs := m.Decorators; rhs != nil {
+		tmpContainer := make([]*Decorator, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Decorators = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -343,6 +350,89 @@ func (m *Metadata) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (m *Decorator) CloneVT() *Decorator {
+	if m == nil {
+		return (*Decorator)(nil)
+	}
+	r := new(Decorator)
+	r.Name = m.Name
+	r.RequiredFlag = m.RequiredFlag
+	if rhs := m.Parameters; rhs != nil {
+		tmpContainer := make([]*DecoratorParameter, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Parameters = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *Decorator) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *DecoratorParameter) CloneVT() *DecoratorParameter {
+	if m == nil {
+		return (*DecoratorParameter)(nil)
+	}
+	r := new(DecoratorParameter)
+	r.Name = m.Name
+	if m.Value != nil {
+		r.Value = m.Value.(interface {
+			CloneVT() isDecoratorParameter_Value
+		}).CloneVT()
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *DecoratorParameter) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *DecoratorParameter_IntValue) CloneVT() isDecoratorParameter_Value {
+	if m == nil {
+		return (*DecoratorParameter_IntValue)(nil)
+	}
+	r := new(DecoratorParameter_IntValue)
+	r.IntValue = m.IntValue
+	return r
+}
+
+func (m *DecoratorParameter_StringValue) CloneVT() isDecoratorParameter_Value {
+	if m == nil {
+		return (*DecoratorParameter_StringValue)(nil)
+	}
+	r := new(DecoratorParameter_StringValue)
+	r.StringValue = m.StringValue
+	return r
+}
+
+func (m *DecoratorParameter_BoolValue) CloneVT() isDecoratorParameter_Value {
+	if m == nil {
+		return (*DecoratorParameter_BoolValue)(nil)
+	}
+	r := new(DecoratorParameter_BoolValue)
+	r.BoolValue = m.BoolValue
+	return r
+}
+
+func (m *DecoratorParameter_EnumValue) CloneVT() isDecoratorParameter_Value {
+	if m == nil {
+		return (*DecoratorParameter_EnumValue)(nil)
+	}
+	r := new(DecoratorParameter_EnumValue)
+	r.EnumValue = m.EnumValue
+	return r
+}
+
 func (m *NamespaceDefinition) CloneVT() *NamespaceDefinition {
 	if m == nil {
 		return (*NamespaceDefinition)(nil)
@@ -357,6 +447,13 @@ func (m *NamespaceDefinition) CloneVT() *NamespaceDefinition {
 			tmpContainer[k] = v.CloneVT()
 		}
 		r.Relation = tmpContainer
+	}
+	if rhs := m.Decorators; rhs != nil {
+		tmpContainer := make([]*Decorator, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Decorators = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -381,6 +478,13 @@ func (m *Relation) CloneVT() *Relation {
 	r.SourcePosition = m.SourcePosition.CloneVT()
 	r.AliasingRelation = m.AliasingRelation
 	r.CanonicalCacheKey = m.CanonicalCacheKey
+	if rhs := m.Decorators; rhs != nil {
+		tmpContainer := make([]*Decorator, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Decorators = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -520,6 +624,13 @@ func (m *AllowedRelation) CloneVT() *AllowedRelation {
 		r.RelationOrWildcard = m.RelationOrWildcard.(interface {
 			CloneVT() isAllowedRelation_RelationOrWildcard
 		}).CloneVT()
+	}
+	if rhs := m.Decorators; rhs != nil {
+		tmpContainer := make([]*Decorator, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Decorators = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -1202,6 +1313,23 @@ func (this *CaveatDefinition) EqualVT(that *CaveatDefinition) bool {
 	if !this.SourcePosition.EqualVT(that.SourcePosition) {
 		return false
 	}
+	if len(this.Decorators) != len(that.Decorators) {
+		return false
+	}
+	for i, vx := range this.Decorators {
+		vy := that.Decorators[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &Decorator{}
+			}
+			if q == nil {
+				q = &Decorator{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -1544,6 +1672,144 @@ func (this *Metadata) EqualMessageVT(thatMsg proto.Message) bool {
 	}
 	return this.EqualVT(that)
 }
+func (this *Decorator) EqualVT(that *Decorator) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	if len(this.Parameters) != len(that.Parameters) {
+		return false
+	}
+	for i, vx := range this.Parameters {
+		vy := that.Parameters[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &DecoratorParameter{}
+			}
+			if q == nil {
+				q = &DecoratorParameter{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if this.RequiredFlag != that.RequiredFlag {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Decorator) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*Decorator)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *DecoratorParameter) EqualVT(that *DecoratorParameter) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Value == nil && that.Value != nil {
+		return false
+	} else if this.Value != nil {
+		if that.Value == nil {
+			return false
+		}
+		if !this.Value.(interface {
+			EqualVT(isDecoratorParameter_Value) bool
+		}).EqualVT(that.Value) {
+			return false
+		}
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecoratorParameter) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*DecoratorParameter)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *DecoratorParameter_IntValue) EqualVT(thatIface isDecoratorParameter_Value) bool {
+	that, ok := thatIface.(*DecoratorParameter_IntValue)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if this.IntValue != that.IntValue {
+		return false
+	}
+	return true
+}
+
+func (this *DecoratorParameter_StringValue) EqualVT(thatIface isDecoratorParameter_Value) bool {
+	that, ok := thatIface.(*DecoratorParameter_StringValue)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if this.StringValue != that.StringValue {
+		return false
+	}
+	return true
+}
+
+func (this *DecoratorParameter_BoolValue) EqualVT(thatIface isDecoratorParameter_Value) bool {
+	that, ok := thatIface.(*DecoratorParameter_BoolValue)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if this.BoolValue != that.BoolValue {
+		return false
+	}
+	return true
+}
+
+func (this *DecoratorParameter_EnumValue) EqualVT(thatIface isDecoratorParameter_Value) bool {
+	that, ok := thatIface.(*DecoratorParameter_EnumValue)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if this.EnumValue != that.EnumValue {
+		return false
+	}
+	return true
+}
+
 func (this *NamespaceDefinition) EqualVT(that *NamespaceDefinition) bool {
 	if this == that {
 		return true
@@ -1575,6 +1841,23 @@ func (this *NamespaceDefinition) EqualVT(that *NamespaceDefinition) bool {
 	}
 	if !this.SourcePosition.EqualVT(that.SourcePosition) {
 		return false
+	}
+	if len(this.Decorators) != len(that.Decorators) {
+		return false
+	}
+	for i, vx := range this.Decorators {
+		vy := that.Decorators[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &Decorator{}
+			}
+			if q == nil {
+				q = &Decorator{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -1612,6 +1895,23 @@ func (this *Relation) EqualVT(that *Relation) bool {
 	}
 	if this.CanonicalCacheKey != that.CanonicalCacheKey {
 		return false
+	}
+	if len(this.Decorators) != len(that.Decorators) {
+		return false
+	}
+	for i, vx := range this.Decorators {
+		vy := that.Decorators[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &Decorator{}
+			}
+			if q == nil {
+				q = &Decorator{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -1827,6 +2127,23 @@ func (this *AllowedRelation) EqualVT(that *AllowedRelation) bool {
 	}
 	if !this.RequiredExpiration.EqualVT(that.RequiredExpiration) {
 		return false
+	}
+	if len(this.Decorators) != len(that.Decorators) {
+		return false
+	}
+	for i, vx := range this.Decorators {
+		vy := that.Decorators[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &Decorator{}
+			}
+			if q == nil {
+				q = &Decorator{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -2982,6 +3299,18 @@ func (m *CaveatDefinition) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.Decorators) > 0 {
+		for iNdEx := len(m.Decorators) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Decorators[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
 	if m.SourcePosition != nil {
 		size, err := m.SourcePosition.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -3583,6 +3912,171 @@ func (m *Metadata) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *Decorator) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Decorator) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Decorator) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.RequiredFlag) > 0 {
+		i -= len(m.RequiredFlag)
+		copy(dAtA[i:], m.RequiredFlag)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.RequiredFlag)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Parameters) > 0 {
+		for iNdEx := len(m.Parameters) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Parameters[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DecoratorParameter) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DecoratorParameter) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DecoratorParameter) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if vtmsg, ok := m.Value.(interface {
+		MarshalToSizedBufferVT([]byte) (int, error)
+	}); ok {
+		size, err := vtmsg.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DecoratorParameter_IntValue) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DecoratorParameter_IntValue) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IntValue))
+	i--
+	dAtA[i] = 0x10
+	return len(dAtA) - i, nil
+}
+func (m *DecoratorParameter_StringValue) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DecoratorParameter_StringValue) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.StringValue)
+	copy(dAtA[i:], m.StringValue)
+	i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.StringValue)))
+	i--
+	dAtA[i] = 0x1a
+	return len(dAtA) - i, nil
+}
+func (m *DecoratorParameter_BoolValue) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DecoratorParameter_BoolValue) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i--
+	if m.BoolValue {
+		dAtA[i] = 1
+	} else {
+		dAtA[i] = 0
+	}
+	i--
+	dAtA[i] = 0x20
+	return len(dAtA) - i, nil
+}
+func (m *DecoratorParameter_EnumValue) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DecoratorParameter_EnumValue) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.EnumValue)
+	copy(dAtA[i:], m.EnumValue)
+	i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.EnumValue)))
+	i--
+	dAtA[i] = 0x2a
+	return len(dAtA) - i, nil
+}
 func (m *NamespaceDefinition) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -3612,6 +4106,18 @@ func (m *NamespaceDefinition) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Decorators) > 0 {
+		for iNdEx := len(m.Decorators) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Decorators[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x2a
+		}
 	}
 	if m.SourcePosition != nil {
 		size, err := m.SourcePosition.MarshalToSizedBufferVT(dAtA[:i])
@@ -3684,6 +4190,18 @@ func (m *Relation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Decorators) > 0 {
+		for iNdEx := len(m.Decorators) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Decorators[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x42
+		}
 	}
 	if len(m.CanonicalCacheKey) > 0 {
 		i -= len(m.CanonicalCacheKey)
@@ -4071,6 +4589,18 @@ func (m *AllowedRelation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
+	}
+	if len(m.Decorators) > 0 {
+		for iNdEx := len(m.Decorators) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Decorators[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x42
+		}
 	}
 	if m.RequiredExpiration != nil {
 		size, err := m.RequiredExpiration.MarshalToSizedBufferVT(dAtA[:i])
@@ -5601,6 +6131,12 @@ func (m *CaveatDefinition) SizeVT() (n int) {
 		l = m.SourcePosition.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if len(m.Decorators) > 0 {
+		for _, e := range m.Decorators {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -5814,6 +6350,85 @@ func (m *Metadata) SizeVT() (n int) {
 	return n
 }
 
+func (m *Decorator) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.Parameters) > 0 {
+		for _, e := range m.Parameters {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	l = len(m.RequiredFlag)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *DecoratorParameter) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if vtmsg, ok := m.Value.(interface{ SizeVT() int }); ok {
+		n += vtmsg.SizeVT()
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *DecoratorParameter_IntValue) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	n += 1 + protohelpers.SizeOfVarint(uint64(m.IntValue))
+	return n
+}
+func (m *DecoratorParameter_StringValue) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.StringValue)
+	n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	return n
+}
+func (m *DecoratorParameter_BoolValue) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	n += 2
+	return n
+}
+func (m *DecoratorParameter_EnumValue) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.EnumValue)
+	n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	return n
+}
 func (m *NamespaceDefinition) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -5837,6 +6452,12 @@ func (m *NamespaceDefinition) SizeVT() (n int) {
 	if m.SourcePosition != nil {
 		l = m.SourcePosition.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.Decorators) > 0 {
+		for _, e := range m.Decorators {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -5875,6 +6496,12 @@ func (m *Relation) SizeVT() (n int) {
 	l = len(m.CanonicalCacheKey)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.Decorators) > 0 {
+		for _, e := range m.Decorators {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -6018,6 +6645,12 @@ func (m *AllowedRelation) SizeVT() (n int) {
 	if m.RequiredExpiration != nil {
 		l = m.RequiredExpiration.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.Decorators) > 0 {
+		for _, e := range m.Decorators {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -7409,6 +8042,40 @@ func (m *CaveatDefinition) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Decorators", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Decorators = append(m.Decorators, &Decorator{})
+			if err := m.Decorators[len(m.Decorators)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -8601,6 +9268,343 @@ func (m *Metadata) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *Decorator) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Decorator: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Decorator: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Parameters", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Parameters = append(m.Parameters, &DecoratorParameter{})
+			if err := m.Parameters[len(m.Parameters)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RequiredFlag", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RequiredFlag = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DecoratorParameter) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DecoratorParameter: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DecoratorParameter: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IntValue", wireType)
+			}
+			var v int64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Value = &DecoratorParameter_IntValue{IntValue: v}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StringValue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Value = &DecoratorParameter_StringValue{StringValue: string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BoolValue", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			b := bool(v != 0)
+			m.Value = &DecoratorParameter_BoolValue{BoolValue: b}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnumValue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Value = &DecoratorParameter_EnumValue{EnumValue: string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *NamespaceDefinition) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -8765,6 +9769,40 @@ func (m *NamespaceDefinition) UnmarshalVT(dAtA []byte) error {
 				m.SourcePosition = &SourcePosition{}
 			}
 			if err := m.SourcePosition.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Decorators", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Decorators = append(m.Decorators, &Decorator{})
+			if err := m.Decorators[len(m.Decorators)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -9058,6 +10096,40 @@ func (m *Relation) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.CanonicalCacheKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Decorators", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Decorators = append(m.Decorators, &Decorator{})
+			if err := m.Decorators[len(m.Decorators)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -10107,6 +11179,40 @@ func (m *AllowedRelation) UnmarshalVT(dAtA []byte) error {
 				m.RequiredExpiration = &ExpirationTrait{}
 			}
 			if err := m.RequiredExpiration.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Decorators", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Decorators = append(m.Decorators, &Decorator{})
+			if err := m.Decorators[len(m.Decorators)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

@@ -1,0 +1,20 @@
+use testdecorators
+use partial
+use import
+
+@testrel
+use self
+
+@testrel
+import "other.zed"
+
+partial base {
+	relation viewer: user
+}
+
+definition user {}
+
+definition document {
+	@testrel
+	...base
+}

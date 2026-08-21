@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
@@ -74,7 +75,7 @@ caveat somecaveat(someParam int) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source, ok, err := GenerateCaveatSource(test.input, caveattypes.Default.TypeSet)
+			source, _, ok, err := GenerateCaveatSource(test.input, caveattypes.Default.TypeSet)
 			require.NoError(err)
 			require.Equal(strings.TrimSpace(test.expected), source)
 			require.Equal(test.okay, ok)
@@ -464,4 +465,193 @@ definition user {
 			require.Equal(test.expected, source)
 		})
 	}
+}
+
+func TestGenerateDecoratorsRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	schema := `use testdecorators
+
+@testall(needed: 7, label: "hi", on: true, mode: hash)
+definition document {
+	@testrel
+	relation viewer: @testsub user
+
+	@testrel
+	permission view = viewer
+}
+
+definition user {}`
+
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schema,
+	}, compiler.AllowUnprefixedObjectType(),
+		compiler.WithDecoratorRegistry(decorators.TestRegistry))
+	require.NoError(t, err)
+
+	generated, ok, err := GenerateSchema(t.Context(), compiled.OrderedDefinitions)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	// The generated source must carry the decorators and the `use` line they require.
+	require.Contains(t, generated, "use testdecorators")
+	require.Contains(t, generated, "@testall(needed: 7, label: \"hi\", on: true, mode: hash)")
+	require.Contains(t, generated, "@testrel")
+	require.Contains(t, generated, "@testsub user")
+
+	// And it must recompile to an identical schema.
+	recompiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: generated,
+	}, compiler.AllowUnprefixedObjectType(),
+		compiler.WithDecoratorRegistry(decorators.TestRegistry))
+	require.NoError(t, err)
+
+	regenerated, _, err := GenerateSchema(t.Context(), recompiled.OrderedDefinitions)
+	require.NoError(t, err)
+	require.Equal(t, generated, regenerated)
+}
+
+func TestGenerateDecoratorsOnCaveatRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	schema := `use testdecorators
+
+@testcaveat
+caveat somecaveat(someparam int) {
+	someparam == 42
+}`
+
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("test"),
+		SchemaString: schema,
+	}, compiler.AllowUnprefixedObjectType(),
+		compiler.WithDecoratorRegistry(decorators.TestRegistry))
+	require.NoError(t, err)
+
+	generated, _, err := GenerateSchema(t.Context(), compiled.OrderedDefinitions)
+	require.NoError(t, err)
+	require.Contains(t, generated, "use testdecorators")
+	require.Contains(t, generated, "@testcaveat")
+}
+
+// decoratorStringParam finds the named parameter on the given decorator and returns its
+// StringValue, failing the test if the parameter is absent or not a string.
+func decoratorStringParam(t *testing.T, d *core.Decorator, name string) string {
+	t.Helper()
+	for _, p := range d.GetParameters() {
+		if p.GetName() == name {
+			return p.GetStringValue()
+		}
+	}
+	t.Fatalf("parameter %q not found on decorator %q", name, d.GetName())
+	return ""
+}
+
+// TestGenerateDecoratorStringParameterQuoting exercises the DSL's lack of backslash-escape
+// syntax: the generator must pick whichever of `"`/`'` the value does not contain, and must
+// write the value out raw (no escaping) since the lexer never interprets a backslash. Each
+// case asserts a full compile -> generate -> recompile -> regenerate round trip, checking
+// both that the regenerated text is byte-identical to the first generation (a fixed point,
+// which is what ComputeSchemaHash relies on for stability) and that the decoded StringValue
+// survives unchanged.
+func TestGenerateDecoratorStringParameterQuoting(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		schema        string
+		wantValue     string
+		wantSubstring string
+	}{
+		{
+			name: "double quote in value flips delimiter to single quote",
+			schema: `use testdecorators
+
+@testall(needed: 1, label: 'he said "hi"')
+definition document {}`,
+			wantValue:     `he said "hi"`,
+			wantSubstring: `label: 'he said "hi"'`,
+		},
+		{
+			name: "single quote in value keeps double quote delimiter",
+			schema: `use testdecorators
+
+@testall(needed: 1, label: "it's here")
+definition document {}`,
+			wantValue:     `it's here`,
+			wantSubstring: `label: "it's here"`,
+		},
+		{
+			name: "backslash requires no escaping",
+			schema: `use testdecorators
+
+@testall(needed: 1, label: "a\b")
+definition document {}`,
+			wantValue:     `a\b`,
+			wantSubstring: `label: "a\b"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: test.schema,
+			}, compiler.AllowUnprefixedObjectType(),
+				compiler.WithDecoratorRegistry(decorators.TestRegistry))
+			require.NoError(t, err)
+
+			ns, ok := compiled.OrderedDefinitions[0].(*core.NamespaceDefinition)
+			require.True(t, ok)
+			require.Equal(t, test.wantValue, decoratorStringParam(t, ns.GetDecorators()[0], "label"))
+
+			generated, ok, err := GenerateSchema(t.Context(), compiled.OrderedDefinitions)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Contains(t, generated, test.wantSubstring)
+
+			recompiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("test"),
+				SchemaString: generated,
+			}, compiler.AllowUnprefixedObjectType(),
+				compiler.WithDecoratorRegistry(decorators.TestRegistry))
+			require.NoError(t, err)
+
+			recompiledNS, ok := recompiled.OrderedDefinitions[0].(*core.NamespaceDefinition)
+			require.True(t, ok)
+			require.Equal(t, test.wantValue, decoratorStringParam(t, recompiledNS.GetDecorators()[0], "label"),
+				"recompiled StringValue must be byte-identical to the original")
+
+			regenerated, _, err := GenerateSchema(t.Context(), recompiled.OrderedDefinitions)
+			require.NoError(t, err)
+			require.Equal(t, generated, regenerated)
+		})
+	}
+}
+
+// TestGenerateDecoratorParameterWithUnsetValueIsNotOK pins the defensive appendIssue guard
+// in decoratorParameterValue's default case. decorators.Validate always sets one of the four
+// oneof variants, so this path isn't reachable through the compiler, but a hand-built proto
+// (or a future fifth oneof variant nobody wired up here yet) must not silently emit
+// `@name(x: )`, which fails to recompile. It must flip `ok` to false instead.
+func TestGenerateDecoratorParameterWithUnsetValueIsNotOK(t *testing.T) {
+	t.Parallel()
+
+	ns := namespace.Namespace("document")
+	ns.Decorators = []*core.Decorator{
+		{
+			Name: "testdef",
+			Parameters: []*core.DecoratorParameter{
+				{Name: "x"}, // Value left unset.
+			},
+		},
+	}
+
+	_, ok, err := GenerateSource(ns, caveattypes.Default.TypeSet)
+	require.NoError(t, err)
+	require.False(t, ok)
 }

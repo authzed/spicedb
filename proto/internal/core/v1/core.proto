@@ -75,6 +75,9 @@ message CaveatDefinition {
 
   /** source_position contains the position of the caveat in the source schema, if any */
   SourcePosition source_position = 5;
+
+  /** decorators are the decorators applied to this caveat */
+  repeated Decorator decorators = 6;
 }
 
 message CaveatTypeReference {
@@ -183,6 +186,43 @@ message Metadata {
 }
 
 /**
+ * Decorator is a `@name(param: value)` annotation applied to a definition,
+ * relation, permission, caveat or subject type in a schema.
+ */
+message Decorator {
+  /** name is the decorator's name, without the leading `@` */
+  string name = 1 [(buf.validate.field).string = {
+    pattern: "^[a-z][a-z0-9_]{0,62}[a-z0-9]$"
+    max_bytes: 64
+  }];
+
+  /** parameters are the decorator's arguments, in source order */
+  repeated DecoratorParameter parameters = 2;
+
+  /**
+   * required_flag is the `use` feature flag that enables this decorator. It is stored
+   * so that schema generation can re-emit the necessary `use` lines without consulting
+   * the decorator registry.
+   */
+  string required_flag = 3;
+}
+
+/** DecoratorParameter is a single named argument to a Decorator. */
+message DecoratorParameter {
+  string name = 1 [(buf.validate.field).string = {
+    pattern: "^[a-z][a-z0-9_]{0,62}[a-z0-9]$"
+    max_bytes: 64
+  }];
+
+  oneof value {
+    int64 int_value = 2;
+    string string_value = 3;
+    bool bool_value = 4;
+    string enum_value = 5;
+  }
+}
+
+/**
  * NamespaceDefinition represents a single definition of an object type
  */
 message NamespaceDefinition {
@@ -200,6 +240,9 @@ message NamespaceDefinition {
 
   /** source_position contains the position of the namespace in the source schema, if any */
   SourcePosition source_position = 4;
+
+  /** decorators are the decorators applied to this definition */
+  repeated Decorator decorators = 5;
 }
 
 /**
@@ -229,6 +272,9 @@ message Relation {
 
   string aliasing_relation = 6;
   string canonical_cache_key = 7;
+
+  /** decorators are the decorators applied to this relation or permission */
+  repeated Decorator decorators = 8;
 }
 
 /**
@@ -421,6 +467,9 @@ message AllowedRelation {
    * required_expiration defines the required expiration on this relation.
    */
   ExpirationTrait required_expiration = 7;
+
+  /** decorators are the decorators applied to this subject type */
+  repeated Decorator decorators = 8;
 }
 
 /**

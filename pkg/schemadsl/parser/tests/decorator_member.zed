@@ -1,0 +1,15 @@
+use testdecorators
+
+definition user {}
+
+definition document {
+	// This comment documents the relation.
+	@testrel
+	relation viewer: user
+
+	@testall(needed: 1, mode: range)
+	relation editor: user
+
+	@testrel
+	permission view = viewer + editor
+}

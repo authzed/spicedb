@@ -18,26 +18,38 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/decorators"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type translationContext struct {
-	objectTypePrefix *string
-	mapper           input.PositionMapper
-	skipValidate     bool
-	allowedFlags     *mapz.Set[string]
-	enabledFlags     *mapz.Set[string]
-	existingNames    *mapz.Set[string]
-	caveatTypeSet    *caveattypes.TypeSet
+	objectTypePrefix  *string
+	mapper            input.PositionMapper
+	skipValidate      bool
+	allowedFlags      *mapz.Set[string]
+	enabledFlags      *mapz.Set[string]
+	existingNames     *mapz.Set[string]
+	caveatTypeSet     *caveattypes.TypeSet
+	decoratorRegistry decorators.Registry
 
 	// The mapping of partial name -> relations represented by the partial
 	compiledPartials map[string][]*core.Relation
 
+	// The mapping of partial name -> decorators declared on the partial itself
+	partialDecorators map[string][]*core.Decorator
+
 	// A mapping of partial name -> partial DSL nodes whose resolution depends on
 	// the resolution of the named partial
 	unresolvedPartials *mapz.MultiMap[string, *dslNode]
+
+	// testBeforePartialCollection, if non-nil, is invoked by translate immediately after
+	// `use` flags are collected but before collectPartials runs. It exists solely so tests
+	// can observe tctx.enabledFlags at that exact point and pin the ordering guarantee that
+	// flags are collected before partials are translated. It is always nil outside of tests
+	// and has no effect in production.
+	testBeforePartialCollection func()
 }
 
 func (tctx *translationContext) prefixedPath(definitionName string) (string, error) {
@@ -68,6 +80,17 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 	// as we do our walk
 	names := tctx.existingNames.Copy()
 
+	// Collect `use` flags first: partials are translated in a pass of their own, below,
+	// and decorators inside a partial body need the schema's flags to already be known.
+	// The parser guarantees `use` precedes every definition, so a dedicated pass is safe.
+	if err := collectUseFlags(tctx, root); err != nil {
+		return nil, err
+	}
+
+	if tctx.testBeforePartialCollection != nil {
+		tctx.testBeforePartialCollection()
+	}
+
 	// Do an initial pass to translate partials and add them to the
 	// translation context. This ensures that they're available for
 	// subsequent reference in definition compilation.
@@ -79,10 +102,7 @@ func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error)
 	for _, topLevelNode := range root.GetChildren() {
 		switch topLevelNode.GetType() {
 		case dslshape.NodeTypeUseFlag:
-			err := translateUseFlag(tctx, topLevelNode)
-			if err != nil {
-				return nil, err
-			}
+			// Already collected by collectUseFlags, above.
 			continue
 
 		case dslshape.NodeTypeCaveatDefinition:
@@ -228,6 +248,13 @@ func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*cor
 
 	def.Metadata = addComments(def.Metadata, defNode)
 	def.SourcePosition = getSourcePosition(defNode, tctx.mapper)
+
+	ds, err := translateDecorators(tctx, defNode, decorators.SiteCaveat)
+	if err != nil {
+		return nil, err
+	}
+	def.Decorators = ds
+
 	return def, nil
 }
 
@@ -262,7 +289,17 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	}
 
 	errorOnMissingReference := true
-	relationsAndPermissions, _, err := translateRelationsAndPermissions(tctx, defNode, errorOnMissingReference)
+	relationsAndPermissions, inheritedDecorators, _, err := translateRelationsAndPermissions(tctx, defNode, errorOnMissingReference)
+	if err != nil {
+		return nil, err
+	}
+
+	ownDecorators, err := translateDecorators(tctx, defNode, decorators.SiteDefinition)
+	if err != nil {
+		return nil, err
+	}
+
+	ds, err := mergeDecorators(ownDecorators, inheritedDecorators, defNode)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +313,7 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 		ns := namespace.Namespace(nspath)
 		ns.Metadata = addComments(ns.Metadata, defNode)
 		ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
+		ns.Decorators = ds
 
 		if !tctx.skipValidate {
 			if err = protovalidate.Validate(ns); err != nil {
@@ -289,6 +327,7 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 	ns := namespace.Namespace(nspath, relationsAndPermissions...)
 	ns.Metadata = addComments(ns.Metadata, defNode)
 	ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
+	ns.Decorators = ds
 
 	if !tctx.skipValidate {
 		if err := protovalidate.Validate(ns); err != nil {
@@ -303,33 +342,39 @@ func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*cor
 // A value of true treats that as an error state, since all partials should be resolved when translating definitions,
 // where the false value returns the name of the partial for collection for future processing
 // when translating partials.
-func translateRelationsAndPermissions(tctx *translationContext, astNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, string, error) {
+func translateRelationsAndPermissions(tctx *translationContext, astNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, []*core.Decorator, string, error) {
 	relationsAndPermissions := []*core.Relation{}
+	var inheritedDecorators []*core.Decorator
 	for _, definitionChildNode := range astNode.GetChildren() {
 		if definitionChildNode.GetType() == dslshape.NodeTypeComment {
 			continue
 		}
 
 		if definitionChildNode.GetType() == dslshape.NodeTypePartialReference {
-			partialContents, unresolvedPartial, err := translatePartialReference(tctx, definitionChildNode, errorOnMissingReference)
+			partialContents, partialDecorators, unresolvedPartial, err := translatePartialReference(tctx, definitionChildNode, errorOnMissingReference)
 			if err != nil {
-				return nil, "", err
+				return nil, nil, "", err
 			}
 			if unresolvedPartial != "" {
-				return nil, unresolvedPartial, nil
+				return nil, nil, unresolvedPartial, nil
 			}
 			relationsAndPermissions = append(relationsAndPermissions, partialContents...)
+
+			inheritedDecorators, err = mergeDecorators(inheritedDecorators, partialDecorators, definitionChildNode)
+			if err != nil {
+				return nil, nil, "", err
+			}
 			continue
 		}
 
 		relationOrPermission, err := translateRelationOrPermission(tctx, definitionChildNode)
 		if err != nil {
-			return nil, "", err
+			return nil, nil, "", err
 		}
 
 		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
 	}
-	return relationsAndPermissions, "", nil
+	return relationsAndPermissions, inheritedDecorators, "", nil
 }
 
 func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.SourcePosition {
@@ -430,6 +475,12 @@ func translateRelation(tctx *translationContext, relationNode *dslNode) (*core.R
 		}
 	}
 
+	ds, err := translateDecorators(tctx, relationNode, decorators.SiteRelation)
+	if err != nil {
+		return nil, err
+	}
+	relation.Decorators = ds
+
 	return relation, nil
 }
 
@@ -478,6 +529,12 @@ func translatePermission(tctx *translationContext, permissionNode *dslNode) (*co
 			return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
 		}
 	}
+
+	ds, err := translateDecorators(tctx, permissionNode, decorators.SitePermission)
+	if err != nil {
+		return nil, err
+	}
+	permission.Decorators = ds
 
 	return permission, nil
 }
@@ -753,6 +810,13 @@ func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNo
 	}
 
 	ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
+
+	ds, err := translateDecorators(tctx, typeRefNode, decorators.SiteSubjectType)
+	if err != nil {
+		return nil, err
+	}
+	ref.Decorators = ds
+
 	return ref, nil
 }
 
@@ -914,6 +978,20 @@ func (itctx *importResolutionContext) translateImports(root *dslNode, locallyVis
 	return nil
 }
 
+// collectUseFlags walks the top level and records every declared `use` flag.
+func collectUseFlags(tctx *translationContext, rootNode *dslNode) error {
+	for _, topLevelNode := range rootNode.GetChildren() {
+		if topLevelNode.GetType() != dslshape.NodeTypeUseFlag {
+			continue
+		}
+
+		if err := translateUseFlag(tctx, topLevelNode); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func collectPartials(tctx *translationContext, rootNode *dslNode) error {
 	for _, topLevelNode := range rootNode.GetChildren() {
 		if topLevelNode.GetType() == dslshape.NodeTypePartial {
@@ -942,7 +1020,7 @@ func translatePartial(tctx *translationContext, partialNode *dslNode) error {
 	}
 	// This needs to return the unresolved name.
 	errorOnMissingReference := false
-	relationsAndPermissions, unresolvedPartial, err := translateRelationsAndPermissions(tctx, partialNode, errorOnMissingReference)
+	relationsAndPermissions, inheritedDecorators, unresolvedPartial, err := translateRelationsAndPermissions(tctx, partialNode, errorOnMissingReference)
 	if err != nil {
 		return err
 	}
@@ -951,7 +1029,24 @@ func translatePartial(tctx *translationContext, partialNode *dslNode) error {
 		return nil
 	}
 
+	// A decorator on a partial applies at SiteDefinition: it is legal here exactly when
+	// it would be legal on the definitions that end up including this partial.
+	ownDecorators, err := translateDecorators(tctx, partialNode, decorators.SiteDefinition)
+	if err != nil {
+		return err
+	}
+
+	mergedDecorators, err := mergeDecorators(ownDecorators, inheritedDecorators, partialNode)
+	if err != nil {
+		return err
+	}
+
 	tctx.compiledPartials[partialPath] = relationsAndPermissions
+
+	if tctx.partialDecorators == nil {
+		tctx.partialDecorators = make(map[string][]*core.Decorator)
+	}
+	tctx.partialDecorators[partialPath] = mergedDecorators
 
 	// Since we've successfully compiled a partial, check the unresolved partials to see if any other partial was
 	// waiting on this partial
@@ -973,25 +1068,25 @@ func translatePartial(tctx *translationContext, partialNode *dslNode) error {
 // NOTE: we treat partial references in definitions and partials differently because a missing partial
 // reference in definition compilation is an error state, where a missing partial reference in a
 // partial definition is an indeterminate state.
-func translatePartialReference(tctx *translationContext, partialReferenceNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, string, error) {
+func translatePartialReference(tctx *translationContext, partialReferenceNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, []*core.Decorator, string, error) {
 	name, err := partialReferenceNode.GetString(dslshape.NodePartialReferencePredicateName)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	path, err := tctx.prefixedPath(name)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	relationsAndPermissions, ok := tctx.compiledPartials[path]
 	if !ok {
 		if errorOnMissingReference {
-			return nil, "", partialReferenceNode.Errorf("could not find partial reference with name %s", path)
+			return nil, nil, "", partialReferenceNode.Errorf("could not find partial reference with name %s", path)
 		}
 		// If the partial isn't present and we're not throwing an error, we return the name of the missing partial
 		// This behavior supports partial collection
-		return nil, path, nil
+		return nil, nil, path, nil
 	}
-	return relationsAndPermissions, "", nil
+	return relationsAndPermissions, tctx.partialDecorators[path], "", nil
 }
 
 // Translate use node and add flag to list of enabled flags
@@ -1000,12 +1095,14 @@ func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
 	if err != nil {
 		return err
 	}
+
+	if !tctx.allowedFlags.Has(flagName) {
+		return useFlagNode.WithSourceErrorf(flagName, "the `%s` flag is not allowed", flagName)
+	}
+
 	// NOTE: we're okay with multiple instances of a given `use` directive in
 	// composable schemas, because each file may declare it separately
 	// and that should be valid.
-
-	// TODO: make this check the list of allowed flags. this will be required for
-	// `use import` support.
 	tctx.enabledFlags.Insert(flagName)
 	return nil
 }

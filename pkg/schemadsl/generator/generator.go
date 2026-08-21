@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/otel"
@@ -71,13 +72,14 @@ func GenerateSchemaWithCaveatTypeSet(ctx context.Context, definitions []compiler
 	for _, definition := range definitions {
 		switch def := definition.(type) {
 		case *core.CaveatDefinition:
-			generatedCaveat, ok, err := GenerateCaveatSource(def, caveatTypeSet)
+			generatedCaveat, caveatFlags, ok, err := GenerateCaveatSource(def, caveatTypeSet)
 			if err != nil {
 				return "", false, err
 			}
 
 			result = result && ok
 			generated = append(generated, generatedCaveat)
+			flags.Extend(caveatFlags)
 
 		case *core.NamespaceDefinition:
 			generatedSchema, defFlags, ok, err := generateDefinitionSource(def, caveatTypeSet)
@@ -107,15 +109,15 @@ func GenerateSchemaWithCaveatTypeSet(ctx context.Context, definitions []compiler
 }
 
 // GenerateCaveatSource generates a DSL view of the given caveat definition.
-func GenerateCaveatSource(caveat *core.CaveatDefinition, caveatTypeSet *caveattypes.TypeSet) (string, bool, error) {
+func GenerateCaveatSource(caveat *core.CaveatDefinition, caveatTypeSet *caveattypes.TypeSet) (string, []string, bool, error) {
 	generator := NewSourceGenerator(caveatTypeSet)
 
 	err := generator.emitCaveat(caveat)
 	if err != nil {
-		return "", false, err
+		return "", nil, false, err
 	}
 
-	return generator.buf.String(), !generator.hasIssue, nil
+	return generator.buf.String(), generator.flags.AsSlice(), !generator.hasIssue, nil
 }
 
 // GenerateSource generates a DSL view of the given namespace definition.
@@ -147,8 +149,100 @@ func GenerateRelationSource(relation *core.Relation, caveatTypeSet *caveattypes.
 	return generator.buf.String(), nil
 }
 
+// emitDecorators writes the given decorators and records the `use` flags they require.
+// When inline is true they are written space-separated on the current line (subject
+// types); otherwise each is written on its own line (definitions, relations, caveats).
+func (sg *sourceGenerator) emitDecorators(ds []*core.Decorator, inline bool) {
+	for _, d := range ds {
+		if flag := d.GetRequiredFlag(); flag != "" {
+			sg.flags.Add(flag)
+		}
+
+		sg.append("@")
+		sg.append(d.GetName())
+
+		if len(d.GetParameters()) > 0 {
+			sg.append("(")
+			for index, param := range d.GetParameters() {
+				if index > 0 {
+					sg.append(", ")
+				}
+				sg.append(param.GetName())
+				sg.append(": ")
+				sg.append(sg.decoratorParameterValue(param))
+			}
+			sg.append(")")
+		}
+
+		if inline {
+			sg.append(" ")
+		} else {
+			sg.appendLine()
+		}
+	}
+}
+
+// decoratorParameterValue renders a single decorator parameter's value as it should
+// appear in generated source. If the value cannot be represented at all (a oneof left
+// unset, e.g. on a hand-built proto that bypassed decorators.Validate), it records an
+// issue via appendIssue so the caller's `ok` return flips to false instead of emitting
+// text that cannot be reparsed.
+func (sg *sourceGenerator) decoratorParameterValue(param *core.DecoratorParameter) string {
+	switch value := param.GetValue().(type) {
+	case *core.DecoratorParameter_IntValue:
+		return strconv.FormatInt(value.IntValue, 10)
+
+	case *core.DecoratorParameter_StringValue:
+		return sg.decoratorStringValue(param.GetName(), value.StringValue)
+
+	case *core.DecoratorParameter_BoolValue:
+		return strconv.FormatBool(value.BoolValue)
+
+	case *core.DecoratorParameter_EnumValue:
+		return value.EnumValue
+
+	default:
+		sg.appendIssue(fmt.Sprintf("decorator parameter `%s` has no value", param.GetName()))
+		return ""
+	}
+}
+
+// decoratorStringValue renders a decorator string parameter's value using whichever of
+// the DSL's two string delimiters (`"` or `'`) the value does not contain, writing the
+// value out RAW between them.
+//
+// The schema DSL has no backslash-escape syntax: lexStringLiteral
+// (pkg/schemadsl/lexer/lex_def.go) scans raw for the closing delimiter with no escape
+// awareness, and tryConsumeStringLiteral (pkg/schemadsl/parser/parser_impl.go) just
+// trims the quote characters off. So a value can only round-trip if some delimiter it
+// does not contain exists, and it must not contain a newline (single/double-quoted
+// strings are single-line only). decorators.Validate rejects values that violate this
+// before they ever reach a proto, but a hand-built proto could still hit it, so this is
+// a defensive appendIssue rather than emitting unparseable text.
+func (sg *sourceGenerator) decoratorStringValue(paramName string, value string) string {
+	hasDouble := strings.Contains(value, `"`)
+	hasSingle := strings.Contains(value, `'`)
+
+	switch {
+	case strings.ContainsAny(value, "\n\r"):
+		sg.appendIssue(fmt.Sprintf("value for parameter `%s` contains a newline, which cannot be represented in schema source", paramName))
+		return ""
+
+	case hasDouble && hasSingle:
+		sg.appendIssue(fmt.Sprintf("value for parameter `%s` contains both quote styles and cannot be represented in schema source", paramName))
+		return ""
+
+	case hasDouble:
+		return `'` + value + `'`
+
+	default:
+		return `"` + value + `"`
+	}
+}
+
 func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.emitComments(caveat.Metadata)
+	sg.emitDecorators(caveat.GetDecorators(), false)
 	sg.append("caveat ")
 	sg.append(caveat.Name)
 	sg.append("(")
@@ -203,6 +297,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 
 func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) error {
 	sg.emitComments(namespace.Metadata)
+	sg.emitDecorators(namespace.GetDecorators(), false)
 	sg.append("definition ")
 	sg.append(namespace.Name)
 
@@ -237,6 +332,7 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
 	isPermission := relation.UsersetRewrite != nil && !hasThis
 
 	sg.emitComments(relation.Metadata)
+	sg.emitDecorators(relation.GetDecorators(), false)
 	if isPermission {
 		sg.append("permission ")
 	} else {
@@ -270,6 +366,7 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
 }
 
 func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRelation) {
+	sg.emitDecorators(allowedRelation.GetDecorators(), true)
 	sg.append(allowedRelation.Namespace)
 	if allowedRelation.GetRelation() != "" && allowedRelation.GetRelation() != Ellipsis {
 		sg.append("#")

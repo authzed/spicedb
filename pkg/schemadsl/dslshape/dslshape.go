@@ -39,6 +39,9 @@ const (
 
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
 
+	NodeTypeDecorator          // A decorator, e.g. @somename(param: value)
+	NodeTypeDecoratorParameter // A single parameter of a decorator
+
 	NodeTypeImport
 	NodeTypePartial
 	NodeTypePartialReference // A location where a partial is referenced
@@ -237,4 +240,30 @@ const (
 	// NodeTypePartialReference
 	//
 	NodePartialReferencePredicateName = "partial-reference-name"
+
+	//
+	// NodeTypeDecorator
+	//
+
+	// A decorator applied to the decorated node.
+	NodePredicateDecorator = "decorator"
+
+	// The name of the decorator, without the leading `@`.
+	NodeDecoratorPredicateName = "decorator-name"
+
+	// The parameters of the decorator.
+	NodeDecoratorPredicateParameters = "decorator-parameters"
+
+	//
+	// NodeTypeDecoratorParameter
+	//
+
+	// The name of the decorator parameter.
+	NodeDecoratorParameterPredicateName = "decorator-parameter-name"
+
+	// The value of the decorator parameter, as written.
+	NodeDecoratorParameterPredicateValue = "decorator-parameter-value"
+
+	// The syntactic kind of the value: `string` or `identifier`.
+	NodeDecoratorParameterPredicateKind = "decorator-parameter-kind"
 )

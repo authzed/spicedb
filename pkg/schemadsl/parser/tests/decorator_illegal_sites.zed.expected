@@ -1,0 +1,104 @@
+NodeTypeFile
+  end-rune = 194
+  input-source = decorator on illegal sites test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 17
+      input-source = decorator on illegal sites test
+      start-rune = 0
+      use-flag-name = testdecorators
+    NodeTypeUseFlag
+      end-rune = 29
+      input-source = decorator on illegal sites test
+      start-rune = 19
+      use-flag-name = partial
+    NodeTypeUseFlag
+      end-rune = 40
+      input-source = decorator on illegal sites test
+      start-rune = 31
+      use-flag-name = import
+    NodeTypeError
+      end-rune = 51
+      error-message = Decorators cannot be applied to a `use` flag
+      error-source = use
+      input-source = decorator on illegal sites test
+      start-rune = 52
+    NodeTypeUseFlag
+      end-rune = 59
+      input-source = decorator on illegal sites test
+      start-rune = 52
+      use-flag-name = self
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testrel
+          end-rune = 50
+          input-source = decorator on illegal sites test
+          start-rune = 43
+    NodeTypeError
+      end-rune = 70
+      error-message = Decorators cannot be applied to an `import`
+      error-source = import
+      input-source = decorator on illegal sites test
+      start-rune = 71
+    NodeTypeImport
+      end-rune = 88
+      import-path = other.zed
+      input-source = decorator on illegal sites test
+      start-rune = 71
+      decorator =>
+        NodeTypeDecorator
+          decorator-name = testrel
+          end-rune = 69
+          input-source = decorator on illegal sites test
+          start-rune = 62
+    NodeTypePartial
+      end-rune = 129
+      input-source = decorator on illegal sites test
+      partial-name = base
+      start-rune = 91
+      child-node =>
+        NodeTypeRelation
+          end-rune = 127
+          input-source = decorator on illegal sites test
+          relation-name = viewer
+          start-rune = 107
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 127
+              input-source = decorator on illegal sites test
+              start-rune = 124
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 127
+                  input-source = decorator on illegal sites test
+                  start-rune = 124
+                  type-name = user
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 149
+      input-source = decorator on illegal sites test
+      start-rune = 132
+    NodeTypeDefinition
+      definition-name = document
+      end-rune = 193
+      input-source = decorator on illegal sites test
+      start-rune = 152
+      child-node =>
+        NodeTypeError
+          end-rune = 183
+          error-message = Decorators cannot be applied to a partial reference
+          error-source = ...
+          input-source = decorator on illegal sites test
+          start-rune = 185
+        NodeTypePartialReference
+          end-rune = 191
+          input-source = decorator on illegal sites test
+          partial-reference-name = base
+          start-rune = 185
+          decorator =>
+            NodeTypeDecorator
+              decorator-name = testrel
+              end-rune = 182
+              input-source = decorator on illegal sites test
+              start-rune = 175

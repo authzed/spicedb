@@ -154,6 +154,15 @@ func TestParser(t *testing.T) {
 		{"partials with malformed reference splat", "partials_with_malformed_reference_splat"},
 		{"partials with malformed partial block", "partials_with_malformed_partial_block"},
 		{"expiration before caveat test", "expirationbeforecaveat"},
+		{"decorator on definition test", "decorator_definition"},
+		{"decorator on relation and permission test", "decorator_member"},
+		{"decorator on subject type test", "decorator_subjecttype"},
+		{"decorator error test", "decorator_errors"},
+		{"decorator on illegal sites test", "decorator_illegal_sites"},
+		{"decorator malformed parameter missing colon test", "decorator_malformed_parameter_no_colon"},
+		{"decorator malformed parameter missing colon before value test", "decorator_malformed_parameter_missing_colon_value"},
+		{"decorator malformed parameter trailing comma test", "decorator_malformed_parameter_trailing_comma"},
+		{"decorator malformed parameter with nested parens test", "decorator_malformed_parameter_nested_parens"},
 	}
 
 	for _, test := range parserTests {
