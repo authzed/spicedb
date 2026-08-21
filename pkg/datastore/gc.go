@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,6 +62,11 @@ var (
 	gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
 )
 
+// ErrGCPreempted is returned when a garbage collection run is preempted by
+// another node acquiring the GC lock. This is not an error condition — it
+// means another node took over GC and this node should stop.
+var ErrGCPreempted = errors.New("gc preempted by another node")
+
 // RegisterGCMetrics registers garbage collection metrics to the default
 // registry and returns them (so that they be unregistered).
 func RegisterGCMetrics() ([]prometheus.Collector, error) {
@@ -104,17 +110,11 @@ type GarbageCollectableDatastore interface {
 }
 
 // GarbageCollector represents a runnable garbage collector for a datastore.
+//
+// Implementations are responsible for serializing garbage collection across
+// nodes: the deletion methods must hold a datastore-level lock while deleting
+// and must return ErrGCPreempted when another node holds it.
 type GarbageCollector interface {
-	// LockForGCRun attempts to acquire a lock for garbage collection. This lock
-	// is typically done at the datastore level, to ensure that no other nodes are
-	// running garbage collection at the same time.
-	LockForGCRun(ctx context.Context) (bool, error)
-
-	// UnlockAfterGCRun releases the lock after a garbage collection run.
-	// NOTE: this method does not take a context, as the context used for the
-	// reset of the GC run can be canceled/timed out and the unlock will still need to happen.
-	UnlockAfterGCRun() error
-
 	// Now returns the current time from the datastore.
 	Now(context.Context) (time.Time, error)
 
@@ -122,9 +122,11 @@ type GarbageCollector interface {
 	TxIDBefore(context.Context, time.Time) (Revision, error)
 
 	// DeleteBeforeTx deletes all data before the provided transaction ID.
+	// Returns ErrGCPreempted if another node acquired the GC lock.
 	DeleteBeforeTx(ctx context.Context, txID Revision) (DeletionCounts, error)
 
 	// DeleteExpiredRels deletes all relationships that have expired.
+	// Returns ErrGCPreempted if another node acquired the GC lock.
 	DeleteExpiredRels(ctx context.Context) (int64, error)
 
 	// Close closes the garbage collector.
@@ -230,26 +232,6 @@ func RunGarbageCollection(ctx context.Context, collectable GarbageCollectableDat
 	}
 	defer gc.Close()
 
-	ok, err := gc.LockForGCRun(ctx)
-	if err != nil {
-		return fmt.Errorf("error locking for gc run: %w", err)
-	}
-
-	if !ok {
-		log.Info().
-			Msg("datastore garbage collection already in progress on another node")
-		return nil
-	}
-
-	defer func() {
-		err := gc.UnlockAfterGCRun()
-		if err != nil {
-			log.Error().
-				Err(err).
-				Msg("error unlocking after gc run")
-		}
-	}()
-
 	now, err := gc.Now(ctx)
 	if err != nil {
 		return fmt.Errorf("error retrieving now: %w", err)
@@ -262,7 +244,14 @@ func RunGarbageCollection(ctx context.Context, collectable GarbageCollectableDat
 
 	collected, err := gc.DeleteBeforeTx(ctx, watermark)
 
-	expiredRelationshipsCount, eerr := gc.DeleteExpiredRels(ctx)
+	// Skip DeleteExpiredRels on any DeleteBeforeTx error: on preemption another
+	// node has taken over the work, and on a real error proceeding would only
+	// pile more load on a failing datastore and risk masking the original error.
+	var expiredRelationshipsCount int64
+	var eerr error
+	if err == nil {
+		expiredRelationshipsCount, eerr = gc.DeleteExpiredRels(ctx)
+	}
 
 	// even if an error happened, garbage would have been collected. This makes sure these are reflected even if the
 	// worker eventually fails or times out.
@@ -273,21 +262,30 @@ func RunGarbageCollection(ctx context.Context, collectable GarbageCollectableDat
 	collectionDuration := time.Since(startTime)
 	gcDurationHistogram.Observe(collectionDuration.Seconds())
 
-	if err != nil {
-		return fmt.Errorf("error deleting in gc: %w", err)
+	preempted := errors.Is(err, ErrGCPreempted) || errors.Is(eerr, ErrGCPreempted)
+	if !preempted {
+		if err != nil {
+			return fmt.Errorf("error deleting in gc: %w", err)
+		}
+
+		if eerr != nil {
+			return fmt.Errorf("error deleting expired relationships in gc: %w", eerr)
+		}
 	}
 
-	if eerr != nil {
-		return fmt.Errorf("error deleting expired relationships in gc: %w", eerr)
+	// A preempted run still marks GC as completed — partial GC is valid, and
+	// the preempting node will continue the work.
+	msg := "datastore garbage collection completed successfully"
+	if preempted {
+		msg = "datastore garbage collection partially completed: preempted by another node"
 	}
-
 	log.Ctx(ctx).Info().
 		Stringer("highestTxID", watermark).
 		Dur("duration", collectionDuration).
 		Time("nowTime", now).
 		Interface("collected", collected).
 		Int64("expiredRelationships", expiredRelationshipsCount).
-		Msg("datastore garbage collection completed successfully")
+		Msg(msg)
 
 	collectable.MarkGCCompleted()
 	return nil
