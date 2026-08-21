@@ -32,15 +32,17 @@ import (
 const BufferedNetwork string = "buffnet"
 
 type GRPCServerConfig struct {
-	Address      string        `debugmap:"visible"`
-	Network      string        `debugmap:"visible" default:"tcp"`
-	TLSCertPath  string        `debugmap:"visible"`
-	TLSKeyPath   string        `debugmap:"visible"`
-	MaxConnAge   time.Duration `debugmap:"visible" default:"30s"`
-	Enabled      bool          `debugmap:"visible"`
-	BufferSize   int           `debugmap:"visible"`
-	ClientCAPath string        `debugmap:"visible"`
-	MaxWorkers   uint32        `debugmap:"visible"`
+	Address        string        `debugmap:"visible"`
+	Network        string        `debugmap:"visible" default:"tcp"`
+	TLSCertPath    string        `debugmap:"visible"`
+	TLSKeyPath     string        `debugmap:"visible"`
+	MaxConnAge     time.Duration `debugmap:"visible" default:"30s"`
+	Enabled        bool          `debugmap:"visible"`
+	BufferSize     int           `debugmap:"visible"`
+	ClientCAPath   string        `debugmap:"visible"`
+	MaxWorkers     uint32        `debugmap:"visible"`
+	MaxRecvMsgSize int           `debugmap:"visible" default:"4194304"`
+	MaxSendMsgSize int           `debugmap:"visible" default:"4194304"`
 
 	flagPrefix string
 }
@@ -64,6 +66,8 @@ func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, fla
 	flags.DurationVar(&config.MaxConnAge, flagPrefix+"-max-conn-age", 30*time.Second, "how long a connection serving "+serviceName+" should be able to live")
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" gRPC server")
 	flags.Uint32Var(&config.MaxWorkers, flagPrefix+"-max-workers", 0, "set the number of workers for this server (0 value means 1 worker per request)")
+	flags.IntVar(&config.MaxRecvMsgSize, flagPrefix+"-max-recv-msg-size", 4*1024*1024, "maximum size in bytes of gRPC messages the server can receive")
+	flags.IntVar(&config.MaxSendMsgSize, flagPrefix+"-max-send-msg-size", 4*1024*1024, "maximum size in bytes of gRPC messages the server can send")
 }
 
 // Complete takes a set of default options and returns a completed server
@@ -77,6 +81,13 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	opts = append(opts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge: c.MaxConnAge,
 	}), grpc.NumStreamWorkers(c.MaxWorkers))
+
+	if c.MaxRecvMsgSize > 0 {
+		opts = append(opts, grpc.MaxRecvMsgSize(c.MaxRecvMsgSize))
+	}
+	if c.MaxSendMsgSize > 0 {
+		opts = append(opts, grpc.MaxSendMsgSize(c.MaxSendMsgSize))
+	}
 
 	tlsOpts, certWatcher, err := c.tlsOpts()
 	if err != nil {
