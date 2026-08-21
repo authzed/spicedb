@@ -271,7 +271,7 @@ jobs:
           # the version many folks are on
           - "25.2.0"
           # the most recent version
-          - "26.1.0"
+          - "26.2.5"
     steps:
       - uses: "actions/checkout@v7"
         if: |
@@ -310,7 +310,7 @@ jobs:
           # the version many folks are on
           - "25.2.0"
           # the most recent version
-          - "26.1.0"
+          - "26.2.5"
     steps:
       - uses: "actions/checkout@v7"
         if: |

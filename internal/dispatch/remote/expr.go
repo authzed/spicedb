@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common"
 	"github.com/authzed/cel-go/common/types"
@@ -24,7 +22,7 @@ type DispatchExpr struct {
 	prg        cel.Program
 }
 
-var dispatchRequestTypes = []proto.Message{
+var dispatchRequestTypes = []any{
 	&dispatchv1.DispatchCheckRequest{},
 	&corev1.RelationReference{},
 	&corev1.ObjectAndRelation{},

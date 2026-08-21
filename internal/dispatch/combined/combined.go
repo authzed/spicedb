@@ -221,9 +221,8 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			relationshipChunkCacheConfig := opts.relationshipChunkCacheConfig
 			if relationshipChunkCacheConfig == nil {
 				relationshipChunkCacheConfig = &cache.Config{
-					NumCounters: 1e4,     // 10k
-					MaxCost:     1 << 20, // 1MB
-					DefaultTTL:  30 * time.Second,
+					MaxCost:    1 << 20, // 1MB
+					DefaultTTL: 30 * time.Second,
 				}
 			}
 

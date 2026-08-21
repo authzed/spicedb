@@ -994,10 +994,10 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 	require.NoError(t, err)
 
 	serverReady := make(chan bool)
-	go (func() {
+	go func() {
 		serverReady <- true
 		_ = runnableServer.Run(ctx)
-	})()
+	}()
 
 	// Wait for server goroutine to start
 	<-serverReady

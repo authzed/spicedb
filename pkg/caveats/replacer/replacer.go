@@ -15,7 +15,10 @@ func ReplaceVariable(e *cel.Env, existingAst *cel.Ast, oldVarName string, newVar
 
 	inlinedVars := []*InlineVariable{newInlineVariable(oldVarName, newExpr)}
 
-	opt := cel.NewStaticOptimizer(newModifiedInliningOptimizer(inlinedVars...))
+	opt, err := cel.NewStaticOptimizer(newModifiedInliningOptimizer(inlinedVars...))
+	if err != nil {
+		return nil, err
+	}
 	optimized, iss := opt.Optimize(e, existingAst)
 	if iss.Err() != nil {
 		return nil, fmt.Errorf("failed to optimize: %w", iss.Err())
