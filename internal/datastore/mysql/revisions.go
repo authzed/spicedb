@@ -76,7 +76,7 @@ const (
 		) as unknown;`
 )
 
-func (mds *mysqlDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 	var rev uint64
 	var validForNanos time.Duration
 	var schemaHash []byte

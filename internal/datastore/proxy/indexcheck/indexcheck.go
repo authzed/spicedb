@@ -3,6 +3,7 @@ package indexcheck
 import (
 	"context"
 	"fmt"
+	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -56,7 +57,7 @@ func (p *indexcheckingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 

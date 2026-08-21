@@ -29,7 +29,6 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
-	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -287,9 +286,6 @@ func newPostgresDatastore(
 		schema.ColSnapshot,
 	)
 
-	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
-		config.maxRevisionStalenessPercent) * time.Nanosecond
-
 	isolationLevel := pgx.Serializable
 	if config.relaxedIsolationLevel {
 		isolationLevel = pgx.RepeatableRead
@@ -298,9 +294,6 @@ func newPostgresDatastore(
 	startGarbageCollector := datastore.StartGarbageCollector
 
 	datastore := &pgDatastore{
-		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
-			maxRevisionStaleness,
-		),
 		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		dburl:                        pgURL,
 		readPool:                     pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
@@ -338,8 +331,6 @@ func newPostgresDatastore(
 		datastore.writePool = pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor)
 	}
 
-	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
-
 	// Start a goroutine for garbage collection and the revision heartbeat.
 	if isPrimary {
 		datastore.workerGroup, datastore.workerCtx = errgroup.WithContext(datastore.workerCtx)
@@ -368,7 +359,6 @@ func newPostgresDatastore(
 }
 
 type pgDatastore struct {
-	*revisions.CachedOptimizedRevisions
 	*common.MigrationValidator
 
 	dburl                          string

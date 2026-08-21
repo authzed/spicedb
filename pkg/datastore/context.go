@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"time"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -48,7 +49,7 @@ func (p *ctxProxy) IsStrictReadModeEnabled() bool {
 	return false
 }
 
-func (p *ctxProxy) OptimizedRevision(ctx context.Context) (RevisionWithSchemaHash, error) {
+func (p *ctxProxy) OptimizedRevision(ctx context.Context) (Revision, time.Duration, string, error) {
 	return p.delegate.OptimizedRevision(context.WithoutCancel(ctx))
 }
 
