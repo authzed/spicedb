@@ -209,7 +209,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 
 	ds := &spannerDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
-			defaultChangeStreamRetention,
+			config.gcWindow,
 			maxRevisionStaleness,
 			config.followerReadDelay,
 			config.revisionQuantization,

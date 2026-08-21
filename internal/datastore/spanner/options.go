@@ -36,6 +36,7 @@ type spannerOptions struct {
 	watchChangeBufferMaximumSize uint64
 	watchBufferWriteTimeout      time.Duration
 	revisionQuantization         time.Duration
+	gcWindow                     time.Duration
 	followerReadDelay            time.Duration
 	maxRevisionStalenessPercent  float64
 	credentialsFilePath          string
@@ -66,12 +67,12 @@ const (
 	errQuantizationTooLarge = "revision quantization (%s) must be less than (%s)"
 
 	defaultRevisionQuantization        = 5 * time.Second
+	defaultGCWindow                    = defaultChangeStreamRetention
 	defaultFollowerReadDelay           = 0 * time.Second
 	defaultMaxRevisionStalenessPercent = 0.1
 	defaultWatchBufferLength           = 128
 	defaultWatchBufferWriteTimeout     = 1 * time.Second
 	defaultDisableStats                = false
-	maxRevisionQuantization            = 24 * time.Hour
 	defaultFilterMaximumIDCount        = 100
 	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionStaticValues
 	defaultWatchDisabled               = false
@@ -89,6 +90,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		watchBufferLength:           defaultWatchBufferLength,
 		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
 		revisionQuantization:        defaultRevisionQuantization,
+		gcWindow:                    defaultGCWindow,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		disableStats:                defaultDisableStats,
@@ -104,12 +106,22 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		option(&computed)
 	}
 
-	// Run any checks on the config that need to be done
-	if computed.revisionQuantization >= maxRevisionQuantization {
+	// Run any checks on the config that need to be done.
+	// Revisions older than the change stream retention are not readable no
+	// matter what is configured, so a larger window cannot be honored.
+	if computed.gcWindow > defaultChangeStreamRetention {
+		log.Warn().
+			Dur("changeStreamRetention", defaultChangeStreamRetention).
+			Dur("gcWindow", computed.gcWindow).
+			Msg("configured gc window exceeds the Spanner change stream retention, so capping to the retention")
+		computed.gcWindow = defaultChangeStreamRetention
+	}
+
+	if computed.revisionQuantization >= computed.gcWindow {
 		return computed, fmt.Errorf(
 			errQuantizationTooLarge,
 			computed.revisionQuantization,
-			maxRevisionQuantization,
+			computed.gcWindow,
 		)
 	}
 
@@ -154,6 +166,12 @@ func WatchChangeBufferMaximumSize(maxSize uint64) Option {
 func RevisionQuantization(bucketSize time.Duration) Option {
 	return func(so *spannerOptions) {
 		so.revisionQuantization = bucketSize
+	}
+}
+
+func GCWindow(window time.Duration) Option {
+	return func(so *spannerOptions) {
+		so.gcWindow = window
 	}
 }
 
