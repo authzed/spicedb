@@ -61,7 +61,7 @@ func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomiz
 	// Wait until the emulator's admin API is responsive by creating an initial instance.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		instancesClient, err := instances.NewInstanceAdminClient(ctx)
-		if !assert.NoError(t, err) {
+		if !assert.NoError(collect, err) {
 			return
 		}
 		t.Cleanup(func() {
@@ -78,7 +78,7 @@ func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomiz
 				NodeCount:   1,
 			},
 		})
-		assert.NoError(t, err)
+		assert.NoError(collect, err)
 	}, time.Minute, 500*time.Millisecond)
 
 	return builder
