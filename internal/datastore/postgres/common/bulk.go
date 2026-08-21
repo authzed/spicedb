@@ -6,6 +6,7 @@ import (
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 
+	dscommon "github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -77,11 +78,16 @@ func BulkLoad(
 		colNames:     colNames,
 	}
 	copied, err := tx.CopyFrom(ctx, pgx.Identifier{tupleTableName}, colNames, adapter)
-	if err != nil && adapter.err != nil {
-		// When the relationship source aborts the copy, the driver reports the failure as
-		// an opaque COPY error that hides the real cause and exposes datastore internals.
-		// Prefer the source's own error, which is meaningful and free of those internals.
-		err = adapter.err
+	if err != nil {
+		switch {
+		case adapter.err != nil:
+			// When the relationship source aborts the copy, the driver reports the failure as
+			// an opaque COPY error that hides the real cause and exposes datastore internals.
+			// Prefer the source's own error, which is meaningful and free of those internals.
+			err = adapter.err
+		case IsMissingTableError(err):
+			err = dscommon.NewSchemaNotInitializedError(err)
+		}
 	}
 	uintCopied, castErr := safecast.Convert[uint64](copied)
 	if castErr != nil {
