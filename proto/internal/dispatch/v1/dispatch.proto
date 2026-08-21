@@ -219,8 +219,20 @@ message CheckDebugTrace {
   bool is_cached_result = 4;
   repeated CheckDebugTrace sub_problems = 5;
   google.protobuf.Duration duration = 6;
+  // start_time is the wall-clock start of this Check; end = start_time + duration.
+  google.protobuf.Timestamp start_time = 9;
   string trace_id = 7;
   string source_id = 8;
+  // datastore_queries are the relationship queries this node issued itself.
+  repeated DatastoreQuery datastore_queries = 10;
+}
+
+// DatastoreQuery records a single relationship query issued while resolving a Check node.
+message DatastoreQuery {
+  string query_shape = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Duration duration = 3;
+  uint64 relationship_count = 4;
 }
 
 enum PlanOperation {

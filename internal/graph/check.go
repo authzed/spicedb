@@ -10,8 +10,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dstrace"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -98,9 +100,14 @@ type currentRequestContext struct {
 // Check performs a check request with the provided request and context
 func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
 	var startTime *time.Time
+	var collector *dstrace.Collector
 	if req.Debug != v1.DispatchCheckRequest_NO_DEBUG {
 		now := time.Now()
 		startTime = &now
+		// Install a per-node collector so the datastore queries this node issues
+		// itself are attributed to it. Dispatched children re-enter Check and
+		// install their own collector, so their reads attribute to them.
+		ctx, collector = dstrace.WithCollector(ctx)
 	}
 
 	resolved := cc.checkInternal(ctx, req, relation)
@@ -131,6 +138,8 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 
 	debugInfo.Check.Request = clonedRequest
 	debugInfo.Check.Duration = durationpb.New(time.Since(*startTime))
+	debugInfo.Check.StartTime = timestamppb.New(*startTime)
+	debugInfo.Check.DatastoreQueries = collector.Queries()
 
 	if nspkg.GetRelationKind(relation) == iv1.RelationMetadata_PERMISSION {
 		debugInfo.Check.ResourceRelationType = v1.CheckDebugTrace_PERMISSION
