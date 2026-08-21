@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -48,7 +49,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			var writtenAt datastore.Revision
 
 			for i := range 10 {
-				tpl := makeTestRel(fmt.Sprint(i), "owner")
+				tpl := makeTestRel(strconv.Itoa(i), "owner")
 				writtenAt, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl)
 				require.NoError(err)
 			}
@@ -77,36 +78,26 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 // OptimizedRevision behaves like a snapshot: reads at it are repeatable, and
 // they never observe a write committed after it.
 //
-// An optimized revision is allowed to be *stale* — that is its entire purpose —
-// but it is not allowed to be *unstable*. Callers resolve a revision once and
-// then read at it many times: the dispatcher fans subrequests out at a single
-// revision, the schema and relationship caches key on one, and a streaming API
-// call serves its whole response from one. If two reads at the same revision
-// disagree, every consistency guarantee layered on top of that revision is
-// void, and the failure surfaces far from the datastore as a phantom read.
-//
-// The test deliberately arranges for the quantization boundary to precede the
-// datastore's own creation: it sleeps until just after a boundary before
-// calling New, leaving a full quantization window in which every write it makes
-// lands after that boundary. A datastore that implements historical reads with
-// real MVCC visibility returns a stable (possibly empty) view. A datastore that
+// The test deliberately arranges for the quantization boundary to precede
+// every relationship it writes: it sleeps until just after a boundary, leaving
+// a full quantization window in which every subsequent write lands after that
+// boundary. A datastore that implements historical reads with real MVCC
+// visibility returns a stable (possibly empty) view. A datastore that
 // approximates them by snapping to the nearest snapshot it happens to know
 // about can instead hand back a live, moving view.
 //
-// This test is not gated on a category: staleness is configurable, but snapshot
-// stability is part of the Datastore contract, so every engine must satisfy it.
+// The alignment happens after the datastore is set up rather than before it is
+// created, so that the read timestamp is never older than the schema the reads
+// resolve against. Engines that read at a wall-clock MVCC timestamp
+// (CockroachDB, Spanner) run their migrations against a fresh per-test
+// database, and a boundary older than those migrations resolves the table as
+// it was mid-migration.
 func SnapshotReadStabilityTest(t *testing.T, tester DatastoreTester) {
 	// Large enough that the whole test body fits inside one window on any
 	// engine, small enough that the resulting read timestamp stays well within
 	// the historical-read retention limits of hosted backends (Spanner allows
 	// one hour).
 	const quantization = 1 * time.Second
-
-	// Align to just after a boundary *before* the datastore exists, so the
-	// boundary OptimizedRevision rounds back to is older than anything this
-	// test writes.
-	now := time.Now()
-	time.Sleep(now.Truncate(quantization).Add(quantization).Sub(now))
 
 	ds, err := tester.New(t, DefaultRevisionParameters().WithQuantization(quantization), 1)
 	require.NoError(t, err)
@@ -135,6 +126,11 @@ func SnapshotReadStabilityTest(t *testing.T, tester DatastoreTester) {
 		return seen
 	}
 
+	// Align to just after a boundary, so the boundary OptimizedRevision rounds
+	// back to is older than every relationship written below.
+	now := time.Now()
+	time.Sleep(now.Truncate(quantization).Add(quantization).Sub(now))
+
 	revA, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, makeTestRel(docA, "tom"))
 	require.NoError(t, err)
 
@@ -154,7 +150,10 @@ func SnapshotReadStabilityTest(t *testing.T, tester DatastoreTester) {
 	require.Equal(t, before, after,
 		"two reads at the same revision %v returned different data (%v, then %v after an unrelated write at %v)",
 		opt.Revision, before, after, revB)
-	require.False(t, after[docB],
+	// If the body straddled a quantization boundary, the optimized revision can
+	// legitimately be at or after revB, so only assert invisibility when it
+	// precedes it.
+	require.False(t, revB.GreaterThan(opt.Revision) && after[docB],
 		"%s was committed at revision %v, which is after the read revision %v, but is visible there",
 		docB, revB, opt.Revision)
 	require.False(t, opt.Revision.GreaterThan(revA) && !before[docA],
