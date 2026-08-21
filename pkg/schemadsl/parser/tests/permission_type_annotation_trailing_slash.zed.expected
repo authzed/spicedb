@@ -1,0 +1,66 @@
+NodeTypeFile
+  end-rune = 134
+  input-source = permission type annotation trailing slash test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 15
+      input-source = permission type annotation trailing slash test
+      start-rune = 0
+      use-flag-name = typechecking
+    NodeTypeDefinition
+      definition-name = example/user
+      end-rune = 43
+      input-source = permission type annotation trailing slash test
+      start-rune = 18
+    NodeTypeDefinition
+      definition-name = group
+      end-rune = 133
+      input-source = permission type annotation trailing slash test
+      start-rune = 46
+      child-node =>
+        NodeTypeRelation
+          end-rune = 94
+          input-source = permission type annotation trailing slash test
+          relation-name = member
+          start-rune = 66
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 94
+              input-source = permission type annotation trailing slash test
+              start-rune = 83
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 94
+                  input-source = permission type annotation trailing slash test
+                  start-rune = 83
+                  type-name = example/user
+        NodeTypePermission
+          end-rune = 131
+          input-source = permission type annotation trailing slash test
+          relation-name = perm
+          start-rune = 98
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 131
+              identifier-value = member
+              input-source = permission type annotation trailing slash test
+              start-rune = 126
+          type-annotations =>
+            NodeTypeTypeAnnotation
+              end-rune = 122
+              input-source = permission type annotation trailing slash test
+              start-rune = 115
+              child-node =>
+                NodeTypeError
+                  end-rune = 122
+                  error-message = Expected identifier, found token TokenTypeEquals
+                  error-source = =
+                  input-source = permission type annotation trailing slash test
+                  start-rune = 124
+                NodeTypeError
+                  end-rune = 122
+                  error-message = Expected type identifier in type annotation
+                  error-source = =
+                  input-source = permission type annotation trailing slash test
+                  start-rune = 124

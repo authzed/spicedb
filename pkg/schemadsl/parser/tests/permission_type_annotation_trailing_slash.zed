@@ -1,0 +1,9 @@
+use typechecking
+
+definition example/user {}
+
+definition group {
+	relation member: example/user
+
+	permission perm: example/ = member
+}
