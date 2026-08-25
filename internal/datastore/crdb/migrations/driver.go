@@ -36,6 +36,7 @@ func NewCRDBDriver(ctx context.Context, url string) (*CRDBDriver, error) {
 	}
 	pgxcommon.ConfigurePGXLogger(connConfig)
 	pgxcommon.ConfigureOTELTracer(connConfig, false)
+	pgxcommon.ConfigureDefaultQueryExecMode(connConfig)
 
 	db, err := pgx.ConnectConfig(ctx, connConfig)
 	if err != nil {

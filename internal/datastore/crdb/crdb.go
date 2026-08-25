@@ -80,6 +80,12 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
+	// Reads only. See the note on the write pool below for why the two differ.
+	pgxcommon.ConfigureDefaultQueryExecMode(readPoolConfig.ConnConfig)
+	readPoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		RegisterTypes(conn.TypeMap())
+		return nil
+	}
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
@@ -88,6 +94,28 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	err = config.writePoolOpts.ConfigurePgx(writePoolConfig, includeQueryParametersInTraces)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+	}
+	// The write pool deliberately KEEPS pgx's default cache_statement mode, while the read pool is
+	// switched to exec. The two paths generate SQL text with very different lifetimes:
+	//
+	//   Reads inline the revision -- crdbReader.addFromToQuery concatenates
+	//   "AS OF SYSTEM TIME <rev>" into the FROM clause -- so every new revision produces a fresh
+	//   generation of statement text that will never be looked up again. pgx keys its cache on exact
+	//   text, so a read pool accumulates prepared statements without bound: measured at 62-68MB
+	//   across a 3-node cluster and still climbing linearly when the test ended.
+	//
+	//   Writes run with atSpecificRevision == "" and inline nothing. Their text varies only with the
+	//   number of relationships in the batch (squirrel appends one VALUES tuple per row), which is
+	//   bounded by the distinct batch sizes a workload uses, not by elapsed time. Those statements
+	//   are genuinely reused, so caching them is a real win rather than dead weight.
+	//
+	// Measured: writes were consistently ~1.4-2.5% slower at p50 under exec, in both a 0.2ms and an
+	// 11.5ms RTT condition -- the only latency signal in this work whose sign was stable across
+	// conditions. Keeping cache_statement here recovers that without reintroducing the unbounded
+	// growth, because the bound is structural rather than a matter of degree.
+	writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		RegisterTypes(conn.TypeMap())
+		return nil
 	}
 
 	healthChecker, err := pool.NewNodeHealthChecker(url)
