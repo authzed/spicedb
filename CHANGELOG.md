@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.56.1] - 2026-08-26
 ### Changed
 - Schema compilation: reduce memory usage when caveats are involved (https://github.com/authzed/spicedb/pull/3266)
+- CockroachDB: read queries no longer accumulate prepared statements in CockroachDB. Reads inline the revision into the SQL text (`AS OF SYSTEM TIME <rev>`), so every new revision produced statement text that was never reused, and pgx's text-keyed statement cache grew without bound. The read pool now uses pgx's `exec` mode, matching Postgres. The write pool continues to use prepared statements, since write queries inline no revision and are genuinely reused. Measured on a three-node cluster under a blended read/write load, prepared-statement memory went from 61.75 MB and still growing to 1.18 MB and flat. Deployments can revert with `default_query_exec_mode=cache_statement` in the datastore URI. (https://github.com/authzed/spicedb/pull/3286)
 
 ### Fixed
 - Postgres: read replicas no longer intermittently return `object definition not found` under load. The strict read-replica guard now verifies that the replica's snapshot has caught up to the revision being read (snapshot domination) instead of checking a single transaction id, and raises from within the read itself rather than from a trailing assertion, so a replica that catches up mid-query can no longer let an incomplete read through. In both cases the read correctly falls back to the primary. (https://github.com/authzed/spicedb/pull/3243)
