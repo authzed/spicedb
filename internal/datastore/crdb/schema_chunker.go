@@ -17,6 +17,39 @@ const (
 	crdbMaxChunkSize = 1024 * 1024 // 1MB
 )
 
+// binaryChunkTransfer forces pgx to fetch the statement description before
+// executing, so that bytea parameters and results use the binary format.
+//
+// It exists to override the READ pool's connection default. newCRDBDatastore puts
+// the read pool on pgx.QueryExecModeExec and leaves the write pool on
+// cache_statement, so this is load-bearing for chunk READS and belt-and-braces for
+// chunk WRITES, which already get the binary format from the write pool's mode.
+// It is applied on both paths so behaviour does not silently depend on which pool
+// a caller happens to be using.
+//
+// Under exec, parameters and results are text, and bytea in text is hex-encoded,
+// so every chunk doubles in size on the wire. That is merely wasteful on most
+// queries, but it breaks
+// schema writes outright: WriteChunkedBytes puts every chunk of a schema into a
+// single multi-row INSERT, so the pgwire message is the size of the whole
+// serialized schema. Doubling it pushes a large schema past CockroachDB's 16MiB
+// message limit -- observed as
+//
+//	failed to insert chunks: message size 17 MiB bigger than maximum allowed
+//	message size 16 MiB (SQLSTATE 08P01)
+//
+// which in effect halves the largest schema SpiceDB can store on CRDB. Note that
+// shrinking crdbMaxChunkSize does not help, because the limit is hit by the
+// combined message rather than by any individual chunk.
+//
+// DescribeExec is used rather than CacheStatement deliberately. Both restore the
+// binary format, but CacheStatement would leave named prepared statements on the
+// server, which is the very cost the exec-mode default was introduced to avoid;
+// and because the INSERT's SQL text varies with the number of chunks, caching it
+// would churn rather than be reused. DescribeExec costs one extra round trip, on
+// queries that run only when a schema is written or when the schema cache misses.
+const binaryChunkTransfer = pgx.QueryExecModeDescribeExec
+
 // BaseSchemaChunkerConfig provides the base configuration for CRDB schema chunking.
 // CRDB uses delete-and-insert write mode since it handles MVCC automatically.
 var BaseSchemaChunkerConfig = common.SQLByteChunkerConfig[any]{
@@ -64,7 +97,9 @@ func (e *revisionAwareExecutor) ExecuteRead(ctx context.Context, builder sq.Sele
 			result[chunkIndex] = chunkData
 		}
 		return rows.Err()
-	}, sql, args...)
+		// binaryChunkTransfer: chunk_data is bytea, which the pool's default text
+		// mode would return hex-encoded at twice the wire size.
+	}, sql, append([]any{binaryChunkTransfer}, args...)...)
 
 	return result, err
 }
@@ -98,7 +133,11 @@ func (t *transactionAwareTransaction) ExecuteWrite(ctx context.Context, builder 
 		return err
 	}
 
-	_, err = t.tx.Exec(ctx, sql, args...)
+	// binaryChunkTransfer: this INSERT carries every chunk of the schema as bytea
+	// parameters in one message. Under the pool's default text mode they would be
+	// hex-encoded, doubling the message and breaching CRDB's 16MiB pgwire limit for
+	// large schemas.
+	_, err = t.tx.Exec(ctx, sql, append([]any{binaryChunkTransfer}, args...)...)
 	return err
 }
 

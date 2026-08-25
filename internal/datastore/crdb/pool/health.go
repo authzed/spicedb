@@ -46,6 +46,7 @@ func NewNodeHealthChecker(url string) (*NodeHealthTracker, error) {
 	if err != nil {
 		return nil, err
 	}
+	pgxcommon.ConfigureDefaultQueryExecMode(connConfig)
 
 	return &NodeHealthTracker{
 		connConfig:    connConfig,

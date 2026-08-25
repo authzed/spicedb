@@ -325,6 +325,7 @@ func ConfigureDefaultQueryExecMode(config *pgx.ConnConfig) {
 	if !strings.Contains(config.ConnString(), "default_query_exec_mode") {
 		// the execution mode was not overridden by the user
 		config.DefaultQueryExecMode = pgx.QueryExecModeExec
+		return
 	}
 
 	log.Info().
