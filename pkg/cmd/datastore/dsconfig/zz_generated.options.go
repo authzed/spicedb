@@ -40,6 +40,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.Username = c.Username
 		to.Password = c.Password
 		to.Database = c.Database
+		to.ConnParams = c.ConnParams
 		to.GCWindow = c.GCWindow
 		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
@@ -135,6 +136,11 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["Database"] = "(empty)"
 	} else {
 		debugMap["Database"] = c.Database
+	}
+	if c.ConnParams == nil {
+		debugMap["ConnParams"] = "nil"
+	} else {
+		debugMap["ConnParams"] = fmt.Sprintf("(map of size %d)", len(c.ConnParams))
 	}
 	if dm, ok := any(&c.GCWindow).(interface {
 		DebugMap() map[string]any
@@ -439,6 +445,20 @@ func WithPassword(password string) ConfigOption {
 func WithDatabase(database string) ConfigOption {
 	return func(c *Config) {
 		c.Database = database
+	}
+}
+
+// WithConnParams returns an option that can append ConnParamss to Config.ConnParams
+func WithConnParams(key string, value string) ConfigOption {
+	return func(c *Config) {
+		c.ConnParams[key] = value
+	}
+}
+
+// SetConnParams returns an option that can set ConnParams on a Config
+func SetConnParams(connParams map[string]string) ConfigOption {
+	return func(c *Config) {
+		c.ConnParams = connParams
 	}
 }
 

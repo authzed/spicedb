@@ -80,11 +80,12 @@ type Config struct {
 	URI    string `debugmap:"sensitive"`
 
 	// Granular connection parameters, used to build URI when it is not set.
-	Host     string `debugmap:"visible"`
-	Port     string `debugmap:"visible"`
-	Username string `debugmap:"visible"`
-	Password string `debugmap:"sensitive"`
-	Database string `debugmap:"visible"`
+	Host       string            `debugmap:"visible"`
+	Port       string            `debugmap:"visible"`
+	Username   string            `debugmap:"visible"`
+	Password   string            `debugmap:"sensitive"`
+	Database   string            `debugmap:"visible"`
+	ConnParams map[string]string `debugmap:"visible"`
 
 	GCWindow                    time.Duration `debugmap:"visible" default:"24h"`
 	LegacyFuzzing               time.Duration `debugmap:"visible" default:"-1ns"`

@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
-- Granular datastore connection flags (`--datastore-host`, `--datastore-port`, `--datastore-username`, `--datastore-password`, `--datastore-database`) as an alternative to providing a full `--datastore-conn-uri` (https://github.com/authzed/spicedb/pull/2604)
+- Granular datastore connection flags (`--datastore-host`, `--datastore-port`, `--datastore-username`, `--datastore-password`, `--datastore-database`, `--datastore-conn-param`) as an alternative to providing a full `--datastore-conn-uri` (https://github.com/authzed/spicedb/pull/2604)
 
 ### Fixed
 - Schema: writing a schema no longer strips the `aliasing_relation` and `canonical_cache_key` annotations from definitions that did not change. Since v1.49.0, every schema write replaced unchanged definitions with unannotated copies, in both the legacy and single-store schema modes, so permissions that alias a relation were dispatched as separate subproblems and equivalent permissions stopped sharing dispatch cache entries, increasing dispatch count, latency and datastore load. All definitions are now annotated on write, and writing the schema again restores annotations already lost. Computing the annotations also allocates far less memory. (https://github.com/authzed/spicedb/issues/3412)
