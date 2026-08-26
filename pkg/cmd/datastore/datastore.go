@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy"
@@ -70,12 +73,14 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 
-	// Granular connection parameters, used to build the URI when datastore-conn-uri is not provided.
-	flagSet.StringVar(&opts.Host, flagName("datastore-host"), defaults.Host, "datastore host (used to build connection URI if datastore-conn-uri is not provided)")
-	flagSet.StringVar(&opts.Port, flagName("datastore-port"), defaults.Port, "datastore port (used to build connection URI if datastore-conn-uri is not provided)")
-	flagSet.StringVar(&opts.Username, flagName("datastore-username"), defaults.Username, "datastore username (used to build connection URI if datastore-conn-uri is not provided)")
-	flagSet.StringVar(&opts.Password, flagName("datastore-password"), defaults.Password, "datastore password (used to build connection URI if datastore-conn-uri is not provided)")
-	flagSet.StringVar(&opts.Database, flagName("datastore-database"), defaults.Database, "datastore database name (used to build connection URI if datastore-conn-uri is not provided)")
+	// Granular connection parameters, used to build the URI. Mutually exclusive with
+	// datastore-conn-uri.
+	flagSet.StringVar(&opts.Host, flagName("datastore-host"), defaults.Host, "datastore host, as an alternative to datastore-conn-uri")
+	flagSet.StringVar(&opts.Port, flagName("datastore-port"), defaults.Port, fmt.Sprintf("datastore port, used with datastore-host (default %q for postgres, %q for cockroachdb, %q for mysql)", defaultDatastorePorts[PostgresEngine], defaultDatastorePorts[CockroachEngine], defaultDatastorePorts[MySQLEngine]))
+	flagSet.StringVar(&opts.Username, flagName("datastore-username"), defaults.Username, "datastore username, used with datastore-host")
+	flagSet.StringVar(&opts.Password, flagName("datastore-password"), defaults.Password, "datastore password, used with datastore-host")
+	flagSet.StringVar(&opts.Database, flagName("datastore-database"), defaults.Database, "datastore database name, used with datastore-host")
+	flagSet.StringToStringVar(&opts.ConnParams, flagName("datastore-conn-param"), defaults.ConnParams, `engine-specific connection options appended to the connection URI built from datastore-host (e.g. "sslmode=require" for postgres, "tls=true" for mysql)`)
 
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
@@ -224,51 +229,123 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	return nil
 }
 
+// defaultDatastorePorts holds the port used for an engine when one is not supplied
+// alongside the other granular connection parameters.
+var defaultDatastorePorts = map[string]string{
+	PostgresEngine:  "5432",
+	CockroachEngine: "26257",
+	MySQLEngine:     "3306",
+}
+
 // buildConnectionURI constructs a connection URI from granular connection parameters.
-// Returns an empty string if the engine does not support URI-based connections.
-func buildConnectionURI(engine, host, port, username, password, database string) string {
-	if host == "" {
-		return ""
-	}
-
+// Any connParams are appended to the URI as driver options, so engine-specific settings
+// such as sslmode or tls can be supplied without falling back to a full connection URI.
+func buildConnectionURI(engine, host, port, username, password, database string, connParams map[string]string) (string, error) {
 	if port == "" {
-		switch engine {
-		case PostgresEngine:
-			port = "5432"
-		case CockroachEngine:
-			port = "26257"
-		case MySQLEngine:
-			port = "3306"
-		}
-	}
-
-	// Credentials are escaped so that special characters such as @, : and / do
-	// not terminate the userinfo section early.
-	userinfo := url.QueryEscape(username)
-	if password != "" {
-		userinfo += ":" + url.QueryEscape(password)
+		port = defaultDatastorePorts[engine]
 	}
 
 	switch engine {
 	case PostgresEngine, CockroachEngine:
-		uri := fmt.Sprintf("postgres://%s@%s:%s", userinfo, host, port)
-		if database != "" {
-			uri += "/" + url.PathEscape(database)
+		query := make(url.Values, len(connParams))
+		for name, value := range connParams {
+			query.Set(name, value)
 		}
-		return uri
+
+		uri := url.URL{
+			Scheme:   "postgres",
+			Host:     net.JoinHostPort(host, port),
+			Path:     database,
+			RawQuery: query.Encode(),
+		}
+		if username != "" {
+			uri.User = url.User(username)
+			if password != "" {
+				uri.User = url.UserPassword(username, password)
+			}
+		}
+		return uri.String(), nil
+
 	case MySQLEngine:
-		// go-sql-driver/mysql expects a DSN rather than a URL:
-		// username:password@tcp(host:port)/database?parseTime=true
-		dsn := fmt.Sprintf("%s@tcp(%s:%s)", userinfo, host, port)
-		if database != "" {
-			dsn += "/" + database
+		// The MySQL DSN is not a URL: credentials are written verbatim and the driver
+		// does not percent-decode them, so the driver's own formatter is used here.
+		cfg := mysqldriver.NewConfig()
+		cfg.Net = "tcp"
+		cfg.Addr = net.JoinHostPort(host, port)
+		cfg.User = username
+		cfg.Passwd = password
+		cfg.DBName = database
+		// parseTime is required for the datastore to scan timestamps into time.Time.
+		cfg.ParseTime = true
+
+		cfg.Params = make(map[string]string, len(connParams))
+		for name, value := range connParams {
+			if name == "parseTime" {
+				parsed, err := strconv.ParseBool(value)
+				if err != nil {
+					return "", fmt.Errorf("invalid value for connection parameter `parseTime`: %w", err)
+				}
+				cfg.ParseTime = parsed
+				continue
+			}
+			cfg.Params[name] = value
 		}
-		// parseTime=true is required for MySQL to scan into time.Time.
-		dsn += "?parseTime=true"
-		return dsn
+		return cfg.FormatDSN(), nil
+
 	default:
-		return ""
+		return "", fmt.Errorf("datastore engine %q does not support granular connection parameters; use --datastore-conn-uri instead", engine)
 	}
+}
+
+// granularConnFlagsSet returns the names of the granular connection flags that have
+// been given a value, in flag declaration order.
+func granularConnFlagsSet(opts *Config) []string {
+	set := make([]string, 0, 6)
+	for _, flag := range []struct {
+		name  string
+		unset bool
+	}{
+		{"datastore-host", opts.Host == ""},
+		{"datastore-port", opts.Port == ""},
+		{"datastore-username", opts.Username == ""},
+		{"datastore-password", opts.Password == ""},
+		{"datastore-database", opts.Database == ""},
+		{"datastore-conn-param", len(opts.ConnParams) == 0},
+	} {
+		if !flag.unset {
+			set = append(set, flag.name)
+		}
+	}
+	return set
+}
+
+// resolveConnectionURI populates the connection URI from the granular connection
+// parameters when datastore-conn-uri was not supplied. Supplying both is an error, so
+// that an unnoticed leftover value can never silently win over the other.
+func resolveConnectionURI(opts *Config) error {
+	granular := granularConnFlagsSet(opts)
+
+	if opts.URI != "" {
+		if len(granular) > 0 {
+			return fmt.Errorf("cannot specify both --datastore-conn-uri and --%s; use one or the other", strings.Join(granular, ", --"))
+		}
+		return nil
+	}
+
+	if len(granular) == 0 {
+		return nil
+	}
+
+	if opts.Host == "" {
+		return fmt.Errorf("--datastore-host is required when configuring the connection with --%s", strings.Join(granular, ", --"))
+	}
+
+	uri, err := buildConnectionURI(opts.Engine, opts.Host, opts.Port, opts.Username, opts.Password, opts.Database, opts.ConnParams)
+	if err != nil {
+		return err
+	}
+	opts.URI = uri
+	return nil
 }
 
 // NewDatastore initializes a datastore given the options
@@ -278,12 +355,8 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		o(opts)
 	}
 
-	// If URI is not provided but granular connection parameters are, build the URI.
-	if opts.URI == "" && opts.Host != "" {
-		opts.URI = buildConnectionURI(opts.Engine, opts.Host, opts.Port, opts.Username, opts.Password, opts.Database)
-		if opts.URI == "" {
-			return nil, fmt.Errorf("unable to build connection URI from provided parameters for engine: %s", opts.Engine)
-		}
+	if err := resolveConnectionURI(opts); err != nil {
+		return nil, err
 	}
 
 	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {

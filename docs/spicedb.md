@@ -72,6 +72,7 @@ spicedb datastore gc [flags]
       --datastore-bootstrap-overwrite                                         overwrite any existing data with bootstrap data (this can be quite slow)
       --datastore-bootstrap-timeout duration                                  maximum duration before timeout for the bootstrap data to be written (default 10s)
       --datastore-conn-max-lifetime-jitter duration                           waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
+      --datastore-conn-param stringToString                                   engine-specific connection options appended to the connection URI built from datastore-host (e.g. "sslmode=require" for postgres, "tls=true" for mysql) (default [])
       --datastore-conn-pool-read-healthcheck-interval duration                amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-conn-pool-read-max-idletime duration                        maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-conn-pool-read-max-lifetime duration                        maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -88,7 +89,7 @@ spicedb datastore gc [flags]
       --datastore-connect-rate duration                                       rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
       --datastore-connection-balancing                                        enable connection balancing between database nodes (CockroachDB driver only) (default true)
       --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-database string                                             datastore database name (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-database string                                             datastore database name, used with datastore-host
       --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
       --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
@@ -96,13 +97,13 @@ spicedb datastore gc [flags]
       --datastore-gc-interval duration                                        how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
-      --datastore-host string                                                 datastore host (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-host string                                                 datastore host, as an alternative to datastore-conn-uri
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-password string                                             datastore password (used to build connection URI if datastore-conn-uri is not provided)
-      --datastore-port string                                                 datastore port (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-password string                                             datastore password, used with datastore-host
+      --datastore-port string                                                 datastore port, used with datastore-host (default "5432" for postgres, "26257" for cockroachdb, "3306" for mysql)
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
@@ -123,7 +124,7 @@ spicedb datastore gc [flags]
       --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
-      --datastore-username string                                             datastore username (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-username string                                             datastore username, used with datastore-host
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                     how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
@@ -222,6 +223,7 @@ spicedb datastore repair [flags]
       --datastore-bootstrap-overwrite                                         overwrite any existing data with bootstrap data (this can be quite slow)
       --datastore-bootstrap-timeout duration                                  maximum duration before timeout for the bootstrap data to be written (default 10s)
       --datastore-conn-max-lifetime-jitter duration                           waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
+      --datastore-conn-param stringToString                                   engine-specific connection options appended to the connection URI built from datastore-host (e.g. "sslmode=require" for postgres, "tls=true" for mysql) (default [])
       --datastore-conn-pool-read-healthcheck-interval duration                amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-conn-pool-read-max-idletime duration                        maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-conn-pool-read-max-lifetime duration                        maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -238,7 +240,7 @@ spicedb datastore repair [flags]
       --datastore-connect-rate duration                                       rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
       --datastore-connection-balancing                                        enable connection balancing between database nodes (CockroachDB driver only) (default true)
       --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-database string                                             datastore database name (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-database string                                             datastore database name, used with datastore-host
       --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
       --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
@@ -246,13 +248,13 @@ spicedb datastore repair [flags]
       --datastore-gc-interval duration                                        how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
-      --datastore-host string                                                 datastore host (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-host string                                                 datastore host, as an alternative to datastore-conn-uri
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-password string                                             datastore password (used to build connection URI if datastore-conn-uri is not provided)
-      --datastore-port string                                                 datastore port (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-password string                                             datastore password, used with datastore-host
+      --datastore-port string                                                 datastore port, used with datastore-host (default "5432" for postgres, "26257" for cockroachdb, "3306" for mysql)
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
@@ -273,7 +275,7 @@ spicedb datastore repair [flags]
       --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
-      --datastore-username string                                             datastore username (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-username string                                             datastore username, used with datastore-host
       --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
       --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                     how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
@@ -405,6 +407,7 @@ spicedb serve [flags]
       --datastore-bootstrap-overwrite                                                   overwrite any existing data with bootstrap data (this can be quite slow)
       --datastore-bootstrap-timeout duration                                            maximum duration before timeout for the bootstrap data to be written (default 10s)
       --datastore-conn-max-lifetime-jitter duration                                     waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
+      --datastore-conn-param stringToString                                             engine-specific connection options appended to the connection URI built from datastore-host (e.g. "sslmode=require" for postgres, "tls=true" for mysql) (default [])
       --datastore-conn-pool-read-healthcheck-interval duration                          amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-conn-pool-read-max-idletime duration                                  maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-conn-pool-read-max-lifetime duration                                  maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -421,7 +424,7 @@ spicedb serve [flags]
       --datastore-connect-rate duration                                                 rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
       --datastore-connection-balancing                                                  enable connection balancing between database nodes (CockroachDB driver only) (default true)
       --datastore-credentials-provider-name string                                      retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-database string                                                       datastore database name (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-database string                                                       datastore database name, used with datastore-host
       --datastore-disable-watch-support                                                 disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                                         type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
       --datastore-experimental-column-optimization                                      enable experimental column optimization (default true)
@@ -429,13 +432,13 @@ spicedb serve [flags]
       --datastore-gc-interval duration                                                  how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
       --datastore-gc-max-operation-time duration                                        maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                                    how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
-      --datastore-host string                                                           datastore host (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-host string                                                           datastore host, as an alternative to datastore-conn-uri
       --datastore-include-query-parameters-in-traces                                    include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried (default 10)
       --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
-      --datastore-password string                                                       datastore password (used to build connection URI if datastore-conn-uri is not provided)
-      --datastore-port string                                                           datastore port (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-password string                                                       datastore password, used with datastore-host
+      --datastore-port string                                                           datastore port, used with datastore-host (default "5432" for postgres, "26257" for cockroachdb, "3306" for mysql)
       --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration             amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration                     maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
@@ -457,7 +460,7 @@ spicedb serve [flags]
       --datastore-spanner-metrics string                                                configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
       --datastore-tx-overlap-key string                                                 static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
       --datastore-tx-overlap-strategy string                                            strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
-      --datastore-username string                                                       datastore username (used to build connection URI if datastore-conn-uri is not provided)
+      --datastore-username string                                                       datastore username, used with datastore-host
       --datastore-watch-buffer-length uint16                                            how large the watch buffer should be before blocking (default 1024)
       --datastore-watch-buffer-write-timeout duration                                   how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                               how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
