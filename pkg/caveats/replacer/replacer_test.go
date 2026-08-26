@@ -168,7 +168,8 @@ func TestInliningOptimizer(t *testing.T) {
 		opt := newModifiedInliningOptimizer(inlineVar)
 
 		// Use cel.NewStaticOptimizer to properly create the optimizer context
-		staticOpt := cel.NewStaticOptimizer(opt)
+		staticOpt, err := cel.NewStaticOptimizer(opt)
+		require.NoError(t, err)
 		result, iss := staticOpt.Optimize(env, originalAst)
 
 		require.NoError(t, iss.Err())
@@ -189,7 +190,8 @@ func TestInliningOptimizer(t *testing.T) {
 		inlineVarY := newInlineVariable("y", yReplacementAst)
 		opt := newModifiedInliningOptimizer(inlineVarX, inlineVarY)
 
-		staticOpt := cel.NewStaticOptimizer(opt)
+		staticOpt, err := cel.NewStaticOptimizer(opt)
+		require.NoError(t, err)
 		result, iss := staticOpt.Optimize(env, originalAst)
 
 		require.NoError(t, iss.Err())
@@ -207,7 +209,8 @@ func TestInliningOptimizer(t *testing.T) {
 		inlineVar := newInlineVariable("nonexistent", replacementAst)
 		opt := newModifiedInliningOptimizer(inlineVar)
 
-		staticOpt := cel.NewStaticOptimizer(opt)
+		staticOpt, err := cel.NewStaticOptimizer(opt)
+		require.NoError(t, err)
 		result, iss := staticOpt.Optimize(env, originalAst)
 
 		require.NoError(t, iss.Err())

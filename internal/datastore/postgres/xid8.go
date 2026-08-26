@@ -166,7 +166,7 @@ func (scanPlanBinaryUint64ToUint64) Scan(src []byte, dst any) error {
 		return fmt.Errorf("invalid length for uint64: %v", len(src))
 	}
 
-	p := (dst).(*uint64)
+	p := dst.(*uint64)
 	*p = binary.BigEndian.Uint64(src)
 
 	return nil
@@ -175,7 +175,7 @@ func (scanPlanBinaryUint64ToUint64) Scan(src []byte, dst any) error {
 type scanPlanBinaryUint64ToUint64Scanner struct{}
 
 func (scanPlanBinaryUint64ToUint64Scanner) Scan(src []byte, dst any) error {
-	s, ok := (dst).(Uint64Scanner)
+	s, ok := dst.(Uint64Scanner)
 	if !ok {
 		return pgtype.ErrScanTargetTypeChanged
 	}
@@ -196,7 +196,7 @@ func (scanPlanBinaryUint64ToUint64Scanner) Scan(src []byte, dst any) error {
 type scanPlanTextAnyToUint64Scanner struct{}
 
 func (scanPlanTextAnyToUint64Scanner) Scan(src []byte, dst any) error {
-	s, ok := (dst).(Uint64Scanner)
+	s, ok := dst.(Uint64Scanner)
 	if !ok {
 		return pgtype.ErrScanTargetTypeChanged
 	}
@@ -228,7 +228,7 @@ func (scanPlanTextAnyToUint64) Scan(src []byte, dst any) error {
 		return fmt.Errorf("cannot scan NULL into %T", dst)
 	}
 
-	p, ok := (dst).(*uint64)
+	p, ok := dst.(*uint64)
 	if !ok {
 		return pgtype.ErrScanTargetTypeChanged
 	}

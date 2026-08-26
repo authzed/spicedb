@@ -209,7 +209,7 @@ var hlcDecodeTests = []struct {
 		format:         "V1 ZedToken",
 		token:          "GiAKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMQ==",
 		expectedStatus: StatusLegacyEmptyDatastoreID,
-		expectedRevision: (func() datastore.Revision {
+		expectedRevision: func() datastore.Revision {
 			v, err := decimal.NewFromString("1693540940373045727.0000000001")
 			if err != nil {
 				panic(err)
@@ -219,7 +219,7 @@ var hlcDecodeTests = []struct {
 				panic(err)
 			}
 			return r
-		})(),
+		}(),
 		expectError: false,
 	},
 	{ //nolint:gosec  // this is a test file and test logic
@@ -227,7 +227,7 @@ var hlcDecodeTests = []struct {
 		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
 		datastoreUniqueID: "6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",
 		expectedStatus:    StatusValid,
-		expectedRevision: (func() datastore.Revision {
+		expectedRevision: func() datastore.Revision {
 			v, err := decimal.NewFromString("1693540940373045727.0000000001")
 			if err != nil {
 				panic(err)
@@ -237,7 +237,7 @@ var hlcDecodeTests = []struct {
 				panic(err)
 			}
 			return r
-		})(),
+		}(),
 		expectError: false,
 	},
 	{ //nolint:gosec  // this is a test file and test logic
@@ -245,7 +245,7 @@ var hlcDecodeTests = []struct {
 		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
 		datastoreUniqueID: "arrrg-6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",
 		expectedStatus:    StatusMismatchedDatastoreID,
-		expectedRevision: (func() datastore.Revision {
+		expectedRevision: func() datastore.Revision {
 			v, err := decimal.NewFromString("1693540940373045727.0000000001")
 			if err != nil {
 				panic(err)
@@ -257,7 +257,7 @@ var hlcDecodeTests = []struct {
 			}
 
 			return r
-		})(),
+		}(),
 		expectError: false,
 	},
 }
