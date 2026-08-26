@@ -82,6 +82,16 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 		optimized = now
 	}
 
+	// Quantization rounds downward, so a datastore created moments ago would
+	// otherwise advertise a boundary from before it held any snapshot at all.
+	// No snapshot can serve that revision, so advertise the head revision
+	// instead: the same fallback Postgres makes when the bucket it rounded back
+	// to contains no transaction. This can only happen within one quantization
+	// window of the datastore being created.
+	if optimized.LessThan(mdb.revisions[0].revision) {
+		optimized = mdb.headRevisionNoLock()
+	}
+
 	// Find the schema hash visible at the optimized revision: walk the
 	// revisions list backward for the most recent snapshot whose revision
 	// is at or before `optimized`.

@@ -278,6 +278,8 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestCheckRevisions", runner(tester, CheckRevisionsTest))
 	t.Run("TestQuantizedRevisionStaysReadable", runner(tester, QuantizedRevisionStaysReadableTest))
 	t.Run("TestSnapshotReadStability", runner(tester, SnapshotReadStabilityTest))
+	t.Run("TestReadYourWrites", runner(tester, ReadYourWritesTest))
+	t.Run("TestReadYourConcurrentWrites", runner(tester, ReadYourConcurrentWritesTest))
 
 	if !except.GC() {
 		OnlyGCTests(t, tester)

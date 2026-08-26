@@ -71,7 +71,10 @@ func NewMemdbDatastore(
 			{
 				revision:   nowRevision(),
 				schemaHash: "",
-				db:         db,
+				// A snapshot of the empty database rather than the database
+				// itself: reads at this revision must see the datastore as it
+				// was when it was created, not as it is now.
+				db: db.Snapshot(),
 			},
 		},
 
@@ -122,7 +125,7 @@ func (mdb *memdbDatastore) UniqueID(_ context.Context) (string, error) {
 }
 
 // SnapshotReader returns a reader for the snapshot visible at the given
-// revision: the first entry in mdb.revisions at or after it, located by
+// revision: the most recent entry in mdb.revisions at or before it, located by
 // binary search.
 func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
@@ -140,13 +143,17 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 		return &memdbReader{nil, nil, err, time.Now()}
 	}
 
+	// sort.Search finds the first snapshot newer than the requested revision,
+	// so the one visible at it is the entry before that.
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
-		return mdb.revisions[i].revision.GreaterThan(dr) || mdb.revisions[i].revision.Equal(dr)
+		return mdb.revisions[i].revision.GreaterThan(dr)
 	})
 
-	// handle the case when there is no revision snapshot newer than the requested revision
-	if revIndex == len(mdb.revisions) {
-		revIndex = len(mdb.revisions) - 1
+	// Handle the case where every snapshot is newer than the requested
+	// revision, i.e. it predates the datastore itself: the oldest snapshot is
+	// the closest thing to the state at that revision.
+	if revIndex > 0 {
+		revIndex--
 	}
 
 	rev := mdb.revisions[revIndex]
