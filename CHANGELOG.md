@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- Bulk export and import streams are no longer cancelled by the streaming timeout while healthy (clients saw `RST_STREAM NO_ERROR`). The timeout now treats messages received from the client as activity, so it bounds inactivity rather than the total duration of a call: bulk import is no longer capped at `--streaming-api-response-delay-timeout` regardless of how actively the client is sending, and committing an import once the client half-closes is not bounded either. Bulk export, which sends one batch per datastore page and holds no transaction between pages, is exempt from the timeout entirely. All other streaming methods are unchanged. (https://github.com/authzed/spicedb/pull/3143)
 
 ## [1.56.1] - 2026-08-26
 ### Changed

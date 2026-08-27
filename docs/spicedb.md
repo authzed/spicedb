@@ -528,7 +528,7 @@ spicedb serve [flags]
       --stored-schema-cache-enabled                                                     enable caching of stored schema (default true)
       --stored-schema-cache-max-cost string                                             upper bound (in bytes or as a percent of available memory) of the cache for stored schema (default "32MiB")
       --stored-schema-cache-metrics                                                     enable metrics for the cache for stored schema (default true)
-      --streaming-api-response-delay-timeout duration                                   maximum time that streaming APIs (LookupSubjects, LookupResources, ReadRelationships and ExportBulkRelationships) can be allowed to run but no response be sent to the client before the stream times out (default 30s)
+      --streaming-api-response-delay-timeout duration                                   maximum time that streaming APIs (LookupSubjects, LookupResources, ReadRelationships and ImportBulkRelationships) can be allowed to run but no data be sent to or received from the client before the stream times out; ExportBulkRelationships is exempt (default 30s)
       --telemetry-ca-override-path string                                               path to a custom CA to use with the telemetry endpoint
       --telemetry-endpoint string                                                       endpoint to which telemetry is reported, empty string to disable (default "https://telemetry.authzed.com")
       --telemetry-interval duration                                                     approximate period between telemetry reports, minimum 1 minute (default 1h0m0s)
