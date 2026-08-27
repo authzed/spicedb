@@ -74,16 +74,25 @@ func DefaultWriteConnPool() *ConnPoolConfig {
 	return cfg
 }
 
-//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.options.go . Config
+//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure,password -output zz_generated.options.go . Config
 type Config struct {
-	Engine                      string        `debugmap:"visible"   default:"memory"`
-	URI                         string        `debugmap:"sensitive"`
-	GCWindow                    time.Duration `debugmap:"visible"   default:"24h"`
-	LegacyFuzzing               time.Duration `debugmap:"visible"   default:"-1ns"`
-	RevisionQuantization        time.Duration `debugmap:"visible"   default:"5s"`
-	MaxRevisionStalenessPercent float64       `debugmap:"visible"   default:"0.1"`
+	Engine string `debugmap:"visible"   default:"memory"`
+	URI    string `debugmap:"sensitive"`
+
+	// Granular connection parameters, used to build URI when it is not set.
+	Host       string            `debugmap:"visible"`
+	Port       string            `debugmap:"visible"`
+	Username   string            `debugmap:"visible"`
+	Password   string            `debugmap:"sensitive"`
+	Database   string            `debugmap:"visible"`
+	ConnParams map[string]string `debugmap:"visible"`
+
+	GCWindow                    time.Duration `debugmap:"visible" default:"24h"`
+	LegacyFuzzing               time.Duration `debugmap:"visible" default:"-1ns"`
+	RevisionQuantization        time.Duration `debugmap:"visible" default:"5s"`
+	MaxRevisionStalenessPercent float64       `debugmap:"visible" default:"0.1"`
 	CredentialsProviderName     string        `debugmap:"visible"`
-	FilterMaximumIDCount        uint16        `debugmap:"hidden"    default:"100"`
+	FilterMaximumIDCount        uint16        `debugmap:"hidden"  default:"100"`
 
 	// Options
 	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`

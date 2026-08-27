@@ -35,6 +35,12 @@ func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.Engine = c.Engine
 		to.URI = c.URI
+		to.Host = c.Host
+		to.Port = c.Port
+		to.Username = c.Username
+		to.Password = c.Password
+		to.Database = c.Database
+		to.ConnParams = c.ConnParams
 		to.GCWindow = c.GCWindow
 		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
@@ -105,6 +111,36 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["URI"] = "(empty)"
 	} else {
 		debugMap["URI"] = "(sensitive)"
+	}
+	if c.Host == "" {
+		debugMap["Host"] = "(empty)"
+	} else {
+		debugMap["Host"] = c.Host
+	}
+	if c.Port == "" {
+		debugMap["Port"] = "(empty)"
+	} else {
+		debugMap["Port"] = c.Port
+	}
+	if c.Username == "" {
+		debugMap["Username"] = "(empty)"
+	} else {
+		debugMap["Username"] = c.Username
+	}
+	if c.Password == "" {
+		debugMap["Password"] = "(empty)"
+	} else {
+		debugMap["Password"] = "(sensitive)"
+	}
+	if c.Database == "" {
+		debugMap["Database"] = "(empty)"
+	} else {
+		debugMap["Database"] = c.Database
+	}
+	if c.ConnParams == nil {
+		debugMap["ConnParams"] = "nil"
+	} else {
+		debugMap["ConnParams"] = fmt.Sprintf("(map of size %d)", len(c.ConnParams))
 	}
 	if dm, ok := any(&c.GCWindow).(interface {
 		DebugMap() map[string]any
@@ -374,6 +410,55 @@ func WithEngine(engine string) ConfigOption {
 func WithURI(uRI string) ConfigOption {
 	return func(c *Config) {
 		c.URI = uRI
+	}
+}
+
+// WithHost returns an option that can set Host on a Config
+func WithHost(host string) ConfigOption {
+	return func(c *Config) {
+		c.Host = host
+	}
+}
+
+// WithPort returns an option that can set Port on a Config
+func WithPort(port string) ConfigOption {
+	return func(c *Config) {
+		c.Port = port
+	}
+}
+
+// WithUsername returns an option that can set Username on a Config
+func WithUsername(username string) ConfigOption {
+	return func(c *Config) {
+		c.Username = username
+	}
+}
+
+// WithPassword returns an option that can set Password on a Config
+func WithPassword(password string) ConfigOption {
+	return func(c *Config) {
+		c.Password = password
+	}
+}
+
+// WithDatabase returns an option that can set Database on a Config
+func WithDatabase(database string) ConfigOption {
+	return func(c *Config) {
+		c.Database = database
+	}
+}
+
+// WithConnParams returns an option that can append ConnParamss to Config.ConnParams
+func WithConnParams(key string, value string) ConfigOption {
+	return func(c *Config) {
+		c.ConnParams[key] = value
+	}
+}
+
+// SetConnParams returns an option that can set ConnParams on a Config
+func SetConnParams(connParams map[string]string) ConfigOption {
+	return func(c *Config) {
+		c.ConnParams = connParams
 	}
 }
 
