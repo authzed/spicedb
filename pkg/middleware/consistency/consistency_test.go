@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -35,7 +36,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
@@ -55,7 +56,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
 	updated := ContextWithHandle(t.Context())
@@ -107,7 +108,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
@@ -285,7 +286,7 @@ func TestAddRevisionToContextAtMalformedExactSnapshot(t *testing.T) {
 
 func TestAddRevisionToContextMalformedAtLeastAsFreshSnapshot(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
 	err := AddRevisionToContext(ContextWithHandle(t.Context()), &v1.LookupResourcesRequest{
@@ -383,7 +384,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
@@ -412,7 +413,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
@@ -447,7 +448,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("HeadRevision").Return(headWithHash, nil).Once()
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
@@ -513,7 +514,7 @@ func TestAddRevisionToContextAtLeastAsFreshUsesTokenSchemaHashWhenTokenWins(t *t
 
 	// Make OptimizedRevision return `optimized` (100) so the token at `exact` (123) wins.
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 	dl := datalayer.NewDataLayer(ds)
 
@@ -567,7 +568,7 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimizedWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(optimizedWithHash.Revision, time.Duration(0), optimizedWithHash.SchemaHash, nil).Once()
 	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	ds.CurrentUniqueID = "foo"

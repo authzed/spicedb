@@ -161,8 +161,8 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 // This reproduces the case hit by mage testcons:spanner, where the default
 // 4.8s FollowerReadDelay lands before the freshly-run migration.
 func OptimizedRevisionAfterFreshMigrationTest(t *testing.T, ds datastore.Datastore) {
-	result, err := ds.OptimizedRevision(t.Context())
+	rev, _, schemaHash, err := ds.OptimizedRevision(t.Context())
 	require.NoError(t, err)
-	require.NotEqual(t, datastore.NoRevision, result.Revision)
-	require.Empty(t, result.SchemaHash, "schema hash should be empty when no schema has been written yet")
+	require.NotEqual(t, datastore.NoRevision, rev)
+	require.Empty(t, schemaHash, "schema hash should be empty when no schema has been written yet")
 }
