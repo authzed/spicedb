@@ -19,11 +19,14 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var memdbFactory = test.NewTesterFactory(ErrSerialization)
+// memdbRetryableError is the error memdb treats as retryable when returned
+// from a ReadWriteTx callback.
+var memdbRetryableError = ErrSerialization
 
-type memDBTest struct{}
+// memdbTester creates memdb datastores for the generic datastore suite.
+type memdbTester struct{}
 
-func (memDBTest) New(_ testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+func (memdbTester) New(_ testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 	return NewMemdbDatastore(watchBufferLength, revisionParameters.Quantization, time.Duration(revisionParameters.GCRetentionWindow))
 }
 
@@ -31,7 +34,7 @@ func TestMemdbDatastore(t *testing.T) {
 	// ConcurrentWrite tests require row-level locking; memdb uses a global write lock
 	// and would deadlock if two write transactions were opened concurrently.
 	// Migration tests are excluded because memdb has no schema migrations.
-	test.AllWithExceptions(t, memdbFactory.NewTester(memDBTest{}), test.WithCategories(test.ConcurrentWriteCategory, test.MigrationCategory))
+	test.AllWithExceptions(t, memdbTester{}, test.WithCategories(test.ConcurrentWriteCategory, test.MigrationCategory), memdbRetryableError)
 }
 
 func TestConcurrentWritePanic(t *testing.T) {

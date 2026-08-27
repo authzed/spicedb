@@ -101,40 +101,16 @@ func (rp RevisionParameters) WithGCRetentionWindow(window GCRetentionWindow) Rev
 
 // DatastoreTester provides a generic datastore suite a means of initializing
 // a particular datastore.
+//
+// Each datastore package implements it exactly once, as a named struct whose
+// fields spell out the variations that package tests (integrity on or off, a
+// migration phase, whether the background GC worker runs, and so on). Read
+// that one implementation to know how the suite's datastores are built for
+// that engine.
 type DatastoreTester interface {
 	// New creates a new datastore instance for a single test.
 	New(tb testing.TB, revisionParameters RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error)
 }
-
-type DatastoreTesterFunc func(tb testing.TB, revisionParameters RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error)
-
-func (f DatastoreTesterFunc) New(tb testing.TB, revisionParameters RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
-	return f(tb, revisionParameters, watchBufferLength)
-}
-
-// TesterFactory creates DatastoreTesters with a known retryable error for use in RetryTest.
-type TesterFactory struct {
-	retryErr error
-}
-
-// NewTesterFactory creates a TesterFactory with the given retryable error.
-func NewTesterFactory(retryErr error) *TesterFactory {
-	return &TesterFactory{retryErr: retryErr}
-}
-
-// NewTester wraps a DatastoreTester and adds a retryable error for use in RetryTest.
-func (f *TesterFactory) NewTester(tester DatastoreTester) DatastoreTester {
-	return &retryableTester{DatastoreTester: tester, retryErr: f.retryErr}
-}
-
-type retryableTester struct {
-	DatastoreTester
-	retryErr error
-}
-
-func (r *retryableTester) RetryableError() error { return r.retryErr }
-
-func (r *retryableTester) unwrap() DatastoreTester { return r.DatastoreTester }
 
 type Categories map[string]struct{}
 
@@ -210,8 +186,11 @@ func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester
 }
 
 // AllWithExceptions runs all generic datastore tests on a DatastoreTester, except
-// those specified test categories
-func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
+// those specified test categories.
+//
+// retryErr must be an error the engine under test classifies as retryable, so
+// that RetryTest can drive the engine's retry loop from inside a transaction.
+func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, retryErr error) {
 	runner := serial
 
 	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
@@ -293,7 +272,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 		t.Run("TestStats", runner(tester, StatsTest))
 	}
 
-	t.Run("TestRetries", runner(tester, RetryTest))
+	t.Run("TestRetries", func(t *testing.T) { RetryTest(t, tester, retryErr) })
 
 	t.Run("TestCaveatNotFound", runner(tester, CaveatNotFoundTest))
 	t.Run("TestWriteReadDeleteCaveat", runner(tester, WriteReadDeleteCaveatTest))
@@ -375,8 +354,8 @@ func OnlyGCTests(t *testing.T, tester DatastoreTester) {
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
-func All(t *testing.T, tester DatastoreTester) {
-	AllWithExceptions(t, tester, noException)
+func All(t *testing.T, tester DatastoreTester, retryErr error) {
+	AllWithExceptions(t, tester, noException, retryErr)
 }
 
 var testResourceNS = namespace.Namespace(

@@ -12,15 +12,14 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
-func RetryTest(t *testing.T, tester DatastoreTester) {
-	type retryableProvider interface {
-		RetryableError() error
-	}
-	rp, ok := tester.(retryableProvider)
-	if !ok {
-		t.Fatal("tester does not provide a retryable error; wrap it with NewTesterFactory(...).NewTester(...)")
-	}
-	retryErr := rp.RetryableError()
+// RetryTest asserts that ReadWriteTx retries a transaction whose callback
+// returns retryErr, and only then.
+//
+// retryErr must be an error the engine under test classifies as retryable;
+// there is no engine-agnostic value for it, since every engine recognizes its
+// own native error (a sqlstate, a MySQL error number, a gRPC status).
+func RetryTest(t *testing.T, tester DatastoreTester, retryErr error) {
+	require.Error(t, retryErr, "retryErr must be a non-nil error the engine treats as retryable")
 
 	disableRetriesOptions := []options.RWTOptionsOption{options.WithDisableRetries(true)}
 
