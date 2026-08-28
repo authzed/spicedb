@@ -71,9 +71,11 @@ func NewMemdbDatastore(
 			{
 				revision:   nowRevision(),
 				schemaHash: "",
-				// A snapshot of the empty database rather than the database
-				// itself: reads at this revision must see the datastore as it
-				// was when it was created, not as it is now.
+				// A snapshot of the still-empty database rather than the
+				// database itself, so that a read at the creation revision
+				// above sees the datastore as it was created rather than as it
+				// is now. Every later entry likewise holds a snapshot frozen
+				// at its own revision.
 				db: db.Snapshot(),
 			},
 		},

@@ -19,31 +19,25 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-// readYourWritesIterations is how many times ReadYourWritesTest repeats its
-// write-then-read sequence within a single run.
+// readYourWritesIterations is how many write-then-read rounds
+// ReadYourWritesTest runs.
 const readYourWritesIterations = 50
 
-// ReadYourWritesTest asserts that a write is visible at the revision the API's
-// consistency rules select for that write's own ZedToken.
+// ReadYourWritesTest asserts that a write is visible at the revision resolved
+// from its own ZedToken.
+// That is the path a permission check takes right after a write: the write's
+// revision becomes a token, the consistency middleware turns the token back
+// into a revision, and the data is read there.
 //
-// It walks the same path as a permission check issued immediately after a
-// write: the revision the write returns is encoded into a ZedToken, the
-// consistency middleware turns that token back into a revision, and the data
-// is read at that revision.
-// A datastore that resolves or serves that revision incorrectly loses
-// read-your-writes for every caller that round-trips a ZedToken.
+// Both consistency modes that carry a token are covered:
 //
-// Both token-carrying consistency modes are covered:
+//   - at_exact_snapshot resolves to the token's revision, so the read sees that
+//     write and nothing later.
+//   - at_least_as_fresh resolves to the token's revision or the optimized
+//     revision, whichever is later, so the read never precedes the write.
 //
-//   - at_exact_snapshot resolves to exactly the token's revision, so the read
-//     sees the world as of that write and nothing later.
-//   - at_least_as_fresh resolves to the later of the token's revision and the
-//     datastore's optimized revision, so the read never lands before the write.
-//
-// The sequence is repeated against one datastore, because the revision a write
-// lands on depends on wall-clock timing, quantization boundaries and the
-// datastore's own commit ordering: a single pass lands at one arbitrary offset
-// into the quantization window and misses whatever the next offset exposes.
+// The sequence repeats because each pass lands at a different offset in the
+// quantization window, and one offset does not cover the others.
 func ReadYourWritesTest(t *testing.T, tester DatastoreTester) {
 	// Quantization decides which half of at_least_as_fresh does the work.
 	// With no window the optimized revision has already caught up to the write
@@ -184,34 +178,30 @@ func readYourWrites(t *testing.T, tester DatastoreTester, quantization time.Dura
 // ReadYourConcurrentWritesTest keeps in flight at once.
 const readYourConcurrentWritesWriters = 16
 
-// readYourConcurrentWritesRounds is how many times ReadYourConcurrentWritesTest
-// repeats that concurrent round.
+// readYourConcurrentWritesRounds is how many times
+// ReadYourConcurrentWritesTest repeats that round.
 const readYourConcurrentWritesRounds = 8
 
-// concurrentWrite is one writer's result from a round of
-// ReadYourConcurrentWritesTest, recorded in the goroutine that made the write
-// and asserted on afterwards by the test goroutine.
+// concurrentWrite is one writer's result, recorded in the goroutine that wrote
+// it and asserted on later by the test goroutine.
 type concurrentWrite struct {
 	rel tuple.Relationship
 	rev datastore.Revision
 	err error
 }
 
-// ReadYourConcurrentWritesTest asserts that a write is visible at the revision
-// its own ZedToken names when it was committed alongside other writes.
+// ReadYourConcurrentWritesTest asserts what ReadYourWritesTest does, for
+// writes that commit together.
 //
-// ReadYourWritesTest issues its writes one at a time, so each one is alone in
-// whatever batch the datastore commits it in. A datastore that builds a
-// revision out of a commit timestamp and then drops the tiebreaker ordering
-// writes that share that timestamp still answers correctly there, because the
-// tiebreaker is always zero. Keeping several writes in flight removes that
-// condition: writes do share a commit timestamp, and the tiebreaker has to
-// survive into the revision for the answers to stay right.
+// One write at a time never shares a commit timestamp, so a datastore that
+// drops the tiebreaker between writes at the same timestamp still answers
+// correctly there.
+// Keeping writes in flight makes them share a timestamp, so the tiebreaker has
+// to survive into the revision.
 //
-// The failure this catches is a lost read-your-writes. WriteRelationships
-// returns a ZedToken whose revision sorts below the write it names, so a
-// CheckPermission carrying that token cannot see the relationship the caller
-// just wrote.
+// The failure it catches is a lost read-your-writes: the ZedToken names a
+// revision that sorts below the write it came from, so a check carrying that
+// token cannot see it.
 func ReadYourConcurrentWritesTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
 
