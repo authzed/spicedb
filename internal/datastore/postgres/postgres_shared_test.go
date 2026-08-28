@@ -1155,7 +1155,17 @@ func HeadRevisionDoesNotConsumeXIDTest(t *testing.T, ds datastore.Datastore) {
 		return x
 	}
 
-	const iterations = 10
+	// The xid counter is cluster-wide, so activity that has nothing to do with
+	// this test can advance it while the test runs: autoanalyze burns two xids
+	// each time it fires, and the test instance is shared by every database the
+	// suite creates. Tolerate that noise rather than requiring an exact match,
+	// but keep the allowance far below the one-per-call a HeadRevision that
+	// opened a write transaction would produce.
+	const (
+		iterations        = 100
+		allowedBackground = 10
+	)
+
 	before := nextXID()
 	for i := 0; i < iterations; i++ {
 		_, err := ds.HeadRevision(ctx)
@@ -1163,7 +1173,9 @@ func HeadRevisionDoesNotConsumeXIDTest(t *testing.T, ds datastore.Datastore) {
 	}
 	after := nextXID()
 
-	require.Equal(t, before, after, "HeadRevision burned %d xid(s) over %d calls; expected 0", after-before, iterations)
+	require.LessOrEqual(t, after-before, uint64(allowedBackground),
+		"HeadRevision burned %d xid(s) over %d calls; expected at most %d from unrelated background activity",
+		after-before, iterations, allowedBackground)
 }
 
 // ConcurrentRevisionWatchTest uses goroutines and channels to intentionally set up a pair of
