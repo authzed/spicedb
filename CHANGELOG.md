@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- MemDB: a read at a given revision, such as a `Check` at an `at_exact_snapshot` ZedToken, could include relationships written *after* that revision, so the same revision returned different results as later writes arrived instead of a stable point-in-time view. Reads at a revision now return only the data committed as of it. (https://github.com/authzed/spicedb/pull/3257)
+- Spanner: the configured `--datastore-gc-window` was ignored, and revisions were always treated as valid for 24 hours (the change stream retention). Spanner now honors the configured window, capped at that retention since older revisions cannot be read regardless. (https://github.com/authzed/spicedb/pull/3257)
 
 ## [1.56.1] - 2026-08-26
 ### Changed
