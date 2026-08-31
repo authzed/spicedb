@@ -33,6 +33,7 @@ func TestSpannerDatastore(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri,
 				RevisionQuantization(revisionParameters.Quantization),
+				GCWindow(time.Duration(revisionParameters.GCRetentionWindow)),
 				WatchBufferLength(watchBufferLength),
 				WithDatastoreMetricsOption(DatastoreMetricsOptionOpenTelemetry),
 			)

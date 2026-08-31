@@ -82,6 +82,12 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 		optimized = now
 	}
 
+	// Rounding down can land before the oldest snapshot, which no read can be
+	// served at. Advertise head instead, as Postgres does for an empty bucket.
+	if optimized.LessThan(mdb.revisions[0].revision) {
+		optimized = mdb.headRevisionNoLock()
+	}
+
 	// Find the schema hash visible at the optimized revision: walk the
 	// revisions list backward for the most recent snapshot whose revision
 	// is at or before `optimized`.

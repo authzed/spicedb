@@ -727,6 +727,29 @@ type ReadOnlyDatastore interface {
 
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
+	//
+	// Reads through the handle behave like a snapshot: they are repeatable, and
+	// they never observe a write committed after the given revision.
+	// Each engine reaches that guarantee differently:
+	//
+	//   - Postgres and MySQL treat the revision as a transaction snapshot and
+	//     filter each row against it, keeping only rows created at or before
+	//     the revision and not yet deleted as of it. Postgres in strict read
+	//     mode additionally asserts that the revision is present on the
+	//     instance being read, so a lagging replica fails the query with a
+	//     RevisionUnavailableError instead of answering from older data.
+	//   - CockroachDB and Spanner treat the revision as an MVCC timestamp and
+	//     leave the filtering to the database, in both cases pinned to exactly
+	//     that timestamp rather than to the nearest one at or after it:
+	//     CockroachDB appends AS OF SYSTEM TIME <revision> to each query, and
+	//     Spanner bounds a read-only transaction with ReadTimestamp. A
+	//     revision the database no longer retains, or one in the future, fails
+	//     at query time rather than when the handle is created.
+	//   - memdb keeps one in-memory snapshot per write and reads from the most
+	//     recent snapshot at or before the revision, falling back to its
+	//     oldest snapshot for a revision that predates the datastore itself.
+	//     It is also the only implementation that validates the revision when
+	//     the handle is created, rather than when it is first read.
 	SnapshotReader(Revision) Reader
 
 	// OptimizedRevision gets a revision that will likely already be replicated
