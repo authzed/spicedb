@@ -245,10 +245,25 @@ func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 // not for the `banned` branch, and that asymmetry is what makes the exclusion
 // come out right.
 func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object) bool {
-	if ctx.TopLevelOperation != OperationIterSubjects {
+	// A Check reaches here too, by way of a recursive permission: Check on one
+	// resolves through RecursiveIterator.recursiveCheckIterSubjects, which
+	// answers by running this same IterSubjects machinery. That traversal sets
+	// the target to the subject it is checking, so the comparison below is the
+	// right question in both cases. An empty target means nobody asked for a
+	// specific subject, and identity cannot be decided — see the field comment
+	// on Context.TargetSubjectType.
+	switch ctx.TopLevelOperation {
+	case OperationIterSubjects, OperationCheck:
+		// Both ask about a specific subject, so identity is decidable below.
+	default:
+		// An IterResources decides identity locally in IterResourcesImpl, where
+		// the subject is a parameter; an unset operation has no request at all.
 		return false
 	}
 	target := ctx.TargetSubjectType
+	if target.Type == "" {
+		return false
+	}
 	if target.Type != a.definitionName || target.Type != resource.ObjectType {
 		return false
 	}

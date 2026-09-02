@@ -468,11 +468,12 @@ func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation,
 //     rebuilds at each receiver hop.
 //   - TopLevelOperation propagates the original API operation across hops so
 //     iterators that consult TopLevelOperation see consistent user intent.
-//   - TargetSubjectRelation propagates what a LookupSubjects actually asked
-//     for, which receiver-side aliases need to decide the reflexive identity
-//     subject. The per-hop filter on the request cannot answer that: arrows and
-//     recursion pass no filter because they must walk intermediate-typed
-//     results to keep traversing.
+//   - TargetSubjectRelation propagates the subject the request is asking
+//     about (a LookupSubjects' filter, or the subject of a Check resolving
+//     through recursion), which receiver-side aliases need to decide the
+//     reflexive identity subject. The per-hop filter on the request cannot
+//     answer that: arrows and recursion pass no filter because they must walk
+//     intermediate-typed results to keep traversing.
 func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Operation, target query.ObjectType) *v1.PlanContext {
 	targetRef := targetSubjectRelation(target)
 	if pc == nil {
@@ -514,8 +515,8 @@ func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Ope
 }
 
 // targetSubjectRelation converts the target subject type into its proto form,
-// returning nil when there is no target (any operation other than a
-// LookupSubjects with a concrete subject type).
+// returning nil when there is no target (see Context.TargetSubjectType for
+// when one is set).
 func targetSubjectRelation(target query.ObjectType) *core.RelationReference {
 	if target.Type == "" {
 		return nil

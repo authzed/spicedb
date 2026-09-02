@@ -132,3 +132,71 @@ func TestAliasSelfEdge(t *testing.T) {
 		require.Empty(found, "alice is both a member and banned, so nothing survives")
 	})
 }
+
+const recursiveFolderSchema = `
+definition user {}
+
+definition folder {
+	relation parent: folder
+	relation owner: user
+	relation viewer: user | folder#view
+	permission view = viewer + owner + parent->view
+}
+`
+
+// TestCheckSelfEdgeThroughRecursion covers the identity subject on the Check
+// side, for a subject reached *through* the graph rather than named as the
+// resource being checked.
+//
+// `view` is recursive through parent->view, so Check resolves it by running the
+// IterSubjects machinery underneath (RecursiveIterator.recursiveCheckIterSubjects).
+// Identity has to survive that traversal: folder:company#view satisfies
+// folder:company#view trivially, and strategy's view includes parent->view, so
+// company#view is a member of strategy#view.
+//
+// Expected values are the classic dispatcher's, captured by running the same
+// checks through internal/dispatch/graph. Note the third case: identity holds
+// at `viewer` as well as at the recursion's own relation, so a fix keyed only to
+// the recursion relation would be incomplete.
+func TestCheckSelfEdgeThroughRecursion(t *testing.T) {
+	require := require.New(t)
+
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+	require.NoError(err)
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, recursiveFolderSchema,
+		[]tuple.Relationship{
+			tuple.MustParse("folder:strategy#parent@folder:company"),
+			tuple.MustParse("folder:company#viewer@user:legal"),
+		})
+
+	dsSchema, err := ReadSchema(t.Context(), ds, revision)
+	require.NoError(err)
+	canonicalOutline, err := BuildOutlineFromSchema(dsSchema, "folder", "view")
+	require.NoError(err)
+	it, err := canonicalOutline.Compile()
+	require.NoError(err)
+	reader := NewQueryDatastoreReader(
+		datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting),
+	)
+
+	check := func(subjectID, subjectRelation string) bool {
+		path, err := NewLocalContext(t.Context(), WithReader(reader)).Check(
+			it,
+			NewObject("folder", "strategy"),
+			ObjectAndRelation{ObjectType: "folder", ObjectID: subjectID, Relation: subjectRelation},
+		)
+		require.NoError(err)
+		return path != nil
+	}
+
+	require.True(check("company", "view"),
+		"company#view is reached through parent->view and satisfies itself by identity")
+	require.True(check("company", "viewer"),
+		"identity also holds at viewer, which is not the recursion's own relation")
+	require.True(check("strategy", "view"),
+		"the resource being checked satisfies itself")
+	require.True(check("strategy", "viewer"),
+		"and does so at any relation in the rewrite")
+	require.False(check("nonexistent", "view"),
+		"identity must not be invented for an object outside the reachable set")
+}
