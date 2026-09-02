@@ -28,6 +28,21 @@ type Context struct {
 	// Iterators may inspect it to skip work that is irrelevant for the current operation type.
 	TopLevelOperation Operation
 
+	// TargetSubjectType is the subject type and relation the overall request asked
+	// for, set once alongside TopLevelOperation and constant thereafter.
+	//
+	// It is deliberately distinct from the filterSubjectType threaded through
+	// IterSubjects calls. That parameter says what a *particular* call wants back
+	// and is legitimately empty inside arrows and recursion, which have to walk
+	// intermediate-typed results in order to keep traversing. TargetSubjectType
+	// says what the *request* wants, which is what identity semantics turn on.
+	// This mirrors DispatchLookupSubjectsRequest.SubjectRelation, which the
+	// classic dispatcher threads through every dispatch level for the same reason.
+	//
+	// Only meaningful when TopLevelOperation is OperationIterSubjects; the other
+	// operations name their subject directly.
+	TargetSubjectType ObjectType
+
 	// BatchedArrows enables the batched arrow check path: arrows drain their
 	// left/right side into a slice and issue a single CheckMany call instead of
 	// one Check per element. Always set when running with DispatchExecutor so
@@ -374,6 +389,9 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	}
 
 	isTopLevel := ctx.MarkAsOperation(it, OperationIterSubjects)
+	if isTopLevel {
+		ctx.TargetSubjectType = filterSubjectType
+	}
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {

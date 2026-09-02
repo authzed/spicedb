@@ -392,7 +392,7 @@ func (e *DispatchExecutor) buildManyRequest(ctx *query.Context, op v1.PlanOperat
 			ObjectId:  subject.ObjectID,
 			Relation:  subject.Relation,
 		},
-		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
+		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation, ctx.TargetSubjectType),
 		Plan:        plan,
 	}
 	if len(manyResources) > 0 {
@@ -456,7 +456,7 @@ func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation,
 			ObjectId:  subject.ObjectID,
 			Relation:  subject.Relation,
 		},
-		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation),
+		PlanContext: planContextForDispatch(e.planContext, key, ctx.TopLevelOperation, ctx.TargetSubjectType),
 		Plan:        plan,
 	}, nil
 }
@@ -468,12 +468,24 @@ func (e *DispatchExecutor) buildRequest(ctx *query.Context, op v1.PlanOperation,
 //     rebuilds at each receiver hop.
 //   - TopLevelOperation propagates the original API operation across hops so
 //     iterators that consult TopLevelOperation see consistent user intent.
-func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Operation) *v1.PlanContext {
+//   - TargetSubjectRelation propagates what a LookupSubjects actually asked
+//     for, which receiver-side aliases need to decide the reflexive identity
+//     subject. The per-hop filter on the request cannot answer that: arrows and
+//     recursion pass no filter because they must walk intermediate-typed
+//     results to keep traversing.
+func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Operation, target query.ObjectType) *v1.PlanContext {
+	targetRef := targetSubjectRelation(target)
 	if pc == nil {
 		return &v1.PlanContext{
-			InProgressKeys:    []string{key},
-			TopLevelOperation: queryOpToPlanOperation(topLevelOp),
+			InProgressKeys:        []string{key},
+			TopLevelOperation:     queryOpToPlanOperation(topLevelOp),
+			TargetSubjectRelation: targetRef,
 		}
+	}
+	// Preserve the target recorded higher in the chain; it describes the
+	// original request and must not be overwritten by a deeper hop.
+	if pc.TargetSubjectRelation != nil {
+		targetRef = pc.TargetSubjectRelation
 	}
 	// Preserve any TopLevelOperation already on pc (set higher in the chain);
 	// only fill in when the chain hasn't recorded a user-facing op yet.
@@ -497,6 +509,20 @@ func planContextForDispatch(pc *v1.PlanContext, key string, topLevelOp query.Ope
 		SchemaHash:             pc.SchemaHash,
 		InProgressKeys:         inProgress,
 		TopLevelOperation:      tlo,
+		TargetSubjectRelation:  targetRef,
+	}
+}
+
+// targetSubjectRelation converts the target subject type into its proto form,
+// returning nil when there is no target (any operation other than a
+// LookupSubjects with a concrete subject type).
+func targetSubjectRelation(target query.ObjectType) *core.RelationReference {
+	if target.Type == "" {
+		return nil
+	}
+	return &core.RelationReference{
+		Namespace: target.Type,
+		Relation:  target.Subrelation,
 	}
 }
 

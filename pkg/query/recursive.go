@@ -695,8 +695,8 @@ func (r *RecursiveIterator) recursiveCheckIterSubjects(ctx *Context, resource Ob
 	}
 
 	// Reflexive identity fast path: if the target subject is the resource itself,
-	// the templateTree's Check (alias self-edge synthesis) resolves it without the
-	// datastore probe that IterSubjects-based BFS would trigger. This matches the
+	// the templateTree's Check (alias self-edge synthesis) resolves it without
+	// running the IterSubjects-based BFS at all. This matches the
 	// dispatcher's MEMBER-when-resource-equals-subject behavior for relations that
 	// allow themselves as subjects (e.g. `relation member: user | group#member`)
 	// without paying the cost of full BFS enumeration just to look up identity.
