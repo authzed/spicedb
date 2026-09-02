@@ -30,6 +30,13 @@ definition user {}
 definition team {
 	relation member: user
 }
+
+definition folder {
+	relation parent: folder
+	relation owner: user
+	relation viewer: user | folder#view
+	permission view = viewer + owner + parent->view
+}
 `
 
 // recordingPlanDispatcher delegates to a real dispatcher and records the
@@ -63,6 +70,8 @@ func TestQueryPlanSelfEdgeAcrossDispatch(t *testing.T) {
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, queryPlanSelfEdgeSchema,
 		[]tuple.Relationship{
 			tuple.MustParse("team:eng#member@user:alice"),
+			tuple.MustParse("folder:strategy#parent@folder:company"),
+			tuple.MustParse("folder:company#viewer@user:legal"),
 		})
 
 	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
@@ -147,5 +156,22 @@ func TestQueryPlanSelfEdgeAcrossDispatch(t *testing.T) {
 
 		require.Equal(t, []string{"user:alice#..."}, found)
 		require.NotEmpty(t, recorder.planCalls, "the alias must have been dispatched, not evaluated locally")
+	})
+
+	t.Run("recursive check keeps identity across dispatch", func(t *testing.T) {
+		check := func(subjectID string) bool {
+			subject := query.ObjectAndRelation{ObjectType: "folder", ObjectID: subjectID, Relation: "view"}
+			qctx, it, recorder := newQueryContext(t, query.OperationCheck, "folder", "view", query.ObjectType{Type: "folder", Subrelation: "view"})
+			path, err := qctx.Check(it, query.NewObject("folder", "strategy"), subject)
+			require.NoError(t, err)
+			require.NotEmpty(t, recorder.planCalls, "the alias must have been dispatched, not evaluated locally")
+			return path != nil
+		}
+
+		require.True(t, check("company"),
+			"company#view is reached through parent->view and satisfies itself by identity")
+		require.True(t, check("strategy"), "the resource being checked satisfies itself")
+		require.False(t, check("nonexistent"),
+			"identity must not be invented for an object outside the reachable set")
 	})
 }

@@ -1755,9 +1755,11 @@ type PlanContext struct {
 	// describes both per-hop and user-facing operations; only CHECK,
 	// LOOKUP_RESOURCES, and LOOKUP_SUBJECTS are valid here.
 	TopLevelOperation PlanOperation `protobuf:"varint,7,opt,name=top_level_operation,json=topLevelOperation,proto3,enum=dispatch.v1.PlanOperation" json:"top_level_operation,omitempty"`
-	// target_subject_relation carries the subject type and relation the
-	// user-facing LookupSubjects asked for, so that receiver-side aliases decide
-	// the reflexive identity subject the same way the sender would. This mirrors
+	// target_subject_relation carries the subject type and relation whose
+	// reachability is being asked about, so that receiver-side aliases decide
+	// the reflexive identity subject the same way the sender would: the filter
+	// of the user-facing LookupSubjects, or the subject of a Check that resolves
+	// through recursion (which answers by enumerating subjects). This mirrors
 	// DispatchLookupSubjectsRequest.subject_relation, which the classic
 	// dispatcher threads through every dispatch level for the same reason.
 	//
@@ -1766,7 +1768,8 @@ type PlanContext struct {
 	// inside arrows and recursion, which have to walk intermediate-typed results
 	// in order to keep traversing, so it cannot answer what the request wanted.
 	//
-	// Only set when top_level_operation is LOOKUP_SUBJECTS.
+	// Unset when no specific subject was asked about, in which case identity is
+	// not decidable and no self edge is produced.
 	TargetSubjectRelation *v1.RelationReference `protobuf:"bytes,8,opt,name=target_subject_relation,json=targetSubjectRelation,proto3" json:"target_subject_relation,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
