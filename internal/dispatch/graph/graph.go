@@ -571,6 +571,18 @@ func (ld *localDispatcher) DispatchQueryPlan(
 		return err
 	}
 	qctx.MarkAsOperation(it, topLevelOp)
+
+	// MarkAsOperation is pre-sealed above, so the inner ctx.IterX calls will not
+	// record the request's target subject type themselves. Carry it over from
+	// PlanContext explicitly: aliases on this hop need it to decide the
+	// reflexive identity subject, and without it they would silently omit
+	// identity subjects the sender's own aliases include.
+	if target := req.PlanContext.GetTargetSubjectRelation(); target != nil {
+		qctx.TargetSubjectType = query.ObjectType{
+			Type:        target.Namespace,
+			Subrelation: target.Relation,
+		}
+	}
 	switch req.Operation {
 	case v1.PlanOperation_PLAN_OPERATION_CHECK:
 		path, err := it.CheckImpl(qctx, resource, subject)

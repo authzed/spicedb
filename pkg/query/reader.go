@@ -14,10 +14,6 @@ import (
 // WildcardObjectID is the subject ID representing a public wildcard ("*").
 const WildcardObjectID = tuple.PublicWildcard
 
-// limitOne is used for existence-probe queries that only need to know if
-// at least one row exists.
-var limitOne uint64 = 1
-
 // QueryPage bundles pagination parameters for QuerySubjects and QueryResources.
 type QueryPage struct {
 	Limit  *uint64
@@ -61,15 +57,6 @@ type QueryDatastoreReader interface {
 		withCaveats, withExpiration bool,
 		page QueryPage,
 	) (PathSeq, error)
-
-	// SubjectExistsAsRelationship is an existence probe used by AliasIterator.
-	// It includes expired relationships and returns true if any relationship
-	// has the given subject with the specified non-ellipsis relation.
-	SubjectExistsAsRelationship(
-		ctx context.Context,
-		subject Object,
-		nonEllipsisRelation string,
-	) (bool, error)
 
 	// LookupCaveatDefinition fetches a single caveat definition by name.
 	// Implementations are expected to cache results.
@@ -247,44 +234,6 @@ func (r *datalayerQueryDatastoreReader) QueryResources(
 		return nil, err
 	}
 	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
-}
-
-func (r *datalayerQueryDatastoreReader) SubjectExistsAsRelationship(
-	ctx context.Context,
-	subject Object,
-	nonEllipsisRelation string,
-) (bool, error) {
-	filter := datastore.RelationshipsFilter{
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: subject.ObjectType,
-				OptionalSubjectIds:  []string{subject.ObjectID},
-				RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(nonEllipsisRelation),
-			},
-		},
-		OptionalExpirationOption: datastore.ExpirationFilterOptionNone,
-	}
-
-	relIter, err := r.inner.QueryRelationships(ctx, filter,
-		options.WithLimit(&limitOne),
-		options.WithSkipExpiration(true),
-		// The filter pins the subject but leaves the resource columns open, which
-		// gaps the PK and makes CockroachDB reject a forced index hint. Varying lets
-		// the datastore pick an index from the actual filter columns (the subject
-		// index). This mirrors the reasoning in QuerySubjects above.
-		options.WithQueryShape(queryshape.Varying),
-	)
-	if err != nil {
-		return false, err
-	}
-
-	for _, err := range relIter {
-		if err != nil {
-			return false, err
-		}
-		return true, nil
-	}
-	return false, nil
 }
 
 func (r *datalayerQueryDatastoreReader) LookupCaveatDefinition(

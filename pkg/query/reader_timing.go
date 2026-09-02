@@ -72,17 +72,6 @@ func (r *delayReader) QueryResources(
 	return r.inner.QueryResources(ctx, resourceType, resourceRelation, subject, withCaveats, withExpiration, page)
 }
 
-func (r *delayReader) SubjectExistsAsRelationship(
-	ctx context.Context,
-	subject Object,
-	nonEllipsisRelation string,
-) (bool, error) {
-	if err := r.sleep(ctx); err != nil {
-		return false, err
-	}
-	return r.inner.SubjectExistsAsRelationship(ctx, subject, nonEllipsisRelation)
-}
-
 func (r *delayReader) LookupCaveatDefinition(
 	ctx context.Context,
 	name string,

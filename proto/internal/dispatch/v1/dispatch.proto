@@ -254,6 +254,19 @@ message PlanContext {
   // describes both per-hop and user-facing operations; only CHECK,
   // LOOKUP_RESOURCES, and LOOKUP_SUBJECTS are valid here.
   PlanOperation top_level_operation = 7;
+  // target_subject_relation carries the subject type and relation the
+  // user-facing LookupSubjects asked for, so that receiver-side aliases decide
+  // the reflexive identity subject the same way the sender would. This mirrors
+  // DispatchLookupSubjectsRequest.subject_relation, which the classic
+  // dispatcher threads through every dispatch level for the same reason.
+  //
+  // It is deliberately distinct from DispatchQueryPlanRequest.subject, which
+  // for LOOKUP_SUBJECTS carries the *per-hop* filter: that filter is empty
+  // inside arrows and recursion, which have to walk intermediate-typed results
+  // in order to keep traversing, so it cannot answer what the request wanted.
+  //
+  // Only set when top_level_operation is LOOKUP_SUBJECTS.
+  core.v1.RelationReference target_subject_relation = 8;
 }
 
 message DispatchQueryPlanRequest {

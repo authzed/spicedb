@@ -508,6 +508,103 @@ func TestDispatchExecutor_PlanContextForwarded(t *testing.T) {
 	require.Equal(t, uint64(100), receiver.planCalls[0].PlanContext.OptionalDatastoreLimit)
 }
 
+// relationRefString renders a RelationReference as "namespace#relation", or ""
+// for nil, so tests can compare the target without depending on proto identity.
+func relationRefString(rr *core.RelationReference) string {
+	if rr == nil {
+		return ""
+	}
+	return rr.Namespace + "#" + rr.Relation
+}
+
+func TestPlanContextForDispatch_TargetSubjectRelation(t *testing.T) {
+	groupMember := query.ObjectType{Type: "group", Subrelation: "member"}
+	folderView := &core.RelationReference{Namespace: "folder", Relation: "view"}
+
+	for _, tc := range []struct {
+		name   string
+		pc     *v1.PlanContext
+		target query.ObjectType
+		want   string
+	}{
+		{
+			name: "no plan context and no target",
+			want: "",
+		},
+		{
+			name:   "no plan context records the target",
+			target: groupMember,
+			want:   "group#member",
+		},
+		{
+			name: "existing plan context without a target and no target",
+			pc:   &v1.PlanContext{Revision: "rev1"},
+			want: "",
+		},
+		{
+			name:   "existing plan context without a target records the target",
+			pc:     &v1.PlanContext{Revision: "rev1"},
+			target: groupMember,
+			want:   "group#member",
+		},
+		{
+			// The target describes the original request; a deeper hop running
+			// under a different target must not overwrite it.
+			name:   "target recorded higher in the chain is preserved",
+			pc:     &v1.PlanContext{Revision: "rev1", TargetSubjectRelation: folderView},
+			target: groupMember,
+			want:   "folder#view",
+		},
+		{
+			name: "target recorded higher in the chain survives an empty target",
+			pc:   &v1.PlanContext{Revision: "rev1", TargetSubjectRelation: folderView},
+			want: "folder#view",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := relationRefString(tc.pc.GetTargetSubjectRelation())
+
+			got := planContextForDispatch(tc.pc, "group#member", query.OperationIterSubjects, tc.target)
+			require.Equal(t, tc.want, relationRefString(got.TargetSubjectRelation))
+			require.Equal(t, "group#member", got.InProgressKeys[len(got.InProgressKeys)-1])
+			require.Equal(t, before, relationRefString(tc.pc.GetTargetSubjectRelation()),
+				"the sender's plan context must not be mutated")
+		})
+	}
+}
+
+func TestDispatchExecutor_TargetSubjectRelationForwarded(t *testing.T) {
+	dispatchIterSubjects := func(t *testing.T, target query.ObjectType) *v1.DispatchQueryPlanRequest {
+		receiver := &testDispatcher{
+			planResponses: []*v1.DispatchQueryPlanResponse{{Paths: []*v1.ResultPath{}}},
+		}
+		sender := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev1"}, 100)
+		ctx := newTestContext()
+		ctx.TargetSubjectType = target
+
+		alias := query.NewAliasIterator("group", "member", query.NewFixedIterator())
+		pathSeq, err := sender.IterSubjects(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "group", ObjectID: "eng"}, query.NoObjectFilter())
+		require.NoError(t, err)
+		_, err = query.CollectAll(pathSeq)
+		require.NoError(t, err)
+
+		require.Len(t, receiver.planCalls, 1)
+		return receiver.planCalls[0]
+	}
+
+	t.Run("the request's target crosses the dispatch boundary", func(t *testing.T) {
+		// The per-hop filter is deliberately empty here, as it is inside arrows
+		// and recursion; the receiver can only learn the target from PlanContext.
+		req := dispatchIterSubjects(t, query.ObjectType{Type: "group", Subrelation: "member"})
+		require.Equal(t, "group#member", relationRefString(req.PlanContext.TargetSubjectRelation))
+	})
+
+	t.Run("no target is sent when none was asked for", func(t *testing.T) {
+		req := dispatchIterSubjects(t, query.ObjectType{})
+		require.Nil(t, req.PlanContext.TargetSubjectRelation)
+	})
+}
+
 func TestDispatchExecutor_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // cancel immediately
