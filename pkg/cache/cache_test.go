@@ -37,10 +37,43 @@ func TestCostAddedIncludesKey(t *testing.T) {
 
 	// costAdded must reflect the full entry weight (payload + key bytes), not
 	// just the caller-supplied payload cost.
-	require.Equal(t,
+	require.Equal(
+		t,
 		uint64(payloadCost+len(key)),
 		cache.GetMetrics().CostAdded(),
 	)
+}
+
+// TestSetDoesNotRecordAccesses asserts that Set leaves the hit/miss counters
+// alone. Set must not probe the cache first: the underlying cache records every
+// lookup it is asked to perform, so a probe inside Set would be counted as a
+// hit or a miss that no caller ever made, understating the reported hit rate.
+func TestSetDoesNotRecordAccesses(t *testing.T) {
+	cache, err := NewOtterCacheWithMetrics[StringKey, string](
+		prometheus.NewRegistry(), "test-otter",
+		&Config{MaxCost: 100000, DefaultTTL: 10 * time.Hour},
+	)
+	require.NoError(t, err)
+	defer cache.Close()
+
+	// A write to a new key, then a write overwriting it.
+	require.True(t, cache.Set(StringKey("key"), "first", 10))
+	require.True(t, cache.Set(StringKey("key"), "second", 10))
+
+	metrics := cache.GetMetrics()
+	require.Zero(t, metrics.Hits(), "Set must not record a hit")
+	require.Zero(t, metrics.Misses(), "Set must not record a miss")
+
+	// One real hit and one real miss, and nothing else.
+	value, found := cache.Get(StringKey("key"))
+	require.True(t, found)
+	require.Equal(t, "second", value, "the overwriting Set should have taken effect")
+
+	_, found = cache.Get(StringKey("absent"))
+	require.False(t, found)
+
+	require.Equal(t, uint64(1), metrics.Hits())
+	require.Equal(t, uint64(1), metrics.Misses())
 }
 
 func TestCacheWithMetrics(t *testing.T) {
@@ -103,14 +136,6 @@ func TestCacheWithMetrics(t *testing.T) {
 		for range 10 {
 			cache.Close()
 		}
-	})
-
-	t.Run("GetTTL", func(t *testing.T) {
-		cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter", config)
-		require.NoError(t, err)
-		defer cache.Close()
-
-		require.Equal(t, 10*time.Hour, cache.GetTTL())
 	})
 
 	t.Run("GetMetrics", func(t *testing.T) {

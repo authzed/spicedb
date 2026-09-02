@@ -354,7 +354,7 @@ func TestOldRWTCaching(t *testing.T) {
 
 			ctx := t.Context()
 
-			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(dsMock, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 			dsMock.On("Close").Return(nil).Maybe()
 			t.Cleanup(func() { _ = ds.Close() })
 
@@ -391,7 +391,7 @@ func TestRWTCaching(t *testing.T) {
 
 	ctx := t.Context()
 
-	ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+	ds := NewCachingDatastoreProxy(dsMock, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 	dsMock.On("Close").Return(nil).Maybe()
 	t.Cleanup(func() { _ = ds.Close() })
 
@@ -439,7 +439,7 @@ func TestOldRWTCacheWithWrites(t *testing.T) {
 
 			ctx := t.Context()
 
-			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(dsMock, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 			dsMock.On("Close").Return(nil).Maybe()
 			t.Cleanup(func() { _ = ds.Close() })
 
@@ -491,7 +491,7 @@ func TestOldSingleFlight(t *testing.T) {
 
 			require := require.New(t)
 
-			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(dsMock, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 			dsMock.On("Close").Return(nil).Maybe()
 			t.Cleanup(func() { _ = ds.Close() })
 
@@ -534,7 +534,7 @@ func TestSingleFlight(t *testing.T) {
 
 		assert := assert.New(t)
 
-		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+		ds := NewCachingDatastoreProxy(dsMock, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 		snapshotReader := ds.SnapshotReader(one)
 
 		readNamespace := func() {
@@ -616,7 +616,7 @@ func TestOldSnapshotCachingRealDatastore(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := t.Context()
-			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(rawDS, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 			t.Cleanup(func() { _ = ds.Close() })
 
 			if tc.nsDef != nil {
@@ -695,7 +695,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := t.Context()
-			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(rawDS, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 			t.Cleanup(func() { _ = ds.Close() })
 
 			if tc.nsDef != nil {
@@ -764,7 +764,7 @@ func TestOldSingleFlightCancelled(t *testing.T) {
 
 			dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
 
-			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+			ds := NewCachingDatastoreProxy(dsMock, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 			dsMock.On("Close").Return(nil).Maybe()
 			t.Cleanup(func() { _ = ds.Close() })
 
@@ -802,7 +802,7 @@ func TestSingleFlightCancelled(t *testing.T) {
 		dsMock.On("Close").Return(nil).Once()
 		dsMock.On("SnapshotReader", one).Return(&singleflightReader{MockReader: proxy_test.MockReader{}})
 
-		ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+		ds := NewCachingDatastoreProxy(dsMock, cacheForTest(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
 		snapshotReader := ds.SnapshotReader(one)
 
 		var nsDef *core.NamespaceDefinition

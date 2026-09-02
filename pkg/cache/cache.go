@@ -59,11 +59,6 @@ type Cache[K KeyString, V any] interface {
 	// otherwise it returns the zero value of V and false.
 	Get(key K) (V, bool)
 
-	// GetTTL returns the TTL configured for entries in this cache.
-	// If zero, entries never expire. The current Otter-backed
-	// implementation refreshes the TTL on access.
-	GetTTL() time.Duration
-
 	// Set attempts to store an entry for key, overwriting any existing entry,
 	// and returns true if the write was accepted for processing. cost is
 	// passed to the eviction policy and weighed against Config.MaxCost;
@@ -109,7 +104,6 @@ type noopCache[K KeyString, V any] struct{}
 var _ Cache[StringKey, any] = (*noopCache[StringKey, any])(nil)
 
 func (no *noopCache[K, V]) Get(_ K) (V, bool)          { return *new(V), false }
-func (no *noopCache[K, V]) GetTTL() time.Duration      { return time.Duration(0) }
 func (no *noopCache[K, V]) Set(_ K, _ V, _ int64) bool { return false }
 func (no *noopCache[K, V]) Close()                     {}
 func (no *noopCache[K, V]) GetMetrics() Metrics        { return &noopMetrics{} }

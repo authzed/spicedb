@@ -7,6 +7,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/dustin/go-humanize"
 	"resenje.org/singleflight"
 
 	"github.com/authzed/spicedb/pkg/cache"
@@ -24,14 +25,22 @@ type definitionCachingProxy struct {
 	readGroup singleflight.Group[string, *cacheEntry]
 }
 
+const (
+	// fallbackMaxCost is the budget for the cache built when the caller supplies
+	// none. ~1mb reflects the usage of a normal schema.
+	fallbackMaxCost = 1 * humanize.MiByte
+
+	// fallbackTTL bounds how long a stranded entry is kept. Cache keys
+	// contain the revision, so entries are only valid for as long as a quantization
+	// window; this provides a low upper bound compared to the default quantization
+	// window of 5s.
+	fallbackTTL = 1 * time.Minute
+)
+
 // The caller MUST call Close on the returned proxy when it is no longer needed.
-// If a nil cache is passed, one is created, so Close is needed to stop its cleanup goroutine.
-func NewDefinitionCachingProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry]) *definitionCachingProxy {
+func MustNewDefinitionCachingProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry]) *definitionCachingProxy {
 	if c == nil {
-		c, _ = cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
-			MaxCost:    10000,
-			DefaultTTL: 10000 * time.Second,
-		})
+		panic("cache reference must be non-nil")
 	}
 
 	return &definitionCachingProxy{Datastore: delegate, c: c}
