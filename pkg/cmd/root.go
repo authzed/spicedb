@@ -20,6 +20,10 @@ import (
 var ErrParsing = errors.New("parsing error")
 
 func RegisterRootFlags(cmd *cobra.Command) error {
+	// NOTE: We use cobrazerolog only for flag registration (--log-level, --log-format)
+	// and shell completion. The actual logger setup is done by server.ConfigureLoggingRunE()
+	// which wraps zerolog with a diode.Writer for async logging and properly exposes
+	// the closer so logs are flushed on shutdown. See PR #889 for context.
 	zl := cobrazerolog.New()
 	zl.RegisterFlags(cmd.PersistentFlags())
 	if err := zl.RegisterFlagCompletion(cmd); err != nil {

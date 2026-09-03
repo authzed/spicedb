@@ -11,5 +11,7 @@ func GoLeakIgnores() []goleak.Option {
 		goleak.IgnoreAnyFunction("go.opencensus.io/stats/view.(*worker).start"),
 		// This came in in v1.94.0
 		goleak.IgnoreAnyFunction("cloud.google.com/go/spanner.(*endpointLatencyRegistry).runCleanup"),
+		// Async logging diode writer has a polling goroutine that flushes buffered logs
+		goleak.IgnoreAnyFunction("github.com/rs/zerolog/diode.Writer.poll"),
 	}
 }
