@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	dscommon "github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
@@ -128,13 +127,31 @@ const (
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
 
+// maxTransientReadRetries bounds the retries performed by queryRowWithRetries.
+const maxTransientReadRetries = 3
+
+// queryRowWithRetries runs a single-row query on the read pool, retrying a bounded
+// number of times when the failure is a transient connection error (e.g. a pooled
+// connection torn down underneath the query). Callers must only pass idempotent,
+// read-only queries.
+func (pgd *pgDatastore) queryRowWithRetries(ctx context.Context, sql string, scanFn func(row pgx.Row) error) error {
+	for retries := uint8(0); ; retries++ {
+		err := scanFn(pgd.readPool.QueryRow(ctx, sql))
+		if err == nil || retries >= maxTransientReadRetries || !readErrorRetryable(ctx, err) {
+			return err
+		}
+		dscommon.SleepOnErr(ctx, err, retries)
+	}
+}
+
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration
 	var schemaHash []byte
-	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
-		Scan(&revision, &snapshot, &validForNanos, &schemaHash); err != nil {
+	if err := pgd.queryRowWithRetries(ctx, pgd.optimizedRevisionQuery, func(row pgx.Row) error {
+		return row.Scan(&revision, &snapshot, &validForNanos, &schemaHash)
+	}); err != nil {
 		return datastore.NoRevision, 0, "", fmt.Errorf(errRevision, err)
 	}
 
@@ -147,7 +164,7 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWit
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
-	result, schemaHash, err := pgd.getHeadRevisionWithHash(ctx, pgd.readPool)
+	result, schemaHash, err := pgd.getHeadRevisionWithHash(ctx)
 	if err != nil {
 		return datastore.RevisionWithSchemaHash{}, err
 	}
@@ -158,10 +175,12 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWit
 	return datastore.RevisionWithSchemaHash{Revision: *result, SchemaHash: string(schemaHash)}, nil
 }
 
-func (pgd *pgDatastore) getHeadRevisionWithHash(ctx context.Context, querier common.Querier) (*postgresRevision, []byte, error) {
+func (pgd *pgDatastore) getHeadRevisionWithHash(ctx context.Context) (*postgresRevision, []byte, error) {
 	var snapshot pgSnapshot
 	var schemaHash []byte
-	if err := querier.QueryRow(ctx, queryCurrentSnapshotWithHash).Scan(&snapshot, &schemaHash); err != nil {
+	if err := pgd.queryRowWithRetries(ctx, queryCurrentSnapshotWithHash, func(row pgx.Row) error {
+		return row.Scan(&snapshot, &schemaHash)
+	}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, nil
 		}
@@ -180,8 +199,9 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 
 	var minXid xid8
 	var minSnapshot, currentSnapshot pgSnapshot
-	if err := pgd.readPool.QueryRow(ctx, pgd.validTransactionQuery).
-		Scan(&minXid, &minSnapshot, &currentSnapshot); err != nil {
+	if err := pgd.queryRowWithRetries(ctx, pgd.validTransactionQuery, func(row pgx.Row) error {
+		return row.Scan(&minXid, &minSnapshot, &currentSnapshot)
+	}); err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
