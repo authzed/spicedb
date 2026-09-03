@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"sync/atomic"
-	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/maypok86/otter/v2"
@@ -92,7 +91,6 @@ func newOtterCache[K KeyString, V any](name string, config *Config) (*otterCache
 		name:    name,
 		cache:   cache,
 		metrics: otterMetrics{atomic.Uint64{}, counter},
-		ttl:     config.DefaultTTL,
 	}, err
 }
 
@@ -100,7 +98,6 @@ type otterCache[K KeyString, V any] struct {
 	name    string
 	cache   *otter.Cache[string, valueAndCost[V]]
 	metrics otterMetrics
-	ttl     time.Duration
 
 	// registerer and collectors are set when metrics are registered (via
 	// NewOtterCacheWithMetrics) and used to unregister them on Close.
@@ -149,10 +146,6 @@ func (wtc *otterCache[K, V]) registerMetrics(registerer prometheus.Registerer) e
 	return nil
 }
 
-func (wtc *otterCache[K, V]) GetTTL() time.Duration {
-	return wtc.ttl
-}
-
 func (wtc *otterCache[K, V]) Get(key K) (V, bool) {
 	vac, ok := wtc.cache.GetIfPresent(key.KeyString())
 	if !ok {
@@ -179,13 +172,7 @@ func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
 	weight := entryWeight(keyStr, uintCost)
 
 	wtc.metrics.costAdded.Add(uint64(weight))
-	if _, ok := wtc.cache.GetIfPresent(keyStr); ok {
-		wtc.cache.Invalidate(keyStr)
-	}
 	wtc.cache.Set(keyStr, valueAndCost[V]{value, weight})
-	if wtc.ttl > 0 {
-		wtc.cache.SetExpiresAfter(keyStr, wtc.ttl)
-	}
 	return true
 }
 

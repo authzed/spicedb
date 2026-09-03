@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
 func TestParsePercent(t *testing.T) {
@@ -60,11 +63,14 @@ func TestWithRevisionParameters(t *testing.T) {
 		expectedTTL          time.Duration
 	}{
 		{
+			// A zero TTL means "never expire", which is not a safe value
+			// revision-keyed cache where cache keys don't repeat as revisions
+			// roll forward, so the fallback is used instead.
 			name:                 "zero values",
 			quantizationInterval: 0,
 			followerReadDelay:    0,
 			maxStalenessPercent:  0,
-			expectedTTL:          0,
+			expectedTTL:          fallbackRevisionTTL,
 		},
 		{
 			name:                 "basic configuration",
@@ -130,5 +136,44 @@ func TestWithRevisionParameters(t *testing.T) {
 
 			require.Equal(t, tt.expectedTTL, result.defaultTTL)
 		})
+	}
+}
+
+// TestRevisionKeyedCachesExpire asserts that every cache whose keys embed a
+// datastore revision is completed with a TTL. Such a cache strands every entry
+// it holds each time the quantization window advances, so without expiry it
+// climbs to capacity and stays there, packed with keys no request can ask for
+// again — at which point the eviction policy begins rejecting the entries that
+// are still being read, and the hit rate falls away.
+func TestRevisionKeyedCachesExpire(t *testing.T) {
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, 10*time.Second)
+	require.NoError(t, err)
+
+	c := ConfigWithOptions(
+		&Config{},
+		WithPresharedSecureKey("psk"),
+		WithDatastore(ds),
+		WithGRPCServer(util.GRPCServerConfig{Network: util.BufferedNetwork, Enabled: true}),
+		// The cluster dispatch cache is only built when the dispatch server is on.
+		WithDispatchServer(util.GRPCServerConfig{Network: util.BufferedNetwork, Enabled: true}),
+		WithNamespaceCacheConfig(CacheConfig{Name: "namespace", Enabled: true, MaxCost: "32MiB"}),
+		WithDispatchCacheConfig(CacheConfig{Name: "dispatch", Enabled: true, MaxCost: "1MiB"}),
+		WithClusterDispatchCacheConfig(CacheConfig{Name: "cluster_dispatch", Enabled: true, MaxCost: "1MiB"}),
+		WithEnableMemoryProtectionMiddleware(false),
+	)
+
+	completed, err := c.complete(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = completed.closeFunc() })
+
+	// Note that this Config was assembled in code, so DatastoreConfig carries
+	// zero revision parameters; the TTL comes from fallbackRevisionTTL.
+	for name, cacheConfig := range map[string]CacheConfig{
+		"namespace":        c.NamespaceCacheConfig,
+		"dispatch":         c.DispatchCacheConfig,
+		"cluster_dispatch": c.ClusterDispatchCacheConfig,
+	} {
+		require.Positive(t, cacheConfig.defaultTTL,
+			"the %s cache is keyed by revision and must be given a TTL", name)
 	}
 }

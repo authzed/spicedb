@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Fixed
+- Namespace cache: Fixed an issue where the cache was configured without a TTL, which meant that entries accumulated until the cache filled and new sets were rejected, reducing cache hit rate and increasing datastore load. (https://github.com/authzed/spicedb/pull/3112)
+- Cache metrics: Fixed cache hit rate reporting by removing unnecessary reads from the `Set` path (https://github.com/authzed/spicedb/pull/3112)
 - MemDB: a read at a given revision, such as a `Check` at an `at_exact_snapshot` ZedToken, could include relationships written *after* that revision, so the same revision returned different results as later writes arrived instead of a stable point-in-time view. Reads at a revision now return only the data committed as of it. (https://github.com/authzed/spicedb/pull/3257)
 - Spanner: the configured `--datastore-gc-window` was ignored, and revisions were always treated as valid for 24 hours (the change stream retention). Spanner now honors the configured window, capped at that retention since older revisions cannot be read regardless. (https://github.com/authzed/spicedb/pull/3257)
 

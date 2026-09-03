@@ -28,6 +28,15 @@ func assertEventuallyFallback(t *testing.T, wcache *watchingCachingProxy, want b
 	}, 5*time.Second, 5*time.Millisecond, "cache did not reach inFallbackMode=%v", want)
 }
 
+func cacheForTest(t *testing.T) cache.Cache[cache.StringKey, *cacheEntry] {
+	built, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
+		MaxCost:    fallbackMaxCost,
+		DefaultTTL: fallbackTTL,
+	})
+	require.NoError(t, err)
+	return built
+}
+
 func TestWatchingCachingProxyUnwrap(t *testing.T) {
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -37,7 +46,7 @@ func TestWatchingCachingProxyUnwrap(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	unwrapped := wcache.Unwrap()
 	require.Equal(t, fakeDS, unwrapped)
 	t.Cleanup(func() {
@@ -58,7 +67,7 @@ func TestOldWatchingCacheBasicOperation(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -163,7 +172,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -268,7 +277,7 @@ func TestOldWatchingCacheParallelOperations(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -362,7 +371,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -456,7 +465,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -526,7 +535,7 @@ func TestOldWatchingCacheParallelReaderWriter(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -596,7 +605,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	c := NewDefinitionCachingProxy(fakeDS, nil)
+	c := MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t))
 
 	wcache := NewWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
@@ -647,7 +656,7 @@ func TestWatchingCacheStaysInFallbackDuringPrepopulate(t *testing.T) {
 		},
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 
 	// Ensure cleanup completes even if the assertion fails — close the gate
@@ -687,7 +696,7 @@ func TestWatchingCacheRecoversFromTransientError(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	t.Cleanup(func() { wcache.Close() })
 
@@ -717,7 +726,7 @@ func TestOldWatchingCacheFallbackToStandardCache(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	def := NewDefinitionCachingProxy(fakeDS, nil)
+	def := MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t))
 
 	wcache := NewWatchingCacheProxy(fakeDS, def, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
@@ -772,7 +781,7 @@ func TestOldWatchingCachePrepopulated(t *testing.T) {
 		},
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -812,7 +821,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 		},
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	assertEventuallyFallback(t, wcache, false)
 	t.Cleanup(func() {
@@ -1144,7 +1153,7 @@ func TestWatchingCacheTerminatesOnWatchDisabled(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	t.Cleanup(func() { wcache.Close() })
 
@@ -1173,7 +1182,7 @@ func TestWatchingCacheTerminatesOnContextCancellation(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(ctx))
 
 	assertEventuallyFallback(t, wcache, false)
@@ -1194,7 +1203,7 @@ func TestWatchingCacheRecoversAcrossMultipleErrors(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	t.Cleanup(func() { wcache.Close() })
 
@@ -1233,7 +1242,7 @@ func TestWatchingCacheUpdatesLastEventTimestamp(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	t.Cleanup(func() { wcache.Close() })
 
@@ -1256,7 +1265,7 @@ func TestWatchingCacheIncrementsCycleRestartsOnRecovery(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := NewWatchingCacheProxy(fakeDS, NewDefinitionCachingProxy(fakeDS, nil), 1*time.Hour, 100*time.Millisecond)
+	wcache := NewWatchingCacheProxy(fakeDS, MustNewDefinitionCachingProxy(fakeDS, cacheForTest(t)), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(t.Context()))
 	t.Cleanup(func() { wcache.Close() })
 

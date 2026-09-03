@@ -20,6 +20,10 @@ import (
 // Factor by which we will extend the maximum amount of expected needed TTL
 const ttlExtensionFactor = 2.0
 
+// fallbackRevisionTTL exists to make sure that the cache's TTL is never set to 0,
+// which would result in the cache filling up and then rejecting new entries.
+const fallbackRevisionTTL = 1 * time.Minute
+
 var errOverHundredPercent = errors.New("percentage greater than 100")
 
 // CacheConfig defines the configuration various SpiceDB caches.
@@ -44,6 +48,10 @@ func (cc *CacheConfig) WithRevisionParameters(
 ) *CacheConfig {
 	maxExpectedLifetime := float64(quantizationInterval.Nanoseconds())*(1+maxStalenessPercent) + float64(followerReadDelay.Nanoseconds())
 	cc.defaultTTL = time.Duration(maxExpectedLifetime*ttlExtensionFactor) * time.Nanosecond
+	// Ensure that a TTL of 0 is never passed to a cache.
+	if cc.defaultTTL <= 0 {
+		cc.defaultTTL = fallbackRevisionTTL
+	}
 	return cc
 }
 
