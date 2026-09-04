@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	dispatchmocks "github.com/authzed/spicedb/internal/dispatch/mocks"
@@ -114,4 +115,25 @@ func TestHealthManagerCheckIsReady(t *testing.T) {
 			require.Equal(t, tc.expectedResult, hm.checkIsReady(t.Context()))
 		})
 	}
+}
+
+func TestHealthManagerCloseReportsNotServing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	manager := NewHealthManager(dispatchmocks.NewMockDispatcher(ctrl), datastoremocks.NewMockDatastore(ctrl))
+	manager.RegisterReportedService("test-service")
+	manager.HealthSvc().SetServingStatus("test-service", healthpb.HealthCheckResponse_SERVING)
+
+	manager.Close()
+
+	resp, err := manager.HealthSvc().Check(t.Context(), &healthpb.HealthCheckRequest{Service: "test-service"})
+	require.NoError(t, err)
+	require.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, resp.GetStatus())
+
+	// A late readiness check must not flip the status back while shutting down.
+	manager.HealthSvc().SetServingStatus("test-service", healthpb.HealthCheckResponse_SERVING)
+	resp, err = manager.HealthSvc().Check(t.Context(), &healthpb.HealthCheckRequest{Service: "test-service"})
+	require.NoError(t, err)
+	require.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, resp.GetStatus())
 }

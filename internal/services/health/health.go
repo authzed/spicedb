@@ -44,12 +44,15 @@ type Manager interface {
 	// Checker blocks until the status is SERVING or until the context is done.
 	Checker(ctx context.Context) error
 
+	// Close marks every managed service NOT_SERVING and pins it there, so load
+	// balancers stop routing to a server that is about to close its listeners.
+	Close()
+
 	// right now, Checker is serving both as a startup probe and a readiness probe.
 	// However, its implementation is really only functioning as a startup probe because the function exits quickly.
 	// TODO(miparnisari): Split Checker into two functions: Startup and Readiness (to match kubernetes probes)
 	// Startup can continue with this implementation. Readiness can ... be something else (TBD).
 	// ALso: we don't need a per-service probe, just one a general one for the entire service.
-	// Also: we need a function Close() that sets status to NOT_SERVING.
 }
 
 type healthManager struct {
@@ -61,6 +64,10 @@ type healthManager struct {
 
 func (hm *healthManager) HealthSvc() *grpcutil.AuthlessHealthServer {
 	return hm.healthSvc
+}
+
+func (hm *healthManager) Close() {
+	hm.healthSvc.Shutdown()
 }
 
 func (hm *healthManager) RegisterReportedService(serviceName string) {
