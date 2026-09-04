@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"slices"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 
@@ -851,4 +853,68 @@ func TestHandleGRPCAuthn(t *testing.T) {
 		require.NoError(t, config.handleGrpcAuthn(t.Context()))
 		require.NotNil(t, config.GRPCAuthFunc)
 	})
+}
+
+// A shutting-down server must report NOT_SERVING while its listeners are still
+// open, so load balancers stop routing to it before connections are refused.
+func TestShutdownReportsNotServingBeforeClosingListeners(t *testing.T) {
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+
+	// A real TCP listener: in-memory listeners skip the drain delay.
+	probe, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	addr := probe.Addr().String()
+	require.NoError(t, probe.Close())
+
+	ds, err := datastore.NewDatastore(ctx, datastore.DefaultDatastoreConfig().ToOption())
+	require.NoError(t, err, "unable to start memdb datastore")
+	t.Cleanup(func() { ds.Close() })
+
+	srv, err := NewConfigWithOptionsAndDefaults(
+		WithGRPCServer(util.GRPCServerConfig{Network: "tcp", Address: addr, Enabled: true}),
+		WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) { return ctx, nil }),
+		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithDatastore(ds),
+	).Complete(ctx)
+	require.NoError(t, err)
+
+	conn, err := srv.NewClient(grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	runCtx, stopServer := context.WithCancel(ctx)
+	runDone := make(chan error, 1)
+	go func() { runDone <- srv.Run(runCtx) }()
+
+	healthClient := healthpb.NewHealthClient(conn)
+	status := func() (healthpb.HealthCheckResponse_ServingStatus, error) {
+		resp, err := healthClient.Check(ctx, &healthpb.HealthCheckRequest{Service: v1.PermissionsService_ServiceDesc.ServiceName})
+		if err != nil {
+			return healthpb.HealthCheckResponse_UNKNOWN, err
+		}
+		return resp.GetStatus(), nil
+	}
+	require.Eventually(t, func() bool {
+		s, err := status()
+		return err == nil && s == healthpb.HealthCheckResponse_SERVING
+	}, 5*time.Second, 50*time.Millisecond, "gRPC server did not become ready")
+
+	stoppedAt := time.Now()
+	stopServer()
+
+	// During the drain delay the listener still answers, and says NOT_SERVING.
+	require.Eventually(t, func() bool {
+		s, err := status()
+		return err == nil && s == healthpb.HealthCheckResponse_NOT_SERVING
+	}, shutdownDrainDelay/2, 20*time.Millisecond, "health did not flip to NOT_SERVING while listeners were open")
+
+	require.NoError(t, <-runDone)
+	require.GreaterOrEqual(t, time.Since(stoppedAt), shutdownDrainDelay, "listeners closed before the drain delay elapsed")
 }
