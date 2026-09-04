@@ -13,7 +13,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/authzed/authzed-go v1.10.0
 	github.com/authzed/cel-go v0.32.0
-	github.com/authzed/consistent v0.2.0
+	github.com/authzed/consistent v0.2.1-0.20260904023326-5563000f3d96
 	github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/authzed/jitterbug v0.0.0-20260128162915-e97d76daaa24
@@ -84,7 +84,7 @@ require (
 	github.com/sourcegraph/jsonrpc2 v0.2.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/cockroachdb v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.44.0
@@ -263,5 +263,4 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	google.golang.org/genproto v0.0.0-20260729162451-8efbd57d26e0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

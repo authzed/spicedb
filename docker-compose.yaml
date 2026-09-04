@@ -55,6 +55,12 @@ services:
     build: "."
     command: "serve"
     restart: "no"
+    networks:
+      default:
+        # Shared DNS name resolving to every node, so each dispatcher's
+        # hashring contains all nodes (as the Kubernetes resolver would).
+        aliases:
+          - "spicedb-dispatch"
     ports:
       - "9090" # prometheus metrics
       - "50051" # grpc endpoint
@@ -68,7 +74,7 @@ services:
       - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
       - "SPICEDB_DATASTORE_CONN_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
-      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-2:50053"
+      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=dns:///spicedb-dispatch:50053"
       - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
       - "SPICEDB_OTEL_SAMPLE_RATIO=1"
       - "SPICEDB_TELEMETRY_ENDPOINT="
@@ -93,6 +99,12 @@ services:
     build: "."
     command: "serve"
     restart: "no"
+    networks:
+      default:
+        # Shared DNS name resolving to every node, so each dispatcher's
+        # hashring contains all nodes (as the Kubernetes resolver would).
+        aliases:
+          - "spicedb-dispatch"
     ports:
       - "9090" # prometheus metrics
       - "50051" # grpc endpoint
@@ -106,7 +118,7 @@ services:
       - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
       - "SPICEDB_DATASTORE_CONN_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable"
       - "SPICEDB_DISPATCH_CLUSTER_ENABLED=true"
-      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=spicedb-1:50053"
+      - "SPICEDB_DISPATCH_UPSTREAM_ADDR=dns:///spicedb-dispatch:50053"
       - "SPICEDB_OTEL_PROVIDER=otlpgrpc"
       - "SPICEDB_OTEL_SAMPLE_RATIO=1"
       - "SPICEDB_TELEMETRY_ENDPOINT="

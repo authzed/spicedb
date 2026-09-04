@@ -58,6 +58,11 @@ var ConsistentHashringBuilder = consistent.NewBuilder(xxhash.Sum64)
 
 var DefaultMemoryUsageProvider memoryprotection.MemoryUsageProvider
 
+// shutdownDrainDelay is how long a shutting-down server keeps its listeners
+// open after reporting NOT_SERVING, so load balancers and readiness probes
+// stop routing to it before connections are refused.
+const shutdownDrainDelay = 2 * time.Second
+
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	// API config
@@ -610,6 +615,23 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 	closeables.AddWithError(otelShutdown)
 
+	// Registered last so it runs first: report NOT_SERVING while every listener
+	// is still open, then give load balancers time to notice before draining.
+	// An in-memory listener has no load balancer in front of it, so it drains
+	// immediately.
+	drainDelay := shutdownDrainDelay
+	if c.GRPCServer.Network == util.BufferedNetwork {
+		drainDelay = 0
+	}
+	closeables.AddWithoutError(func() {
+		healthManager.Close()
+		if drainDelay == 0 {
+			return
+		}
+		log.Info().Dur("drain-delay", drainDelay).Msg("health set to NOT_SERVING, waiting before closing listeners")
+		time.Sleep(drainDelay)
+	})
+
 	log.Ctx(ctx).Info().Fields(c.FlatDebugMap()).Msg("configuration")
 
 	return &completedServerConfig{
@@ -827,7 +849,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 
 // RunnableServer is a spicedb service set ready to run.
 type RunnableServer interface {
-	// Run takes the runnable server configuration and starts the server.
+	// Run blocks until the context is cancelled.
 	Run(ctx context.Context) error
 	// NewClient returns a grpc connection to this server.
 	// It is up to the caller to close the connection when done using it.
