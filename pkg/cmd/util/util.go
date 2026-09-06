@@ -161,13 +161,16 @@ func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, erro
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		return insecure.NewCredentials(), nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		var err error
-		var pool *x509.CertPool
+		// A CA supplied by path can be rotated, so it is read at handshake time.
 		if c.ClientCAPath != "" {
-			pool, err = x509util.CustomCertPool(c.ClientCAPath)
-		} else {
-			pool, err = x509.SystemCertPool()
+			caPool, err := x509util.NewCAPool(c.ClientCAPath)
+			if err != nil {
+				return nil, err
+			}
+			return x509util.NewReloadingTLSCreds(caPool, &tls.Config{MinVersion: tls.VersionTLS12}), nil
 		}
+
+		pool, err := x509.SystemCertPool()
 		if err != nil {
 			return nil, err
 		}
