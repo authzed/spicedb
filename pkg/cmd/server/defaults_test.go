@@ -82,7 +82,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		nil,
 	}
 
-	someMiddleware := pertoken.NewMiddleware(nil, caveattypes.Default.TypeSet)
+	someMiddleware := pertoken.NewMiddleware(nil, nil, caveattypes.Default.TypeSet)
 
 	withDS := opts.WithDatastoreMiddleware(someMiddleware)
 	require.NotNil(t, withDS)
