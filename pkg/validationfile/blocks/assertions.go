@@ -96,6 +96,8 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 		return spiceerrors.NewWithSourceError(
 			fmt.Errorf("error parsing assertion `%s`", trimmed),
 			trimmed,
+			// TODO: this should point at the filename. is there a way to get that context here?
+			"",
 			line,
 			column,
 		)
@@ -106,6 +108,8 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 		return spiceerrors.NewWithSourceError(
 			fmt.Errorf("error parsing relationship in assertion `%s`: %w", trimmed, err),
 			trimmed,
+			// TODO: this should point at the filename. is there a way to get that context here?
+			"",
 			line,
 			column,
 		)
@@ -120,6 +124,8 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 			return spiceerrors.NewWithSourceError(
 				fmt.Errorf("error parsing caveat context in assertion `%s`: %w", trimmed, err),
 				trimmed,
+				// TODO: this should point at the filename. is there a way to get that context here?
+				"",
 				line,
 				column,
 			)

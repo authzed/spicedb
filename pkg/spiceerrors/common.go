@@ -22,6 +22,9 @@ type WithSourceError struct {
 	// SourceCodeString is the input source code string for the error.
 	SourceCodeString string
 
+	// FileName is the filename where the error was found.
+	FileName string
+
 	// LineNumber is the (1-indexed) line number of the error, or 0 if unknown.
 	LineNumber uint64
 
@@ -42,8 +45,8 @@ func (err *WithSourceError) Unwrap() error {
 }
 
 // NewWithSourceError creates and returns a new WithSourceError.
-func NewWithSourceError(err error, sourceCodeString string, oneIndexedLineNumber uint64, oneIndexedColumnPosition uint64) *WithSourceError {
-	return &WithSourceError{err, sourceCodeString, oneIndexedLineNumber, oneIndexedColumnPosition}
+func NewWithSourceError(err error, sourceCodeString, fileName string, oneIndexedLineNumber uint64, oneIndexedColumnPosition uint64) *WithSourceError {
+	return &WithSourceError{err, sourceCodeString, fileName, oneIndexedLineNumber, oneIndexedColumnPosition}
 }
 
 // AsWithSourceError returns the error as an WithSourceError, if applicable.
