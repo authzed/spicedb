@@ -54,8 +54,8 @@ github.com/authzed/authzed-go v1.10.0 h1:GUPzYFnStk1PIBZOkQzqcYA3iHaOlVYVl1UnHIR
 github.com/authzed/authzed-go v1.10.0/go.mod h1:2DL7pg4iqMltwWOSw+wvbEzAK7uRt3545+bkcGYD8D8=
 github.com/authzed/cel-go v0.32.0 h1:1IQD9qFvem2DWdy3PyMNqbVJiyNCBUHbh7SjR9JfbPY=
 github.com/authzed/cel-go v0.32.0/go.mod h1:Jp4Wbt+Tbe8kiX6xz5xfIXy56qoqS0uB2R+mYn+MQnU=
-github.com/authzed/consistent v0.2.1-0.20260904023326-5563000f3d96 h1:bOydltQF/pg2CD/qhzO5VCBTdExDUHScoCmH2sa4lTQ=
-github.com/authzed/consistent v0.2.1-0.20260904023326-5563000f3d96/go.mod h1:e7134iDBFLZ+VsOxmO9FkU0a14xAn/TCJbr1Kbotc0Y=
+github.com/authzed/consistent v0.2.0 h1:qBUkRycc89rcTu4uX4WrHcLV7OMZunYpChKmLwo++Hc=
+github.com/authzed/consistent v0.2.0/go.mod h1:8F1E3S1tFaxNa1fynw56DW+ZIxdDPjGFok/uKTJuByw=
 github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584 h1:mP7EpcUL90EKcf/F+gYiU2pz3cGFEuKPHPfe7MntEXk=
 github.com/authzed/ctxkey v0.0.0-20250226155515-d49f99185584/go.mod h1:wnimjr5RPPouIhZQ3ztDBLMUKKuUroj3U9Jy0PxeaEE=
 github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b h1:wbh8IK+aMLTCey9sZasO7b6BWLAJnHHvb79fvWCXwxw=
