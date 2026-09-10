@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/g
 FROM cgr.dev/chainguard/static@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0
 # NOTE: the copy target location differs from Dockerfile.release for historical reasons. It's referenced in
 # compose files and elsewhere so we're keeping it the way it is.
-COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.55 /ko-app/grpc-health-probe /bin/grpc_health_probe
+COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.57 /ko-app/grpc-health-probe /bin/grpc_health_probe
 COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
 ENV PATH="$PATH:/usr/local/bin"
 EXPOSE 50051
