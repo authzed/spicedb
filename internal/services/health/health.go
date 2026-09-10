@@ -14,7 +14,9 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-const datastoreReadyTimeout = time.Millisecond * 500
+// This is kept high because the spicedb deployment and the datastore might not be in the same region.
+// Ideally, they are, but they might not.
+const datastoreReadyTimeout = time.Second * 3
 
 // NewHealthManager creates and returns a new health manager that checks the IsReady
 // status of the given dispatcher and datastore checker and sets the health check to
