@@ -19,6 +19,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.oteloptions.go . OTelConfig
@@ -67,7 +68,7 @@ func InitOTelProvider(ctx context.Context, cfg OTelConfig) (func() error, error)
 
 	res, err := resource.New(ctx,
 		resource.WithTelemetrySDK(),
-		resource.WithAttributes(attribute.String("service.name", cfg.ServiceName)),
+		resource.WithAttributes(attribute.String(otelconv.ServiceName, cfg.ServiceName)),
 		resource.WithHost(),
 		// WithFromEnv brings in any OTEL_* environment variables and merges them into the
 		// realized configuration.
