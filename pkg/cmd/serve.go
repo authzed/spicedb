@@ -74,10 +74,11 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(grpcFlagSet, &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	grpcFlagSet.StringSliceVar(&config.PresharedSecureKey, PresharedKeyFlag, []string{}, "(required) preshared key(s) that must be provided by clients to authenticate requests")
-	grpcFlagSet.DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 5*time.Second, "time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit")
 	if err := cobra.MarkFlagRequired(grpcFlagSet, PresharedKeyFlag); err != nil {
 		return fmt.Errorf("failed to mark flag as required: %w", err)
 	}
+	grpcFlagSet.DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 5*time.Second, "time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit")
+	grpcFlagSet.DurationVar(&config.ShutdownDrainDelay, "grpc-shutdown-drain-delay", 0, "the lame duck period between SpiceDB's health service reporting NOT_SERVING and server shutdown; used to signal to load balancers that SpiceDB is going out of service. configure according to your load balancer's health check behavior.")
 
 	// Flags for HTTP gateway
 	httpFlags := nfs.FlagSet(BoldBlue("HTTP"))

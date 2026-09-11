@@ -491,6 +491,7 @@ spicedb serve [flags]
       --grpc-max-workers uint32                                                         set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                                             network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-preshared-key strings                                                      (required) preshared key(s) that must be provided by clients to authenticate requests
+      --grpc-shutdown-drain-delay duration                                              the lame duck period between SpiceDB's health service reporting NOT_SERVING and server shutdown; used to signal to load balancers that SpiceDB is going out of service. configure according to your load balancer's health check behavior.
       --grpc-shutdown-grace-period duration                                             time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit (default 5s)
       --grpc-tls-cert-path string                                                       local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                                        local path to the TLS key used to serve gRPC

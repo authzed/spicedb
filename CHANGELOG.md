@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Fixed
-- Shutdown: on SIGINT or SIGTERM, SpiceDB now reports `NOT_SERVING` on its gRPC health service and keeps its listeners open for 2 seconds before draining. This gives load balancers and Kubernetes readiness probes time to stop routing to the instance, so new requests do not fail with `Unavailable` (connection refused) in the window between the signal and the endpoint update. (https://github.com/authzed/spicedb/pull/3295)
+- Shutdown: on SIGINT or SIGTERM, SpiceDB now reports `NOT_SERVING` on its gRPC health service and keeps its listeners open for `--grpc-shutdown-drain-delay` before draining. This gives load balancers and Kubernetes readiness probes time to stop routing to the instance, so new requests do not fail with `Unavailable` (connection refused) in the window between the signal and the endpoint update. (https://github.com/authzed/spicedb/pull/3295, https://github.com/authzed/spicedb/pull/3314)
 
 ## [1.56.2] - 2026-09-11
 ### Changed
