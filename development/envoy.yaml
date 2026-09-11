@@ -59,6 +59,20 @@ static_resources:
     - name: "spicedb_grpc"
       type: "STRICT_DNS"
       lb_policy: "ROUND_ROBIN"
+      # Poll the gRPC health service so a backend that reports NOT_SERVING
+      # (SpiceDB does this on shutdown) stops receiving new requests before
+      # it closes its listener.
+      health_checks:
+        - timeout: "1s"
+          interval: "1s"
+          no_traffic_interval: "1s"
+          unhealthy_threshold: 1
+          healthy_threshold: 1
+          grpc_health_check:
+            service_name: "authzed.api.v1.PermissionsService"
+      common_lb_config:
+        healthy_panic_threshold:
+          value: 0
       # Force HTTP/2 on the upstream so Envoy load-balances individual RPCs,
       # not connections (unlike nginx which balances at the connection level).
       typed_extension_protocol_options:
