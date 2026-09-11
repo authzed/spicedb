@@ -24,7 +24,7 @@ package otelconv
 
 // Custom event names
 const (
-	ServiceName = "service.name"
+	ServiceName = "spicedb.external.service.name"
 
 	EventCaveatsNamesCollected = "spicedb.internal.caveats.names_collected"
 	EventCaveatsLookedUp       = "spicedb.internal.caveats.lookup_completed"
