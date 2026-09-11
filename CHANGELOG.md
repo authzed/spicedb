@@ -4,13 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- Shutdown: on SIGINT or SIGTERM, SpiceDB now reports `NOT_SERVING` on its gRPC health service and keeps its listeners open for 2 seconds before draining. This gives load balancers and Kubernetes readiness probes time to stop routing to the instance, so new requests do not fail with `Unavailable` (connection refused) in the window between the signal and the endpoint update. (https://github.com/authzed/spicedb/pull/3295)
 
 ## [1.56.2] - 2026-09-11
 ### Changed
 - Increase the timeout for datastore readiness checks to account for the possibility of far away databases (https://github.com/authzed/spicedb/pull/3305)
 
 ### Fixed
-- Shutdown: on SIGINT or SIGTERM, SpiceDB now reports `NOT_SERVING` on its gRPC health service and keeps its listeners open for 2 seconds before draining. This gives load balancers and Kubernetes readiness probes time to stop routing to the instance, so new requests do not fail with `Unavailable` (connection refused) in the window between the signal and the endpoint update. In-flight requests were already drained.
 - Namespace cache: Fixed an issue where the cache was configured without a TTL, which meant that entries accumulated until the cache filled and new sets were rejected, reducing cache hit rate and increasing datastore load. (https://github.com/authzed/spicedb/pull/3112)
 - Cache metrics: Fixed cache hit rate reporting by removing unnecessary reads from the `Set` path (https://github.com/authzed/spicedb/pull/3112)
 - MemDB: a read at a given revision, such as a `Check` at an `at_exact_snapshot` ZedToken, could include relationships written *after* that revision, so the same revision returned different results as later writes arrived instead of a stable point-in-time view. Reads at a revision now return only the data committed as of it. (https://github.com/authzed/spicedb/pull/3257)
