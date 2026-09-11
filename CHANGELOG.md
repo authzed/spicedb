@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Increase the timeout for datastore readiness checks to account for the possibility of far away databases (https://github.com/authzed/spicedb/pull/3305)
 
 ### Fixed
+- CockroachDB: unused overlay keys in the `transactions` table are now expired after 24 hours via row-level TTL. Those rows were previously never deleted, so the table grew without bound (especially with the `request` overlap strategy). Touching a key still resets its expiration. (https://github.com/authzed/spicedb/issues/2507)
 - Namespace cache: Fixed an issue where the cache was configured without a TTL, which meant that entries accumulated until the cache filled and new sets were rejected, reducing cache hit rate and increasing datastore load. (https://github.com/authzed/spicedb/pull/3112)
 - Cache metrics: Fixed cache hit rate reporting by removing unnecessary reads from the `Set` path (https://github.com/authzed/spicedb/pull/3112)
 - MemDB: a read at a given revision, such as a `Check` at an `at_exact_snapshot` ZedToken, could include relationships written *after* that revision, so the same revision returned different results as later writes arrived instead of a stable point-in-time view. Reads at a revision now return only the data committed as of it. (https://github.com/authzed/spicedb/pull/3257)
