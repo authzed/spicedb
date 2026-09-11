@@ -11,12 +11,12 @@ import (
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/contrib/propagators/ot"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -66,10 +66,12 @@ func InitOTelProvider(ctx context.Context, cfg OTelConfig) (func() error, error)
 	}
 
 	res, err := resource.New(ctx,
-		resource.WithAttributes(semconv.ServiceNameKey.String(cfg.ServiceName)),
-		resource.WithProcess(),
-		resource.WithOS(),
+		resource.WithTelemetrySDK(),
+		resource.WithAttributes(attribute.String("service.name", cfg.ServiceName)),
 		resource.WithHost(),
+		// WithFromEnv brings in any OTEL_* environment variables and merges them into the
+		// realized configuration.
+		resource.WithFromEnv(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("building OTel resource: %w", err)
