@@ -6,7 +6,7 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260709200747-435963d16310.1
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.36.12-20260707164124-2360da55afce.1
 	buf.build/go/protovalidate v1.3.0
-	cloud.google.com/go/spanner v1.94.0
+	cloud.google.com/go/spanner v1.95.1
 	github.com/IBM/pgxpoolprometheus v1.1.3
 	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/Masterminds/semver v1.5.0
