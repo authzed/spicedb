@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -19,12 +20,21 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	memoryprotection.InitDefaultMemoryUsageProvider()
 
 	// Set up root logger
 	// This will typically be overwritten by the logging setup for a given command.
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	log.SetGlobalLogger(zerolog.New(os.Stderr).Level(zerolog.InfoLevel))
+	defer func() {
+		if err := log.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to flush logs: %v\n", err)
+		}
+	}()
 
 	// Enable Kubernetes gRPC resolver
 	kuberesolver.RegisterInCluster()
@@ -35,7 +45,8 @@ func main() {
 	// Build the complete command structure
 	rootCmd, err := cmd.BuildRootCommand()
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to build root command")
+		log.Error().Err(err).Msg("failed to build root command")
+		return 1
 	}
 
 	if err := rootCmd.Execute(); err != nil {
@@ -44,8 +55,10 @@ func main() {
 		}
 		var termErr spiceerrors.TerminationError
 		if errors.As(err, &termErr) {
-			os.Exit(termErr.ExitCode())
+			return termErr.ExitCode()
 		}
-		os.Exit(1)
+		return 1
 	}
+
+	return 0
 }
