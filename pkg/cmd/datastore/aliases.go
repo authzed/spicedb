@@ -51,6 +51,7 @@ var (
 	SetAllowedMigrations                     = dsconfig.SetAllowedMigrations
 	SetBootstrapFileContents                 = dsconfig.SetBootstrapFileContents
 	SetBootstrapFiles                        = dsconfig.SetBootstrapFiles
+	SetConnParams                            = dsconfig.SetConnParams
 	SetReadReplicaURIs                       = dsconfig.SetReadReplicaURIs
 	SetRelationshipIntegrityExpiredKeys      = dsconfig.SetRelationshipIntegrityExpiredKeys
 	SetSpannerCredentialsJSON                = dsconfig.SetSpannerCredentialsJSON
@@ -61,8 +62,10 @@ var (
 	WithBootstrapSchemaMode                  = dsconfig.WithBootstrapSchemaMode
 	WithBootstrapTimeout                     = dsconfig.WithBootstrapTimeout
 	WithCaveatTypeSet                        = dsconfig.WithCaveatTypeSet
+	WithConnParams                           = dsconfig.WithConnParams
 	WithConnectRate                          = dsconfig.WithConnectRate
 	WithCredentialsProviderName              = dsconfig.WithCredentialsProviderName
+	WithDatabase                             = dsconfig.WithDatabase
 	WithDisableStats                         = dsconfig.WithDisableStats
 	WithDisableWatchSupport                  = dsconfig.WithDisableWatchSupport
 	WithEnableConnectionBalancing            = dsconfig.WithEnableConnectionBalancing
@@ -76,6 +79,7 @@ var (
 	WithGCMaxOperationTime                   = dsconfig.WithGCMaxOperationTime
 	WithGCWindow                             = dsconfig.WithGCWindow
 	WithHealthCheckInterval                  = dsconfig.WithHealthCheckInterval
+	WithHost                                 = dsconfig.WithHost
 	WithIncludeQueryParametersInTraces       = dsconfig.WithIncludeQueryParametersInTraces
 	WithKeyFilename                          = dsconfig.WithKeyFilename
 	WithKeyID                                = dsconfig.WithKeyID
@@ -90,6 +94,8 @@ var (
 	WithMinOpenConns                         = dsconfig.WithMinOpenConns
 	WithOldReadReplicaConnPool               = dsconfig.WithOldReadReplicaConnPool
 	WithOverlapKey                           = dsconfig.WithOverlapKey
+	WithPassword                             = dsconfig.WithPassword
+	WithPort                                 = dsconfig.WithPort
 	WithOverlapStrategy                      = dsconfig.WithOverlapStrategy
 	WithPingTimeout                          = dsconfig.WithPingTimeout
 	WithReadConnPool                         = dsconfig.WithReadConnPool
@@ -113,6 +119,7 @@ var (
 	WithSpannerMaxSessions                   = dsconfig.WithSpannerMaxSessions
 	WithSpannerMinSessions                   = dsconfig.WithSpannerMinSessions
 	WithTablePrefix                          = dsconfig.WithTablePrefix
+	WithUsername                             = dsconfig.WithUsername
 	WithURI                                  = dsconfig.WithURI
 	WithWatchBufferLength                    = dsconfig.WithWatchBufferLength
 	WithWatchBufferWriteTimeout              = dsconfig.WithWatchBufferWriteTimeout
