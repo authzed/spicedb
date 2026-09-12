@@ -74,16 +74,8 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 		return datastore.RevisionWithSchemaHashAndValidity{}, err
 	}
 
-	now := nowRevision()
-	var optimized revisions.TimestampRevision
-	var validFor time.Duration
-	if mdb.quantizationPeriod > 0 {
-		afterLastQuantization := now.TimestampNanoSec() % mdb.quantizationPeriod
-		optimized = revisions.NewForTimestamp(now.TimestampNanoSec() - afterLastQuantization)
-		validFor = time.Duration(mdb.quantizationPeriod-afterLastQuantization) * time.Nanosecond
-	} else {
-		optimized = now
-	}
+	quantized, validFor := revisions.Quantize(nowRevision(), 0, mdb.quantizationPeriod)
+	optimized := quantized.(revisions.TimestampRevision)
 
 	// Rounding down can land before the oldest snapshot, which no read can be
 	// served at. Advertise head instead, as Postgres does for an empty bucket.

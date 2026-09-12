@@ -258,7 +258,7 @@ func (sd *spannerDatastore) OptimizedRevision(ctx context.Context) (datastore.Re
 		return datastore.RevisionWithSchemaHashAndValidity{}, spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
 	}
 
-	rev, validFor := revisions.QuantizeHLC(nowTS, sd.followerReadDelay, sd.revisionQuantization)
+	rev, validFor := revisions.Quantize(nowTS, sd.followerReadDelay, sd.revisionQuantization)
 	return datastore.RevisionWithSchemaHashAndValidity{Revision: rev, ValidFor: validFor, SchemaHash: schemaHash}, nil
 }
 
@@ -288,7 +288,7 @@ func (sd *spannerDatastore) CheckRevision(ctx context.Context, dsRevision datast
 		return spiceerrors.MustBugf("expected HLC revision, got %T", now)
 	}
 
-	return revisions.CheckHLCGCWindow(nowTS, revision, sd.gcWindow)
+	return revisions.CheckGCWindow(nowTS, revision, sd.gcWindow)
 }
 
 func getMeterProviderWithPromExporter(res *otelres.Resource) (*metric.MeterProvider, error) {

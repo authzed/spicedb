@@ -6,15 +6,15 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-// QuantizeHLC rounds an HLC "now" revision down to a quantization boundary,
-// after subtracting the follower-read delay, and reports how long the resulting
-// quantized revision remains valid (i.e. until the next quantization boundary).
+// Quantize rounds a timestamp-based "now" revision down to a quantization
+// boundary, after subtracting the follower-read delay, and reports how long the
+// result remains valid: until the next boundary. A zero quantization returns
+// the delayed now unchanged with no validity.
 //
-// This is the in-Go quantization used by datastores whose only revision
-// primitive is a raw HLC clock (CockroachDB, Spanner). Datastores that quantize
-// in SQL (Postgres, MySQL) compute validFor directly in their query and do not
-// use this helper.
-func QuantizeHLC(now WithTimestampRevision, followerReadDelay, quantization time.Duration) (datastore.Revision, time.Duration) {
+// This is the in-Go quantization used by datastores whose revision is a clock
+// reading (CockroachDB, Spanner, memdb). Datastores that quantize in SQL
+// (Postgres, MySQL) compute validFor in their query and do not use this helper.
+func Quantize(now WithTimestampRevision, followerReadDelay, quantization time.Duration) (WithTimestampRevision, time.Duration) {
 	delayedNow := now.TimestampNanoSec() - followerReadDelay.Nanoseconds()
 	quantized := delayedNow
 	validForNanos := int64(0)
@@ -27,10 +27,10 @@ func QuantizeHLC(now WithTimestampRevision, followerReadDelay, quantization time
 	return now.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond
 }
 
-// CheckHLCGCWindow verifies that the given revision is within the datastore's
-// software GC window relative to the current HLC time: not so old that it has
+// CheckGCWindow verifies that the given revision is within the datastore's
+// software GC window relative to the current time: not so old that it has
 // (likely) been garbage collected, and not from the future.
-func CheckHLCGCWindow(now, rev WithTimestampRevision, gcWindow time.Duration) error {
+func CheckGCWindow(now, rev WithTimestampRevision, gcWindow time.Duration) error {
 	nowNanos := now.TimestampNanoSec()
 	revisionNanos := rev.TimestampNanoSec()
 

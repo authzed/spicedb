@@ -306,7 +306,7 @@ func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revi
 		return datastore.RevisionWithSchemaHashAndValidity{}, spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
 	}
 
-	rev, validFor := revisions.QuantizeHLC(nowTS, cds.followerReadDelay, cds.revisionQuantization)
+	rev, validFor := revisions.Quantize(nowTS, cds.followerReadDelay, cds.revisionQuantization)
 	return datastore.RevisionWithSchemaHashAndValidity{Revision: rev, ValidFor: validFor, SchemaHash: schemaHash}, nil
 }
 
@@ -337,7 +337,7 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, dsRevision datastor
 		return spiceerrors.MustBugf("expected HLC revision, got %T", now)
 	}
 
-	return revisions.CheckHLCGCWindow(nowTS, revision, cds.gcWindow)
+	return revisions.CheckGCWindow(nowTS, revision, cds.gcWindow)
 }
 
 type crdbDatastore struct {
