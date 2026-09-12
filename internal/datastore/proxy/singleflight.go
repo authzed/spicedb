@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"time"
 
 	"resenje.org/singleflight"
 
@@ -44,7 +43,7 @@ func (p *singleflightProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserF
 // OptimizedRevision is deliberately not singleflighted here.
 // optimizedRevisionProxy caches and singleflights it, and relies on seeing the
 // caller's own context so its direct retry runs under the caller's deadline.
-func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (p *singleflightProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 

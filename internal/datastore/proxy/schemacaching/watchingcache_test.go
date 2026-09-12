@@ -1071,8 +1071,8 @@ func (*fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.Revision, time.Duration, string, error) {
-	return datastore.NoRevision, 0, "", fmt.Errorf("not implemented")
+func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+	return datastore.RevisionWithSchemaHashAndValidity{}, fmt.Errorf("not implemented")
 }
 
 func (*fakeDatastore) ReadyState(context.Context) (datastore.ReadyState, error) {

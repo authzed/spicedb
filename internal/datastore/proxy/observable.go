@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -99,7 +98,7 @@ func (p *observableProxy) ReadWriteTx(
 	}, opts...)
 }
 
-func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	ctx, closer := observe(ctx, "OptimizedRevision", "")
 	defer closer()
 

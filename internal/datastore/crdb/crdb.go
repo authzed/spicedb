@@ -288,26 +288,26 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 // reads the current HLC time and quantizes it in Go (CRDB's only revision
 // primitive is cluster_logical_timestamp()). Caching, deduplication, and jitter
 // are layered on by proxy.NewOptimizedRevisionProxy.
-func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
 	nowRev, schemaHash, err := cds.headRevisionInternal(ctx)
 	if err != nil {
-		return datastore.NoRevision, 0, "", err
+		return datastore.RevisionWithSchemaHashAndValidity{}, err
 	}
 
 	if nowRev == datastore.NoRevision {
-		return datastore.NoRevision, 0, "", datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
+		return datastore.RevisionWithSchemaHashAndValidity{}, datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
 	}
 
 	nowTS, ok := nowRev.(revisions.WithTimestampRevision)
 	if !ok {
-		return datastore.NoRevision, 0, "", spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
+		return datastore.RevisionWithSchemaHashAndValidity{}, spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
 	}
 
 	rev, validFor := revisions.QuantizeHLC(nowTS, cds.followerReadDelay, cds.revisionQuantization)
-	return rev, validFor, schemaHash, nil
+	return datastore.RevisionWithSchemaHashAndValidity{Revision: rev, ValidFor: validFor, SchemaHash: schemaHash}, nil
 }
 
 // CheckRevision verifies the given revision is within the software GC window. It

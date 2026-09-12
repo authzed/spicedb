@@ -3,7 +3,6 @@ package indexcheck
 import (
 	"context"
 	"fmt"
-	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -47,8 +46,8 @@ func (f fakeDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc,
 	})
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, time.Duration, string, error) {
-	return nil, 0, "", nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+	return datastore.RevisionWithSchemaHashAndValidity{}, nil
 }
 
 func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {

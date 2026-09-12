@@ -25,10 +25,10 @@ import (
 // embedded interface and will panic if called.
 type fakeOptimizedRevisionDatastore struct {
 	datastore.Datastore
-	fn func(ctx context.Context) (datastore.Revision, time.Duration, string, error)
+	fn func(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error)
 }
 
-func (f *fakeOptimizedRevisionDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (f *fakeOptimizedRevisionDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	return f.fn(ctx)
 }
 
@@ -124,7 +124,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			or.clock = mockTime
 
 			for _, callSpec := range tc.expectedCallResponses {
-				mockDS.On("OptimizedRevision").Return(callSpec.rev, callSpec.validFor, "", nil).Once()
+				mockDS.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: callSpec.rev, ValidFor: callSpec.validFor}, nil).Once()
 			}
 
 			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
@@ -137,7 +137,8 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				}
 
 				require.Eventually(func() bool {
-					revision, _, _, err := or.OptimizedRevision(ctx)
+					revisionResult, err := or.OptimizedRevision(ctx)
+					revision := revisionResult.Revision
 					require.NoError(err)
 					printableRevSet := slicez.Map(expectedRevSet, func(val datastore.Revision) string {
 						return val.String()
@@ -164,7 +165,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 
 	mockDS.
 		On("OptimizedRevision").
-		Return(one, time.Duration(0), "", nil).
+		Return(datastore.RevisionWithSchemaHashAndValidity{Revision: one}, nil).
 		After(50 * time.Millisecond).
 		Once()
 
@@ -174,7 +175,8 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	g := errgroup.Group{}
 	for range 10 {
 		g.Go(func() error {
-			revision, _, _, err := or.OptimizedRevision(ctx)
+			revisionResult, err := or.OptimizedRevision(ctx)
+			revision := revisionResult.Revision
 			if err != nil {
 				return err
 			}
@@ -195,14 +197,14 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 
 	quantization := 1 * time.Millisecond
 	fake := &fakeOptimizedRevisionDatastore{
-		fn: func(_ context.Context) (datastore.Revision, time.Duration, string, error) {
+		fn: func(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 			nowNS := time.Now().UnixNano()
 			validForNS := nowNS % quantization.Nanoseconds()
 			roundedNS := nowNS - validForNS
 			// This should be non-negative.
 			uintRoundedNs := safecast.RequireConvert[uint64](b, roundedNS)
 			rev := revisions.NewForTransactionID(uintRoundedNs)
-			return rev, time.Duration(validForNS) * time.Nanosecond, "", nil
+			return datastore.RevisionWithSchemaHashAndValidity{Revision: rev, ValidFor: time.Duration(validForNS) * time.Nanosecond}, nil
 		},
 	}
 	or := newOptimizedRevisionProxyForTest(fake, quantization)
@@ -210,7 +212,7 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 	ctx := b.Context()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			if _, _, _, err := or.OptimizedRevision(ctx); err != nil {
+			if _, err := or.OptimizedRevision(ctx); err != nil {
 				b.FailNow()
 			}
 		}
@@ -227,13 +229,13 @@ func TestSingleFlightError(t *testing.T) {
 	// fails too, so the call returns an error. Both attempts invoke the function.
 	mockDS.
 		On("OptimizedRevision").
-		Return(one, time.Duration(0), "", errors.New("fail")).
+		Return(datastore.RevisionWithSchemaHashAndValidity{Revision: one}, errors.New("fail")).
 		Twice()
 
 	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
-	_, _, _, err := or.OptimizedRevision(ctx)
+	_, err := or.OptimizedRevision(ctx)
 	req.Error(err)
 	mockDS.AssertExpectations(t)
 }
@@ -246,12 +248,12 @@ func TestOptimizedRevisionRetriesAfterSharedFailure(t *testing.T) {
 
 	var calls atomic.Int32
 	fake := &fakeOptimizedRevisionDatastore{
-		fn: func(_ context.Context) (datastore.Revision, time.Duration, string, error) {
+		fn: func(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 			// Fail the first (shared) attempt; succeed on the direct retry.
 			if calls.Add(1) == 1 {
-				return datastore.NoRevision, 0, "", errors.New("transient failure")
+				return datastore.RevisionWithSchemaHashAndValidity{}, errors.New("transient failure")
 			}
-			return one, 0, "", nil
+			return datastore.RevisionWithSchemaHashAndValidity{Revision: one}, nil
 		},
 	}
 	or := newOptimizedRevisionProxyForTest(fake, 0)
@@ -259,7 +261,8 @@ func TestOptimizedRevisionRetriesAfterSharedFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
-	res, _, _, err := or.OptimizedRevision(ctx)
+	resResult, err := or.OptimizedRevision(ctx)
+	res := resResult.Revision
 	req.NoError(err)
 	req.True(one.Equal(res), "expected the direct retry to succeed")
 	req.Equal(int32(2), calls.Load(), "expected one shared attempt and one direct retry")
@@ -275,11 +278,11 @@ func TestOptimizedRevisionTimeout(t *testing.T) {
 		req := require.New(t)
 
 		fake := &fakeOptimizedRevisionDatastore{
-			fn: func(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+			fn: func(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 				// Simulate a hung datastore call that only unblocks when its context is
 				// cancelled (as pgx does once a deadline is present on the context).
 				<-ctx.Done()
-				return datastore.NoRevision, 0, "", ctx.Err()
+				return datastore.RevisionWithSchemaHashAndValidity{}, ctx.Err()
 			},
 		}
 		or := newOptimizedRevisionProxyForTest(fake, 0)
@@ -288,7 +291,7 @@ func TestOptimizedRevisionTimeout(t *testing.T) {
 
 		var calls atomic.Int32
 		baseFn := fake.fn
-		fake.fn = func(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+		fake.fn = func(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 			calls.Add(1)
 			return baseFn(ctx)
 		}
@@ -296,7 +299,7 @@ func TestOptimizedRevisionTimeout(t *testing.T) {
 		// The caller intentionally has no deadline of its own; the shared timeout and
 		// the fallback timeout must together bound the call. If they fail to, every
 		// goroutine in the bubble is durably blocked and synctest fails the test.
-		_, _, _, err := or.OptimizedRevision(t.Context())
+		_, err := or.OptimizedRevision(t.Context())
 		req.Error(err, "hung revision call must return an error rather than block forever")
 
 		// Both the shared attempt and the direct retry must have been attempted.
@@ -304,11 +307,12 @@ func TestOptimizedRevisionTimeout(t *testing.T) {
 
 		// The singleflight key must have been released so a subsequent call computes a
 		// fresh result rather than re-attaching to the dead one.
-		fake.fn = func(_ context.Context) (datastore.Revision, time.Duration, string, error) {
-			return one, 0, "", nil
+		fake.fn = func(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+			return datastore.RevisionWithSchemaHashAndValidity{Revision: one}, nil
 		}
 
-		res, _, _, err := or.OptimizedRevision(t.Context())
+		resResult, err := or.OptimizedRevision(t.Context())
+		res := resResult.Revision
 		req.NoError(err)
 		req.True(one.Equal(res), "expected a fresh successful call after the hung call timed out")
 	})
@@ -330,12 +334,12 @@ func TestOptimizedRevisionDirectRetrySeesCallerDeadlineThroughSingleflightProxy(
 	var retryDeadline time.Time
 	var retryHasDeadline bool
 	fake := &fakeOptimizedRevisionDatastore{
-		fn: func(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+		fn: func(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 			if calls.Add(1) == 1 {
-				return datastore.NoRevision, 0, "", errors.New("transient failure")
+				return datastore.RevisionWithSchemaHashAndValidity{}, errors.New("transient failure")
 			}
 			retryDeadline, retryHasDeadline = ctx.Deadline()
-			return one, 0, "", nil
+			return datastore.RevisionWithSchemaHashAndValidity{Revision: one}, nil
 		},
 	}
 	or := newOptimizedRevisionProxyForTest(fake, 0)
@@ -346,7 +350,8 @@ func TestOptimizedRevisionDirectRetrySeesCallerDeadlineThroughSingleflightProxy(
 	ctx, cancel := context.WithTimeout(t.Context(), callerTimeout)
 	defer cancel()
 
-	res, _, _, err := ds.OptimizedRevision(ctx)
+	resResult, err := ds.OptimizedRevision(ctx)
+	res := resResult.Revision
 	req.NoError(err)
 	req.True(one.Equal(res))
 	req.Equal(int32(2), calls.Load(), "expected one shared attempt and one direct retry")

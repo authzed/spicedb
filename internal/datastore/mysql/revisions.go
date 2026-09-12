@@ -76,15 +76,19 @@ const (
 		) as unknown;`
 )
 
-func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	var rev uint64
 	var validForNanos time.Duration
 	var schemaHash []byte
 	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQuery).
 		Scan(&rev, &validForNanos, &schemaHash); err != nil {
-		return datastore.NoRevision, 0, "", fmt.Errorf(errRevision, err)
+		return datastore.RevisionWithSchemaHashAndValidity{}, fmt.Errorf(errRevision, err)
 	}
-	return revisions.NewForTransactionID(rev), validForNanos, string(schemaHash), nil
+	return datastore.RevisionWithSchemaHashAndValidity{
+		Revision:   revisions.NewForTransactionID(rev),
+		ValidFor:   validForNanos,
+		SchemaHash: string(schemaHash),
+	}, nil
 }
 
 func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {

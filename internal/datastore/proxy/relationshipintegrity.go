@@ -202,7 +202,7 @@ func (r *relationshipIntegrityProxy) HeadRevision(ctx context.Context) (datastor
 	return r.ds.HeadRevision(ctx)
 }
 
-func (r *relationshipIntegrityProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (r *relationshipIntegrityProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	return r.ds.OptimizedRevision(ctx)
 }
 

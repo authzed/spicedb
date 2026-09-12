@@ -2,7 +2,6 @@ package proxy_test
 
 import (
 	"context"
-	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/mock"
@@ -53,9 +52,9 @@ func (dm *MockDatastore) ReadWriteTx(
 	return args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, time.Duration, string, error) {
+func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	args := dm.Called()
-	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.Get(2).(string), args.Error(3)
+	return args.Get(0).(datastore.RevisionWithSchemaHashAndValidity), args.Error(1)
 }
 
 func (dm *MockDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {

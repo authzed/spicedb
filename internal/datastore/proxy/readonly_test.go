@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -49,6 +48,7 @@ func TestRWOperationErrors(t *testing.T) {
 	rev, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tuple.MustParse("user:test#boss@user:boss"))
 	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)
+	delegate.AssertExpectations(t)
 }
 
 func TestReadonlyUnwrap(t *testing.T) {
@@ -57,6 +57,7 @@ func TestReadonlyUnwrap(t *testing.T) {
 
 	unwrapped := ds.(datastore.UnwrappableDatastore).Unwrap()
 	require.Equal(t, delegate, unwrapped)
+	delegate.AssertExpectations(t)
 }
 
 var expectedRevision = revisions.NewForTransactionID(123)
@@ -83,11 +84,11 @@ func TestOptimizedRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	delegate.On("OptimizedRevision").Return(expectedRevision, time.Duration(0), "", nil).Times(1)
+	delegate.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: expectedRevision}, nil).Times(1)
 
-	result, _, _, err := ds.OptimizedRevision(ctx)
+	result, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)
-	require.Equal(expectedRevision, result)
+	require.Equal(expectedRevision, result.Revision)
 	delegate.AssertExpectations(t)
 }
 

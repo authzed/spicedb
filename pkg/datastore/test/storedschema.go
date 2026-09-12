@@ -757,9 +757,9 @@ func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	expectedFirstHash, err := generator.ComputeSchemaHash(firstDefs)
 	require.NoError(err)
 
-	_, _, firstHash, err := ds.OptimizedRevision(ctx)
+	resultAfterFirst, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)
-	require.Equal(expectedFirstHash, firstHash,
+	require.Equal(expectedFirstHash, resultAfterFirst.SchemaHash,
 		"OptimizedRevision should return the schema hash matching the written schema")
 
 	// Write a different schema.
@@ -774,11 +774,11 @@ func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 	expectedSecondHash, err := generator.ComputeSchemaHash(secondDefs)
 	require.NoError(err)
 
-	_, _, secondHash, err := ds.OptimizedRevision(ctx)
+	resultAfterSecond, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)
-	require.Equal(expectedSecondHash, secondHash,
+	require.Equal(expectedSecondHash, resultAfterSecond.SchemaHash,
 		"OptimizedRevision should return the updated schema hash after a schema change")
-	require.NotEqual(firstHash, secondHash,
+	require.NotEqual(resultAfterFirst.SchemaHash, resultAfterSecond.SchemaHash,
 		"OptimizedRevision schema hashes should differ after writing a different schema")
 }
 

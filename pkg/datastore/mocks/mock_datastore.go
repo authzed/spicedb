@@ -12,7 +12,6 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	time "time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	datastore "github.com/authzed/spicedb/pkg/datastore"
@@ -795,14 +794,12 @@ func (mr *MockReadOnlyDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockReadOnlyDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (m *MockReadOnlyDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(time.Duration)
-	ret2, _ := ret[2].(string)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // OptimizedRevision indicates an expected call of OptimizedRevision.
@@ -1013,14 +1010,12 @@ func (mr *MockDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (m *MockDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(time.Duration)
-	ret2, _ := ret[2].(string)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // OptimizedRevision indicates an expected call of OptimizedRevision.
@@ -1375,14 +1370,12 @@ func (mr *MockSQLDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockSQLDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (m *MockSQLDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(time.Duration)
-	ret2, _ := ret[2].(string)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // OptimizedRevision indicates an expected call of OptimizedRevision.
@@ -1656,14 +1649,12 @@ func (mr *MockStrictReadDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockStrictReadDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (m *MockStrictReadDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(time.Duration)
-	ret2, _ := ret[2].(string)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // OptimizedRevision indicates an expected call of OptimizedRevision.
@@ -1894,14 +1885,12 @@ func (mr *MockStartableDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockStartableDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (m *MockStartableDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(time.Duration)
-	ret2, _ := ret[2].(string)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // OptimizedRevision indicates an expected call of OptimizedRevision.
@@ -2146,14 +2135,12 @@ func (mr *MockRepairableDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
 }
 
 // OptimizedRevision mocks base method.
-func (m *MockRepairableDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (m *MockRepairableDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
-	ret0, _ := ret[0].(datastore.Revision)
-	ret1, _ := ret[1].(time.Duration)
-	ret2, _ := ret[2].(string)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // OptimizedRevision indicates an expected call of OptimizedRevision.

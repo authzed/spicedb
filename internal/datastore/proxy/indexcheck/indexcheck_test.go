@@ -164,9 +164,9 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 	})
 
 	t.Run("OptimizedRevision", func(t *testing.T) {
-		rev, _, _, err := proxy.OptimizedRevision(t.Context())
+		result, err := proxy.OptimizedRevision(t.Context())
 		require.NoError(t, err)
-		require.Nil(t, rev)
+		require.Nil(t, result.Revision)
 	})
 
 	t.Run("CheckRevision", func(t *testing.T) {

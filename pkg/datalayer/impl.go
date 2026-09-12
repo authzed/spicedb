@@ -181,18 +181,18 @@ func (d *defaultDataLayer) ReadWriteTx(ctx context.Context, fn TxUserFunc, opts 
 }
 
 func (d *defaultDataLayer) OptimizedRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
-	rev, _, schemaHash, err := d.ds.OptimizedRevision(ctx)
+	result, err := d.ds.OptimizedRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, NoSchemaHashInLegacyMode, err
 	}
 
-	if d.schemaMode.ReadsFromNew() && schemaHash != "" {
-		hash := SchemaHash(schemaHash)
+	if d.schemaMode.ReadsFromNew() && result.SchemaHash != "" {
+		hash := SchemaHash(result.SchemaHash)
 		d.observeSchemaHash(hash)
-		return rev, hash, nil
+		return result.Revision, hash, nil
 	}
 
-	return rev, NoSchemaHashInLegacyMode, nil
+	return result.Revision, NoSchemaHashInLegacyMode, nil
 }
 
 func (d *defaultDataLayer) HeadRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
@@ -439,11 +439,11 @@ func (r *readOnlyDatastoreAdapter) ReadWriteTx(_ context.Context, _ TxUserFunc, 
 }
 
 func (r *readOnlyDatastoreAdapter) OptimizedRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
-	rev, _, _, err := r.ds.OptimizedRevision(ctx)
+	result, err := r.ds.OptimizedRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, NoSchemaHashInLegacyMode, err
 	}
-	return rev, NoSchemaHashInLegacyMode, nil
+	return result.Revision, NoSchemaHashInLegacyMode, nil
 }
 
 func (r *readOnlyDatastoreAdapter) HeadRevision(ctx context.Context) (datastore.Revision, SchemaHash, error) {
