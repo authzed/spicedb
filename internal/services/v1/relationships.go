@@ -10,6 +10,8 @@ import (
 	"buf.build/go/protovalidate"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -511,10 +513,46 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxDeleteRelationshipsLimit)))
 	}
 
+	// A cursor enables resumable, cursored deletion. It is only meaningful in the
+	// partial-deletion mode, so it requires a limit and partial deletions. The
+	// request hash namespaces the cursor to this API, so a cursor from
+	// ReadRelationships or LookupResources is rejected here (and vice versa).
+	drRequestHash, err := computeDeleteRelationshipsRequestHash(req)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	var startCursor options.Cursor
+	if req.OptionalCursor != nil {
+		if req.OptionalLimit == 0 {
+			return nil, ps.rewriteError(ctx, status.Errorf(codes.InvalidArgument, "optional_cursor requires optional_limit to be set"))
+		}
+		if !req.OptionalAllowPartialDeletions {
+			return nil, ps.rewriteError(ctx, status.Errorf(codes.InvalidArgument, "optional_cursor requires optional_allow_partial_deletions to be true"))
+		}
+
+		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, drRequestHash)
+		if err != nil {
+			return nil, ps.rewriteError(ctx, err)
+		}
+
+		if len(decodedCursor.Sections) != 1 {
+			return nil, ps.rewriteError(ctx, NewInvalidCursorErr("did not find expected resume relationship"))
+		}
+
+		parsed, err := tuple.Parse(decodedCursor.Sections[0])
+		if err != nil {
+			return nil, ps.rewriteError(ctx, NewInvalidCursorErr("could not parse resume relationship"))
+		}
+
+		startCursor = options.ToCursor(parsed)
+	}
+
 	dl := datalayer.MustFromContext(ctx)
 	deletionProgress := v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE
 
 	var deletedRelationshipCount uint64
+	var afterDeleteCursor options.Cursor
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
 		// Extract schema reader for validation.
 		sr, err := rwt.ReadSchema(ctx)
@@ -578,22 +616,53 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		// Delete with the specified limit.
 		if req.OptionalLimit > 0 {
 			deleteLimit := uint64(req.OptionalLimit)
-			drc, reachedLimit, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
-			if err != nil {
-				return err
+			delOpts := []options.DeleteOptionsOption{options.WithDeleteLimit(&deleteLimit)}
+
+			// Partial deletion is the batched-delete mode; on datastores that
+			// support it, run a cursored delete so each batch resumes after the
+			// previous one instead of rescanning already-deleted relationships.
+			useCursor := req.OptionalAllowPartialDeletions
+			if useCursor {
+				delOpts = append(delOpts, options.WithCursoredDelete(true))
+				if startCursor != nil {
+					delOpts = append(delOpts, options.WithDeleteAfter(startCursor))
+				}
 			}
 
-			if reachedLimit {
+			result, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, delOpts...)
+			if err != nil {
+				if useCursor && errors.Is(err, datastore.ErrCursoredDeleteNotSupported) {
+					// The client explicitly supplied a cursor, but this datastore
+					// cannot resume a cursored deletion; surface the error.
+					if req.OptionalCursor != nil {
+						return err
+					}
+
+					// No cursor was supplied: fall back to a non-cursored limited
+					// delete, preserving behavior on datastores without support.
+					result, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
+				}
+				if err != nil {
+					return err
+				}
+			}
+
+			if result.LimitReached {
 				deletionProgress = v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL
 			}
 
-			deletedRelationshipCount = drc
+			deletedRelationshipCount = result.NumDeleted
+			afterDeleteCursor = result.Cursor
 			return nil
 		}
 
 		// Otherwise, kick off an unlimited deletion.
-		deletedRelationshipCount, _, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
-		return err
+		result, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		if err != nil {
+			return err
+		}
+		deletedRelationshipCount = result.NumDeleted
+		return nil
 	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -604,11 +673,29 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	return &v1.DeleteRelationshipsResponse{
+	response := &v1.DeleteRelationshipsResponse{
 		DeletedAt:                 zedToken,
 		DeletionProgress:          deletionProgress,
 		RelationshipsDeletedCount: deletedRelationshipCount,
-	}, nil
+	}
+
+	// When a cursored, partial deletion left more relationships to remove, hand
+	// back a cursor so the caller can resume after the last relationship deleted.
+	if deletionProgress == v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL && afterDeleteCursor != nil {
+		dispatchCursor := &dispatchv1.Cursor{
+			DispatchVersion: 1,
+			Sections:        []string{tuple.StringWithoutCaveatOrExpiration(*options.ToRelationship(afterDeleteCursor))},
+		}
+
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, drRequestHash, revision, datalayer.NoSchemaHashInTransaction, nil)
+		if err != nil {
+			return nil, ps.rewriteError(ctx, err)
+		}
+
+		response.AfterResultCursor = encodedCursor
+	}
+
+	return response, nil
 }
 
 var emptyPrecondition = &v1.Precondition{}

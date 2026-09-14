@@ -7,6 +7,11 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datalayer"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 func TestReadRelationshipsHashStability(t *testing.T) {
@@ -808,4 +813,53 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 			require.Equal(t, tc.expectedHash, hash)
 		})
 	}
+}
+
+// TestDeleteRelationshipsCursorHashNamespacing verifies that a DeleteRelationships
+// cursor is namespaced away from ReadRelationships/LookupResources cursors: the
+// request hashes differ even for equivalent filters, and a cursor minted for one
+// API is rejected on decode by another. This prevents a delete cursor from being
+// replayed against a read (or LR), and vice versa.
+func TestDeleteRelationshipsCursorHashNamespacing(t *testing.T) {
+	require := require.New(t)
+
+	filter := &v1.RelationshipFilter{
+		ResourceType:       "document",
+		OptionalResourceId: "doc1",
+		OptionalRelation:   "viewer",
+	}
+
+	delHash, err := computeDeleteRelationshipsRequestHash(&v1.DeleteRelationshipsRequest{
+		RelationshipFilter: filter,
+		OptionalLimit:      100,
+	})
+	require.NoError(err)
+
+	readHash, err := computeReadRelationshipsRequestHash(&v1.ReadRelationshipsRequest{
+		RelationshipFilter: filter,
+		OptionalLimit:      100,
+	})
+	require.NoError(err)
+
+	require.NotEqual(delHash, readHash, "delete and read cursor hashes must differ for equivalent filters")
+
+	// A cursor minted with the delete hash must not decode under the read hash.
+	dispatchCursor := &dispatchv1.Cursor{DispatchVersion: 1, Sections: []string{"document:doc1#viewer@user:alice"}}
+	rev := revisions.NewForTransactionID(1)
+
+	deleteCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, delHash, rev, datalayer.NoSchemaHashInTransaction, nil)
+	require.NoError(err)
+
+	_, _, err = cursor.DecodeToDispatchCursor(deleteCursor, delHash)
+	require.NoError(err, "delete cursor must decode under its own hash")
+
+	_, _, err = cursor.DecodeToDispatchCursor(deleteCursor, readHash)
+	require.Error(err, "delete cursor must be rejected under the read hash")
+
+	// And a read cursor must not decode under the delete hash.
+	readCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, readHash, rev, datalayer.NoSchemaHashInTransaction, nil)
+	require.NoError(err)
+
+	_, _, err = cursor.DecodeToDispatchCursor(readCursor, delHash)
+	require.Error(err, "read cursor must be rejected under the delete hash")
 }
