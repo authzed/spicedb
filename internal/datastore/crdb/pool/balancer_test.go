@@ -3,6 +3,7 @@ package pool
 import (
 	"context"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -170,4 +171,43 @@ func TestNodeConnectionBalancerPrune(t *testing.T) {
 			require.ElementsMatch(t, tt.expectedGC, gcFromNodes)
 		})
 	}
+}
+
+// TestNodeConnectionBalancerPruneConcurrentHealthChanges verifies that the
+// balancer does not panic when the set of healthy nodes changes while it is
+// pruning.
+// Marking the only healthy node unhealthy between two reads of the healthy
+// node count used to divide by zero.
+func TestNodeConnectionBalancerPruneConcurrentHealthChanges(t *testing.T) {
+	tracker, err := NewNodeHealthChecker("")
+	require.NoError(t, err)
+	tracker.healthyNodes[1] = struct{}{}
+
+	pool := NewFakePool(9)
+	for range 3 {
+		pool.nodeForConn[NewFakeConn()] = 1
+	}
+
+	p := newNodeConnectionBalancer[*FakePoolConn[*FakeConn], *FakeConn](pool, tracker, 1*time.Minute)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for ctx.Err() == nil {
+			tracker.SetNodeHealth(1, true)
+			tracker.Lock()
+			delete(tracker.healthyNodes, 1)
+			tracker.Unlock()
+		}
+	}()
+
+	for range 100_000 {
+		p.mustPruneConnections(ctx)
+	}
+	cancel()
+	wg.Wait()
 }
