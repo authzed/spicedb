@@ -159,11 +159,10 @@ func (p *optimizedRevisionProxy) compute(ctx context.Context, localNow time.Time
 	p.mu.Lock()
 	var numToDrop uint
 	for _, candidate := range p.candidates {
-		if candidate.validThrough.Add(p.maxStaleness).Before(localNow) {
-			numToDrop++
-		} else {
+		if !candidate.validThrough.Add(p.maxStaleness).Before(localNow) {
 			break
 		}
+		numToDrop++
 	}
 
 	p.candidates = p.candidates[numToDrop:]
