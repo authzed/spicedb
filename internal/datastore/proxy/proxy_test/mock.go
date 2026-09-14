@@ -293,9 +293,9 @@ func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutati
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	args := dm.Called(filter)
-	return 0, false, args.Error(0)
+	return datastore.DeleteRelationshipsResult{}, args.Error(0)
 }
 
 func (dm *MockReadWriteTransaction) LegacyWriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {

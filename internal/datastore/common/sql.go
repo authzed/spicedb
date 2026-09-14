@@ -223,74 +223,118 @@ func (sqf SchemaQueryFilterer) TupleOrder(order options.SortOrder) SchemaQueryFi
 	return sqf
 }
 
-type nameAndValue struct {
-	name  string
-	value string
+// NameAndValue pairs a cursor column with its value from the cursor.
+type NameAndValue struct {
+	Name  string
+	Value string
 }
 
-func columnsAndValuesForSort(
+// CursorColumnsAndValues returns the ordered column/value pairs defining a
+// cursor for the given sort order.
+func CursorColumnsAndValues(
 	order options.SortOrder,
 	schema SchemaInformation,
 	cursor options.Cursor,
-) ([]nameAndValue, error) {
-	var columnNames []string
-
-	switch order {
-	case options.ByResource:
-		columnNames = schema.sortByResourceColumnOrderColumns()
-
-	case options.BySubject:
-		columnNames = schema.sortBySubjectColumnOrderColumns()
-
-	default:
-		return nil, spiceerrors.MustBugf("invalid sort order %v", order)
+) ([]NameAndValue, error) {
+	columnNames, err := schema.CursorColumns(order)
+	if err != nil {
+		return nil, err
 	}
 
-	nameAndValues := make([]nameAndValue, 0, len(columnNames))
+	nameAndValues := make([]NameAndValue, 0, len(columnNames))
 	for _, columnName := range columnNames {
 		switch columnName {
 		case schema.ColNamespace:
-			nameAndValues = append(nameAndValues, nameAndValue{
-				name:  columnName,
-				value: cursor.Resource.ObjectType,
-			})
-
+			nameAndValues = append(nameAndValues, NameAndValue{columnName, cursor.Resource.ObjectType})
 		case schema.ColObjectID:
-			nameAndValues = append(nameAndValues, nameAndValue{
-				name:  columnName,
-				value: cursor.Resource.ObjectID,
-			})
-
+			nameAndValues = append(nameAndValues, NameAndValue{columnName, cursor.Resource.ObjectID})
 		case schema.ColRelation:
-			nameAndValues = append(nameAndValues, nameAndValue{
-				name:  columnName,
-				value: cursor.Resource.Relation,
-			})
-
+			nameAndValues = append(nameAndValues, NameAndValue{columnName, cursor.Resource.Relation})
 		case schema.ColUsersetNamespace:
-			nameAndValues = append(nameAndValues, nameAndValue{
-				name:  columnName,
-				value: cursor.Subject.ObjectType,
-			})
-
+			nameAndValues = append(nameAndValues, NameAndValue{columnName, cursor.Subject.ObjectType})
 		case schema.ColUsersetObjectID:
-			nameAndValues = append(nameAndValues, nameAndValue{
-				name:  columnName,
-				value: cursor.Subject.ObjectID,
-			})
-
+			nameAndValues = append(nameAndValues, NameAndValue{columnName, cursor.Subject.ObjectID})
 		case schema.ColUsersetRelation:
-			nameAndValues = append(nameAndValues, nameAndValue{
-				name:  columnName,
-				value: cursor.Subject.Relation,
-			})
-
+			nameAndValues = append(nameAndValues, NameAndValue{columnName, cursor.Subject.Relation})
 		default:
 			return nil, spiceerrors.MustBugf("invalid column name %q", columnName)
 		}
 	}
 
 	return nameAndValues, nil
+}
+
+// CursorComparisonExpr builds the predicate selecting rows sorted strictly
+// after the cursor, rendered in the given form. Columns for which isStatic
+// reports true are omitted, as the caller's query already constrains them to a
+// single value. Returns a nil Sqlizer when every column is static.
+//
+// The form is a parameter rather than being read from
+// schema.PaginationFilterType because the cursored delete path deliberately
+// uses TupleComparison on CockroachDB, whose schema declares
+// ExpandedLogicComparison for reads.
+func CursorComparisonExpr(
+	schema SchemaInformation,
+	order options.SortOrder,
+	cursor options.Cursor,
+	form PaginationFilterType,
+	isStatic func(columnName string) bool,
+) (sq.Sqlizer, error) {
+	spiceerrors.DebugAssertNotNilf(cursor, "cursor cannot be nil")
+
+	columnsAndValues, err := CursorColumnsAndValues(order, schema, cursor)
+	if err != nil {
+		return nil, err
+	}
+
+	switch form {
+	case TupleComparison:
+		columnNames := make([]string, 0, len(columnsAndValues))
+		valueSlots := make([]any, 0, len(columnsAndValues))
+
+		for _, cav := range columnsAndValues {
+			if isStatic(cav.Name) {
+				continue
+			}
+			columnNames = append(columnNames, cav.Name)
+			valueSlots = append(valueSlots, cav.Value)
+		}
+
+		if len(columnNames) == 0 {
+			return nil, nil
+		}
+
+		comparisonTuple := "(" + strings.Join(columnNames, ",") + ") > (" +
+			strings.Repeat(",?", len(columnNames))[1:] + ")"
+		return sq.Expr(comparisonTuple, valueSlots...), nil
+
+	case ExpandedLogicComparison:
+		orClause := sq.Or{}
+
+		for index, cav := range columnsAndValues {
+			if isStatic(cav.Name) {
+				continue
+			}
+
+			andClause := sq.And{}
+			for _, previous := range columnsAndValues[0:index] {
+				if !isStatic(previous.Name) {
+					andClause = append(andClause, sq.Eq{previous.Name: previous.Value})
+				}
+			}
+
+			andClause = append(andClause, sq.Gt{cav.Name: cav.Value})
+			orClause = append(orClause, andClause)
+		}
+
+		if len(orClause) == 0 {
+			return nil, nil
+		}
+		return orClause, nil
+
+	default:
+		return nil, spiceerrors.MustBugf("invalid pagination filter type %v", form)
+	}
 }
 
 func (sqf SchemaQueryFilterer) MustAfter(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
@@ -302,58 +346,18 @@ func (sqf SchemaQueryFilterer) MustAfter(cursor options.Cursor, order options.So
 }
 
 func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
-	spiceerrors.DebugAssertNotNilf(cursor, "cursor cannot be nil")
-
 	// NOTE: The ordering of these columns can affect query performance, be aware when changing.
-	columnsAndValues, err := columnsAndValuesForSort(order, sqf.schema, cursor)
+	expr, err := CursorComparisonExpr(
+		sqf.schema, order, cursor,
+		sqf.schema.PaginationFilterType,
+		sqf.filteringColumnTracker.hasStaticValue,
+	)
 	if err != nil {
 		return sqf, err
 	}
 
-	switch sqf.schema.PaginationFilterType {
-	case TupleComparison:
-		// For performance reasons, remove any column names that have static values in the query.
-		columnNames := make([]string, 0, len(columnsAndValues))
-		valueSlots := make([]any, 0, len(columnsAndValues))
-		comparisonSlotCount := 0
-
-		for _, cav := range columnsAndValues {
-			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
-				columnNames = append(columnNames, cav.name)
-				valueSlots = append(valueSlots, cav.value)
-				comparisonSlotCount++
-			}
-		}
-
-		if comparisonSlotCount > 0 {
-			comparisonTuple := "(" + strings.Join(columnNames, ",") + ") > (" + strings.Repeat(",?", comparisonSlotCount)[1:] + ")"
-			sqf.queryBuilder = sqf.queryBuilder.Where(
-				comparisonTuple,
-				valueSlots...,
-			)
-		}
-
-	case ExpandedLogicComparison:
-		// For performance reasons, remove any column names that have static values in the query.
-		orClause := sq.Or{}
-
-		for index, cav := range columnsAndValues {
-			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
-				andClause := sq.And{}
-				for _, previous := range columnsAndValues[0:index] {
-					if !sqf.filteringColumnTracker.hasStaticValue(previous.name) {
-						andClause = append(andClause, sq.Eq{previous.name: previous.value})
-					}
-				}
-
-				andClause = append(andClause, sq.Gt{cav.name: cav.value})
-				orClause = append(orClause, andClause)
-			}
-		}
-
-		if len(orClause) > 0 {
-			sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
-		}
+	if expr != nil {
+		sqf.queryBuilder = sqf.queryBuilder.Where(expr)
 	}
 
 	return sqf, nil
@@ -370,7 +374,7 @@ func (sqf SchemaQueryFilterer) MustBeforeOrEqual(cursor options.Cursor, order op
 func (sqf SchemaQueryFilterer) BeforeOrEqual(cursor options.Cursor, order options.SortOrder) (SchemaQueryFilterer, error) {
 	spiceerrors.DebugAssertNotNilf(cursor, "cursor cannot be nil")
 
-	columnsAndValues, err := columnsAndValuesForSort(order, sqf.schema, cursor)
+	columnsAndValues, err := CursorColumnsAndValues(order, sqf.schema, cursor)
 	if err != nil {
 		return sqf, err
 	}
@@ -382,9 +386,9 @@ func (sqf SchemaQueryFilterer) BeforeOrEqual(cursor options.Cursor, order option
 		comparisonSlotCount := 0
 
 		for _, cav := range columnsAndValues {
-			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
-				columnNames = append(columnNames, cav.name)
-				valueSlots = append(valueSlots, cav.value)
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.Name) {
+				columnNames = append(columnNames, cav.Name)
+				valueSlots = append(valueSlots, cav.Value)
 				comparisonSlotCount++
 			}
 		}
@@ -405,25 +409,25 @@ func (sqf SchemaQueryFilterer) BeforeOrEqual(cursor options.Cursor, order option
 		// (a < 1) OR (a = 1 AND b < 2) OR (a = 1 AND b = 2 AND c <= 3)
 		lastNonStaticIdx := -1
 		for i := len(columnsAndValues) - 1; i >= 0; i-- {
-			if !sqf.filteringColumnTracker.hasStaticValue(columnsAndValues[i].name) {
+			if !sqf.filteringColumnTracker.hasStaticValue(columnsAndValues[i].Name) {
 				lastNonStaticIdx = i
 				break
 			}
 		}
 
 		for index, cav := range columnsAndValues {
-			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.Name) {
 				andClause := sq.And{}
 				for _, previous := range columnsAndValues[0:index] {
-					if !sqf.filteringColumnTracker.hasStaticValue(previous.name) {
-						andClause = append(andClause, sq.Eq{previous.name: previous.value})
+					if !sqf.filteringColumnTracker.hasStaticValue(previous.Name) {
+						andClause = append(andClause, sq.Eq{previous.Name: previous.Value})
 					}
 				}
 
 				if index == lastNonStaticIdx {
-					andClause = append(andClause, sq.LtOrEq{cav.name: cav.value})
+					andClause = append(andClause, sq.LtOrEq{cav.Name: cav.Value})
 				} else {
-					andClause = append(andClause, sq.Lt{cav.name: cav.value})
+					andClause = append(andClause, sq.Lt{cav.Name: cav.Value})
 				}
 				orClause = append(orClause, andClause)
 			}

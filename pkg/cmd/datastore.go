@@ -45,6 +45,17 @@ func NewDatastoreCommand(programName string) (*cobra.Command, error) {
 	util.RegisterCommonFlags(repairCmd)
 	datastoreCmd.AddCommand(repairCmd)
 
+	deleteRelsFlags := new(deleteRelationshipsFlags)
+	deleteRelsCmd := NewDeleteRelationshipsCommand(programName, cfg, deleteRelsFlags)
+	if err := dscmd.RegisterDatastoreFlagsWithPrefix(deleteRelsCmd.Flags(), "", cfg); err != nil {
+		return nil, err
+	}
+	if err := RegisterDeleteRelationshipsFlags(deleteRelsCmd, deleteRelsFlags); err != nil {
+		return nil, err
+	}
+	util.RegisterCommonFlags(deleteRelsCmd)
+	datastoreCmd.AddCommand(deleteRelsCmd)
+
 	headCmd := NewHeadCommand(programName)
 	RegisterHeadFlags(headCmd)
 	datastoreCmd.AddCommand(headCmd)

@@ -136,18 +136,25 @@ func TestManCommandExecution(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = oldStdout }()
 
+	// Drain the pipe concurrently: the man page can exceed the OS pipe buffer
+	// (~64KB), so the reader must run while the command writes or the write
+	// blocks forever waiting for a drain that never starts.
+	outputCh := make(chan string, 1)
+	go func() {
+		var buf bytes.Buffer
+		// A read failure yields empty output, which the Contains checks below
+		// catch; asserting here is unsafe from a non-test goroutine.
+		_, _ = buf.ReadFrom(r)
+		outputCh <- buf.String()
+	}()
+
 	// Execute man command
 	err = manCmd.RunE(manCmd, []string{})
 	require.NoError(t, err)
 
-	// Close writer and read output
+	// Close writer and collect the drained output
 	w.Close()
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(r)
-	require.NoError(t, err)
-
-	// Verify output contains manpage content
-	output := buf.String()
+	output := <-outputCh
 	require.Contains(t, output, "spicedb")
 	require.Contains(t, output, "serve")
 }

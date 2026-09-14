@@ -353,6 +353,11 @@ func (cds *crdbDatastore) EngineName() string {
 	return Engine
 }
 
+// SupportsCursoredDelete implements datastore.CursoredDeleteDatastore.
+func (cds *crdbDatastore) SupportsCursoredDelete() bool {
+	return true
+}
+
 func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,

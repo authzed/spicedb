@@ -1203,7 +1203,7 @@ func TestReadWriteTransaction_AllMethods(t *testing.T) {
 			tuple.Create(tuple.MustParse("resource:bar#viewer@user:fred")),
 		}))
 
-		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType:       "resource",
 			OptionalResourceId: "bar",
 		})

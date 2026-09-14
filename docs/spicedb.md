@@ -50,10 +50,138 @@ Operations against the configured datastore
 
 ### Children commands
 
+- [spicedb datastore delete-relationships](#reference-spicedb-datastore-delete-relationships)	 - bulk deletes relationships matching a filter
 - [spicedb datastore gc](#reference-spicedb-datastore-gc)	 - executes garbage collection
 - [spicedb datastore head](#reference-spicedb-datastore-head)	 - compute the head (latest) database migration revision available
 - [spicedb datastore migrate](#reference-spicedb-datastore-migrate)	 - execute datastore schema migrations
 - [spicedb datastore repair](#reference-spicedb-datastore-repair)	 - executes datastore repair
+
+
+## Reference: `spicedb datastore delete-relationships`
+
+Deletes every relationship matching a filter, in committed batches.
+
+Every filter flag is required. Pass <any> to leave a component
+unconstrained; an omitted flag is an error, never a wildcard, so a forgotten
+flag cannot widen the deletion. Note that <any> is not "*": "*" is a
+legitimate subject object id (the wildcard subject), so passing it to
+--subject-id matches only wildcard relationships. Pass ... to
+--subject-relation to match subjects that have no relation.
+
+On CockroachDB the deletion advances a primary-key cursor so each batch resumes
+where the last one stopped. On other engines it falls back to a slower loop that
+rescans from the start of the range on every batch.
+
+Relationships written while the deletion runs, whose keys sort before the
+current cursor, are collected by a repeat sweep. Under sustained writes matching
+the filter that sweep will not converge; pause writes to the affected filter for
+a complete deletion.
+
+Each batch logs its cursor, so an interrupted run can be resumed with
+--resume-cursor taken straight from the log.
+
+Example:
+
+  spicedb datastore delete-relationships \
+    --datastore-engine=cockroachdb \
+    --datastore-conn-uri="postgresql://..." \
+    --resource-type=document \
+    --resource-id='<any>' \
+    --resource-id-prefix='<any>' \
+    --relation=viewer \
+    --subject-type=user \
+    --subject-id='<any>' \
+    --subject-relation='<any>'
+
+
+```
+spicedb datastore delete-relationships [flags]
+```
+
+### Options
+
+```
+      --batch-size uint                                                       maximum relationships deleted per transaction (default 1000)
+      --datastore-allowed-migrations stringArray                              migration levels that will not fail the health check (in addition to the current head migration)
+      --datastore-bootstrap-files strings                                     bootstrap data yaml files to load
+      --datastore-bootstrap-overwrite                                         overwrite any existing data with bootstrap data (this can be quite slow)
+      --datastore-bootstrap-timeout duration                                  maximum duration before timeout for the bootstrap data to be written (default 10s)
+      --datastore-conn-max-lifetime-jitter duration                           waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
+      --datastore-conn-pool-read-healthcheck-interval duration                amount of time between connection health checks in a remote datastore's connection pool (default 30s)
+      --datastore-conn-pool-read-max-idletime duration                        maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
+      --datastore-conn-pool-read-max-lifetime duration                        maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
+      --datastore-conn-pool-read-max-lifetime-jitter duration                 waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
+      --datastore-conn-pool-read-max-open int                                 number of concurrent connections open in a remote datastore's connection pool (default 20)
+      --datastore-conn-pool-read-min-open int                                 number of minimum concurrent connections open in a remote datastore's connection pool (default 20)
+      --datastore-conn-pool-write-healthcheck-interval duration               amount of time between connection health checks in a remote datastore's connection pool (default 30s)
+      --datastore-conn-pool-write-max-idletime duration                       maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
+      --datastore-conn-pool-write-max-lifetime duration                       maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
+      --datastore-conn-pool-write-max-lifetime-jitter duration                waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
+      --datastore-conn-pool-write-max-open int                                number of concurrent connections open in a remote datastore's connection pool (default 10)
+      --datastore-conn-pool-write-min-open int                                number of minimum concurrent connections open in a remote datastore's connection pool (default 10)
+      --datastore-conn-uri string                                             connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")
+      --datastore-connect-rate duration                                       rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
+      --datastore-connection-balancing                                        enable connection balancing between database nodes (CockroachDB driver only) (default true)
+      --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
+      --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
+      --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
+      --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
+      --datastore-follower-read-delay-duration duration                       amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
+      --datastore-gc-interval duration                                        how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
+      --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
+      --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
+      --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
+      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
+      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
+      --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
+      --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
+      --datastore-read-replica-conn-pool-read-max-lifetime-jitter duration    waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
+      --datastore-read-replica-conn-pool-read-max-open int                    number of concurrent connections open in a remote datastore's connection pool (default 20)
+      --datastore-read-replica-conn-pool-read-min-open int                    number of minimum concurrent connections open in a remote datastore's connection pool (default 20)
+      --datastore-read-replica-conn-uri stringArray                           connection string used by remote datastores for read replicas (e.g. "postgres://postgres:password@localhost:5432/spicedb"). (Postgres and MySQL drivers only).
+      --datastore-read-replica-credentials-provider-name string               retrieve datastore credentials dynamically using ("aws-iam")
+      --datastore-readonly                                                    set the service to read-only mode
+      --datastore-relationship-integrity-current-key-filename string          current key filename for relationship integrity checks
+      --datastore-relationship-integrity-current-key-id string                current key id for relationship integrity checks
+      --datastore-relationship-integrity-enabled                              enables relationship integrity checks. (CockroachDB driver only)
+      --datastore-relationship-integrity-expired-keys stringArray             config for expired keys for relationship integrity checks
+      --datastore-revision-quantization-interval duration                     boundary interval to which to round the quantized revision (default 5s)
+      --datastore-revision-quantization-max-staleness-percent float           float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
+      --datastore-spanner-emulator-host string                                URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
+      --datastore-spanner-metrics string                                      configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel") (default "otel")
+      --datastore-tx-overlap-key string                                       static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; CockroachDB driver only) (default "key")
+      --datastore-tx-overlap-strategy string                                  strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (CockroachDB driver only - see https://spicedb.dev/d/crdb-overlap for details) (default "static")
+      --datastore-watch-buffer-length uint16                                  how large the watch buffer should be before blocking (default 1024)
+      --datastore-watch-buffer-write-timeout duration                         how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
+      --datastore-watch-change-buffer-maximum-size string                     how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
+      --datastore-watch-connect-timeout duration                              how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
+      --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
+      --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
+      --relation string                                                       relation to match, or <any>
+      --resource-id string                                                    exact resource id to match, or <any>
+      --resource-id-prefix string                                             resource id prefix to match, or <any>
+      --resource-type string                                                  resource type to match, or <any>
+      --resume-cursor string                                                  relationship to resume after, as printed by a previous run
+      --sleep-between-batches duration                                        pause between batches, to bound datastore load
+      --subject-id string                                                     subject id to match, or <any> ("*" matches only the wildcard subject)
+      --subject-relation string                                               subject relation to match, ... for subjects with no relation, or <any>
+      --subject-type string                                                   subject type to match, or <any>
+      --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
+      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
+      --yes                                                                   skip the confirmation prompt
+```
+
+### Options Inherited From Parent Flags
+
+```
+      --log-format string    format of logs ("auto", "console", "json") (default "auto")
+      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check   if true, skips checking for new SpiceDB releases
+```
+
 
 
 ## Reference: `spicedb datastore gc`

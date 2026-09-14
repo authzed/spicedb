@@ -143,16 +143,24 @@ func (rwt *memdbReadWriteTx) toCaveatReference(mutation tuple.RelationshipUpdate
 	return cr
 }
 
-func (rwt *memdbReadWriteTx) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (rwt *memdbReadWriteTx) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
 	if err != nil {
-		return 0, false, err
+		return datastore.DeleteRelationshipsResult{}, err
 	}
 
 	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	if err := delOpts.ValidateCursoredDelete(); err != nil {
+		return datastore.DeleteRelationshipsResult{}, err
+	}
+
+	if delOpts.IsCursoredDelete() {
+		return datastore.DeleteRelationshipsResult{}, datastore.NewCursoredDeleteNotSupportedErr(Engine)
+	}
+
 	var delLimit uint64
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
 		delLimit = *delOpts.DeleteLimit
@@ -162,16 +170,16 @@ func (rwt *memdbReadWriteTx) DeleteRelationships(_ context.Context, filter *v1.R
 }
 
 // caller must already hold the concurrent access lock
-func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.RelationshipFilter, limit uint64) (uint64, bool, error) {
+func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.RelationshipFilter, limit uint64) (datastore.DeleteRelationshipsResult, error) {
 	// Create an iterator to find the relevant tuples
 	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
 	if err != nil {
-		return 0, false, err
+		return datastore.DeleteRelationshipsResult{}, err
 	}
 
 	bestIter, err := iteratorForFilter(tx, dsFilter)
 	if err != nil {
-		return 0, false, err
+		return datastore.DeleteRelationshipsResult{}, err
 	}
 	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter))
 
@@ -183,7 +191,7 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
 		rt, err := row.(*relationship).Relationship()
 		if err != nil {
-			return 0, false, err
+			return datastore.DeleteRelationshipsResult{}, err
 		}
 		mutations = append(mutations, tuple.Delete(rt))
 		counter++
@@ -194,7 +202,14 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 		}
 	}
 
-	return counter, metLimit, rwt.write(tx, mutations...)
+	if err := rwt.write(tx, mutations...); err != nil {
+		return datastore.DeleteRelationshipsResult{}, err
+	}
+
+	return datastore.DeleteRelationshipsResult{
+		NumDeleted:   counter,
+		LimitReached: metLimit,
+	}, nil
 }
 
 func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
@@ -334,7 +349,7 @@ func (rwt *memdbReadWriteTx) LegacyDeleteNamespaces(_ context.Context, nsNames [
 
 		if delOption == datastore.DeleteNamespacesAndRelationships {
 			// Delete the relationships from the namespace
-			if _, _, err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
+			if _, err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
 				ResourceType: nsName,
 			}, 0); err != nil {
 				return fmt.Errorf("unable to delete relationships from deleted namespace: %w", err)
