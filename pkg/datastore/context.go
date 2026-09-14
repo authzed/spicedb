@@ -48,8 +48,13 @@ func (p *ctxProxy) IsStrictReadModeEnabled() bool {
 	return false
 }
 
+// OptimizedRevision deliberately passes the context through unchanged rather
+// than severing it like the other read methods do.
+//
+// Deadline management for this call is owned by the optimized-revision proxy
+// layered above this one (see proxy.NewOptimizedRevisionProxy).
 func (p *ctxProxy) OptimizedRevision(ctx context.Context) (RevisionWithSchemaHashAndValidity, error) {
-	return p.delegate.OptimizedRevision(context.WithoutCancel(ctx))
+	return p.delegate.OptimizedRevision(ctx)
 }
 
 func (p *ctxProxy) CheckRevision(ctx context.Context, revision Revision) error {

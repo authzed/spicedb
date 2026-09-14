@@ -1,11 +1,16 @@
 package datastore
 
 import (
+	"context"
 	"os"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestDefaults(t *testing.T) {
@@ -124,4 +129,55 @@ func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 	namespaceNames := []string{namespaces[0].Definition.Name, namespaces[1].Definition.Name}
 	require.Contains(t, namespaceNames, "user")
 	require.Contains(t, namespaceNames, "repository")
+}
+
+// hangingOptimizedRevisionDatastore is a minimal datastore whose OptimizedRevision blocks until its context is cancelled.
+type hangingOptimizedRevisionDatastore struct {
+	datastore.Datastore
+	sawDeadline atomic.Bool
+}
+
+func (h *hangingOptimizedRevisionDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+	if _, ok := ctx.Deadline(); ok {
+		h.sawDeadline.Store(true)
+	}
+	<-ctx.Done()
+	return datastore.RevisionWithSchemaHashAndValidity{}, ctx.Err()
+}
+
+// TestOptimizedRevisionTimeoutReachesSQLDatastore drives the real NewDatastore
+// proxy stack against a fake engine wired the way the SQL engines are: the
+// constructor wraps the concrete datastore in
+// datastore.NewSeparatingContextDatastoreProxy. That proxy severs deadlines for
+// most methods; if it did so for OptimizedRevision, the shared and fallback
+// bounds imposed by the optimized-revision proxy above it would never reach
+// the query and a hung datastore call would block every waiting caller
+// forever.
+//
+// Using NewDatastore rather than stacking the proxies by hand keeps the test
+// from diverging from production wiring as further layers are added.
+func TestOptimizedRevisionTimeoutReachesSQLDatastore(t *testing.T) {
+	const engineName = "test-hanging-optimized-revision"
+
+	fake := &hangingOptimizedRevisionDatastore{}
+	RegisterEngine(engineName, func(_ context.Context, _ Config) (datastore.Datastore, error) {
+		// Mirror the SQL constructors (see NewCRDBDatastore, NewPostgresDatastore,
+		// NewMySQLDatastore), which all return the concrete datastore wrapped in
+		// the separating-context proxy.
+		return datastore.NewSeparatingContextDatastoreProxy(fake), nil
+	})
+	t.Cleanup(func() { delete(BuilderForEngine, engineName) })
+
+	synctest.Test(t, func(t *testing.T) {
+		ds, err := NewDatastore(t.Context(), WithEngine(engineName))
+		require.NoError(t, err)
+
+		// The caller has no deadline of its own, so only the optimized-revision
+		// proxy's default bounds can unblock the call. synctest's fake clock lets
+		// them fire without waiting. If a layer strips them, every goroutine in
+		// the bubble is durably blocked and synctest fails the test.
+		_, err = ds.OptimizedRevision(t.Context())
+		require.Error(t, err, "hung revision call must return an error rather than block forever")
+		require.True(t, fake.sawDeadline.Load(), "the optimized-revision proxy's deadline must reach the concrete datastore")
+	})
 }
