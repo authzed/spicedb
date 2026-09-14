@@ -20,7 +20,6 @@ const (
 	defaultWatchBufferLength                 = 128
 	defaultWatchBufferWriteTimeout           = 1 * time.Second
 	defaultQuantization                      = 5 * time.Second
-	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 8
 	defaultGCEnabled                         = true
@@ -37,7 +36,6 @@ type mysqlOptions struct {
 	gcWindow                     time.Duration
 	gcInterval                   time.Duration
 	gcMaxOperationTime           time.Duration
-	maxRevisionStalenessPercent  float64
 	followerReadDelay            time.Duration
 	watchBufferLength            uint16
 	watchChangeBufferMaximumSize uint64
@@ -64,24 +62,23 @@ type Option func(*mysqlOptions)
 
 func generateConfig(options []Option) (mysqlOptions, error) {
 	computed := mysqlOptions{
-		gcWindow:                    defaultGarbageCollectionWindow,
-		gcInterval:                  defaultGarbageCollectionInterval,
-		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:           defaultWatchBufferLength,
-		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
-		maxOpenConns:                defaultMaxOpenConns,
-		connMaxIdleTime:             defaultConnMaxIdleTime,
-		connMaxLifetime:             defaultConnMaxLifetime,
-		revisionQuantization:        defaultQuantization,
-		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		enablePrometheusStats:       defaultEnablePrometheusStats,
-		maxRetries:                  defaultMaxRetries,
-		gcEnabled:                   defaultGCEnabled,
-		credentialsProviderName:     defaultCredentialsProviderName,
-		filterMaximumIDCount:        defaultFilterMaximumIDCount,
-		columnOptimizationOption:    defaultColumnOptimizationOption,
-		followerReadDelay:           defaultFollowerReadDelay,
-		watchDisabled:               defaultWatchDisabled,
+		gcWindow:                 defaultGarbageCollectionWindow,
+		gcInterval:               defaultGarbageCollectionInterval,
+		gcMaxOperationTime:       defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:        defaultWatchBufferLength,
+		watchBufferWriteTimeout:  defaultWatchBufferWriteTimeout,
+		maxOpenConns:             defaultMaxOpenConns,
+		connMaxIdleTime:          defaultConnMaxIdleTime,
+		connMaxLifetime:          defaultConnMaxLifetime,
+		revisionQuantization:     defaultQuantization,
+		enablePrometheusStats:    defaultEnablePrometheusStats,
+		maxRetries:               defaultMaxRetries,
+		gcEnabled:                defaultGCEnabled,
+		credentialsProviderName:  defaultCredentialsProviderName,
+		filterMaximumIDCount:     defaultFilterMaximumIDCount,
+		columnOptimizationOption: defaultColumnOptimizationOption,
+		followerReadDelay:        defaultFollowerReadDelay,
+		watchDisabled:            defaultWatchDisabled,
 	}
 
 	for _, option := range options {
@@ -134,17 +131,6 @@ func WatchChangeBufferMaximumSize(maxSize uint64) Option {
 func RevisionQuantization(quantization time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.revisionQuantization = quantization
-	}
-}
-
-// MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
-// the revision quantization window, that a previously computed rounded revision
-// can still be advertised after the next rounded revision would otherwise be ready.
-//
-// This value defaults to 0.1 (10%).
-func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
-	return func(mo *mysqlOptions) {
-		mo.maxRevisionStalenessPercent = stalenessPercent
 	}
 }
 

@@ -38,7 +38,6 @@ type spannerOptions struct {
 	revisionQuantization         time.Duration
 	gcWindow                     time.Duration
 	followerReadDelay            time.Duration
-	maxRevisionStalenessPercent  float64
 	credentialsFilePath          string
 	credentialsJSON              []byte
 	emulatorHost                 string
@@ -66,16 +65,15 @@ var migrationPhases = map[string]migrationPhase{
 const (
 	errQuantizationTooLarge = "revision quantization (%s) must be less than (%s)"
 
-	defaultRevisionQuantization        = 5 * time.Second
-	defaultGCWindow                    = defaultChangeStreamRetention
-	defaultFollowerReadDelay           = 0 * time.Second
-	defaultMaxRevisionStalenessPercent = 0.1
-	defaultWatchBufferLength           = 128
-	defaultWatchBufferWriteTimeout     = 1 * time.Second
-	defaultDisableStats                = false
-	defaultFilterMaximumIDCount        = 100
-	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionStaticValues
-	defaultWatchDisabled               = false
+	defaultRevisionQuantization     = 5 * time.Second
+	defaultGCWindow                 = defaultChangeStreamRetention
+	defaultFollowerReadDelay        = 0 * time.Second
+	defaultWatchBufferLength        = 128
+	defaultWatchBufferWriteTimeout  = 1 * time.Second
+	defaultDisableStats             = false
+	defaultFilterMaximumIDCount     = 100
+	defaultColumnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+	defaultWatchDisabled            = false
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -87,19 +85,18 @@ func generateConfig(options []Option) (spannerOptions, error) {
 	// This determines if there are more CPU cores to increase the default number of connections
 	defaultNumberConnections := max(1, math.Round(float64(runtime.GOMAXPROCS(0))))
 	computed := spannerOptions{
-		watchBufferLength:           defaultWatchBufferLength,
-		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
-		revisionQuantization:        defaultRevisionQuantization,
-		gcWindow:                    defaultGCWindow,
-		followerReadDelay:           defaultFollowerReadDelay,
-		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		disableStats:                defaultDisableStats,
-		readMaxOpen:                 int(defaultNumberConnections),
-		writeMaxOpen:                int(defaultNumberConnections),
-		migrationPhase:              "", // no migration
-		filterMaximumIDCount:        defaultFilterMaximumIDCount,
-		columnOptimizationOption:    defaultColumnOptimizationOption,
-		watchDisabled:               defaultWatchDisabled,
+		watchBufferLength:        defaultWatchBufferLength,
+		watchBufferWriteTimeout:  defaultWatchBufferWriteTimeout,
+		revisionQuantization:     defaultRevisionQuantization,
+		gcWindow:                 defaultGCWindow,
+		followerReadDelay:        defaultFollowerReadDelay,
+		disableStats:             defaultDisableStats,
+		readMaxOpen:              int(defaultNumberConnections),
+		writeMaxOpen:             int(defaultNumberConnections),
+		migrationPhase:           "", // no migration
+		filterMaximumIDCount:     defaultFilterMaximumIDCount,
+		columnOptimizationOption: defaultColumnOptimizationOption,
+		watchDisabled:            defaultWatchDisabled,
 	}
 
 	for _, option := range options {
@@ -181,17 +178,6 @@ func GCWindow(window time.Duration) Option {
 func FollowerReadDelay(delay time.Duration) Option {
 	return func(so *spannerOptions) {
 		so.followerReadDelay = delay
-	}
-}
-
-// MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
-// the revision quantization window, that a previously computed rounded revision
-// can still be advertised after the next rounded revision would otherwise be ready.
-//
-// This value defaults to 0.1 (10%).
-func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
-	return func(so *spannerOptions) {
-		so.maxRevisionStalenessPercent = stalenessPercent
 	}
 }
 

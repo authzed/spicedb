@@ -103,7 +103,6 @@ func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config
 		GCWindow(opts.GCWindow),
 		GCEnabled(!opts.ReadOnly),
 		RevisionQuantization(opts.RevisionQuantization),
-		MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		FollowerReadDelay(opts.FollowerReadDelay),
 		ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
