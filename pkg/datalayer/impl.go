@@ -328,7 +328,7 @@ func (t *readWriteTransaction) WriteRelationships(ctx context.Context, mutations
 	return t.rwt.WriteRelationships(ctx, mutations)
 }
 
-func (t *readWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (t *readWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	return t.rwt.DeleteRelationships(ctx, filter, opts...)
 }
 

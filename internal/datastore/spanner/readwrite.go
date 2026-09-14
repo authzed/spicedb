@@ -148,17 +148,28 @@ func spannerMutation(
 	return txnMut, countChange, err
 }
 
-func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	numDeleted, limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, opts...)
 	if err != nil {
-		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	return numDeleted, limitReached, nil
+	return datastore.DeleteRelationshipsResult{
+		NumDeleted:   numDeleted,
+		LimitReached: limitReached,
+	}, nil
 }
 
 func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
 	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	if err := delOpts.ValidateCursoredDelete(); err != nil {
+		return 0, false, err
+	}
+
+	if delOpts.IsCursoredDelete() {
+		return 0, false, datastore.NewCursoredDeleteNotSupportedErr(Engine)
+	}
+
 	var delLimit uint64
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
 		delLimit = *delOpts.DeleteLimit

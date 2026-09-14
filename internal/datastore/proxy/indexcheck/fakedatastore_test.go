@@ -229,8 +229,8 @@ func (f *fakeRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames []string, 
 	return nil
 }
 
-func (f *fakeRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
-	return 0, false, nil
+func (f *fakeRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
+	return datastore.DeleteRelationshipsResult{}, nil
 }
 
 func (f *fakeRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

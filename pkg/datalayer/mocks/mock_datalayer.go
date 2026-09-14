@@ -671,17 +671,16 @@ func (mr *MockReadWriteTransactionMockRecorder) CountRelationships(ctx, name any
 }
 
 // DeleteRelationships mocks base method.
-func (m *MockReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, arg2 ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (m *MockReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, arg2 ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, filter}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "DeleteRelationships", varargs...)
-	ret0, _ := ret[0].(uint64)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(datastore.DeleteRelationshipsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteRelationships indicates an expected call of DeleteRelationships.

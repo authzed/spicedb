@@ -119,6 +119,19 @@ func (si SchemaInformation) sortBySubjectColumnOrderColumns() []string {
 	}
 }
 
+// CursorColumns returns the ordered column names that define cursor ordering
+// for the given sort order.
+func (si SchemaInformation) CursorColumns(order options.SortOrder) ([]string, error) {
+	switch order {
+	case options.ByResource:
+		return si.sortByResourceColumnOrderColumns(), nil
+	case options.BySubject:
+		return si.sortBySubjectColumnOrderColumns(), nil
+	default:
+		return nil, spiceerrors.MustBugf("invalid sort order %v", order)
+	}
+}
+
 func (si SchemaInformation) mustValidate() {
 	if si.RelationshipTableName == "" {
 		panic("RelationshipTableName is required")

@@ -2470,3 +2470,84 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 		})
 	}
 }
+
+// TestDeleteRelationshipsRejectsForeignReadCursor verifies that a cursor minted
+// by ReadRelationships cannot be replayed against DeleteRelationships: the
+// per-API cursor hash namespaces them apart, so decode fails.
+func TestDeleteRelationshipsRejectsForeignReadCursor(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	require := require.New(t)
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+
+	readCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stream, err := client.ReadRelationships(readCtx, &v1.ReadRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{ResourceType: "document"},
+		OptionalLimit:      1,
+	})
+	require.NoError(err)
+
+	first, err := stream.Recv()
+	require.NoError(err)
+	require.NotNil(first.AfterResultCursor)
+	cancel()
+
+	_, err = client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
+		RelationshipFilter:            &v1.RelationshipFilter{ResourceType: "document"},
+		OptionalLimit:                 100,
+		OptionalAllowPartialDeletions: true,
+		OptionalCursor:                first.AfterResultCursor,
+	})
+	require.Error(err)
+	require.Equal(codes.InvalidArgument, status.Code(err), "a read cursor must be rejected by delete: %v", err)
+}
+
+// TestDeleteRelationshipsCursorRequiresLimitAndPartial verifies that an
+// optional_cursor is only accepted together with a limit and partial deletions.
+func TestDeleteRelationshipsCursorRequiresLimitAndPartial(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	require := require.New(t)
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+
+	// Any non-nil cursor; the limit/partial validation runs before it is decoded.
+	readCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stream, err := client.ReadRelationships(readCtx, &v1.ReadRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{ResourceType: "document"},
+		OptionalLimit:      1,
+	})
+	require.NoError(err)
+	first, err := stream.Recv()
+	require.NoError(err)
+	someCursor := first.AfterResultCursor
+	require.NotNil(someCursor)
+	cancel()
+
+	// Cursor without a limit is rejected.
+	_, err = client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
+		RelationshipFilter:            &v1.RelationshipFilter{ResourceType: "document"},
+		OptionalAllowPartialDeletions: true,
+		OptionalCursor:                someCursor,
+	})
+	require.Equal(codes.InvalidArgument, status.Code(err), "cursor without limit must be rejected: %v", err)
+
+	// Cursor without partial deletions is rejected.
+	_, err = client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{ResourceType: "document"},
+		OptionalLimit:      100,
+		OptionalCursor:     someCursor,
+	})
+	require.Equal(codes.InvalidArgument, status.Code(err), "cursor without partial deletions must be rejected: %v", err)
+}

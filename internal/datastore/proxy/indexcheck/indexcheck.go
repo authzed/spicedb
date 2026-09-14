@@ -245,7 +245,7 @@ func (rwt *indexcheckingRWT) LegacyDeleteNamespaces(ctx context.Context, nsNames
 	return rwt.delegate.LegacyDeleteNamespaces(ctx, nsNames, delOption)
 }
 
-func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
 
