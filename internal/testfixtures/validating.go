@@ -241,9 +241,9 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	return vrwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	if err := protovalidate.Validate(filter); err != nil {
-		return 0, false, err
+		return datastore.DeleteRelationshipsResult{}, err
 	}
 
 	return vrwt.delegate.DeleteRelationships(ctx, filter, options...)

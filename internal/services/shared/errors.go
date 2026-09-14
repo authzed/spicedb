@@ -195,6 +195,9 @@ func rewriteError(ctx context.Context, err error, _ *ConfigForErrors) error {
 	case errors.As(err, &relationNotFoundError):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_RELATION_OR_PERMISSION)
 
+	case errors.As(err, &datastore.CursoredDeleteNotSupportedError{}):
+		return status.Errorf(codes.Unimplemented, "%s", err)
+
 	case errors.As(err, &datastore.ReadOnlyError{}):
 		return ErrServiceReadOnly
 	case errors.As(err, &datastore.InvalidRevisionError{}):

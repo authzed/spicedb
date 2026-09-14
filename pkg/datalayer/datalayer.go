@@ -124,7 +124,7 @@ type ReadWriteTransaction interface {
 	// DeleteRelationships deletes relationships that match the provided filter.
 	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
 		options ...options.DeleteOptionsOption,
-	) (uint64, bool, error)
+	) (datastore.DeleteRelationshipsResult, error)
 
 	// BulkLoad writes all relationships from the source in an optimized fashion.
 	BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error)

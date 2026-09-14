@@ -391,16 +391,30 @@ func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	}
 }
 
-func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
+	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	if err := delOpts.ValidateCursoredDelete(); err != nil {
+		return datastore.DeleteRelationshipsResult{}, err
+	}
+
+	rwt.addOverlapKey(filter.ResourceType)
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		rwt.addOverlapKey(subjectFilter.SubjectType)
+	}
+
+	if delOpts.IsCursoredDelete() {
+		return rwt.deleteRelationshipsCursored(ctx, filter, delOpts)
+	}
+
 	// Add clauses for the ResourceFilter
 	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
 	if err != nil {
-		return 0, false, fmt.Errorf("unable to translate relationship filter: %w", err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf("unable to translate relationship filter: %w", err)
 	}
 
 	index, err := schema.IndexForFilter(rwt.schema, dsFilter)
 	if err != nil {
-		return 0, false, fmt.Errorf("unable to determine index for filter: %w", err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf("unable to determine index for filter: %w", err)
 	}
 
 	query := rwt.queryDeleteTuples(index)
@@ -417,13 +431,11 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 	if filter.OptionalResourceIdPrefix != "" {
 		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.OptionalResourceIdPrefix)
 		if err != nil {
-			return 0, false, fmt.Errorf("unable to build like clause: %w", err)
+			return datastore.DeleteRelationshipsResult{}, fmt.Errorf("unable to build like clause: %w", err)
 		}
 
 		query = query.Where(likeClause)
 	}
-
-	rwt.addOverlapKey(filter.ResourceType)
 
 	// Add clauses for the SubjectFilter
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
@@ -434,11 +446,9 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
 			query = query.Where(sq.Eq{schema.ColUsersetRelation: cmp.Or(relationFilter.Relation, datastore.Ellipsis)})
 		}
-		rwt.addOverlapKey(subjectFilter.SubjectType)
 	}
 
 	// Add the limit, if any.
-	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
 	var delLimit uint64
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
 		delLimit = *delOpts.DeleteLimit
@@ -450,24 +460,85 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	modified, err := rwt.tx.Exec(ctx, sql, args...)
 	if err != nil {
-		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	rwt.relCountChange -= modified.RowsAffected()
 	rowsAffected, err := safecast.Convert[uint64](modified.RowsAffected())
 	if err != nil {
-		return 0, false, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
-	}
-	if delLimit > 0 && rowsAffected == delLimit {
-		return rowsAffected, true, nil
+		return datastore.DeleteRelationshipsResult{}, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
 	}
 
-	return rowsAffected, false, nil
+	return datastore.DeleteRelationshipsResult{
+		NumDeleted:   rowsAffected,
+		LimitReached: delLimit > 0 && rowsAffected == delLimit,
+	}, nil
+}
+
+func (rwt *crdbReadWriteTXN) deleteRelationshipsCursored(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	delOpts *options.DeleteOptions,
+) (datastore.DeleteRelationshipsResult, error) {
+	sql, args, _, err := buildCursoredDeleteQuery(rwt.schema, filter, delOpts)
+	if err != nil {
+		return datastore.DeleteRelationshipsResult{}, err
+	}
+
+	// The statement's final form is a SELECT over the deleting CTE, so it is
+	// read with Query rather than Exec. It returns at most one row: the last
+	// relationship deleted, in delete order, plus the total deleted.
+	rows, err := rwt.tx.Query(ctx, sql, args...)
+	if err != nil {
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
+	}
+	defer rows.Close()
+
+	var last tuple.Relationship
+	var total int64
+	found := false
+
+	for rows.Next() {
+		if err := rows.Scan(
+			&last.Resource.ObjectType,
+			&last.Resource.ObjectID,
+			&last.Resource.Relation,
+			&last.Subject.ObjectType,
+			&last.Subject.ObjectID,
+			&last.Subject.Relation,
+			&total,
+		); err != nil {
+			return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
+		}
+		found = true
+	}
+
+	if err := rows.Err(); err != nil {
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
+	}
+
+	if !found {
+		// Nothing matched; the filter is exhausted.
+		return datastore.DeleteRelationshipsResult{}, nil
+	}
+
+	rwt.relCountChange -= total
+
+	numDeleted, err := safecast.Convert[uint64](total)
+	if err != nil {
+		return datastore.DeleteRelationshipsResult{}, spiceerrors.MustBugf("could not cast deleted count to uint64: %v", err)
+	}
+
+	return datastore.DeleteRelationshipsResult{
+		NumDeleted:   numDeleted,
+		LimitReached: numDeleted == *delOpts.DeleteLimit,
+		Cursor:       options.ToCursor(last),
+	}, nil
 }
 
 func (rwt *crdbReadWriteTXN) LegacyWriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {

@@ -1852,3 +1852,95 @@ func TestBuildLikeCla(t *testing.T) {
 		})
 	}
 }
+
+func TestCursorComparisonExprTupleForm(t *testing.T) {
+	schema := NewSchemaInformationWithOptions(
+		WithRelationshipTableName("relation_tuple"),
+		WithColNamespace("namespace"),
+		WithColObjectID("object_id"),
+		WithColRelation("relation"),
+		WithColUsersetNamespace("userset_namespace"),
+		WithColUsersetObjectID("userset_object_id"),
+		WithColUsersetRelation("userset_relation"),
+		WithPlaceholderFormat(sq.Question),
+		WithPaginationFilterType(ExpandedLogicComparison),
+		WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+		WithNowFunction("NOW"),
+	)
+	require.EqualValues(t, ExpandedLogicComparison, schema.PaginationFilterType)
+
+	cursor := toCursor(tuple.MustParse("document:doc1#viewer@user:alice"))
+
+	// namespace is pinned by an equality elsewhere in the query, so it is
+	// omitted from the comparison.
+	isStatic := func(name string) bool { return name == "namespace" }
+
+	expr, err := CursorComparisonExpr(*schema, options.ByResource, cursor, TupleComparison, isStatic)
+	require.NoError(t, err)
+
+	sql, args, err := expr.ToSql()
+	require.NoError(t, err)
+	require.Equal(t,
+		"(object_id,relation,userset_namespace,userset_object_id,userset_relation) > (?,?,?,?,?)",
+		sql)
+	require.Equal(t, []any{"doc1", "viewer", "user", "alice", "..."}, args)
+}
+
+func TestCursorComparisonExprAllColumnsStaticReturnsNil(t *testing.T) {
+	schema := NewSchemaInformationWithOptions(
+		WithRelationshipTableName("relation_tuple"),
+		WithColNamespace("namespace"),
+		WithColObjectID("object_id"),
+		WithColRelation("relation"),
+		WithColUsersetNamespace("userset_namespace"),
+		WithColUsersetObjectID("userset_object_id"),
+		WithColUsersetRelation("userset_relation"),
+		WithPlaceholderFormat(sq.Question),
+		WithPaginationFilterType(TupleComparison),
+		WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+		WithNowFunction("NOW"),
+	)
+
+	cursor := toCursor(tuple.MustParse("document:doc1#viewer@user:alice"))
+
+	expr, err := CursorComparisonExpr(*schema, options.ByResource, cursor, TupleComparison,
+		func(string) bool { return true })
+	require.NoError(t, err)
+	require.Nil(t, expr)
+}
+
+func TestCursorColumnsByResourceAndBySubject(t *testing.T) {
+	schema := NewSchemaInformationWithOptions(
+		WithRelationshipTableName("relation_tuple"),
+		WithColNamespace("namespace"),
+		WithColObjectID("object_id"),
+		WithColRelation("relation"),
+		WithColUsersetNamespace("userset_namespace"),
+		WithColUsersetObjectID("userset_object_id"),
+		WithColUsersetRelation("userset_relation"),
+		WithPlaceholderFormat(sq.Question),
+		WithPaginationFilterType(TupleComparison),
+		WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+		WithNowFunction("NOW"),
+	)
+
+	byResource, err := schema.CursorColumns(options.ByResource)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"namespace", "object_id", "relation",
+		"userset_namespace", "userset_object_id", "userset_relation",
+	}, byResource)
+
+	bySubject, err := schema.CursorColumns(options.BySubject)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"userset_namespace", "userset_object_id", "userset_relation",
+		"namespace", "object_id", "relation",
+	}, bySubject)
+
+	// spiceerrors.MustBugf panics (rather than returning an error) when run
+	// under `go test`, so the invalid-order path is exercised as a panic here.
+	require.Panics(t, func() {
+		_, _ = schema.CursorColumns(options.Unsorted)
+	})
+}
