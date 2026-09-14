@@ -414,7 +414,7 @@ func TestObservableProxy_RWTMethodsWithMetrics(t *testing.T) {
 				rwt.On("DeleteRelationships", mock.Anything).Return(nil).Once()
 			},
 			call: func(t *testing.T, ctx context.Context, rwt datastore.ReadWriteTransaction) {
-				_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{ResourceType: "document"})
+				_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{ResourceType: "document"})
 				require.NoError(t, err)
 			},
 		},

@@ -583,6 +583,23 @@ type Reader interface {
 	) (RelationshipIterator, error)
 }
 
+// DeleteRelationshipsResult is the result of a call to DeleteRelationships.
+type DeleteRelationshipsResult struct {
+	// NumDeleted is the number of relationships deleted by the call.
+	NumDeleted uint64
+
+	// LimitReached is true if a delete limit was supplied and was reached.
+	LimitReached bool
+
+	// Cursor is the last relationship deleted, in the order in which the
+	// datastore performed the deletion. It may be supplied to a subsequent
+	// call via options.WithDeleteAfter to resume where this call stopped.
+	//
+	// Cursor is nil unless a cursored delete was requested via
+	// options.WithCursoredDelete, and is nil when nothing was deleted.
+	Cursor options.Cursor
+}
+
 // ReadWriteTransaction is an interface for reading and writing relationships in a transaction.
 type ReadWriteTransaction interface {
 	Reader
@@ -592,13 +609,12 @@ type ReadWriteTransaction interface {
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
 	WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error
 
-	// DeleteRelationships deletes relationships that match the provided filter, with
-	// the optional limit. Returns the number of deleted relationships. If a limit
-	// is provided and reached, the method will return true as the second return value.
-	// Otherwise, the boolean can be ignored.
+	// DeleteRelationships deletes relationships that match the provided filter,
+	// with the optional limit. See DeleteRelationshipsResult for the meaning of
+	// the returned values.
 	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
 		options ...options.DeleteOptionsOption,
-	) (uint64, bool, error)
+	) (DeleteRelationshipsResult, error)
 
 	// WriteStoredSchema writes the unified stored schema to the datastore.
 	WriteStoredSchema(ctx context.Context, schema *core.StoredSchema) error
@@ -866,6 +882,17 @@ type StrictReadDatastore interface {
 
 	// IsStrictReadModeEnabled returns whether the datastore is in strict read mode.
 	IsStrictReadModeEnabled() bool
+}
+
+// CursoredDeleteDatastore is optionally implemented by datastores whose
+// ReadWriteTransactions support cursored, batched relationship deletion via
+// options.WithCursoredDelete. Use UnwrapAs to find it behind wrapping proxies.
+type CursoredDeleteDatastore interface {
+	Datastore
+
+	// SupportsCursoredDelete returns whether cursored deletion is available
+	// for this datastore instance.
+	SupportsCursoredDelete() bool
 }
 
 type strArray []string

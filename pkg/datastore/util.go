@@ -27,7 +27,7 @@ func DeleteAllData(ctx context.Context, ds Datastore) error {
 		}
 		namespaceNames := make([]string, 0, len(typeDefs))
 		for _, typeDef := range typeDefs {
-			_, _, err = rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			_, err = rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 				ResourceType: typeDef.Definition.Name,
 			})
 			if err != nil {

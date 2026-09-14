@@ -347,10 +347,10 @@ func TestIndexCheckingRWT(t *testing.T) {
 		})
 
 		t.Run("DeleteRelationships", func(t *testing.T) {
-			count, partial, err := indexRWT.DeleteRelationships(ctx, &v1.RelationshipFilter{})
+			result, err := indexRWT.DeleteRelationships(ctx, &v1.RelationshipFilter{})
 			require.NoError(t, err)
-			require.Equal(t, uint64(0), count)
-			require.False(t, partial)
+			require.Equal(t, uint64(0), result.NumDeleted)
+			require.False(t, result.LimitReached)
 		})
 
 		t.Run("BulkLoad", func(t *testing.T) {

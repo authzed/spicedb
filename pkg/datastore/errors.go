@@ -314,7 +314,54 @@ var (
 	ErrCursorEmpty                  = errors.New("cursors are only available after the first result")
 	ErrSchemaNotFound               = errors.New("schema not found")
 	ErrSchemaHashPreconditionFailed = errors.New("schema hash precondition failed: schema changed since last check")
+
+	// ErrCursoredDeleteNotSupported is the sentinel reported when a cursored
+	// relationship deletion is requested of a datastore that does not support one.
+	// Prefer NewCursoredDeleteNotSupportedErr, which names the datastore engine and
+	// matches this sentinel under errors.Is.
+	ErrCursoredDeleteNotSupported = errors.New("cursored relationship deletion is not supported by this datastore")
 )
+
+// CursoredDeleteNotSupportedError indicates that a cursored relationship deletion
+// was requested (via options.WithCursoredDelete or options.WithDeleteAfter) of a
+// datastore that does not support one. It matches ErrCursoredDeleteNotSupported
+// under errors.Is.
+type CursoredDeleteNotSupportedError struct {
+	error
+	engine string
+}
+
+// NewCursoredDeleteNotSupportedErr constructs a CursoredDeleteNotSupportedError for
+// the given datastore engine. The engine may be empty if unknown.
+func NewCursoredDeleteNotSupportedErr(engine string) error {
+	msg := "cursored relationship deletion is not supported by this datastore"
+	if engine != "" {
+		msg = fmt.Sprintf("cursored relationship deletion is not supported by the %q datastore engine", engine)
+	}
+	return CursoredDeleteNotSupportedError{
+		error:  errors.New(msg),
+		engine: engine,
+	}
+}
+
+// Engine returns the name of the datastore engine that does not support cursored
+// deletion, or the empty string if it was not known.
+func (err CursoredDeleteNotSupportedError) Engine() string {
+	return err.engine
+}
+
+// Is matches the ErrCursoredDeleteNotSupported sentinel, so callers may use either
+// errors.Is(err, ErrCursoredDeleteNotSupported) or errors.As with this type.
+func (err CursoredDeleteNotSupportedError) Is(target error) bool {
+	return target == ErrCursoredDeleteNotSupported
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err CursoredDeleteNotSupportedError) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"datastore_engine": err.engine,
+	}
+}
 
 // CreateRelationshipExistsError is returned when attempting to CREATE an already-existing relationship.
 type CreateRelationshipExistsError struct {
