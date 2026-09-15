@@ -46,8 +46,8 @@ func (f fakeDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc,
 	})
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
-	return datastore.RevisionWithSchemaHash{}, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+	return datastore.RevisionWithSchemaHashAndValidity{}, nil
 }
 
 func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {

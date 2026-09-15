@@ -98,7 +98,7 @@ func (p *observableProxy) ReadWriteTx(
 	}, opts...)
 }
 
-func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	ctx, closer := observe(ctx, "OptimizedRevision", "")
 	defer closer()
 

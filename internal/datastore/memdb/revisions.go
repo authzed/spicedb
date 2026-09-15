@@ -67,20 +67,15 @@ func (mdb *memdbDatastore) headRevisionNoLock() revisions.TimestampRevision {
 	return mdb.revisions[len(mdb.revisions)-1].revision
 }
 
-func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
+func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 	if err := mdb.checkNotClosed(); err != nil {
-		return datastore.RevisionWithSchemaHash{}, err
+		return datastore.RevisionWithSchemaHashAndValidity{}, err
 	}
 
-	now := nowRevision()
-	var optimized revisions.TimestampRevision
-	if mdb.quantizationPeriod > 0 {
-		optimized = revisions.NewForTimestamp(now.TimestampNanoSec() - now.TimestampNanoSec()%mdb.quantizationPeriod)
-	} else {
-		optimized = now
-	}
+	quantized, validFor := revisions.Quantize(nowRevision(), 0, mdb.quantizationPeriod)
+	optimized := quantized.(revisions.TimestampRevision)
 
 	// Rounding down can land before the oldest snapshot, which no read can be
 	// served at. Advertise head instead, as Postgres does for an empty bucket.
@@ -99,7 +94,7 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 		}
 	}
 
-	return datastore.RevisionWithSchemaHash{Revision: optimized, SchemaHash: hash}, nil
+	return datastore.RevisionWithSchemaHashAndValidity{Revision: optimized, ValidFor: validFor, SchemaHash: hash}, nil
 }
 
 func (mdb *memdbDatastore) CheckRevision(_ context.Context, dr datastore.Revision) error {

@@ -52,9 +52,9 @@ func (dm *MockDatastore) ReadWriteTx(
 	return args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
+func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	args := dm.Called()
-	return args.Get(0).(datastore.RevisionWithSchemaHash), args.Error(1)
+	return args.Get(0).(datastore.RevisionWithSchemaHashAndValidity), args.Error(1)
 }
 
 func (dm *MockDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {

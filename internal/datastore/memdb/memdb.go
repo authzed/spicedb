@@ -81,7 +81,7 @@ func NewMemdbDatastore(
 		},
 
 		negativeGCWindow:        gcWindow.Nanoseconds() * -1,
-		quantizationPeriod:      revisionQuantization.Nanoseconds(),
+		quantizationPeriod:      revisionQuantization,
 		watchBufferLength:       watchBufferLength,
 		watchBufferWriteTimeout: 100 * time.Millisecond,
 		uniqueID:                uniqueID,
@@ -102,7 +102,7 @@ type memdbDatastore struct {
 	writeTxReady   *sync.Cond // broadcast when activeWriteTxn becomes nil
 
 	negativeGCWindow        int64
-	quantizationPeriod      int64
+	quantizationPeriod      time.Duration
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	uniqueID                string

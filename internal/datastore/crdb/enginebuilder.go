@@ -42,7 +42,6 @@ func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (data
 		opts.URI,
 		GCWindow(opts.GCWindow),
 		RevisionQuantization(opts.RevisionQuantization),
-		MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
