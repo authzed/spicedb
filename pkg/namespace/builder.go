@@ -347,6 +347,18 @@ func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelatio
 	return operation
 }
 
+// MustWithMixedOperators marks the relation as having mixed operators without parentheses.
+func MustWithMixedOperators(rel *core.Relation, line uint64, column uint64) *core.Relation {
+	position := &core.SourcePosition{
+		ZeroIndexedLineNumber:     line,
+		ZeroIndexedColumnPosition: column,
+	}
+	if err := SetMixedOperatorsWithoutParens(rel, true, position); err != nil {
+		panic(spiceerrors.MustBugf("failed to set mixed operators: %s", err.Error()))
+	}
+	return rel
+}
+
 // Rewrite wraps a rewrite as a set operation child of another rewrite.
 func Rewrite(rewrite *core.UsersetRewrite) *core.SetOperation_Child {
 	return &core.SetOperation_Child{
