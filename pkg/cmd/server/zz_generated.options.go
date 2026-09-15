@@ -43,6 +43,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GRPCAuthFunc = c.GRPCAuthFunc
 		to.PresharedSecureKey = c.PresharedSecureKey
 		to.ShutdownGracePeriod = c.ShutdownGracePeriod
+		to.ShutdownDrainDelay = c.ShutdownDrainDelay
 		to.DisableVersionResponse = c.DisableVersionResponse
 		to.ServerName = c.ServerName
 		to.HTTPGateway = c.HTTPGateway
@@ -142,6 +143,13 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["ShutdownGracePeriod"] = dm.DebugMap()
 	} else {
 		debugMap["ShutdownGracePeriod"] = c.ShutdownGracePeriod
+	}
+	if dm, ok := any(&c.ShutdownDrainDelay).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["ShutdownDrainDelay"] = dm.DebugMap()
+	} else {
+		debugMap["ShutdownDrainDelay"] = c.ShutdownDrainDelay
 	}
 	debugMap["DisableVersionResponse"] = c.DisableVersionResponse
 	if c.ServerName == "" {
@@ -465,6 +473,13 @@ func SetPresharedSecureKey(presharedSecureKey []string) ConfigOption {
 func WithShutdownGracePeriod(shutdownGracePeriod time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.ShutdownGracePeriod = shutdownGracePeriod
+	}
+}
+
+// WithShutdownDrainDelay returns an option that can set ShutdownDrainDelay on a Config
+func WithShutdownDrainDelay(shutdownDrainDelay time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.ShutdownDrainDelay = shutdownDrainDelay
 	}
 }
 

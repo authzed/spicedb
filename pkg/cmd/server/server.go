@@ -58,11 +58,6 @@ var ConsistentHashringBuilder = consistent.NewBuilder(xxhash.Sum64)
 
 var DefaultMemoryUsageProvider memoryprotection.MemoryUsageProvider
 
-// shutdownDrainDelay is how long a shutting-down server keeps its listeners
-// open after reporting NOT_SERVING, so load balancers and readiness probes
-// stop routing to it before connections are refused.
-const shutdownDrainDelay = 2 * time.Second
-
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	// API config
@@ -70,6 +65,7 @@ type Config struct {
 	GRPCAuthFunc           grpc_auth.AuthFunc    `debugmap:"visible"`
 	PresharedSecureKey     []string              `debugmap:"sensitive" default:"[]"`
 	ShutdownGracePeriod    time.Duration         `debugmap:"visible"   default:"5s"`
+	ShutdownDrainDelay     time.Duration         `debugmap:"visible"`
 	DisableVersionResponse bool                  `debugmap:"visible"`
 	ServerName             string                `debugmap:"visible"`
 
@@ -617,12 +613,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	// Registered last so it runs first: report NOT_SERVING while every listener
 	// is still open, then give load balancers time to notice before draining.
-	// An in-memory listener has no load balancer in front of it, so it drains
-	// immediately.
-	drainDelay := shutdownDrainDelay
-	if c.GRPCServer.Network == util.BufferedNetwork {
-		drainDelay = 0
-	}
+	drainDelay := c.ShutdownDrainDelay
 	closeables.AddWithoutError(func() {
 		healthManager.Close()
 		if drainDelay == 0 {
