@@ -268,6 +268,11 @@ func (r *datalayerQueryDatastoreReader) SubjectExistsAsRelationship(
 	relIter, err := r.inner.QueryRelationships(ctx, filter,
 		options.WithLimit(&limitOne),
 		options.WithSkipExpiration(true),
+		// The filter pins the subject but leaves the resource columns open, which
+		// gaps the PK and makes CockroachDB reject a forced index hint. Varying lets
+		// the datastore pick an index from the actual filter columns (the subject
+		// index). This mirrors the reasoning in QuerySubjects above.
+		options.WithQueryShape(queryshape.Varying),
 	)
 	if err != nil {
 		return false, err
