@@ -204,4 +204,42 @@ func TestCacheWithMetrics(t *testing.T) {
 			cache.Close()
 		})
 	})
+
+	t.Run("TTL expires from write, not last access", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			cache, err := NewOtterCacheWithMetrics[StringKey, string](prometheus.NewRegistry(), "test-otter-write-expiry", &Config{
+				MaxCost: 1000,
+				// set a lower TTL
+				DefaultTTL: 2 * time.Minute,
+			})
+			//nolint:testifylint  // we're in a goroutine
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			ok := cache.Set(StringKey("a key"), "a value", 10)
+			assert.True(t, ok)
+
+			// Read the entry repeatedly for the full TTL. Under an
+			// access-based expiry policy each read would push expiry out by
+			// another TTL, keeping a hot entry alive indefinitely.
+			for range 3 {
+				time.Sleep(30 * time.Second)
+				_, found := cache.Get(StringKey("a key"))
+				//nolint:testifylint  // we're in a goroutine
+				if !assert.True(t, found, "expected key %s to still be found", "a key") {
+					return
+				}
+			}
+
+			// The last read was at t=90s. With write-based expiry the entry
+			// dies at t=120s regardless; access-based expiry would keep it
+			// until t=210s.
+			time.Sleep(45 * time.Second)
+			_, found := cache.Get(StringKey("a key"))
+			assert.False(t, found, "expected key %s to have expired from its write time", "a key")
+
+			cache.Close()
+		})
+	})
 }

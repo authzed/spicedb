@@ -83,7 +83,12 @@ func newOtterCache[K KeyString, V any](name string, config *Config) (*otterCache
 		StatsRecorder: counter,
 	}
 	if config.DefaultTTL > 0 {
-		opts.ExpiryCalculator = otter.ExpiryAccessing[string, valueAndCost[V]](config.DefaultTTL)
+		// Expire entries from their last write rather than their last access.
+		// Revision-keyed entries are only valid for roughly one quantization
+		// window; under an access-based policy a hot entry's TTL resets on
+		// every read, so it can live up to 2x the configured TTL (4x the
+		// quantization window) and is never guaranteed to expire at all.
+		opts.ExpiryCalculator = otter.ExpiryWriting[string, valueAndCost[V]](config.DefaultTTL)
 	}
 
 	cache, err := otter.New(opts)
