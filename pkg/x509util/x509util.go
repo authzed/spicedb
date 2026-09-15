@@ -7,30 +7,27 @@ import (
 	"os"
 )
 
-// CustomCertPool creates a x509.CertPool from a filepath string.
-//
-// If the path is a directory, it walks the directory and adds all files to the
-// pool.
-func CustomCertPool(caPath string) (*x509.CertPool, error) {
+// readCertFiles reads the PEM contents at caPath. If caPath is a directory, the
+// contents of every file within it are returned.
+func readCertFiles(caPath string) ([][]byte, error) {
 	fi, err := os.Stat(caPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var caFiles [][]byte
 	if fi.IsDir() {
-		caFiles, err = dirContents(caPath)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		contents, err := os.ReadFile(caPath)
-		if err != nil {
-			return nil, err
-		}
-		caFiles = append(caFiles, contents)
+		return dirContents(caPath)
 	}
 
+	contents, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, err
+	}
+	return [][]byte{contents}, nil
+}
+
+// certPoolFromPEM builds a x509.CertPool out of PEM-encoded certificates.
+func certPoolFromPEM(caFiles [][]byte) (*x509.CertPool, error) {
 	certPool := x509.NewCertPool()
 	for _, caBytes := range caFiles {
 		if ok := certPool.AppendCertsFromPEM(caBytes); !ok {
