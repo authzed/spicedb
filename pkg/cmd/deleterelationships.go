@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -206,6 +207,10 @@ a complete deletion.
 Each batch logs its cursor, so an interrupted run can be resumed with
 --resume-cursor taken straight from the log.
 
+Unlike the serving path, batches wait indefinitely for a CockroachDB write
+connection rather than failing fast after the 30ms admission-control default;
+pass --write-conn-acquisition-timeout explicitly to bound the wait.
+
 Example:
 
   ` + programName + ` datastore delete-relationships \
@@ -253,6 +258,24 @@ func RegisterDeleteRelationshipsFlags(cmd *cobra.Command, flags *deleteRelations
 	}
 
 	return nil
+}
+
+// writeAcquisitionTimeoutFlag bounds how long a write waits for a pool
+// connection on CockroachDB before failing with ResourceExhausted.
+const writeAcquisitionTimeoutFlag = "write-conn-acquisition-timeout"
+
+// prepareBulkDeleteConfig adjusts datastore defaults that are tuned for the
+// serving path but wrong for a one-shot bulk deletion: background GC has no
+// server to run under, and the write-connection acquisition timeout is a
+// fail-fast admission control (30ms by default) that a cold pool cannot even
+// dial a CockroachDB connection within. A bulk delete batch should wait for a
+// write connection indefinitely unless the operator explicitly bounded it.
+func prepareBulkDeleteConfig(fs *pflag.FlagSet, cfg *dscmd.Config) {
+	cfg.GCInterval = -1 * time.Hour
+
+	if !fs.Changed(writeAcquisitionTimeoutFlag) {
+		cfg.WriteAcquisitionTimeout = 0
+	}
 }
 
 func parseResumeCursor(raw string) (options.Cursor, error) {
@@ -349,8 +372,7 @@ func executeDeleteRelationships(cmd *cobra.Command, cfg *dscmd.Config, flags *de
 		return err
 	}
 
-	// Disable background GC; this is a one-shot operation.
-	cfg.GCInterval = -1 * time.Hour
+	prepareBulkDeleteConfig(cmd.Flags(), cfg)
 
 	ds, err := dscmd.NewDatastore(ctx, cfg.ToOption())
 	if err != nil {
