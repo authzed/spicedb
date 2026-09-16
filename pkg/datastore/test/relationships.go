@@ -245,7 +245,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Delete with DeleteRelationship
 			deletedAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+				_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 					ResourceType: testResourceNamespace,
 				})
 				require.NoError(t, err)
@@ -471,7 +471,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				_, _, err := rwt.DeleteRelationships(ctx, tt.filter)
+				_, err := rwt.DeleteRelationships(ctx, tt.filter)
 				require.NoError(err)
 				return err
 			})
@@ -755,7 +755,7 @@ func DeleteWithInvalidPrefixTest(t *testing.T, tester DatastoreTester) {
 	ctx := t.Context()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			OptionalResourceIdPrefix: "hithere%",
 		})
 		return err
@@ -806,7 +806,7 @@ func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
 
 	// Delete with a valid prefix.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			OptionalResourceIdPrefix: "doc",
 		})
 		return err
@@ -837,7 +837,7 @@ func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
 
 	// Delete with a prefix that does not exist but includes an underscore.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			OptionalResourceIdPrefix: "pdoc0_",
 		})
 		return err
@@ -850,7 +850,7 @@ func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
 
 	// Delete with a prefix that includes an underscore.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			OptionalResourceIdPrefix: "pdoc00_",
 		})
 		return err
@@ -862,7 +862,7 @@ func DeleteWithPrefixTest(t *testing.T, tester DatastoreTester) {
 	ensureRelationships(ctx, require, ds, prefixRels[3]...)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			OptionalResourceIdPrefix: "pdoc01_",
 		})
 		return err
@@ -988,12 +988,12 @@ func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
 	// Delete 100 rels.
 	var deleteLimit uint64 = 100
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		numDeleted, limitReached, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		result, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType: testResourceNamespace,
 		}, options.WithDeleteLimit(&deleteLimit))
 		require.NoError(err)
-		require.True(limitReached)
-		require.Equal(deleteLimit, numDeleted)
+		require.True(result.LimitReached)
+		require.Equal(deleteLimit, result.NumDeleted)
 		return nil
 	})
 	require.NoError(err)
@@ -1005,18 +1005,171 @@ func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
 	// Delete the remainder.
 	deleteLimit = 1000
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		numDeleted, limitReached, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		result, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType: testResourceNamespace,
 		}, options.WithDeleteLimit(&deleteLimit))
 		require.NoError(err)
-		require.False(limitReached)
-		require.Equal(uint64(900), numDeleted)
+		require.False(result.LimitReached)
+		require.Equal(uint64(900), result.NumDeleted)
 		return nil
 	})
 	require.NoError(err)
 
 	found = countRels(ctx, require, ds, testResourceNamespace)
 	require.Equal(0, found)
+}
+
+// CursoredDeleteUnsupportedTest verifies that a datastore which does not
+// support cursored deletion rejects the request rather than silently ignoring
+// it. Silently ignoring an unsupported cursor would delete from the top of the
+// range on every batch, deleting rows the caller asked to skip.
+func CursoredDeleteUnsupportedTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
+
+	if cds := datastore.UnwrapAs[datastore.CursoredDeleteDatastore](ds); cds != nil && cds.SupportsCursoredDelete() {
+		t.Skip("datastore supports cursored delete")
+	}
+
+	limit := uint64(10)
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			ResourceType: testResourceNamespace,
+		}, options.WithDeleteLimit(&limit), options.WithCursoredDelete(true))
+		return err
+	})
+	require.ErrorIs(err, datastore.ErrCursoredDeleteNotSupported)
+
+	// The typed error should also be recoverable and name the datastore engine.
+	var unsupportedErr datastore.CursoredDeleteNotSupportedError
+	require.ErrorAs(err, &unsupportedErr)
+	require.NotEmpty(unsupportedErr.Engine(), "cursored-delete-not-supported error should name the datastore engine")
+}
+
+// CursoredDeleteRequiresLimitTest verifies that a cursored delete without a
+// limit is rejected. An unlimited cursored delete is just an unlimited delete.
+func CursoredDeleteRequiresLimitTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
+
+	if cds := datastore.UnwrapAs[datastore.CursoredDeleteDatastore](ds); cds == nil || !cds.SupportsCursoredDelete() {
+		t.Skip("datastore does not support cursored delete")
+	}
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			ResourceType: testResourceNamespace,
+		}, options.WithCursoredDelete(true))
+		return err
+	})
+	require.ErrorContains(err, "requires a delete limit")
+}
+
+// CursoredDeleteRelationshipsTest verifies that a cursored delete walks the
+// whole matching set across batches without skipping or double-deleting, and
+// leaves non-matching relationships alone.
+func CursoredDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
+	ctx := t.Context()
+
+	if cds := datastore.UnwrapAs[datastore.CursoredDeleteDatastore](ds); cds == nil || !cds.SupportsCursoredDelete() {
+		t.Skip("datastore does not support cursored delete")
+	}
+
+	const toDelete = 250
+	const toKeep = 50
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		if _, err := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
+			testResourceNamespace, testReaderRelation, testUserNamespace, toDelete, t)); err != nil {
+			return err
+		}
+
+		// A second relation that must survive the delete.
+		_, err := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
+			testResourceNamespace, testEditorRelation, testUserNamespace, toKeep, t))
+		return err
+	})
+	require.NoError(err)
+
+	filter := &v1.RelationshipFilter{
+		ResourceType:     testResourceNamespace,
+		OptionalRelation: testReaderRelation,
+	}
+
+	batchSize := uint64(40)
+	var cursor options.Cursor
+	var deleted uint64
+	batches := 0
+	seen := map[string]struct{}{}
+
+	for {
+		var result datastore.DeleteRelationshipsResult
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			opts := []options.DeleteOptionsOption{
+				options.WithDeleteLimit(&batchSize),
+				options.WithCursoredDelete(true),
+			}
+			if cursor != nil {
+				opts = append(opts, options.WithDeleteAfter(cursor))
+			}
+
+			var innerErr error
+			result, innerErr = rwt.DeleteRelationships(ctx, filter, opts...)
+			return innerErr
+		})
+		require.NoError(err)
+
+		if result.NumDeleted == 0 {
+			require.Nil(result.Cursor, "a batch that deleted nothing must not return a cursor")
+			break
+		}
+
+		batches++
+		require.LessOrEqual(result.NumDeleted, batchSize)
+		require.NotNil(result.Cursor, "a batch that deleted rows must return a cursor")
+
+		// The cursor must advance strictly: a repeat means rows are being
+		// rescanned or skipped.
+		key := tuple.MustString(*options.ToRelationship(result.Cursor))
+		_, repeated := seen[key]
+		require.False(repeated, "cursor repeated at batch %d: %s", batches, key)
+		seen[key] = struct{}{}
+
+		cursor = result.Cursor
+		deleted += result.NumDeleted
+
+		require.Less(batches, 100, "cursored delete failed to terminate")
+	}
+
+	require.Equal(uint64(toDelete), deleted)
+
+	// The other relation is untouched.
+	head, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	iter, err := ds.SnapshotReader(head.Revision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType:     testResourceNamespace,
+		OptionalResourceRelation: testEditorRelation,
+	}, options.WithQueryShape(queryshape.Varying))
+	require.NoError(err)
+	survivors, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
+	require.Len(survivors, toKeep)
 }
 
 // DeleteCaveatedTupleTest tests deleting a relationship with a caveat.
@@ -1171,7 +1324,7 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 
 					// Delete the relationships and ensure matching are no longer found.
 					_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-						_, _, err := rwt.DeleteRelationships(ctx, tc.filter, options.WithDeleteLimit(delLimit))
+						_, err := rwt.DeleteRelationships(ctx, tc.filter, options.WithDeleteLimit(delLimit))
 						return err
 					})
 					require.NoError(err)
@@ -1258,7 +1411,7 @@ func RecreateRelationshipsAfterDeleteWithFilter(t *testing.T, tester DatastoreTe
 	deleteRelationships := func() error {
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			delLimit := uint64(100)
-			_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 				OptionalRelation: "owner",
 				OptionalSubjectFilter: &v1.SubjectFilter{
 					SubjectType:       "user",
@@ -2426,7 +2579,7 @@ func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		t.Log(time.Now(), "deleting")
 		deleteCount++
-		_, _, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType:     testResourceNamespace,
 			OptionalRelation: testReaderRelation,
 		})

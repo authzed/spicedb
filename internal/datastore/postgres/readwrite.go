@@ -429,21 +429,35 @@ func handleWriteError(err error) error {
 	return fmt.Errorf(errUnableToWriteRelationships, err)
 }
 
-func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	if err := delOpts.ValidateCursoredDelete(); err != nil {
+		return datastore.DeleteRelationshipsResult{}, err
+	}
+
+	if delOpts.IsCursoredDelete() {
+		return datastore.DeleteRelationshipsResult{}, datastore.NewCursoredDeleteNotSupportedErr(Engine)
+	}
+
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
 		return rwt.deleteRelationshipsWithLimit(ctx, filter, *delOpts.DeleteLimit)
 	}
 
 	numDeleted, err := rwt.deleteRelationships(ctx, filter)
-	return numDeleted, false, err
+	if err != nil {
+		return datastore.DeleteRelationshipsResult{}, err
+	}
+	return datastore.DeleteRelationshipsResult{
+		NumDeleted:   numDeleted,
+		LimitReached: false,
+	}, nil
 }
 
-func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (uint64, bool, error) {
+func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (datastore.DeleteRelationshipsResult, error) {
 	// validate the limit
 	intLimit, err := safecast.Convert[int64](limit)
 	if err != nil {
-		return 0, false, fmt.Errorf("limit argument could not safely be cast to int64: %w", err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf("limit argument could not safely be cast to int64: %w", err)
 	}
 
 	// Construct a select query for the relationships to be removed.
@@ -461,7 +475,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	if filter.OptionalResourceIdPrefix != "" {
 		likeClause, err := common.BuildLikePrefixClause(schema.ColObjectID, filter.OptionalResourceIdPrefix)
 		if err != nil {
-			return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
+			return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
 		}
 		query = query.Where(likeClause)
 	}
@@ -481,7 +495,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 
 	selectSQL, args, err := query.ToSql()
 	if err != nil {
-		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	args = append(args, rwt.newXID)
@@ -504,15 +518,18 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 
 	result, err := rwt.tx.Exec(ctx, cteSQL, args...)
 	if err != nil {
-		return 0, false, fmt.Errorf(errUnableToDeleteRelationships, err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	numDeleted, err := safecast.Convert[uint64](result.RowsAffected())
 	if err != nil {
-		return 0, false, fmt.Errorf("unable to cast rows affected to uint64: %w", err)
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf("unable to cast rows affected to uint64: %w", err)
 	}
 
-	return numDeleted, result.RowsAffected() == intLimit, nil
+	return datastore.DeleteRelationshipsResult{
+		NumDeleted:   numDeleted,
+		LimitReached: result.RowsAffected() == intLimit,
+	}, nil
 }
 
 func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) (uint64, error) {

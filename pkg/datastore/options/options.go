@@ -2,6 +2,7 @@ package options
 
 import (
 	"context"
+	"errors"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -135,12 +136,31 @@ type RWTOptions struct {
 	// lock. Set by schema write transactions; relationship writes use the default shared lock
 	// so they can proceed concurrently.
 	SchemaHashPreconditionExclusive bool `debugmap:"visible"`
+	// SkipCommitRevision, when true, allows a datastore to skip determining the
+	// transaction's commit revision, returning datastore.NoRevision instead. It
+	// is an optimization for callers that discard the revision, such as bulk
+	// deletion: on CockroachDB the commit revision is read with a separate SHOW
+	// COMMIT TIMESTAMP round trip per transaction, which dominates the cost of an
+	// otherwise trivial batch. Datastores that derive the revision as a byproduct
+	// of the transaction may ignore this option.
+	SkipCommitRevision bool `debugmap:"visible"`
 }
 
 // DeleteOptions are the options that can affect the results of a delete relationships
 // operation.
 type DeleteOptions struct {
 	DeleteLimit *uint64 `debugmap:"visible"`
+
+	// CursoredDelete requests cursored batch deletion: the delete is performed
+	// in a defined order and DeleteRelationshipsResult.Cursor reports the last
+	// relationship deleted, so a subsequent call can resume after it. Requires
+	// DeleteLimit. Supported only by datastores implementing
+	// datastore.CursoredDeleteDatastore.
+	CursoredDelete bool `debugmap:"visible"`
+
+	// DeleteAfter restricts the delete to relationships sorted strictly after
+	// the cursor in the datastore's delete order. Implies CursoredDelete.
+	DeleteAfter Cursor `debugmap:"visible"`
 }
 
 var (
@@ -149,3 +169,24 @@ var (
 	// LimitOne is a constant *uint64 that can be used with WithLimit requests.
 	LimitOne = &one
 )
+
+// IsCursoredDelete reports whether a cursored delete was requested, either
+// explicitly or implicitly by supplying a cursor.
+func (d *DeleteOptions) IsCursoredDelete() bool {
+	return d.CursoredDelete || d.DeleteAfter != nil
+}
+
+// ValidateCursoredDelete checks a cursored delete request for internal
+// consistency. It returns an error if a cursored delete was requested without
+// a positive limit. It does not check whether the datastore supports one.
+func (d *DeleteOptions) ValidateCursoredDelete() error {
+	if !d.IsCursoredDelete() {
+		return nil
+	}
+
+	if d.DeleteLimit == nil || *d.DeleteLimit == 0 {
+		return errors.New("cursored delete requires a delete limit")
+	}
+
+	return nil
+}

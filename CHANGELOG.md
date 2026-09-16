@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- New `spicedb datastore delete-relationships` command for bulk-deleting relationships matching a filter, in committed batches. On CockroachDB the deletion advances a primary-key cursor so each batch resumes where the previous one stopped, rather than rescanning the MVCC tombstones left by prior batches — the behavior that degrades a repeated `DELETE ... LIMIT n` loop to a full scan per batch on a large table. Other engines fall back to a slower non-cursored loop. Every filter flag is required, with `<any>` as an explicit match-anything token, so a forgotten flag cannot widen a deletion. The underlying capability is exposed on the datastore interface (`options.WithCursoredDelete`, `options.WithDeleteAfter`, and `DeleteRelationshipsResult.Cursor`).
+- The `DeleteRelationships` API now supports resumable, cursored batch deletion. When `optional_limit` and `optional_allow_partial_deletions` are set, the response returns an `after_result_cursor`; passing it back as `optional_cursor` on the next call resumes the deletion after the last relationship removed, which on CockroachDB avoids rescanning already-deleted relationships. Datastores that cannot resume a cursored deletion return an error when a cursor is supplied; without a cursor they transparently fall back to the existing non-cursored partial deletion. Delete cursors are namespaced to the `DeleteRelationships` call, so a cursor from `ReadRelationships` or `LookupResources` (or vice versa) is rejected.
+
 ### Fixed
 - Shutdown: on SIGINT or SIGTERM, SpiceDB now reports `NOT_SERVING` on its gRPC health service and keeps its listeners open for 2 seconds before draining. This gives load balancers and Kubernetes readiness probes time to stop routing to the instance, so new requests do not fail with `Unavailable` (connection refused) in the window between the signal and the endpoint update. (https://github.com/authzed/spicedb/pull/3295)
 

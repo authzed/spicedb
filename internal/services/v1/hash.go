@@ -57,6 +57,33 @@ func computeReadRelationshipsRequestHash(req *v1.ReadRelationshipsRequest) (stri
 	})
 }
 
+// computeDeleteRelationshipsRequestHash computes the hash baked into a
+// DeleteRelationships cursor. The "v1.deleterelationships" prefix namespaces it
+// away from ReadRelationships/LookupResources cursors, so a cursor minted by one
+// API is rejected by the others on decode.
+func computeDeleteRelationshipsRequestHash(req *v1.DeleteRelationshipsRequest) (string, error) {
+	osf := req.RelationshipFilter.OptionalSubjectFilter
+	if osf == nil {
+		osf = &v1.SubjectFilter{}
+	}
+
+	srf := "(none)"
+	if osf.OptionalRelation != nil {
+		srf = osf.OptionalRelation.Relation
+	}
+
+	return computeCallHash("v1.deleterelationships", nil, map[string]any{
+		"filter-resource-type":      req.RelationshipFilter.ResourceType,
+		"filter-relation":           req.RelationshipFilter.OptionalRelation,
+		"filter-resource-id":        req.RelationshipFilter.OptionalResourceId,
+		"filter-resource-id-prefix": req.RelationshipFilter.OptionalResourceIdPrefix,
+		"subject-type":              osf.SubjectType,
+		"subject-relation":          srf,
+		"subject-resource-id":       osf.OptionalSubjectId,
+		"limit":                     req.OptionalLimit,
+	})
+}
+
 func computeLRRequestHash(req *v1.LookupResourcesRequest) (string, error) {
 	return computeCallHash("v1.lookupresources", req.Consistency, map[string]any{
 		"resource-type": req.ResourceObjectType,

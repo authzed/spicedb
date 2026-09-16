@@ -28,6 +28,8 @@ func NewDeleteOptionsWithOptionsAndDefaults(opts ...DeleteOptionsOption) *Delete
 func (d *DeleteOptions) ToOption() DeleteOptionsOption {
 	return func(to *DeleteOptions) {
 		to.DeleteLimit = d.DeleteLimit
+		to.CursoredDelete = d.CursoredDelete
+		to.DeleteAfter = d.DeleteAfter
 	}
 }
 
@@ -42,6 +44,14 @@ func (d *DeleteOptions) DebugMap() map[string]any {
 		debugMap["DeleteLimit"] = dm.DebugMap()
 	} else {
 		debugMap["DeleteLimit"] = *d.DeleteLimit
+	}
+	debugMap["CursoredDelete"] = d.CursoredDelete
+	if dm, ok := any(&d.DeleteAfter).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["DeleteAfter"] = dm.DebugMap()
+	} else {
+		debugMap["DeleteAfter"] = d.DeleteAfter
 	}
 	return debugMap
 }
@@ -87,5 +97,19 @@ func (d *DeleteOptions) WithOptions(opts ...DeleteOptionsOption) *DeleteOptions 
 func WithDeleteLimit(deleteLimit *uint64) DeleteOptionsOption {
 	return func(d *DeleteOptions) {
 		d.DeleteLimit = deleteLimit
+	}
+}
+
+// WithCursoredDelete returns an option that can set CursoredDelete on a DeleteOptions
+func WithCursoredDelete(cursoredDelete bool) DeleteOptionsOption {
+	return func(d *DeleteOptions) {
+		d.CursoredDelete = cursoredDelete
+	}
+}
+
+// WithDeleteAfter returns an option that can set DeleteAfter on a DeleteOptions
+func WithDeleteAfter(deleteAfter Cursor) DeleteOptionsOption {
+	return func(d *DeleteOptions) {
+		d.DeleteAfter = deleteAfter
 	}
 }

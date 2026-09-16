@@ -401,6 +401,11 @@ func (cds *crdbDatastore) EngineName() string {
 	return Engine
 }
 
+// SupportsCursoredDelete implements datastore.CursoredDeleteDatastore.
+func (cds *crdbDatastore) SupportsCursoredDelete() bool {
+	return true
+}
+
 func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
@@ -471,6 +476,15 @@ func (cds *crdbDatastore) ReadWriteTx(
 			if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
 				return fmt.Errorf("error writing overlapping keys: %w", err)
 			}
+		}
+
+		// Reading the commit revision costs a separate SHOW COMMIT TIMESTAMP
+		// round trip. Callers that discard the revision (e.g. bulk deletion)
+		// skip it; the transaction still commits normally via tx.Commit and
+		// this returns NoRevision.
+		if config.SkipCommitRevision {
+			commitTimestamp = datastore.NoRevision
+			return nil
 		}
 
 		var cerr error

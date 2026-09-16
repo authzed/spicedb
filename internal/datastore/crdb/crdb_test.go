@@ -106,6 +106,14 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		WithAcquireTimeout(5*time.Second),
 	))
 
+	t.Run("TestSkipCommitRevision", createDatastoreTest(
+		b,
+		SkipCommitRevisionTest,
+		RevisionQuantization(0),
+		GCWindow(retainAllRevisions),
+		WithAcquireTimeout(5*time.Second),
+	))
+
 	t.Run("TestTTLChangefeedSuppressionParam", createDatastoreTest(
 		b,
 		TTLChangefeedSuppressionParamTest,
@@ -555,6 +563,49 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	case <-time.NewTimer(10 * time.Second).C:
 		require.Fail("Timed out")
 	}
+}
+
+// SkipCommitRevisionTest verifies that a read-write transaction opened with
+// WithSkipCommitRevision returns NoRevision without reading the commit
+// timestamp, yet still commits its writes durably.
+func SkipCommitRevisionTest(t *testing.T, rawDS datastore.Datastore) {
+	require := require.New(t)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, `
+		definition user {}
+
+		definition resource {
+			relation viewer: user
+		}
+	`, nil)
+	ctx := t.Context()
+
+	// A transaction that skips the commit revision must report NoRevision.
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("resource:foo#viewer@user:tom")),
+		})
+	}, options.WithSkipCommitRevision(true))
+	require.NoError(err)
+	require.Equal(datastore.NoRevision, rev, "expected NoRevision when the commit revision is skipped")
+
+	// The write must nonetheless have committed and be readable at head.
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	iter, err := ds.SnapshotReader(headRev.Revision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType:     "resource",
+		OptionalResourceIds:      []string{"foo"},
+		OptionalResourceRelation: "viewer",
+	}, options.WithQueryShape(queryshape.AllSubjectsForResources))
+	require.NoError(err)
+
+	found := make([]string, 0, 1)
+	for rel, err := range iter {
+		require.NoError(err)
+		found = append(found, tuple.MustString(rel))
+	}
+	require.Equal([]string{"resource:foo#viewer@user:tom"}, found)
 }
 
 func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {

@@ -329,17 +329,16 @@ func (mr *MockReadWriteTransactionMockRecorder) CountRelationships(ctx, name any
 }
 
 // DeleteRelationships mocks base method.
-func (m *MockReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, arg2 ...options.DeleteOptionsOption) (uint64, bool, error) {
+func (m *MockReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, arg2 ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, filter}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "DeleteRelationships", varargs...)
-	ret0, _ := ret[0].(uint64)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(datastore.DeleteRelationshipsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteRelationships indicates an expected call of DeleteRelationships.
@@ -1770,6 +1769,256 @@ func (m *MockStrictReadDatastore) Watch(ctx context.Context, afterRevision datas
 func (mr *MockStrictReadDatastoreMockRecorder) Watch(ctx, afterRevision, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockStrictReadDatastore)(nil).Watch), ctx, afterRevision, arg2)
+}
+
+// MockCursoredDeleteDatastore is a mock of CursoredDeleteDatastore interface.
+type MockCursoredDeleteDatastore struct {
+	ctrl     *gomock.Controller
+	recorder *MockCursoredDeleteDatastoreMockRecorder
+	isgomock struct{}
+}
+
+// MockCursoredDeleteDatastoreMockRecorder is the mock recorder for MockCursoredDeleteDatastore.
+type MockCursoredDeleteDatastoreMockRecorder struct {
+	mock *MockCursoredDeleteDatastore
+}
+
+// NewMockCursoredDeleteDatastore creates a new mock instance.
+func NewMockCursoredDeleteDatastore(ctrl *gomock.Controller) *MockCursoredDeleteDatastore {
+	mock := &MockCursoredDeleteDatastore{ctrl: ctrl}
+	mock.recorder = &MockCursoredDeleteDatastoreMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCursoredDeleteDatastore) EXPECT() *MockCursoredDeleteDatastoreMockRecorder {
+	return m.recorder
+}
+
+// CheckRevision mocks base method.
+func (m *MockCursoredDeleteDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckRevision", ctx, revision)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckRevision indicates an expected call of CheckRevision.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) CheckRevision(ctx, revision any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckRevision", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).CheckRevision), ctx, revision)
+}
+
+// Close mocks base method.
+func (m *MockCursoredDeleteDatastore) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).Close))
+}
+
+// Features mocks base method.
+func (m *MockCursoredDeleteDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Features", ctx)
+	ret0, _ := ret[0].(*datastore.Features)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Features indicates an expected call of Features.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) Features(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Features", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).Features), ctx)
+}
+
+// HeadRevision mocks base method.
+func (m *MockCursoredDeleteDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HeadRevision", ctx)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HeadRevision indicates an expected call of HeadRevision.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) HeadRevision(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HeadRevision", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).HeadRevision), ctx)
+}
+
+// MetricsID mocks base method.
+func (m *MockCursoredDeleteDatastore) MetricsID() (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MetricsID")
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MetricsID indicates an expected call of MetricsID.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) MetricsID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MetricsID", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).MetricsID))
+}
+
+// OfflineFeatures mocks base method.
+func (m *MockCursoredDeleteDatastore) OfflineFeatures() (*datastore.Features, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OfflineFeatures")
+	ret0, _ := ret[0].(*datastore.Features)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OfflineFeatures indicates an expected call of OfflineFeatures.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OfflineFeatures", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).OfflineFeatures))
+}
+
+// OptimizedRevision mocks base method.
+func (m *MockCursoredDeleteDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OptimizedRevision indicates an expected call of OptimizedRevision.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) OptimizedRevision(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptimizedRevision", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).OptimizedRevision), ctx)
+}
+
+// ReadWriteTx mocks base method.
+func (m *MockCursoredDeleteDatastore) ReadWriteTx(arg0 context.Context, arg1 datastore.TxUserFunc, arg2 ...options.RWTOptionsOption) (datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReadWriteTx", varargs...)
+	ret0, _ := ret[0].(datastore.Revision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadWriteTx indicates an expected call of ReadWriteTx.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) ReadWriteTx(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadWriteTx", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).ReadWriteTx), varargs...)
+}
+
+// ReadyState mocks base method.
+func (m *MockCursoredDeleteDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadyState", ctx)
+	ret0, _ := ret[0].(datastore.ReadyState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadyState indicates an expected call of ReadyState.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) ReadyState(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadyState", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).ReadyState), ctx)
+}
+
+// RevisionFromString mocks base method.
+func (m *MockCursoredDeleteDatastore) RevisionFromString(serialized string) (datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevisionFromString", serialized)
+	ret0, _ := ret[0].(datastore.Revision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RevisionFromString indicates an expected call of RevisionFromString.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) RevisionFromString(serialized any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevisionFromString", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).RevisionFromString), serialized)
+}
+
+// SnapshotReader mocks base method.
+func (m *MockCursoredDeleteDatastore) SnapshotReader(arg0 datastore.Revision) datastore.Reader {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SnapshotReader", arg0)
+	ret0, _ := ret[0].(datastore.Reader)
+	return ret0
+}
+
+// SnapshotReader indicates an expected call of SnapshotReader.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) SnapshotReader(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotReader", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).SnapshotReader), arg0)
+}
+
+// Statistics mocks base method.
+func (m *MockCursoredDeleteDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Statistics", ctx)
+	ret0, _ := ret[0].(datastore.Stats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Statistics indicates an expected call of Statistics.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) Statistics(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Statistics", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).Statistics), ctx)
+}
+
+// SupportsCursoredDelete mocks base method.
+func (m *MockCursoredDeleteDatastore) SupportsCursoredDelete() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SupportsCursoredDelete")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SupportsCursoredDelete indicates an expected call of SupportsCursoredDelete.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) SupportsCursoredDelete() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportsCursoredDelete", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).SupportsCursoredDelete))
+}
+
+// UniqueID mocks base method.
+func (m *MockCursoredDeleteDatastore) UniqueID(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UniqueID", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UniqueID indicates an expected call of UniqueID.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) UniqueID(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UniqueID", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).UniqueID), arg0)
+}
+
+// Watch mocks base method.
+func (m *MockCursoredDeleteDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, arg2 datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Watch", ctx, afterRevision, arg2)
+	ret0, _ := ret[0].(<-chan datastore.RevisionChanges)
+	ret1, _ := ret[1].(<-chan error)
+	return ret0, ret1
+}
+
+// Watch indicates an expected call of Watch.
+func (mr *MockCursoredDeleteDatastoreMockRecorder) Watch(ctx, afterRevision, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).Watch), ctx, afterRevision, arg2)
 }
 
 // MockStartableDatastore is a mock of StartableDatastore interface.

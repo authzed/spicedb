@@ -49,6 +49,13 @@ func TestRewriteError(t *testing.T) {
 			expectedContains: "context canceled",
 		},
 		{
+			name:             "cursored delete not supported by datastore",
+			inputError:       datastore.NewCursoredDeleteNotSupportedErr("postgres"),
+			config:           nil,
+			expectedCode:     codes.Unimplemented,
+			expectedContains: "cursored relationship deletion is not supported",
+		},
+		{
 			name:             "context canceled with cause",
 			inputCtx:         ctxCancelWithCause,
 			inputError:       context.Canceled,
