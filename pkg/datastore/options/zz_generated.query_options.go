@@ -421,6 +421,7 @@ func (r *RWTOptions) ToOption() RWTOptionsOption {
 		to.Metadata = r.Metadata
 		to.SchemaHashPrecondition = r.SchemaHashPrecondition
 		to.SchemaHashPreconditionExclusive = r.SchemaHashPreconditionExclusive
+		to.SkipCommitRevision = r.SkipCommitRevision
 	}
 }
 
@@ -443,6 +444,7 @@ func (r *RWTOptions) DebugMap() map[string]any {
 		debugMap["SchemaHashPrecondition"] = r.SchemaHashPrecondition
 	}
 	debugMap["SchemaHashPreconditionExclusive"] = r.SchemaHashPreconditionExclusive
+	debugMap["SkipCommitRevision"] = r.SkipCommitRevision
 	return debugMap
 }
 
@@ -508,5 +510,12 @@ func WithSchemaHashPrecondition(schemaHashPrecondition string) RWTOptionsOption 
 func WithSchemaHashPreconditionExclusive(schemaHashPreconditionExclusive bool) RWTOptionsOption {
 	return func(r *RWTOptions) {
 		r.SchemaHashPreconditionExclusive = schemaHashPreconditionExclusive
+	}
+}
+
+// WithSkipCommitRevision returns an option that can set SkipCommitRevision on a RWTOptions
+func WithSkipCommitRevision(skipCommitRevision bool) RWTOptionsOption {
+	return func(r *RWTOptions) {
+		r.SkipCommitRevision = skipCommitRevision
 	}
 }

@@ -128,7 +128,7 @@ func BulkDeleteRelationships(
 				var innerErr error
 				result, innerErr = rwt.DeleteRelationships(ctx, filter, delOpts...)
 				return innerErr
-			}); err != nil {
+			}, options.WithSkipCommitRevision(true)); err != nil {
 				return progress, fmt.Errorf("bulk delete batch failed: %w", err)
 			}
 
