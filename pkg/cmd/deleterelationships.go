@@ -211,6 +211,11 @@ Unlike the serving path, batches wait indefinitely for a CockroachDB write
 connection rather than failing fast after the 30ms admission-control default;
 pass --write-conn-acquisition-timeout explicitly to bound the wait.
 
+Batches also skip the CockroachDB transaction-overlap touch that orders the
+commit timestamps of causally-dependent writes: a pure-delete batch has no
+causal dependents, and the touch would contend with every concurrent write to
+the cluster. Pass --datastore-tx-overlap-strategy explicitly to restore it.
+
 Example:
 
   ` + programName + ` datastore delete-relationships \
@@ -264,17 +269,29 @@ func RegisterDeleteRelationshipsFlags(cmd *cobra.Command, flags *deleteRelations
 // connection on CockroachDB before failing with ResourceExhausted.
 const writeAcquisitionTimeoutFlag = "write-conn-acquisition-timeout"
 
+// overlapStrategyFlag selects how CockroachDB writes force transaction
+// overlap for commit-timestamp ordering (the new-enemy protection).
+const overlapStrategyFlag = "datastore-tx-overlap-strategy"
+
 // prepareBulkDeleteConfig adjusts datastore defaults that are tuned for the
-// serving path but wrong for a one-shot bulk deletion: background GC has no
-// server to run under, and the write-connection acquisition timeout is a
+// serving path but wrong for a one-shot bulk deletion. Background GC has no
+// server to run under. The write-connection acquisition timeout is a
 // fail-fast admission control (30ms by default) that a cold pool cannot even
-// dial a CockroachDB connection within. A bulk delete batch should wait for a
-// write connection indefinitely unless the operator explicitly bounded it.
+// dial a CockroachDB connection within; a batch should instead wait
+// indefinitely. And the static transaction-overlap strategy would have every
+// batch touch the shared transactions row that all cluster writes contend
+// on -- ordering protection for causal dependents that a pure-delete batch,
+// observable only after the command completes, does not have. Each override
+// yields to an explicitly passed flag.
 func prepareBulkDeleteConfig(fs *pflag.FlagSet, cfg *dscmd.Config) {
 	cfg.GCInterval = -1 * time.Hour
 
 	if !fs.Changed(writeAcquisitionTimeoutFlag) {
 		cfg.WriteAcquisitionTimeout = 0
+	}
+
+	if !fs.Changed(overlapStrategyFlag) {
+		cfg.OverlapStrategy = "insecure"
 	}
 }
 

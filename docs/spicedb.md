@@ -84,6 +84,11 @@ Unlike the serving path, batches wait indefinitely for a CockroachDB write
 connection rather than failing fast after the 30ms admission-control default;
 pass --write-conn-acquisition-timeout explicitly to bound the wait.
 
+Batches also skip the CockroachDB transaction-overlap touch that orders the
+commit timestamps of causally-dependent writes: a pure-delete batch has no
+causal dependents, and the touch would contend with every concurrent write to
+the cluster. Pass --datastore-tx-overlap-strategy explicitly to restore it.
+
 Example:
 
   spicedb datastore delete-relationships \
