@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - uses: "nowsprinting/check-version-format-action@485fbf1df432e42859933ebaf16f27f7cdb7bde7" # v5.0.2
+      - uses: "nowsprinting/check-version-format-action@2946b47fb3590f88fc80b3579e72cd15c0fa90cb" # v5.0.4
         id: "version"
         with:
           prefix: "v"
@@ -40,7 +40,7 @@ jobs:
           CHOCOLATEY_API_KEY: "${{ secrets.CHOCOLATEY_API_KEY }}"
       - name: "Notify Slack if failure"
         if: "failure()"
-        uses: "slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c" # v3.0.3
+        uses: "slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d" # v4.0.0
         with:
           webhook: "${{ secrets.SLACK_WEBHOOK_URL }}"
           webhook-type: "incoming-webhook"
