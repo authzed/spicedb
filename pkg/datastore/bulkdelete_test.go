@@ -33,6 +33,10 @@ type scriptedDatastore struct {
 	results  []datastore.DeleteRelationshipsResult
 	calls    []scriptedCall
 
+	// rwtOpts records the resolved read-write options each batch's transaction
+	// was opened with.
+	rwtOpts []options.RWTOptions
+
 	// afterEachBatch, if set, runs after each batch; used to cancel a context
 	// mid-loop.
 	afterEachBatch func(batch int)
@@ -43,8 +47,10 @@ func (s *scriptedDatastore) SupportsCursoredDelete() bool { return s.cursored }
 func (s *scriptedDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
-	_ ...options.RWTOptionsOption,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
+	s.rwtOpts = append(s.rwtOpts, *options.NewRWTOptionsWithOptions(opts...))
+
 	if err := f(ctx, &scriptedRWT{ds: s}); err != nil {
 		return nil, err
 	}
@@ -120,6 +126,30 @@ func TestBulkDeleteRelationshipsCursoredAdvancesCursor(t *testing.T) {
 	for i, call := range ds.calls {
 		require.True(t, call.cursored, "call %d did not request a cursored delete", i)
 		require.Equal(t, uint64(10), call.limit, "call %d used the wrong limit", i)
+	}
+}
+
+func TestBulkDeleteRelationshipsSkipsCommitRevision(t *testing.T) {
+	// The command discards the per-batch commit revision, so each batch must
+	// open its transaction with SkipCommitRevision set: on CockroachDB that
+	// elides a SHOW COMMIT TIMESTAMP round trip on every batch.
+	ds := &scriptedDatastore{
+		cursored: true,
+		results: []datastore.DeleteRelationshipsResult{
+			{NumDeleted: 10, LimitReached: true, Cursor: cursorFor(t, "document:doc10#viewer@user:alice")},
+			{}, // pass 1 drains
+			{}, // second sweep finds nothing
+		},
+	}
+
+	_, err := datastore.BulkDeleteRelationships(
+		t.Context(), ds, &v1.RelationshipFilter{ResourceType: "document"},
+		datastore.BulkDeleteOptions{BatchSize: 10})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, ds.rwtOpts)
+	for i, opt := range ds.rwtOpts {
+		require.True(t, opt.SkipCommitRevision, "batch %d did not skip the commit revision", i)
 	}
 }
 

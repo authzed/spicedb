@@ -136,6 +136,14 @@ type RWTOptions struct {
 	// lock. Set by schema write transactions; relationship writes use the default shared lock
 	// so they can proceed concurrently.
 	SchemaHashPreconditionExclusive bool `debugmap:"visible"`
+	// SkipCommitRevision, when true, allows a datastore to skip determining the
+	// transaction's commit revision, returning datastore.NoRevision instead. It
+	// is an optimization for callers that discard the revision, such as bulk
+	// deletion: on CockroachDB the commit revision is read with a separate SHOW
+	// COMMIT TIMESTAMP round trip per transaction, which dominates the cost of an
+	// otherwise trivial batch. Datastores that derive the revision as a byproduct
+	// of the transaction may ignore this option.
+	SkipCommitRevision bool `debugmap:"visible"`
 }
 
 // DeleteOptions are the options that can affect the results of a delete relationships
