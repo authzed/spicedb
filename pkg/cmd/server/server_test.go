@@ -873,6 +873,8 @@ func TestShutdownReportsNotServingBeforeClosingListeners(t *testing.T) {
 	require.NoError(t, err, "unable to start memdb datastore")
 	t.Cleanup(func() { ds.Close() })
 
+	shutdownDrainDelay := 2 * time.Second
+
 	srv, err := NewConfigWithOptionsAndDefaults(
 		WithGRPCServer(util.GRPCServerConfig{Network: "tcp", Address: addr, Enabled: true}),
 		WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) { return ctx, nil }),
@@ -882,6 +884,7 @@ func TestShutdownReportsNotServingBeforeClosingListeners(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithDatastore(ds),
+		WithShutdownDrainDelay(shutdownDrainDelay),
 	).Complete(ctx)
 	require.NoError(t, err)
 
