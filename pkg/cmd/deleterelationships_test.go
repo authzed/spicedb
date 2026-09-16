@@ -294,6 +294,26 @@ func TestPrepareBulkDeleteConfigDisablesBackgroundGC(t *testing.T) {
 	require.Negative(t, cfg.GCInterval)
 }
 
+func TestPrepareBulkDeleteConfigSkipsTransactionOverlap(t *testing.T) {
+	cfg := &dscmd.Config{}
+	cmd := newBulkDeleteFlagSet(t, cfg)
+
+	// The serving-path default forces every CockroachDB write to touch a
+	// shared transactions row for commit-timestamp ordering; a bulk delete
+	// batch has no causal dependents and must not contend on that row.
+	require.Equal(t, "static", cfg.OverlapStrategy)
+	prepareBulkDeleteConfig(cmd.Flags(), cfg)
+	require.Equal(t, "insecure", cfg.OverlapStrategy)
+}
+
+func TestPrepareBulkDeleteConfigRespectsExplicitOverlapStrategy(t *testing.T) {
+	cfg := &dscmd.Config{}
+	cmd := newBulkDeleteFlagSet(t, cfg, "--datastore-tx-overlap-strategy=prefix")
+
+	prepareBulkDeleteConfig(cmd.Flags(), cfg)
+	require.Equal(t, "prefix", cfg.OverlapStrategy)
+}
+
 func TestConfirmationRequiredWithoutTTY(t *testing.T) {
 	// Without a terminal and without --yes, the command must error rather than
 	// block on a prompt nobody can answer.
