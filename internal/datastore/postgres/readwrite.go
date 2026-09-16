@@ -33,6 +33,13 @@ const (
 	errUnableToDeleteRelationshipsCounter = "unable to delete relationships counter: %w"
 )
 
+// Postgres system columns identifying a row's physical location.
+// See https://www.postgresql.org/docs/current/ddl-system-columns.html
+const (
+	colTableOID = "tableoid"
+	colCTID     = "ctid"
+)
+
 var (
 	writeNamespace = psql.Insert(schema.TableNamespace).Columns(
 		schema.ColNamespace,
@@ -55,15 +62,15 @@ var (
 		schema.ColExpiration,
 	)
 
-	deleteTuple     = psql.Update(schema.TableTuple).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
+	deleteTuple = psql.Update(schema.TableTuple).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
+
+	// selectForDelete selects the physical addresses of the rows to soft-delete, so
+	// the UPDATE can fetch each one directly with a Tid Scan instead of looking it up
+	// through an index. "tableoid" is included because "ctid" is only unique within
+	// a single physical table.
 	selectForDelete = psql.Select(
-		schema.ColNamespace,
-		schema.ColObjectID,
-		schema.ColRelation,
-		schema.ColUsersetNamespace,
-		schema.ColUsersetObjectID,
-		schema.ColUsersetRelation,
-		schema.ColCreatedXid,
+		colTableOID,
+		colCTID,
 	).From(schema.TableTuple).Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 
 	writeRelationshipCounter = psql.Insert(schema.TableRelationshipCounter).Columns(
@@ -488,18 +495,15 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 
 	// Construct a CTE to update the relationships as removed.
 	cteSQL := fmt.Sprintf(
-		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $%d WHERE (%s, %s, %s, %s, %s, %s, %s) IN (select * from found_tuples)",
+		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $%d WHERE (%s, %s) IN (SELECT %s, %s FROM found_tuples)",
 		selectSQL,
 		schema.TableTuple,
 		schema.ColDeletedXid,
 		len(args),
-		schema.ColNamespace,
-		schema.ColObjectID,
-		schema.ColRelation,
-		schema.ColUsersetNamespace,
-		schema.ColUsersetObjectID,
-		schema.ColUsersetRelation,
-		schema.ColCreatedXid,
+		colTableOID,
+		colCTID,
+		colTableOID,
+		colCTID,
 	)
 
 	result, err := rwt.tx.Exec(ctx, cteSQL, args...)
