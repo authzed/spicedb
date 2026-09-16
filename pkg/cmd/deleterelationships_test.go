@@ -6,14 +6,17 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	dscmd "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -252,6 +255,43 @@ func TestParseResumeCursor(t *testing.T) {
 
 	_, err = parseResumeCursor("not a relationship")
 	require.ErrorContains(t, err, "--resume-cursor")
+}
+
+// newBulkDeleteFlagSet builds a flag set carrying the datastore flags exactly
+// as the delete-relationships command registers them, parsed with args.
+func newBulkDeleteFlagSet(t *testing.T, cfg *dscmd.Config, args ...string) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{}
+	require.NoError(t, dscmd.RegisterDatastoreFlagsWithPrefix(cmd.Flags(), "", cfg))
+	require.NoError(t, cmd.Flags().Parse(args))
+	return cmd
+}
+
+func TestPrepareBulkDeleteConfigWaitsIndefinitelyForWriteConns(t *testing.T) {
+	cfg := &dscmd.Config{}
+	cmd := newBulkDeleteFlagSet(t, cfg)
+
+	// The serving-path default is a 30ms fail-fast admission timeout; a batch
+	// of a bulk delete must instead wait for a write connection (0 = forever).
+	require.Equal(t, 30*time.Millisecond, cfg.WriteAcquisitionTimeout)
+	prepareBulkDeleteConfig(cmd.Flags(), cfg)
+	require.Zero(t, cfg.WriteAcquisitionTimeout)
+}
+
+func TestPrepareBulkDeleteConfigRespectsExplicitAcquisitionTimeout(t *testing.T) {
+	cfg := &dscmd.Config{}
+	cmd := newBulkDeleteFlagSet(t, cfg, "--write-conn-acquisition-timeout=45ms")
+
+	prepareBulkDeleteConfig(cmd.Flags(), cfg)
+	require.Equal(t, 45*time.Millisecond, cfg.WriteAcquisitionTimeout)
+}
+
+func TestPrepareBulkDeleteConfigDisablesBackgroundGC(t *testing.T) {
+	cfg := &dscmd.Config{}
+	cmd := newBulkDeleteFlagSet(t, cfg)
+
+	prepareBulkDeleteConfig(cmd.Flags(), cfg)
+	require.Negative(t, cfg.GCInterval)
 }
 
 func TestConfirmationRequiredWithoutTTY(t *testing.T) {

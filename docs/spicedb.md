@@ -80,6 +80,10 @@ a complete deletion.
 Each batch logs its cursor, so an interrupted run can be resumed with
 --resume-cursor taken straight from the log.
 
+Unlike the serving path, batches wait indefinitely for a CockroachDB write
+connection rather than failing fast after the 30ms admission-control default;
+pass --write-conn-acquisition-timeout explicitly to bound the wait.
+
 Example:
 
   spicedb datastore delete-relationships \
