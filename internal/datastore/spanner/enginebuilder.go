@@ -41,7 +41,6 @@ func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (data
 		FollowerReadDelay(opts.FollowerReadDelay),
 		RevisionQuantization(opts.RevisionQuantization),
 		GCWindow(opts.GCWindow),
-		MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		//nolint:staticcheck // the deprecated credentials options remain supported until removal
 		CredentialsFile(opts.SpannerCredentialsFile),
 		//nolint:staticcheck // the deprecated credentials options remain supported until removal

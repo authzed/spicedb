@@ -128,19 +128,23 @@ const (
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
 
-func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, string, error) {
+func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration
 	var schemaHash []byte
 	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
 		Scan(&revision, &snapshot, &validForNanos, &schemaHash); err != nil {
-		return datastore.NoRevision, 0, "", fmt.Errorf(errRevision, err)
+		return datastore.RevisionWithSchemaHashAndValidity{}, fmt.Errorf(errRevision, err)
 	}
 
 	snapshot = snapshot.markComplete(revision.Uint64)
 
-	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, string(schemaHash), nil
+	return datastore.RevisionWithSchemaHashAndValidity{
+		Revision:   postgresRevision{snapshot: snapshot, optionalTxID: revision},
+		ValidFor:   validForNanos,
+		SchemaHash: string(schemaHash),
+	}, nil
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {

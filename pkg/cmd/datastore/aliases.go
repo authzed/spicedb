@@ -85,7 +85,6 @@ var (
 	WithMaxLifetimeJitter                    = dsconfig.WithMaxLifetimeJitter
 	WithMaxOpenConns                         = dsconfig.WithMaxOpenConns
 	WithMaxRetries                           = dsconfig.WithMaxRetries
-	WithMaxRevisionStalenessPercent          = dsconfig.WithMaxRevisionStalenessPercent
 	WithMigrationPhase                       = dsconfig.WithMigrationPhase
 	WithMinOpenConns                         = dsconfig.WithMinOpenConns
 	WithOldReadReplicaConnPool               = dsconfig.WithOldReadReplicaConnPool

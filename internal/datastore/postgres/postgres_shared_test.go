@@ -1046,7 +1046,8 @@ func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastor
 	var snapshot pgSnapshot
 	pgDS, ok := ds.(*pgDatastore)
 	require.True(t, ok)
-	rev, _, _, err := pgDS.optimizedRevisionFunc(ctx)
+	revResult, err := pgDS.OptimizedRevision(ctx)
+	rev := revResult.Revision
 	require.NoError(t, err)
 
 	pgRev, ok := rev.(postgresRevision)

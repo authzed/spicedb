@@ -178,8 +178,8 @@ func (f fakeDatastore) ReadWriteTx(_ context.Context, _ datastore.TxUserFunc, _ 
 	return nil, nil
 }
 
-func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {
-	return datastore.RevisionWithSchemaHash{}, nil
+func (f fakeDatastore) OptimizedRevision(_ context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+	return datastore.RevisionWithSchemaHashAndValidity{}, nil
 }
 
 func (f fakeDatastore) HeadRevision(_ context.Context) (datastore.RevisionWithSchemaHash, error) {

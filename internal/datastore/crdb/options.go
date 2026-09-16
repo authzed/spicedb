@@ -21,7 +21,6 @@ type crdbOptions struct {
 	watchConnectTimeout            time.Duration
 	revisionQuantization           time.Duration
 	followerReadDelay              time.Duration
-	maxRevisionStalenessPercent    float64
 	gcWindow                       time.Duration
 	maxRetries                     uint8
 	overlapStrategy                string
@@ -46,13 +45,12 @@ const (
 	overlapStrategyStatic   = "static"
 	overlapStrategyInsecure = "insecure"
 
-	defaultRevisionQuantization        = 5 * time.Second
-	defaultFollowerReadDelay           = 0 * time.Second
-	defaultMaxRevisionStalenessPercent = 0.1
-	defaultWatchBufferLength           = 128
-	defaultWatchBufferWriteTimeout     = 1 * time.Second
-	defaultWatchConnectTimeout         = 1 * time.Second
-	defaultSplitSize                   = 1024
+	defaultRevisionQuantization    = 5 * time.Second
+	defaultFollowerReadDelay       = 0 * time.Second
+	defaultWatchBufferLength       = 128
+	defaultWatchBufferWriteTimeout = 1 * time.Second
+	defaultWatchConnectTimeout     = 1 * time.Second
+	defaultSplitSize               = 1024
 
 	defaultMaxRetries      = 5
 	defaultOverlapKey      = "defaultsynckey"
@@ -81,7 +79,6 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		watchConnectTimeout:            defaultWatchConnectTimeout,
 		revisionQuantization:           defaultRevisionQuantization,
 		followerReadDelay:              defaultFollowerReadDelay,
-		maxRevisionStalenessPercent:    defaultMaxRevisionStalenessPercent,
 		maxRetries:                     defaultMaxRetries,
 		overlapKey:                     defaultOverlapKey,
 		overlapStrategy:                defaultOverlapStrategy,
@@ -312,15 +309,6 @@ func RevisionQuantization(bucketSize time.Duration) Option {
 // This value defaults to 0 seconds.
 func FollowerReadDelay(delay time.Duration) Option {
 	return func(po *crdbOptions) { po.followerReadDelay = delay }
-}
-
-// MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
-// the revision quantization window, that a previously computed rounded revision
-// can still be advertised after the next rounded revision would otherwise be ready.
-//
-// This value defaults to 0.1 (10%).
-func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
-	return func(po *crdbOptions) { po.maxRevisionStalenessPercent = stalenessPercent }
 }
 
 // GCWindow is the maximum age of a passed revision that will be considered

@@ -12,8 +12,6 @@ import (
 type postgresOptions struct {
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
 
-	maxRevisionStalenessPercent float64
-
 	credentialsProviderName string
 
 	watchBufferLength            uint16
@@ -68,7 +66,6 @@ const (
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
 	defaultQuantization                      = 5 * time.Second
-	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 10
 	defaultGCEnabled                         = true
@@ -96,7 +93,6 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		watchBufferLength:              defaultWatchBufferLength,
 		watchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
 		revisionQuantization:           defaultQuantization,
-		maxRevisionStalenessPercent:    defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:          defaultEnablePrometheusStats,
 		maxRetries:                     defaultMaxRetries,
 		gcEnabled:                      defaultGCEnabled,
@@ -324,15 +320,6 @@ func RevisionQuantization(quantization time.Duration) Option {
 // This value defaults to 0 seconds.
 func FollowerReadDelay(delay time.Duration) Option {
 	return func(po *postgresOptions) { po.followerReadDelay = delay }
-}
-
-// MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
-// the revision quantization window, that a previously computed rounded revision
-// can still be advertised after the next rounded revision would otherwise be ready.
-//
-// This value defaults to 0.1 (10%).
-func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
-	return func(po *postgresOptions) { po.maxRevisionStalenessPercent = stalenessPercent }
 }
 
 // GCWindow is the maximum age of a passed revision that will be considered

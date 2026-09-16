@@ -48,6 +48,7 @@ func TestRWOperationErrors(t *testing.T) {
 	rev, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tuple.MustParse("user:test#boss@user:boss"))
 	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)
+	delegate.AssertExpectations(t)
 }
 
 func TestReadonlyUnwrap(t *testing.T) {
@@ -56,6 +57,7 @@ func TestReadonlyUnwrap(t *testing.T) {
 
 	unwrapped := ds.(datastore.UnwrappableDatastore).Unwrap()
 	require.Equal(t, delegate, unwrapped)
+	delegate.AssertExpectations(t)
 }
 
 var expectedRevision = revisions.NewForTransactionID(123)
@@ -82,7 +84,7 @@ func TestOptimizedRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := t.Context()
 
-	delegate.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHash{Revision: expectedRevision}, nil).Times(1)
+	delegate.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: expectedRevision}, nil).Times(1)
 
 	result, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)

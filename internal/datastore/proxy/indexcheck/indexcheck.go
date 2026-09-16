@@ -56,7 +56,7 @@ func (p *indexcheckingProxy) UniqueID(ctx context.Context) (string, error) {
 	return p.delegate.UniqueID(ctx)
 }
 
-func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }
 

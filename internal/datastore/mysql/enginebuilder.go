@@ -81,7 +81,6 @@ func commonDatastoreOptionsFromConfig(opts datastorecfg.Config) ([]Option, error
 		WatchBufferLength(opts.WatchBufferLength),
 		WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		WatchChangeBufferMaximumSize(watchChangeBufferMaximumSize),
-		MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		RevisionQuantization(opts.RevisionQuantization),
 		FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		AllowedMigrations(opts.AllowedMigrations),

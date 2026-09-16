@@ -754,7 +754,12 @@ type ReadOnlyDatastore interface {
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.
-	OptimizedRevision(ctx context.Context) (RevisionWithSchemaHash, error)
+	//
+	// Implementations return the *uncached* answer: one datastore round-trip per
+	// call, yielding the revision, how long it remains valid, and the schema hash
+	// visible at that revision (or "" if not provided on this path). Caching,
+	// deduplication, and jitter are layered on by proxy.NewOptimizedRevisionProxy.
+	OptimizedRevision(ctx context.Context) (RevisionWithSchemaHashAndValidity, error)
 
 	// HeadRevision gets a revision that is guaranteed to be at least as fresh as
 	// right now.
@@ -1083,6 +1088,19 @@ func (nilRevision) String() string {
 // the datastore layer; the datalayer converts it to a typed SchemaHash.
 type RevisionWithSchemaHash struct {
 	Revision   Revision
+	SchemaHash string
+}
+
+// RevisionWithSchemaHashAndValidity is an optimized revision, the schema hash
+// active at it, and how long the revision remains a valid choice for new reads.
+type RevisionWithSchemaHashAndValidity struct {
+	Revision Revision
+
+	// ValidFor is a duration, not an absolute time, because the window is
+	// measured on the datastore's clock, which may be skewed from this process.
+	// Callers anchor it to their own clock, sampled before the call.
+	ValidFor time.Duration
+
 	SchemaHash string
 }
 
