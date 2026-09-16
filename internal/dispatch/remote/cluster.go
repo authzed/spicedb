@@ -203,6 +203,24 @@ func (dal *digestAndLock) addResultTime(ctx context.Context, duration time.Durat
 	}
 }
 
+// reshapeDispatchError converts a CANCELED error returned by the remote dispatch boundary into
+// UNAVAILABLE when the dispatcher's *inbound* context was not itself canceled. At the server
+// level, CANCELED should mean "the client canceled the request and went away"; a CANCELED
+// produced by an internal cancel (e.g. hedging losing the race) that bubbles up to the caller
+// obscures what actually happened. The check is intentionally done on the inbound context
+// rather than the hedging or timeout context handed to the remote call.
+func reshapeDispatchError(inboundCtx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if (status.Code(err) == codes.Canceled || errors.Is(err, context.Canceled)) && inboundCtx.Err() == nil {
+		return status.Error(codes.Unavailable, fmt.Sprintf("remote dispatch canceled internally: %s", err.Error()))
+	}
+
+	return err
+}
+
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
@@ -232,7 +250,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 			return resp, err
 		})
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
+		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, reshapeDispatchError(ctx, err)
 	}
 
 	return resp, err
@@ -468,7 +486,7 @@ func publishClient[R any](ctx context.Context, client receiver[R], reqKey string
 
 type ctxAndCancel struct {
 	ctx    context.Context
-	cancel context.CancelFunc
+	cancel context.CancelCauseFunc
 }
 
 // dispatchStreamingRequest handles the dispatching of a streaming request to the primary and any
@@ -549,12 +567,12 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 
 	contexts := make(map[string]ctxAndCancel, len(validSecondaryDispatchers)+1)
 
-	primaryCtx, primaryCancelFn := context.WithCancel(ctxWithTimeout)
+	primaryCtx, primaryCancelFn := context.WithCancelCause(ctxWithTimeout)
 	primaryDeadline, _ := primaryCtx.Deadline()
 	primaryCtx = log.Ctx(primaryCtx).With().Time("deadline", primaryDeadline).Logger().WithContext(primaryCtx)
 	contexts[primaryDispatcher] = ctxAndCancel{primaryCtx, primaryCancelFn}
 	for _, secondary := range validSecondaryDispatchers {
-		secondaryCtx, secondaryCancelFn := context.WithCancel(ctxWithTimeout)
+		secondaryCtx, secondaryCancelFn := context.WithCancelCause(ctxWithTimeout)
 		secondaryDeadline, _ := secondaryCtx.Deadline()
 		secondaryCtx = log.Ctx(secondaryCtx).With().Time("deadline", secondaryDeadline).Logger().WithContext(secondaryCtx)
 		contexts[secondary.Name] = ctxAndCancel{secondaryCtx, secondaryCancelFn}
@@ -672,7 +690,9 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 					for key, otherCtx := range contexts {
 						if key != name {
 							log.Ctx(handlerContext).Trace().Str("canceling-dispatcher", key).Msg("canceling dispatcher context")
-							otherCtx.cancel()
+							// WithCancelCause makes the hedging cancel visible via context.Cause,
+							// distinguishing it from a caller-initiated cancel.
+							otherCtx.cancel(fmt.Errorf("canceled because dispatcher %q was the first to return results", name))
 						}
 					}
 				}
@@ -728,7 +748,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	if resultHandlerName != noDispatcherResults {
 		if err, ok := errorsByDispatcherName.Load(resultHandlerName); ok {
 			log.Ctx(ctxWithTimeout).Warn().Err(err).Str("dispatcher", resultHandlerName).Msg("dispatcher that returned results encountered an error during streaming")
-			return err
+			return reshapeDispatchError(ctx, err)
 		}
 		return nil
 	}
@@ -741,7 +761,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			return true
 		})
 		log.Ctx(ctxWithTimeout).Warn().Err(primaryErr).Errs("all-errors", allErrors).Msg("returning primary dispatcher error as no dispatchers returned results")
-		return primaryErr
+		return reshapeDispatchError(ctx, primaryErr)
 	}
 
 	// Otherwise return a combined error.
@@ -779,7 +799,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 
 	resp, err := cr.clusterClient.DispatchExpand(withTimeout, req)
 	if err != nil {
-		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
+		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, reshapeDispatchError(ctx, err)
 	}
 
 	err = adjustMetadataForDispatch(resp.Metadata)
