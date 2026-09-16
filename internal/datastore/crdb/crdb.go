@@ -478,6 +478,15 @@ func (cds *crdbDatastore) ReadWriteTx(
 			}
 		}
 
+		// Reading the commit revision costs a separate SHOW COMMIT TIMESTAMP
+		// round trip. Callers that discard the revision (e.g. bulk deletion)
+		// skip it; the transaction still commits normally via tx.Commit and
+		// this returns NoRevision.
+		if config.SkipCommitRevision {
+			commitTimestamp = datastore.NoRevision
+			return nil
+		}
+
 		var cerr error
 		commitTimestamp, cerr = cds.readTransactionCommitRev(ctx, querier)
 		if cerr != nil {
