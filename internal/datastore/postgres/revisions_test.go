@@ -8,6 +8,8 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (
@@ -247,4 +249,17 @@ func TestRevisionForVersionOverclaimsUnderConcurrency(t *testing.T) {
 	// only saw this once its subtests started running concurrently.
 	quiescentReadAt := pgSnapshot{xmin: 855, xmax: 855}
 	require.Equal(t, equal, createdRev.snapshot.compare(quiescentReadAt))
+}
+
+// TestPostgresRevisionHasNoSortKey asserts that postgresRevision declines the
+// datastore.SortKeyRevision capability, since snapshots are only partially ordered and so have no
+// order for bytes to preserve.
+func TestPostgresRevisionHasNoSortKey(t *testing.T) {
+	var rev datastore.Revision = postgresRevision{snapshot: pgSnapshot{xmin: 100, xmax: 100}}
+
+	_, ok := rev.(datastore.SortKeyRevision)
+	require.False(t, ok, "postgresRevision must not implement datastore.SortKeyRevision")
+
+	// ByteSortable reports the same property in its weaker form, and must agree.
+	require.False(t, rev.ByteSortable())
 }

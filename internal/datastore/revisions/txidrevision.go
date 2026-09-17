@@ -1,11 +1,15 @@
 package revisions
 
 import (
+	"encoding/binary"
 	"fmt"
 	"strconv"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 )
+
+// transactionIDSortKeyLength is the width of a transaction ID sort key.
+const transactionIDSortKeyLength = 8
 
 // TransactionIDRevision is a revision that is a transaction ID.
 type TransactionIDRevision uint64
@@ -29,6 +33,13 @@ func parseTransactionIDRevisionString(revisionStr string) (rev datastore.Revisio
 
 func (ir TransactionIDRevision) ByteSortable() bool {
 	return true
+}
+
+// AppendSortKey implements datastore.SortKeyRevision. Keys are transactionIDSortKeyLength bytes.
+func (ir TransactionIDRevision) AppendSortKey(dst []byte) []byte {
+	// Transaction IDs are unsigned, so big-endian bytes already sort in numeric order; no sign
+	// flip is needed the way appendOrderedInt64 does for the signed types.
+	return binary.BigEndian.AppendUint64(dst, uint64(ir))
 }
 
 func (ir TransactionIDRevision) Equal(rhs datastore.Revision) bool {
@@ -67,7 +78,10 @@ func (ir TransactionIDRevision) WithInexactFloat64() float64 {
 	return float64(ir)
 }
 
-var _ datastore.Revision = TransactionIDRevision(0)
+var (
+	_ datastore.Revision        = TransactionIDRevision(0)
+	_ datastore.SortKeyRevision = TransactionIDRevision(0)
+)
 
 // TransactionIDKeyFunc is used to create keys for transaction IDs.
 func TransactionIDKeyFunc(r TransactionIDRevision) uint64 {
