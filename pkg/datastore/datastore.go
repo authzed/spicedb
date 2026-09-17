@@ -1057,8 +1057,62 @@ type Revision interface {
 	// LessThan returns whether the receiver is probably less than the right hand side.
 	LessThan(Revision) bool
 
-	// ByteSortable returns true if the string representation of the Revision is byte sortable, false otherwise.
+	// ByteSortable reports whether this kind of revision is totally ordered, and so could be
+	// written as bytes that sort in revision order. It is a property of the type: every revision
+	// of a given type answers the same way. Postgres revisions are transaction snapshots and are
+	// only partially ordered, so they report false - they have no order for bytes to preserve.
+	//
+	// It says nothing about String(). For every revision type SpiceDB ships, String() is a
+	// decimal that does not sort: "9" sorts above "10".
+	//
+	// SortKeyRevision supersedes this method, answering the same question and handing back the
+	// bytes as well.
 	ByteSortable() bool
+}
+
+// SortKeyRevision is an optional extension to the Revision interface that, when implemented, turns
+// a revision into bytes that sort in revision order, for use as a key - or part of a key - in an
+// ordered key/value store.
+//
+//	skr, ok := rev.(datastore.SortKeyRevision)
+//	if !ok {
+//		return fmt.Errorf("revision of type %T cannot be used as a key", rev)
+//	}
+//	key = skr.AppendSortKey(key)
+//
+// This supersedes Revision.ByteSortable, which asks the same question and answers it with a bool.
+// Here the answer is the encoding itself, so a type cannot claim the capability without also
+// supplying the means to use it, and the claim cannot drift away from what the type actually does.
+//
+// Partially ordered revisions must not implement this interface, for the same reason they report
+// false from ByteSortable: they have no order for bytes to preserve.
+type SortKeyRevision interface {
+	Revision
+
+	// AppendSortKey appends this revision's sort key to dst and returns the extended buffer, like
+	// the builtin append. Pass a nil dst to get a key on its own.
+	//
+	// For any two revisions a and b from the same datastore, the keys guarantee:
+	//
+	//   - They sort in revision order. bytes.Compare of a's key and b's key is negative when
+	//     a.LessThan(b), zero when a.Equal(b), positive when a.GreaterThan(b).
+	//   - Neither key is a prefix of the other, so appending more bytes to each cannot reorder
+	//     them. A sort key can therefore be one field of a longer key.
+	//
+	// String() gives neither: "9" sorts above "10", and "100" is a prefix of "1000", so a longer
+	// key built from "100" can outsort one built from "1000".
+	//
+	// Keys are comparable only between revisions of the same type from the same datastore - the
+	// same scope in which Equal, LessThan and GreaterThan mean anything.
+	//
+	// The bytes are stable across SpiceDB versions, so keys may be stored durably. An
+	// implementation must never change its encoding once released.
+	//
+	// AppendSortKey allocates only to grow dst. Implementations keep no state, so calls may be
+	// made concurrently, but dst belongs to the caller: concurrent calls must not share a dst
+	// backing array, and - as with the builtin append - a later call that reuses an earlier
+	// call's buffer may overwrite the earlier key.
+	AppendSortKey(dst []byte) []byte
 }
 
 type nilRevision struct{}

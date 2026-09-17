@@ -361,6 +361,11 @@ func (pr postgresRevision) ByteSortable() bool {
 	return false
 }
 
+// NOTE: postgresRevision deliberately does not implement datastore.SortKeyRevision. These revisions
+// are transaction snapshots, and two of them can be mutually uncomparable, so there is no order for
+// bytes to preserve. Not having the method is how that is reported; see
+// TestPostgresRevisionHasNoSortKey.
+
 func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
 	rhs, ok := rhsRaw.(postgresRevision)
 	return ok && pr.snapshot.Equal(rhs.snapshot)
