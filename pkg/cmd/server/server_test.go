@@ -288,6 +288,7 @@ func TestOTelReporting(t *testing.T) {
 		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithSilentlyDisableTelemetry(true),
 		WithDatastore(ds),
 		WithEnableMemoryProtectionMiddleware(false),
 	}
@@ -361,6 +362,7 @@ func TestDisableHealthCheckTracing(t *testing.T) {
 		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithSilentlyDisableTelemetry(true),
 		WithDatastore(ds),
 	}
 
@@ -484,6 +486,7 @@ func TestRetryPolicy(t *testing.T) {
 		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithSilentlyDisableTelemetry(true),
 		WithDatastore(ds),
 		WithEnableMemoryProtectionMiddleware(false),
 		SetUnaryMiddlewareModification([]MiddlewareModification[grpc.UnaryServerInterceptor]{
@@ -883,6 +886,7 @@ func TestShutdownReportsNotServingBeforeClosingListeners(t *testing.T) {
 		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithSilentlyDisableTelemetry(true),
 		WithDatastore(ds),
 		WithShutdownDrainDelay(shutdownDrainDelay),
 	).Complete(ctx)
