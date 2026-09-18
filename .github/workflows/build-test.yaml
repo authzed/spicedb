@@ -388,12 +388,20 @@ jobs:
     steps:
       - uses: "actions/checkout@v7"
       - uses: "authzed/actions/setup-go@main"
+      # Headless Chrome needs unprivileged user namespaces to sandbox, which
+      # Ubuntu 23.10+ restricts via AppArmor. Kernels built without that
+      # restriction do not expose the knob at all, and there is nothing to
+      # disable on them, so its absence is not a failure.
+      # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
       - name: "Disable AppArmor"
-        if:
-          "runner.os == 'Linux'"
-          # Disable AppArmor for Ubuntu 23.10+.
-          # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
-        run: "echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns"
+        if: "runner.os == 'Linux'"
+        run: |
+          knob="/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
+          if [ -e "${knob}" ]; then
+            echo 0 | sudo tee "${knob}"
+          else
+            echo "${knob} is absent; no restriction to disable"
+          fi
       # cleanenv is a util provided by the wasmbrowsertest package that removes
       # environment variables from the environment handed to wasmbrowsertest.
       # this works around https://github.com/agnivade/wasmbrowsertest/issues/40,
