@@ -3,12 +3,28 @@ package datastore
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/testcontainers/testcontainers-go"
 
 	crdbversion "github.com/authzed/spicedb/internal/datastore/crdb/version"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
+)
+
+const (
+	// newDatastoreTimeout bounds creating a logical database and migrating it to
+	// head. The retry around that work exists to absorb a backing engine that is
+	// accepting connections but not yet ready, but the budget has to cover the
+	// migration run itself: testify's timer fires whether or not a condition is
+	// still in flight, so a migration that is merely slow is reported as one that
+	// never succeeded. The work takes well under a second on an idle machine and
+	// this is only a ceiling, so it is set high enough that a CI runner executing
+	// many jobs at once cannot exceed it.
+	newDatastoreTimeout = 60 * time.Second
+
+	// newDatastoreTick is how long to wait before retrying after a failed attempt.
+	newDatastoreTick = 500 * time.Millisecond
 )
 
 // InitFunc initializes a datastore instance from a uri that has been
