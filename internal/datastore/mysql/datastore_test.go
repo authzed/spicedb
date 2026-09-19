@@ -599,13 +599,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
-	testCases := []struct {
-		testName          string
-		quantization      time.Duration
-		relativeTimes     []time.Duration
-		followerReadDelay time.Duration
-		expectedRevision  uint64
-	}{
+	testCases := []quantizedRevisionCase{
 		{
 			"DefaultRevision",
 			1 * time.Second,
@@ -659,68 +653,166 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			require := require.New(t)
-			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-			defer cancel()
-
-			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := newMySQLDatastore(
-					ctx,
-					uri,
-					primaryInstanceID,
-					RevisionQuantization(5*time.Second),
-					GCWindow(24*time.Hour),
-					WatchBufferLength(1),
-				)
-				require.NoError(err)
-				return ds
-			})
-			mds := ds.(*mysqlDatastore)
-
-			mgg, err := mds.BuildGarbageCollector(ctx)
-			require.NoError(err)
-			defer mgg.Close()
-
-			dbNow, err := mgg.Now(ctx)
-			require.NoError(err)
-
-			tx, err := mds.db.BeginTx(ctx, nil)
-			require.NoError(err)
-
-			if len(tc.relativeTimes) > 0 {
-				bulkWrite := sb.Insert(mds.driver.RelationTupleTransaction()).Columns(colTimestamp)
-
-				for _, offset := range tc.relativeTimes {
-					bulkWrite = bulkWrite.Values(dbNow.Add(offset))
+			// The same clock race the postgres suite has: the fixture rows are
+			// positioned relative to a database clock reading taken up front, while
+			// querySelectRevision floors a live UTC_TIMESTAMP(6) into quantization
+			// buckets at the moment it runs. A boundary falling between the two moves
+			// the cutoff and selects a different row, so the expected revision stops
+			// describing the fixture that was built.
+			//
+			// Each attempt positions the fixture just after a boundary, leaving a full
+			// quantization period of slack, then discards itself if one was crossed
+			// anyway. The last attempt asserts whatever it finds, so a real regression
+			// still fails rather than being retried until it looks like flakiness.
+			const maxAttempts = 4
+			for attempt := 1; attempt <= maxAttempts; attempt++ {
+				if runQuantizedRevisionCase(t, b, tc, attempt == maxAttempts) {
+					return
 				}
-
-				sql, args, err := bulkWrite.ToSql()
-				require.NoError(err)
-
-				_, err = tx.ExecContext(ctx, sql, args...)
-				require.NoError(err)
+				t.Logf("%s: attempt %d crossed a quantization boundary (quantization %s, follower read delay %s) before the revision was selected; retrying",
+					tc.testName, attempt, tc.quantization, tc.followerReadDelay)
 			}
-
-			queryRevision := fmt.Sprintf(
-				querySelectRevision,
-				colID,
-				mds.driver.RelationTupleTransaction(),
-				colTimestamp,
-				tc.quantization.Nanoseconds(),
-				tc.followerReadDelay.Nanoseconds(),
-				mds.driver.SchemaRevision(),
-			)
-
-			var revision uint64
-			var validFor time.Duration
-			var schemaHash []byte
-			err = tx.QueryRowContext(ctx, queryRevision).Scan(&revision, &validFor, &schemaHash)
-			require.NoError(err)
-			require.Greater(validFor, time.Duration(0))
-			require.LessOrEqual(validFor, tc.quantization.Nanoseconds())
-			require.Equal(tc.expectedRevision, revision)
 		})
 	}
+}
+
+// quantizedRevisionCase is one row of QuantizedRevisionTest's table.
+type quantizedRevisionCase struct {
+	testName          string
+	quantization      time.Duration
+	relativeTimes     []time.Duration
+	followerReadDelay time.Duration
+	expectedRevision  uint64
+}
+
+// runQuantizedRevisionCase runs a single quantized revision case and reports
+// whether it produced a usable result. It returns false only when a quantization
+// boundary was crossed between positioning the fixture and selecting the
+// revision, which makes the case's expectation inapplicable to what was measured.
+// When mustAssert is set it asserts regardless, so a caller's final attempt
+// cannot pass silently.
+func runQuantizedRevisionCase(t *testing.T, b testdatastore.RunningEngineForTest, tc quantizedRevisionCase, mustAssert bool) bool {
+	t.Helper()
+
+	require := require.New(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+
+	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := newMySQLDatastore(
+			ctx,
+			uri,
+			primaryInstanceID,
+			RevisionQuantization(5*time.Second),
+			GCWindow(24*time.Hour),
+			WatchBufferLength(1),
+		)
+		require.NoError(err)
+		return ds
+	})
+	mds := ds.(*mysqlDatastore)
+
+	mgg, err := mds.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer mgg.Close()
+
+	dbNow := alignedDatabaseNow(ctx, t, mgg, tc.quantization, tc.followerReadDelay)
+
+	tx, err := mds.db.BeginTx(ctx, nil)
+	require.NoError(err)
+
+	if len(tc.relativeTimes) > 0 {
+		bulkWrite := sb.Insert(mds.driver.RelationTupleTransaction()).Columns(colTimestamp)
+
+		for _, offset := range tc.relativeTimes {
+			bulkWrite = bulkWrite.Values(dbNow.Add(offset))
+		}
+
+		sql, args, err := bulkWrite.ToSql()
+		require.NoError(err)
+
+		_, err = tx.ExecContext(ctx, sql, args...)
+		require.NoError(err)
+	}
+
+	queryRevision := fmt.Sprintf(
+		querySelectRevision,
+		colID,
+		mds.driver.RelationTupleTransaction(),
+		colTimestamp,
+		tc.quantization.Nanoseconds(),
+		tc.followerReadDelay.Nanoseconds(),
+		mds.driver.SchemaRevision(),
+	)
+
+	var revision uint64
+	var validFor time.Duration
+	var schemaHash []byte
+	err = tx.QueryRowContext(ctx, queryRevision).Scan(&revision, &validFor, &schemaHash)
+	require.NoError(err)
+
+	dbAfter, err := mgg.Now(ctx)
+	require.NoError(err)
+	if !mustAssert && quantizationHasBuckets(tc.quantization) &&
+		quantizationBucket(dbNow, tc.quantization, tc.followerReadDelay) !=
+			quantizationBucket(dbAfter, tc.quantization, tc.followerReadDelay) {
+		return false
+	}
+
+	require.Greater(validFor, time.Duration(0))
+	require.LessOrEqual(validFor, tc.quantization.Nanoseconds())
+	require.Equal(tc.expectedRevision, revision)
+	return true
+}
+
+// quantizationBucket reports which bucket querySelectRevision's cutoff falls into
+// for a given database clock reading: the query floors (now - followerReadDelay)
+// to a multiple of the quantization period. Two readings in the same bucket yield
+// the same cutoff, and therefore select the same revision.
+func quantizationBucket(dbTime time.Time, quantization, followerReadDelay time.Duration) int64 {
+	if !quantizationHasBuckets(quantization) {
+		return 0
+	}
+	return (dbTime.UnixNano() - int64(followerReadDelay)) / int64(quantization)
+}
+
+// quantizationHasBuckets reports whether a quantization period is long enough for
+// bucket identity to mean anything. The QuantizationDisabled case uses 1ns, where
+// every instant is its own bucket and the cutoff simply tracks the current time:
+// there is no boundary to align to and crossing one says nothing about the result,
+// so aligning and boundary-checking are skipped rather than evaluated against a
+// condition that is always true.
+func quantizationHasBuckets(quantization time.Duration) bool {
+	return quantization > time.Millisecond
+}
+
+// alignedDatabaseNow returns a database clock reading positioned just after a
+// quantization boundary, so that a fixture built from it has a full quantization
+// period before the cutoff moves to the next bucket. Without this the remaining
+// slack is whatever is left of the current bucket - uniform in [0, quantization)
+// and so a coin flip on a loaded machine.
+func alignedDatabaseNow(ctx context.Context, t *testing.T, mgg datastore.GarbageCollector, quantization, followerReadDelay time.Duration) time.Time {
+	t.Helper()
+
+	dbNow, err := mgg.Now(ctx)
+	require.NoError(t, err)
+	if !quantizationHasBuckets(quantization) {
+		return dbNow
+	}
+
+	quantNs := int64(quantization)
+	offset := (dbNow.UnixNano() - int64(followerReadDelay)) % quantNs
+	if offset < 0 {
+		offset += quantNs
+	}
+	if offset == 0 {
+		return dbNow
+	}
+
+	time.Sleep(time.Duration(quantNs - offset))
+	dbNow, err = mgg.Now(ctx)
+	require.NoError(t, err)
+	return dbNow
 }
 
 // From https://dev.mysql.com/doc/refman/8.0/en/datetime.html
