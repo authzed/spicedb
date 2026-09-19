@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,16 +107,30 @@ func (mb *mysqlTester) dsn(dbName string) string {
 	return fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", mysqlRootUser, mysqlRootPassword, mb.endpoint, dbName)
 }
 
-func (mb *mysqlTester) NewDatabase(t testing.TB) string {
+// newDatabase creates a new, empty logical database and returns its DSN. It
+// reports failure by returning an error rather than by failing the test, so that
+// it is safe to call from inside a retry condition: testify runs those in their
+// own goroutine, where require's FailNow would abort that goroutine instead of
+// the test, and the retry would spin until it timed out with nothing to report.
+func (mb *mysqlTester) newDatabase() (string, error) {
 	uniquePortion, err := secrets.TokenHex(4)
-	require.NoError(t, err, "Could not generate unique portion of db name: %s", err)
+	if err != nil {
+		return "", fmt.Errorf("could not generate unique portion of db name: %w", err)
+	}
 
 	dbName := testDBPrefix + uniquePortion
 
-	_, err = mb.db.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName))
-	require.NoError(t, err, "failed to create database %s: %s", dbName, err)
+	if _, err := mb.db.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName)); err != nil {
+		return "", fmt.Errorf("failed to create database %s: %w", dbName, err)
+	}
 
-	return mb.dsn(dbName)
+	return mb.dsn(dbName), nil
+}
+
+func (mb *mysqlTester) NewDatabase(t testing.TB) string {
+	dsn, err := mb.newDatabase()
+	require.NoError(t, err)
+	return dsn
 }
 
 func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) error {
@@ -137,11 +150,16 @@ func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) error {
 func (mb *mysqlTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	var dsn string
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		dsn = mb.NewDatabase(t)
-		if mb.options.MigrateForNewDatastore {
-			err := mb.runMigrate(t, dsn)
-			assert.NoError(collect, err)
+		db, err := mb.newDatabase()
+		if !assert.NoError(collect, err) {
+			return
 		}
-	}, 5*time.Second, 500*time.Millisecond)
+		if mb.options.MigrateForNewDatastore {
+			if !assert.NoError(collect, mb.runMigrate(t, db)) {
+				return
+			}
+		}
+		dsn = db
+	}, newDatastoreTimeout, newDatastoreTick)
 	return initFunc("mysql", dsn)
 }
