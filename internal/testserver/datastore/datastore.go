@@ -18,10 +18,16 @@ const (
 	// accepting connections but not yet ready, but the budget has to cover the
 	// migration run itself: testify's timer fires whether or not a condition is
 	// still in flight, so a migration that is merely slow is reported as one that
-	// never succeeded. The work takes well under a second on an idle machine and
-	// this is only a ceiling, so it is set high enough that a CI runner executing
-	// many jobs at once cannot exceed it.
-	newDatastoreTimeout = 60 * time.Second
+	// never succeeded.
+	//
+	// Sized for the tail rather than the typical case. The work takes well under a
+	// second on an idle machine and 7-9s with the container host's CPUs twice
+	// oversubscribed, but a single creation was measured at 34s with the machine
+	// outside the containers saturated as well. This is only a ceiling - it costs
+	// nothing when the work succeeds - so it is set far enough above that tail that
+	// a loaded CI runner cannot reach it, while a genuine hang still surfaces well
+	// inside the suite's own timeout.
+	newDatastoreTimeout = 120 * time.Second
 
 	// newDatastoreTick is how long to wait before retrying after a failed attempt.
 	newDatastoreTick = 500 * time.Millisecond
