@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Datastore: `datastore.SortKeyRevision`, an optional extension to `datastore.Revision` for revision types that are totally ordered. Its `AppendSortKey` returns an order-preserving, prefix-free byte encoding of the revision, suitable as a key — or as one field of a composite key — in an ordered key/value store; `String()` offers neither property, being a variable-width decimal. Implemented for the hybrid logical clock, timestamp and transaction ID revision types. Postgres revisions are backed by transaction snapshots and are only partially ordered, so they deliberately do not implement it, and a type assertion is how a consumer discovers that. Supersedes `ByteSortable()`, which reports the same capability but cannot supply the encoding that satisfies it. (https://github.com/authzed/spicedb/pull/3319)
+
 ### Fixed
 - Shutdown: on SIGINT or SIGTERM, SpiceDB now reports `NOT_SERVING` on its gRPC health service and keeps its listeners open for `--grpc-shutdown-drain-delay` before draining. This gives load balancers and Kubernetes readiness probes time to stop routing to the instance, so new requests do not fail with `Unavailable` (connection refused) in the window between the signal and the endpoint update. (https://github.com/authzed/spicedb/pull/3295, https://github.com/authzed/spicedb/pull/3314)
 

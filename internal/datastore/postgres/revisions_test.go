@@ -8,6 +8,8 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (
@@ -216,4 +218,17 @@ func FuzzRevision(f *testing.F) {
 			t.Errorf("decimal revision \"%s\" is a valid proto revision %#v", decimalRev, rev)
 		}
 	})
+}
+
+// TestPostgresRevisionHasNoSortKey asserts that postgresRevision declines the
+// datastore.SortKeyRevision capability, since snapshots are only partially ordered and so have no
+// order for bytes to preserve.
+func TestPostgresRevisionHasNoSortKey(t *testing.T) {
+	var rev datastore.Revision = postgresRevision{snapshot: pgSnapshot{xmin: 100, xmax: 100}}
+
+	_, ok := rev.(datastore.SortKeyRevision)
+	require.False(t, ok, "postgresRevision must not implement datastore.SortKeyRevision")
+
+	// ByteSortable reports the same property in its weaker form, and must agree.
+	require.False(t, rev.ByteSortable())
 }

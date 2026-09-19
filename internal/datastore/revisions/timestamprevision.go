@@ -8,6 +8,9 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+// timestampSortKeyLength is the width of a timestamp sort key: 8 bytes of nanosecond timestamp.
+const timestampSortKeyLength = 8
+
 // TimestampRevision is a revision that is a timestamp.
 type TimestampRevision int64
 
@@ -35,6 +38,12 @@ func parseTimestampRevisionString(revisionStr string) (rev datastore.Revision, e
 
 func (ir TimestampRevision) ByteSortable() bool {
 	return true
+}
+
+// AppendSortKey implements datastore.SortKeyRevision. Keys are timestampSortKeyLength bytes.
+func (ir TimestampRevision) AppendSortKey(dst []byte) []byte {
+	// The timestamp is the whole revision, so the key is just its order-preserving form.
+	return appendOrderedInt64(dst, int64(ir))
 }
 
 func (ir TimestampRevision) Equal(rhs datastore.Revision) bool {
@@ -82,8 +91,9 @@ func (ir TimestampRevision) ConstructForTimestamp(timestamp int64) WithTimestamp
 }
 
 var (
-	_ datastore.Revision    = TimestampRevision(0)
-	_ WithTimestampRevision = TimestampRevision(0)
+	_ datastore.Revision        = TimestampRevision(0)
+	_ datastore.SortKeyRevision = TimestampRevision(0)
+	_ WithTimestampRevision     = TimestampRevision(0)
 )
 
 // TimestampIDKeyFunc is used to create keys for timestamps.
