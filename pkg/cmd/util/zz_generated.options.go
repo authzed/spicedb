@@ -39,6 +39,8 @@ func (g *GRPCServerConfig) ToOption() GRPCServerConfigOption {
 		to.BufferSize = g.BufferSize
 		to.ClientCAPath = g.ClientCAPath
 		to.MaxWorkers = g.MaxWorkers
+		to.MaxRecvMsgSize = g.MaxRecvMsgSize
+		to.MaxSendMsgSize = g.MaxSendMsgSize
 	}
 }
 
@@ -80,6 +82,8 @@ func (g *GRPCServerConfig) DebugMap() map[string]any {
 		debugMap["ClientCAPath"] = g.ClientCAPath
 	}
 	debugMap["MaxWorkers"] = g.MaxWorkers
+	debugMap["MaxRecvMsgSize"] = g.MaxRecvMsgSize
+	debugMap["MaxSendMsgSize"] = g.MaxSendMsgSize
 	return debugMap
 }
 
@@ -180,6 +184,20 @@ func WithClientCAPath(clientCAPath string) GRPCServerConfigOption {
 func WithMaxWorkers(maxWorkers uint32) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.MaxWorkers = maxWorkers
+	}
+}
+
+// WithMaxRecvMsgSize returns an option that can set MaxRecvMsgSize on a GRPCServerConfig
+func WithMaxRecvMsgSize(maxRecvMsgSize int) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.MaxRecvMsgSize = maxRecvMsgSize
+	}
+}
+
+// WithMaxSendMsgSize returns an option that can set MaxSendMsgSize on a GRPCServerConfig
+func WithMaxSendMsgSize(maxSendMsgSize int) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.MaxSendMsgSize = maxSendMsgSize
 	}
 }
 
