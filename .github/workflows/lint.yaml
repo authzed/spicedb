@@ -7,14 +7,14 @@ on: # yamllint disable-line rule:truthy
       - "!dependabot/*"
       - "main"
   pull_request:
-    branches: ["*"]
+    branches: ["**"]
   merge_group:
     types:
       - "checks_requested"
 permissions:
   contents: "read"
 concurrency:
-  group: "spicedb-lint-${{ github.event.pull_request.number }}"
+  group: "spicedb-lint-${{ github.event.pull_request.number || github.ref }}"
   cancel-in-progress: true
 jobs:
   go-license-check:

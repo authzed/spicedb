@@ -283,6 +283,14 @@ func consistencyTest(ctx context.Context, datastore string, env map[string]strin
 	args := []string{
 		"-tags", "ci,datastoreconsistency",
 		"-run", fmt.Sprintf("TestConsistencyPerDatastore/%s", datastore),
+		// testWithArgs applies a 30 minute timeout, which these suites run right up
+		// against: a passing spanner run takes about 29 minutes, 98% of the budget,
+		// so a slower than usual runner reports "panic: test timed out" rather than
+		// a result. The cost is the fixtures themselves - they range from 0.4s to
+		// 42s each across 73 of them, under -race and repo-wide atomic coverage -
+		// not per-fixture setup, which measures about a second. The last -timeout
+		// wins, so this raises the ceiling for the consistency suites only.
+		"-timeout=45m",
 	}
 	args = append(args, coverageFlags...)
 	return goDirTestWithEnv(ctx, ".", "./internal/services/integrationtesting/...",

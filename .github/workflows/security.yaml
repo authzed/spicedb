@@ -7,7 +7,7 @@ on: # yamllint disable-line rule:truthy
       - "!dependabot/*"
       - "main"
   pull_request:
-    branches: ["*"]
+    branches: ["**"]
   merge_group:
     types:
       - "checks_requested"
@@ -17,7 +17,7 @@ env:
   DOCKERHUB_PUBLIC_ACCESS_TOKEN: "dckr_pat_8AEETZWxu8f7FvJUk9NrpyX_ZEQ"
   DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
 concurrency:
-  group: "spicedb-security-${{ github.event.pull_request.number }}"
+  group: "spicedb-security-${{ github.event.pull_request.number || github.ref }}"
   cancel-in-progress: true
 jobs:
   codeql:
@@ -55,11 +55,6 @@ jobs:
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
-      - name: "Install snapcraft"
-        run: |
-          sudo snap install snapcraft --channel=8.x/stable --classic
-          mkdir -p $HOME/.cache/snapcraft/download
-          mkdir -p $HOME/.cache/snapcraft/stage-packages
       - uses: "aquasecurity/trivy-action@v0.36.0"
         with:
           scan-type: "fs"
