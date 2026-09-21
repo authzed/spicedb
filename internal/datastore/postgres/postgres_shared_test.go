@@ -43,11 +43,15 @@ const disableBackgroundGC = time.Duration(test.DisableBackgroundGC)
 
 var pgFactory = test.NewTesterFactory(&pgconn.PgError{Code: pgSerializationFailure})
 
-// The shared datastore suite runs its subtests in parallel by default, but not
-// on Postgres: at least TestNamespaceWrite is not parallel-safe here and fails
-// on every Postgres version. Every call below therefore passes
-// test.RunSubtestsSerially, and each one can drop it again once the engine is
-// known to be safe.
+// The shared datastore suite runs its subtests in parallel, on Postgres too.
+// The GC calls below stay serial because those tests take exclusive locks; the
+// rest share one container, each with its own database.
+//
+// Note that PostgreSQL transaction IDs are cluster-wide, so a snapshot taken
+// by one subtest names the transactions of its concurrently-running siblings.
+// A test that compares a synthesized revision (one built from a single xid,
+// rather than from a real pg_current_snapshot) against a real snapshot will
+// see that; see the note above NamespaceWriteTest in pkg/datastore/test.
 
 type postgresTestConfig struct {
 	migrationPhase string
@@ -131,7 +135,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 			})
 			return ds, nil
-		}), b)), test.WithCategories(test.GCCategory), test.RunSubtestsSerially())
+		}), b)), test.WithCategories(test.GCCategory))
 
 		t.Run("TransactionTimestamps", createDatastoreTest(
 			b,
@@ -340,7 +344,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		}), b)), test.WithCategories(test.WatchCategory, test.GCCategory, test.MigrationCategory), test.RunSubtestsSerially())
+		}), b)), test.WithCategories(test.WatchCategory, test.GCCategory, test.MigrationCategory))
 	})
 
 	t.Run(fmt.Sprintf("postgres-%s-gc", pgVersion), func(t *testing.T) {
