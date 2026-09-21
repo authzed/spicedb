@@ -3,7 +3,9 @@ package common
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -14,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -331,4 +334,87 @@ func ConfigureDefaultQueryExecMode(config *pgx.ConnConfig) {
 	log.Info().
 		Str("details-url", sharederrors.QueryExecModeErrorLink).
 		Msg("found default_query_exec_mode in DB URI; leaving as-is")
+}
+
+// PoolWarmupTimeout bounds how long WarmupPool will wait for a pool to reach
+// its configured minimum number of connections. It is a budget of its own,
+// deliberately not shared with the datastore's other start-up work: the
+// verification queries a datastore runs before warm-up vary in cost between
+// engines, and sharing one deadline would make "the pool could not be filled"
+// depend on how long those queries happened to take.
+const PoolWarmupTimeout = 30 * time.Second
+
+// WarmablePool is the subset of *pgxpool.Pool that WarmupPool needs. It exists
+// so that pools which wrap pgxpool (such as the CockroachDB RetryPool) can be
+// warmed up through the same code.
+type WarmablePool interface {
+	Acquire(ctx context.Context) (*pgxpool.Conn, error)
+	Config() *pgxpool.Config
+}
+
+// WarmupPool blocks until the pool holds its configured minimum number of
+// established connections, and returns an error if it cannot get there.
+//
+// pgxpool.NewWithConfig does not do this itself: its last act is to start a
+// goroutine that opens MinConns connections, and it then returns to the caller
+// immediately. A SpiceDB process therefore finishes building its datastore --
+// and is marked Ready by Kubernetes -- while its pools are still empty. The
+// first burst of real traffic to a freshly rolled pod then pays connection
+// establishment (TCP, TLS, authentication, and any credentials-provider token
+// fetch) inline, which shows up as a latency spike or as errors. Filling the
+// pool before the constructor returns moves that cost to start-up, where it is
+// invisible to clients.
+//
+// The target is min(MinConns, MaxConns). MinConns is allowed to exceed MaxConns
+// by configuration -- ConfigurePgx only warns -- but MaxConns is the hard size
+// limit of the underlying resource pool, so asking for more than that would
+// block until the deadline expires and never succeed.
+//
+// Connections are acquired concurrently and all released once the target is
+// met. In practice most of them are collected from the background goroutine
+// pgxpool already started rather than opened by this function.
+func WarmupPool(ctx context.Context, poolName string, pool WarmablePool) error {
+	config := pool.Config()
+	target := min(config.MinConns, config.MaxConns)
+	if target <= 0 {
+		return nil
+	}
+
+	var mu sync.Mutex
+	acquired := make([]*pgxpool.Conn, 0, target)
+
+	g, gctx := errgroup.WithContext(ctx)
+	for range target {
+		g.Go(func() error {
+			conn, err := pool.Acquire(gctx)
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			acquired = append(acquired, conn)
+			return nil
+		})
+	}
+
+	waitErr := g.Wait()
+
+	// Everything acquired goes straight back to the pool: the point of the
+	// exercise is that the connections exist and are idle, not that this
+	// function holds them.
+	for _, conn := range acquired {
+		conn.Release()
+	}
+
+	if waitErr != nil {
+		return fmt.Errorf(
+			"%s connection pool did not reach its configured minimum of %d connections (established %d); "+
+				"lower the minimum connection count for this pool, or raise the connection limit on the database: %w",
+			poolName, target, len(acquired), waitErr,
+		)
+	}
+
+	log.Debug().Str("pool", poolName).Int32("connections", target).Msg("connection pool warmed up")
+	return nil
 }
