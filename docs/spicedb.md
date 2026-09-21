@@ -96,7 +96,7 @@ spicedb datastore gc [flags]
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
-      --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
+      --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
@@ -241,7 +241,7 @@ spicedb datastore repair [flags]
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
-      --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
+      --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
@@ -419,7 +419,7 @@ spicedb serve [flags]
       --datastore-gc-max-operation-time duration                                        maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                                    how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                                    include query parameters in traces (Postgres and CockroachDB drivers only)
-      --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried (default 10)
+      --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
