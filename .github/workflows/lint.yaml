@@ -7,7 +7,7 @@ on: # yamllint disable-line rule:truthy
       - "!dependabot/*"
       - "main"
   pull_request:
-    branches: ["*"]
+    branches: ["**"]
   merge_group:
     types:
       - "checks_requested"

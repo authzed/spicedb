@@ -7,7 +7,7 @@ on: # yamllint disable-line rule:truthy
       - "main"
   pull_request:
     branches:
-      - "*"
+      - "**"
   merge_group:
     types:
       - "checks_requested"
