@@ -41,7 +41,7 @@ func RunSpannerForTesting(t testing.TB, opts ...testcontainers.ContainerCustomiz
 	)
 	options = append(options, opts...)
 
-	container, err := testcontainers.Run(ctx, "gcr.io/cloud-spanner-emulator/emulator:1.5.41",
+	container, err := testcontainers.Run(ctx, "gcr.io/cloud-spanner-emulator/emulator:1.5.58",
 		options...,
 	)
 	require.NoError(t, err)
