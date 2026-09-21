@@ -34,6 +34,14 @@ func supportsTTLChangefeedReplicationParam(version crdbVersion) bool {
 // deletes into the changefeed that backs the Watch API; CRDB provides no per-event
 // origin marker, so suppression at the source is the only robust mechanism.
 //
+// This check is permanent. The add-expiration-support migration sets the
+// parameter, so a database migrated by current code arrives here already
+// correct and this is a no-op. A database migrated before that change never
+// gets the parameter from a migration at all, because its migration is already
+// recorded as applied and will not run again: this check is the only thing that
+// ever repairs it. It also preserves an operator's deliberate choice, by
+// respecting the parameter whenever it is present regardless of its value.
+//
 // This is fail-open by design: the runtime credentials may lack ALTER TABLE
 // privileges, and datastore startup must not fail because of it. Any error is
 // logged loudly and startup continues.

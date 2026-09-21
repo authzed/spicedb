@@ -24,6 +24,18 @@ const (
 
 		ALTER TABLE relation_tuple_with_integrity SET (ttl_expiration_expression = 'expires_at', ttl_job_cron = '@daily');
 	`
+
+	// ttl_disable_changefeed_replication keeps the deletes performed by the
+	// row-level TTL job out of the changefeed that backs the Watch API. It was
+	// added in v24.1, so older clusters get the policy without it and have the
+	// parameter set for them at startup instead, by
+	// ensureTTLChangefeedReplicationDisabled - which is also what sets it on
+	// databases that ran this migration before it set the parameter.
+	addExpirationPolicyWithTTLIgnore = `
+		ALTER TABLE relation_tuple SET (ttl_expiration_expression = 'expires_at', ttl_job_cron = '@daily', ttl_disable_changefeed_replication = 'true');
+
+		ALTER TABLE relation_tuple_with_integrity SET (ttl_expiration_expression = 'expires_at', ttl_job_cron = '@daily', ttl_disable_changefeed_replication = 'true');
+	`
 )
 
 func init() {
@@ -56,6 +68,14 @@ func addExpirationSupport(ctx context.Context, conn *pgx.Conn) error {
 
 	if v.Major() < 22 || (v.Major() == 22 && v.Minor() < 2) {
 		return nil
+	}
+
+	// v24.1 and later: set ttl_disable_changefeed_replication as part of the
+	// policy. Doing it here rather than leaving it to the startup check means a
+	// freshly migrated database already has it, and the check becomes a no-op.
+	if v.Major() > 24 || (v.Major() == 24 && v.Minor() >= 1) {
+		_, err = conn.Exec(ctx, addExpirationPolicyWithTTLIgnore)
+		return err
 	}
 
 	_, err = conn.Exec(ctx, addExpirationPolicy)
