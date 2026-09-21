@@ -43,6 +43,12 @@ const disableBackgroundGC = time.Duration(test.DisableBackgroundGC)
 
 var pgFactory = test.NewTesterFactory(&pgconn.PgError{Code: pgSerializationFailure})
 
+// The shared datastore suite runs its subtests in parallel by default, but not
+// on Postgres: at least TestNamespaceWrite is not parallel-safe here and fails
+// on every Postgres version. Every call below therefore passes
+// test.RunSubtestsSerially, and each one can drop it again once the engine is
+// known to be safe.
+
 type postgresTestConfig struct {
 	migrationPhase string
 	pgVersion      string
@@ -88,7 +94,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return ds
 			})
 			return ds, nil
-		}))
+		}), test.RunSubtestsSerially())
 
 		t.Run("TestLocking", createMultiDatastoreTest(
 			b,
@@ -125,7 +131,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 			})
 			return ds, nil
-		}), b)), test.WithCategories(test.GCCategory))
+		}), b)), test.WithCategories(test.GCCategory), test.RunSubtestsSerially())
 
 		t.Run("TransactionTimestamps", createDatastoreTest(
 			b,
@@ -334,7 +340,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		}), b)), test.WithCategories(test.WatchCategory, test.GCCategory, test.MigrationCategory))
+		}), b)), test.WithCategories(test.WatchCategory, test.GCCategory, test.MigrationCategory), test.RunSubtestsSerially())
 	})
 
 	t.Run(fmt.Sprintf("postgres-%s-gc", pgVersion), func(t *testing.T) {
@@ -354,7 +360,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		}))
+		}), test.RunSubtestsSerially())
 	})
 }
 

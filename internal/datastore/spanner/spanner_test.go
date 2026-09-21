@@ -29,6 +29,11 @@ func TestSpannerDatastore(t *testing.T) {
 	b := testdatastore.RunSpannerForTesting(t)
 
 	// Transaction tests are excluded because, for reasons unknown, one cannot read its own write in one transaction in the Spanner emulator.
+	//
+	// The suite runs serially here: in parallel, the emulator's shared client is
+	// torn down while sibling subtests are still using it, and every subtest
+	// after the first failure dies immediately with "grpc: the client
+	// connection is closing".
 	test.AllWithExceptions(t, spannerFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri,
@@ -44,7 +49,7 @@ func TestSpannerDatastore(t *testing.T) {
 			return ds
 		})
 		return ds, nil
-	}), b)), test.WithCategories(test.GCCategory, test.StatsCategory, test.TransactionCategory))
+	}), b)), test.WithCategories(test.GCCategory, test.StatsCategory, test.TransactionCategory), test.RunSubtestsSerially())
 
 	t.Run("TestFakeStats", createDatastoreTest(
 		b,
