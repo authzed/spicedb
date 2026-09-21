@@ -28,6 +28,18 @@ func TestSpannerDatastore(t *testing.T) {
 	ctx := t.Context()
 	b := testdatastore.RunSpannerForTesting(t)
 
+	// MigrationTest needs an empty, unmigrated database. Left to itself it asks
+	// testdatastore for one, which for Spanner means starting a second emulator
+	// and pointing SPANNER_EMULATOR_HOST at it. That variable is process-wide -
+	// the Spanner client libraries, the migration driver and NewSpannerDatastore
+	// all read it - so a second emulator cannot coexist with the one every other
+	// subtest is using. It also has to be set with t.Setenv, which panics in a
+	// test that has called t.Parallel. The emulator already running here hands
+	// out unmigrated databases just as well, so use it.
+	test.RegisterMigrationTestConfig(Engine, func(t *testing.T) string {
+		return b.NewDatabase(t)
+	})
+
 	// Transaction tests are excluded because, for reasons unknown, one cannot read its own write in one transaction in the Spanner emulator.
 	//
 	// The suite runs serially here: in parallel, the emulator's shared client is
