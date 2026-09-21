@@ -266,7 +266,7 @@ func newSuiteOptions(opts []SuiteOption) suiteOptions {
 func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, opts ...SuiteOption) {
 	runner := newSuiteOptions(opts).runner
 
-	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
+	t.Run("TestUniqueID", runner(tester, UniqueIDTest))
 	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
 	t.Run("TestReadyStateWhenPaused", runner(tester, ReadyStateWhenPausedTest))
 
