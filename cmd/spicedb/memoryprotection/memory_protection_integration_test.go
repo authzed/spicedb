@@ -36,6 +36,21 @@ func TestServeWithMemoryProtectionMiddleware(t *testing.T) {
 	container, err := sdbtestcontainer.Run(ctx, sdbtestcontainer.DefaultImageReference,
 		testcontainers.WithEnv(map[string]string{
 			"GOMEMLIMIT": "1B", // NOTE: Absurdly low on purpose
+
+			// The caches whose budgets are a percentage of available memory have
+			// to be off for the server to start at all here. AvailableMemory() is
+			// 75% of GOMEMLIMIT, which truncates to zero at this limit, and a
+			// resolved budget of zero is not caught by CompleteCache's guard - that
+			// tests the configured string for "0%" - so the cache is built with a
+			// maximum weight of zero and otter rejects it: "weigher requires
+			// maximumWeight". The server exits before serving and this test sees a
+			// container that never becomes ready.
+			//
+			// Caches are irrelevant to what is being tested. The point is that the
+			// memory middleware rejects requests when the limit is exhausted, which
+			// it does regardless of what is cached.
+			"SPICEDB_DISPATCH_CACHE_ENABLED":         "false",
+			"SPICEDB_DISPATCH_CLUSTER_CACHE_ENABLED": "false",
 		}),
 	)
 	require.NoError(t, err)
