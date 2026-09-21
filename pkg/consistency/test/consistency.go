@@ -85,6 +85,14 @@ func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.Datastore
 
 	for _, filePath := range consistencyTestFiles {
 		t.Run(path.Base(filePath), func(t *testing.T) {
+			// Fixtures are independent: each gets its own datastore, and the test
+			// cluster each one builds takes a unique resolver prefix. Before this,
+			// the only concurrency was the chunk-size and dispatcher subtests below
+			// - four workers on an eight-vCPU runner - while the per-fixture
+			// prologue, which creates a database, migrates it and then walks the
+			// whole accessibility set, ran with everything else idle.
+			t.Parallel()
+
 			baseds := newDatastore(t)
 			ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
