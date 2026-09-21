@@ -229,10 +229,6 @@ func parallel(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTest
 	}
 }
 
-// defaultRunner is how an engine runs the suite unless its test file says
-// otherwise. Changing it changes every engine that has not opted out.
-var defaultRunner = parallel
-
 type suiteOptions struct {
 	runner runner
 }
@@ -247,14 +243,8 @@ func RunSubtestsSerially() SuiteOption {
 	return func(o *suiteOptions) { o.runner = serial }
 }
 
-// RunSubtestsInParallel makes an engine run the suite's subtests concurrently.
-// It is only needed to override a serial default.
-func RunSubtestsInParallel() SuiteOption {
-	return func(o *suiteOptions) { o.runner = parallel }
-}
-
 func newSuiteOptions(opts []SuiteOption) suiteOptions {
-	o := suiteOptions{runner: defaultRunner}
+	o := suiteOptions{runner: parallel}
 	for _, opt := range opts {
 		opt(&o)
 	}
