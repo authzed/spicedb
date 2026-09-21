@@ -92,6 +92,13 @@ type checkingReplicatedDatastore struct {
 	lastReplica uint64
 }
 
+// Unwrap returns the primary datastore. See the equivalent on
+// strictReplicatedDatastore for why this is needed; the replicas are
+// deliberately not reachable through it.
+func (rd *checkingReplicatedDatastore) Unwrap() datastore.Datastore {
+	return rd.Datastore
+}
+
 // SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 // Any errors establishing the reader will be returned by subsequent calls.
 func (rd *checkingReplicatedDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
