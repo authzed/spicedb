@@ -20,17 +20,31 @@ import (
 func init() {
 	datastorecfg.RegisterEngine(Engine, newDatastoreFromConfig)
 	migration.RegisterMigratableEngine(Engine, migrations.Manager, newMigrationDriverFromConfig, "add_schema_tables")
+
+	// SetLogger assigns an unsynchronized package-level variable in the driver, and
+	// that same variable is read by ParseDSN every time a connection is configured.
+	// Calling it while building a driver or a datastore is therefore a data race
+	// against every other goroutine opening a MySQL connection at that moment, which
+	// is why this belongs here and must not be moved back into a constructor: init
+	// runs once, before any of those goroutines exist.
+	//
+	// The logger is always the same package-level logger, so there is nothing a
+	// caller could vary; taking its address also means the driver keeps logging
+	// through whatever logger the process later installs.
+	//
+	// SetLogger only fails on a nil logger, which the address of a package-level
+	// variable can never be, so a failure here means the driver's contract changed
+	// underneath us and there is no sensible way to continue with an unconfigured
+	// driver.
+	if err := sqlDriver.SetLogger(&log.Logger); err != nil {
+		panic(fmt.Errorf("unable to set logging to mysql driver: %w", err))
+	}
 }
 
 func newMigrationDriverFromConfig(ctx context.Context, cfg *migration.Config) (*migrations.MySQLDriver, error) {
 	credentialsProvider, err := cfg.CredentialsProvider(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	// Do this outside NewMySQLDriverFromDSN to avoid races on MySQL datastore tests
-	if err := sqlDriver.SetLogger(&log.Logger); err != nil {
-		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
 	}
 
 	return migrations.NewMySQLDriverFromDSN(cfg.DatastoreURI, cfg.MySQLTablePrefix, credentialsProvider)
