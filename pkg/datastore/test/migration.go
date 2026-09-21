@@ -139,6 +139,18 @@ func startMigrationTestServer(t *testing.T, engineKey, datastoreURI string, allo
 	dsCfg.RequestHedgingEnabled = false
 	dsCfg.AllowedMigrations = allowedMigrations
 
+	// The default write acquisition timeout assumes a server whose connection
+	// pool was filled at startup, well before the first request arrives. Here
+	// the first schema write lands milliseconds after the pool is created,
+	// while the pool is still opening its connections. CockroachDB opens them
+	// no faster than one every 100ms, so the write pool can have nothing to
+	// hand out for a good deal longer than the 30ms the default allows, and
+	// the write fails with "failed to acquire in time" -- the more likely the
+	// busier the machine. Wait for a connection rather than fail the test.
+	// The engines' own suites already pass the same allowance where they
+	// build a datastore directly.
+	dsCfg.WriteAcquisitionTimeout = 30 * time.Second
+
 	ds, err := builder(t.Context(), *dsCfg)
 	require.NoError(t, err)
 
