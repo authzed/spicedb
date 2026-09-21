@@ -215,11 +215,13 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	// Reset that GC was run.
 	gcable.ResetGCCompleted()
 
-	// Wait the GC interval + a bit more time.
-	time.Sleep(500*time.Millisecond + 100*time.Millisecond)
-
-	// Ensure GC was run.
-	require.True(gcable.HasGCRun(), "GC was never run as expected")
+	// Wait for the GC process to run. This polls rather than sleeping for the
+	// interval plus a fixed margin: the margin only has to be missed once, by a
+	// background goroutine that was not scheduled promptly on a busy machine, for
+	// the test to report that GC never ran when it was merely late. Polling waits
+	// as long as GC actually needs and still fails if it genuinely never runs.
+	require.Eventually(gcable.HasGCRun, 30*time.Second, 50*time.Millisecond,
+		"GC was never run as expected")
 }
 
 // RevisionGCTest makes sure revision GC takes place, revisions out-side of the GC window

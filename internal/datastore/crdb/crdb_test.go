@@ -383,9 +383,20 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 	require.NoError(t, err)
 	hostAndPort := net.JoinHostPort(host, port.Port())
 
+	// sslrootcert is pinned to empty on purpose. The container runs secure - it has
+	// to, since CREATE USER ... WITH PASSWORD is rejected in insecure mode - and
+	// presents a self-signed CA, so these connections want encryption without
+	// verification, which is what sslmode=require means. But pgx defaults
+	// sslrootcert to ~/.postgresql/root.crt and, for sslmode=require, treats the
+	// mere existence of that file as a request to verify against it. A developer
+	// who happens to have one (assorted Postgres tooling creates it, and it need
+	// have nothing to do with CockroachDB) gets "x509: certificate signed by
+	// unknown authority" here - and because the suite runs with -failfast, loses
+	// roughly 70% of the CRDB tests behind this single failure. Setting it empty
+	// makes "require" mean require regardless of what is in the home directory.
 	connStrings = map[provisionedUser]string{
-		testuser:     fmt.Sprintf("postgresql://testuser:testpass@%[1]s/testspicedb?sslmode=require", hostAndPort),
-		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@%[1]s/testspicedb?sslmode=require", hostAndPort),
+		testuser:     fmt.Sprintf("postgresql://testuser:testpass@%[1]s/testspicedb?sslmode=require&sslrootcert=", hostAndPort),
+		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@%[1]s/testspicedb?sslmode=require&sslrootcert=", hostAndPort),
 	}
 
 	return adminConn, connStrings

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/moby/moby/api/types/container"
@@ -138,7 +137,7 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 			return
 		}
 		uri = connectStr
-	}, 5*time.Second, 500*time.Millisecond)
+	}, newDatastoreTimeout, newDatastoreTick)
 
 	ds := initFunc("postgres", uri)
 
