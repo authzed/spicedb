@@ -33,11 +33,11 @@ func init() {
 	// through whatever logger the process later installs.
 	//
 	// SetLogger only fails on a nil logger, which the address of a package-level
-	// variable can never be, so a failure here means the driver's contract changed
-	// underneath us and there is no sensible way to continue with an unconfigured
-	// driver.
+	// variable can never be. If that ever changes, the driver keeps its own default
+	// logger and the only loss is that its messages bypass ours, so log it loudly
+	// and carry on rather than taking the process down from init.
 	if err := sqlDriver.SetLogger(&log.Logger); err != nil {
-		panic(fmt.Errorf("unable to set logging to mysql driver: %w", err))
+		log.Error().Err(err).Msg("unable to route the mysql driver's logging through SpiceDB's logger")
 	}
 }
 
