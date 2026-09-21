@@ -214,7 +214,7 @@ func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester
 func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
 	runner := serial
 
-	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
+	t.Run("TestUniqueID", runner(tester, UniqueIDTest))
 	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
 	t.Run("TestReadyStateWhenPaused", runner(tester, ReadyStateWhenPausedTest))
 
