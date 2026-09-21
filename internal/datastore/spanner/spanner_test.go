@@ -42,10 +42,15 @@ func TestSpannerDatastore(t *testing.T) {
 
 	// Transaction tests are excluded because, for reasons unknown, one cannot read its own write in one transaction in the Spanner emulator.
 	//
-	// The suite runs serially here: in parallel, the emulator's shared client is
-	// torn down while sibling subtests are still using it, and every subtest
-	// after the first failure dies immediately with "grpc: the client
-	// connection is closing".
+	// The suite runs serially here, pending the follow-up that turns it back on.
+	// The original reason given for this - a shared client torn down while
+	// siblings still needed it - was the symptom, not the cause. The cause was
+	// MigrationTest starting a second emulator and calling t.Setenv, which
+	// panics in a test that has called t.Parallel; the cascade of "grpc: the
+	// client connection is closing" was that panic running its parents'
+	// cleanups. Fixed above by handing MigrationTest the emulator already
+	// running, after which the suite passed 10/10 in parallel at CI's
+	// concurrency.
 	test.AllWithExceptions(t, spannerFactory.NewTester(test.PausableTester(test.DatastoreTesterFunc(func(t testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(ctx, uri,
