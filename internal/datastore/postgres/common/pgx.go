@@ -236,8 +236,31 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config, includeQueryPara
 		pgxConfig.MaxConns = maxConns
 	}
 
-	// Default to keeping the pool maxed out at all times.
-	pgxConfig.MinConns = pgxConfig.MaxConns
+	// Default to keeping the pool maxed out at all times -- but only when a
+	// maximum was actually configured.
+	//
+	// Every path that serves real traffic configures both bounds: the engine
+	// builders pass ReadConnsMinOpen/ReadConnsMaxOpen (and the write and replica
+	// equivalents) from the --datastore-conn-pool-* flags on every construction,
+	// so for a running SpiceDB both branches below are taken and this default is
+	// invisible. It is only reached by callers that build a datastore directly
+	// with no pool options at all: the test harness, and embedders using SpiceDB
+	// as a library.
+	//
+	// For those callers, maxing out the pool means inheriting pgx's own MaxConns
+	// default, max(4, NumCPU), as a *minimum* -- so on a 16-core machine every
+	// datastore ever constructed insists on 16 read and 16 write connections
+	// before it will hand itself back. That is a meaningful cost now that the
+	// minimum is established synchronously (see WarmupPool), and it buys such a
+	// caller nothing: a test needs a pool that works, not a pool that is full.
+	// Keep one connection instead and let the rest fill on demand, which is what
+	// pgxpool does for any pool whose minimum it has already met.
+	if opts.MaxOpenConns != nil {
+		pgxConfig.MinConns = pgxConfig.MaxConns
+	} else {
+		pgxConfig.MinConns = 1
+	}
+
 	if opts.MinOpenConns != nil {
 		minConns, err := safecast.Convert[int32](*opts.MinOpenConns)
 		if err != nil {

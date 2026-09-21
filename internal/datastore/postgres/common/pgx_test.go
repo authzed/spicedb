@@ -106,3 +106,61 @@ func TestConfigurePgxAppliesPingTimeoutOption(t *testing.T) {
 	req.NoError(PoolOptions{ConnPingTimeout: &pingTimeout}.ConfigurePgx(cfg, false))
 	req.Equal(pingTimeout, cfg.PingTimeout)
 }
+
+// TestConfigurePgxKeepsPoolMaxedWhenAMaximumIsConfigured pins the production
+// default: every path that serves real traffic passes both bounds, and a pool
+// whose maximum is configured is kept full.
+func TestConfigurePgxKeepsPoolMaxedWhenAMaximumIsConfigured(t *testing.T) {
+	req := require.New(t)
+
+	cfg, err := pgxpool.ParseConfig("postgres://localhost:5432/db")
+	req.NoError(err)
+
+	maxOpen := 20
+	req.NoError(PoolOptions{MaxOpenConns: &maxOpen}.ConfigurePgx(cfg, false))
+	req.Equal(int32(20), cfg.MaxConns)
+	req.Equal(int32(20), cfg.MinConns)
+}
+
+// TestConfigurePgxKeepsOneConnectionWhenNoBoundsAreConfigured covers the callers
+// that build a datastore directly with no pool options: the test harness and
+// library embedders. Defaulting their minimum to pgx's own MaxConns default --
+// which is max(4, NumCPU) -- would make every such datastore establish a
+// core-count's worth of connections synchronously before it could be used, for
+// no benefit.
+func TestConfigurePgxKeepsOneConnectionWhenNoBoundsAreConfigured(t *testing.T) {
+	req := require.New(t)
+
+	cfg, err := pgxpool.ParseConfig("postgres://localhost:5432/db")
+	req.NoError(err)
+	req.Positive(cfg.MaxConns, "precondition: pgxpool picks its own maximum")
+
+	req.NoError(PoolOptions{}.ConfigurePgx(cfg, false))
+	req.Equal(int32(1), cfg.MinConns)
+	req.Greater(cfg.MaxConns, cfg.MinConns, "the maximum should still be pgx's own default")
+}
+
+// TestConfigurePgxAppliesExplicitMinimum ensures an explicitly configured
+// minimum wins over either default.
+func TestConfigurePgxAppliesExplicitMinimum(t *testing.T) {
+	maxOpen := 20
+
+	for _, tc := range []struct {
+		name    string
+		maxOpen *int
+	}{
+		{name: "with a maximum", maxOpen: &maxOpen},
+		{name: "without a maximum"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := require.New(t)
+
+			cfg, err := pgxpool.ParseConfig("postgres://localhost:5432/db")
+			req.NoError(err)
+
+			minOpen := 7
+			req.NoError(PoolOptions{MinOpenConns: &minOpen, MaxOpenConns: tc.maxOpen}.ConfigurePgx(cfg, false))
+			req.Equal(int32(7), cfg.MinConns)
+		})
+	}
+}
