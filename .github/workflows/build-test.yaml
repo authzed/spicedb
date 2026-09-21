@@ -157,7 +157,7 @@ jobs:
 
   datastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-arm-8"
+    runs-on: "depot-ubuntu-24.04-arm-16"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -226,7 +226,7 @@ jobs:
 
   pgdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-arm-8"
+    runs-on: "depot-ubuntu-24.04-arm-16"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -300,7 +300,7 @@ jobs:
 
   crdbdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-arm-8"
+    runs-on: "depot-ubuntu-24.04-arm-16"
     needs: "paths-filter"
     strategy:
       fail-fast: false
