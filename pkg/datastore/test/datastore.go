@@ -191,7 +191,9 @@ const (
 	// Datastores with a global write lock (e.g. memdb) must exclude this category.
 	ConcurrentWriteCategory = "ConcurrentWrite"
 	// MigrationCategory marks tests that check that database migrations apply
-	// successfully and preserve the data written before them.
+	// successfully, preserve the data written before them, and produce the
+	// schema the running code expects. Datastores without migrations (e.g.
+	// memdb) must exclude this category.
 	MigrationCategory = "Migration"
 )
 
@@ -422,6 +424,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 
 	if !except.Migration() {
 		t.Run("TestMigration", runner(tester, MigrationTest))
+		t.Run("TestSchemaDrift", runner(tester, SchemaDriftTest))
 	}
 }
 
