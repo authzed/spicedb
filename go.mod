@@ -94,13 +94,13 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.20.0
 	go.opentelemetry.io/contrib/propagators/ot v1.20.0
-	go.opentelemetry.io/otel v1.44.0
+	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.62.0
-	go.opentelemetry.io/otel/sdk v1.44.0
-	go.opentelemetry.io/otel/sdk/metric v1.44.0
-	go.opentelemetry.io/otel/trace v1.44.0
+	go.opentelemetry.io/otel/sdk v1.46.0
+	go.opentelemetry.io/otel/sdk/metric v1.46.0
+	go.opentelemetry.io/otel/trace v1.46.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.3.1-0.20260602155401-5f791e3ef83b
 	go.uber.org/mock v0.6.0
@@ -248,8 +248,8 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0 // indirect
+	go.opentelemetry.io/otel/metric v1.46.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
