@@ -208,14 +208,29 @@ func newPostgresDatastore(
 	initializationContext, cancelInit := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelInit()
 
-	readPool, err := pgxpool.NewWithConfig(initializationContext, readPoolConfig)
+	// The pools are built on a context that outlives this function, not on
+	// initializationContext. pgxpool.NewWithConfig does not block: it returns
+	// immediately and fills the pool to MinConns from a background goroutine that
+	// keeps using the context it was given. Handing it initializationContext means
+	// that goroutine is cancelled by the deferred cancelInit the moment this
+	// function returns, part-way through opening those connections - and pgx reacts
+	// to a cancelled context by setting an immediate deadline on the connection it
+	// is working on. Those connections then go into the pool and are handed to real
+	// queries. pgxpool itself uses context.Background() for the same work on its
+	// maintenance path; only the constructor passes the caller's context through.
+	//
+	// initializationContext still bounds the verification queries below, which is
+	// what its timeout was for.
+	poolContext := context.WithoutCancel(initializationContext)
+
+	readPool, err := pgxpool.NewWithConfig(poolContext, readPoolConfig)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	var writePool *pgxpool.Pool
 	if isPrimary {
-		wp, err := pgxpool.NewWithConfig(initializationContext, writePoolConfig)
+		wp, err := pgxpool.NewWithConfig(poolContext, writePoolConfig)
 		if err != nil {
 			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 		}
