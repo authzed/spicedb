@@ -14,7 +14,7 @@ on: # yamllint disable-line rule:truthy
 permissions:
   contents: "read"
 concurrency:
-  group: "spicedb-lint-${{ github.event.pull_request.number }}"
+  group: "spicedb-lint-${{ github.event.pull_request.number || github.ref }}"
   cancel-in-progress: true
 jobs:
   go-license-check:
