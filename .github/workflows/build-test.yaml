@@ -478,18 +478,21 @@ jobs:
   benchmarks:
     name: "Run Go benchmarks"
     runs-on: "depot-ubuntu-24.04-arm-8" # same as benchmark.yaml
-    timeout-minutes: 30
+    # The job builds both revisions and, when they differ, measures them
+    # interleaved. `benchmark:compare` caps its own measurement phase at
+    # BENCH_BUDGET, so the job should finish well inside this.
+    timeout-minutes: 40
     needs: "paths-filter"
     # Benchmarks on Main are ran through a different workflow
     if: |
       needs.paths-filter.outputs.codechange == 'true' &&
       github.event_name == 'pull_request' &&
       github.base_ref == 'main'
-    permissions:
-      pull-requests: "write"
     steps:
       - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         with:
+          # The comparison builds the merge-base with main, so the whole history
+          # has to be here; the default depth of 1 cannot resolve a merge-base.
           fetch-depth: 0
 
       - uses: "authzed/actions/setup-go@main"
@@ -497,54 +500,13 @@ jobs:
           go-version-file: "./go.mod"
           cache-dependency-path: "./go.sum"
 
-      - name: "Run benchmark on PR"
-        run: |
-          set -o pipefail
-          go run mage.go benchmark:short | tee ${{ github.sha }}_bench_output.txt
+      - name: "Install benchstat"
+        run: "go install golang.org/x/perf/cmd/benchstat@latest"
 
-      - name: "Get Main branch SHA"
-        id: "get-main-branch-sha"
-        run: |
-          SHA=$(git rev-parse origin/main)
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-
-      - name: "Download benchmark from Main"
-        uses: "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
-        id: "downloadbenchmark"
-        with:
-          path: "./cache/benchmark-data.json"
-          key: "${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-go-benchmark"
-
-      - name: "Compare benchmarks with Main"
-        uses: "benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc" # v1.22.2
-        if: "steps.downloadbenchmark.outputs.cache-hit == 'true'"
-        with:
-          alert-threshold: "200%"
-          # What benchmark tool the output.txt came from
-          tool: "go"
-          # Where the output from the benchmark tool is stored
-          output-file-path: "${{ github.sha }}_bench_output.txt"
-          # Where the benchmarks in main are (to compare)
-          external-data-json-path: "./cache/benchmark-data.json"
-          # Do not save the data
-          save-data-file: false
-          # Workflow will comment, but not fail, when an alert happens
-          fail-on-alert: false
-          comment-on-alert: true
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-          # Enable Job Summary for PRs
-          summary-always: true
-
-      - name: "Run benchmarks but don't compare to Main branch"
-        uses: "benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc" # v1.22.2
-        if: "steps.downloadbenchmark.outputs.cache-hit != 'true'"
-        with:
-          # What benchmark tool the output.txt came from
-          tool: "go"
-          # Where the output from the benchmark tool is stored
-          output-file-path: "${{ github.sha }}_bench_output.txt"
-          # Do not save the data anywhere, just publish summary
-          save-data-file: false
-          external-data-json-path: "ignoreme"
-          # Enable Job Summary for PRs
-          summary-always: true
+      - name: "Compare benchmarks against the merge-base with main"
+        # Builds the benchmark binaries at this branch and at its merge-base
+        # with main. Packages whose two binaries are byte-identical cannot have
+        # changed and are skipped; the rest are run A/B/A/B on this one runner
+        # and compared with benchstat. Results go to the job summary only: this
+        # check reports, it does not gate.
+        run: "go run mage.go benchmark:compare"
