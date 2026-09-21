@@ -938,6 +938,7 @@ func runPGServer(t *testing.T, client *authzed.Client) int {
 	// testcontainers' forwarded host (host.testcontainers.internal).
 	// "localhost" binds to 127.0.0.1 only, which the container cannot reach
 	// (its packets arrive from the docker bridge IP).
+	// nolint:gosec // G102: binding all interfaces is required here, see above.
 	listener, err := net.Listen("tcp", "0.0.0.0:0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
