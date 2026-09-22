@@ -57,6 +57,15 @@ jobs:
     # client, so on a 4-vCPU runner it spent most of its time waiting for a core.
     runs-on: "depot-ubuntu-24.04-arm-16"
     needs: "paths-filter"
+    permissions:
+      contents: "read"
+      # Lets the job exchange a GitHub OIDC token for Depot credentials, so no
+      # Depot token has to be stored as a secret.
+      id-token: "write"
+    env:
+      # Empty for pull requests from forks, which get no repository secrets. That
+      # is deliberate: see the note on the depot step below.
+      DEPOT_PROJECT_ID: "${{ secrets.DEPOT_PROJECT_ID }}"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
@@ -69,6 +78,12 @@ jobs:
       - uses: "authzed/actions/go-build@70432bd54a9e690d7fe19817dda46d8e4c0a2c3a" # main
         with:
           ldflags: "-checklinkname=0"
+      # Skipped for pull requests from forks, which then build the image with plain
+      # `docker build`, exactly as today. That is on purpose: a build triggered by
+      # an untrusted contributor should not reach a persistent cache that later
+      # feeds trusted builds.
+      - uses: "depot/setup-action@91bc8495a33ebfc504ffc89e5674379ccf23c29c" # v1
+        if: "${{ env.DEPOT_PROJECT_ID != '' }}"
       - name: "Image tests"
         run: "go run mage.go test:image"
 
