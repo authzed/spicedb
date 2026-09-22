@@ -3,7 +3,8 @@
 Small, standalone investigation for https://github.com/authzed/spicedb/issues/3318.
 It compares one query with ordinary statistics, `mcv` (most-common-value),
 `dependencies`, and both extended statistics types together, all on
-`relation_tuple(namespace, relation)`.
+`relation_tuple(namespace, relation)`. Optional `--subject-relation` mode
+compares that pair against the triple `(namespace, relation, userset_relation)`.
 
 ## Run
 
@@ -21,6 +22,12 @@ To repeat at one million rows with the same proportions and query:
 
 ```sh
 python3 development/postgres/statistics/run.py --rows 1000000 --output-dir /tmp/spicedb-mcv-results-1m
+```
+
+To include subject relation in the query and compare pair vs triple statistics:
+
+```sh
+python3 development/postgres/statistics/run.py --rows 1000000 --subject-relation --output-dir /tmp/spicedb-subject-results-1m
 ```
 
 Choose a new output directory for each run. Without `--output-dir`, the script
@@ -77,3 +84,29 @@ that includes only undeleted rows. The experiment measures SQL execution in
 PostgreSQL, not application/network latency. A better estimate may leave both
 the plan and performance unchanged. Small timing differences are inconclusive;
 real SpiceDB queries and broader workloads would be a separate follow-up.
+
+## Subject-relation experiment
+
+The original dataset has `userset_relation = '...'` for every row. Adding that
+constant column would not test useful correlation. With `--subject-relation`,
+the same 60/10/30 distribution instead uses direct users for document rows and
+`group#member` subjects for group membership rows. Subject IDs are prefixed with
+`subject-` so groups do not reference themselves. One possible authorization
+schema permits `group.member: user | group#member`; this is still a direct SQL
+experiment, not an application permission-check benchmark.
+
+The query adds `AND userset_relation = 'member'`, still matching exactly 30% of
+rows. Seven configurations run independently: ordinary statistics, pair MCV,
+pair dependencies, pair both, triple MCV, triple dependencies, and triple both.
+The pair configurations keep the third column outside the statistics object;
+the triple configurations capture its correlation too. Every configuration
+uses the same new dataset and three-filter query, so comparisons within this
+run isolate the statistics definition. Earlier reports use a different query
+and dataset and should not be treated as its performance baseline.
+
+[results-subject-1m/report.md](results-subject-1m/report.md) records the
+one-million-row subject experiment. Triple statistics estimated about 300,000
+matches, compared with about 26,000 for ordinary statistics and 89,000 for pair
+statistics; the actual count was 300,000. All 35 measured executions retained
+the same bitmap scan and index. Median execution times were about 39–41 ms;
+this run does not establish a speedup.

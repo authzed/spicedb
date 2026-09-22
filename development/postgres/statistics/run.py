@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare ordinary statistics, MCV, dependencies, and both on namespace/relation."""
+"""Compare PostgreSQL statistics on namespace/relation, optionally with subject relation."""
 
 import argparse
 import json
@@ -35,7 +35,7 @@ SELECT
     n::text,
     CASE WHEN n % 10 < 6 THEN 'viewer'
          WHEN n % 10 = 6 THEN 'editor' ELSE 'member' END,
-    'user', n::text, '...'
+    {subject_type}, {subject_id}, {subject_relation}
 FROM generate_series(1, {rows}) AS n;
 -- Equal maintenance state before all phases; data does not change afterward.
 VACUUM relation_tuple;
@@ -61,6 +61,8 @@ def main():
     parser.add_argument("--image", default="postgres:18")
     parser.add_argument("--rows", type=int, default=100000,
                         help="Total relationships; a positive multiple of 10 (default: 100000)")
+    parser.add_argument("--subject-relation", action="store_true",
+                        help="Use mixed subjects and compare pair vs triple statistics on a three-filter query")
     parser.add_argument("--spicedb-bin", type=Path,
                         help="Use an existing CLI built from this checkout instead of building it")
     parser.add_argument("--output-dir", type=Path,
@@ -69,6 +71,16 @@ def main():
     if args.rows <= 0 or args.rows % 10:
         parser.error("--rows must be a positive multiple of 10 to preserve the 60/10/30 split")
     expected_matches = args.rows * 3 // 10
+    query = QUERY
+    column_groups = [("", "namespace, relation")]
+    if args.subject_relation:
+        query += "\n  AND userset_relation = 'member'"
+        column_groups = [("pair_", "namespace, relation"),
+                         ("triple_", "namespace, relation, userset_relation")]
+    configurations = [("baseline", None, None)]
+    for prefix, columns in column_groups:
+        configurations.extend((prefix + phase, kinds, columns)
+                              for phase, kinds in CONFIGURATIONS.items() if kinds)
     output = args.output_dir or Path(tempfile.mkdtemp(prefix="spicedb-mcv-results-"))
     output.mkdir(parents=True, exist_ok=True)
     if any((output / name).exists() for name in ("report.md", "plans.json")):
@@ -117,23 +129,32 @@ def main():
                             "-v", "ON_ERROR_STOP=1", "-U", "spicedb", "-d", "spicedb"],
                            sql=statement)
 
-            sql(SEED.format(rows=args.rows))
+            sql(SEED.format(
+                rows=args.rows,
+                subject_type="CASE WHEN n % 10 < 7 THEN 'user' ELSE 'group' END"
+                if args.subject_relation else "'user'",
+                subject_id="'subject-' || n::text" if args.subject_relation else "n::text",
+                subject_relation="CASE WHEN n % 10 < 7 THEN '...' ELSE 'member' END"
+                if args.subject_relation else "'...'",
+            ))
             version = sql("SELECT version();")
             migration = sql("SELECT version_num FROM alembic_version;")
             distribution = json.loads(sql("""SELECT json_agg(s) FROM (
-                SELECT namespace, relation, count(*) AS rows FROM relation_tuple
-                GROUP BY namespace, relation ORDER BY namespace, relation
+                SELECT namespace, relation, userset_namespace, userset_relation,
+                       count(*) AS rows FROM relation_tuple
+                GROUP BY namespace, relation, userset_namespace, userset_relation
+                ORDER BY namespace, relation, userset_namespace, userset_relation
             ) s;"""))
             indexes = json.loads(sql("""SELECT json_agg(s) FROM (
                 SELECT indexname, indexdef FROM pg_indexes
                 WHERE schemaname = 'public' AND tablename = 'relation_tuple'
                 ORDER BY indexname
             ) s;"""))
-            for phase, kinds in CONFIGURATIONS.items():
+            for phase, kinds, columns in configurations:
                 print(f"Measuring {phase} statistics...", flush=True)
                 if kinds:
                     sql(f"CREATE STATISTICS {STATISTICS_NAME} ({kinds}) "
-                        "ON namespace, relation FROM relation_tuple;")
+                        f"ON {columns} FROM relation_tuple;")
                 sql("ANALYZE relation_tuple;")
                 definitions[phase] = sql(
                     "SELECT pg_get_statisticsobjdef(oid) FROM pg_statistic_ext "
@@ -141,7 +162,7 @@ def main():
                 )
                 samples = []
                 for iteration in range(6):  # One warm-up, then five measured executions.
-                    plan = json.loads(sql("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + QUERY))[0]
+                    plan = json.loads(sql("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + query))[0]
                     if plan["Plan"]["Actual Rows"] != expected_matches:
                         raise RuntimeError(f"Unexpected matching row count in {phase}: {plan}")
                     if iteration:
@@ -174,7 +195,8 @@ def main():
             image_id = run(["docker", "inspect", "--format", "{{.Image}}", container])
             metadata = {"postgres": version, "commit": commit, "image": args.image,
                         "image_id": image_id, "migration": migration,
-                        "rows": args.rows,
+                        "rows": args.rows, "query": query,
+                        "subject_relation": args.subject_relation,
                         "statistics_definitions": definitions,
                         "distribution": distribution, "indexes": indexes, "plans": plans}
             (output / "plans.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -187,17 +209,23 @@ def main():
                 f"- Dataset: {args.rows:,} interleaved, distinct relationships: "
                 f"{args.rows * 6 // 10:,} document/viewer, {args.rows // 10:,} document/editor, "
                 f"{expected_matches:,} group/member. All undeleted; no caveats or expiration.",
+                ("- Subjects: document rows reference direct users (`user#...`); group rows "
+                 "reference group members (`group#member`). Subject IDs are prefixed with "
+                 "`subject-` to avoid self-references."
+                 if args.subject_relation else "- Subjects: all rows reference direct users (`user#...`)."),
                 "- Protocol: one warm-up + five measured executions per phase; manual ANALYZE "
                 "before each phase; same data and indexes throughout.",
-                "- Order: baseline, MCV, dependencies, both. Each extended statistics object "
-                "is dropped before the next phase; configurations are not cumulative.",
+                "- Order: " + ", ".join(plans) + ". Each extended statistics object "
+                "is dropped before the next phase; configurations are not cumulative. "
+                "Pair = (namespace, relation); triple adds userset_relation.",
                 "- Controls: parallel query and JIT disabled; automatic maintenance disabled "
                 "on this disposable table. No SpiceDB server or PgBouncer is involved.", "",
-                "```sql", QUERY + ";", "```", "", "Statistics tested separately "
+                "```sql", query + ";", "```", "", "Statistics tested separately "
                 "(each followed by ANALYZE, measurements, then DROP STATISTICS):", "",
                 "```sql", *(definition + ";" for definition in definitions.values() if definition),
                 "```", "",
-                "| Measurement | Baseline | MCV | Dependencies | Both |", "|---|---|---|---|---|",
+                "| Measurement | " + " | ".join(plans) + " |",
+                "|" + "---|" * (len(plans) + 1),
                 *("| " + " | ".join(row) + " |" for row in rows), "",
                 "This is a synthetic estimate-accuracy experiment. Five timings after one warm-up are "
                 "preliminary, not evidence of an end-to-end SpiceDB speedup. ANALYZE samples "

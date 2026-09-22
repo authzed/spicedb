@@ -1,0 +1,1556 @@
+{
+  "version": "CockroachDB CCL v26.2.5 (aarch64-unknown-linux-gnu, built 2026/07/28 18:55:27, go1.25.5)",
+  "migration": "populate-schema-tables",
+  "commit": "6d1430953f37f76e4eb614624aad0920d172177f",
+  "image": "cockroachdb/cockroach:v26.2.5",
+  "image_id": "sha256:771325a0586bf61d53322d24f5a6de8962568b0fc181fa45db364278e5961282",
+  "rows": 1000000,
+  "query": "SELECT * FROM relation_tuple\nWHERE namespace = 'group' AND relation = 'member' AND userset_relation = 'member'",
+  "initial_statistics": [
+    [
+      "SHOW STATISTICS 0"
+    ]
+  ],
+  "baseline_statistics": [
+    [
+      "statistics_name",
+      "column_names",
+      "created",
+      "row_count",
+      "distinct_count",
+      "null_count",
+      "avg_size",
+      "partial_predicate",
+      "histogram_id",
+      "full_histogram_id",
+      "delay_delete"
+    ],
+    [
+      "baseline_stats",
+      "{namespace}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "2",
+      "0",
+      "11",
+      "NULL",
+      "1212364770729885697",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,object_id}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "995976",
+      "0",
+      "19",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,object_id,relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "991813",
+      "0",
+      "28",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,object_id,relation,userset_namespace}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "993973",
+      "0",
+      "36",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,object_id,relation,userset_namespace,userset_object_id}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "1000000",
+      "0",
+      "53",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "994103",
+      "0",
+      "60",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,relation,userset_namespace,userset_object_id,userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "996937",
+      "0",
+      "51",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,relation,userset_namespace,userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "3",
+      "0",
+      "34",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,userset_namespace,userset_object_id,userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "999238",
+      "0",
+      "42",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{namespace,userset_namespace,userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "2",
+      "0",
+      "25",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{object_id}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "996861",
+      "0",
+      "9",
+      "NULL",
+      "1212364770742272001",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "3",
+      "0",
+      "9",
+      "NULL",
+      "1212364770752790529",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{userset_namespace}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "2",
+      "0",
+      "8",
+      "NULL",
+      "1212364770760818689",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{userset_namespace,userset_object_id}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "993604",
+      "0",
+      "25",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{userset_namespace,userset_object_id,userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "997842",
+      "0",
+      "32",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{userset_namespace,userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "2",
+      "0",
+      "15",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{userset_object_id}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "995906",
+      "0",
+      "17",
+      "NULL",
+      "1212364770776645633",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{userset_relation}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "2",
+      "0",
+      "7",
+      "NULL",
+      "1212364770786279425",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{timestamp}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "100",
+      "0",
+      "11",
+      "NULL",
+      "1212364770826584065",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{caveat_name}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "1",
+      "1000000",
+      "0",
+      "NULL",
+      "1212364770829434881",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{caveat_context}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "1",
+      "1000000",
+      "0",
+      "NULL",
+      "NULL",
+      "NULL",
+      "f"
+    ],
+    [
+      "baseline_stats",
+      "{expires_at}",
+      "2026-09-22 05:26:06.06456+00",
+      "1000000",
+      "1",
+      "1000000",
+      "0",
+      "NULL",
+      "1212364770835628033",
+      "NULL",
+      "f"
+    ]
+  ],
+  "distribution": [
+    [
+      "namespace",
+      "relation",
+      "userset_namespace",
+      "userset_relation",
+      "count"
+    ],
+    [
+      "document",
+      "editor",
+      "user",
+      "...",
+      "100000"
+    ],
+    [
+      "document",
+      "viewer",
+      "user",
+      "...",
+      "600000"
+    ],
+    [
+      "group",
+      "member",
+      "group",
+      "member",
+      "300000"
+    ]
+  ],
+  "schema": [
+    [
+      "table_name",
+      "create_statement"
+    ],
+    [
+      "relation_tuple",
+      "CREATE TABLE public.relation_tuple (\n\tnamespace VARCHAR NOT NULL,\n\tobject_id VARCHAR NOT NULL,\n\trelation VARCHAR NOT NULL,\n\tuserset_namespace VARCHAR NOT NULL,\n\tuserset_object_id VARCHAR NOT NULL,\n\tuserset_relation VARCHAR NOT NULL,\n\t\"timestamp\" TIMESTAMP NOT NULL DEFAULT now():::TIMESTAMP,\n\tcaveat_name VARCHAR NULL,\n\tcaveat_context JSONB NULL,\n\texpires_at TIMESTAMPTZ NULL,\n\tCONSTRAINT pk_relation_tuple PRIMARY KEY (namespace ASC, object_id ASC, relation ASC, userset_namespace ASC, userset_object_id ASC, userset_relation ASC),\n\tINDEX ix_relation_tuple_by_subject (userset_object_id ASC, userset_namespace ASC, userset_relation ASC, namespace ASC, relation ASC),\n\tINDEX ix_relation_tuple_by_subject_relation (userset_namespace ASC, userset_relation ASC, namespace ASC, relation ASC)\n) WITH (ttl = 'on', ttl_expiration_expression = 'expires_at', ttl_job_cron = '@daily', sql_stats_automatic_collection_enabled = false, schema_locked = true);"
+    ]
+  ],
+  "phases": {
+    "baseline": {
+      "definition": null,
+      "statistics": [
+        [
+          "statistics_name",
+          "column_names",
+          "created",
+          "row_count",
+          "distinct_count",
+          "null_count",
+          "avg_size",
+          "partial_predicate",
+          "histogram_id",
+          "full_histogram_id",
+          "delay_delete"
+        ],
+        [
+          "baseline_stats",
+          "{namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "11",
+          "NULL",
+          "1212364770729885697",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "995976",
+          "0",
+          "19",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "991813",
+          "0",
+          "28",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "993973",
+          "0",
+          "36",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace,userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1000000",
+          "0",
+          "53",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "994103",
+          "0",
+          "60",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,relation,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "996937",
+          "0",
+          "51",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,relation,userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "3",
+          "0",
+          "34",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "999238",
+          "0",
+          "42",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "25",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "996861",
+          "0",
+          "9",
+          "NULL",
+          "1212364770742272001",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "3",
+          "0",
+          "9",
+          "NULL",
+          "1212364770752790529",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "8",
+          "NULL",
+          "1212364770760818689",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "993604",
+          "0",
+          "25",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "997842",
+          "0",
+          "32",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "15",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "995906",
+          "0",
+          "17",
+          "NULL",
+          "1212364770776645633",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "7",
+          "NULL",
+          "1212364770786279425",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{timestamp}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "100",
+          "0",
+          "11",
+          "NULL",
+          "1212364770826584065",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{caveat_name}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "1212364770829434881",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{caveat_context}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{expires_at}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "1212364770835628033",
+          "NULL",
+          "f"
+        ]
+      ],
+      "samples": [
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 93.0,
+            "planning_ms": 0.12,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 120\u00b5s\nexecution time: 93ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 91ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 95.0,
+            "planning_ms": 0.077,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 77\u00b5s\nexecution time: 95ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 1ms\n\u2502 sql cpu time: 1ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 93ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 2 seconds ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 96.0,
+            "planning_ms": 0.081,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 81\u00b5s\nexecution time: 96ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 94ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 2 seconds ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 98.0,
+            "planning_ms": 0.089,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 89\u00b5s\nexecution time: 98ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 96ms\n      KV rows decoded: 300,000\n      sql cpu time: 48ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 2 seconds ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 93.0,
+            "planning_ms": 1.0,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 1ms\nexecution time: 93ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 91ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 2 seconds ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        }
+      ]
+    },
+    "pair": {
+      "definition": "CREATE STATISTICS candidate_stats ON namespace, relation FROM relation_tuple;",
+      "statistics": [
+        [
+          "statistics_name",
+          "column_names",
+          "created",
+          "row_count",
+          "distinct_count",
+          "null_count",
+          "avg_size",
+          "partial_predicate",
+          "histogram_id",
+          "full_histogram_id",
+          "delay_delete"
+        ],
+        [
+          "baseline_stats",
+          "{namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "11",
+          "NULL",
+          "1212364770729885697",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "995976",
+          "0",
+          "19",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "991813",
+          "0",
+          "28",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "993973",
+          "0",
+          "36",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace,userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1000000",
+          "0",
+          "53",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "994103",
+          "0",
+          "60",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,relation,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "996937",
+          "0",
+          "51",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,relation,userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "3",
+          "0",
+          "34",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "999238",
+          "0",
+          "42",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "25",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "996861",
+          "0",
+          "9",
+          "NULL",
+          "1212364770742272001",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "3",
+          "0",
+          "9",
+          "NULL",
+          "1212364770752790529",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "8",
+          "NULL",
+          "1212364770760818689",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "993604",
+          "0",
+          "25",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "997842",
+          "0",
+          "32",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "15",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "995906",
+          "0",
+          "17",
+          "NULL",
+          "1212364770776645633",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "7",
+          "NULL",
+          "1212364770786279425",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{timestamp}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "100",
+          "0",
+          "11",
+          "NULL",
+          "1212364770826584065",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{caveat_name}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "1212364770829434881",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{caveat_context}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{expires_at}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "1212364770835628033",
+          "NULL",
+          "f"
+        ],
+        [
+          "candidate_stats",
+          "{namespace,relation}",
+          "2026-09-22 05:26:09.038398+00",
+          "1000000",
+          "3",
+          "0",
+          "20",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ]
+      ],
+      "samples": [
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 95.0,
+            "planning_ms": 0.124,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 124\u00b5s\nexecution time: 95ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 93ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 93.0,
+            "planning_ms": 0.078,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 78\u00b5s\nexecution time: 93ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 91ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 101.0,
+            "planning_ms": 0.08700000000000001,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 87\u00b5s\nexecution time: 101ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 99ms\n      KV rows decoded: 300,000\n      sql cpu time: 49ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 93.0,
+            "planning_ms": 0.078,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 78\u00b5s\nexecution time: 93ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 92ms\n      KV rows decoded: 300,000\n      sql cpu time: 48ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 27544,
+            "actual_rows": 300000,
+            "execution_ms": 93.0,
+            "planning_ms": 0.078,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 78\u00b5s\nexecution time: 93ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 27,544\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 91ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 2 seconds ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        }
+      ]
+    },
+    "triple": {
+      "definition": "CREATE STATISTICS candidate_stats ON namespace, relation, userset_relation FROM relation_tuple;",
+      "statistics": [
+        [
+          "statistics_name",
+          "column_names",
+          "created",
+          "row_count",
+          "distinct_count",
+          "null_count",
+          "avg_size",
+          "partial_predicate",
+          "histogram_id",
+          "full_histogram_id",
+          "delay_delete"
+        ],
+        [
+          "baseline_stats",
+          "{namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "11",
+          "NULL",
+          "1212364770729885697",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "995976",
+          "0",
+          "19",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "991813",
+          "0",
+          "28",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "993973",
+          "0",
+          "36",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace,userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1000000",
+          "0",
+          "53",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "994103",
+          "0",
+          "60",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,relation,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "996937",
+          "0",
+          "51",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,relation,userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "3",
+          "0",
+          "34",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "999238",
+          "0",
+          "42",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{namespace,userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "25",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "996861",
+          "0",
+          "9",
+          "NULL",
+          "1212364770742272001",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "3",
+          "0",
+          "9",
+          "NULL",
+          "1212364770752790529",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "8",
+          "NULL",
+          "1212364770760818689",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "993604",
+          "0",
+          "25",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_object_id,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "997842",
+          "0",
+          "32",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_namespace,userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "15",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_object_id}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "995906",
+          "0",
+          "17",
+          "NULL",
+          "1212364770776645633",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{userset_relation}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "2",
+          "0",
+          "7",
+          "NULL",
+          "1212364770786279425",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{timestamp}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "100",
+          "0",
+          "11",
+          "NULL",
+          "1212364770826584065",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{caveat_name}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "1212364770829434881",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{caveat_context}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ],
+        [
+          "baseline_stats",
+          "{expires_at}",
+          "2026-09-22 05:26:06.06456+00",
+          "1000000",
+          "1",
+          "1000000",
+          "0",
+          "NULL",
+          "1212364770835628033",
+          "NULL",
+          "f"
+        ],
+        [
+          "candidate_stats",
+          "{namespace,relation,userset_relation}",
+          "2026-09-22 05:26:11.566639+00",
+          "1000000",
+          "3",
+          "0",
+          "26",
+          "NULL",
+          "NULL",
+          "NULL",
+          "f"
+        ]
+      ],
+      "samples": [
+        {
+          "metrics": {
+            "estimated_rows": 274554,
+            "actual_rows": 300000,
+            "execution_ms": 94.0,
+            "planning_ms": 0.122,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 122\u00b5s\nexecution time: 94ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 274,554\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 92ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 274554,
+            "actual_rows": 300000,
+            "execution_ms": 96.0,
+            "planning_ms": 0.075,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 75\u00b5s\nexecution time: 96ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 274,554\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 94ms\n      KV rows decoded: 300,000\n      sql cpu time: 49ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 274554,
+            "actual_rows": 300000,
+            "execution_ms": 94.0,
+            "planning_ms": 0.079,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 79\u00b5s\nexecution time: 94ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 274,554\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 92ms\n      KV rows decoded: 300,000\n      sql cpu time: 48ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 274554,
+            "actual_rows": 300000,
+            "execution_ms": 93.0,
+            "planning_ms": 0.083,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 83\u00b5s\nexecution time: 93ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 274,554\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 92ms\n      KV rows decoded: 300,000\n      sql cpu time: 47ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 1 second ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        },
+        {
+          "metrics": {
+            "estimated_rows": 274554,
+            "actual_rows": 300000,
+            "execution_ms": 89.0,
+            "planning_ms": 0.08,
+            "operators": [
+              "filter",
+              "scan"
+            ],
+            "indexes": [
+              "relation_tuple@pk_relation_tuple"
+            ],
+            "kv_rows": 300000
+          },
+          "plan": "planning time: 80\u00b5s\nexecution time: 89ms\ndistribution: local\nplan type: generic, reused\nrows decoded from KV: 300,000 (28 MiB, 3 gRPC calls)\n\u2022 filter\n\u2502 sql nodes: n1\n\u2502 execution time: 2ms\n\u2502 sql cpu time: 2ms\n\u2502 actual row count: 300,000\n\u2502 estimated row count: 274,554\n\u2502 filter: (relation = 'member') AND (userset_relation = 'member')\n\u2502\n\u2514\u2500\u2500 \u2022 scan\n      sql nodes: n1\n      kv nodes: n1\n      KV time: 87ms\n      KV rows decoded: 300,000\n      sql cpu time: 45ms\n      actual row count: 300,000\n      estimated row count: 302,000 (30% of the table; stats collected 2 seconds ago)\n      table: relation_tuple@pk_relation_tuple\n      spans: [/'group' - /'group']"
+        }
+      ]
+    }
+  }
+}
