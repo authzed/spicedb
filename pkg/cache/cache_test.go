@@ -12,11 +12,11 @@ import (
 )
 
 func TestEntryWeight(t *testing.T) {
-	// Empty key, zero payload.
-	require.Equal(t, uint32(0), entryWeight("", 0))
+	// Empty key, zero payload: still costs the structural overhead.
+	require.Equal(t, uint32(entryStructuralOverhead), entryWeight("", 0))
 
-	// Payload + key bytes.
-	require.Equal(t, uint32(10+3), entryWeight("abc", 10))
+	// Payload + key bytes + structural overhead.
+	require.Equal(t, uint32(10+3+entryStructuralOverhead), entryWeight("abc", 10))
 
 	// Saturates rather than overflowing uint32.
 	require.Equal(t, uint32(math.MaxUint32), entryWeight("x", math.MaxUint32))
@@ -35,11 +35,11 @@ func TestCostAddedIncludesKey(t *testing.T) {
 	const payloadCost = 10
 	require.True(t, cache.Set(StringKey(key), "value", payloadCost))
 
-	// costAdded must reflect the full entry weight (payload + key bytes), not
-	// just the caller-supplied payload cost.
+	// costAdded must reflect the full entry weight (payload + key bytes +
+	// structural overhead), not just the caller-supplied payload cost.
 	require.Equal(
 		t,
-		uint64(payloadCost+len(key)),
+		uint64(payloadCost+len(key)+entryStructuralOverhead),
 		cache.GetMetrics().CostAdded(),
 	)
 }
