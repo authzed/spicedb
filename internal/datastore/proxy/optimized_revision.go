@@ -167,7 +167,15 @@ func (p *optimizedRevisionProxy) compute(ctx context.Context, localNow time.Time
 
 	p.candidates = p.candidates[numToDrop:]
 	computed := validRevision{revision: fresh.Revision, validThrough: rvt, schemaHash: fresh.SchemaHash}
-	p.candidates = append(p.candidates, computed)
+
+	// A revision that reports no validity is only accurate at the instant it was read,
+	// so it must not become a cache candidate: the staleness jitter subtracts up to
+	// maxStaleness from "now" when testing candidates, which would keep serving this
+	// already-expired entry for that long and hide every write made in the meantime.
+	// Returning it to this caller is fine; remembering it is not.
+	if fresh.ValidFor > 0 {
+		p.candidates = append(p.candidates, computed)
+	}
 	p.mu.Unlock()
 
 	span.AddEvent(otelconv.EventDatastoreRevisionsComputed)

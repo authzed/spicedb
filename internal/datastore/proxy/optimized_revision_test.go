@@ -86,13 +86,26 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			[][]datastore.Revision{cand(one), cand(one), cand(two)},
 		},
 		{
+			// staleness lets a barely-expired candidate keep being served for a while
 			"cached by staleness",
 			7 * time.Millisecond,
 			[]revisionResponse{
-				{one, 0},
+				{one, 1 * time.Millisecond},
 				{two, 100 * time.Millisecond},
 			},
 			[][]datastore.Revision{cand(one), cand(one, two), cand(two), cand(two)},
+		},
+		{
+			// a revision with no validity is accurate only when it is read, so staleness
+			// must not keep it around: every call has to go back to the datastore
+			"no validity is never cached, even with staleness",
+			7 * time.Millisecond,
+			[]revisionResponse{
+				{one, 0},
+				{two, 0},
+				{three, 0},
+			},
+			[][]datastore.Revision{cand(one), cand(two), cand(three)},
 		},
 		{
 			"cached by staleness and validity",
