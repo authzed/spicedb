@@ -126,7 +126,7 @@ spicedb datastore gc [flags]
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
-      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
+      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. A pool that is still opening connections, such as at startup or after losing a node, is given longer, since nothing is exhausted while it fills. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
 ```
 
 ### Options Inherited From Parent Flags
@@ -271,7 +271,7 @@ spicedb datastore repair [flags]
       --pprof-block-profile-rate int                                          sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                          sets the mutex profile sampling rate (between 0 and 1)
       --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
-      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
+      --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. A pool that is still opening connections, such as at startup or after losing a node, is given longer, since nothing is exhausted while it fills. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
 ```
 
 ### Options Inherited From Parent Flags
@@ -536,7 +536,7 @@ spicedb serve [flags]
       --termination-log-path string                                                     local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --update-relationships-max-preconditions-per-call uint16                          maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls (default 1000)
       --watch-api-heartbeat duration                                                    heartbeat time on the watch in the API. 0 means to default to the datastore's minimum. (default 1s)
-      --write-conn-acquisition-timeout duration                                         amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
+      --write-conn-acquisition-timeout duration                                         amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. A pool that is still opening connections, such as at startup or after losing a node, is given longer, since nothing is exhausted while it fills. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
       --write-relationships-max-updates-per-call uint16                                 maximum number of updates allowed for WriteRelationships calls (default 1000)
 ```
 

@@ -55,6 +55,18 @@ type RetryPool struct {
 	// It is a field rather than a direct call to nodeID so that tests can inject a deterministic value without needing a live connection.
 	nodeIDFromConn func(conn *pgx.Conn) uint32
 
+	// fillAllowance reports how long an acquire may wait while the pool is
+	// still working its way up to its configured size, or zero if it is not.
+	// It is a field rather than a direct call to poolFillAllowance because that
+	// reads pgxpool.Stat, which cannot be constructed without a live pool, so
+	// tests inject the answer instead.
+	fillAllowance func() time.Duration
+
+	// connectRate is the minimum interval between two new connections, as
+	// enforced by the limiter in afterConnect. It is kept here so that the
+	// fill allowance can be derived from it.
+	connectRate time.Duration
+
 	sync.RWMutex
 	maxRetries  uint8
 	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
@@ -70,7 +82,9 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		nodeIDFromConn: nodeID,
 		nodeForConn:    make(map[*pgx.Conn]uint32),
 		gc:             make(map[*pgx.Conn]struct{}),
+		connectRate:    connectRate,
 	}
+	p.fillAllowance = p.poolFillAllowance
 
 	p.configureLifecycleCallbacks(config, connectRate)
 
@@ -81,6 +95,51 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 
 	p.pool = pool
 	return p, nil
+}
+
+// fillAllowanceSlack is added to the time a pool needs to open every connection
+// it is allowed, to cover the connection establishment itself: the connect-rate
+// limiter bounds how often a connection may be started, not how long the
+// handshake with CockroachDB takes.
+const fillAllowanceSlack = time.Second
+
+// fillAllowanceCeiling is the longest a write may wait for a pool that is still
+// filling, whatever the pool is sized at. A pool that cannot produce a single
+// connection in this long is not slow, it is broken, and the caller is better
+// served by an error than by waiting.
+const fillAllowanceCeiling = 30 * time.Second
+
+// poolFillAllowance reports how long an acquire may wait while the pool is
+// still working its way up to its configured size, and zero when it is not.
+func (p *RetryPool) poolFillAllowance() time.Duration {
+	stat := p.pool.Stat()
+	return fillAllowanceFor(stat.ConstructingConns(), stat.TotalConns(), stat.MaxConns(), p.connectRate)
+}
+
+// fillAllowanceFor is the body of poolFillAllowance over plain numbers, so that
+// it can be tested without a live pool.
+//
+// A pool is still filling when connections are being constructed and fewer than
+// MaxConns of them have been established. That is the state a pool is in while
+// it is starting up, while it is growing from its minimum towards its maximum,
+// and while it is replacing connections lost with an unhealthy node. In none of
+// those is the pool out of connections: it has capacity it has not opened yet.
+//
+// It is deliberately zero for a pool that has every connection it is allowed
+// established and handed out, which is the state the write acquisition timeout
+// exists to push back on.
+//
+// The allowance itself follows from the connect rate: a CockroachDB pool cannot
+// open connections faster than one per connect rate (see afterConnect), so a
+// pool allowed MaxConns of them needs that many intervals in the worst case.
+func fillAllowanceFor(constructing, total, maxConns int32, connectRate time.Duration) time.Duration {
+	established := total - constructing
+	if constructing <= 0 || established >= maxConns {
+		return 0
+	}
+
+	allowance := time.Duration(maxConns)*connectRate + fillAllowanceSlack
+	return min(allowance, fillAllowanceCeiling)
 }
 
 // configureLifecycleCallbacks installs the pool's connection-lifecycle hooks
@@ -217,9 +276,15 @@ func (p *RetryPool) BeginFunc(ctx context.Context, txFunc func(pgx.Tx) error) er
 	return p.BeginTxFunc(ctx, pgx.TxOptions{}, txFunc)
 }
 
-// TryBeginFunc attempts to get a connection from the pool within acquisitionTimeout.
+// TryBeginFunc attempts to get a connection from the pool within acquireTimeout.
 // If successful, it behaves like BeginFunc and will retry on errors.
 // If unsuccessful, it returns ErrAcquire.
+//
+// acquireTimeout is backpressure against a pool whose connections are all in
+// use, so a pool that is still opening them is given longer: see
+// fillAllowanceFor. Waiting on a connection that is being opened is not the
+// same thing as waiting on a pool that has run out of them, and failing the
+// second one fast is the whole point of the timeout.
 func (p *RetryPool) TryBeginFunc(ctx context.Context, acquireTimeout time.Duration, txFunc func(pgx.Tx) error) error {
 	return p.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
 		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
@@ -284,16 +349,50 @@ func (p *RetryPool) Range(f func(conn *pgx.Conn, nodeID uint32)) {
 	}
 }
 
-// withRetries acquires a connection and attempts the request multiple times
-func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duration, fn func(conn *pgxpool.Conn) error) error {
-	acquireCtx := ctx
-	acquireCancel := func() {}
-
-	if acquireTimeout > 0 {
-		acquireCtx, acquireCancel = context.WithTimeoutCause(context.Background(), acquireTimeout, ErrAcquire)
+// acquire takes a connection from the pool. An acquireTimeout of zero waits on
+// the caller's context; anything else is write backpressure, and is deliberately
+// measured against a fresh context so that a client that gives up cannot cancel
+// a connection the pool is in the middle of opening.
+//
+// Backpressure means "every connection this pool is allowed is in use, come
+// back later". A pool that has not finished opening its connections is not in
+// that state: it has capacity it has not built yet, and the write is waiting on
+// construction rather than on other callers. So when the timeout expires, the
+// pool is asked which of the two it is, and a pool that is still filling is
+// given the longer allowance described on fillAllowanceFor.
+//
+// The question is asked after the first wait rather than before it because the
+// pool takes a moment to start reporting connections as under construction, and
+// asking too early sees a pool that looks idle and empty.
+func (p *RetryPool) acquire(ctx context.Context, acquireTimeout time.Duration) (*pgxpool.Conn, error) {
+	if acquireTimeout <= 0 {
+		return acquireWithin(ctx, p.pool, 0)
 	}
 
-	conn, err := p.pool.Acquire(acquireCtx)
+	conn, err := acquireWithin(ctx, p.pool, acquireTimeout)
+	if !errors.Is(err, ErrAcquire) {
+		return conn, err
+	}
+
+	allowance := p.fillAllowance()
+	if allowance <= acquireTimeout {
+		return nil, err
+	}
+
+	return acquireWithin(ctx, p.pool, allowance-acquireTimeout)
+}
+
+// acquireWithin takes a connection from pool, bounded by timeout when there is
+// one and by ctx when there is not.
+func acquireWithin(ctx context.Context, pool pgxPool, timeout time.Duration) (*pgxpool.Conn, error) {
+	acquireCtx := ctx
+	acquireCancel := func() {}
+	if timeout > 0 {
+		acquireCtx, acquireCancel = context.WithTimeoutCause(context.Background(), timeout, ErrAcquire)
+	}
+	defer acquireCancel()
+
+	conn, err := pool.Acquire(acquireCtx)
 	if err != nil {
 		if conn != nil {
 			conn.Release()
@@ -301,10 +400,18 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 		if acquireCtx.Err() != nil {
 			err = context.Cause(acquireCtx)
 		}
-		acquireCancel()
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// withRetries acquires a connection and attempts the request multiple times
+func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duration, fn func(conn *pgxpool.Conn) error) error {
+	conn, err := p.acquire(ctx, acquireTimeout)
+	if err != nil {
 		return fmt.Errorf("error acquiring connection from pool: %w", err)
 	}
-	acquireCancel()
 
 	defer func() {
 		if conn != nil {

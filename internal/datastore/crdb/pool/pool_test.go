@@ -80,6 +80,10 @@ func createTestRetryPool(testPool *TestPool) *RetryPool {
 		nodeForConn:    make(map[*pgx.Conn]uint32),
 		gc:             make(map[*pgx.Conn]struct{}),
 		nodeIDFromConn: func(conn *pgx.Conn) uint32 { return 0 },
+		// A pool that is done filling, so the acquisition timeout applies as
+		// written. Tests that need the filling case override this.
+		fillAllowance: func() time.Duration { return 0 },
+		connectRate:   100 * time.Millisecond,
 	}
 }
 
@@ -642,4 +646,135 @@ func TestAfterConnectDoesNotBlockAcquireHotPath(t *testing.T) {
 		t.Fatal("acquire hot path (BeforeAcquire) stalled because AfterConnect held " +
 			"the write lock across the blocking limiter.Wait — see issue #3179")
 	}
+}
+
+func TestFillAllowanceFor(t *testing.T) {
+	t.Parallel()
+
+	const connectRate = 100 * time.Millisecond
+
+	tests := []struct {
+		name         string
+		constructing int32
+		total        int32
+		maxConns     int32
+		expected     time.Duration
+	}{
+		{
+			name:         "full pool with every connection handed out gets no allowance",
+			constructing: 0,
+			total:        10,
+			maxConns:     10,
+			expected:     0,
+		},
+		{
+			name:         "cold pool that has opened nothing yet",
+			constructing: 10,
+			total:        10,
+			maxConns:     10,
+			expected:     2 * time.Second,
+		},
+		{
+			name:         "cold pool whose one open connection is already in use",
+			constructing: 9,
+			total:        10,
+			maxConns:     10,
+			expected:     2 * time.Second,
+		},
+		{
+			name:         "pool growing from its minimum towards its maximum",
+			constructing: 4,
+			total:        5,
+			maxConns:     10,
+			expected:     2 * time.Second,
+		},
+		{
+			name:         "pool replacing the connections it lost with a node",
+			constructing: 6,
+			total:        6,
+			maxConns:     10,
+			expected:     2 * time.Second,
+		},
+		{
+			name:         "idle pool that is not opening anything gets no allowance",
+			constructing: 0,
+			total:        4,
+			maxConns:     10,
+			expected:     0,
+		},
+		{
+			name:         "allowance is capped however large the pool is",
+			constructing: 1,
+			total:        1,
+			maxConns:     1000,
+			expected:     fillAllowanceCeiling,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expected,
+				fillAllowanceFor(tt.constructing, tt.total, tt.maxConns, connectRate))
+		})
+	}
+}
+
+func TestFillingPoolWaitsPastTheAcquireTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+
+		// A connection that takes longer to open than the acquire timeout
+		// allows, which is what the connect-rate limiter does to a pool that is
+		// opening several connections at once.
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			select {
+			case <-time.After(500 * time.Millisecond):
+				return &pgxpool.Conn{}, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+
+		retryPool := createTestRetryPool(testPool)
+		retryPool.fillAllowance = func() time.Duration { return 2 * time.Second }
+
+		functionCalled := false
+		err := retryPool.withRetries(t.Context(), 30*time.Millisecond, func(conn *pgxpool.Conn) error {
+			functionCalled = true
+			return nil
+		})
+
+		synctest.Wait()
+
+		assert.NoError(t, err) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.True(t, functionCalled, "the write should have waited for the connection the pool was opening")
+	})
+}
+
+func TestFilledPoolStillFailsFast(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		testPool := NewTestPool()
+
+		var acquireDeadline time.Time
+		testPool.acquireFunc = func(ctx context.Context) (*pgxpool.Conn, error) {
+			acquireDeadline, _ = ctx.Deadline()
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+
+		retryPool := createTestRetryPool(testPool)
+
+		start := time.Now()
+		err := retryPool.withRetries(t.Context(), 30*time.Millisecond, func(conn *pgxpool.Conn) error {
+			t.Fatal("function should not be called when acquire times out")
+			return nil
+		})
+
+		synctest.Wait()
+
+		assert.ErrorIs(t, errors.Unwrap(err), ErrAcquire) //nolint:testifylint  // we're inside a goroutine so this is appropriate
+		assert.Equal(t, 30*time.Millisecond, acquireDeadline.Sub(start),
+			"a pool with every connection handed out must keep the backpressure timeout")
+	})
 }
