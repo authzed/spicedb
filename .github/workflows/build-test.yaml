@@ -51,7 +51,11 @@ jobs:
               - "go.mod"
   build:
     name: "Build Binary & Image"
-    runs-on: "depot-ubuntu-24.04-arm-4"
+    # The image tests start a SpiceDB container and a Postgres container and then
+    # drive 200k fully-consistent Checks through them. Measured CPU appetite of that
+    # workload is ~6.5 cores for SpiceDB, ~1.4 for Postgres and ~0.4 for the test
+    # client, so on a 4-vCPU runner it spent most of its time waiting for a core.
+    runs-on: "depot-ubuntu-24.04-arm-16"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
