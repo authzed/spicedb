@@ -1,0 +1,9 @@
+# The build context is sent to the builder on every build, and anything listed
+# here that changes also invalidates the COPY layer. .git changes on every
+# commit even when no Go source did, so keeping it out lets the layer cache
+# survive. Nothing here is needed to compile ./cmd/spicedb.
+.git
+.github
+.devcontainer
+.vscode
+dist
