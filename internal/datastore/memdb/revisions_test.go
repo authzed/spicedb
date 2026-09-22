@@ -73,6 +73,51 @@ func TestOptimizedRevisionSeesFirstWrite(t *testing.T) {
 	})
 }
 
+// TestOptimizedRevisionFallbackReportsNoValidity covers the validity reported
+// alongside the fallback above. When rounding down would hide the first write,
+// OptimizedRevision answers with head instead — but the validity it computed
+// belongs to the quantized revision it discarded. Handing that validity out
+// lets a caller cache head for the rest of the interval and miss every write
+// made during it, which is the staleness the fallback exists to avoid.
+func TestOptimizedRevisionFallbackReportsNoValidity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const quantization = 50 * time.Millisecond
+
+		boundary := nextQuantizationBoundary(quantization)
+		time.Sleep(time.Until(boundary.Add(-5 * time.Millisecond)))
+
+		ds, err := NewMemdbDatastore(0, quantization, time.Hour)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = ds.Close()
+		})
+
+		time.Sleep(time.Until(boundary.Add(time.Millisecond)))
+
+		_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+				tuple.Touch(tuple.MustParse("document:doc#viewer@user:tom")),
+			})
+		})
+		require.NoError(t, err)
+
+		// The fallback is active: rounding down lands before the write.
+		fallback, err := ds.OptimizedRevision(t.Context())
+		require.NoError(t, err)
+		require.Zero(t, fallback.ValidFor,
+			"head was substituted for the quantized revision, so the quantized revision's validity must not be reported")
+
+		// Past the next boundary the quantized revision is itself servable, the
+		// fallback no longer applies, and a real validity is expected again.
+		time.Sleep(time.Until(nextQuantizationBoundary(quantization).Add(time.Millisecond)))
+
+		quantized, err := ds.OptimizedRevision(t.Context())
+		require.NoError(t, err)
+		require.Positive(t, quantized.ValidFor,
+			"the quantized revision is servable here, so it should carry its own validity")
+	})
+}
+
 // nextQuantizationBoundary returns the next instant that OptimizedRevision
 // would round down to for the given quantization period.
 func nextQuantizationBoundary(quantization time.Duration) time.Time {
