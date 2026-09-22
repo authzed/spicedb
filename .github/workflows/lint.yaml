@@ -21,7 +21,7 @@ jobs:
     name: "License Check"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - name: "Check Licenses"
         uses: "authzed/actions/go-license-check@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
@@ -31,7 +31,7 @@ jobs:
     name: "Ensure Docs are up to date"
     runs-on: "depot-ubuntu-24.04-4"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate docs"
         run: "go run mage.go gen:docs"
@@ -43,7 +43,7 @@ jobs:
     name: "Lint Everything"
     runs-on: "depot-ubuntu-24.04-4"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - name: "Lint Everything"
         run: "go run mage.go lint:all"
