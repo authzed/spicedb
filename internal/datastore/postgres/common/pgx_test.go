@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +28,7 @@ func (r *multiStatementRows) RawValues() [][]byte                          { ret
 func (r *multiStatementRows) Conn() *pgx.Conn                              { return nil }
 func (r *multiStatementRows) CommandTag() pgconn.CommandTag                { return pgconn.NewCommandTag("SELECT 0") }
 func (r *multiStatementRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *multiStatementRows) TypeMap() *pgtype.Map                         { return pgtype.NewMap() }
 
 func (r *multiStatementRows) Err() error {
 	if r.closed {
