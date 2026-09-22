@@ -7,21 +7,43 @@ updates:
       - "/magefiles"
       - "/e2e"
       - "/tools/analyzers"
+    # Every other Monday at 09:00 UTC. Dependabot parses cron with the fugit
+    # library, whose "%" modulo extension is how a two-week cadence is
+    # expressed; plain intervals only offer daily/weekly/monthly.
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 * * mon%2"
+    # "dependencies" is Dependabot's default label, but setting "labels"
+    # replaces the defaults instead of adding to them. The changelog enforcer
+    # in keep-a-changelog.yaml skips on it, so it has to be listed explicitly.
     labels:
       - "area/dependencies"
+      - "dependencies"
     groups:
+      # A group only covers the update type named by "applies-to", which
+      # defaults to "version-updates". Without a second, separately named
+      # group for "security-updates", advisory-triggered updates ignore
+      # grouping and open one pull request per affected module.
       go-mod:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      go-mod-security:
+        applies-to: "security-updates"
         patterns: ["*"]
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 * * mon%2"
     labels:
       - "area/dependencies"
+      - "dependencies"
     groups:
       docker:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      docker-security:
+        applies-to: "security-updates"
         patterns: ["*"]
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -29,4 +51,8 @@ updates:
       interval: "monthly"
     groups:
       github-actions:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      github-actions-security:
+        applies-to: "security-updates"
         patterns: ["*"]
