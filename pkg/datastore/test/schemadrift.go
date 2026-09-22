@@ -99,6 +99,12 @@ func SchemaDriftTest(t *testing.T, tester DatastoreTester) {
 	dsCfg.URI = datastoreURI
 	dsCfg.RevisionQuantization = 0
 	dsCfg.RequestHedgingEnabled = false
+	// The engine's suite already built a datastore in this process, and the
+	// datastores register their collectors on a global registry, so a second
+	// one with metrics on fails with "duplicate metrics collector registration
+	// attempted". This datastore exists only to let the engine apply whatever
+	// schema changes it makes on construction.
+	dsCfg.EnableDatastoreMetrics = false
 
 	constructed, err := builder(t.Context(), *dsCfg)
 	require.NoError(t, err)
