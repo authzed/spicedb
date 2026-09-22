@@ -92,6 +92,8 @@ func (p benchPkg) differs() bool {
 //	BENCH_COUNT     interleaved A/B rounds (default 6)
 //	BENCH_TIME      -benchtime for each run (default 1s)
 //	BENCH_BUDGET    wall-clock cap on the measurement phase (default 20m)
+//	BENCH_FAIL_PCT  fail when a benchmark is at least this much slower
+//	                (percent, e.g. "25"). Unset means report only.
 func (b Benchmark) Compare() error {
 	baseRef := envOrDefault("BENCH_BASE_REF", "origin/main")
 	benchtime := envOrDefault("BENCH_TIME", "1s")
@@ -104,6 +106,14 @@ func (b Benchmark) Compare() error {
 	budget, err := time.ParseDuration(envOrDefault("BENCH_BUDGET", "20m"))
 	if err != nil {
 		return fmt.Errorf("BENCH_BUDGET must be a duration, got %q: %w", os.Getenv("BENCH_BUDGET"), err)
+	}
+
+	failPct := -1.0
+	if raw := os.Getenv("BENCH_FAIL_PCT"); raw != "" {
+		failPct, err = strconv.ParseFloat(raw, 64)
+		if err != nil || failPct <= 0 {
+			return fmt.Errorf("BENCH_FAIL_PCT must be a positive number of percent, got %q", raw)
+		}
 	}
 
 	root, err := gitOutput(".", "rev-parse", "--show-toplevel")
@@ -224,13 +234,92 @@ func (b Benchmark) Compare() error {
 	if statErr != nil {
 		fmt.Fprintf(report, "\nbenchstat exited with an error: %v\n", statErr)
 	}
-	fmt.Fprintf(report, "\nThis check reports; it does not fail the build. "+
-		"`~` means the two samples are not distinguishable at p<0.05.\n")
+
+	var regressions []string
+	if failPct > 0 {
+		regressions, err = benchstatRegressions(baseSide.sample, headSide.sample, failPct)
+		if err != nil {
+			return err
+		}
+	}
+
+	switch {
+	case failPct <= 0:
+		fmt.Fprintf(report, "\nThis check reports; it does not fail the build. "+
+			"`~` means the two samples are not distinguishable at p<0.05.\n")
+	case len(regressions) == 0:
+		fmt.Fprintf(report, "\nNo benchmark got at least %.0f%% slower with p<0.05, so this check passes. "+
+			"`~` means the two samples are not distinguishable.\n", failPct)
+	default:
+		fmt.Fprintf(report, "\n**Regressed at least %.0f%% with p<0.05:**\n\n", failPct)
+		for _, r := range regressions {
+			fmt.Fprintf(report, "- %s\n", r)
+		}
+	}
 
 	if err := finishBenchReport(report); err != nil {
 		return err
 	}
+	if len(regressions) > 0 {
+		return fmt.Errorf("%d benchmark(s) regressed by at least %.0f%%: %s",
+			len(regressions), failPct, strings.Join(regressions, "; "))
+	}
 	return statErr
+}
+
+// benchstatRegressions reports the benchmarks whose time per operation got at
+// least minPct slower. It reads benchstat's CSV output, where the "vs base"
+// column holds a signed percentage when the difference is significant at the
+// default p<0.05 and "~" when it is not, so a noisy pair can never be counted
+// as a regression however large the difference looks.
+//
+// Only sec/op is gated. Allocation counts move for reasons that are usually
+// deliberate, and gating them as well would make this fire on changes nobody
+// would call a regression.
+func benchstatRegressions(baseSample, headSample string, minPct float64) ([]string, error) {
+	benchstat, err := benchstatPath()
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(benchstat, "-format", "csv", "merge-base="+baseSample, "head="+headSample)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = io.Discard
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("running benchstat for the regression check: %w", err)
+	}
+
+	var regressions []string
+	unit := ""
+	for line := range strings.SplitSeq(out.String(), "\n") {
+		fields := strings.Split(strings.TrimSpace(line), ",")
+		if len(fields) < 2 {
+			continue
+		}
+		// A table header names the unit its rows are measured in.
+		if fields[0] == "" {
+			unit = fields[1]
+			continue
+		}
+		// geomean summarizes the table and carries no significance test.
+		if unit != "sec/op" || fields[0] == "geomean" || len(fields) < 3 {
+			continue
+		}
+
+		delta := fields[len(fields)-2]
+		if !strings.HasPrefix(delta, "+") {
+			continue // "~" (not significant) or a negative delta (faster).
+		}
+		pct, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimPrefix(delta, "+"), "%"), 64)
+		if err != nil {
+			continue
+		}
+		if pct >= minPct {
+			regressions = append(regressions, fmt.Sprintf("`%s` %s (%s)", fields[0], delta, fields[len(fields)-1]))
+		}
+	}
+	return regressions, nil
 }
 
 // runInterleaved alternates base and head, one package at a time, so the two
