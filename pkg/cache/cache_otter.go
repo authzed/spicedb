@@ -26,21 +26,42 @@ type valueAndCost[V any] struct {
 	cost  uint32
 }
 
-// entryWeight computes the weight Otter should account for an entry: the
-// caller-supplied payload cost plus the key bytes. Otter's MaximumWeight bounds
-// only the sum of Weigher outputs (the node weight is exactly the weigher's
-// return value), and the key is retained on the node for the entry's lifetime
-// without being included in that weight. Callers supply a cost covering only the
-// payload, so folding in the key length stops the cache from systematically
-// undercounting real memory and overfilling its configured MaximumWeight. It
-// saturates at math.MaxUint32 rather than overflowing.
+// entryStructuralOverhead is the fixed per-entry cost of holding an entry in an
+// Otter cache, beyond the key bytes and the caller-supplied payload cost: the
+// node struct, the hash-table slot, the frequency-sketch state, the key string's
+// backing allocation and the allocation that boxes the value into an interface.
 //
-// Fixed per-entry structural overhead (the node struct, hash-table slot, and
-// frequency-sketch state) is deliberately not added here: it is internal to
-// Otter, varies by version, and is instead absorbed by the headroom ratio
-// applied in pkgruntime.AvailableMemory.
+// Measured against otter v2.3.0 by replaying entries into a real cache and
+// reading back the heap delta (see TestEntryStructuralOverhead), per entry:
+//
+//	V=[]byte,      no TTL: 109 B
+//	V=[]byte,      TTL set: 141 B
+//	V=any([]byte), no TTL: 133 B
+//	V=any([]byte), TTL set: 149 B  <- the dispatch caches
+//
+// One constant is used for every cache rather than one per shape. The shapes
+// span only ~40 B, the largest of them is the dispatch caches that hold
+// essentially all the cached bytes in a real deployment, and whether V is an
+// interface is not something this function can see. Charging the other shapes
+// the largest figure over-counts by at most ~40 B per entry, which costs a
+// little capacity; under-counting is the failure this constant exists to fix.
+const entryStructuralOverhead = 152
+
+// entryWeight computes the weight Otter should account for an entry: the
+// caller-supplied payload cost, plus the key bytes, plus the fixed per-entry
+// structural overhead. Otter's MaximumWeight bounds only the sum of Weigher
+// outputs (the node weight is exactly the weigher's return value), so anything
+// left out of this figure is memory the cache holds but never counts against its
+// budget and therefore never evicts for. Callers supply a cost covering only the
+// payload. It saturates at math.MaxUint32 rather than overflowing.
+//
+// The headroom ratio in pkgruntime.AvailableMemory does not cover this: it is
+// documented as covering memory outside the caller's accounting entirely
+// (goroutine stacks, GC metadata, fragmentation), and with cluster dispatch
+// enabled the two dispatch caches are configured to divide all of it between
+// them.
 func entryWeight(key string, payloadCost uint32) uint32 {
-	weight := uint64(payloadCost) + uint64(len(key))
+	weight := uint64(payloadCost) + uint64(len(key)) + entryStructuralOverhead
 	if weight > math.MaxUint32 {
 		return math.MaxUint32
 	}
