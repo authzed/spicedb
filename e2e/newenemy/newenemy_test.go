@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -89,6 +88,51 @@ const (
 	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1, gc.ttlseconds = 10;"
 	dbName         = "spicedbnetest"
 )
+
+// fillWriteTimeout bounds a single write issued by the setup phases: one
+// WriteSchema batch, or one WriteRelationships batch.
+//
+// These writes are small and fast on a healthy cluster -- tens of milliseconds
+// each, with the slowest ever seen in a passing CI run under a second -- so
+// this bound is not meant to be tight. It is meant to be finite. Without it a
+// write inherits only the suite's own deadline, and this test deliberately
+// puts CockroachDB into a state where a write can stop making progress
+// altogether:
+//
+//	ALTER DATABASE ... range_max_bytes = 65536, num_replicas = 1, gc.ttlseconds = 10
+//
+// splits namespace_config into many tiny single-replica ranges. SpiceDB's
+// WriteSchema reads the whole of that table inside its read-write
+// transaction, so once the table is large and the cluster is still busy
+// splitting and down-replicating, that scan can take ten seconds or more. A
+// read span that wide cannot be refreshed, so the commit fails
+// RETRY_SERIALIZABLE every time and SpiceDB retries it, with backoff, forever.
+//
+// Observed in CI: a WriteSchema stuck in exactly that loop for 29 minutes,
+// re-reading namespace_config in 12.48s each time and failing the commit on
+// every one of 20 attempts, until the go test deadline killed the run. The
+// test reported nothing for those 29 minutes and the job burned half an hour
+// of a large runner. Bounding the individual write turns that into a prompt,
+// legible failure that names the write that stalled.
+const fillWriteTimeout = 90 * time.Second
+
+// namespaceSearchTimeout bounds namespacesForNode's search.
+//
+// The search is a guess-and-check loop: each attempt writes one more schema
+// and asks CockroachDB where the resulting ranges landed, looking for a
+// quadruple of namespaces whose lease holders happen to sit on the right
+// nodes. How many attempts that takes is purely a matter of luck -- passing CI
+// runs have needed anywhere from 48 to 646 of them, the latter taking a little
+// over two minutes -- so the bound is deliberately generous. Its job is to
+// stop the loop spinning against a cluster that has stopped accepting schema
+// writes at all, which is where the stall above was found.
+const namespaceSearchTimeout = 5 * time.Minute
+
+// withFillTimeout derives the bounded context for a single setup write. See
+// fillWriteTimeout.
+func withFillTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, fillWriteTimeout)
+}
 
 func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Cluster {
 	require := require.New(t)
@@ -190,7 +234,7 @@ func TestNoNewEnemy(t *testing.T) {
 	// 4000 is larger than we need to span all three nodes, but a higher number
 	// seems to make the test converge faster
 	schemaData := generateSchemaData(4000, 500)
-	fillSchema(t, schemaTpl, schemaData, vulnerableSpiceDB[1].Client().V1().Schema())
+	fillSchema(ctx, t, schemaTpl, schemaData, vulnerableSpiceDB[1].Client().V1().Schema())
 	slowNodeID, err := crdb[1].NodeID(ctx)
 	require.NoError(t, err)
 	prefix := namespacesForNode(ctx, t, crdb[1].Conn(), vulnerableSpiceDB[0].Client().V1().Schema(), slowNodeID)
@@ -398,12 +442,12 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 		})
 		require.NoError(t, err)
 
-		ns1BlocklistLeader := getLeaderNodeForNamespace(ctx, crdb[2].Conn(), blockusers[i].Relationship.Resource.ObjectType)
-		ns1UserLeader := getLeaderNodeForNamespace(ctx, crdb[2].Conn(), blockusers[i].Relationship.Subject.Object.ObjectType)
-		ns2ResourceLeader := getLeaderNodeForNamespace(ctx, crdb[2].Conn(), allowlists[i].Relationship.Resource.ObjectType)
-		ns2AllowlistLeader := getLeaderNodeForNamespace(ctx, crdb[2].Conn(), allowlists[i].Relationship.Subject.Object.ObjectType)
+		ns1BlocklistLeader := getLeaderNodeForNamespace(ctx, t, crdb[2].Conn(), blockusers[i].Relationship.Resource.ObjectType)
+		ns1UserLeader := getLeaderNodeForNamespace(ctx, t, crdb[2].Conn(), blockusers[i].Relationship.Subject.Object.ObjectType)
+		ns2ResourceLeader := getLeaderNodeForNamespace(ctx, t, crdb[2].Conn(), allowlists[i].Relationship.Resource.ObjectType)
+		ns2AllowlistLeader := getLeaderNodeForNamespace(ctx, t, crdb[2].Conn(), allowlists[i].Relationship.Subject.Object.ObjectType)
 
-		r1leader, r2leader := getLeaderNode(ctx, crdb[2].Conn(), blockusers[i].Relationship), getLeaderNode(ctx, crdb[2].Conn(), allowlists[i].Relationship)
+		r1leader, r2leader := getLeaderNode(ctx, t, crdb[2].Conn(), blockusers[i].Relationship), getLeaderNode(ctx, t, crdb[2].Conn(), allowlists[i].Relationship)
 		t.Log(sleep, z1, z2, z1.Revision.GreaterThan(z2.Revision), r1leader, r2leader, ns1BlocklistLeader, ns1UserLeader, ns2ResourceLeader, ns2AllowlistLeader)
 
 		if z1.Revision.GreaterThan(z2.Revision) {
@@ -451,58 +495,102 @@ func fill(ctx context.Context, t testing.TB, client v1.PermissionsServiceClient,
 	t.Log("filling prefix", prefix)
 	require := require.New(t)
 	allowlists, blocklists, allowusers, blockusers := generateTuples(prefix, fillerCount, objIDGenerator)
+
+	// Each batch is written under its own bounded context rather than directly
+	// under ctx, whose only deadline is the suite's. See fillWriteTimeout.
+	writeBatch := func(updates []*v1.RelationshipUpdate) error {
+		writeCtx, cancel := withFillTimeout(ctx)
+		defer cancel()
+
+		_, err := client.WriteRelationships(writeCtx, &v1.WriteRelationshipsRequest{Updates: updates})
+		return err
+	}
+
 	for i := 0; i < fillerCount/batchSize; i++ {
 		t.Log("filling", i*batchSize, "to", (i+1)*batchSize)
-		_, err := client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-			Updates: allowlists[i*batchSize : (i+1)*batchSize],
-		})
-		require.NoError(err)
-		_, err = client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-			Updates: blocklists[i*batchSize : (i+1)*batchSize],
-		})
-		require.NoError(err)
-		_, err = client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-			Updates: allowusers[i*batchSize : (i+1)*batchSize],
-		})
-		require.NoError(err)
-		_, err = client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-			Updates: blockusers[i*batchSize : (i+1)*batchSize],
-		})
-		require.NoError(err)
+		// Written in this order deliberately: this is a test about the order
+		// in which writes land, so the batches keep the sequence they had
+		// before each one gained its own context.
+		for _, batch := range []struct {
+			name    string
+			updates []*v1.RelationshipUpdate
+		}{
+			{"allowlists", allowlists[i*batchSize : (i+1)*batchSize]},
+			{"blocklists", blocklists[i*batchSize : (i+1)*batchSize]},
+			{"allowusers", allowusers[i*batchSize : (i+1)*batchSize]},
+			{"blockusers", blockusers[i*batchSize : (i+1)*batchSize]},
+		} {
+			require.NoErrorf(writeBatch(batch.updates),
+				"writing %s relationships %d to %d did not complete within %s",
+				batch.name, i*batchSize, (i+1)*batchSize, fillWriteTimeout)
+		}
 	}
 }
 
-// fillSchema generates the schema text for given SchemaData and applies it
-func fillSchema(t testing.TB, template *template.Template, data []SchemaData, schemaClient v1.SchemaServiceClient) {
+// fillSchema generates the schema text for given SchemaData and applies it.
+//
+// Each batch is written under its own bounded context: these calls used to
+// pass context.Background(), which meant they honoured neither the suite
+// deadline nor any bound of their own. See fillWriteTimeout.
+func fillSchema(ctx context.Context, t testing.TB, template *template.Template, data []SchemaData, schemaClient v1.SchemaServiceClient) {
 	var b strings.Builder
 	batchSize := len(data[0].Namespaces)
 	for i, d := range data {
 		t.Logf("filling %d to %d", i*batchSize, (i+1)*batchSize)
 		b.Reset()
 		require.NoError(t, template.Execute(&b, d))
-		_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
-			Schema: b.String(),
-		})
-		require.NoError(t, err)
+
+		err := func() error {
+			writeCtx, cancel := withFillTimeout(ctx)
+			defer cancel()
+
+			_, err := schemaClient.WriteSchema(writeCtx, &v1.WriteSchemaRequest{
+				Schema: b.String(),
+			})
+			return err
+		}()
+		require.NoErrorf(t, err, "writing schema batch %d (namespaces %d to %d) did not complete within %s",
+			i, i*batchSize, (i+1)*batchSize, fillWriteTimeout)
 	}
 }
 
-// namespacesForNode finds a prefix with namespace leaders on the node id
+// namespacesForNode finds a prefix with namespace leaders on the node id.
+//
+// The search has its own deadline (see namespaceSearchTimeout) rather than
+// running until the suite's. It also fails the test when it gives up: the
+// previous behaviour was to return a zero NamespaceNames, which the caller
+// then used to fill relationships under empty namespace names, turning "the
+// search never converged" into an unrelated-looking error several steps
+// later.
 func namespacesForNode(ctx context.Context, t testing.TB, conn *pgx.Conn, schemaClient v1.SchemaServiceClient, node int) NamespaceNames {
-	for {
+	searchCtx, cancelSearch := context.WithTimeout(ctx, namespaceSearchTimeout)
+	defer cancelSearch()
+
+	for attempt := 1; ; attempt++ {
 		newSchema := generateSchemaData(1, 1)
 		p := newSchema[0].Namespaces[0]
 		var b strings.Builder
 		require.NoError(t, schemaTpl.Execute(&b, newSchema[0]))
-		_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
-			Schema: b.String(),
-		})
-		require.NoError(t, err)
 
-		userLeader := getLeaderNodeForNamespace(ctx, conn, p.User)
-		resourceLeader := getLeaderNodeForNamespace(ctx, conn, p.Resource)
-		allowlistLeader := getLeaderNodeForNamespace(ctx, conn, p.Allowlist)
-		blocklistLeader := getLeaderNodeForNamespace(ctx, conn, p.Blocklist)
+		err := func() error {
+			writeCtx, cancel := withFillTimeout(searchCtx)
+			defer cancel()
+
+			_, err := schemaClient.WriteSchema(writeCtx, &v1.WriteSchemaRequest{
+				Schema: b.String(),
+			})
+			return err
+		}()
+		// Either budget can be the one that expired here: the write's own, or
+		// what is left of the search's. Name both rather than guess.
+		require.NoErrorf(t, err,
+			"writing the probe schema for attempt %d did not complete (per-write budget %s, search budget %s)",
+			attempt, fillWriteTimeout, namespaceSearchTimeout)
+
+		userLeader := getLeaderNodeForNamespace(searchCtx, t, conn, p.User)
+		resourceLeader := getLeaderNodeForNamespace(searchCtx, t, conn, p.Resource)
+		allowlistLeader := getLeaderNodeForNamespace(searchCtx, t, conn, p.Allowlist)
+		blocklistLeader := getLeaderNodeForNamespace(searchCtx, t, conn, p.Blocklist)
 
 		// allowlist and resource must be equal to node
 		// blocklist and user must not be equal to node
@@ -512,7 +600,9 @@ func namespacesForNode(ctx context.Context, t testing.TB, conn *pgx.Conn, schema
 		}
 
 		select {
-		case <-ctx.Done():
+		case <-searchCtx.Done():
+			t.Fatalf("gave up after %d attempts and %s looking for namespaces whose range leases land on node %d: %v",
+				attempt, namespaceSearchTimeout, node, context.Cause(searchCtx))
 			return NamespaceNames{}
 		default:
 			continue
@@ -615,31 +705,38 @@ func generateTuples(names NamespaceNames, n int, objIDGenerator *generator.Uniqu
 }
 
 // getLeaderNode returns the node with the lease leader for the range containing the tuple
-func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v1.Relationship) int {
-	t := tuple
+func getLeaderNode(ctx context.Context, t testing.TB, conn *pgx.Conn, tuple *v1.Relationship) int {
 	row := conn.QueryRow(ctx, "SHOW RANGE FROM TABLE relation_tuple FOR ROW ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text)",
-		t.Resource.ObjectType,
-		t.Resource.ObjectId,
-		t.Relation,
-		t.Subject.Object.ObjectType,
-		t.Subject.Object.ObjectId,
-		t.Subject.OptionalRelation,
+		tuple.Resource.ObjectType,
+		tuple.Resource.ObjectId,
+		tuple.Relation,
+		tuple.Subject.Object.ObjectType,
+		tuple.Subject.Object.ObjectId,
+		tuple.Subject.OptionalRelation,
 	)
 
-	return leaderFromRangeRow(row)
+	return leaderFromRangeRow(t, row)
 }
 
 // getLeaderNodeForNamespace returns the node with the lease leader for the range containing the namespace
-func getLeaderNodeForNamespace(ctx context.Context, conn *pgx.Conn, namespace string) int {
+func getLeaderNodeForNamespace(ctx context.Context, t testing.TB, conn *pgx.Conn, namespace string) int {
 	rows := conn.QueryRow(ctx, "SHOW RANGE FROM TABLE namespace_config FOR ROW ($1::text)",
 		namespace,
 	)
-	return leaderFromRangeRow(rows)
+	return leaderFromRangeRow(t, rows)
 }
 
 // leaderFromRangeRow parses the rows from a `SHOW RANGE` query and returns the
-// leader node id for the range
-func leaderFromRangeRow(row pgx.Row) int {
+// leader node id for the range.
+//
+// A scan failure fails the test rather than calling log.Fatal, which it used
+// to do. log.Fatal here exits the test binary outright: no test output, no
+// t.Cleanup, and so no Stop() for the three CockroachDB nodes and nine SpiceDB
+// processes the suite started. That mattered little while the only way to get
+// here with an error was a genuinely broken cluster, but the callers now pass
+// contexts that can expire, and an expiring context must not leave a runner
+// full of orphaned processes.
+func leaderFromRangeRow(t testing.TB, row pgx.Row) int {
 	var (
 		startKey           sql.NullString
 		endKey             sql.NullString
@@ -650,9 +747,8 @@ func leaderFromRangeRow(row pgx.Row) int {
 		replicaLocalities  []pgtype.Text
 	)
 
-	if err := row.Scan(&startKey, &endKey, &rangeID, &leaseHolder, &leaseHoldeLocality, &replicas, &replicaLocalities); err != nil {
-		log.Fatal(fmt.Errorf("failed to load leader id: %w", err))
-	}
+	err := row.Scan(&startKey, &endKey, &rangeID, &leaseHolder, &leaseHoldeLocality, &replicas, &replicaLocalities)
+	require.NoError(t, err, "failed to load leader id")
 
 	return leaseHolder
 }
