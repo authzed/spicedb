@@ -24,7 +24,19 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const waitForChangesTimeout = 20 * time.Second // FIXME, for reasons unknown, tests against Spanner emulator time out if this is lower
+// waitForChangesTimeout is generous because of the Cloud Spanner emulator. The
+// emulator stamps every message of a change stream query with the same, fixed
+// resume token, and the Spanner client holds streamed messages back until it
+// sees a resume token it has not seen before. So the emulator hands over a
+// change stream in one lump roughly every 20 seconds, when it retires the
+// current set of partitions and the queries reading them end. Real Spanner
+// sends a fresh resume token as it goes and streams changes as they happen.
+const waitForChangesTimeout = 45 * time.Second
+
+// waitToConfirmNoChangesTimeout is how long a test waits before concluding that
+// no change is coming. Unlike waitForChangesTimeout it is always waited out in
+// full, so it is kept short enough not to slow every engine's test run down.
+const waitToConfirmNoChangesTimeout = 20 * time.Second
 
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
@@ -546,7 +558,7 @@ func verifyNoUpdates(
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
-	changeWait := time.NewTimer(waitForChangesTimeout)
+	changeWait := time.NewTimer(waitToConfirmNoChangesTimeout)
 	select {
 	case changes, ok := <-changes:
 		if !ok {
