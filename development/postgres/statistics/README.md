@@ -1,8 +1,9 @@
-# Namespace/relation MCV experiment
+# Namespace/relation statistics experiment
 
 Small, standalone investigation for https://github.com/authzed/spicedb/issues/3318.
-It compares one query before and after adding `mcv` (most-common-value) statistics
-on `relation_tuple(namespace, relation)`.
+It compares one query with ordinary statistics, `mcv` (most-common-value),
+`dependencies`, and both extended statistics types together, all on
+`relation_tuple(namespace, relation)`.
 
 ## Run
 
@@ -35,10 +36,13 @@ database. The report records the exact PostgreSQL version and image ID.
 
 ## Test
 
-1. Insert 100,000 distinct relationship rows by default (`--rows` changes this), interleaving three combinations:
+1. Insert 100,000 distinct relationship rows by default (`--rows` changes this),
+   interleaving three combinations:
    60% document/viewer, 10% document/editor, and 30% group/member.
 2. Vacuum once, then analyze and measure the query with ordinary statistics.
-3. Add MCV statistics, analyze again, and measure the identical query.
+3. Test MCV, dependencies, then both types together. For each configuration,
+   create one statistics object, analyze, measure the identical query, and drop
+   that statistics object. No extended statistics carry over to the next phase.
 4. Report estimated/actual rows, plan/index, median execution and planning time,
    execution range, and shared buffer hits/reads. All raw plans are also saved.
 
@@ -49,15 +53,23 @@ WHERE namespace = 'group' AND relation = 'member';
 
 Without knowledge of the correlation, the simplified estimate is
 `100000 * 0.30 * 0.30 = 9000`; the actual result is 30,000 rows. The experiment
-checks whether MCV brings the estimate closer. It verifies that both phases
-return exactly 30% of the generated rows (30,000 by default; 300,000 at one
+checks whether each statistics type brings the estimate closer. It verifies that
+all phases return exactly 30% of the generated rows (30,000 by default; 300,000 at one
 million), but does not assume a particular plan or speedup. `--rows` must be a
 positive multiple of 10 so the distribution remains exact.
 
 Each phase has one warm-up and five measured executions. Parallel query and JIT
 are disabled to make the initial comparison easier to interpret. Automatic
-maintenance is disabled only on the disposable relationship table; both phases
+maintenance is disabled only on the disposable relationship table; all phases
 explicitly refresh statistics. PostgreSQL's default statistics target is retained.
+The fixed order and small repetition count make timings exploratory. Independent
+ANALYZE samples can slightly change the estimates between configurations.
+
+The saved `results/` and `results-1m/` directories contain the earlier baseline
+versus MCV runs. [results-types-1m/report.md](results-types-1m/report.md) compares
+all four configurations on one million rows. New runs include all four
+configurations, and `plans.json` records the actual statistics definitions as
+well as the execution plans.
 
 This intentionally simplified query omits SpiceDB's visibility, resource/subject
 ID, and expiration filters. In particular, it cannot rely on the partial index

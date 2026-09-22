@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare one namespace/relation query before and after PostgreSQL MCV statistics."""
+"""Compare ordinary statistics, MCV, dependencies, and both on namespace/relation."""
 
 import argparse
 import json
@@ -15,11 +15,16 @@ import uuid
 ROOT = Path(__file__).resolve().parents[3]
 QUERY = """SELECT * FROM relation_tuple
 WHERE namespace = 'group' AND relation = 'member'"""
-CREATE_STATISTICS = """CREATE STATISTICS relation_tuple_namespace_relation_mcv (mcv)
-ON namespace, relation FROM relation_tuple"""
+STATISTICS_NAME = "relation_tuple_namespace_relation_stats"
+CONFIGURATIONS = {
+    "baseline": None,
+    "mcv": "mcv",
+    "dependencies": "dependencies",
+    "both": "mcv, dependencies",
+}
 SEED = """
 -- Only this disposable table has automatic maintenance disabled, so it cannot
--- refresh statistics between measurements. Both phases explicitly ANALYZE.
+-- refresh statistics between measurements. Every phase explicitly runs ANALYZE.
 ALTER TABLE relation_tuple SET (autovacuum_enabled = false);
 INSERT INTO relation_tuple (
     namespace, object_id, relation,
@@ -32,7 +37,7 @@ SELECT
          WHEN n % 10 = 6 THEN 'editor' ELSE 'member' END,
     'user', n::text, '...'
 FROM generate_series(1, {rows}) AS n;
--- Equal maintenance state before both phases; data does not change afterward.
+-- Equal maintenance state before all phases; data does not change afterward.
 VACUUM relation_tuple;
 """
 
@@ -73,6 +78,7 @@ def main():
     container = "spicedb-mcv-" + uuid.uuid4().hex[:12]
     started = False
     plans = {}
+    definitions = {}
     with tempfile.TemporaryDirectory(prefix="spicedb-mcv-build-") as build_dir:
         binary = args.spicedb_bin.resolve() if args.spicedb_bin else Path(build_dir) / "spicedb"
         if args.spicedb_bin is None:
@@ -123,11 +129,16 @@ def main():
                 WHERE schemaname = 'public' AND tablename = 'relation_tuple'
                 ORDER BY indexname
             ) s;"""))
-            for phase in ("before", "after"):
-                print(f"Measuring {phase} MCV statistics...", flush=True)
-                if phase == "after":
-                    sql(CREATE_STATISTICS)
+            for phase, kinds in CONFIGURATIONS.items():
+                print(f"Measuring {phase} statistics...", flush=True)
+                if kinds:
+                    sql(f"CREATE STATISTICS {STATISTICS_NAME} ({kinds}) "
+                        "ON namespace, relation FROM relation_tuple;")
                 sql("ANALYZE relation_tuple;")
+                definitions[phase] = sql(
+                    "SELECT pg_get_statisticsobjdef(oid) FROM pg_statistic_ext "
+                    f"WHERE stxname = '{STATISTICS_NAME}';"
+                )
                 samples = []
                 for iteration in range(6):  # One warm-up, then five measured executions.
                     plan = json.loads(sql("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + QUERY))[0]
@@ -136,13 +147,16 @@ def main():
                     if iteration:
                         samples.append(plan)
                 plans[phase] = samples
+                # Each configuration is tested alone, never on top of a prior one.
+                if kinds:
+                    sql(f"DROP STATISTICS {STATISTICS_NAME};")
 
             rows = []
             for label, field in (("Estimated matching rows", "Plan Rows"),
                                  ("Actual matching rows", "Actual Rows"),
                                  ("Plan", "Node Type")):
                 rows.append((label, *(str(plans[p][0]["Plan"][field]) for p in plans)))
-            rows.append(("Index(es)", *( ", ".join(index_names(plans[p][0]["Plan"])) or "none"
+            rows.append(("Index(es)", *(", ".join(index_names(plans[p][0]["Plan"])) or "none"
                                         for p in plans)))
             for label, field in (("Median execution time (ms)", "Execution Time"),
                                  ("Median planning time (ms)", "Planning Time")):
@@ -161,10 +175,11 @@ def main():
             metadata = {"postgres": version, "commit": commit, "image": args.image,
                         "image_id": image_id, "migration": migration,
                         "rows": args.rows,
+                        "statistics_definitions": definitions,
                         "distribution": distribution, "indexes": indexes, "plans": plans}
             (output / "plans.json").write_text(json.dumps(metadata, indent=2) + "\n")
             report = "\n".join([
-                "# PostgreSQL namespace/relation MCV experiment", "",
+                "# PostgreSQL namespace/relation statistics experiment", "",
                 f"- PostgreSQL: {version}", f"- Image: `{args.image}` (`{image_id}`)",
                 f"- Checkout HEAD: `{commit}`", f"- Migration: `{migration}`",
                 f"- Host: {platform.system()} {platform.release()} {platform.machine()}",
@@ -174,12 +189,16 @@ def main():
                 f"{expected_matches:,} group/member. All undeleted; no caveats or expiration.",
                 "- Protocol: one warm-up + five measured executions per phase; manual ANALYZE "
                 "before each phase; same data and indexes throughout.",
+                "- Order: baseline, MCV, dependencies, both. Each extended statistics object "
+                "is dropped before the next phase; configurations are not cumulative.",
                 "- Controls: parallel query and JIT disabled; automatic maintenance disabled "
                 "on this disposable table. No SpiceDB server or PgBouncer is involved.", "",
-                "```sql", QUERY + ";", "```", "", "Added between phases:", "",
-                "```sql", CREATE_STATISTICS + ";", "ANALYZE relation_tuple;", "```", "",
-                "| Measurement | Before | After |", "|---|---|---|",
-                *(f"| {label} | {before} | {after} |" for label, before, after in rows), "",
+                "```sql", QUERY + ";", "```", "", "Statistics tested separately "
+                "(each followed by ANALYZE, measurements, then DROP STATISTICS):", "",
+                "```sql", *(definition + ";" for definition in definitions.values() if definition),
+                "```", "",
+                "| Measurement | Baseline | MCV | Dependencies | Both |", "|---|---|---|---|---|",
+                *("| " + " | ".join(row) + " |" for row in rows), "",
                 "This is a synthetic estimate-accuracy experiment. Five timings after one warm-up are "
                 "preliminary, not evidence of an end-to-end SpiceDB speedup. ANALYZE samples "
                 "the data, so estimates can vary between runs. The query deliberately omits "
