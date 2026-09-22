@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1790079130425,
+  "lastUpdate": 1790080746977,
   "repoUrl": "https://github.com/authzed/spicedb",
   "entries": {
     "Benchmark": [
@@ -452268,6 +452268,1986 @@ window.BENCHMARK_DATA = {
             "value": 0,
             "unit": "allocs/op",
             "extra": "00000310827373 times"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cc34d1a312c2917e9a3247fd2412d27556afd522",
+          "message": "chore(deps): bump the go-mod group across 2 directories with 52 updates (#3343)\n\n* chore(deps): bump the go-mod group across 2 directories with 52 updates\n\n---\nupdated-dependencies:\n- dependency-name: buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go\n  dependency-version: 1.36.12-20260825204119-511051f7f437.2\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: buf.build/gen/go/prometheus/prometheus/protocolbuffers/go\n  dependency-version: 1.36.12-20260707164124-2360da55afce.2\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: buf.build/go/protovalidate\n  dependency-version: 1.4.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/authzed/consistent\n  dependency-version: 0.3.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/authzed/ctxkey\n  dependency-version: 0.1.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/aws/aws-sdk-go-v2\n  dependency-version: 1.47.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/aws/aws-sdk-go-v2/config\n  dependency-version: 1.33.5\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/aws/aws-sdk-go-v2/feature/rds/auth\n  dependency-version: 1.7.3\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/ccoveille/go-safecast/v2\n  dependency-version: 2.0.1\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: github.com/cloudspannerecosystem/spanner-change-streams-tail\n  dependency-version: 0.4.2\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/creasty/defaults\n  dependency-version: 1.11.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/dustin/go-humanize\n  dependency-version: 1.1.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/exaring/otelpgx\n  dependency-version: 0.12.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/fsnotify/fsnotify\n  dependency-version: 1.10.1\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/go-sql-driver/mysql\n  dependency-version: 1.10.1\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/grpc-ecosystem/go-grpc-middleware/v2\n  dependency-version: 2.3.4\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: github.com/grpc-ecosystem/grpc-gateway/v2\n  dependency-version: 2.30.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/jackc/pgx/v5\n  dependency-version: 5.11.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/jackc/pgx/v5\n  dependency-version: 5.11.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/jackc/pgx/v5\n  dependency-version: 5.11.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/jackc/pgx/v5\n  dependency-version: 5.11.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/KimMachineGun/automemlimit\n  dependency-version: 1.0.0\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n  dependency-group: go-mod\n- dependency-name: github.com/mattn/go-isatty\n  dependency-version: 0.0.24\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: github.com/moby/moby/api\n  dependency-version: 1.56.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/moby/moby/client\n  dependency-version: 0.6.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/pganalyze/pg_query_go/v6\n  dependency-version: 6.2.2\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/prometheus/client_golang\n  dependency-version: 1.24.1\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/prometheus/client_model\n  dependency-version: 0.6.3\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: github.com/prometheus/common\n  dependency-version: 0.70.1\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/puzpuzpuz/xsync/v4\n  dependency-version: 4.5.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/rs/zerolog\n  dependency-version: 1.35.1\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: github.com/samber/slog-zerolog/v2\n  dependency-version: 2.9.2\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: github.com/schollz/progressbar/v3\n  dependency-version: 3.19.1\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: github.com/sourcegraph/jsonrpc2\n  dependency-version: 0.2.3\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc\n  dependency-version: 0.70.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp\n  dependency-version: 0.70.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/contrib/propagators/b3\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/contrib/propagators/ot\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/otel\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/otel/exporters/prometheus\n  dependency-version: 0.68.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/otel/sdk\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/otel/sdk/metric\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.opentelemetry.io/otel/trace\n  dependency-version: 1.46.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: go.uber.org/atomic\n  dependency-version: 1.12.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: golang.org/x/mod\n  dependency-version: 0.41.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: golang.org/x/sync\n  dependency-version: 0.23.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: golang.org/x/sync\n  dependency-version: 0.23.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: golang.org/x/time\n  dependency-version: 0.16.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: golang.org/x/tools\n  dependency-version: 0.50.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: google.golang.org/api\n  dependency-version: 0.298.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: google.golang.org/genproto/googleapis/api\n  dependency-version: 0.0.0-20260819154853-08b0e4226688\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: go-mod\n- dependency-name: google.golang.org/grpc\n  dependency-version: 1.84.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: google.golang.org/grpc\n  dependency-version: 1.84.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: google.golang.org/grpc\n  dependency-version: 1.84.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: google.golang.org/grpc\n  dependency-version: 1.84.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: mvdan.cc/gofumpt\n  dependency-version: 0.12.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n- dependency-name: pgregory.net/rapid\n  dependency-version: 1.3.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: go-mod\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* chore(deps): hold automemlimit at v0.7.5\n\nautomemlimit v1.0.0 renamed memlimit.SetGoMemLimitWithOpts to\nmemlimit.Set, and cobrautil's cobraproclimits still calls the old name,\nso the bump breaks compilation of the whole module. Pin the dependency\nback and tell Dependabot to skip the major until cobrautil is updated.\n\n* test(postgres): implement pgx.Rows.TypeMap on the test double\n\npgx v5.11.0 added TypeMap to the pgx.Rows interface, so the fake rows\nused by the multi-statement error test no longer satisfied it.\n\n* chore(deps): bump buf to v1.73.0 in magefiles\n\nprotovalidate v1.4.0 moved from github.com/google/cel-go to\ncel.dev/cel-go, which buf v1.72.0 cannot compile against; v1.73.0 is the\nfirst release built on the new import path.\n\n* chore(deps): hold grpc at v1.83.2\n\ngrpc-go v1.84.0 is flagged by CVE-2026-84445 (denial of service via\nmalformed RPC requests), which the Trivy scan fails on. v1.83.2 carries\nthe fix, so stay there and skip the one vulnerable release.\n\n* fix(postgres): drop the deprecated otelpgx span-name option\n\notelpgx v0.12.0 deprecated WithTrimSQLInSpanName because trimming is now\nthe default, and staticcheck fails the lint on the deprecated call.\n\n* chore(deps): record the new x/telemetry checksum in the analyzers workspace\n\nThe Go toolchain adds the entry on its own once the bumped module graph\nis resolved; committing it keeps the workspace sum file stable.\n\n* test(postgres): expect the unprefixed otelpgx span name\n\notelpgx v0.12.0 stopped prefixing query spans with \"query \" so that\nnames follow the OpenTelemetry database span conventions, which renames\nthe datastore's query spans from \"query INSERT\" to \"INSERT\".\n\n* fix(spanner): match the semconv version of the OTel SDK resource\n\nThe OTel SDK v1.46.0 default resource carries the 1.43.0 schema URL, so\nmerging it with a 1.41.0 resource fails and the datastore refuses to\nstart whenever OpenTelemetry metrics are enabled.\n\n* chore(deps): hold protovalidate in magefiles instead of bumping buf\n\nbuf v1.72.0 cannot compile against protovalidate v1.4.0, which moved to\ncel.dev/cel-go, and buf v1.73.0 (the first release on the new import\npath) requires Go 1.26.7 while every module here builds with 1.26.6 and\nGOTOOLCHAIN=local. Keep the tool module on the protovalidate release buf\nexpects until the repo moves to a newer Go.\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Víctor Roldán Betancort <vroldanbet@authzed.com>",
+          "timestamp": "2026-09-22T12:27:05Z",
+          "tree_id": "628c706c72eb254e86e455a5255e950dbcc1426d",
+          "url": "https://github.com/authzed/spicedb/commit/cc34d1a312c2917e9a3247fd2412d27556afd522"
+        },
+        "date": 1790080746494,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 588620,
+            "unit": "ns/op\t   15067 B/op\t     217 allocs/op",
+            "extra": "9614 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 588620,
+            "unit": "ns/op",
+            "extra": "9614 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 15067,
+            "unit": "B/op",
+            "extra": "9614 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 217,
+            "unit": "allocs/op",
+            "extra": "9614 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 7092773,
+            "unit": "ns/op\t   94165 B/op\t   20131 allocs/op",
+            "extra": "762 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 7092773,
+            "unit": "ns/op",
+            "extra": "762 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 94165,
+            "unit": "B/op",
+            "extra": "762 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20131,
+            "unit": "allocs/op",
+            "extra": "762 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 7213810,
+            "unit": "ns/op\t   97309 B/op\t   20190 allocs/op",
+            "extra": "855 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 7213810,
+            "unit": "ns/op",
+            "extra": "855 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 97309,
+            "unit": "B/op",
+            "extra": "855 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20190,
+            "unit": "allocs/op",
+            "extra": "855 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 9030030,
+            "unit": "ns/op\t   97197 B/op\t   20190 allocs/op",
+            "extra": "654 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 9030030,
+            "unit": "ns/op",
+            "extra": "654 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 97197,
+            "unit": "B/op",
+            "extra": "654 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20190,
+            "unit": "allocs/op",
+            "extra": "654 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 7301217,
+            "unit": "ns/op\t   77734 B/op\t   15205 allocs/op",
+            "extra": "793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 7301217,
+            "unit": "ns/op",
+            "extra": "793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 77734,
+            "unit": "B/op",
+            "extra": "793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 15205,
+            "unit": "allocs/op",
+            "extra": "793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 9656586,
+            "unit": "ns/op\t   77769 B/op\t   15205 allocs/op",
+            "extra": "686 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 9656586,
+            "unit": "ns/op",
+            "extra": "686 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 77769,
+            "unit": "B/op",
+            "extra": "686 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 15205,
+            "unit": "allocs/op",
+            "extra": "686 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 1018797,
+            "unit": "ns/op\t   18161 B/op\t     277 allocs/op",
+            "extra": "5173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 1018797,
+            "unit": "ns/op",
+            "extra": "5173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 18161,
+            "unit": "B/op",
+            "extra": "5173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 277,
+            "unit": "allocs/op",
+            "extra": "5173 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 1019021,
+            "unit": "ns/op\t   18203 B/op\t     277 allocs/op",
+            "extra": "5196 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 1019021,
+            "unit": "ns/op",
+            "extra": "5196 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 18203,
+            "unit": "B/op",
+            "extra": "5196 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 277,
+            "unit": "allocs/op",
+            "extra": "5196 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 41237617,
+            "unit": "ns/op\t  173503 B/op\t   20201 allocs/op",
+            "extra": "199 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 41237617,
+            "unit": "ns/op",
+            "extra": "199 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 173503,
+            "unit": "B/op",
+            "extra": "199 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20201,
+            "unit": "allocs/op",
+            "extra": "199 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 11988786,
+            "unit": "ns/op\t   23072 B/op\t     290 allocs/op",
+            "extra": "548 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 11988786,
+            "unit": "ns/op",
+            "extra": "548 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 23072,
+            "unit": "B/op",
+            "extra": "548 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 290,
+            "unit": "allocs/op",
+            "extra": "548 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 16324779,
+            "unit": "ns/op\t   20645 B/op\t     285 allocs/op",
+            "extra": "493 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 16324779,
+            "unit": "ns/op",
+            "extra": "493 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 20645,
+            "unit": "B/op",
+            "extra": "493 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 285,
+            "unit": "allocs/op",
+            "extra": "493 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 15899033,
+            "unit": "ns/op\t 4464310 B/op\t   45840 allocs/op",
+            "extra": "330 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 15899033,
+            "unit": "ns/op",
+            "extra": "330 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4464310,
+            "unit": "B/op",
+            "extra": "330 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 45840,
+            "unit": "allocs/op",
+            "extra": "330 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 19813356,
+            "unit": "ns/op\t 4511487 B/op\t   45975 allocs/op",
+            "extra": "282 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 19813356,
+            "unit": "ns/op",
+            "extra": "282 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4511487,
+            "unit": "B/op",
+            "extra": "282 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 45975,
+            "unit": "allocs/op",
+            "extra": "282 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 24641671,
+            "unit": "ns/op\t 4441869 B/op\t   46435 allocs/op",
+            "extra": "243 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 24641671,
+            "unit": "ns/op",
+            "extra": "243 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4441869,
+            "unit": "B/op",
+            "extra": "243 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 46435,
+            "unit": "allocs/op",
+            "extra": "243 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 38453570,
+            "unit": "ns/op\t 4657050 B/op\t   46949 allocs/op",
+            "extra": "183 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 38453570,
+            "unit": "ns/op",
+            "extra": "183 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4657050,
+            "unit": "B/op",
+            "extra": "183 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 46949,
+            "unit": "allocs/op",
+            "extra": "183 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 62609609,
+            "unit": "ns/op\t 5171534 B/op\t   48100 allocs/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 62609609,
+            "unit": "ns/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 5171534,
+            "unit": "B/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-static/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 48100,
+            "unit": "allocs/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 651549,
+            "unit": "ns/op\t   15086 B/op\t     218 allocs/op",
+            "extra": "8793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 651549,
+            "unit": "ns/op",
+            "extra": "8793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 15086,
+            "unit": "B/op",
+            "extra": "8793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotRead (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 218,
+            "unit": "allocs/op",
+            "extra": "8793 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 8109412,
+            "unit": "ns/op\t   94182 B/op\t   20131 allocs/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 8109412,
+            "unit": "ns/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 94182,
+            "unit": "B/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReadOnlyNamespace (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20131,
+            "unit": "allocs/op",
+            "extra": "752 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 7162382,
+            "unit": "ns/op\t   97135 B/op\t   20190 allocs/op",
+            "extra": "843 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 7162382,
+            "unit": "ns/op",
+            "extra": "843 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 97135,
+            "unit": "B/op",
+            "extra": "843 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20190,
+            "unit": "allocs/op",
+            "extra": "843 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 9393183,
+            "unit": "ns/op\t   97179 B/op\t   20190 allocs/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 9393183,
+            "unit": "ns/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 97179,
+            "unit": "B/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadOnlyNamespace/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20190,
+            "unit": "allocs/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 7460133,
+            "unit": "ns/op\t   77629 B/op\t   15205 allocs/op",
+            "extra": "864 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 7460133,
+            "unit": "ns/op",
+            "extra": "864 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 77629,
+            "unit": "B/op",
+            "extra": "864 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 15205,
+            "unit": "allocs/op",
+            "extra": "864 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 9534497,
+            "unit": "ns/op\t   77670 B/op\t   15205 allocs/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 9534497,
+            "unit": "ns/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 77670,
+            "unit": "B/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadWithRelation/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 15205,
+            "unit": "allocs/op",
+            "extra": "668 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 914469,
+            "unit": "ns/op\t   18151 B/op\t     276 allocs/op",
+            "extra": "7664 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 914469,
+            "unit": "ns/op",
+            "extra": "7664 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 18151,
+            "unit": "B/op",
+            "extra": "7664 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/ByResource (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 276,
+            "unit": "allocs/op",
+            "extra": "7664 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 726160,
+            "unit": "ns/op\t   18151 B/op\t     276 allocs/op",
+            "extra": "7540 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 726160,
+            "unit": "ns/op",
+            "extra": "7540 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 18151,
+            "unit": "B/op",
+            "extra": "7540 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SortedSnapshotReadAllResourceFields/BySubject (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 276,
+            "unit": "allocs/op",
+            "extra": "7540 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 27134642,
+            "unit": "ns/op\t  172660 B/op\t   20199 allocs/op",
+            "extra": "220 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 27134642,
+            "unit": "ns/op",
+            "extra": "220 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 172660,
+            "unit": "B/op",
+            "extra": "220 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/SnapshotReverseRead (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 20199,
+            "unit": "allocs/op",
+            "extra": "220 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 1109728,
+            "unit": "ns/op\t   20577 B/op\t     267 allocs/op",
+            "extra": "5112 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 1109728,
+            "unit": "ns/op",
+            "extra": "5112 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 20577,
+            "unit": "B/op",
+            "extra": "5112 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Touch (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 267,
+            "unit": "allocs/op",
+            "extra": "5112 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 874691,
+            "unit": "ns/op\t   17940 B/op\t     261 allocs/op",
+            "extra": "6670 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 874691,
+            "unit": "ns/op",
+            "extra": "6670 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 17940,
+            "unit": "B/op",
+            "extra": "6670 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/Create (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 261,
+            "unit": "allocs/op",
+            "extra": "6670 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 15294724,
+            "unit": "ns/op\t 4463225 B/op\t   45817 allocs/op",
+            "extra": "393 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 15294724,
+            "unit": "ns/op",
+            "extra": "393 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4463225,
+            "unit": "B/op",
+            "extra": "393 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 45817,
+            "unit": "allocs/op",
+            "extra": "393 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 72425596,
+            "unit": "ns/op\t 4516940 B/op\t   45958 allocs/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 72425596,
+            "unit": "ns/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4516940,
+            "unit": "B/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 45958,
+            "unit": "allocs/op",
+            "extra": "100 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 22437197,
+            "unit": "ns/op\t 4438575 B/op\t   46412 allocs/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 22437197,
+            "unit": "ns/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4438575,
+            "unit": "B/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.25_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 46412,
+            "unit": "allocs/op",
+            "extra": "261 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 29390121,
+            "unit": "ns/op\t 4654955 B/op\t   46926 allocs/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 29390121,
+            "unit": "ns/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 4654955,
+            "unit": "B/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/0.5_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 46926,
+            "unit": "allocs/op",
+            "extra": "204 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 36959983,
+            "unit": "ns/op\t 5166095 B/op\t   48076 allocs/op",
+            "extra": "145 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 36959983,
+            "unit": "ns/op",
+            "extra": "145 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 5166095,
+            "unit": "B/op",
+            "extra": "145 times"
+          },
+          {
+            "name": "BenchmarkDatastoreDriver/cockroachdb-overlap-insecure/TestTuple/CreateAndTouch/1_ (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 48076,
+            "unit": "allocs/op",
+            "extra": "145 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardDirectCheck (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 187182,
+            "unit": "ns/op\t   17160 B/op\t     278 allocs/op",
+            "extra": "33679 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardDirectCheck (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 187182,
+            "unit": "ns/op",
+            "extra": "33679 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardDirectCheck (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 17160,
+            "unit": "B/op",
+            "extra": "33679 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardDirectCheck (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 278,
+            "unit": "allocs/op",
+            "extra": "33679 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardAllSubjects (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 190345,
+            "unit": "ns/op\t   18232 B/op\t     324 allocs/op",
+            "extra": "31711 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardAllSubjects (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 190345,
+            "unit": "ns/op",
+            "extra": "31711 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardAllSubjects (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 18232,
+            "unit": "B/op",
+            "extra": "31711 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ForwardAllSubjects (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 324,
+            "unit": "allocs/op",
+            "extra": "31711 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ReverseMatchingResources (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 16496864,
+            "unit": "ns/op\t 1258112 B/op\t   35312 allocs/op",
+            "extra": "354 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ReverseMatchingResources (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 16496864,
+            "unit": "ns/op",
+            "extra": "354 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ReverseMatchingResources (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 1258112,
+            "unit": "B/op",
+            "extra": "354 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/ReverseMatchingResources (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 35312,
+            "unit": "allocs/op",
+            "extra": "354 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/EnumerateByTypeAndRelation (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 71913032,
+            "unit": "ns/op\t15014764 B/op\t  500134 allocs/op",
+            "extra": "82 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/EnumerateByTypeAndRelation (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 71913032,
+            "unit": "ns/op",
+            "extra": "82 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/EnumerateByTypeAndRelation (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 15014764,
+            "unit": "B/op",
+            "extra": "82 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/EnumerateByTypeAndRelation (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 500134,
+            "unit": "allocs/op",
+            "extra": "82 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/PaginatedRead (github.com/authzed/spicedb/internal/datastore/benchmark)",
+            "value": 155247150,
+            "unit": "ns/op\t17839525 B/op\t  543203 allocs/op",
+            "extra": "38 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/PaginatedRead (github.com/authzed/spicedb/internal/datastore/benchmark) - ns/op",
+            "value": 155247150,
+            "unit": "ns/op",
+            "extra": "38 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/PaginatedRead (github.com/authzed/spicedb/internal/datastore/benchmark) - B/op",
+            "value": 17839525,
+            "unit": "B/op",
+            "extra": "38 times"
+          },
+          {
+            "name": "BenchmarkMySQLRelQueries/PaginatedRead (github.com/authzed/spicedb/internal/datastore/benchmark) - allocs/op",
+            "value": 543203,
+            "unit": "allocs/op",
+            "extra": "38 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions (github.com/authzed/spicedb/internal/datastore/proxy)",
+            "value": 628.5,
+            "unit": "ns/op\t     303 B/op\t       3 allocs/op",
+            "extra": "9174166 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions (github.com/authzed/spicedb/internal/datastore/proxy) - ns/op",
+            "value": 628.5,
+            "unit": "ns/op",
+            "extra": "9174166 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions (github.com/authzed/spicedb/internal/datastore/proxy) - B/op",
+            "value": 303,
+            "unit": "B/op",
+            "extra": "9174166 times"
+          },
+          {
+            "name": "BenchmarkOptimizedRevisions (github.com/authzed/spicedb/internal/datastore/proxy) - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "9174166 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true (github.com/authzed/spicedb/internal/datastore/proxy)",
+            "value": 2493539,
+            "unit": "ns/op\t 2245657 B/op\t   17080 allocs/op",
+            "extra": "2518 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true (github.com/authzed/spicedb/internal/datastore/proxy) - ns/op",
+            "value": 2493539,
+            "unit": "ns/op",
+            "extra": "2518 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true (github.com/authzed/spicedb/internal/datastore/proxy) - B/op",
+            "value": 2245657,
+            "unit": "B/op",
+            "extra": "2518 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=true (github.com/authzed/spicedb/internal/datastore/proxy) - allocs/op",
+            "value": 17080,
+            "unit": "allocs/op",
+            "extra": "2518 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false (github.com/authzed/spicedb/internal/datastore/proxy)",
+            "value": 1916647,
+            "unit": "ns/op\t 2101464 B/op\t   14076 allocs/op",
+            "extra": "2949 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false (github.com/authzed/spicedb/internal/datastore/proxy) - ns/op",
+            "value": 1916647,
+            "unit": "ns/op",
+            "extra": "2949 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false (github.com/authzed/spicedb/internal/datastore/proxy) - B/op",
+            "value": 2101464,
+            "unit": "B/op",
+            "extra": "2949 times"
+          },
+          {
+            "name": "BenchmarkQueryRelsWithIntegrity/withIntegrity=false (github.com/authzed/spicedb/internal/datastore/proxy) - allocs/op",
+            "value": 14076,
+            "unit": "allocs/op",
+            "extra": "2949 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash (github.com/authzed/spicedb/internal/datastore/proxy)",
+            "value": 623.8,
+            "unit": "ns/op\t     144 B/op\t       3 allocs/op",
+            "extra": "9677162 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash (github.com/authzed/spicedb/internal/datastore/proxy) - ns/op",
+            "value": 623.8,
+            "unit": "ns/op",
+            "extra": "9677162 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash (github.com/authzed/spicedb/internal/datastore/proxy) - B/op",
+            "value": 144,
+            "unit": "B/op",
+            "extra": "9677162 times"
+          },
+          {
+            "name": "BenchmarkComputeRelationshipHash (github.com/authzed/spicedb/internal/datastore/proxy) - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "9677162 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching (github.com/authzed/spicedb/internal/dispatch/remote)",
+            "value": 24590,
+            "unit": "ns/op\t    3503 B/op\t      58 allocs/op",
+            "extra": "337650 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching (github.com/authzed/spicedb/internal/dispatch/remote) - ns/op",
+            "value": 24590,
+            "unit": "ns/op",
+            "extra": "337650 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching (github.com/authzed/spicedb/internal/dispatch/remote) - B/op",
+            "value": 3503,
+            "unit": "B/op",
+            "extra": "337650 times"
+          },
+          {
+            "name": "BenchmarkSecondaryDispatching (github.com/authzed/spicedb/internal/dispatch/remote) - allocs/op",
+            "value": 58,
+            "unit": "allocs/op",
+            "extra": "337650 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression (github.com/authzed/spicedb/internal/dispatch/remote)",
+            "value": 1340,
+            "unit": "ns/op\t    1032 B/op\t      18 allocs/op",
+            "extra": "4475232 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression (github.com/authzed/spicedb/internal/dispatch/remote) - ns/op",
+            "value": 1340,
+            "unit": "ns/op",
+            "extra": "4475232 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression (github.com/authzed/spicedb/internal/dispatch/remote) - B/op",
+            "value": 1032,
+            "unit": "B/op",
+            "extra": "4475232 times"
+          },
+          {
+            "name": "BenchmarkRunDispatchExpression (github.com/authzed/spicedb/internal/dispatch/remote) - allocs/op",
+            "value": 18,
+            "unit": "allocs/op",
+            "extra": "4475232 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher (github.com/authzed/spicedb/internal/fdw/tables)",
+            "value": 3267,
+            "unit": "ns/op\t    5952 B/op\t      50 allocs/op",
+            "extra": "1840888 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher (github.com/authzed/spicedb/internal/fdw/tables) - ns/op",
+            "value": 3267,
+            "unit": "ns/op",
+            "extra": "1840888 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher (github.com/authzed/spicedb/internal/fdw/tables) - B/op",
+            "value": 5952,
+            "unit": "B/op",
+            "extra": "1840888 times"
+          },
+          {
+            "name": "BenchmarkPatternMatcher (github.com/authzed/spicedb/internal/fdw/tables) - allocs/op",
+            "value": 50,
+            "unit": "allocs/op",
+            "extra": "1840888 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph (github.com/authzed/spicedb/pkg/query)",
+            "value": 3473,
+            "unit": "ns/op\t    2368 B/op\t      45 allocs/op",
+            "extra": "1733016 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 3473,
+            "unit": "ns/op",
+            "extra": "1733016 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 2368,
+            "unit": "B/op",
+            "extra": "1733016 times"
+          },
+          {
+            "name": "BenchmarkRecursiveShallowGraph (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 45,
+            "unit": "allocs/op",
+            "extra": "1733016 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph (github.com/authzed/spicedb/pkg/query)",
+            "value": 13573,
+            "unit": "ns/op\t    9840 B/op\t     141 allocs/op",
+            "extra": "446180 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 13573,
+            "unit": "ns/op",
+            "extra": "446180 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 9840,
+            "unit": "B/op",
+            "extra": "446180 times"
+          },
+          {
+            "name": "BenchmarkRecursiveWideGraph (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 141,
+            "unit": "allocs/op",
+            "extra": "446180 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph (github.com/authzed/spicedb/pkg/query)",
+            "value": 11948,
+            "unit": "ns/op\t    7504 B/op\t     130 allocs/op",
+            "extra": "508627 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 11948,
+            "unit": "ns/op",
+            "extra": "508627 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 7504,
+            "unit": "B/op",
+            "extra": "508627 times"
+          },
+          {
+            "name": "BenchmarkRecursiveDeepGraph (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 130,
+            "unit": "allocs/op",
+            "extra": "508627 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph (github.com/authzed/spicedb/pkg/query)",
+            "value": 977.6,
+            "unit": "ns/op\t     672 B/op\t      16 allocs/op",
+            "extra": "5983083 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 977.6,
+            "unit": "ns/op",
+            "extra": "5983083 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 672,
+            "unit": "B/op",
+            "extra": "5983083 times"
+          },
+          {
+            "name": "BenchmarkRecursiveEmptyGraph (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 16,
+            "unit": "allocs/op",
+            "extra": "5983083 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph (github.com/authzed/spicedb/pkg/query)",
+            "value": 14842,
+            "unit": "ns/op\t    9248 B/op\t     159 allocs/op",
+            "extra": "410452 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 14842,
+            "unit": "ns/op",
+            "extra": "410452 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 9248,
+            "unit": "B/op",
+            "extra": "410452 times"
+          },
+          {
+            "name": "BenchmarkRecursiveSparseGraph (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 159,
+            "unit": "allocs/op",
+            "extra": "410452 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph (github.com/authzed/spicedb/pkg/query)",
+            "value": 3827,
+            "unit": "ns/op\t    2408 B/op\t      46 allocs/op",
+            "extra": "1645066 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 3827,
+            "unit": "ns/op",
+            "extra": "1645066 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 2408,
+            "unit": "B/op",
+            "extra": "1645066 times"
+          },
+          {
+            "name": "BenchmarkRecursiveCyclicGraph (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 46,
+            "unit": "allocs/op",
+            "extra": "1645066 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources (github.com/authzed/spicedb/pkg/query)",
+            "value": 2323,
+            "unit": "ns/op\t    1528 B/op\t      33 allocs/op",
+            "extra": "2624388 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 2323,
+            "unit": "ns/op",
+            "extra": "2624388 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 1528,
+            "unit": "B/op",
+            "extra": "2624388 times"
+          },
+          {
+            "name": "BenchmarkRecursiveIterResources (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 33,
+            "unit": "allocs/op",
+            "extra": "2624388 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query)",
+            "value": 559.2,
+            "unit": "ns/op\t 139.48 MB/s\t        78.00 plan-bytes\t     240 B/op\t      18 allocs/op",
+            "extra": "10645446 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 559.2,
+            "unit": "ns/op",
+            "extra": "10645446 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 139.48,
+            "unit": "MB/s",
+            "extra": "10645446 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 78,
+            "unit": "plan-bytes",
+            "extra": "10645446 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 240,
+            "unit": "B/op",
+            "extra": "10645446 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 18,
+            "unit": "allocs/op",
+            "extra": "10645446 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query)",
+            "value": 1872,
+            "unit": "ns/op\t 144.21 MB/s\t       270.0 plan-bytes\t     816 B/op\t      60 allocs/op",
+            "extra": "3173013 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 1872,
+            "unit": "ns/op",
+            "extra": "3173013 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 144.21,
+            "unit": "MB/s",
+            "extra": "3173013 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 270,
+            "unit": "plan-bytes",
+            "extra": "3173013 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 816,
+            "unit": "B/op",
+            "extra": "3173013 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 60,
+            "unit": "allocs/op",
+            "extra": "3173013 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query)",
+            "value": 6858,
+            "unit": "ns/op\t 154.56 MB/s\t      1060 plan-bytes\t    3120 B/op\t     228 allocs/op",
+            "extra": "867912 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 6858,
+            "unit": "ns/op",
+            "extra": "867912 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 154.56,
+            "unit": "MB/s",
+            "extra": "867912 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 1060,
+            "unit": "plan-bytes",
+            "extra": "867912 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 3120,
+            "unit": "B/op",
+            "extra": "867912 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 228,
+            "unit": "allocs/op",
+            "extra": "867912 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query)",
+            "value": 27238,
+            "unit": "ns/op\t 156.29 MB/s\t      4257 plan-bytes\t   12336 B/op\t     900 allocs/op",
+            "extra": "222822 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 27238,
+            "unit": "ns/op",
+            "extra": "222822 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 156.29,
+            "unit": "MB/s",
+            "extra": "222822 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 4257,
+            "unit": "plan-bytes",
+            "extra": "222822 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 12336,
+            "unit": "B/op",
+            "extra": "222822 times"
+          },
+          {
+            "name": "BenchmarkSerializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 900,
+            "unit": "allocs/op",
+            "extra": "222822 times"
+          },
+          {
+            "name": "BenchmarkSerializeArrow (github.com/authzed/spicedb/pkg/query)",
+            "value": 505.6,
+            "unit": "ns/op\t 178.01 MB/s\t        90.00 plan-bytes\t     224 B/op\t      17 allocs/op",
+            "extra": "11887062 times"
+          },
+          {
+            "name": "BenchmarkSerializeArrow (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 505.6,
+            "unit": "ns/op",
+            "extra": "11887062 times"
+          },
+          {
+            "name": "BenchmarkSerializeArrow (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 178.01,
+            "unit": "MB/s",
+            "extra": "11887062 times"
+          },
+          {
+            "name": "BenchmarkSerializeArrow (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 90,
+            "unit": "plan-bytes",
+            "extra": "11887062 times"
+          },
+          {
+            "name": "BenchmarkSerializeArrow (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 224,
+            "unit": "B/op",
+            "extra": "11887062 times"
+          },
+          {
+            "name": "BenchmarkSerializeArrow (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 17,
+            "unit": "allocs/op",
+            "extra": "11887062 times"
+          },
+          {
+            "name": "BenchmarkSerializeRecursive (github.com/authzed/spicedb/pkg/query)",
+            "value": 554.5,
+            "unit": "ns/op\t 146.08 MB/s\t        81.00 plan-bytes\t     240 B/op\t      19 allocs/op",
+            "extra": "10913049 times"
+          },
+          {
+            "name": "BenchmarkSerializeRecursive (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 554.5,
+            "unit": "ns/op",
+            "extra": "10913049 times"
+          },
+          {
+            "name": "BenchmarkSerializeRecursive (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 146.08,
+            "unit": "MB/s",
+            "extra": "10913049 times"
+          },
+          {
+            "name": "BenchmarkSerializeRecursive (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 81,
+            "unit": "plan-bytes",
+            "extra": "10913049 times"
+          },
+          {
+            "name": "BenchmarkSerializeRecursive (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 240,
+            "unit": "B/op",
+            "extra": "10913049 times"
+          },
+          {
+            "name": "BenchmarkSerializeRecursive (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 19,
+            "unit": "allocs/op",
+            "extra": "10913049 times"
+          },
+          {
+            "name": "BenchmarkSerializeRealistic (github.com/authzed/spicedb/pkg/query)",
+            "value": 1084,
+            "unit": "ns/op\t 132.89 MB/s\t       144.0 plan-bytes\t     464 B/op\t      35 allocs/op",
+            "extra": "5554015 times"
+          },
+          {
+            "name": "BenchmarkSerializeRealistic (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 1084,
+            "unit": "ns/op",
+            "extra": "5554015 times"
+          },
+          {
+            "name": "BenchmarkSerializeRealistic (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 132.89,
+            "unit": "MB/s",
+            "extra": "5554015 times"
+          },
+          {
+            "name": "BenchmarkSerializeRealistic (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 144,
+            "unit": "plan-bytes",
+            "extra": "5554015 times"
+          },
+          {
+            "name": "BenchmarkSerializeRealistic (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 464,
+            "unit": "B/op",
+            "extra": "5554015 times"
+          },
+          {
+            "name": "BenchmarkSerializeRealistic (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 35,
+            "unit": "allocs/op",
+            "extra": "5554015 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query)",
+            "value": 924.1,
+            "unit": "ns/op\t  84.40 MB/s\t        78.00 plan-bytes\t     320 B/op\t      30 allocs/op",
+            "extra": "6486645 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 924.1,
+            "unit": "ns/op",
+            "extra": "6486645 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 84.4,
+            "unit": "MB/s",
+            "extra": "6486645 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 78,
+            "unit": "plan-bytes",
+            "extra": "6486645 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 320,
+            "unit": "B/op",
+            "extra": "6486645 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=2 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 30,
+            "unit": "allocs/op",
+            "extra": "6486645 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query)",
+            "value": 2933,
+            "unit": "ns/op\t  92.06 MB/s\t       270.0 plan-bytes\t     896 B/op\t     102 allocs/op",
+            "extra": "2050519 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 2933,
+            "unit": "ns/op",
+            "extra": "2050519 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 92.06,
+            "unit": "MB/s",
+            "extra": "2050519 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 270,
+            "unit": "plan-bytes",
+            "extra": "2050519 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 896,
+            "unit": "B/op",
+            "extra": "2050519 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=8 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 102,
+            "unit": "allocs/op",
+            "extra": "2050519 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query)",
+            "value": 11224,
+            "unit": "ns/op\t  94.44 MB/s\t      1060 plan-bytes\t    3376 B/op\t     390 allocs/op",
+            "extra": "538016 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 11224,
+            "unit": "ns/op",
+            "extra": "538016 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 94.44,
+            "unit": "MB/s",
+            "extra": "538016 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 1060,
+            "unit": "plan-bytes",
+            "extra": "538016 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 3376,
+            "unit": "B/op",
+            "extra": "538016 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=32 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 390,
+            "unit": "allocs/op",
+            "extra": "538016 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query)",
+            "value": 44499,
+            "unit": "ns/op\t  95.67 MB/s\t      4257 plan-bytes\t   13616 B/op\t    1542 allocs/op",
+            "extra": "134871 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 44499,
+            "unit": "ns/op",
+            "extra": "134871 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 95.67,
+            "unit": "MB/s",
+            "extra": "134871 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 4257,
+            "unit": "plan-bytes",
+            "extra": "134871 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 13616,
+            "unit": "B/op",
+            "extra": "134871 times"
+          },
+          {
+            "name": "BenchmarkDeserializeUnion/subs=128 (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 1542,
+            "unit": "allocs/op",
+            "extra": "134871 times"
+          },
+          {
+            "name": "BenchmarkDeserializeArrow (github.com/authzed/spicedb/pkg/query)",
+            "value": 989.8,
+            "unit": "ns/op\t  90.93 MB/s\t        90.00 plan-bytes\t     384 B/op\t      30 allocs/op",
+            "extra": "6110004 times"
+          },
+          {
+            "name": "BenchmarkDeserializeArrow (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 989.8,
+            "unit": "ns/op",
+            "extra": "6110004 times"
+          },
+          {
+            "name": "BenchmarkDeserializeArrow (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 90.93,
+            "unit": "MB/s",
+            "extra": "6110004 times"
+          },
+          {
+            "name": "BenchmarkDeserializeArrow (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 90,
+            "unit": "plan-bytes",
+            "extra": "6110004 times"
+          },
+          {
+            "name": "BenchmarkDeserializeArrow (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 384,
+            "unit": "B/op",
+            "extra": "6110004 times"
+          },
+          {
+            "name": "BenchmarkDeserializeArrow (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 30,
+            "unit": "allocs/op",
+            "extra": "6110004 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRecursive (github.com/authzed/spicedb/pkg/query)",
+            "value": 963.5,
+            "unit": "ns/op\t  84.07 MB/s\t        81.00 plan-bytes\t     480 B/op\t      28 allocs/op",
+            "extra": "6226305 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRecursive (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 963.5,
+            "unit": "ns/op",
+            "extra": "6226305 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRecursive (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 84.07,
+            "unit": "MB/s",
+            "extra": "6226305 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRecursive (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 81,
+            "unit": "plan-bytes",
+            "extra": "6226305 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRecursive (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 480,
+            "unit": "B/op",
+            "extra": "6226305 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRecursive (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 28,
+            "unit": "allocs/op",
+            "extra": "6226305 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRealistic (github.com/authzed/spicedb/pkg/query)",
+            "value": 1786,
+            "unit": "ns/op\t  80.64 MB/s\t       144.0 plan-bytes\t     576 B/op\t      57 allocs/op",
+            "extra": "2979451 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRealistic (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 1786,
+            "unit": "ns/op",
+            "extra": "2979451 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRealistic (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 80.64,
+            "unit": "MB/s",
+            "extra": "2979451 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRealistic (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 144,
+            "unit": "plan-bytes",
+            "extra": "2979451 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRealistic (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 576,
+            "unit": "B/op",
+            "extra": "2979451 times"
+          },
+          {
+            "name": "BenchmarkDeserializeRealistic (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 57,
+            "unit": "allocs/op",
+            "extra": "2979451 times"
+          },
+          {
+            "name": "BenchmarkRoundTrip (github.com/authzed/spicedb/pkg/query)",
+            "value": 2608,
+            "unit": "ns/op\t  53.31 MB/s\t       139.0 plan-bytes\t     880 B/op\t      85 allocs/op",
+            "extra": "2310262 times"
+          },
+          {
+            "name": "BenchmarkRoundTrip (github.com/authzed/spicedb/pkg/query) - ns/op",
+            "value": 2608,
+            "unit": "ns/op",
+            "extra": "2310262 times"
+          },
+          {
+            "name": "BenchmarkRoundTrip (github.com/authzed/spicedb/pkg/query) - MB/s",
+            "value": 53.31,
+            "unit": "MB/s",
+            "extra": "2310262 times"
+          },
+          {
+            "name": "BenchmarkRoundTrip (github.com/authzed/spicedb/pkg/query) - plan-bytes",
+            "value": 139,
+            "unit": "plan-bytes",
+            "extra": "2310262 times"
+          },
+          {
+            "name": "BenchmarkRoundTrip (github.com/authzed/spicedb/pkg/query) - B/op",
+            "value": 880,
+            "unit": "B/op",
+            "extra": "2310262 times"
+          },
+          {
+            "name": "BenchmarkRoundTrip (github.com/authzed/spicedb/pkg/query) - allocs/op",
+            "value": 85,
+            "unit": "allocs/op",
+            "extra": "2310262 times"
+          },
+          {
+            "name": "BenchmarkCheck/DeepArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks)",
+            "value": 227283,
+            "unit": "ns/op\t  122954 B/op\t    3557 allocs/op",
+            "extra": "26619 times"
+          },
+          {
+            "name": "BenchmarkCheck/DeepArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - ns/op",
+            "value": 227283,
+            "unit": "ns/op",
+            "extra": "26619 times"
+          },
+          {
+            "name": "BenchmarkCheck/DeepArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - B/op",
+            "value": 122954,
+            "unit": "B/op",
+            "extra": "26619 times"
+          },
+          {
+            "name": "BenchmarkCheck/DeepArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - allocs/op",
+            "value": 3557,
+            "unit": "allocs/op",
+            "extra": "26619 times"
+          },
+          {
+            "name": "BenchmarkCheck/WideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks)",
+            "value": 135667,
+            "unit": "ns/op\t    4312 B/op\t     107 allocs/op",
+            "extra": "43430 times"
+          },
+          {
+            "name": "BenchmarkCheck/WideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - ns/op",
+            "value": 135667,
+            "unit": "ns/op",
+            "extra": "43430 times"
+          },
+          {
+            "name": "BenchmarkCheck/WideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - B/op",
+            "value": 4312,
+            "unit": "B/op",
+            "extra": "43430 times"
+          },
+          {
+            "name": "BenchmarkCheck/WideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - allocs/op",
+            "value": 107,
+            "unit": "allocs/op",
+            "extra": "43430 times"
+          },
+          {
+            "name": "BenchmarkCheck/DoubleWideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks)",
+            "value": 583516,
+            "unit": "ns/op\t    8120 B/op\t     180 allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkCheck/DoubleWideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - ns/op",
+            "value": 583516,
+            "unit": "ns/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkCheck/DoubleWideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - B/op",
+            "value": 8120,
+            "unit": "B/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkCheck/DoubleWideArrow/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - allocs/op",
+            "value": 180,
+            "unit": "allocs/op",
+            "extra": "10000 times"
+          },
+          {
+            "name": "BenchmarkCheck/ShareWith/advised (github.com/authzed/spicedb/pkg/query/benchmarks)",
+            "value": 41968,
+            "unit": "ns/op\t   24472 B/op\t     686 allocs/op",
+            "extra": "155097 times"
+          },
+          {
+            "name": "BenchmarkCheck/ShareWith/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - ns/op",
+            "value": 41968,
+            "unit": "ns/op",
+            "extra": "155097 times"
+          },
+          {
+            "name": "BenchmarkCheck/ShareWith/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - B/op",
+            "value": 24472,
+            "unit": "B/op",
+            "extra": "155097 times"
+          },
+          {
+            "name": "BenchmarkCheck/ShareWith/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - allocs/op",
+            "value": 686,
+            "unit": "allocs/op",
+            "extra": "155097 times"
+          },
+          {
+            "name": "BenchmarkCheck/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks)",
+            "value": 32210,
+            "unit": "ns/op\t    5728 B/op\t     170 allocs/op",
+            "extra": "185155 times"
+          },
+          {
+            "name": "BenchmarkCheck/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - ns/op",
+            "value": 32210,
+            "unit": "ns/op",
+            "extra": "185155 times"
+          },
+          {
+            "name": "BenchmarkCheck/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - B/op",
+            "value": 5728,
+            "unit": "B/op",
+            "extra": "185155 times"
+          },
+          {
+            "name": "BenchmarkCheck/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - allocs/op",
+            "value": 170,
+            "unit": "allocs/op",
+            "extra": "185155 times"
+          },
+          {
+            "name": "BenchmarkLookupResources/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks)",
+            "value": 1003232,
+            "unit": "ns/op\t  751241 B/op\t    5299 allocs/op",
+            "extra": "5995 times"
+          },
+          {
+            "name": "BenchmarkLookupResources/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - ns/op",
+            "value": 1003232,
+            "unit": "ns/op",
+            "extra": "5995 times"
+          },
+          {
+            "name": "BenchmarkLookupResources/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - B/op",
+            "value": 751241,
+            "unit": "B/op",
+            "extra": "5995 times"
+          },
+          {
+            "name": "BenchmarkLookupResources/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - allocs/op",
+            "value": 5299,
+            "unit": "allocs/op",
+            "extra": "5995 times"
+          },
+          {
+            "name": "BenchmarkLookupSubjects/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks)",
+            "value": 40191,
+            "unit": "ns/op\t   10216 B/op\t     268 allocs/op",
+            "extra": "149828 times"
+          },
+          {
+            "name": "BenchmarkLookupSubjects/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - ns/op",
+            "value": 40191,
+            "unit": "ns/op",
+            "extra": "149828 times"
+          },
+          {
+            "name": "BenchmarkLookupSubjects/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - B/op",
+            "value": 10216,
+            "unit": "B/op",
+            "extra": "149828 times"
+          },
+          {
+            "name": "BenchmarkLookupSubjects/LookupIntersection/advised (github.com/authzed/spicedb/pkg/query/benchmarks) - allocs/op",
+            "value": 268,
+            "unit": "allocs/op",
+            "extra": "149828 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing (github.com/authzed/spicedb/pkg/schema)",
+            "value": 19.1,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "00000325078959 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing (github.com/authzed/spicedb/pkg/schema) - ns/op",
+            "value": 19.1,
+            "unit": "ns/op",
+            "extra": "00000325078959 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing (github.com/authzed/spicedb/pkg/schema) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "00000325078959 times"
+          },
+          {
+            "name": "BenchmarkRelationsReferencing (github.com/authzed/spicedb/pkg/schema) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "00000325078959 times"
           }
         ]
       }
