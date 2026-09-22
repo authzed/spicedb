@@ -1591,11 +1591,13 @@ func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
 	ended := spanrecorder.Ended()
 	var present bool
 	for _, span := range ended {
-		if span.Name() == "query INSERT" {
+		// otelpgx names query spans after the SQL operation alone, as the
+		// OpenTelemetry database span conventions call for.
+		if span.Name() == "INSERT" {
 			present = true
 		}
 	}
-	require.True(present, "missing trace for Streaming gRPC call")
+	require.True(present, "missing span for the INSERT issued by the datastore")
 }
 
 func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgVersion string) {

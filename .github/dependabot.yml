@@ -19,6 +19,16 @@ updates:
     labels:
       - "area/dependencies"
       - "dependencies"
+    # cobrautil's cobraproclimits calls memlimit.SetGoMemLimitWithOpts, which
+    # automemlimit v1 renamed to memlimit.Set. Hold the major back until
+    # cobrautil is updated, otherwise the whole module stops compiling.
+    ignore:
+      - dependency-name: "github.com/KimMachineGun/automemlimit"
+        update-types: ["version-update:semver-major"]
+      # grpc-go v1.84.0 is affected by CVE-2026-84445; the fix shipped in
+      # v1.83.2 and will land again in the release after v1.84.0.
+      - dependency-name: "google.golang.org/grpc"
+        versions: ["1.84.0"]
     groups:
       # A group only covers the update type named by "applies-to", which
       # defaults to "version-updates". Without a second, separately named
