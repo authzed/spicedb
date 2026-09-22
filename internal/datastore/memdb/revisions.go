@@ -77,9 +77,16 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 	quantized, validFor := revisions.Quantize(nowRevision(), 0, mdb.quantizationPeriod)
 	optimized := quantized.(revisions.TimestampRevision)
 
-	// Rounding down can land before the oldest snapshot, which no read can be
-	// served at. Advertise head instead, as Postgres does for an empty bucket.
-	if optimized.LessThan(mdb.revisions[0].revision) {
+	// Entry 0 is the snapshot taken when the datastore was created: the database
+	// as it was before anything was written to it. Rounding down to any point
+	// before the first write therefore serves an empty datastore, hiding data
+	// that was already committed when the revision was requested. Advertise head
+	// instead, as Postgres does for an empty bucket.
+	firstServable := mdb.revisions[0].revision
+	if len(mdb.revisions) > 1 {
+		firstServable = mdb.revisions[1].revision
+	}
+	if optimized.LessThan(firstServable) {
 		optimized = mdb.headRevisionNoLock()
 	}
 
