@@ -8,7 +8,7 @@ require (
 	buf.build/go/protovalidate v1.4.0
 	cloud.google.com/go/spanner v1.95.1
 	github.com/IBM/pgxpoolprometheus v1.1.3
-	github.com/KimMachineGun/automemlimit v1.0.0
+	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/authzed/authzed-go v1.10.0

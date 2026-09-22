@@ -19,6 +19,12 @@ updates:
     labels:
       - "area/dependencies"
       - "dependencies"
+    # cobrautil's cobraproclimits calls memlimit.SetGoMemLimitWithOpts, which
+    # automemlimit v1 renamed to memlimit.Set. Hold the major back until
+    # cobrautil is updated, otherwise the whole module stops compiling.
+    ignore:
+      - dependency-name: "github.com/KimMachineGun/automemlimit"
+        update-types: ["version-update:semver-major"]
     groups:
       # A group only covers the update type named by "applies-to", which
       # defaults to "version-updates". Without a second, separately named
