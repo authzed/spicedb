@@ -26,7 +26,7 @@ jobs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d" # v4.0.3
         id: "code-filter"
         with:
@@ -56,7 +56,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@dbcb813823bdd20940b903addbd779551569679f" # v4.6.0
         with:
@@ -75,7 +75,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - name: "Unit tests with coverage"
         run: "go run mage.go test:unitCover"
@@ -93,7 +93,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - name: "Steelthread tests"
         run: "go run mage.go test:steelthread"
@@ -106,7 +106,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@dbcb813823bdd20940b903addbd779551569679f" # v4.6.0
         with:
@@ -130,7 +130,7 @@ jobs:
       matrix:
         datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
@@ -164,7 +164,7 @@ jobs:
       matrix:
         datastore: ["mysql", "spanner"]
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
@@ -199,7 +199,7 @@ jobs:
         datastore: ["postgres", "pgbouncer"]
         pgversion: ["14", "15", "16", "17", "18"]
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
@@ -234,7 +234,7 @@ jobs:
         datastore: ["postgres"]
         pgversion: ["14", "15", "16", "17", "18"]
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
@@ -273,7 +273,7 @@ jobs:
           # the most recent version
           - "26.2.5"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
@@ -312,7 +312,7 @@ jobs:
           # the most recent version
           - "26.2.5"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
@@ -351,7 +351,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "e2e/go.mod"
@@ -372,7 +372,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "tools/analyzers/go.mod"
@@ -386,7 +386,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       # Headless Chrome needs unprivileged user namespaces to sandbox, which
       # Ubuntu 23.10+ restricts via AppArmor. Kernels built without that
@@ -437,7 +437,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.protochange == 'true'
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
@@ -445,7 +445,7 @@ jobs:
         with:
           path: ""
           fixup-command: "go run mage.go gen:proto"
-      - uses: "bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99" # v1.5.0
+      - uses: "bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99" # v1.50.0
       - uses: "bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba" # v1.1.4 TODO(miparnisari) deprecated, use buf-action
         if: "github.event_name == 'pull_request'"
         env:
@@ -469,7 +469,7 @@ jobs:
     permissions:
       pull-requests: "write"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         with:
           fetch-depth: 0
 
