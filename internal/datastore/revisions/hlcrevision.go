@@ -1,6 +1,7 @@
 package revisions
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strconv"
@@ -20,6 +21,9 @@ var zeroHLC = HLCRevision{}
 const logicalClockLength = 10
 
 var logicalClockOffset = uint32(math.Pow10(logicalClockLength + 1))
+
+// hlcSortKeyLength is the width of an HLC sort key: 8 bytes of wall time, then 4 of logical clock.
+const hlcSortKeyLength = 12
 
 // HLCRevision is a revision that is a hybrid logical clock, stored as two integers.
 // The first integer is the timestamp in nanoseconds, and the second integer is the
@@ -102,6 +106,15 @@ func (hlc HLCRevision) ByteSortable() bool {
 	return true
 }
 
+// AppendSortKey implements datastore.SortKeyRevision. Keys are hlcSortKeyLength bytes.
+func (hlc HLCRevision) AppendSortKey(dst []byte) []byte {
+	// Wall time then logical clock: the same two fields, in the same order, that LessThan and
+	// GreaterThan compare, so the two orders cannot disagree. The logical clock goes in as stored,
+	// logicalClockOffset included, and as the uint32 it is - again, exactly what LessThan reads.
+	dst = appendOrderedInt64(dst, hlc.time)
+	return binary.BigEndian.AppendUint32(dst, hlc.logicalclock)
+}
+
 func (hlc HLCRevision) Equal(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
 		rhs = zeroHLC
@@ -151,8 +164,9 @@ func (hlc HLCRevision) AsDecimal() (decimal.Decimal, error) {
 }
 
 var (
-	_ datastore.Revision    = HLCRevision{}
-	_ WithTimestampRevision = HLCRevision{}
+	_ datastore.Revision        = HLCRevision{}
+	_ datastore.SortKeyRevision = HLCRevision{}
+	_ WithTimestampRevision     = HLCRevision{}
 )
 
 // HLCKeyFunc is used to convert a simple HLC for use in maps.
