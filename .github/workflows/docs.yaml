@@ -60,12 +60,10 @@ jobs:
           committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
 
       - name: "Approve Pull Request in target"
-        uses: "juliangruber/approve-pull-request-action@1cecaf0206ba34c4fddd072ded0b42e28ee68dd9" # v2.1.1
         if: "steps.check-changes.outputs.docs_changed == 'true'"
-        with:
-          repo: "authzed/docs"
-          github-token: "${{ secrets.AUTHZEDAPPROVER_REPO_SCOPED_TOKEN }}"
-          number: "${{ steps.cpr.outputs.pull-request-number }}"
+        run: "gh pr review ${{ steps.cpr.outputs.pull-request-number }} --approve -R ${{ env.DOCS_REPO }}"
+        env:
+          GH_TOKEN: "${{ secrets.AUTHZEDAPPROVER_REPO_SCOPED_TOKEN }}"
 
       - name: "Enable Pull Request Automerge in target"
         if: "steps.check-changes.outputs.docs_changed == 'true'"
