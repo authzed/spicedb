@@ -18,11 +18,10 @@ jobs:
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - name: "Install snapcraft"
-        run: |
-          sudo snap install snapcraft --channel=8.x/stable --classic
-          mkdir -p $HOME/.cache/snapcraft/download
-          mkdir -p $HOME/.cache/snapcraft/stage-packages
+      # NOTE: do not add a snapcraft install here. This job releases with
+      # .goreleaser.nightly.yml, which has no `snapcrafts:` section, so nothing
+      # in the run invokes snapcraft. Only .goreleaser.yml builds the snap, and
+      # only release.yaml uses it.
       - uses: "authzed/actions/docker-login@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
