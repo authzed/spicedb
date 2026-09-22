@@ -111,6 +111,10 @@ type SecondaryDispatch struct {
 	// Client is the client to use for dispatching to the secondary.
 	Client ClusterClient
 
+	// Conn is the underlying gRPC connection for the secondary dispatcher, used for closing.
+	// May be nil if the client is a mock or test double.
+	Conn *grpc.ClientConn
+
 	// MaximumHedgingDelay is the maximum delay that the primary will wait before dispatching
 	// when this secondary is active.
 	MaximumPrimaryHedgingDelay time.Duration
@@ -914,10 +918,20 @@ func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest,
 }
 
 func (cr *clusterDispatcher) Close() error {
-	if cr.conn != nil {
-		return cr.conn.Close()
+	var firstErr error
+	for _, secondary := range cr.secondaryDispatch {
+		if secondary.Conn != nil {
+			if err := secondary.Conn.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
 	}
-	return nil
+	if cr.conn != nil {
+		if err := cr.conn.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // ReadyState returns whether the underlying dispatch connection is available
