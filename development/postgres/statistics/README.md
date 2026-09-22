@@ -16,6 +16,12 @@ From the repository root:
 python3 development/postgres/statistics/run.py --output-dir /tmp/spicedb-mcv-results
 ```
 
+To repeat at one million rows with the same proportions and query:
+
+```sh
+python3 development/postgres/statistics/run.py --rows 1000000 --output-dir /tmp/spicedb-mcv-results-1m
+```
+
 Choose a new output directory for each run. Without `--output-dir`, the script
 creates a fresh temporary results directory. It prints the report and saves
 `report.md` and `plans.json`, including all five measured plans per phase and the
@@ -29,7 +35,7 @@ database. The report records the exact PostgreSQL version and image ID.
 
 ## Test
 
-1. Insert 100,000 distinct relationship rows, interleaving three combinations:
+1. Insert 100,000 distinct relationship rows by default (`--rows` changes this), interleaving three combinations:
    60% document/viewer, 10% document/editor, and 30% group/member.
 2. Vacuum once, then analyze and measure the query with ordinary statistics.
 3. Add MCV statistics, analyze again, and measure the identical query.
@@ -44,7 +50,9 @@ WHERE namespace = 'group' AND relation = 'member';
 Without knowledge of the correlation, the simplified estimate is
 `100000 * 0.30 * 0.30 = 9000`; the actual result is 30,000 rows. The experiment
 checks whether MCV brings the estimate closer. It verifies that both phases
-return exactly 30,000 rows, but does not assume a particular plan or speedup.
+return exactly 30% of the generated rows (30,000 by default; 300,000 at one
+million), but does not assume a particular plan or speedup. `--rows` must be a
+positive multiple of 10 so the distribution remains exact.
 
 Each phase has one warm-up and five measured executions. Parallel query and JIT
 are disabled to make the initial comparison easier to interpret. Automatic

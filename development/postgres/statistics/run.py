@@ -31,7 +31,7 @@ SELECT
     CASE WHEN n % 10 < 6 THEN 'viewer'
          WHEN n % 10 = 6 THEN 'editor' ELSE 'member' END,
     'user', n::text, '...'
-FROM generate_series(1, 100000) AS n;
+FROM generate_series(1, {rows}) AS n;
 -- Equal maintenance state before both phases; data does not change afterward.
 VACUUM relation_tuple;
 """
@@ -54,11 +54,16 @@ def index_names(node):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", default="postgres:18")
+    parser.add_argument("--rows", type=int, default=100000,
+                        help="Total relationships; a positive multiple of 10 (default: 100000)")
     parser.add_argument("--spicedb-bin", type=Path,
                         help="Use an existing CLI built from this checkout instead of building it")
     parser.add_argument("--output-dir", type=Path,
                         help="Save report.md and plans.json (default: a new temporary directory)")
     args = parser.parse_args()
+    if args.rows <= 0 or args.rows % 10:
+        parser.error("--rows must be a positive multiple of 10 to preserve the 60/10/30 split")
+    expected_matches = args.rows * 3 // 10
     output = args.output_dir or Path(tempfile.mkdtemp(prefix="spicedb-mcv-results-"))
     output.mkdir(parents=True, exist_ok=True)
     if any((output / name).exists() for name in ("report.md", "plans.json")):
@@ -106,7 +111,7 @@ def main():
                             "-v", "ON_ERROR_STOP=1", "-U", "spicedb", "-d", "spicedb"],
                            sql=statement)
 
-            sql(SEED)
+            sql(SEED.format(rows=args.rows))
             version = sql("SELECT version();")
             migration = sql("SELECT version_num FROM alembic_version;")
             distribution = json.loads(sql("""SELECT json_agg(s) FROM (
@@ -126,7 +131,7 @@ def main():
                 samples = []
                 for iteration in range(6):  # One warm-up, then five measured executions.
                     plan = json.loads(sql("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + QUERY))[0]
-                    if plan["Plan"]["Actual Rows"] != 30000:
+                    if plan["Plan"]["Actual Rows"] != expected_matches:
                         raise RuntimeError(f"Unexpected matching row count in {phase}: {plan}")
                     if iteration:
                         samples.append(plan)
@@ -155,6 +160,7 @@ def main():
             image_id = run(["docker", "inspect", "--format", "{{.Image}}", container])
             metadata = {"postgres": version, "commit": commit, "image": args.image,
                         "image_id": image_id, "migration": migration,
+                        "rows": args.rows,
                         "distribution": distribution, "indexes": indexes, "plans": plans}
             (output / "plans.json").write_text(json.dumps(metadata, indent=2) + "\n")
             report = "\n".join([
@@ -163,8 +169,9 @@ def main():
                 f"- Checkout HEAD: `{commit}`", f"- Migration: `{migration}`",
                 f"- Host: {platform.system()} {platform.release()} {platform.machine()}",
                 f"- Existing relation_tuple indexes: {len(indexes)} (definitions in plans.json)",
-                "- Dataset: 100,000 interleaved, distinct relationships: 60,000 document/viewer, "
-                "10,000 document/editor, 30,000 group/member. All undeleted; no caveats or expiration.",
+                f"- Dataset: {args.rows:,} interleaved, distinct relationships: "
+                f"{args.rows * 6 // 10:,} document/viewer, {args.rows // 10:,} document/editor, "
+                f"{expected_matches:,} group/member. All undeleted; no caveats or expiration.",
                 "- Protocol: one warm-up + five measured executions per phase; manual ANALYZE "
                 "before each phase; same data and indexes throughout.",
                 "- Controls: parallel query and JIT disabled; automatic maintenance disabled "
@@ -173,7 +180,7 @@ def main():
                 "```sql", CREATE_STATISTICS + ";", "ANALYZE relation_tuple;", "```", "",
                 "| Measurement | Before | After |", "|---|---|---|",
                 *(f"| {label} | {before} | {after} |" for label, before, after in rows), "",
-                "This is a synthetic estimate-accuracy experiment. Five warm-cache timings are "
+                "This is a synthetic estimate-accuracy experiment. Five timings after one warm-up are "
                 "preliminary, not evidence of an end-to-end SpiceDB speedup. ANALYZE samples "
                 "the data, so estimates can vary between runs. The query deliberately omits "
                 "SpiceDB's visibility, ID, and expiration filters.", "",
