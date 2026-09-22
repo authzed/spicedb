@@ -88,6 +88,13 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 	}
 	if optimized.LessThan(firstServable) {
 		optimized = mdb.headRevisionNoLock()
+
+		// validFor describes the quantized revision that was just discarded, not head.
+		// Reusing it would let a caller hold head for the rest of the quantization
+		// interval, hiding every write made during it — the same staleness this
+		// fallback exists to prevent. Head is only accurate at the moment it is read,
+		// so report no validity and let each call derive it afresh.
+		validFor = 0
 	}
 
 	// Find the schema hash visible at the optimized revision: walk the
