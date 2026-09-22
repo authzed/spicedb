@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 
 	wire "github.com/jeroenrinzema/psql-wire"
@@ -37,8 +38,26 @@ func NewPgBackend(client *authzed.Client, username, password string) *PgBackend 
 // Run starts the Postgres wire protocol server on the specified endpoint.
 // It blocks until the context is cancelled, an error occurs, or Close is called.
 func (p *PgBackend) Run(ctx context.Context, endpoint string) error {
+	listener, err := net.Listen("tcp", endpoint)
+	if err != nil {
+		return err
+	}
+
+	return p.Serve(ctx, listener)
+}
+
+// Serve starts the Postgres wire protocol server on a listener that the caller
+// has already bound. It takes ownership of the listener and closes it before
+// returning.
+//
+// Binding separately from serving lets a caller hold the port from the moment
+// it picks it. Picking a free port, releasing it and binding it again later
+// leaves a window in which any other process on the machine can take the port,
+// and the bind then fails.
+func (p *PgBackend) Serve(ctx context.Context, listener net.Listener) error {
 	server, err := wire.NewServer(p.handler, wire.SessionMiddleware(sessionMiddleware))
 	if err != nil {
+		_ = listener.Close()
 		return err
 	}
 	server.Auth = wire.ClearTextPassword(p.validateAuth)
@@ -49,6 +68,7 @@ func (p *PgBackend) Run(ctx context.Context, endpoint string) error {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
+		_ = listener.Close()
 		return errors.New("PgBackend already closed")
 	}
 	p.server = server
@@ -59,7 +79,7 @@ func (p *PgBackend) Run(ctx context.Context, endpoint string) error {
 		_ = p.Close()
 	}()
 
-	return server.ListenAndServe(endpoint)
+	return server.Serve(listener)
 }
 
 func (p *PgBackend) validateAuth(ctx context.Context, database, username, password string) (context.Context, bool, error) {
