@@ -1,10 +1,18 @@
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
 FROM golang:1.27.0-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc AS spicedb-builder
 WORKDIR /go/src/app
-RUN apk update && apk add --no-cache git
+# Dependencies come before the source so that editing source does not invalidate
+# the downloaded modules. This only pays off on a builder with a persistent cache
+# (a Depot builder, or a developer's machine); on a throwaway CI runner it is free
+# but does nothing.
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
+# .dockerignore keeps .git out of the context, so there is no repository here to
+# stamp a commit from. Saying so explicitly beats letting -buildvcs=auto quietly
+# decide, and it means the builder no longer needs git installed.
 # https://github.com/odigos-io/go-rtml#about-ldflags-checklinkname0
-RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -tags memoryprotection -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -tags memoryprotection -buildvcs=false -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
 
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
 FROM cgr.dev/chainguard/static@sha256:bf639cba19ba56329e6907ac26a7afcdde57a80b6aa66d5100da6883196e6b82

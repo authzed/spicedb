@@ -4,6 +4,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -33,6 +35,18 @@ func (Build) Wasm() error {
 // Testimage Build the spicedb image for tests
 func (Build) Testimage() error {
 	mg.Deps(checkDocker)
+
+	// Depot builders keep the Go module and build caches between builds, which a
+	// throwaway CI runner cannot. Use one when it is configured and available,
+	// and fall back to a plain local build otherwise: pull requests from forks
+	// get no repository secrets, so DEPOT_PROJECT_ID is empty for them.
+	if project := os.Getenv("DEPOT_PROJECT_ID"); project != "" && hasBinary("depot") {
+		fmt.Println("building the test image on a Depot builder")
+		return sh.RunV("depot", "build", "--project", project,
+			"--load", "-t", "authzed/spicedb:ci", ".")
+	}
+
+	fmt.Println("building the test image locally")
 	return sh.RunWithV(map[string]string{"DOCKER_BUILDKIT": "1"}, "docker",
 		"build", "-t", "authzed/spicedb:ci", ".")
 }
