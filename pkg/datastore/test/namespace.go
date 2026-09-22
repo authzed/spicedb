@@ -49,6 +49,30 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 }
 
+// A definition's LastWrittenRevision is not comparable against the revision
+// the read was performed at, and the suite below deliberately does not compare
+// them.
+//
+// Two of the five engines cannot make that comparison mean anything. On
+// Postgres a revision is a PostgreSQL snapshot and comparison is a partial
+// order over visibility, but the last-written revision is synthesized from the
+// row's created_xid alone: postgres.revisionForVersion builds the snapshot
+// "xid+1:xid+1:", which claims to know the disposition of *every* transaction
+// below the creating one. As soon as another transaction is in flight -- one
+// concurrent writer in the same database is enough, it does not take a shared
+// cluster -- that synthetic snapshot carries strictly more information than
+// the real snapshot it was read at, and so compares as greater than it. On
+// CockroachDB the last-written revision is revisions.NewHLCForTime over the
+// row's MVCC timestamp, which drops the logical counter, so it can land
+// strictly before the write it describes.
+//
+// No production code compares these values: every caller of
+// LastWrittenRevision (dispatch, graph, namespace lookup, the schema caches)
+// uses only the definition it comes with. The assertions kept below are the
+// ones that hold for every engine: the definition read back is the one that
+// was written, and the last-written revision is after the revision the test
+// started at.
+
 // NamespaceWriteTest tests whether or not the requirements for writing
 // namespaces hold for a particular datastore.
 func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
@@ -97,7 +121,6 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	found, createdRev, err := ds.SnapshotReader(secondWritten).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
-	require.False(createdRev.GreaterThan(secondWritten))
 	require.True(createdRev.GreaterThan(startRevision))
 	foundDiff := cmp.Diff(testNamespace, found, protocmp.Transform())
 	require.Empty(foundDiff)
@@ -109,14 +132,12 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision).LegacyReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
-	require.False(createdRev.GreaterThan(updatedRevision))
 	require.True(createdRev.GreaterThan(startRevision))
 	foundUpdated := cmp.Diff(updatedNamespace, checkUpdated, protocmp.Transform())
 	require.Empty(foundUpdated)
 
 	checkOld, createdRev, err := ds.SnapshotReader(writtenRev).LegacyReadNamespaceByName(ctx, testUserNamespace)
 	require.NoError(err)
-	require.False(createdRev.GreaterThan(writtenRev))
 	require.True(createdRev.GreaterThan(startRevision))
 	require.Empty(cmp.Diff(testUserNS, checkOld, protocmp.Transform()))
 
@@ -172,10 +193,9 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 
-	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	found, _, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NoError(err)
 	require.NotNil(found)
-	require.True(nsCreatedRev.LessThan(deletedRev))
 
 	allNamespaces, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
 	require.NoError(err)
@@ -220,10 +240,9 @@ func NamespaceDeleteNoRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	_, _, err = ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
 	require.ErrorAs(err, &datastore.NamespaceNotFoundError{})
 
-	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
+	found, _, err := ds.SnapshotReader(deletedRev).LegacyReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NoError(err)
 	require.NotNil(found)
-	require.True(nsCreatedRev.LessThan(deletedRev))
 
 	allNamespaces, err := ds.SnapshotReader(deletedRev).LegacyListAllNamespaces(ctx)
 	require.NoError(err)

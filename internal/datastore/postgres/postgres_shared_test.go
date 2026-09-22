@@ -43,6 +43,17 @@ const disableBackgroundGC = time.Duration(test.DisableBackgroundGC)
 
 var pgFactory = test.NewTesterFactory(&pgconn.PgError{Code: pgSerializationFailure})
 
+// The shared datastore suite runs its subtests in parallel, on Postgres too.
+// The GC calls below stay serial because those tests take exclusive locks; the
+// rest share one container, each with its own database.
+//
+// Note that a test comparing a synthesized revision (one built from a single
+// xid, rather than from a real pg_current_snapshot) against a real snapshot
+// will see an ordering that does not hold. A single concurrent writer is
+// enough for that - it does not need parallel subtests, or a shared cluster;
+// serial runs simply never have one. See the note above NamespaceWriteTest in
+// pkg/datastore/test.
+
 type postgresTestConfig struct {
 	migrationPhase string
 	pgVersion      string
@@ -88,7 +99,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return ds
 			})
 			return ds, nil
-		}))
+		}), test.RunSubtestsSerially())
 
 		t.Run("TestLocking", createMultiDatastoreTest(
 			b,
@@ -354,7 +365,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		}))
+		}), test.RunSubtestsSerially())
 	})
 }
 

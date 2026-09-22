@@ -161,7 +161,12 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+	// This test is about whether a revision survives serialization through the
+	// dispatch layer, not about how quickly a write completes. The deadline is
+	// only here so a hung write fails the test instead of hanging it, so it is
+	// generous: one second was enough when the suite ran one test at a time, and
+	// is not when a hundred of them share a database server.
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	revToTest, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.LegacyWriteNamespaces(ctx, testNamespace)
