@@ -34,12 +34,17 @@ jobs:
             codechange:
               - ".github/workflows/build-test.yaml"
               - "Dockerfile"
+              - ".dockerignore"
               - "go.mod"
               - "go.sum"
               - "cmd/**"
               - "pkg/**"
               - "e2e/**"
               - "internal/**"
+              # magefiles drives every job below, so a change here can break
+              # them all. Without it a magefiles-only pull request skips the
+              # very jobs it changes.
+              - "magefiles/**"
       - uses: "dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d" # v4.0.3
         id: "proto-filter"
         with:
