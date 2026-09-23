@@ -228,11 +228,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		},
 		ResourceIds:     parentRequest.ResourceIds,
 		SubjectRelation: parentRequest.SubjectRelation,
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     parentRequest.Revision.String(),
-			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-			SchemaHash:     parentRequest.Metadata.SchemaHash,
-		},
+		Metadata:        childMetaWithoutBloom(parentRequest.Metadata, parentRequest.Revision.String()),
 	}, stream)
 }
 
@@ -339,11 +335,7 @@ func lookupViaIntersectionTupleToUserset(
 				},
 				ResourceIds:     []string{rel.Subject.ObjectID},
 				SubjectRelation: parentRequest.SubjectRelation,
-				Metadata: &v1.ResolverMeta{
-					AtRevision:     parentRequest.Revision.String(),
-					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-					SchemaHash:     parentRequest.Metadata.SchemaHash,
-				},
+				Metadata:        childMetaWithoutBloom(parentRequest.Metadata, parentRequest.Revision.String()),
 			}, collectingStream)
 			if err != nil {
 				// Check if the dispatches for the resource were canceled, and if so, return nil to stop the task.
@@ -703,11 +695,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 					ResourceRelation: resourceType,
 					ResourceIds:      resourceIdChunk,
 					SubjectRelation:  parentRequest.SubjectRelation,
-					Metadata: &v1.ResolverMeta{
-						AtRevision:     parentRequest.Revision.String(),
-						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-						SchemaHash:     parentRequest.Metadata.SchemaHash,
-					},
+					Metadata:         childMetaWithoutBloom(parentRequest.Metadata, parentRequest.Revision.String()),
 				}, stream)
 			})
 		})
