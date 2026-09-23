@@ -17,6 +17,7 @@ import (
 	mock_datalayer "github.com/authzed/spicedb/pkg/datalayer/mocks"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/mocks"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 type (
@@ -66,6 +67,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		rev, _, _, err := RevisionFromContext(ctx)
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
+		require.Equal(t, dispatchv1.RevisionSource_REVISION_SOURCE_HEAD, RevisionSourceFromContext(ctx))
 	})
 
 	t.Run("sets head revision without service label", func(t *testing.T) {
@@ -86,6 +88,7 @@ func TestSetFullConsistencyRevisionToContext(t *testing.T) {
 		rev, _, _, err := RevisionFromContext(ctx)
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
+		require.Equal(t, dispatchv1.RevisionSource_REVISION_SOURCE_HEAD, RevisionSourceFromContext(ctx))
 	})
 
 	t.Run("returns nil for request without consistency interface", func(t *testing.T) {
@@ -144,6 +147,7 @@ func TestForceFullConsistencyUnaryServerInterceptor(t *testing.T) {
 		rev, _, _, err := RevisionFromContext(capturedCtx)
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
+		require.Equal(t, dispatchv1.RevisionSource_REVISION_SOURCE_HEAD, RevisionSourceFromContext(capturedCtx))
 	})
 
 	t.Run("returns error when HeadRevision fails", func(t *testing.T) {
@@ -248,6 +252,7 @@ func TestForceFullConsistencyStreamServerInterceptor(t *testing.T) {
 		rev, _, _, err := RevisionFromContext(wrapper.Context())
 		require.NoError(t, err)
 		require.Equal(t, mockRev, rev)
+		require.Equal(t, dispatchv1.RevisionSource_REVISION_SOURCE_HEAD, RevisionSourceFromContext(wrapper.Context()))
 	})
 
 	t.Run("recvWrapper returns error when HeadRevision fails", func(t *testing.T) {

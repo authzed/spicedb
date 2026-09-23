@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/pkg/datalayer"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // ForceFullConsistencyUnaryServerInterceptor returns a new unary server interceptor that enforces full consistency
@@ -60,6 +61,7 @@ func setFullConsistencyRevisionToContext(ctx context.Context, req any, dl datala
 		rh := handle.(*revisionHandle)
 		rh.revision = databaseRev
 		rh.schemaHash = hash
+		rh.source = dispatchv1.RevisionSource_REVISION_SOURCE_HEAD
 	}
 
 	return nil
