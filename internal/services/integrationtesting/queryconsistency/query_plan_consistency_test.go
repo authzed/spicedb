@@ -85,6 +85,7 @@ func runQueryPlanConsistencyForFile(t *testing.T, filePath string) {
 	})
 
 	t.Run("lookup_subjects", func(t *testing.T) {
+		// TODO: Remove this gate once LookupSubjects handles wildcard exclusions consistently.
 		// LookupSubjects consistency is still gated: the query planner diverges from
 		// the dispatcher on wildcard-with-exclusion schemas (e.g. wildcardnested.yaml,
 		// publicwithexclusion.yaml). That is a separate defect from the recursion work

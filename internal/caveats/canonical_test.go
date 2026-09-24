@@ -6,16 +6,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConditionTop(t *testing.T) {
-	require.True(t, Top().IsTop())
-	require.Equal(t, "true", Top().String())
+func TestConditionUnconditional(t *testing.T) {
+	require.True(t, Unconditional().IsUnconditional())
+	require.Equal(t, "true", Unconditional().String())
 
 	// A nil expression is unconditional.
-	require.True(t, FromExpression(nil).IsTop())
+	require.True(t, FromExpression(nil).IsUnconditional())
 
 	// A single caveat is conditional.
 	c1 := FromExpression(CaveatExprForTesting("cav1"))
-	require.False(t, c1.IsTop())
+	require.False(t, c1.IsUnconditional())
 	require.Equal(t, "cav1", c1.String())
 	require.Equal(t, 1, c1.Disjuncts())
 }
@@ -34,10 +34,10 @@ func TestConditionAndIsCommutative(t *testing.T) {
 	require.Equal(t, a.String(), b.String())
 }
 
-func TestConditionAndWithTopIsIdentity(t *testing.T) {
+func TestConditionAndWithUnconditionalIsIdentity(t *testing.T) {
 	c1 := FromExpression(CaveatExprForTesting("cav1"))
-	require.Equal(t, "cav1", Top().And(c1).String())
-	require.Equal(t, "cav1", c1.And(Top()).String())
+	require.Equal(t, "cav1", Unconditional().And(c1).String())
+	require.Equal(t, "cav1", c1.And(Unconditional()).String())
 }
 
 func TestConditionAndDistributesOverOr(t *testing.T) {
@@ -61,17 +61,17 @@ func TestConditionOrIdempotentReportsUnchanged(t *testing.T) {
 	require.Equal(t, "cav1", res.String())
 }
 
-func TestConditionOrAbsorbsTop(t *testing.T) {
+func TestConditionOrAbsorbsUnconditional(t *testing.T) {
 	c1 := FromExpression(CaveatExprForTesting("cav1"))
 
-	// A conditional weakened by Top becomes unconditional (a change).
-	res, changed := c1.Or(Top())
-	require.True(t, res.IsTop())
+	// A conditional weakened by an unconditional path becomes unconditional (a change).
+	res, changed := c1.Or(Unconditional())
+	require.True(t, res.IsUnconditional())
 	require.True(t, changed)
 
-	// Top OR anything stays Top (no change).
-	res2, changed2 := Top().Or(c1)
-	require.True(t, res2.IsTop())
+	// An unconditional path OR anything stays unconditional (no change).
+	res2, changed2 := Unconditional().Or(c1)
+	require.True(t, res2.IsUnconditional())
 	require.False(t, changed2)
 }
 
@@ -101,7 +101,7 @@ func TestConditionContextDistinguishesAtoms(t *testing.T) {
 }
 
 func TestConditionExpressionRoundTrip(t *testing.T) {
-	require.Nil(t, Top().Expression())
+	require.Nil(t, Unconditional().Expression())
 
 	orig := FromExpression(And(CaveatExprForTesting("cav1"), CaveatExprForTesting("cav2")))
 	rebuilt := FromExpression(orig.Expression())
