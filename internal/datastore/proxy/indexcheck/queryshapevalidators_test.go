@@ -739,6 +739,88 @@ func TestValidateQueryShape(t *testing.T) {
 			errorMsg:    "subject relation required",
 		},
 		{
+			// The exact filter pkg/query/reader.go QueryResources builds for a
+			// forward MatchingResourcesForSubject query, with an ellipsis subject.
+			name:  "MatchingResourcesForSubject - valid, ellipsis subject",
+			shape: queryshape.MatchingResourcesForSubject,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"user1"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			// subject_relation is possibly-specified (🅿️) for this shape, so a
+			// non-ellipsis subject relation must also be accepted.
+			name:  "MatchingResourcesForSubject - valid, non-ellipsis subject relation",
+			shape: queryshape.MatchingResourcesForSubject,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "group",
+						OptionalSubjectIds:  []string{"admins"},
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member"),
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:  "MatchingResourcesForSubject - missing resource type",
+			shape: queryshape.MatchingResourcesForSubject,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"user1"},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "resource type required",
+		},
+		{
+			name:  "MatchingResourcesForSubject - has resource ids",
+			shape: queryshape.MatchingResourcesForSubject,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceIds:      []string{"doc1"},
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"user1"},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "no optional resource ids allowed",
+		},
+		{
+			name:  "MatchingResourcesForSubject - missing subject ids",
+			shape: queryshape.MatchingResourcesForSubject,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "subject ids required",
+		},
+		{
 			name:        "Unknown shape - error",
 			shape:       "unknown-shape",
 			filter:      datastore.RelationshipsFilter{},
