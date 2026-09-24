@@ -54,7 +54,7 @@ func (Test) unit(ctx context.Context, coverage bool) error {
 
 // Image Run tests that run the built image
 func (Test) Image(ctx context.Context) error {
-	mg.Deps(Build{}.Testimage)
+	mg.Deps(Build{}.Testimage, dockerForTests)
 	dirs, err := findDirsWithBuildTag("image")
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (Test) Image(ctx context.Context) error {
 
 // Integration Run integration tests
 func (Test) Integration(ctx context.Context) error {
-	mg.Deps(checkDocker)
+	mg.Deps(dockerForTests)
 	dirs, err := findDirsWithBuildTag("integration")
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (Test) E2e(ctx context.Context, crdbVersion string) error {
 
 // IntegrationCover Run integration tests with cover
 func (Test) IntegrationCover(ctx context.Context) error {
-	mg.Deps(checkDocker)
+	mg.Deps(dockerForTests)
 	dirs, err := findDirsWithBuildTag("integration")
 	if err != nil {
 		return err
@@ -219,7 +219,7 @@ func (Testds) Mysql(ctx context.Context) error {
 func datastoreTest(ctx context.Context, datastore string, env map[string]string, tags ...string) error {
 	mergedTags := append([]string{"ci", "datastore"}, tags...)
 	tagString := strings.Join(mergedTags, ",")
-	mg.Deps(checkDocker)
+	mg.Deps(dockerForTests)
 	args := []string{"-tags", tagString}
 	args = append(args, coverageFlags...)
 	return goDirTestWithEnv(ctx, ".", fmt.Sprintf("./internal/datastore/%s/...", datastore), env, args...)
@@ -279,7 +279,7 @@ func (Testcons) Mysql(ctx context.Context) error {
 }
 
 func consistencyTest(ctx context.Context, datastore string, env map[string]string) error {
-	mg.Deps(checkDocker)
+	mg.Deps(dockerForTests)
 	args := []string{
 		"-tags", "ci,datastoreconsistency",
 		"-run", fmt.Sprintf("TestConsistencyPerDatastore/%s", datastore),

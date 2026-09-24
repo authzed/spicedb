@@ -9,6 +9,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/magefile/mage/mg"
@@ -61,6 +63,74 @@ func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
 	}, args...)
 
 	return testArgs, nil
+}
+
+// dockerForTests checks Docker is usable and pulls the Testcontainers reaper image
+// before any test binary starts. Use it instead of checkDocker for targets that run
+// tests against containers.
+func dockerForTests() error {
+	if err := checkDocker(); err != nil {
+		return err
+	}
+	pullReaperImage()
+	return nil
+}
+
+// pullReaperImage pulls the Testcontainers reaper ("Ryuk") image up front.
+//
+// go test runs packages concurrently, and every package in one invocation shares a
+// Testcontainers session id - it is a hash of the parent pid - so they all want the
+// same reaper container, named reaper_<session id>. The first package to get there
+// creates it and the rest reuse it. A package that loses that race gets a name
+// conflict from the daemon, which testcontainers-go retries for a fixed 20 second
+// budget it does not let us configure.
+//
+// Pulling the reaper image is part of creating it, and on a cold runner the pull can
+// eat that whole budget, so the losing package gives up with "the container name
+// /reaper_... is already in use" instead of reusing the reaper that now exists.
+// Pulling it here means creating the reaper is fast enough for the retry to work.
+//
+// Best effort: a failed pull leaves the tests to pull it themselves, as they do today.
+func pullReaperImage() {
+	if os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true" {
+		return
+	}
+
+	image, err := reaperImage()
+	if err != nil {
+		fmt.Printf("warning: could not work out the testcontainers reaper image: %v\n", err)
+		return
+	}
+	if err := sh.Run("docker", "pull", "--quiet", image); err != nil {
+		fmt.Printf("warning: could not pull %s up front: %v\n", image, err)
+	}
+}
+
+var reaperImagePattern = regexp.MustCompile(`ReaperDefaultImage\s*=\s*"([^"]+)"`)
+
+// reaperImage reads the reaper image name out of the testcontainers-go version this
+// repository depends on, so that bumping the dependency cannot leave us pulling a tag
+// the tests no longer use. testcontainers-go keeps the name in an internal package,
+// which is why this reads the source rather than importing it.
+func reaperImage() (string, error) {
+	dir, err := sh.Output("go", "list", "-m", "-f", "{{.Dir}}", "github.com/testcontainers/testcontainers-go")
+	if err != nil {
+		return "", err
+	}
+	if dir == "" {
+		return "", fmt.Errorf("testcontainers-go is not downloaded")
+	}
+
+	source, err := os.ReadFile(filepath.Join(dir, "internal", "config", "config.go"))
+	if err != nil {
+		return "", err
+	}
+
+	match := reaperImagePattern.FindSubmatch(source)
+	if match == nil {
+		return "", fmt.Errorf("no ReaperDefaultImage in %s", dir)
+	}
+	return string(match[1]), nil
 }
 
 // check if docker is installed and running
