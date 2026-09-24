@@ -22,11 +22,11 @@ import (
 //   - ⊤ (unconditional) is absorbing under OR: once an object is reachable
 //     unconditionally, no further path can weaken it.
 //
-// The zero value is the "false" condition (no disjuncts); use Top() for the
+// The zero value is the "false" condition (no disjuncts); use Unconditional() for the
 // unconditional condition and FromExpression to derive one from a caveat.
 type Condition struct {
-	top       bool
-	disjuncts [][]atom // OR of conjuncts; each conjunct sorted+deduped by atom key, non-empty
+	unconditional bool
+	disjuncts     [][]atom // OR of conjuncts; each conjunct sorted+deduped by atom key, non-empty
 }
 
 // atom is a single indivisible leaf of a condition: a contextualized caveat, or
@@ -38,16 +38,16 @@ type atom struct {
 	expr *core.CaveatExpression
 }
 
-// Top returns the unconditional (always-true) condition.
-func Top() Condition {
-	return Condition{top: true}
+// Unconditional returns the unconditional (always-true) condition.
+func Unconditional() Condition {
+	return Condition{unconditional: true}
 }
 
 // FromExpression converts a caveat expression into its canonical DNF. A nil
-// expression is unconditional and yields Top().
+// expression is unconditional and yields Unconditional().
 func FromExpression(expr *core.CaveatExpression) Condition {
 	if expr == nil {
-		return Top()
+		return Unconditional()
 	}
 	return fromExpr(expr)
 }
@@ -64,7 +64,7 @@ func fromExpr(expr *core.CaveatExpression) Condition {
 
 	switch op.GetOp() {
 	case core.CaveatOperation_AND:
-		result := Top()
+		result := Unconditional()
 		for _, child := range op.GetChildren() {
 			result = result.And(fromExpr(child))
 		}
@@ -85,22 +85,22 @@ func fromExpr(expr *core.CaveatExpression) Condition {
 	}
 }
 
-// IsTop reports whether the condition is unconditional.
-func (c Condition) IsTop() bool {
-	return c.top
+// IsUnconditional reports whether the condition is unconditional.
+func (c Condition) IsUnconditional() bool {
+	return c.unconditional
 }
 
-// Disjuncts returns the number of DNF disjuncts (0 for Top or false).
+// Disjuncts returns the number of DNF disjuncts (0 for unconditional or false).
 func (c Condition) Disjuncts() int {
 	return len(c.disjuncts)
 }
 
 // And returns the canonical conjunction of the two conditions.
 func (c Condition) And(other Condition) Condition {
-	if c.top {
+	if c.unconditional {
 		return other
 	}
-	if other.top {
+	if other.unconditional {
 		return c
 	}
 	// false AND x == false
@@ -124,11 +124,11 @@ func (c Condition) And(other Condition) Condition {
 // Or returns the canonical disjunction of the two conditions, and reports whether
 // the result differs from the receiver — i.e. whether other *weakened* c.
 func (c Condition) Or(other Condition) (Condition, bool) {
-	if c.top {
+	if c.unconditional {
 		return c, false
 	}
-	if other.top {
-		return Top(), true
+	if other.unconditional {
+		return Unconditional(), true
 	}
 
 	combined := make([][]atom, 0, len(c.disjuncts)+len(other.disjuncts))
@@ -138,10 +138,10 @@ func (c Condition) Or(other Condition) (Condition, bool) {
 	return result, !result.equalTo(c)
 }
 
-// Expression rebuilds a caveat expression equivalent to this condition. Top()
+// Expression rebuilds a caveat expression equivalent to this condition. Unconditional()
 // (and the degenerate false condition) yield nil.
 func (c Condition) Expression() *core.CaveatExpression {
-	if c.top || len(c.disjuncts) == 0 {
+	if c.unconditional || len(c.disjuncts) == 0 {
 		return nil
 	}
 
@@ -158,7 +158,7 @@ func (c Condition) Expression() *core.CaveatExpression {
 
 // String returns a deterministic, human-readable rendering of the DNF.
 func (c Condition) String() string {
-	if c.top {
+	if c.unconditional {
 		return "true"
 	}
 	if len(c.disjuncts) == 0 {
@@ -176,7 +176,7 @@ func (c Condition) String() string {
 }
 
 func (c Condition) equalTo(other Condition) bool {
-	if c.top != other.top || len(c.disjuncts) != len(other.disjuncts) {
+	if c.unconditional != other.unconditional || len(c.disjuncts) != len(other.disjuncts) {
 		return false
 	}
 	for i := range c.disjuncts {
@@ -199,13 +199,13 @@ func singleAtom(a atom) Condition {
 // normalizeCondition sorts and dedupes atoms within each conjunct, drops any
 // conjunct subsumed by a smaller one, dedupes identical conjuncts, and sorts the
 // disjuncts — yielding the canonical form. An empty conjunct means "true" and
-// collapses the whole condition to Top.
+// collapses the whole condition to Unconditional.
 func normalizeCondition(disjuncts [][]atom) Condition {
 	reduced := make([][]atom, 0, len(disjuncts))
 	for _, conjunct := range disjuncts {
 		conjunct = sortDedupeAtoms(conjunct)
 		if len(conjunct) == 0 {
-			return Top()
+			return Unconditional()
 		}
 		reduced = append(reduced, conjunct)
 	}

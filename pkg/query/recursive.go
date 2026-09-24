@@ -294,7 +294,7 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 		// so the fixpoint terminates even on cyclic data.
 		reached := make(map[string]caveats.Condition)
 
-		reached[resource.Key()] = caveats.Top()
+		reached[resource.Key()] = caveats.Unconditional()
 		frontier := []frontierEntry{
 			{
 				Subject: ObjectAndRelation{
@@ -302,7 +302,7 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 					ObjectID:   resource.ObjectID,
 					Relation:   tuple.Ellipsis,
 				},
-				Condition: caveats.Top(),
+				Condition: caveats.Unconditional(),
 			},
 		}
 
@@ -430,7 +430,7 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 			// Add sentinel-collected objects to the frontier; they are unconditional.
 			for _, obj := range collectedObjects {
 				objKey := obj.Key()
-				newCondition, changed := reached[objKey].Or(caveats.Top())
+				newCondition, changed := reached[objKey].Or(caveats.Unconditional())
 				if !changed {
 					if ctx.shouldTrace() {
 						ctx.TraceStep(r, "Ply %d: skipping collected object %s (already unconditional)", ply, objKey)
@@ -444,7 +444,7 @@ func (r *RecursiveIterator) breadthFirstIterSubjects(ctx *Context, resource Obje
 						ObjectID:   obj.ObjectID,
 						Relation:   tuple.Ellipsis,
 					},
-					Condition: caveats.Top(),
+					Condition: caveats.Unconditional(),
 				})
 				if ctx.shouldTrace() {
 					ctx.TraceStep(r, "Ply %d: adding collected object %s to frontier", ply, objKey)
