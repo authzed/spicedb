@@ -190,6 +190,24 @@ message ResolverMeta {
   string request_id = 3 [deprecated = true];
   bytes traversal_bloom = 4 [(buf.validate.field).bytes = {max_len: 1024}];
   bytes schema_hash = 5;
+  // revision_source records how at_revision was selected from the API request's
+  // consistency. Caches that only hold quantized revisions (secondary dispatchers)
+  // can use it to skip requests they can never serve.
+  RevisionSource revision_source = 6;
+}
+
+enum RevisionSource {
+  // Not set: older peers/callers, or code paths without API consistency (dev tools, tests).
+  REVISION_SOURCE_UNSPECIFIED = 0;
+  // The datastore's quantized optimized revision: minimize_latency (or no consistency),
+  // or at_least_as_fresh where the optimized revision was newer than the ZedToken.
+  REVISION_SOURCE_OPTIMIZED = 1;
+  // The datastore's head revision: fully_consistent, forced full consistency, or a
+  // ZedToken from a different datastore treated as full consistency.
+  REVISION_SOURCE_HEAD = 2;
+  // A revision supplied by the caller: at_least_as_fresh where the ZedToken won,
+  // at_exact_snapshot, or a revision decoded from a cursor.
+  REVISION_SOURCE_REQUESTED = 3;
 }
 
 message ResponseMeta {

@@ -48,6 +48,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_OPTIMIZED, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -74,6 +75,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_OPTIMIZED, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -100,6 +102,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	require.NoError(err)
 
 	require.True(head.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_HEAD, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -127,6 +130,35 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_REQUESTED, RevisionSourceFromContext(updated))
+	ds.AssertExpectations(t)
+}
+
+func TestAddRevisionToContextAtLeastAsFreshOptimizedWins(t *testing.T) {
+	require := require.New(t)
+
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: optimizedWithHash.Revision, SchemaHash: optimizedWithHash.SchemaHash}, nil).Once()
+	ds.On("RevisionFromString", zero.String()).Return(zero, nil).Once()
+	dl := datalayer.NewDataLayer(ds)
+
+	updated := ContextWithHandle(t.Context())
+	updated = datalayer.ContextWithDataLayer(updated, dl)
+
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(zero, datalayer.NoSchemaHashInLegacyZedToken),
+			},
+		},
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
+	require.NoError(err)
+
+	rev, _, _, err := RevisionFromContext(updated)
+	require.NoError(err)
+
+	require.True(optimized.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_OPTIMIZED, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -154,6 +186,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_REQUESTED, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -191,6 +224,7 @@ func TestAddRevisionToContextNoConsistencyAPI(t *testing.T) {
 
 	_, _, _, err := RevisionFromContext(updated)
 	require.Error(err)
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_UNSPECIFIED, RevisionSourceFromContext(updated))
 }
 
 func TestAddRevisionToContextWithCursor(t *testing.T) {
@@ -224,6 +258,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_REQUESTED, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -267,6 +302,7 @@ func TestAddRevisionToContextWithCursorAndSchemaHash(t *testing.T) {
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_REQUESTED, RevisionSourceFromContext(updated))
 	require.Equal(datalayer.SchemaHash("myspecialschema"), schemaHash)
 	ds.AssertExpectations(t)
 }
@@ -305,6 +341,10 @@ func TestRevisionFromContextMissingConsistency(t *testing.T) {
 	require.Error(t, err)
 	grpcutil.RequireStatus(t, codes.Internal, err)
 	require.ErrorContains(t, err, "consistency middleware did not inject revision")
+}
+
+func TestRevisionSourceFromContextWithoutHandle(t *testing.T) {
+	require.Equal(t, dispatch.RevisionSource_REVISION_SOURCE_UNSPECIFIED, RevisionSourceFromContext(t.Context()))
 }
 
 func TestRewriteDatastoreError(t *testing.T) {
@@ -439,6 +479,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 	require.NoError(err)
 
 	require.True(optimized.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_OPTIMIZED, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -474,6 +515,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 	require.NoError(err)
 
 	require.True(head.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_HEAD, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }
 
@@ -589,5 +631,6 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
+	require.Equal(dispatch.RevisionSource_REVISION_SOURCE_REQUESTED, RevisionSourceFromContext(updated))
 	ds.AssertExpectations(t)
 }

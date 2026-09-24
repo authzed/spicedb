@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -22,6 +23,7 @@ type groupingParameters struct {
 	maximumAPIDepth      uint32
 	maxCaveatContextSize int
 	withTracing          bool
+	revisionSource       dispatchv1.RevisionSource
 }
 
 // groupItems takes a slice of CheckBulkPermissionsRequestItem and groups them based
@@ -64,12 +66,13 @@ func checkParametersFromCheckBulkPermissionsRequestItem(
 	}
 
 	return &computed.CheckParameters{
-		ResourceType:  tuple.RR(bc.Resource.ObjectType, bc.Permission),
-		Subject:       tuple.ONR(bc.Subject.Object.ObjectType, bc.Subject.Object.ObjectId, normalizeSubjectRelation(bc.Subject)),
-		CaveatContext: caveatContext,
-		AtRevision:    params.atRevision,
-		MaximumDepth:  params.maximumAPIDepth,
-		DebugOption:   debugOption,
-		SchemaHash:    params.schemaHash,
+		ResourceType:   tuple.RR(bc.Resource.ObjectType, bc.Permission),
+		Subject:        tuple.ONR(bc.Subject.Object.ObjectType, bc.Subject.Object.ObjectId, normalizeSubjectRelation(bc.Subject)),
+		CaveatContext:  caveatContext,
+		AtRevision:     params.atRevision,
+		MaximumDepth:   params.maximumAPIDepth,
+		DebugOption:    debugOption,
+		SchemaHash:     params.schemaHash,
+		RevisionSource: params.revisionSource,
 	}
 }

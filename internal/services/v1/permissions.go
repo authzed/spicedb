@@ -124,13 +124,14 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
 		ps.config.CaveatTypeSet,
 		computed.CheckParameters{
-			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
-			Subject:       tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
-			CaveatContext: caveatContext,
-			AtRevision:    atRevision,
-			MaximumDepth:  ps.config.MaximumAPIDepth,
-			DebugOption:   debugOption,
-			SchemaHash:    schemaHash,
+			ResourceType:   tuple.RR(req.Resource.ObjectType, req.Permission),
+			Subject:        tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
+			CaveatContext:  caveatContext,
+			AtRevision:     atRevision,
+			MaximumDepth:   ps.config.MaximumAPIDepth,
+			DebugOption:    debugOption,
+			SchemaHash:     schemaHash,
+			RevisionSource: consistency.RevisionSourceFromContext(ctx),
 		},
 		req.Resource.ObjectId,
 		ps.config.DispatchChunkSize,
@@ -278,6 +279,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 			DepthRemaining: ps.config.MaximumAPIDepth,
 			TraversalBloom: bf,
 			SchemaHash:     []byte(schemaHash),
+			RevisionSource: consistency.RevisionSourceFromContext(ctx),
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
@@ -616,6 +618,7 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				DepthRemaining: ps.config.MaximumAPIDepth,
 				TraversalBloom: bf,
 				SchemaHash:     []byte(schemaHash),
+				RevisionSource: consistency.RevisionSourceFromContext(ctx),
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.ResourceObjectType,
@@ -775,6 +778,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 				DepthRemaining: ps.config.MaximumAPIDepth,
 				TraversalBloom: bf,
 				SchemaHash:     []byte(schemaHash),
+				RevisionSource: consistency.RevisionSourceFromContext(ctx),
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.ResourceObjectType,
@@ -944,6 +948,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				DepthRemaining: ps.config.MaximumAPIDepth,
 				TraversalBloom: bf,
 				SchemaHash:     []byte(schemaHash),
+				RevisionSource: consistency.RevisionSourceFromContext(ctx),
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,
