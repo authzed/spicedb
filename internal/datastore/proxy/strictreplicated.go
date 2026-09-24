@@ -72,6 +72,18 @@ type strictReplicatedDatastore struct {
 	lastReplica uint64
 }
 
+// Unwrap returns the primary datastore.
+//
+// Without this, datastore.UnwrapAs stops at this proxy, because it walks the chain
+// through UnwrappableDatastore and an embedded datastore.Datastore does not promote
+// an Unwrap method. Every optional capability behind the primary - garbage
+// collection, repair, bulk-export partitioning - then reads as absent the moment a
+// read replica is configured. The replicas are not reachable this way by design:
+// those capabilities belong to the primary.
+func (rd *strictReplicatedDatastore) Unwrap() datastore.Datastore {
+	return rd.Datastore
+}
+
 // SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 // Any errors establishing the reader will be returned by subsequent calls.
 func (rd *strictReplicatedDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {

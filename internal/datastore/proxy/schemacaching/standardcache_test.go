@@ -1158,3 +1158,17 @@ func TestMixedInvalidNamespacesInCache(t *testing.T) {
 	require.Equal(validNamespace, found[0].Definition.Name)
 	require.NoError(err)
 }
+
+// TestDefinitionCachingProxyUnwrap ensures the proxy can be traversed by
+// datastore.UnwrapAs. It is the outermost datastore in the default server
+// configuration, so if it does not declare Unwrap, no optional datastore
+// capability behind it can be found at all.
+func TestDefinitionCachingProxyUnwrap(t *testing.T) {
+	delegate := &proxy_test.MockDatastore{}
+	proxy := MustNewDefinitionCachingProxy(delegate, cacheForTest(t))
+	t.Cleanup(proxy.c.Close)
+
+	unwrappable, ok := datastore.Datastore(proxy).(datastore.UnwrappableDatastore)
+	require.True(t, ok, "definitionCachingProxy must implement UnwrappableDatastore")
+	require.Equal(t, datastore.Datastore(delegate), unwrappable.Unwrap())
+}

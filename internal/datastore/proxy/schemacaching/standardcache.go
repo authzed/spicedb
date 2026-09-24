@@ -46,6 +46,16 @@ func MustNewDefinitionCachingProxy(delegate datastore.Datastore, c cache.Cache[c
 	return &definitionCachingProxy{Datastore: delegate, c: c}
 }
 
+// Unwrap returns the datastore this proxy caches over.
+//
+// This proxy is the outermost datastore in the default server configuration, so
+// without it datastore.UnwrapAs cannot reach any optional capability at all: an
+// embedded datastore.Datastore does not promote an Unwrap method, and UnwrapAs
+// walks the chain through UnwrappableDatastore.
+func (p *definitionCachingProxy) Unwrap() datastore.Datastore {
+	return p.Datastore
+}
+
 func (p *definitionCachingProxy) Close() error {
 	p.c.Close()
 	return p.Datastore.Close()
