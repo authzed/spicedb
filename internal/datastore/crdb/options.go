@@ -409,6 +409,10 @@ func WithWatchDisabled(isDisabled bool) Option {
 
 // WithAcquireTimeout configures the amount of time to wait to acquire a connection
 // from the pool with Try* methods before applying backpressure.
+//
+// It bounds how long a write waits on a pool whose connections are all in use.
+// A pool that is still opening its connections is given longer, because there
+// is no overload to push back on while it fills. See pool.RetryPool.TryBeginFunc.
 func WithAcquireTimeout(timeout time.Duration) Option {
 	return func(po *crdbOptions) { po.acquireTimeout = timeout }
 }
