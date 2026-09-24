@@ -63,18 +63,7 @@ func MigrationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, ds.Close())
 	t.Logf("running migration test for engine %q", engineKey)
 
-	var datastoreURI string
-	if provider, ok := migrationTestConfigs[engineKey]; ok {
-		t.Logf("creating an empty test database via the registered migration test config")
-		datastoreURI = provider(t)
-	} else {
-		if !slices.Contains(migration.Engines(), engineKey) {
-			t.Skipf("engine %q is not migratable; register it via migration.RegisterMigratableEngine and RegisterMigrationTestConfig", engineKey)
-		}
-		t.Logf("creating an empty test database via testdatastore")
-		datastoreURI = testdatastore.RunDatastoreEngine(t, engineKey).NewDatabase(t)
-	}
-	t.Logf("test database URI: %s", datastoreURI)
+	datastoreURI := newEmptyDatabase(t, engineKey)
 
 	migrationNames, err := migration.MigrationNames(engineKey)
 	require.NoError(t, err)
@@ -116,6 +105,27 @@ func MigrationTest(t *testing.T, tester DatastoreTester) {
 		writeStepSchema(t, schemaClient, step)
 		requireStepSchema(t, schemaClient, step)
 	}
+}
+
+// newEmptyDatabase returns the URI of an empty database for the given engine
+// that has had no migrations applied. It skips the test if the engine is not
+// migratable.
+func newEmptyDatabase(t *testing.T, engineKey string) string {
+	t.Helper()
+
+	var datastoreURI string
+	if provider, ok := migrationTestConfigs[engineKey]; ok {
+		t.Logf("creating an empty test database via the registered migration test config")
+		datastoreURI = provider(t)
+	} else {
+		if !slices.Contains(migration.Engines(), engineKey) {
+			t.Skipf("engine %q is not migratable; register it via migration.RegisterMigratableEngine and RegisterMigrationTestConfig", engineKey)
+		}
+		t.Logf("creating an empty test database via testdatastore")
+		datastoreURI = testdatastore.RunDatastoreEngine(t, engineKey).NewDatabase(t)
+	}
+	t.Logf("test database URI: %s", datastoreURI)
+	return datastoreURI
 }
 
 // startMigrationTestServer opens the given database at the migrations applied
