@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -38,6 +39,84 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 			db, validDBPattern.String())
 	}
 	return matches[1], matches[2], matches[3], nil
+}
+
+// checkpointTracker works out how far a Spanner change stream has been read.
+//
+// Spanner splits a change stream into partitions that are read at the same time
+// and independently of one another, so how far one partition has been read says
+// nothing about the others. A checkpoint promises the caller that it has seen
+// everything up to that revision, so it can only be as recent as the *least*
+// advanced partition currently being read. Each partition reports its progress
+// three ways: the commit timestamp of a change it hands over, a heartbeat while
+// it has no changes to hand over, and the start timestamp of the partitions
+// that replace it when it is split or merged.
+type checkpointTracker struct {
+	lock sync.Mutex
+
+	// readTo holds, for each partition still being read, the timestamp up to
+	// which that partition's changes have already been handed to the caller.
+	readTo map[string]time.Time // GUARDED_BY(lock)
+
+	// lastCheckpoint is the timestamp of the most recent checkpoint handed to
+	// the caller, so checkpoints never go backwards.
+	lastCheckpoint time.Time // GUARDED_BY(lock)
+}
+
+func newCheckpointTracker() *checkpointTracker {
+	return &checkpointTracker{readTo: make(map[string]time.Time)}
+}
+
+// readUpTo records that everything a partition has to say up to and including
+// the given timestamp has already been handed to the caller.
+func (ct *checkpointTracker) readUpTo(partitionToken string, timestamp time.Time) {
+	ct.lock.Lock()
+	defer ct.lock.Unlock()
+
+	if existing, ok := ct.readTo[partitionToken]; !ok || timestamp.After(existing) {
+		ct.readTo[partitionToken] = timestamp
+	}
+}
+
+// replacedBy records that a partition has been split or merged and that the
+// given partitions take over from it at the given timestamp. Spanner only ever
+// sends a child partitions record as the very last record of a partition, so by
+// the time this is called the replaced partition has nothing left to say and
+// can stop holding the checkpoint back.
+func (ct *checkpointTracker) replacedBy(partitionToken string, childTokens []string, startTimestamp time.Time) {
+	ct.lock.Lock()
+	defer ct.lock.Unlock()
+
+	for _, childToken := range childTokens {
+		// A merged partition is announced once by each of its parents; keep the
+		// value already recorded if it is further along.
+		if existing, ok := ct.readTo[childToken]; !ok || startTimestamp.After(existing) {
+			ct.readTo[childToken] = startTimestamp
+		}
+	}
+
+	delete(ct.readTo, partitionToken)
+}
+
+// nextCheckpoint returns the timestamp of the checkpoint to hand to the caller,
+// and false if the stream has not been read any further since the last one.
+func (ct *checkpointTracker) nextCheckpoint() (time.Time, bool) {
+	ct.lock.Lock()
+	defer ct.lock.Unlock()
+
+	var readEverywhereTo time.Time
+	for _, timestamp := range ct.readTo {
+		if readEverywhereTo.IsZero() || timestamp.Before(readEverywhereTo) {
+			readEverywhereTo = timestamp
+		}
+	}
+
+	if readEverywhereTo.IsZero() || !readEverywhereTo.After(ct.lastCheckpoint) {
+		return time.Time{}, false
+	}
+
+	ct.lastCheckpoint = readEverywhereTo
+	return readEverywhereTo, true
 }
 
 func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
@@ -183,6 +262,28 @@ func (sd *spannerDatastore) watch(
 	watchBufferSize := opts.MaximumBufferedChangesByteSize
 	if watchBufferSize == 0 {
 		watchBufferSize = sd.watchChangeBufferMaximumSize
+	}
+
+	wantsCheckpoints := opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints
+	tracker := newCheckpointTracker()
+
+	// Sending checkpoints is done under its own lock so that two partitions
+	// finishing at the same time cannot put their checkpoints on the channel out
+	// of order, which would look to the caller like the stream went backwards.
+	var checkpointLock sync.Mutex
+	sendCheckpoint := func() bool {
+		checkpointLock.Lock()
+		defer checkpointLock.Unlock()
+
+		checkpoint, ok := tracker.nextCheckpoint()
+		if !ok {
+			return true
+		}
+
+		return sendChange(datastore.RevisionChanges{
+			Revision:     revisions.NewForTime(checkpoint),
+			IsCheckpoint: true,
+		})
 	}
 
 	// NOTE: the callback below might be called concurrently across partitions.
@@ -381,21 +482,41 @@ func (sd *spannerDatastore) watch(
 							}
 						}
 					}
-				}
 
-				// When there are data changes written to the partition,
-				// data_change_record.commit_timestamp can be used instead of heartbeat_record.timestamp to tell
-				// that the reader is making forward progress in reading the partition.
-				if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
-					if !sendChange(datastore.RevisionChanges{
-						Revision:     revisions.NewForTime(dcr.CommitTimestamp),
-						IsCheckpoint: true,
-					}) {
-						return datastore.NewWatchDisconnectedErr()
-					}
+					// Everything this partition had at this commit timestamp is now on
+					// its way to the caller, so the partition has been read this far.
+					// Records still waiting on the rest of their transaction are
+					// deliberately not counted yet.
+					tracker.readUpTo(result.PartitionToken, dcr.CommitTimestamp)
 				}
 			}
+
+			// A heartbeat says the partition has no changes to report at or before
+			// its timestamp, which is the only thing that moves a quiet partition -
+			// and therefore a quiet database - forward.
+			for _, hbr := range record.HeartbeatRecords {
+				tracker.readUpTo(result.PartitionToken, hbr.Timestamp)
+			}
+
+			// A child partitions record is the last thing a partition sends before
+			// Spanner splits or merges it. The reader follows the new partitions on
+			// its own; all we do here is move the bookkeeping over to them.
+			for _, cpr := range record.ChildPartitionsRecords {
+				childTokens := make([]string, 0, len(cpr.ChildPartitions))
+				for _, childPartition := range cpr.ChildPartitions {
+					childTokens = append(childTokens, childPartition.Token)
+				}
+
+				tracker.replacedBy(result.PartitionToken, childTokens, cpr.StartTimestamp)
+			}
 		}
+
+		if wantsCheckpoints {
+			if !sendCheckpoint() {
+				return datastore.NewWatchDisconnectedErr()
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
