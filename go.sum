@@ -52,8 +52,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
-github.com/authzed/authzed-go v1.10.1-0.20260914203403-aa403252b2eb h1:67YICLTZXLQCk3lzPni0SQpXFso5HAKpeoj4mkhgNKI=
-github.com/authzed/authzed-go v1.10.1-0.20260914203403-aa403252b2eb/go.mod h1:WXNgNKexgfg+GlkNeZwKGCg0k2vzyV0hKz9kigZQ5qE=
+github.com/authzed/authzed-go v1.11.0 h1:D2WVK5T51cXknawOIqcDDYPkmbT7rObupRvelGbn/Gs=
+github.com/authzed/authzed-go v1.11.0/go.mod h1:gZsVWPwYoHCRA917aOI022U26ftvp9q2FP1gPlAsPeQ=
 github.com/authzed/cel-go v0.32.0 h1:1IQD9qFvem2DWdy3PyMNqbVJiyNCBUHbh7SjR9JfbPY=
 github.com/authzed/cel-go v0.32.0/go.mod h1:Jp4Wbt+Tbe8kiX6xz5xfIXy56qoqS0uB2R+mYn+MQnU=
 github.com/authzed/consistent v0.3.0 h1:CxVvDpxKlNsvRO4NBiCGn2NQV4p4KaLcwyrgGjrMYYU=
