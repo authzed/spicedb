@@ -70,9 +70,12 @@ func buildCursoredDeleteQuery(
 
 	order, index := cursorOrderForIndex(candidate)
 
-	// AVOID_FULL_SCAN is a soft hint: CockroachDB falls back to a full scan
-	// when no other plan exists, so it cannot make the statement fail. It is
-	// applied only on this path, never to ordinary deletes.
+	// AVOID_FULL_SCAN penalizes full scans of the forced index, so the optimizer
+	// prefers the constrained span built from the equality filters and cursor
+	// bounds below. It is the soft counterpart of NO_FULL_SCAN: an unconstrained
+	// filter (delete-everything, or the first batch before a cursor exists)
+	// legitimately scans from the start, and NO_FULL_SCAN would error that valid
+	// case. Applied only on this cursored path, never to ordinary deletes.
 	from := schemaInfo.RelationshipTableName +
 		"@{FORCE_INDEX=" + index.Name + ", AVOID_FULL_SCAN}"
 

@@ -190,10 +190,10 @@ func NewDeleteRelationshipsCommand(programName string, cfg *dscmd.Config, flags 
 
 Every filter flag is required. Pass ` + anyToken + ` to leave a component
 unconstrained; an omitted flag is an error, never a wildcard, so a forgotten
-flag cannot widen the deletion. Note that ` + anyToken + ` is not "*": "*" is a
-legitimate subject object id (the wildcard subject), so passing it to
---subject-id matches only wildcard relationships. Pass ` + ellipsisToken + ` to
---subject-relation to match subjects that have no relation.
+flag cannot widen the deletion. "*" is a literal subject object id (the
+wildcard subject), so passing it to --subject-id matches only wildcard
+relationships. Pass ` + ellipsisToken + ` to --subject-relation to match
+subjects that have no relation.
 
 On CockroachDB the deletion advances a primary-key cursor so each batch resumes
 where the last one stopped. On other engines it falls back to a slower loop that
