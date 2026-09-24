@@ -339,6 +339,10 @@ func QuantizedRevisionStaysReadableTest(t *testing.T, tester DatastoreTester) {
 		// before it in the datastore, which would put it in the previous bucket
 		// and test nothing. This margin absorbs any skew smaller than itself.
 		clockSkewBuffer = 100 * time.Millisecond
+
+		// How many times to retry a pass that ran too slowly to conclude
+		// anything. See onePass below.
+		maxAttempts = 5
 	)
 
 	require := require.New(t)
@@ -348,34 +352,80 @@ func QuantizedRevisionStaysReadableTest(t *testing.T, tester DatastoreTester) {
 		WithGCRetentionWindow(GCRetentionWindow(gcWindow)), 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	// Only here so a hung call fails the test instead of hanging it, with room
+	// for every attempt below.
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 
 	setupDatastore(t, ds)
 
-	// Land just inside a fresh bucket and write there, so that what gets
-	// advertised for the rest of the bucket dates from the top of it. Postgres
-	// and MySQL advertise the first transaction in the bucket, which is this
-	// write; memdb, CRDB and Spanner advertise the bucket start itself.
-	time.Sleep(time.Until(nextQuantizationBoundary(time.Now(), quantization)) + clockSkewBuffer)
+	// onePass writes at the top of a quantization bucket and then, at the far end
+	// of that same bucket, checks that the revision advertised there is still
+	// readable.
+	//
+	// Every revision goes stale once it is older than the GC window, so a step of
+	// this test that takes that long ages its own revision out whatever
+	// quantization does. onePass therefore times its steps and returns a reason
+	// rather than failing when they ran too slowly to conclude anything: the GC
+	// window is deliberately only twice the quantization, and a loaded machine
+	// overshoots that on its own.
+	onePass := func(attempt int) (tuple.Relationship, datastore.Revision, string) {
+		// Land just inside a fresh bucket and write there, so that what gets
+		// advertised for the rest of the bucket dates from the top of it. Postgres
+		// and MySQL advertise the first transaction in the bucket, which is this
+		// write; memdb, CRDB and Spanner advertise the bucket start itself.
+		time.Sleep(time.Until(nextQuantizationBoundary(time.Now(), quantization)) + clockSkewBuffer)
 
-	rel := makeTestRel("photo", "owner")
-	writtenAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rel)
-	require.NoError(err)
-	require.NoError(ds.CheckRevision(ctx, writtenAt))
-
-	// Sleep to the far end of the bucket, where the advertised revision is at
-	// its oldest and closest to aging out.
-	time.Sleep(time.Until(nextQuantizationBoundary(time.Now(), quantization)) - clockSkewBuffer)
-
-	// Sample a few times: every request in this bucket gets the same revision,
-	// so an aged-out one fails for all of them, not just one.
-	for range 5 {
-		optimized, err := ds.OptimizedRevision(ctx)
+		rel := makeTestRel(fmt.Sprintf("photo%d", attempt), "owner")
+		started := time.Now()
+		writtenAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rel)
 		require.NoError(err)
-		require.NoError(ds.CheckRevision(ctx, optimized.Revision),
-			"revision advertised at the end of the quantization window must still be within the GC window")
+
+		// The write's revision was assigned somewhere inside that call, so it is
+		// at most this old once the check has run.
+		checkErr := ds.CheckRevision(ctx, writtenAt)
+		if elapsed := time.Since(started); checkErr != nil && elapsed >= gcWindow {
+			return rel, writtenAt, fmt.Sprintf("writing a relationship and checking its revision took %s, a whole %s GC window", elapsed, gcWindow)
+		}
+		require.NoError(checkErr, "a revision that was just written must be readable")
+
+		// Sleep to the far end of the bucket, where the advertised revision is at
+		// its oldest and closest to aging out.
+		time.Sleep(time.Until(nextQuantizationBoundary(time.Now(), quantization)) - clockSkewBuffer)
+
+		// Sample a few times: every request in this bucket gets the same revision,
+		// so an aged-out one fails for all of them, not just one.
+		for range 5 {
+			started := time.Now()
+			optimized, err := ds.OptimizedRevision(ctx)
+			require.NoError(err)
+
+			// The advertised revision dates from the start of its bucket at the
+			// oldest, so it is at most a quantization plus this sample old.
+			checkErr := ds.CheckRevision(ctx, optimized.Revision)
+			if elapsed := time.Since(started); checkErr != nil && quantization+elapsed >= gcWindow {
+				return rel, writtenAt, fmt.Sprintf("reading the advertised revision and checking it took %s, which on top of the %s quantization reaches the %s GC window", elapsed, quantization, gcWindow)
+			}
+			require.NoError(checkErr,
+				"revision advertised at the end of the quantization window must still be within the GC window")
+		}
+
+		return rel, writtenAt, ""
 	}
+
+	var rel tuple.Relationship
+	var writtenAt datastore.Revision
+	var tooSlow []string
+	for attempt := range maxAttempts {
+		var reason string
+		rel, writtenAt, reason = onePass(attempt)
+		if reason == "" {
+			tooSlow = nil
+			break
+		}
+		tooSlow = append(tooSlow, reason)
+	}
+	require.Empty(tooSlow, "no attempt ran fast enough to test anything: %v", tooSlow)
 
 	// Now age the write out of the retention window. The second write gives the
 	// datastores that read the oldest valid revision off the transaction log a
