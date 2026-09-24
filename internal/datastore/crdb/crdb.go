@@ -241,6 +241,28 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
+	// Fill both pools before returning, so that the process is only reported as
+	// ready once it can actually serve traffic. See pool.RetryPool.Warmup.
+	//
+	// The two pools are warmed concurrently rather than one after the other:
+	// each has its own connect-rate limiter, so serialising them would add the
+	// two fill times together for no reason.
+	warmup, warmupCtx := errgroup.WithContext(ds.ctx)
+	warmup.Go(func() error { return ds.writePool.Warmup(warmupCtx) })
+	warmup.Go(func() error { return ds.readPool.Warmup(warmupCtx) })
+	if err := warmup.Wait(); err != nil {
+		ds.cancel()
+
+		// Deliberately not RedactAndLogSensitiveConnString: that replaces the
+		// message with a generic "run with --log-level=trace" one, and the
+		// whole value of this error is telling the operator which pool fell
+		// short and by how many connections. The message is built from the
+		// pool name and the connection counts, plus the driver's own connect
+		// error, which names the user and database but not the connection
+		// string or the password.
+		return nil, err
+	}
+
 	err = ds.registerPrometheusCollectors(config.enablePrometheusStats)
 	if err != nil {
 		ds.cancel()

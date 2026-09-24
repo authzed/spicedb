@@ -83,6 +83,27 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 	return p, nil
 }
 
+// Warmup blocks until the pool holds its configured minimum number of
+// connections, and returns an error naming this pool if it cannot get there.
+//
+// pgxpool.NewWithConfig, which NewRetryPool is built on, does not connect to
+// anything: it starts a goroutine to open MinConns connections and returns
+// immediately. Without this call the CockroachDB datastore finishes
+// constructing -- and the process is marked Ready by Kubernetes -- while the
+// first burst of real traffic still has to open every connection it uses. See
+// pgxcommon.WarmupPool.
+//
+// This costs more here than it does for Postgres: the AfterConnect hook waits
+// on a rate limiter of one connection per connect rate (100ms by default), so
+// filling a pool of N connections takes roughly (N-1) * connect rate. Each pool
+// has its own limiter, so warming several pools concurrently is worth doing.
+func (p *RetryPool) Warmup(ctx context.Context) error {
+	warmupContext, cancelWarmup := context.WithTimeout(ctx, pgxcommon.PoolWarmupTimeout)
+	defer cancelWarmup()
+
+	return pgxcommon.WarmupPool(warmupContext, p.id, p.pool)
+}
+
 // configureLifecycleCallbacks installs the pool's connection-lifecycle hooks
 // (AfterConnect/BeforeAcquire/AfterRelease/BeforeClose) onto config, wrapping
 // any pre-existing hooks. It performs no I/O, so it can be exercised in unit

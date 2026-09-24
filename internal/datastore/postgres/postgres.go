@@ -188,9 +188,21 @@ func newPostgresDatastore(
 
 	if credentialsProvider != nil {
 		// add before connect callbacks to trigger the token
+		// Note the local variables: pgx calls BeforeConnect from one goroutine
+		// per connection it establishes, so a closure that assigned to this
+		// function's own err would be several goroutines writing the variable
+		// the constructor uses for its own error handling. That was always
+		// true, but warming the pools below means those goroutines now run
+		// while the constructor is still executing rather than after it has
+		// returned.
 		getToken := func(ctx context.Context, config *pgx.ConnConfig) error {
-			config.User, config.Password, err = credentialsProvider.Get(ctx, fmt.Sprintf("%s:%d", config.Host, config.Port), config.User)
-			return err
+			user, password, err := credentialsProvider.Get(ctx, fmt.Sprintf("%s:%d", config.Host, config.Port), config.User)
+			if err != nil {
+				return err
+			}
+
+			config.User, config.Password = user, password
+			return nil
 		}
 		readPoolConfig.BeforeConnect = getToken
 
@@ -242,6 +254,20 @@ func newPostgresDatastore(
 	if err := readPool.
 		QueryRow(initializationContext, "SHOW track_commit_timestamp;").
 		Scan(&trackTSOn); err != nil {
+		return nil, err
+	}
+
+	// Fill the pools before returning, so that the process is only reported as
+	// ready once it can actually serve traffic. See pgxcommon.WarmupPool. The
+	// verification query above runs first so that the ordinary "cannot reach
+	// the database" failures keep their existing, more specific errors, and a
+	// warm-up failure means what it says: the database is reachable but will
+	// not give SpiceDB the number of connections it was configured to hold.
+	if err := warmupPools(readPool, writePool); err != nil {
+		readPool.Close()
+		if writePool != nil {
+			writePool.Close()
+		}
 		return nil, err
 	}
 
@@ -814,6 +840,28 @@ func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 }
 
 var _ datastore.Datastore = &pgDatastore{}
+
+// warmupPools fills the read pool, and the write pool when there is one, to
+// their configured minimum connection counts before the datastore is handed
+// back to the caller. The two pools are warmed concurrently because they are
+// independent; the slower of the two sets the cost.
+func warmupPools(readPool *pgxpool.Pool, writePool *pgxpool.Pool) error {
+	warmupContext, cancelWarmup := context.WithTimeout(context.Background(), pgxcommon.PoolWarmupTimeout)
+	defer cancelWarmup()
+
+	g, gctx := errgroup.WithContext(warmupContext)
+	g.Go(func() error {
+		return pgxcommon.WarmupPool(gctx, "read", readPool)
+	})
+
+	if writePool != nil {
+		g.Go(func() error {
+			return pgxcommon.WarmupPool(gctx, "write", writePool)
+		})
+	}
+
+	return g.Wait()
+}
 
 func registerAndReturnPrometheusCollectors(replicaIndex int, isPrimary bool, readPool, writePool *pgxpool.Pool, enablePrometheusStats bool) ([]prometheus.Collector, error) {
 	collectors := []prometheus.Collector{}
