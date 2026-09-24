@@ -63,10 +63,10 @@ Deletes every relationship matching a filter, in committed batches.
 
 Every filter flag is required. Pass <any> to leave a component
 unconstrained; an omitted flag is an error, never a wildcard, so a forgotten
-flag cannot widen the deletion. Note that <any> is not "*": "*" is a
-legitimate subject object id (the wildcard subject), so passing it to
---subject-id matches only wildcard relationships. Pass ... to
---subject-relation to match subjects that have no relation.
+flag cannot widen the deletion. "*" is a literal subject object id (the
+wildcard subject), so passing it to --subject-id matches only wildcard
+relationships. Pass ... to --subject-relation to match
+subjects that have no relation.
 
 On CockroachDB the deletion advances a primary-key cursor so each batch resumes
 where the last one stopped. On other engines it falls back to a slower loop that
@@ -140,7 +140,7 @@ spicedb datastore delete-relationships [flags]
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
-      --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried (default 10)
+      --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
