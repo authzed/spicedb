@@ -118,6 +118,25 @@ func (cds *crdbDatastore) watch(
 		watchConnectTimeout = cds.watchConnectTimeout
 	}
 
+	sendError := func(err error) {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			errs <- datastore.NewWatchCanceledErr()
+			return
+		}
+
+		if strings.Contains(err.Error(), "must be after replica GC threshold") {
+			errs <- datastore.NewInvalidRevisionErr(afterRevision, datastore.RevisionStale)
+			return
+		}
+
+		if pool.IsResettableError(ctx, err) || pool.IsRetryableError(ctx, err) {
+			errs <- datastore.NewWatchTemporaryErr(err)
+			return
+		}
+
+		errs <- err
+	}
+
 	// get non-pooled connection for watch
 	// "applications should explicitly create dedicated connections to consume
 	// changefeed data, instead of using a connection pool as most client
@@ -125,7 +144,10 @@ func (cds *crdbDatastore) watch(
 	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
 	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, watchConnectTimeout)
 	if err != nil {
-		errs <- err
+		// Through sendError, not straight to errs: a caller who cancels the watch
+		// while this connection is still being established must still be told the
+		// watch was canceled, rather than handed whatever pgx happened to fail with.
+		sendError(err)
 		return
 	}
 
@@ -157,25 +179,6 @@ func (cds *crdbDatastore) watch(
 
 	resolvedDurationString := strconv.FormatInt(resolvedDuration.Milliseconds(), 10) + "ms"
 	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision, resolvedDurationString)
-
-	sendError := func(err error) {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			errs <- datastore.NewWatchCanceledErr()
-			return
-		}
-
-		if strings.Contains(err.Error(), "must be after replica GC threshold") {
-			errs <- datastore.NewInvalidRevisionErr(afterRevision, datastore.RevisionStale)
-			return
-		}
-
-		if pool.IsResettableError(ctx, err) || pool.IsRetryableError(ctx, err) {
-			errs <- datastore.NewWatchTemporaryErr(err)
-			return
-		}
-
-		errs <- err
-	}
 
 	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
 	if watchBufferWriteTimeout <= 0 {

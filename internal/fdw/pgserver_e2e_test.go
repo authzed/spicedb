@@ -926,36 +926,58 @@ func runEndToEndTest(t *testing.T, tc e2eTestCase) {
 func runPGServer(t *testing.T, client *authzed.Client) int {
 	pgserver := fdw.NewPgBackend(client, postgresTestUser, fdwPassword)
 
-	port, err := GetFreePort()
+	// Bind the socket here rather than letting the server goroutine pick the
+	// port up later. GetFreePort's ask-the-kernel-then-close dance hands back a
+	// port that nothing is holding any more, and on a busy machine (CI runs six
+	// integration packages and a docker daemon in parallel) anything can take it
+	// in the meantime: a published container port, or simply an outgoing
+	// connection that the kernel gives that local port to. The server's bind
+	// then fails and nothing ever listens.
+	//
+	// Bind on all interfaces so the Postgres container can reach us via
+	// testcontainers' forwarded host (host.testcontainers.internal).
+	// "localhost" binds to 127.0.0.1 only, which the container cannot reach
+	// (its packets arrive from the docker bridge IP).
+	// nolint:gosec // G102: binding all interfaces is required here, see above.
+	listener, err := net.Listen("tcp", "0.0.0.0:0")
 	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
 
-	ctx := t.Context()
+	serveErr := make(chan error, 1)
+
+	// Registered first, so it runs last: by then Close below has stopped the
+	// server and Serve has returned. Report whatever it returned instead of
+	// letting a server failure surface as an unexplained connection error.
+	t.Cleanup(func() {
+		select {
+		case err := <-serveErr:
+			require.NoError(t, err, "PGServer stopped with an error")
+		case <-time.After(10 * time.Second):
+			require.Fail(t, "PGServer did not stop")
+		}
+	})
 	t.Cleanup(func() {
 		require.NoError(t, pgserver.Close())
 	})
 
+	ctx := t.Context()
 	go func() {
-		// Bind to all interfaces so the Postgres container can reach us via
-		// testcontainers' forwarded host (host.testcontainers.internal).
-		// "localhost" binds to 127.0.0.1 only, which the container cannot reach
-		// (its packets arrive from the docker bridge IP).
-		_ = pgserver.Run(ctx, fmt.Sprintf("0.0.0.0:%d", port))
+		serveErr <- pgserver.Serve(ctx, listener)
 	}()
 
-	// Wait until the server is actually accepting connections.
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 100*time.Millisecond)
-		if !assert.NoError(collect, err) {
-			return
-		}
-		_ = conn.Close()
-	}, 10*time.Second, 20*time.Millisecond, "PGServer did not start accepting connections")
-
+	// No readiness wait is needed: net.Listen above already put the socket into
+	// the listening state, so the port accepts connections from this point on,
+	// whenever the goroutine happens to be scheduled.
 	return port
 }
 
 // GetFreePort asks the kernel for a free open port that is ready to use.
 // From: https://gist.github.com/sevkin/96bdae9274465b2d09191384f86ef39d
+//
+// The port is released again before it is returned, so whoever binds it later
+// can lose it to another process. Only use this where the thing being started
+// takes an address rather than a listener; prefer binding a net.Listener up
+// front and handing that over.
 func GetFreePort() (port int, err error) {
 	var a *net.TCPAddr
 	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
@@ -994,9 +1016,10 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 	require.NoError(t, err)
 
 	serverReady := make(chan bool)
+	runErr := make(chan error, 1)
 	go func() {
 		serverReady <- true
-		_ = runnableServer.Run(ctx)
+		runErr <- runnableServer.Run(ctx)
 	}()
 
 	// Wait for server goroutine to start
@@ -1005,6 +1028,15 @@ func runSpiceDB(t *testing.T) *authzed.Client {
 	// Verify server is ready
 	var client *authzed.Client
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Report the server's own error if it gave up, rather than the far less
+		// useful "did not become ready" five seconds later.
+		select {
+		case err := <-runErr:
+			collect.Errorf("SpiceDB server stopped before it became ready: %v", err)
+			return
+		default:
+		}
+
 		var err error
 		client, err = authzed.NewClient(
 			address,

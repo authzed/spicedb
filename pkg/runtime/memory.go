@@ -27,8 +27,8 @@ const (
 
 // fallbackMemoryLimit is the amount of memory allocated for caches etc.
 // when the amount of available memory can't be determined through the usual methods.
-// 256mb is tiny, but it should comfortably fit in most runtimes.
-const fallbackMemoryLimit = 256 * 1024
+// 256MiB is tiny, but it should comfortably fit in most runtimes.
+const fallbackMemoryLimit = 256 * 1024 * 1024
 
 var logAvailableMemoryOnce sync.Once
 

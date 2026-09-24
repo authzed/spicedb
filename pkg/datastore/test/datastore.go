@@ -203,20 +203,75 @@ func WithCategories(cats ...string) Categories {
 	return c
 }
 
+// runner turns a shared test into the function t.Run takes. The suite picks one
+// for every subtest it starts, which is how serial and parallel execution are
+// selected. See SuiteOption.
+type runner func(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T)
+
+// serial runs a subtest to completion before the suite starts the next one.
+//
+// A serial subtest holds the engine to itself even when its siblings are
+// parallel ones, which is what makes it the home for a test that needs
+// exclusive use of the container. t.Parallel does not start a subtest
+// alongside the others: it suspends the subtest and hands control back to the
+// function that called t.Run, and the suspended subtests only resume once that
+// function returns. So every serial t.Run below executes during the sequential
+// pass over this list, while every parallel sibling is still suspended and has
+// not run a line of its own body.
 func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
 	return func(t *testing.T) {
 		tt(t, tester)
 	}
 }
 
+// parallel lets a subtest run alongside its siblings.
+//
+// Every subtest builds its own database and is the only user of it, so they do
+// not contend over data. They do share one container per engine, and the tests
+// that assume exclusive use of it (pausing it, reading server-wide state, or
+// timing a background process) are the ones to suspect when an engine cannot
+// run this way.
+func parallel(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Parallel()
+		tt(t, tester)
+	}
+}
+
+type suiteOptions struct {
+	runner runner
+}
+
+// SuiteOption configures how an engine runs the shared suite.
+type SuiteOption func(*suiteOptions)
+
+// RunSubtestsSerially makes an engine run the suite's subtests one at a time.
+// It is the opt-out for an engine whose tests cannot share their container
+// concurrently.
+func RunSubtestsSerially() SuiteOption {
+	return func(o *suiteOptions) { o.runner = serial }
+}
+
+func newSuiteOptions(opts []SuiteOption) suiteOptions {
+	o := suiteOptions{runner: parallel}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
 // AllWithExceptions runs all generic datastore tests on a DatastoreTester, except
 // those specified test categories
-func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
-	runner := serial
+func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, opts ...SuiteOption) {
+	runner := newSuiteOptions(opts).runner
 
-	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
+	t.Run("TestUniqueID", runner(tester, UniqueIDTest))
 	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
-	t.Run("TestReadyStateWhenPaused", runner(tester, ReadyStateWhenPausedTest))
+
+	// Always serial, whatever the engine chose. This test freezes the container
+	// the whole engine shares, so it needs it to itself; see the comment on
+	// serial for why running it that way gives it exactly that.
+	t.Run("TestReadyStateWhenPaused", serial(tester, ReadyStateWhenPausedTest))
 
 	t.Run("TestNamespaceNotFound", runner(tester, NamespaceNotFoundTest))
 	t.Run("TestNamespaceWrite", runner(tester, NamespaceWriteTest))
@@ -282,7 +337,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestReadYourConcurrentWrites", runner(tester, ReadYourConcurrentWritesTest))
 
 	if !except.GC() {
-		OnlyGCTests(t, tester)
+		OnlyGCTests(t, tester, opts...)
 	}
 
 	t.Run("TestBulkUpload", runner(tester, BulkUploadTest))
@@ -370,8 +425,8 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	}
 }
 
-func OnlyGCTests(t *testing.T, tester DatastoreTester) {
-	runner := serial
+func OnlyGCTests(t *testing.T, tester DatastoreTester, opts ...SuiteOption) {
+	runner := newSuiteOptions(opts).runner
 
 	t.Run("TestRevisionGC", runner(tester, RevisionGCTest))
 	t.Run("TestInvalidReads", runner(tester, InvalidReadsTest))
@@ -379,8 +434,8 @@ func OnlyGCTests(t *testing.T, tester DatastoreTester) {
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
-func All(t *testing.T, tester DatastoreTester) {
-	AllWithExceptions(t, tester, noException)
+func All(t *testing.T, tester DatastoreTester, opts ...SuiteOption) {
+	AllWithExceptions(t, tester, noException, opts...)
 }
 
 var testResourceNS = namespace.Namespace(

@@ -43,6 +43,17 @@ const disableBackgroundGC = time.Duration(test.DisableBackgroundGC)
 
 var pgFactory = test.NewTesterFactory(&pgconn.PgError{Code: pgSerializationFailure})
 
+// The shared datastore suite runs its subtests in parallel, on Postgres too.
+// The GC calls below stay serial because those tests take exclusive locks; the
+// rest share one container, each with its own database.
+//
+// Note that a test comparing a synthesized revision (one built from a single
+// xid, rather than from a real pg_current_snapshot) against a real snapshot
+// will see an ordering that does not hold. A single concurrent writer is
+// enough for that - it does not need parallel subtests, or a shared cluster;
+// serial runs simply never have one. See the note above NamespaceWriteTest in
+// pkg/datastore/test.
+
 type postgresTestConfig struct {
 	migrationPhase string
 	pgVersion      string
@@ -88,7 +99,7 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				return ds
 			})
 			return ds, nil
-		}))
+		}), test.RunSubtestsSerially())
 
 		t.Run("TestLocking", createMultiDatastoreTest(
 			b,
@@ -354,7 +365,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, config postgresT
 				return ds
 			})
 			return ds, nil
-		}))
+		}), test.RunSubtestsSerially())
 	})
 }
 
@@ -835,14 +846,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
-	testCases := []struct {
-		testName          string
-		quantization      time.Duration
-		followerReadDelay time.Duration
-		relativeTimes     []time.Duration
-		numLower          uint64
-		numHigher         uint64
-	}{
+	testCases := []quantizedRevisionCase{
 		{
 			"DefaultRevision",
 			1 * time.Second,
@@ -910,58 +914,160 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			require := require.New(t)
-			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-			defer cancel()
-
-			var conn *pgx.Conn
-			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				var err error
-				conn, err = pgx.Connect(ctx, uri)
-				require.NoError(err)
-
-				RegisterTypes(conn.TypeMap())
-
-				ds, err := newPostgresDatastore(
-					ctx,
-					uri,
-					primaryInstanceID,
-					RevisionQuantization(tc.quantization),
-					GCWindow(24*time.Hour),
-					WatchBufferLength(1),
-					FollowerReadDelay(tc.followerReadDelay),
-					WithRevisionHeartbeat(false),
-				)
-				require.NoError(err)
-
-				return ds
-			})
-			defer ds.Close()
-
-			// set a random time zone to ensure the queries are unaffected by tz
-			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1)) //nolint:gosec
-			require.NoError(err)
-
-			var dbNow time.Time
-			err = conn.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow)
-			require.NoError(err)
-
-			if len(tc.relativeTimes) > 0 {
-				psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-				insertTxn := psql.Insert(schema.TableTransaction).Columns(schema.ColTimestamp)
-
-				for _, offset := range tc.relativeTimes {
-					sql, args, err := insertTxn.Values(dbNow.Add(offset)).ToSql()
-					require.NoError(err)
-
-					_, err = conn.Exec(ctx, sql, args...)
-					require.NoError(err)
+			// The fixture rows are positioned relative to a NOW() read once, up front,
+			// while querySelectRevision recomputes its cutoff from the database's NOW()
+			// at the moment it runs. Both are floored into quantization buckets, so a
+			// boundary falling between the two reads moves the cutoff, selects a
+			// different row as the revision, and leaves the expected visibility counts
+			// describing a fixture that is no longer the one being measured - a failure
+			// that says nothing about the code under test.
+			//
+			// Each attempt positions the fixture just after a boundary, which leaves a
+			// full quantization period of slack, and then checks whether one was crossed
+			// anyway; an attempt that lost the race is discarded rather than reported.
+			// The last attempt asserts whatever it finds, so a real regression still
+			// fails rather than retrying until it is mistaken for flakiness.
+			const maxAttempts = 4
+			for attempt := 1; attempt <= maxAttempts; attempt++ {
+				if runQuantizedRevisionCase(t, b, tc, attempt == maxAttempts) {
+					return
 				}
+				t.Logf("%s: attempt %d crossed a quantization boundary (quantization %s, follower read delay %s) before the revision was selected; retrying",
+					tc.testName, attempt, tc.quantization, tc.followerReadDelay)
 			}
-
-			assertRevisionLowerAndHigher(ctx, t, ds, conn, tc.numLower, tc.numHigher)
 		})
 	}
+}
+
+// quantizedRevisionCase is one row of QuantizedRevisionTest's table.
+type quantizedRevisionCase struct {
+	testName          string
+	quantization      time.Duration
+	followerReadDelay time.Duration
+	relativeTimes     []time.Duration
+	numLower          uint64
+	numHigher         uint64
+}
+
+// runQuantizedRevisionCase runs a single quantized revision case and reports
+// whether it produced a usable result. It returns false only when a quantization
+// boundary was crossed between positioning the fixture and selecting the
+// revision, which makes the case's expectations inapplicable to what was
+// measured. When mustAssert is set it asserts regardless, so a caller's final
+// attempt cannot pass silently.
+func runQuantizedRevisionCase(t *testing.T, b testdatastore.RunningEngineForTest, tc quantizedRevisionCase, mustAssert bool) bool {
+	t.Helper()
+
+	require := require.New(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+
+	var conn *pgx.Conn
+	ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		var err error
+		conn, err = pgx.Connect(ctx, uri)
+		require.NoError(err)
+
+		RegisterTypes(conn.TypeMap())
+
+		ds, err := newPostgresDatastore(
+			ctx,
+			uri,
+			primaryInstanceID,
+			RevisionQuantization(tc.quantization),
+			GCWindow(24*time.Hour),
+			WatchBufferLength(1),
+			FollowerReadDelay(tc.followerReadDelay),
+			WithRevisionHeartbeat(false),
+		)
+		require.NoError(err)
+
+		return ds
+	})
+	defer ds.Close()
+
+	// set a random time zone to ensure the queries are unaffected by tz
+	_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1)) //nolint:gosec
+	require.NoError(err)
+
+	dbNow := alignedDatabaseNow(ctx, t, conn, tc.quantization, tc.followerReadDelay)
+
+	if len(tc.relativeTimes) > 0 {
+		psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+		insertTxn := psql.Insert(schema.TableTransaction).Columns(schema.ColTimestamp)
+
+		for _, offset := range tc.relativeTimes {
+			sql, args, err := insertTxn.Values(dbNow.Add(offset)).ToSql()
+			require.NoError(err)
+
+			_, err = conn.Exec(ctx, sql, args...)
+			require.NoError(err)
+		}
+	}
+
+	numLower, numHigher := revisionLowerAndHigher(ctx, t, ds, conn)
+
+	var dbAfter time.Time
+	require.NoError(conn.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbAfter))
+	if !mustAssert && quantizationHasBuckets(tc.quantization) &&
+		quantizationBucket(dbNow, tc.quantization, tc.followerReadDelay) !=
+			quantizationBucket(dbAfter, tc.quantization, tc.followerReadDelay) {
+		return false
+	}
+
+	require.Equal(tc.numLower, numLower, "incorrect number of revisions visible to snapshot, expected %d, got %d", tc.numLower, numLower)
+	require.Equal(tc.numHigher, numHigher, "incorrect number of revisions invisible to snapshot, expected %d, got %d", tc.numHigher, numHigher)
+	return true
+}
+
+// quantizationBucket reports which bucket querySelectRevision's cutoff falls into
+// for a given database clock reading: the query floors (now - followerReadDelay)
+// to a multiple of the quantization period. Two readings in the same bucket yield
+// the same cutoff, and therefore select the same revision.
+func quantizationBucket(dbTime time.Time, quantization, followerReadDelay time.Duration) int64 {
+	if !quantizationHasBuckets(quantization) {
+		return 0
+	}
+	return (dbTime.UnixNano() - int64(followerReadDelay)) / int64(quantization)
+}
+
+// quantizationHasBuckets reports whether a quantization period is long enough for
+// bucket identity to mean anything. The QuantizationDisabled case uses 1ns, where
+// every instant is its own bucket and the cutoff simply tracks the current time:
+// there is no boundary to align to, crossing one says nothing, and the case's
+// expectation holds either way because no row is ever at or after the cutoff and
+// the query falls back to pg_current_snapshot(). Aligning and boundary-checking
+// are skipped there rather than retried against a condition that is always true.
+func quantizationHasBuckets(quantization time.Duration) bool {
+	return quantization > time.Millisecond
+}
+
+// alignedDatabaseNow returns a database clock reading positioned just after a
+// quantization boundary, so that a fixture built from it has a full quantization
+// period before the cutoff moves to the next bucket. Without this the remaining
+// slack is whatever is left of the current bucket - uniform in [0, quantization)
+// and so a coin flip on a loaded machine.
+func alignedDatabaseNow(ctx context.Context, t *testing.T, conn *pgx.Conn, quantization, followerReadDelay time.Duration) time.Time {
+	t.Helper()
+
+	var dbNow time.Time
+	require.NoError(t, conn.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow))
+	if !quantizationHasBuckets(quantization) {
+		return dbNow
+	}
+
+	quantNs := int64(quantization)
+	offset := (dbNow.UnixNano() - int64(followerReadDelay)) % quantNs
+	if offset < 0 {
+		offset += quantNs
+	}
+	if offset == 0 {
+		return dbNow
+	}
+
+	time.Sleep(time.Duration(quantNs - offset))
+	require.NoError(t, conn.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow))
+	return dbNow
 }
 
 func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
@@ -1042,19 +1148,29 @@ func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastor
 ) {
 	t.Helper()
 
-	var revision xid8
-	var snapshot pgSnapshot
+	numLower, numHigher := revisionLowerAndHigher(ctx, t, ds, conn)
+	require.Equal(t, expectedNumLower, numLower, "incorrect number of revisions visible to snapshot, expected %d, got %d", expectedNumLower, numLower)
+	require.Equal(t, expectedNumHigher, numHigher, "incorrect number of revisions invisible to snapshot, expected %d, got %d", expectedNumHigher, numHigher)
+}
+
+// revisionLowerAndHigher returns how many transaction rows are visible and not
+// visible to the datastore's optimized revision, excluding the artificially
+// injected first transaction row from the visible count. Callers that need to
+// inspect the counts before deciding whether to assert on them use this
+// directly; assertRevisionLowerAndHigher is the common case.
+func revisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastore.Datastore, conn *pgx.Conn) (uint64, uint64) {
+	t.Helper()
+
 	pgDS, ok := ds.(*pgDatastore)
 	require.True(t, ok)
 	revResult, err := pgDS.OptimizedRevision(ctx)
-	rev := revResult.Revision
 	require.NoError(t, err)
 
-	pgRev, ok := rev.(postgresRevision)
+	pgRev, ok := revResult.Revision.(postgresRevision)
 	require.True(t, ok)
-	revision = pgRev.optionalTxID
+	revision := pgRev.optionalTxID
 	require.NotNil(t, revision)
-	snapshot = pgRev.snapshot
+	snapshot := pgRev.snapshot
 
 	queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
 	numLowerQuery := fmt.Sprintf(queryFmt, schema.ColXID, schema.TableTransaction, "true")
@@ -1065,8 +1181,7 @@ func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastor
 	require.NoError(t, conn.QueryRow(ctx, numHigherQuery, snapshot).Scan(&numHigher), "%s - %s", revision, snapshot)
 
 	// Subtract one from numLower because of the artificially injected first transaction row
-	require.Equal(t, expectedNumLower, numLower-1, "incorrect number of revisions visible to snapshot, expected %d, got %d", expectedNumLower, numLower-1)
-	require.Equal(t, expectedNumHigher, numHigher, "incorrect number of revisions invisible to snapshot, expected %d, got %d", expectedNumHigher, numHigher)
+	return numLower - 1, numHigher
 }
 
 // ConcurrentRevisionHeadTest uses goroutines and channels to intentionally set up a pair of
@@ -1476,11 +1591,13 @@ func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
 	ended := spanrecorder.Ended()
 	var present bool
 	for _, span := range ended {
-		if span.Name() == "query INSERT" {
+		// otelpgx names query spans after the SQL operation alone, as the
+		// OpenTelemetry database span conventions call for.
+		if span.Name() == "INSERT" {
 			present = true
 		}
 	}
-	require.True(present, "missing trace for Streaming gRPC call")
+	require.True(present, "missing span for the INSERT issued by the datastore")
 }
 
 func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgVersion string) {

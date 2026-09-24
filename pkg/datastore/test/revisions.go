@@ -161,7 +161,12 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(t, DefaultRevisionParameters(), 1)
 	require.NoError(err)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+	// This test is about whether a revision survives serialization through the
+	// dispatch layer, not about how quickly a write completes. The deadline is
+	// only here so a hung write fails the test instead of hanging it, so it is
+	// generous: one second was enough when the suite ran one test at a time, and
+	// is not when a hundred of them share a database server.
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	revToTest, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.LegacyWriteNamespaces(ctx, testNamespace)
@@ -215,11 +220,13 @@ func GCProcessRunTest(t *testing.T, tester DatastoreTester) {
 	// Reset that GC was run.
 	gcable.ResetGCCompleted()
 
-	// Wait the GC interval + a bit more time.
-	time.Sleep(500*time.Millisecond + 100*time.Millisecond)
-
-	// Ensure GC was run.
-	require.True(gcable.HasGCRun(), "GC was never run as expected")
+	// Wait for the GC process to run. This polls rather than sleeping for the
+	// interval plus a fixed margin: the margin only has to be missed once, by a
+	// background goroutine that was not scheduled promptly on a busy machine, for
+	// the test to report that GC never ran when it was merely late. Polling waits
+	// as long as GC actually needs and still fails if it genuinely never runs.
+	require.Eventually(gcable.HasGCRun, 30*time.Second, 50*time.Millisecond,
+		"GC was never run as expected")
 }
 
 // RevisionGCTest makes sure revision GC takes place, revisions out-side of the GC window

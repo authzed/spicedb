@@ -16,8 +16,10 @@ type PauseFunc func(t testing.TB)
 
 type PausableDatastoreTester interface {
 	// NewPausable returns a datastore along with a function that freezes its
-	// backing store. Nothing that runs concurrently with the suite may share that backing
-	// store, since freezing it would stall those tests too.
+	// backing store. Nothing that runs concurrently with the caller may share that
+	// backing store, since freezing it would stall those tests too. The suite
+	// satisfies that by running the test that calls this serially, whatever the
+	// engine chose; see AllWithExceptions and the comment on serial.
 	NewPausable(t testing.TB) (datastore.Datastore, PauseFunc)
 }
 

@@ -14,22 +14,21 @@ jobs:
       contents: "write"
       packages: "write" # publish to GHCR
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - name: "Install snapcraft"
-        run: |
-          sudo snap install snapcraft --channel=8.x/stable --classic
-          mkdir -p $HOME/.cache/snapcraft/download
-          mkdir -p $HOME/.cache/snapcraft/stage-packages
+      # NOTE: do not add a snapcraft install here. This job releases with
+      # .goreleaser.nightly.yml, which has no `snapcrafts:` section, so nothing
+      # in the run invokes snapcraft. Only .goreleaser.yml builds the snap, and
+      # only release.yaml uses it.
       - uses: "authzed/actions/docker-login@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8" # v4.2.0
-      - uses: "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c" # v4.2.0
+      - uses: "docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1" # v4.4.0
+      - uses: "docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069" # v4.4.1
       - uses: "goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94" # v7.2.3
         with:
           distribution: "goreleaser-pro"

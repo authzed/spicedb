@@ -47,5 +47,10 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 		newStats, err := ds.Statistics(ctx)
 		require.NoError(err)
 		require.Equal(newStats.UniqueID, stats.UniqueID, "unique ID must be stable")
+
+		// The assertions above have passed, so there is nothing left to retry.
+		// Without this the loop runs its full count every time, re-querying
+		// statistics on each pass - which on CockroachDB means an ANALYZE.
+		break
 	}
 }

@@ -17,8 +17,8 @@ jobs:
     name: "Lint Commit Messages"
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "actions/checkout@v7"
-      - uses: "webiny/action-conventional-commits@v1.4.2"
-      - uses: "amannn/action-semantic-pull-request@v6.1.1"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+      - uses: "webiny/action-conventional-commits@7f91b1595ca1951cdb671ddc9f07a49081ec5b69" # v1.4.2
+      - uses: "amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50" # v6.1.1
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

@@ -13,13 +13,13 @@ jobs:
     permissions:
       contents: "write"
     steps:
-      - uses: "actions/checkout@v7"
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         with:
           ref: "${{ env.GITHUB_SHA }}"
       - uses: "authzed/actions/setup-go@main"
       - name: "Build WASM"
         run: "go run mage.go build:wasm"
-      - uses: "shogo82148/actions-upload-release-asset@394b3c11c3cfc038b5396ad265c074065cf875c3" # v1.10.2
+      - uses: "shogo82148/actions-upload-release-asset@aaba0f56bdbc1071f4af234d5cb16055e8a400de" # v1.10.4
         with:
           upload_url: "${{ github.event.release.upload_url }}"
           asset_path: "dist/*"

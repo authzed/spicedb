@@ -37,11 +37,34 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
+type suiteOptions struct {
+	serialFixtures bool
+}
+
+// SuiteOption configures how a caller runs the consistency suite.
+type SuiteOption func(*suiteOptions)
+
+// RunFixturesSerially makes the suite run one validation file at a time.
+// It is for a caller whose datastore is expensive to stand up and who would
+// rather keep only one fixture's resources live at a time; the subtests within
+// a fixture still run concurrently either way.
+func RunFixturesSerially() SuiteOption {
+	return func(o *suiteOptions) { o.serialFixtures = true }
+}
+
+func newSuiteOptions(opts []SuiteOption) suiteOptions {
+	var o suiteOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
 // AllConsistency runs the full system-wide consistency suite against the datastore
 // produced by the given tester. It is the consistency analog of test.All and lets any
 // DatastoreTester be exercised by the consistency suite.
-func AllConsistency(t *testing.T, tester dstest.DatastoreTester) {
-	ConsistencyForEngine(t, "", tester)
+func AllConsistency(t *testing.T, tester dstest.DatastoreTester, opts ...SuiteOption) {
+	ConsistencyForEngine(t, "", tester, opts...)
 }
 
 // ConsistencyForEngine runs the system-wide consistency suite, reading in the various
@@ -58,7 +81,11 @@ func AllConsistency(t *testing.T, tester dstest.DatastoreTester) {
 //
 // This acts as essentially a full integration test for the API, dispatching, caching,
 // computation and datastore layers.
-func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.DatastoreTester) {
+//
+// Fixtures run in parallel unless the caller passes RunFixturesSerially.
+func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.DatastoreTester, opts ...SuiteOption) {
+	suiteOpts := newSuiteOptions(opts)
+
 	consistencyTestFiles, err := testconfigs.List()
 	require.NoError(t, err)
 
@@ -85,6 +112,17 @@ func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.Datastore
 
 	for _, filePath := range consistencyTestFiles {
 		t.Run(path.Base(filePath), func(t *testing.T) {
+			// Fixtures are independent: each gets its own datastore, and the test
+			// cluster each one builds takes a unique resolver prefix. Before this,
+			// the only concurrency was among the chunk-size and dispatcher subtests
+			// below, while the per-fixture prologue - which creates a database,
+			// migrates it and then walks the whole accessibility set - ran with
+			// everything else idle. A caller for whom a datastore is expensive
+			// enough that it wants one fixture live at a time opts out.
+			if !suiteOpts.serialFixtures {
+				t.Parallel()
+			}
+
 			baseds := newDatastore(t)
 			ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 

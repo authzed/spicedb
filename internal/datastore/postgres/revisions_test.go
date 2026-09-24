@@ -8,6 +8,8 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (
@@ -216,4 +218,48 @@ func FuzzRevision(f *testing.F) {
 			t.Errorf("decimal revision \"%s\" is a valid proto revision %#v", decimalRev, rev)
 		}
 	})
+}
+
+// TestRevisionForVersionOverclaimsUnderConcurrency pins the documented
+// behaviour of revisionForVersion, which the shared datastore suite relies on
+// not asserting against.
+//
+// revisionForVersion has only the row's created_xid to work with, so it
+// synthesizes the snapshot "xid+1:xid+1:". In the pgSnapshot encoding that
+// means "every transaction below xid+1 is settled", which is an over-claim:
+// transactions below the creating one may well have still been in flight.
+// A snapshot that claims to know more is *greater* under the partial order in
+// compare(), so the synthesized last-written revision compares as greater than
+// the very snapshot it was read at.
+//
+// The numbers below were captured from a live Postgres 18 with exactly one
+// other transaction open in the same database - it does not take a shared
+// cluster or a second database for this to happen.
+func TestRevisionForVersionOverclaimsUnderConcurrency(t *testing.T) {
+	// A second writer in the same database holds xid 853 open; our write then
+	// gets xid 854, and its ReadWriteTx returns snapshot 853:855:853.
+	readAt := pgSnapshot{xmin: 853, xmax: 855, xipList: []uint64{853}}
+	createdRev := revisionForVersion(NewXid8(854))
+
+	require.Equal(t, pgSnapshot{xmin: 855, xmax: 855}, createdRev.snapshot)
+	require.Equal(t, gt, createdRev.snapshot.compare(readAt),
+		"the synthesized last-written revision claims xid 853 is settled, which the snapshot it was read at does not know")
+
+	// With nothing else in flight the two agree, which is why the shared suite
+	// only saw this once its subtests started running concurrently.
+	quiescentReadAt := pgSnapshot{xmin: 855, xmax: 855}
+	require.Equal(t, equal, createdRev.snapshot.compare(quiescentReadAt))
+}
+
+// TestPostgresRevisionHasNoSortKey asserts that postgresRevision declines the
+// datastore.SortKeyRevision capability, since snapshots are only partially ordered and so have no
+// order for bytes to preserve.
+func TestPostgresRevisionHasNoSortKey(t *testing.T) {
+	var rev datastore.Revision = postgresRevision{snapshot: pgSnapshot{xmin: 100, xmax: 100}}
+
+	_, ok := rev.(datastore.SortKeyRevision)
+	require.False(t, ok, "postgresRevision must not implement datastore.SortKeyRevision")
+
+	// ByteSortable reports the same property in its weaker form, and must agree.
+	require.False(t, rev.ByteSortable())
 }

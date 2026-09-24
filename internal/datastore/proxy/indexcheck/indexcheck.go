@@ -17,25 +17,40 @@ import (
 // newIndexCheckingDatastoreProxy returns a datastore proxy that runs EXPLAIN ANALYZE on all
 // relationships queries and ensures that the index(es) used within match those defined in the
 // schema for the datastore.
-func newIndexCheckingDatastoreProxy(d datastore.SQLDatastore) datastore.Datastore {
-	return &indexcheckingProxy{delegate: d}
+func newIndexCheckingDatastoreProxy(delegate datastore.Datastore, explainable datastore.Explainable) datastore.Datastore {
+	return &indexcheckingProxy{delegate: delegate, explainable: explainable}
 }
 
 // WrapWithIndexCheckingDatastoreProxyIfApplicable wraps the provided datastore with an
 // index-checking proxy if the datastore is an SQLDatastore.
+//
+// Delegation stays on the datastore as given. Only the Explainable is taken from the
+// unwrapped SQLDatastore, because that is all index checking needs.
+//
+// Delegating to the unwrapped datastore instead would silently discard every proxy
+// wrapped around it - in particular NewSeparatingContextDatastoreProxy, which the SQL
+// datastores apply to themselves. That proxy severs cancellation on reads so that a
+// caller going away cannot kill an in-flight query; pgx reacts to a cancelled context
+// by setting an immediate deadline on the connection. Without it, the dispatcher
+// cancelling losing subproblems - thousands of times in a run - churns pooled
+// connections, and a read can come back with "timeout: read tcp ...: i/o timeout"
+// having nothing to do with the query that reported it.
 func WrapWithIndexCheckingDatastoreProxyIfApplicable(ds datastore.Datastore) datastore.Datastore {
 	uds := datastore.UnwrapAs[datastore.SQLDatastore](ds)
 	if uds == nil {
 		return ds
 	}
-	return newIndexCheckingDatastoreProxy(uds)
+	return newIndexCheckingDatastoreProxy(ds, uds)
 }
 
-type indexcheckingProxy struct{ delegate datastore.SQLDatastore }
+type indexcheckingProxy struct {
+	delegate    datastore.Datastore
+	explainable datastore.Explainable
+}
 
 func (p *indexcheckingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegateReader := p.delegate.SnapshotReader(rev)
-	return &indexcheckingReader{p.delegate, delegateReader}
+	return &indexcheckingReader{p.explainable, delegateReader}
 }
 
 func (p *indexcheckingProxy) ReadWriteTx(
@@ -44,7 +59,7 @@ func (p *indexcheckingProxy) ReadWriteTx(
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	return p.delegate.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
-		return f(ctx, &indexcheckingRWT{&indexcheckingReader{p.delegate, delegateRWT}, delegateRWT})
+		return f(ctx, &indexcheckingRWT{&indexcheckingReader{p.explainable, delegateRWT}, delegateRWT})
 	}, opts...)
 }
 
@@ -99,7 +114,7 @@ func (p *indexcheckingProxy) ReadyState(ctx context.Context) (datastore.ReadySta
 func (p *indexcheckingProxy) Close() error { return p.delegate.Close() }
 
 type indexcheckingReader struct {
-	parent   datastore.SQLDatastore
+	parent   datastore.Explainable
 	delegate datastore.Reader
 }
 

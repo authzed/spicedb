@@ -2455,3 +2455,111 @@ func (mr *MockRevisionMockRecorder) String() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockRevision)(nil).String))
 }
+
+// MockSortKeyRevision is a mock of SortKeyRevision interface.
+type MockSortKeyRevision struct {
+	ctrl     *gomock.Controller
+	recorder *MockSortKeyRevisionMockRecorder
+	isgomock struct{}
+}
+
+// MockSortKeyRevisionMockRecorder is the mock recorder for MockSortKeyRevision.
+type MockSortKeyRevisionMockRecorder struct {
+	mock *MockSortKeyRevision
+}
+
+// NewMockSortKeyRevision creates a new mock instance.
+func NewMockSortKeyRevision(ctrl *gomock.Controller) *MockSortKeyRevision {
+	mock := &MockSortKeyRevision{ctrl: ctrl}
+	mock.recorder = &MockSortKeyRevisionMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSortKeyRevision) EXPECT() *MockSortKeyRevisionMockRecorder {
+	return m.recorder
+}
+
+// AppendSortKey mocks base method.
+func (m *MockSortKeyRevision) AppendSortKey(dst []byte) []byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppendSortKey", dst)
+	ret0, _ := ret[0].([]byte)
+	return ret0
+}
+
+// AppendSortKey indicates an expected call of AppendSortKey.
+func (mr *MockSortKeyRevisionMockRecorder) AppendSortKey(dst any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendSortKey", reflect.TypeOf((*MockSortKeyRevision)(nil).AppendSortKey), dst)
+}
+
+// ByteSortable mocks base method.
+func (m *MockSortKeyRevision) ByteSortable() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByteSortable")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ByteSortable indicates an expected call of ByteSortable.
+func (mr *MockSortKeyRevisionMockRecorder) ByteSortable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSortable", reflect.TypeOf((*MockSortKeyRevision)(nil).ByteSortable))
+}
+
+// Equal mocks base method.
+func (m *MockSortKeyRevision) Equal(arg0 datastore.Revision) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Equal", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Equal indicates an expected call of Equal.
+func (mr *MockSortKeyRevisionMockRecorder) Equal(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockSortKeyRevision)(nil).Equal), arg0)
+}
+
+// GreaterThan mocks base method.
+func (m *MockSortKeyRevision) GreaterThan(arg0 datastore.Revision) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GreaterThan", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// GreaterThan indicates an expected call of GreaterThan.
+func (mr *MockSortKeyRevisionMockRecorder) GreaterThan(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GreaterThan", reflect.TypeOf((*MockSortKeyRevision)(nil).GreaterThan), arg0)
+}
+
+// LessThan mocks base method.
+func (m *MockSortKeyRevision) LessThan(arg0 datastore.Revision) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LessThan", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// LessThan indicates an expected call of LessThan.
+func (mr *MockSortKeyRevisionMockRecorder) LessThan(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LessThan", reflect.TypeOf((*MockSortKeyRevision)(nil).LessThan), arg0)
+}
+
+// String mocks base method.
+func (m *MockSortKeyRevision) String() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "String")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// String indicates an expected call of String.
+func (mr *MockSortKeyRevisionMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockSortKeyRevision)(nil).String))
+}

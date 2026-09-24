@@ -154,9 +154,9 @@ func IsSerializationError(err error) bool {
 
 // ConfigureOTELTracer adds OTEL tracing to a pgx.ConnConfig
 func ConfigureOTELTracer(connConfig *pgx.ConnConfig, includeQueryParameters bool) {
-	options := []otelpgx.Option{
-		otelpgx.WithTrimSQLInSpanName(),
-	}
+	// otelpgx trims the SQL statement down to the operation in the span name by
+	// default, which is what we want; only the extras have to be opted into.
+	var options []otelpgx.Option
 
 	if includeQueryParameters {
 		options = append(options, otelpgx.WithIncludeQueryParameters())

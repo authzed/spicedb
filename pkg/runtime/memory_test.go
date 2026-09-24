@@ -69,3 +69,21 @@ func TestAvailableMemory_Applies75PercentRatio(t *testing.T) {
 	expected := uint64(limit) * 75 / 100
 	require.Equal(t, expected, mem, "should apply 75%% ratio to available memory")
 }
+
+// TestFallbackMemoryLimitIsSaneMagnitude pins the fallback's value, not merely
+// that it is positive. The fallback is only reached when available memory cannot
+// be determined at all, so nothing downstream will flag a wrong figure - a
+// percent-based budget simply comes out small and the process runs on with
+// almost no cache. That is precisely how this constant sat at 256 * 1024 (256
+// KiB) while its comment said 256mb: a 1024x shortfall, invisible to every test
+// here because they all only assert the fallback is greater than zero.
+func TestFallbackMemoryLimitIsSaneMagnitude(t *testing.T) {
+	require.Equal(t, uint64(256*1024*1024), uint64(fallbackMemoryLimit),
+		"fallback should be 256 MiB, as its comment states")
+
+	// A second, unit-independent guard: whatever the figure is, it has to be big
+	// enough that a small percentage of it is still a usable cache budget. At 256
+	// KiB, a 1% budget is 2621 bytes.
+	require.Greater(t, uint64(fallbackMemoryLimit)/100, uint64(1024*1024),
+		"1%% of the fallback should still exceed a mebibyte, or percent-based budgets are meaningless")
+}

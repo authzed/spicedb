@@ -393,7 +393,14 @@ func TestMiddlewareOrdering(t *testing.T) {
 		errChan <- rs.Run(ctx)
 	}()
 
+	// The bootstrapped schema and relationships are setup, not the subject of this
+	// test, so read them at full consistency rather than at a quantized revision.
+	fullyConsistent := &v1.Consistency{
+		Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+	}
+
 	req := &v1.CheckPermissionRequest{
+		Consistency: fullyConsistent,
 		Resource: &v1.ObjectReference{
 			ObjectType: "resource",
 			ObjectId:   "resource1",
@@ -413,6 +420,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 	require.NoError(t, err)
 
 	lrreq := &v1.LookupResourcesRequest{
+		Consistency:        fullyConsistent,
 		ResourceObjectType: "resource",
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{

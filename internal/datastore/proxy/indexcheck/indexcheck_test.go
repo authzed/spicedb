@@ -155,7 +155,7 @@ func TestWrapWithIndexCheckingDatastoreProxyIfApplicable(t *testing.T) {
 
 func TestIndexCheckingProxyMethods(t *testing.T) {
 	ds := fakeDatastore{}
-	proxy := newIndexCheckingDatastoreProxy(ds).(*indexcheckingProxy)
+	proxy := newIndexCheckingDatastoreProxy(ds, ds).(*indexcheckingProxy)
 
 	t.Run("MetricsID", func(t *testing.T) {
 		id, err := proxy.MetricsID()
@@ -229,7 +229,7 @@ func TestIndexCheckingProxyMethods(t *testing.T) {
 
 func TestIndexCheckingReaderMethods(t *testing.T) {
 	ds := fakeDatastore{}
-	proxy := newIndexCheckingDatastoreProxy(ds)
+	proxy := newIndexCheckingDatastoreProxy(ds, ds)
 	reader := proxy.SnapshotReader(nil)
 
 	t.Run("CountRelationships", func(t *testing.T) {
@@ -301,7 +301,7 @@ func TestIndexCheckingReaderMethods(t *testing.T) {
 
 func TestIndexCheckingRWT(t *testing.T) {
 	ds := fakeDatastore{}
-	proxy := newIndexCheckingDatastoreProxy(ds)
+	proxy := newIndexCheckingDatastoreProxy(ds, ds)
 
 	_, err := proxy.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		indexRWT := rwt.(*indexcheckingRWT)

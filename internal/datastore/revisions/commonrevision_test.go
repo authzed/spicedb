@@ -2,11 +2,14 @@ package revisions
 
 import (
 	"bytes"
-	"sort"
+	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var kinds = map[RevisionKind]bool{Timestamp: false, TransactionID: false, HybridLogicalClock: true}
@@ -249,7 +252,7 @@ func TestHLCRevisionParsing(t *testing.T) {
 	}
 }
 
-func TestRevisionByteSortable(t *testing.T) {
+func TestRevisionSortKeyOrdering(t *testing.T) {
 	tcs := []struct {
 		left      string
 		right     string
@@ -290,6 +293,11 @@ func TestRevisionByteSortable(t *testing.T) {
 			"1.0000000001",
 			false,
 		},
+		{
+			"9",
+			"10",
+			true,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -311,21 +319,133 @@ func TestRevisionByteSortable(t *testing.T) {
 					rightRev, err := parser(tc.right)
 					require.NoError(t, err)
 
-					if !leftRev.ByteSortable() || !rightRev.ByteSortable() {
-						t.Skip("does not support byt sorting")
+					leftSK, ok := leftRev.(datastore.SortKeyRevision)
+					if !ok {
+						t.Skip("does not produce sort keys")
 					}
+					rightSK, ok := rightRev.(datastore.SortKeyRevision)
+					if !ok {
+						t.Skip("does not produce sort keys")
+					}
+					leftKey, rightKey := leftSK.AppendSortKey(nil), rightSK.AppendSortKey(nil)
 
-					toSort := []string{leftRev.String(), rightRev.String()}
-					sort.Strings(toSort)
+					toSort := [][]byte{leftKey, rightKey}
+					slices.SortFunc(toSort, bytes.Compare)
 					if tc.leftFirst {
-						require.Equal(t, leftRev.String(), toSort[0])
-						require.Equal(t, 0, bytes.Compare([]byte(leftRev.String()), []byte(toSort[0])))
+						require.Equal(t, 0, bytes.Compare(leftKey, toSort[0]))
 					} else {
-						require.Equal(t, rightRev.String(), toSort[0])
-						require.Equal(t, 0, bytes.Compare([]byte(rightRev.String()), []byte(toSort[0])))
+						require.Equal(t, 0, bytes.Compare(rightKey, toSort[0]))
 					}
 				})
 			}
 		})
 	}
+}
+
+// sortKeyRandomIterations is how many random pairs each type's randomized ordering test draws.
+const sortKeyRandomIterations = 2000
+
+// newTestRNG returns a generator with a fixed seed, so a failure reproduces.
+func newTestRNG() *rand.Rand {
+	return rand.New(rand.NewPCG(0x5CE7, 0xDA7A)) //nolint:gosec // G404: a deterministically-seeded PRNG is exactly what is wanted here.
+}
+
+// requireSortKeyOrder takes revisions in ascending order and checks every pair: the keys sort the
+// same way, they are all the expected width, and adding a suffix to each does not reorder them.
+func requireSortKeyOrder(t *testing.T, ordered []datastore.SortKeyRevision, expectedLength int) {
+	t.Helper()
+
+	keys := make([][]byte, 0, len(ordered))
+	for _, rev := range ordered {
+		key := rev.AppendSortKey(nil)
+		require.Len(t, key, expectedLength, "sort key for %s is not the fixed width", rev)
+		keys = append(keys, key)
+	}
+
+	for i, left := range ordered {
+		for j, right := range ordered {
+			name := left.String() + "_vs_" + right.String()
+			t.Run(name, func(t *testing.T) {
+				cmp := bytes.Compare(keys[i], keys[j])
+				switch {
+				case i < j:
+					require.True(t, left.LessThan(right))
+					require.Negative(t, cmp, "sort key order disagrees with LessThan")
+				case i > j:
+					require.True(t, left.GreaterThan(right))
+					require.Positive(t, cmp, "sort key order disagrees with GreaterThan")
+				default:
+					require.True(t, left.Equal(right))
+					require.Zero(t, cmp, "sort keys of equal revisions differ")
+				}
+
+				if i == j {
+					return
+				}
+
+				// No key is a prefix of another ...
+				require.False(t, bytes.HasPrefix(keys[i], keys[j]))
+				require.False(t, bytes.HasPrefix(keys[j], keys[i]))
+
+				// ... so the worst case - highest possible suffix on the smaller revision,
+				// lowest possible on the larger - still sorts correctly.
+				leftComposite := append(append([]byte(nil), keys[i]...), 0xff)
+				rightComposite := append(append([]byte(nil), keys[j]...), 0x00)
+				require.Equal(t, cmp, bytes.Compare(leftComposite, rightComposite),
+					"appending a suffix changed the relative order of the sort keys")
+			})
+		}
+	}
+}
+
+// requireSortKeyAgreesWithComparators checks one pair of revisions, in either order.
+func requireSortKeyAgreesWithComparators(t *testing.T, left, right datastore.SortKeyRevision) {
+	t.Helper()
+
+	cmp := bytes.Compare(left.AppendSortKey(nil), right.AppendSortKey(nil))
+	switch {
+	case left.LessThan(right):
+		require.Negative(t, cmp, "%s < %s but sort keys say otherwise", left, right)
+	case left.GreaterThan(right):
+		require.Positive(t, cmp, "%s > %s but sort keys say otherwise", left, right)
+	default:
+		require.True(t, left.Equal(right))
+		require.Zero(t, cmp, "%s == %s but sort keys differ", left, right)
+	}
+}
+
+// TestAppendSortKeyAppends checks that dst is extended rather than overwritten, and that a nil dst
+// yields a key on its own.
+func TestAppendSortKeyAppends(t *testing.T) {
+	rev := hlcFromString(t, 1739232000000000000, 7)
+
+	standalone := rev.AppendSortKey(nil)
+	require.Len(t, standalone, hlcSortKeyLength)
+
+	prefix := []byte("relationship/")
+	composite := rev.AppendSortKey(prefix)
+	require.Equal(t, append(append([]byte(nil), prefix...), standalone...), composite)
+
+	// Repeated appends to the same buffer are independent.
+	twice := rev.AppendSortKey(composite)
+	require.Equal(t, append(append([]byte(nil), composite...), standalone...), twice)
+}
+
+// TestSortKeyCapabilityDiscovery checks the type assertion a consumer makes where revisions enter
+// it: a revision that can produce sort keys passes, one that cannot fails rather than quietly
+// handing back something that does not sort.
+func TestSortKeyCapabilityDiscovery(t *testing.T) {
+	t.Run("supported", func(t *testing.T) {
+		var rev datastore.Revision = TransactionIDRevision(1000)
+
+		skr, ok := rev.(datastore.SortKeyRevision)
+		require.True(t, ok)
+		require.Equal(t, append([]byte("prefix/"), 0, 0, 0, 0, 0, 0, 0x03, 0xe8),
+			skr.AppendSortKey([]byte("prefix/")))
+	})
+
+	t.Run("unsupported", func(t *testing.T) {
+		_, ok := datastore.NoRevision.(datastore.SortKeyRevision)
+		require.False(t, ok)
+	})
 }

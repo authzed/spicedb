@@ -209,7 +209,7 @@ func (mds *mysqlDatastore) loadChanges(
 	}
 	rows.Close()
 	if rows.Err() != nil {
-		return nil, 0, err
+		return nil, 0, rows.Err()
 	}
 
 	// Load the changes relationships for the revision range.
