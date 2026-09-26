@@ -51,6 +51,7 @@ type mysqlReadWriteTXN struct {
 	schemaRevisionTableName string
 	tx                      *sql.Tx
 	newTxnID                uint64
+	relationshipWrites      bool
 }
 
 // structpbWrapper is used to marshall maps into MySQLs JSON data type
@@ -180,6 +181,27 @@ func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, name string
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
 func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
+	// Coalesce repeated writes to versions created by this transaction, preserving
+	// all pre-transaction history. The common single-write path needs no cleanup.
+	if rwt.relationshipWrites && len(mutations) > 0 {
+		clauses := make(sq.Or, 0, len(mutations))
+		for _, mutation := range mutations {
+			clause := exactRelationshipClause(mutation.Relationship)
+			if mutation.Operation == tuple.UpdateOperationCreate {
+				clause[colDeletedTxn] = rwt.newTxnID
+			}
+			clauses = append(clauses, clause)
+		}
+		query, args, err := sb.Delete(rwt.tupleTableName).Where(sq.Eq{colCreatedTxn: rwt.newTxnID}).Where(clauses).ToSql()
+		if err != nil {
+			return err
+		}
+		if _, err := rwt.tx.ExecContext(ctx, query, args...); err != nil {
+			return err
+		}
+	}
+	rwt.relationshipWrites = true
+
 	// TODO(jschorr): Determine if we can do this in a more efficient manner using ON CONFLICT UPDATE
 	// rather than SELECT FOR UPDATE as we've been doing.
 	bulkWrite := rwt.WriteRelsQuery
@@ -214,7 +236,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 	if len(clauses) > 0 {
 		query, args, err := selectForUpdateQuery.
 			Where(clauses).
-			Where(sq.GtOrEq{colDeletedTxn: rwt.newTxnID}).
+			Where(sq.Gt{colDeletedTxn: rwt.newTxnID}).
 			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
@@ -552,7 +574,8 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 				caveatName = rel.OptionalCaveat.CaveatName
 				caveatContext = rel.OptionalCaveat.Context.AsMap()
 			}
-			args = append(args,
+			args = append(
+				args,
 				rel.Resource.ObjectType,
 				rel.Resource.ObjectID,
 				rel.Resource.Relation,

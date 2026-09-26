@@ -88,6 +88,12 @@ func (apd *AlembicPostgresDriver) Close(ctx context.Context) error {
 	return apd.db.Close(ctx)
 }
 
+// MigrateToHead runs any pending Postgres migrations on an existing connection.
+// The caller retains ownership of db.
+func MigrateToHead(ctx context.Context, db *pgx.Conn) error {
+	return DatabaseMigrations.Run(ctx, &AlembicPostgresDriver{db: db}, migrate.Head, migrate.LiveRun)
+}
+
 func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, tx pgx.Tx, version, replaced string) error {
 	result, err := tx.Exec(
 		ctx,

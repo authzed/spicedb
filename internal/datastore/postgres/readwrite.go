@@ -80,8 +80,9 @@ var (
 
 type pgReadWriteTXN struct {
 	*pgReader
-	tx     pgx.Tx
-	newXID xid8
+	tx                 pgx.Tx
+	newXID             xid8
+	relationshipWrites bool
 }
 
 func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.InsertBuilder {
@@ -169,6 +170,27 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 }
 
 func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
+	// Coalesce repeated writes to versions created by this transaction, preserving
+	// all pre-transaction history. The common single-write path needs no cleanup.
+	if rwt.relationshipWrites && len(mutations) > 0 {
+		clauses := make(sq.Or, 0, len(mutations))
+		for _, mutation := range mutations {
+			clause := exactRelationshipClause(mutation.Relationship)
+			if mutation.Operation == tuple.UpdateOperationCreate {
+				clause[schema.ColDeletedXid] = rwt.newXID.Uint64
+			}
+			clauses = append(clauses, clause)
+		}
+		query, args, err := psql.Delete(schema.TableTuple).Where(sq.Eq{schema.ColCreatedXid: rwt.newXID.Uint64}).Where(clauses).ToSql()
+		if err != nil {
+			return err
+		}
+		if _, err := rwt.tx.Exec(ctx, query, args...); err != nil {
+			return err
+		}
+	}
+	rwt.relationshipWrites = true
+
 	touchMutationsByNonCaveat := make(map[string]tuple.RelationshipUpdate, len(mutations))
 	hasCreateInserts := false
 
@@ -225,7 +247,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 	// For each of the TOUCH operations, invoke the INSERTs, but with `ON CONFLICT DO NOTHING` to ensure
 	// that the operations over existing relationships no-op.
 	if len(touchMutationsByNonCaveat) > 0 {
-		touchInserts = touchInserts.Suffix(fmt.Sprintf("ON CONFLICT DO NOTHING RETURNING %s, %s, %s, %s, %s, %s",
+		touchInserts = touchInserts.Suffix(fmt.Sprintf(
+			"ON CONFLICT DO NOTHING RETURNING %s, %s, %s, %s, %s, %s",
 			schema.ColNamespace,
 			schema.ColObjectID,
 			schema.ColRelation,
@@ -322,7 +345,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 
 	builder := deleteTuple.
 		Where(deleteClauses).
-		Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s",
+		Suffix(fmt.Sprintf(
+			"RETURNING %s, %s, %s, %s, %s, %s",
 			schema.ColNamespace,
 			schema.ColObjectID,
 			schema.ColRelation,

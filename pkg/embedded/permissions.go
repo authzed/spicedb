@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
+	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -28,6 +29,13 @@ const (
 
 // Config configures a Permissions checker.
 type Config struct {
+	// MaxUpdatesPerWrite limits one relationship write (zero uses the service default).
+	MaxUpdatesPerWrite int
+	// MaxRelationshipContextSize limits serialized caveat bytes (zero uses the service default).
+	MaxRelationshipContextSize int
+	// ExpiringRelationshipsEnabled permits schema and relationships with expiration.
+	ExpiringRelationshipsEnabled bool
+
 	// Datastore is the datastore to check against. Required. The caller owns its lifecycle.
 	Datastore datastore.Datastore
 
@@ -56,6 +64,7 @@ type Config struct {
 
 // Permissions issues in-process permission checks against a datastore.
 type Permissions struct {
+	config      Config
 	dl          datalayer.DataLayer
 	dispatcher  dispatch.Dispatcher
 	cts         *caveattypes.TypeSet
@@ -70,6 +79,15 @@ func NewPermissions(cfg Config) (*Permissions, error) {
 		return nil, errors.New("embedded: Datastore is required")
 	}
 
+	if cfg.MaxUpdatesPerWrite < 0 || cfg.MaxRelationshipContextSize < 0 {
+		return nil, errors.New("embedded: limits must not be negative")
+	}
+	if cfg.MaxUpdatesPerWrite == 0 {
+		cfg.MaxUpdatesPerWrite = relationships.DefaultMaxUpdatesPerWrite
+	}
+	if cfg.MaxRelationshipContextSize == 0 {
+		cfg.MaxRelationshipContextSize = relationships.DefaultMaxRelationshipContextSize
+	}
 	cts := cfg.CaveatTypeSet
 	if cts == nil {
 		cts = caveattypes.Default.TypeSet
@@ -111,6 +129,7 @@ func NewPermissions(cfg Config) (*Permissions, error) {
 	}
 
 	return &Permissions{
+		config:      cfg,
 		dl:          dl,
 		dispatcher:  dispatcher,
 		cts:         cts,
@@ -155,6 +174,12 @@ func (p *Permissions) Check(ctx context.Context, req CheckRequest) (CheckResult,
 	if err != nil {
 		return CheckResult{}, err
 	}
+
+	return p.checkAtRevision(ctx, req, revision, schemaHash)
+}
+
+func (p *Permissions) checkAtRevision(ctx context.Context, req CheckRequest, revision datastore.Revision, schemaHash datalayer.SchemaHash) (CheckResult, error) {
+	ctx = datalayer.ContextWithDataLayer(ctx, p.dl)
 
 	subjectRel := req.SubjectRelation
 	if subjectRel == "" {

@@ -218,10 +218,22 @@ func (Testds) Mysql(ctx context.Context) error {
 
 func datastoreTest(ctx context.Context, datastore string, env map[string]string, tags ...string) error {
 	mergedTags := append([]string{"ci", "datastore"}, tags...)
+	includeEmbedded := datastore == "crdb" || datastore == "mysql"
+	if includeEmbedded {
+		mergedTags = append(mergedTags, datastore)
+	}
+	for _, tag := range tags {
+		if datastore == "postgres" && tag == "postgres" {
+			includeEmbedded = true
+		}
+	}
 	tagString := strings.Join(mergedTags, ",")
 	mg.Deps(checkDocker)
 	args := []string{"-tags", tagString}
 	args = append(args, coverageFlags...)
+	if includeEmbedded {
+		args = append(args, "./pkg/embedded")
+	}
 	return goDirTestWithEnv(ctx, ".", fmt.Sprintf("./internal/datastore/%s/...", datastore), env, args...)
 }
 
