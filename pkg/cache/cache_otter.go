@@ -75,23 +75,29 @@ func newOtterCache[K KeyString, V any](name string, config *Config) (*otterCache
 	}
 
 	counter := stats.NewCounter()
+	wtc := &otterCache[K, V]{
+		name:    name,
+		metrics: otterMetrics{Counter: counter},
+	}
 	opts := &otter.Options[string, valueAndCost[V]]{
 		MaximumWeight: uintCost,
 		Weigher: func(key string, value valueAndCost[V]) uint32 {
 			return value.cost
 		},
 		StatsRecorder: counter,
+		// The atomic handler runs inline with the deletion; the non-atomic
+		// OnDeletion would spawn a goroutine per deleted entry.
+		OnAtomicDeletion: func(e otter.DeletionEvent[string, valueAndCost[V]]) {
+			wtc.metrics.recordDeletion(e.Cause, e.Value.cost)
+		},
 	}
 	if config.DefaultTTL > 0 {
 		opts.ExpiryCalculator = otter.ExpiryAccessing[string, valueAndCost[V]](config.DefaultTTL)
 	}
 
 	cache, err := otter.New(opts)
-	return &otterCache[K, V]{
-		name:    name,
-		cache:   cache,
-		metrics: otterMetrics{atomic.Uint64{}, counter},
-	}, err
+	wtc.cache = cache
+	return wtc, err
 }
 
 type otterCache[K KeyString, V any] struct {
@@ -130,6 +136,29 @@ func (wtc *otterCache[K, V]) registerMetrics(registerer prometheus.Registerer) e
 			Namespace: promNamespace, Subsystem: promSubsystem, Name: "cost_evicted_bytes",
 			Help: "Cost of entries evicted from the cache", ConstLabels: labels,
 		}, func() float64 { return float64(wtc.metrics.CostEvicted()) }),
+	}
+	// Split evictions by cause, so an operator can tell a cache that is
+	// capacity-bound (overflow) from one whose entries die of TTL first
+	// (expiration), where more capacity would not help.
+	for _, byCause := range []struct {
+		cause  string
+		counts *evictionCounts
+	}{
+		{"overflow", &wtc.metrics.overflow},
+		{"expiration", &wtc.metrics.expiration},
+	} {
+		counts := byCause.counts
+		causeLabels := prometheus.Labels{"cache": wtc.name, "cause": byCause.cause}
+		collectors = append(collectors,
+			prometheus.NewCounterFunc(prometheus.CounterOpts{
+				Namespace: promNamespace, Subsystem: promSubsystem, Name: "evictions_total",
+				Help: "Number of entries evicted from the cache, by cause", ConstLabels: causeLabels,
+			}, func() float64 { return float64(counts.entries.Load()) }),
+			prometheus.NewCounterFunc(prometheus.CounterOpts{
+				Namespace: promNamespace, Subsystem: promSubsystem, Name: "evicted_bytes_total",
+				Help: "Cost of entries evicted from the cache, by cause", ConstLabels: causeLabels,
+			}, func() float64 { return float64(counts.cost.Load()) }),
+		)
 	}
 
 	for i, c := range collectors {
@@ -190,6 +219,31 @@ func (wtc *otterCache[K, V]) Close() {
 type otterMetrics struct {
 	costAdded atomic.Uint64
 	*stats.Counter
+
+	overflow   evictionCounts
+	expiration evictionCounts
+}
+
+// evictionCounts tallies the entries evicted for one cause and their cost.
+type evictionCounts struct {
+	entries atomic.Uint64
+	cost    atomic.Uint64
+}
+
+func (e *evictionCounts) record(cost uint32) {
+	e.entries.Add(1)
+	e.cost.Add(uint64(cost))
+}
+
+// recordDeletion counts an entry removed by the cache itself. Replacements and
+// explicit invalidations are not evictions and are ignored.
+func (o *otterMetrics) recordDeletion(cause otter.DeletionCause, cost uint32) {
+	switch cause {
+	case otter.CauseOverflow:
+		o.overflow.record(cost)
+	case otter.CauseExpiration:
+		o.expiration.record(cost)
+	}
 }
 
 func (o *otterMetrics) CostAdded() uint64   { return o.costAdded.Load() }

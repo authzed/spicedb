@@ -205,3 +205,90 @@ func TestCacheWithMetrics(t *testing.T) {
 		})
 	})
 }
+
+func TestEvictionsByCause(t *testing.T) {
+	t.Run("overflow", func(t *testing.T) {
+		cache, err := newOtterCache[StringKey, string]("test-otter", &Config{MaxCost: 100})
+		require.NoError(t, err)
+		t.Cleanup(cache.Close)
+
+		for _, key := range []StringKey{"k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9"} {
+			cache.Set(key, "value", 18) // weight 20 with the key
+		}
+		cache.cache.CleanUp()
+
+		// 200 of weight into a budget of 100 must evict at least five entries.
+		require.GreaterOrEqual(t, cache.metrics.overflow.entries.Load(), uint64(5))
+		require.Equal(t, 20*cache.metrics.overflow.entries.Load(), cache.metrics.overflow.cost.Load())
+		require.Zero(t, cache.metrics.expiration.entries.Load())
+		require.Equal(t, cache.metrics.CostEvicted(), cache.metrics.overflow.cost.Load())
+	})
+
+	t.Run("expiration", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			cache, err := newOtterCache[StringKey, string]("test-otter", &Config{MaxCost: 1000, DefaultTTL: time.Minute})
+			//nolint:testifylint // we're in a goroutine
+			if !assert.NoError(t, err) {
+				return
+			}
+			defer cache.Close()
+
+			cache.Set("key", "value", 7) // weight 10 with the key
+			time.Sleep(3 * time.Minute)
+			cache.cache.CleanUp()
+
+			assert.Equal(t, uint64(1), cache.metrics.expiration.entries.Load())
+			assert.Equal(t, uint64(10), cache.metrics.expiration.cost.Load())
+			assert.Zero(t, cache.metrics.overflow.entries.Load())
+		})
+	})
+
+	t.Run("replacement is not an eviction", func(t *testing.T) {
+		cache, err := newOtterCache[StringKey, string]("test-otter", &Config{MaxCost: 1000})
+		require.NoError(t, err)
+		t.Cleanup(cache.Close)
+
+		cache.Set("key", "value1", 10)
+		cache.Set("key", "value2", 10)
+		cache.cache.CleanUp()
+
+		require.Zero(t, cache.metrics.overflow.entries.Load())
+		require.Zero(t, cache.metrics.expiration.entries.Load())
+	})
+
+	t.Run("exported by cause", func(t *testing.T) {
+		registry := prometheus.NewRegistry()
+		c, err := NewOtterCacheWithMetrics[StringKey, string](registry, "test-otter", &Config{MaxCost: 100})
+		require.NoError(t, err)
+		t.Cleanup(c.Close)
+
+		for _, key := range []StringKey{"k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9"} {
+			c.Set(key, "value", 18)
+		}
+		c.(*otterCache[StringKey, string]).cache.CleanUp()
+
+		families, err := registry.Gather()
+		require.NoError(t, err)
+		got := map[string]map[string]float64{}
+		for _, family := range families {
+			name := family.GetName()
+			if name != "spicedb_cache_evictions_total" && name != "spicedb_cache_evicted_bytes_total" {
+				continue
+			}
+			got[name] = map[string]float64{}
+			for _, metric := range family.GetMetric() {
+				labels := map[string]string{}
+				for _, label := range metric.GetLabel() {
+					labels[label.GetName()] = label.GetValue()
+				}
+				require.Equal(t, "test-otter", labels["cache"])
+				got[name][labels["cause"]] = metric.GetCounter().GetValue()
+			}
+		}
+
+		require.GreaterOrEqual(t, got["spicedb_cache_evictions_total"]["overflow"], float64(5))
+		require.Zero(t, got["spicedb_cache_evictions_total"]["expiration"])
+		require.InDelta(t, 20*got["spicedb_cache_evictions_total"]["overflow"], got["spicedb_cache_evicted_bytes_total"]["overflow"], 0)
+		require.Contains(t, got["spicedb_cache_evicted_bytes_total"], "expiration")
+	})
+}
