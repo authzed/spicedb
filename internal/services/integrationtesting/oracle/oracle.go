@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,12 @@ type Result struct {
 
 	// Objects are the resources the answers cover: every definition, for every object ID.
 	Objects []tuple.ObjectAndRelation
+
+	// Program is the answer set program given to clingo.
+	Program string
+
+	// Output is clingo's output, in its JSON format.
+	Output []byte
 
 	// holdsIn maps a permission string of the form resource#permission@subject to the
 	// indexes of the worlds in which it holds.
@@ -86,8 +93,50 @@ func ClingoFromEnv() Clingo {
 	return nil
 }
 
+// Logger receives the oracle's progress messages. *testing.T and *rapid.T both satisfy it.
+//
+// If the logger also has a Helper method, as *testing.T does, the oracle marks its own
+// functions as helpers, so that messages are attributed to the caller of Compute.
+type Logger interface {
+	Logf(format string, args ...any)
+}
+
+type helper interface {
+	Helper()
+}
+
+// Option configures Compute.
+type Option func(*options)
+
+type options struct {
+	logger Logger
+}
+
+// WithLogger sets the logger for progress messages. By default, nothing is logged.
+func WithLogger(logger Logger) Option {
+	return func(o *options) { o.logger = logger }
+}
+
+func (o *options) logf(format string, args ...any) {
+	if h, ok := o.logger.(helper); ok {
+		h.Helper()
+	}
+	if o.logger != nil {
+		o.logger.Logf(format, args...)
+	}
+}
+
 // Compute returns the oracle's answers for the validation file, as of the given time.
-func Compute(ctx context.Context, clingo Clingo, populated *validationfile.PopulatedValidationFile, now time.Time) (*Result, error) {
+func Compute(ctx context.Context, clingo Clingo, populated *validationfile.PopulatedValidationFile, now time.Time, opts ...Option) (*Result, error) {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	// Helper marks the function that calls it, so it must be called here directly.
+	if h, ok := o.logger.(helper); ok {
+		h.Helper()
+	}
+
 	schemaRules, err := translateSchema(populated.NamespaceDefinitions)
 	if err != nil {
 		return nil, err
@@ -117,7 +166,9 @@ func Compute(ctx context.Context, clingo Clingo, populated *validationfile.Popul
 		}
 	}
 
-	result := &Result{Worlds: env.worlds, Objects: objects, holdsIn: map[string]*mapz.Set[int]{}}
+	var program strings.Builder
+	program.WriteString(schemaRules)
+	program.WriteString(translateFacts(objects, concrete.AsSlice()))
 	for index, world := range env.worlds {
 		var live []tuple.Relationship
 		for _, rel := range populated.Relationships {
@@ -132,20 +183,34 @@ func Compute(ctx context.Context, clingo Clingo, populated *validationfile.Popul
 				live = append(live, rel)
 			}
 		}
+		program.WriteString(translateWorld(index, live))
+	}
 
-		program := schemaRules + translateFacts(objects, concrete.AsSlice(), live)
-		model, err := clingo.solve(ctx, program)
-		if err != nil {
-			return nil, fmt.Errorf("world %v: %w", world, err)
+	o.logf("oracle: solving %d objects in %d worlds (%d bytes of program)",
+		len(objects), len(env.worlds), program.Len())
+
+	// The worlds share no atoms, so there is exactly one model overall if and only if
+	// there is exactly one model in every world.
+	model, output, err := clingo.solve(ctx, program.String())
+	if err != nil {
+		return nil, err
+	}
+	o.logf("oracle: %d memberships hold across all worlds", len(model))
+
+	result := &Result{
+		Worlds:  env.worlds,
+		Objects: objects,
+		Program: program.String(),
+		Output:  output,
+		holdsIn: map[string]*mapz.Set[int]{},
+	}
+	for _, found := range model {
+		worlds, ok := result.holdsIn[found.permission]
+		if !ok {
+			worlds = mapz.NewSet[int]()
+			result.holdsIn[found.permission] = worlds
 		}
-		for _, atom := range model {
-			worlds, ok := result.holdsIn[atom]
-			if !ok {
-				worlds = mapz.NewSet[int]()
-				result.holdsIn[atom] = worlds
-			}
-			worlds.Add(index)
-		}
+		worlds.Add(found.world)
 	}
 	return result, nil
 }
@@ -154,15 +219,22 @@ func Compute(ctx context.Context, clingo Clingo, populated *validationfile.Popul
 // paradoxical or ambiguous under the schema.
 type ErrNoUniqueModel struct {
 	Models  int
-	Program string
+	Program string // the answer set program given to clingo
+	Output  []byte // clingo's output, in its JSON format
 }
 
 func (e ErrNoUniqueModel) Error() string {
 	return fmt.Sprintf("expected exactly one stable model, found %d", e.Models)
 }
 
-// solve runs clingo and returns the single model, as permission strings.
-func (c Clingo) solve(ctx context.Context, program string) ([]string, error) {
+// membership is a permission string that holds in a world.
+type membership struct {
+	world      int
+	permission string
+}
+
+// solve runs clingo and returns the single model, along with clingo's raw output.
+func (c Clingo) solve(ctx context.Context, program string) ([]membership, []byte, error) {
 	// Ask for two models: finding a second one is enough to know the answer is ambiguous.
 	cmd := exec.CommandContext(ctx, c[0], append(c[1:], "--models=2", "--outf=2", "--warn=none")...)
 	cmd.Stdin = strings.NewReader(program)
@@ -179,7 +251,7 @@ func (c Clingo) solve(ctx context.Context, program string) ([]string, error) {
 		}
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
-		return nil, fmt.Errorf("running clingo: %w: %s", err, stderr.String())
+		return nil, nil, fmt.Errorf("running clingo: %w: %s", err, stderr.String())
 	}
 
 	var witnesses [][]string
@@ -189,24 +261,28 @@ func (c Clingo) solve(ctx context.Context, program string) ([]string, error) {
 		}
 	}
 	if len(witnesses) != 1 {
-		return nil, ErrNoUniqueModel{Models: len(witnesses), Program: program}
+		return nil, nil, ErrNoUniqueModel{Models: len(witnesses), Program: program, Output: stdout.Bytes()}
 	}
 
-	model := make([]string, 0, len(witnesses[0]))
+	model := make([]membership, 0, len(witnesses[0]))
 	for _, atom := range witnesses[0] {
 		args, err := parseArgs(atom)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		model = append(model, key(
-			tuple.ONR(args[0], args[1], args[2]),
-			tuple.ONR(args[3], args[4], args[5]),
-		))
+		world, err := strconv.Atoi(args[0])
+		if err != nil {
+			return nil, nil, fmt.Errorf("unexpected atom %q", atom)
+		}
+		model = append(model, membership{world, key(
+			tuple.ONR(args[1], args[2], args[3]),
+			tuple.ONR(args[4], args[5], args[6]),
+		)})
 	}
-	return model, nil
+	return model, stdout.Bytes(), nil
 }
 
-// parseArgs parses the string arguments of an atom such as out("a","b").
+// parseArgs parses the string arguments of an atom such as out("0","a","b").
 func parseArgs(atom string) ([]string, error) {
 	start := strings.IndexByte(atom, '(')
 	if start < 0 || !strings.HasSuffix(atom, ")") {
@@ -235,7 +311,7 @@ func parseArgs(atom string) ([]string, error) {
 			current.WriteRune(r)
 		}
 	}
-	if len(args) != 6 {
+	if len(args) != 7 {
 		return nil, fmt.Errorf("unexpected atom %q", atom)
 	}
 	return args, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -62,16 +63,23 @@ func compareWithCheck(t *testing.T, clingo oracle.Clingo, contents []byte) {
 	populated, revision, err := validationfile.PopulateFromFilesContents(ctx, dl, ts, map[string][]byte{"file.yaml": contents})
 	require.NoError(t, err)
 
-	result, err := oracle.Compute(ctx, clingo, populated, time.Now())
+	result, err := oracle.Compute(ctx, clingo, populated, time.Now(), oracle.WithLogger(t))
 	var unsupported oracle.ErrUnsupported
 	if errors.As(err, &unsupported) {
 		t.Skip(unsupported.Error())
 	}
 	var noUnique oracle.ErrNoUniqueModel
 	if errors.As(err, &noUnique) {
-		t.Fatalf("%v\n%s", err, noUnique.Program)
+		dir := saveArtifacts(t, map[string][]byte{"program.lp": []byte(noUnique.Program), "output.json": noUnique.Output})
+		t.Fatalf("%v; program and output saved to %s", err, dir)
 	}
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		if t.Failed() {
+			dir := saveArtifacts(t, map[string][]byte{"program.lp": []byte(result.Program), "output.json": result.Output})
+			t.Logf("oracle program and output saved to %s", dir)
+		}
+	})
 
 	accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, ctx, populated, ds)
 	dispatcher := consistencytestutil.CreateDispatcherForTesting(t, false)
@@ -107,6 +115,19 @@ func compareWithCheck(t *testing.T, clingo oracle.Clingo, contents []byte) {
 		}
 	}
 	t.Logf("%d agreed, %d imprecise, %d worlds", agreed, imprecise, len(result.Worlds))
+}
+
+// saveArtifacts writes the files to the test's artifact directory and returns it, so that
+// the oracle's input and output can be examined, or the program rerun with clingo by hand.
+// Run the tests with -artifacts to keep them.
+func saveArtifacts(t *testing.T, files map[string][]byte) string {
+	dir := t.ArtifactDir()
+	for name, contents := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), contents, 0o600); err != nil {
+			t.Errorf("saving %s: %v", name, err)
+		}
+	}
+	return dir
 }
 
 func sameMembership(fromCheck dispatchv1.ResourceCheckResult_Membership, fromOracle oracle.Membership) bool {
