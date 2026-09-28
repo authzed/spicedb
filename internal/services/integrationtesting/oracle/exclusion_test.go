@@ -1,7 +1,6 @@
 package oracle_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -84,14 +83,14 @@ func TestRecursionThroughExclusion(t *testing.T) {
 			populated, _, err := validationfile.PopulateFromFilesContents(ctx, dl, caveattypes.Default.TypeSet, map[string][]byte{"file.yaml": []byte(contents)})
 			require.NoError(t, err)
 
-			result, err := oracle.Compute(ctx, clingo, populated, time.Now())
+			result, err := oracle.Compute(ctx, clingo, populated, time.Now(), oracle.WithLogger(t))
 			if tc.view == nil {
 				var noUnique oracle.ErrNoUniqueModel
 				require.ErrorAs(t, err, &noUnique)
 				require.Equal(t, tc.models, noUnique.Models)
 				return
 			}
-			require.False(t, errors.As(err, new(oracle.ErrNoUniqueModel)))
+			require.NotErrorAs(t, err, new(oracle.ErrNoUniqueModel))
 			require.NoError(t, err)
 
 			tom := tuple.ONR("user", "tom", tuple.Ellipsis)
