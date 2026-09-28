@@ -3,39 +3,41 @@
 // answer set program, which is solved by the clingo binary.
 //
 // Objects are encoded as o(Type, ID), subjects as s(Object, Relation) (with "..." as the
-// relation of a terminal subject) and wildcards as w(Type). The program derives
-// has(Object, RelationOrPermission, Subject) for every membership that holds.
+// relation of a terminal subject) and wildcards as w(Type). Every caveat world is solved in
+// the same program: the program derives has(World, Object, RelationOrPermission, Subject)
+// for every membership that holds in that world.
 package oracle
 
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// rules holds the parts of the program that are the same for every world.
+// rules holds the parts of the program that do not depend on the schema.
 const rules = `
 % A relationship grants its subject, which is either a terminal subject or a userset.
-has(O,R,S) :- live(O,R,S), S = s(_,_).
+has(W,O,R,S) :- live(W,O,R,S), S = s(_,_).
 
 % A userset grants every member of the userset.
-has(O,R,S) :- live(O,R,s(O2,R2)), R2 != "...", has(O2,R2,S).
+has(W,O,R,S) :- live(W,O,R,s(O2,R2)), R2 != "...", has(W,O2,R2,S).
 
 % A wildcard grants every concrete object of its type.
-has(O,R,s(o(T,I),"...")) :- live(O,R,w(T)), concrete(o(T,I)).
+has(W,O,R,s(o(T,I),"...")) :- live(W,O,R,w(T)), concrete(o(T,I)).
 
 % Every userset contains itself.
-has(O,R,s(O,R)) :- obj(O), O = o(T,_), defined(T,R).
+has(W,O,R,s(O,R)) :- world(W), obj(O), O = o(T,_), defined(T,R).
 
 % Candidate subjects, used where a rule must quantify over subjects.
-cand(s(O,"...")) :- obj(O).
-cand(S) :- live(_,_,S), S = s(_,_).
+cand(W,s(O,"...")) :- world(W), obj(O).
+cand(W,S) :- live(W,_,_,S), S = s(_,_).
 
 #show.
-#show out(T,I,R,ST,SI,SR) : has(o(T,I),R,s(o(ST,SI),SR)).
+#show out(W,T,I,R,ST,SI,SR) : has(W,o(T,I),R,s(o(ST,SI),SR)).
 `
 
 // translator builds the schema-dependent rules of the program.
@@ -51,7 +53,7 @@ func translateSchema(defs []*core.NamespaceDefinition) (string, error) {
 		for _, rel := range def.Relation {
 			fmt.Fprintf(&tr.sb, "defined(%s,%s).\n", quote(def.Name), quote(rel.Name))
 			if rel.UsersetRewrite == nil {
-				// Relations are covered by the generic rules over live/3.
+				// Relations are covered by the generic rules over live/4.
 				continue
 			}
 
@@ -59,7 +61,7 @@ func translateSchema(defs []*core.NamespaceDefinition) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("%s#%s: %w", def.Name, rel.Name, err)
 			}
-			fmt.Fprintf(&tr.sb, "has(o(%s,I),%s,S) :- %s(o(%s,I),S).\n",
+			fmt.Fprintf(&tr.sb, "has(W,o(%s,I),%s,S) :- %s(W,o(%s,I),S).\n",
 				quote(def.Name), quote(rel.Name), pred, quote(def.Name))
 		}
 	}
@@ -70,7 +72,7 @@ func (tr *translator) fresh() string {
 	tr.counter++
 	pred := fmt.Sprintf("e%d", tr.counter)
 	// Declare every predicate, so that ones without rules (e.g. nil) are valid.
-	fmt.Fprintf(&tr.sb, "#defined %s/2.\n", pred)
+	fmt.Fprintf(&tr.sb, "#defined %s/3.\n", pred)
 	return pred
 }
 
@@ -101,23 +103,23 @@ func (tr *translator) rewrite(typ string, rw *core.UsersetRewrite) (string, erro
 	switch rw.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
 		for _, c := range childPreds {
-			fmt.Fprintf(&tr.sb, "%s(O,S) :- %s(O,S).\n", pred, c)
+			fmt.Fprintf(&tr.sb, "%s(W,O,S) :- %s(W,O,S).\n", pred, c)
 		}
 
 	case *core.UsersetRewrite_Intersection:
 		body := make([]string, 0, len(childPreds))
 		for _, c := range childPreds {
-			body = append(body, c+"(O,S)")
+			body = append(body, c+"(W,O,S)")
 		}
-		fmt.Fprintf(&tr.sb, "%s(O,S) :- %s.\n", pred, strings.Join(body, ", "))
+		fmt.Fprintf(&tr.sb, "%s(W,O,S) :- %s.\n", pred, strings.Join(body, ", "))
 
 	case *core.UsersetRewrite_Exclusion:
 		// The first child, minus every other child.
-		body := []string{childPreds[0] + "(O,S)"}
+		body := []string{childPreds[0] + "(W,O,S)"}
 		for _, c := range childPreds[1:] {
-			body = append(body, "not "+c+"(O,S)")
+			body = append(body, "not "+c+"(W,O,S)")
 		}
-		fmt.Fprintf(&tr.sb, "%s(O,S) :- %s.\n", pred, strings.Join(body, ", "))
+		fmt.Fprintf(&tr.sb, "%s(W,O,S) :- %s.\n", pred, strings.Join(body, ", "))
 	}
 	return pred, nil
 }
@@ -131,7 +133,7 @@ func (tr *translator) child(typ string, child *core.SetOperation_Child) (string,
 
 	case *core.SetOperation_Child_ComputedUserset:
 		pred := tr.fresh()
-		fmt.Fprintf(&tr.sb, "%s(O,S) :- has(O,%s,S), %s.\n", pred, quote(c.ComputedUserset.Relation), onType)
+		fmt.Fprintf(&tr.sb, "%s(W,O,S) :- has(W,O,%s,S), %s.\n", pred, quote(c.ComputedUserset.Relation), onType)
 		return pred, nil
 
 	case *core.SetOperation_Child_TupleToUserset:
@@ -151,9 +153,9 @@ func (tr *translator) child(typ string, child *core.SetOperation_Child) (string,
 			// The subject is granted if there is at least one left-hand object, and no
 			// left-hand object is missing the subject.
 			missing := tr.fresh()
-			fmt.Fprintf(&tr.sb, "%s(O,S) :- live(O,%s,s(X,_)), cand(S), not has(X,%s,S), %s.\n",
+			fmt.Fprintf(&tr.sb, "%s(W,O,S) :- live(W,O,%s,s(X,_)), cand(W,S), not has(W,X,%s,S), %s.\n",
 				missing, quote(tupleset), quote(computed), onType)
-			fmt.Fprintf(&tr.sb, "%s(O,S) :- live(O,%s,s(_,_)), cand(S), not %s(O,S), %s.\n",
+			fmt.Fprintf(&tr.sb, "%s(W,O,S) :- live(W,O,%s,s(_,_)), cand(W,S), not %s(W,O,S), %s.\n",
 				pred, quote(tupleset), missing, onType)
 
 		default:
@@ -166,7 +168,7 @@ func (tr *translator) child(typ string, child *core.SetOperation_Child) (string,
 
 	case *core.SetOperation_Child_XSelf:
 		pred := tr.fresh()
-		fmt.Fprintf(&tr.sb, "%s(O,s(O,\"...\")) :- obj(O), %s.\n", pred, onType)
+		fmt.Fprintf(&tr.sb, "%s(W,O,s(O,\"...\")) :- world(W), obj(O), %s.\n", pred, onType)
 		return pred, nil
 
 	default:
@@ -175,20 +177,28 @@ func (tr *translator) child(typ string, child *core.SetOperation_Child) (string,
 }
 
 func (tr *translator) arrowAny(pred, onType, tupleset, computed string) {
-	fmt.Fprintf(&tr.sb, "%s(O,S) :- live(O,%s,s(X,_)), has(X,%s,S), %s.\n",
+	fmt.Fprintf(&tr.sb, "%s(W,O,S) :- live(W,O,%s,s(X,_)), has(W,X,%s,S), %s.\n",
 		pred, quote(tupleset), quote(computed), onType)
 }
 
-// translateFacts returns the facts for a single world: the objects under test, the concrete
-// objects that wildcards expand to, and the relationships that are live in that world.
-func translateFacts(objects, concrete []tuple.ObjectAndRelation, live []tuple.Relationship) string {
-	lines := make([]string, 0, len(objects)+len(concrete)+len(live))
+// translateFacts returns the facts shared by every world: the objects under test, and the
+// concrete objects that wildcards expand to.
+func translateFacts(objects, concrete []tuple.ObjectAndRelation) string {
+	lines := make([]string, 0, len(objects)+len(concrete))
 	for _, o := range objects {
 		lines = append(lines, fmt.Sprintf("obj(%s).", object(o)))
 	}
 	for _, o := range concrete {
 		lines = append(lines, fmt.Sprintf("concrete(%s).", object(o)))
 	}
+	slices.Sort(lines)
+	return strings.Join(slices.Compact(lines), "\n") + "\n"
+}
+
+// translateWorld returns the facts for a single world: the relationships live in it.
+func translateWorld(world int, live []tuple.Relationship) string {
+	w := quote(strconv.Itoa(world))
+	lines := []string{fmt.Sprintf("world(%s).", w)}
 	for _, rel := range live {
 		var subject string
 		if rel.Subject.ObjectID == tuple.PublicWildcard {
@@ -196,7 +206,7 @@ func translateFacts(objects, concrete []tuple.ObjectAndRelation, live []tuple.Re
 		} else {
 			subject = fmt.Sprintf("s(%s,%s)", object(rel.Subject), quote(rel.Subject.Relation))
 		}
-		lines = append(lines, fmt.Sprintf("live(%s,%s,%s).", object(rel.Resource), quote(rel.Resource.Relation), subject))
+		lines = append(lines, fmt.Sprintf("live(%s,%s,%s,%s).", w, object(rel.Resource), quote(rel.Resource.Relation), subject))
 	}
 	slices.Sort(lines)
 	return strings.Join(slices.Compact(lines), "\n") + "\n"
