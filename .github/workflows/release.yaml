@@ -27,11 +27,39 @@ jobs:
         if: "${{ !startsWith(github.ref_name, 'v') || steps.version.outputs.is_valid != 'true' }}"
         run: 'echo "SpiceDB version must start with `v` and be a semver" && exit 1'
         shell: "bash"
+      # goreleaser builds and publishes the snap declared in .goreleaser.yml,
+      # which needs the snapcraft CLI, which is itself distributed as a snap.
+      # Runner images vary in whether snapd is installed and running, and
+      # without it `snap install` fails with "cannot communicate with server
+      # ... /run/snapd.socket: no such file or directory". So provision snapd
+      # rather than assume it. If it cannot be provisioned this step fails on
+      # purpose: a release that quietly stops publishing the snap is worse than
+      # one that stops loudly.
       - name: "Install snapcraft"
         run: |
+          set -euo pipefail
+          if [ ! -S /run/snapd.socket ]; then
+            echo "snapd is not running on this runner; installing and starting it"
+            # Let these fail quietly: the socket check below is what decides,
+            # and it gives a better message than apt or systemctl would.
+            sudo apt-get update && sudo apt-get install --yes snapd || true
+            sudo systemctl enable --now snapd.socket || true
+          fi
+          if [ ! -S /run/snapd.socket ]; then
+            echo "::error::snapd is unavailable on this runner, so snapcraft cannot be installed and the snap cannot be published."
+            exit 1
+          fi
+          # snapd accepts connections before it has finished seeding, and
+          # `snap install` fails until it has. Bound the wait: snapd on these
+          # images has been seen to hang rather than fail (see #3321), and a
+          # release job that hangs for six hours is worse than one that stops.
+          if ! sudo timeout 300 snap wait system seed.loaded; then
+            echo "::error::snapd did not finish seeding within 5 minutes, so snapcraft cannot be installed and the snap cannot be published."
+            exit 1
+          fi
           sudo snap install snapcraft --channel=8.x/stable --classic
-          mkdir -p $HOME/.cache/snapcraft/download
-          mkdir -p $HOME/.cache/snapcraft/stage-packages
+          mkdir -p "${HOME}/.cache/snapcraft/download"
+          mkdir -p "${HOME}/.cache/snapcraft/stage-packages"
       - uses: "authzed/actions/docker-login@11667c9b2e8b3649ad2af4d788e57d18f8e8eaf1" # main
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
