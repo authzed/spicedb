@@ -961,11 +961,7 @@ func (crr *CursoredLookupResources3) dispatchIter(
 			SubjectRelation:  foundResourceType,
 			SubjectIds:       subjectIDs,
 			TerminalSubject:  refs.req.TerminalSubject,
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     refs.req.Revision.String(),
-				DepthRemaining: refs.req.Metadata.DepthRemaining - 1,
-				SchemaHash:     refs.req.Metadata.SchemaHash,
-			},
+			Metadata:         childMetaWithoutBloom(refs.req.Metadata, refs.req.Revision.String()),
 			OptionalCursor:   currentCursor,
 			OptionalLimit:    refs.req.OptionalLimit,
 			Context:          refs.req.Context,
@@ -1019,14 +1015,15 @@ func (crr *CursoredLookupResources3) filterSubjectsByCheck(
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
 	resultsByResourceID, _, _, err := computed.ComputeBulkCheck(ctx, crr.dc, crr.caveatTypeSet, computed.CheckParameters{
-		ResourceType:  tuple.FromCoreRelationReference(foundResourceType),
-		Subject:       tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
-		CaveatContext: refs.req.Context.AsMap(),
-		AtRevision:    refs.req.Revision,
-		MaximumDepth:  refs.req.Metadata.DepthRemaining - 1,
-		DebugOption:   computed.NoDebugging,
-		CheckHints:    checkHints,
-		SchemaHash:    datalayer.SchemaHash(refs.req.Metadata.GetSchemaHash()),
+		ResourceType:   tuple.FromCoreRelationReference(foundResourceType),
+		Subject:        tuple.FromCoreObjectAndRelation(refs.req.TerminalSubject),
+		CaveatContext:  refs.req.Context.AsMap(),
+		AtRevision:     refs.req.Revision,
+		MaximumDepth:   refs.req.Metadata.DepthRemaining - 1,
+		DebugOption:    computed.NoDebugging,
+		CheckHints:     checkHints,
+		SchemaHash:     datalayer.SchemaHash(refs.req.Metadata.GetSchemaHash()),
+		RevisionSource: refs.req.Metadata.GetRevisionSource(),
 	}, resourceIDsToCheck, crr.dispatchChunkSize)
 	if err != nil {
 		return nil, err

@@ -336,6 +336,44 @@ func TestCheckSecondaryDispatch(t *testing.T) {
 			1 * time.Second,
 			1,
 		},
+		{
+			"head revision skips secondary",
+			"request.metadata.revision_source != 2 ? ['secondary'] : []",
+			&v1.DispatchCheckRequest{
+				ResourceRelation: &corev1.RelationReference{
+					Namespace: "somenamespace",
+					Relation:  "somerelation",
+				},
+				ResourceIds: []string{"foo"},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+					RevisionSource: v1.RevisionSource_REVISION_SOURCE_HEAD,
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+			},
+			1 * time.Second,
+			1,
+		},
+		{
+			"optimized revision uses secondary",
+			"request.metadata.revision_source != 2 ? ['secondary'] : []",
+			&v1.DispatchCheckRequest{
+				ResourceRelation: &corev1.RelationReference{
+					Namespace: "somenamespace",
+					Relation:  "somerelation",
+				},
+				ResourceIds: []string{"foo"},
+				Metadata: &v1.ResolverMeta{
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+					RevisionSource: v1.RevisionSource_REVISION_SOURCE_OPTIMIZED,
+				},
+				Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+			},
+			1 * time.Second,
+			2,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: tc.primarySleepTime})
