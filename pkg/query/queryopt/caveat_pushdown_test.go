@@ -8,6 +8,9 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema/v2"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // dsOutline returns a DatastoreIteratorType outline whose BaseRelation carries
@@ -255,4 +258,25 @@ func TestOutlineContainsCaveat(t *testing.T) {
 		require.Equal(t, query.DatastoreIteratorType, innerResult.SubOutlines[0].Type)
 		require.Equal(t, query.CaveatIteratorType, innerResult.SubOutlines[1].Type)
 	})
+}
+
+func TestCaveatPushdownPreservesMixedTraitBranch(t *testing.T) {
+	compiled, err := compiler.Compile(compiler.InputSchema{Source: input.Source("test"), SchemaString: `caveat test_caveat(ok bool) { ok }
+definition user {}
+definition document {
+ relation viewer: user | user with test_caveat
+}`}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+	s, err := schema.BuildSchemaFromDefinitions(compiled.ObjectDefinitions, compiled.CaveatDefinitions)
+	require.NoError(t, err)
+	base, err := s.ResolveBaseRelation("document", "viewer", "user", tuple.Ellipsis, "", false, false)
+	require.NoError(t, err)
+	mixed := query.Outline{Type: query.DatastoreIteratorType, Args: &query.IteratorArgs{Relation: base}}
+	result := applyPushdown(caveatOutline("test_caveat", unionOutline(mixed, dsOutline("test_caveat"))))
+	require.Equal(t, query.UnionIteratorType, result.Type)
+	require.Len(t, result.SubOutlines, 2)
+	for _, branch := range result.SubOutlines {
+		require.Equal(t, query.CaveatIteratorType, branch.Type)
+		require.Equal(t, "test_caveat", branch.Args.Caveat.CaveatName)
+	}
 }
