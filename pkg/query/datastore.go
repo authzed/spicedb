@@ -77,12 +77,13 @@ func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resource Object, subje
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+	pathSeq, err := ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
 		subject,
-		r.base.Caveat() != "", r.base.Expiration(),
+		r.relationHasCaveats(), r.relationHasExpiration(),
 	)
 	if err != nil {
 		return nil, err
@@ -117,12 +118,13 @@ func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resource Object, sub
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+	pathSeq, err := ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
 		wildcardSubject,
-		r.base.Caveat() != "", r.base.Expiration(),
+		r.relationHasCaveats(), r.relationHasExpiration(),
 	)
 	if err != nil {
 		return nil, err
@@ -155,11 +157,12 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 
 	// If pagination is not configured, do the simple eager collection
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+		pathSeq, err := ctx.Reader.QuerySubjects(
+			ctx,
 			resource,
 			r.base.RelationName(),
 			subjectType,
-			r.base.Caveat() != "", r.base.Expiration(),
+			r.relationHasCaveats(), r.relationHasExpiration(),
 			QueryPage{},
 		)
 		if err != nil {
@@ -180,11 +183,12 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+			pathSeq, err := ctx.Reader.QuerySubjects(
+				ctx,
 				resource,
 				r.base.RelationName(),
 				subjectType,
-				r.base.Caveat() != "", r.base.Expiration(),
+				r.relationHasCaveats(), r.relationHasExpiration(),
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
@@ -238,12 +242,13 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	return ctx.Reader.CheckRelationships(ctx,
+	return ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
 		wildcardSubject,
-		r.base.Caveat() != "", r.base.Expiration(),
+		r.relationHasCaveats(), r.relationHasExpiration(),
 	)
 }
 
@@ -272,11 +277,12 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 	}
 
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QueryResources(ctx,
+		pathSeq, err := ctx.Reader.QueryResources(
+			ctx,
 			r.base.DefinitionName(),
 			r.base.RelationName(),
 			subject,
-			r.base.Caveat() != "", r.base.Expiration(),
+			r.relationHasCaveats(), r.relationHasExpiration(),
 			QueryPage{},
 		)
 		if err != nil {
@@ -295,11 +301,12 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QueryResources(ctx,
+			pathSeq, err := ctx.Reader.QueryResources(
+				ctx,
 				r.base.DefinitionName(),
 				r.base.RelationName(),
 				subject,
-				r.base.Caveat() != "", r.base.Expiration(),
+				r.relationHasCaveats(), r.relationHasExpiration(),
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
@@ -352,11 +359,12 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 	}
 
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QueryResources(ctx,
+		pathSeq, err := ctx.Reader.QueryResources(
+			ctx,
 			r.base.DefinitionName(),
 			r.base.RelationName(),
 			wildcardSubject,
-			r.base.Caveat() != "", r.base.Expiration(),
+			r.relationHasCaveats(), r.relationHasExpiration(),
 			QueryPage{},
 		)
 		if err != nil {
@@ -376,11 +384,12 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QueryResources(ctx,
+			pathSeq, err := ctx.Reader.QueryResources(
+				ctx,
 				r.base.DefinitionName(),
 				r.base.RelationName(),
 				wildcardSubject,
-				r.base.Caveat() != "", r.base.Expiration(),
+				r.relationHasCaveats(), r.relationHasExpiration(),
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
@@ -433,7 +442,7 @@ func (r *DatastoreIterator) Explain() Explain {
 	return Explain{
 		Info: fmt.Sprintf("Datastore(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
 			r.base.DefinitionName(), r.base.RelationName(), r.base.Type(), relationName,
-			r.base.Caveat() != "", r.base.Expiration()),
+			r.relationHasCaveats(), r.relationHasExpiration()),
 	}
 }
 
@@ -559,4 +568,34 @@ func deserializeDatastore(body io.Reader, key CanonicalKey, dctx *DeserializeCon
 	ds := NewDatastoreIterator(base)
 	ds.canonicalKey = key
 	return ds, nil
+}
+
+// A leaf's query filters the subject, not the allowed-relation trait variant.
+// Every variant that can be returned must retain caveats and expiration checks.
+func (r *DatastoreIterator) relationHasCaveats() bool {
+	if r.base.Caveat() != "" {
+		return true
+	}
+	if parent, ok := r.base.Parent().(*schema.Relation); ok {
+		for _, br := range parent.BaseRelations() {
+			if br.Caveat() != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *DatastoreIterator) relationHasExpiration() bool {
+	if r.base.Expiration() {
+		return true
+	}
+	if parent, ok := r.base.Parent().(*schema.Relation); ok {
+		for _, br := range parent.BaseRelations() {
+			if br.Expiration() {
+				return true
+			}
+		}
+	}
+	return false
 }
