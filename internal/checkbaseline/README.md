@@ -193,10 +193,14 @@ Plans are prepared outside timing, while per-request execution and final caveat
 evaluation are timed. Exact relationship parity does not imply identical CPU
 work: classic still resolves schema from its cache while QP uses prepared plans.
 
-The aligned PostgreSQL suite measured 84 matching cases across 32 datasets, up
+Local run `20260929-postgres-aligned-work`, measured from source commit
+`187950aef` before publication cleanup, recorded 84 matching cases across 32 datasets, up
 to 1,000,000 relationships, with 1,680 timing samples and zero schema datastore
 loads for both engines. These observations describe that workload and local
-environment, not a guarantee for other schemas or deployments. The broader
+environment, not a guarantee for other schemas or deployments. Its report and
+checksummed raw shards remain in the local archive
+`artifacts/check-baseline/history/runs/20260929-postgres-aligned-work/`; they
+are not included in the repository or measurements of this publication branch. The broader
 fixture catalog retains explicitly differing work and withholds ratios for it.
 
 Generated HTML, data, logs, and screenshots stay under the ignored

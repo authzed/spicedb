@@ -3,9 +3,10 @@ package checkbaseline
 
 import (
 	"context"
+	"time"
+
 	bm "github.com/authzed/spicedb/pkg/benchmarks"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"time"
 )
 
 type Outcome string

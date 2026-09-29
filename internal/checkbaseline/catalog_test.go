@@ -1,9 +1,11 @@
 package checkbaseline
 
 import (
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 )
 
 func TestGeneratedExpectations(t *testing.T) {
@@ -27,6 +29,7 @@ func TestGeneratedExpectations(t *testing.T) {
 		})
 	}
 }
+
 func TestRegistryCatalog(t *testing.T) {
 	ds := RegistryDatasets()
 	require.GreaterOrEqual(t, len(ds), 8)

@@ -6,16 +6,18 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/authzed/spicedb/internal/checkbaseline"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/authzed/spicedb/internal/checkbaseline"
 )
 
 func main() { testing.Init(); os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr)) }
+
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("checkbaseline", flag.ContinueOnError)
 	fs.SetOutput(stderr)
