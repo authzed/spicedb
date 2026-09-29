@@ -2,10 +2,12 @@ package checkbaseline
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 type timingEngine struct {
@@ -24,9 +26,12 @@ func (e *timingEngine) Check(ctx context.Context, _ Case) (Decision, error) {
 	e.observed = e.observed || recorder(ctx) != nil
 	return Decision{Outcome: Allow}, nil
 }
+
 func TestTimingSamples(t *testing.T) {
+	originalBenchtime := flag.Lookup("test.benchtime").Value.String()
 	a, b := &timingEngine{}, &timingEngine{}
 	samples, err := measurePair(t.Context(), []Engine{a, b}, Case{Expected: Decision{Outcome: Allow}}, 10, time.Second)
+	require.Equal(t, originalBenchtime, flag.Lookup("test.benchtime").Value.String())
 	require.NoError(t, err)
 	for _, s := range samples {
 		require.Len(t, s, 10)
@@ -43,8 +48,10 @@ func TestTimingSamples(t *testing.T) {
 func (e *timingEngine) Preparation() Sample { return Sample{} }
 
 func TestPartialTimingSamplesSurviveFailure(t *testing.T) {
+	originalBenchtime := flag.Lookup("test.benchtime").Value.String()
 	a, b := &timingEngine{failAt: 550}, &timingEngine{}
 	samples, err := measurePair(t.Context(), []Engine{a, b}, Case{Expected: Decision{Outcome: Allow}}, 10, time.Second)
+	require.Equal(t, originalBenchtime, flag.Lookup("test.benchtime").Value.String())
 	require.ErrorContains(t, err, "delayed failure")
 	require.NotEmpty(t, samples[0])
 	require.NotEmpty(t, samples[1])

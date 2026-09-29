@@ -3,11 +3,13 @@ package checkbaseline
 import (
 	"context"
 	"fmt"
-	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestPostgresAdminLocalOnly(t *testing.T) {
@@ -18,6 +20,7 @@ func TestPostgresAdminLocalOnly(t *testing.T) {
 	_, err := postgresAdminConfig("postgres://postgres@127.0.0.1:5432/postgres?sslmode=disable")
 	require.NoError(t, err)
 }
+
 func TestPostgresBaselineIntegration(t *testing.T) {
 	uri := os.Getenv("CHECKBASELINE_POSTGRES_URI")
 	if uri == "" {
@@ -67,6 +70,7 @@ func TestPostgresRejectsImplicitSettings(t *testing.T) {
 	t.Setenv("PGOPTIONS", "-c enable_indexscan=off")
 	require.Error(t, validatePostgresEnvironment())
 }
+
 func TestPostgresMetadataRequired(t *testing.T) {
 	for _, metadata := range []string{"", "{}", `{"image":"test"}`} {
 		require.Error(t, validateBackendMetadata(metadata))

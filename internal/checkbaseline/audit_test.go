@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCompareWorkEqualCountsDifferentFilters(t *testing.T) {
@@ -14,6 +15,7 @@ func TestCompareWorkEqualCountsDifferentFilters(t *testing.T) {
 	require.NotEmpty(t, CompareWork(a, b))
 	require.Empty(t, CompareWork(a, a))
 }
+
 func TestAuditGenerated(t *testing.T) {
 	datasets := GeneratedDatasets([]Scale{{Name: "small", Fanout: 3, Depth: 3, DirectRelationships: 10}})
 	a, err := Audit(context.Background(), datasets, AuditConfig{Policy: DefaultPolicy(), Repetitions: 3, DatasetPattern: "^generated/direct/small$", CasePattern: ".*"})
@@ -27,6 +29,7 @@ func TestAuditGenerated(t *testing.T) {
 		require.Equal(t, 11, r.Dataset.Relationships)
 	}
 }
+
 func TestAuditConsistencyFixture(t *testing.T) {
 	ds, err := FixtureDatasets("../..")
 	require.NoError(t, err)
@@ -35,15 +38,17 @@ func TestAuditConsistencyFixture(t *testing.T) {
 	require.NotEmpty(t, a.Results)
 	require.Empty(t, a.Omissions)
 }
+
 func TestAuditProfiles(t *testing.T) {
 	ds := GeneratedDatasets([]Scale{{Name: "small", Fanout: 3, Depth: 3, DirectRelationships: 10}})
 	a, err := Audit(t.Context(), ds, AuditConfig{Policy: DefaultPolicy(), Repetitions: 1, DatasetPattern: "^generated/direct/small$", CasePattern: "hit", Profiles: []string{"memdb", "delay"}})
 	require.NoError(t, err)
 	require.Len(t, a.Results, 2)
 	for i := range 2 {
-		require.Equal(t, len(relationshipEvents(a.Results[0].Engines[i].Work[0])), len(relationshipEvents(a.Results[1].Engines[i].Work[0])))
+		require.Len(t, relationshipEvents(a.Results[1].Engines[i].Work[0]), len(relationshipEvents(a.Results[0].Engines[i].Work[0])))
 	}
 }
+
 func TestMixedTraitExpiredRelationship(t *testing.T) {
 	ds, err := FixtureDatasets("../..")
 	require.NoError(t, err)
@@ -54,6 +59,7 @@ func TestMixedTraitExpiredRelationship(t *testing.T) {
 		require.True(t, r.Valid, r.Case.ID)
 	}
 }
+
 func TestAlignedTraversalWork(t *testing.T) {
 	ds := GeneratedDatasets([]Scale{{Name: "small", Fanout: 3, Depth: 3, DirectRelationships: 10}})
 	a, err := Audit(t.Context(), ds, AuditConfig{Policy: DefaultPolicy(), Repetitions: 1, DatasetPattern: "^generated/(recursive|exclusion|all)/small$", CasePattern: ".*"})
@@ -71,6 +77,7 @@ func TestAlignedTraversalWork(t *testing.T) {
 		require.Equal(t, rows(x), rows(y), r.Dataset.ID+"/"+r.Case.ID)
 	}
 }
+
 func TestCaveatAccounting(t *testing.T) {
 	ds, err := FixtureDatasets("../..")
 	require.NoError(t, err)
@@ -86,6 +93,7 @@ func TestCaveatAccounting(t *testing.T) {
 		require.Positive(t, leaves, e.Name)
 	}
 }
+
 func TestDeferredCaveatWork(t *testing.T) {
 	ds, err := FixtureDatasets("../..")
 	require.NoError(t, err)

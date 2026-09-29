@@ -3,10 +3,10 @@ package checkbaseline
 import (
 	"context"
 	"encoding/json"
-	"github.com/authzed/spicedb/internal/caveats"
 	"sync"
 	"time"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -39,7 +39,9 @@ func WithRecorder(ctx context.Context, r *Recorder) context.Context {
 	ctx = context.WithValue(ctx, recorderKey{}, r)
 	return caveats.WithEvaluationObserver(ctx, func(e caveats.EvaluationEvent) { event(ctx, "caveat-"+e.Stage, e.Name, nil, 0) })
 }
+
 func recorder(ctx context.Context) *Recorder { r, _ := ctx.Value(recorderKey{}).(*Recorder); return r }
+
 func (r *Recorder) change(f func()) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -48,6 +50,7 @@ func (r *Recorder) change(f func()) {
 	}
 	f()
 }
+
 func (r *Recorder) Snapshot() Work {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -68,6 +71,7 @@ func event(ctx context.Context, op string, filter, opts any, batch int) (*Record
 	r.change(func() { r.work.Events = append(r.work.Events, e) })
 	return r, e
 }
+
 func observed(ctx context.Context, op string, f, o any, batch int, call func() (datastore.RelationshipIterator, error)) (datastore.RelationshipIterator, error) {
 	r, e := event(ctx, op, f, o, batch)
 	seq, err := call()
@@ -107,6 +111,7 @@ func WrapDataLayer(dl datalayer.DataLayer) datalayer.DataLayer { return &auditLa
 func WithRelationshipDelay(dl datalayer.DataLayer, delay time.Duration) datalayer.DataLayer {
 	return &delayLayer{DataLayer: dl, delay: delay}
 }
+
 func (l *auditLayer) SnapshotReader(rev datastore.Revision, hash datalayer.SchemaHash) datalayer.RevisionedReader {
 	return &auditReader{RevisionedReader: l.DataLayer.SnapshotReader(rev, hash), delay: l.delay}
 }
@@ -132,6 +137,7 @@ func waitDelay(ctx context.Context, d time.Duration) error {
 		return nil
 	}
 }
+
 func (r *auditReader) QueryRelationships(ctx context.Context, f datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
 	o := options.NewQueryOptionsWithOptions(opts...)
 	return observed(ctx, "query", f, struct {
@@ -148,6 +154,7 @@ func (r *auditReader) QueryRelationships(ctx context.Context, f datastore.Relati
 		return r.RevisionedReader.QueryRelationships(ctx, f, opts...)
 	})
 }
+
 func (r *auditReader) ReverseQueryRelationships(ctx context.Context, f datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	o := options.NewReverseQueryOptionsWithOptions(opts...)
 	return observed(ctx, "reverse", f, struct {
@@ -164,6 +171,7 @@ func (r *auditReader) ReverseQueryRelationships(ctx context.Context, f datastore
 		return r.RevisionedReader.ReverseQueryRelationships(ctx, f, opts...)
 	})
 }
+
 func (r *auditReader) ReadSchema(ctx context.Context) (datalayer.SchemaReader, error) {
 	rec, e := event(ctx, "schema", nil, nil, 0)
 	sr, err := r.RevisionedReader.ReadSchema(ctx)
@@ -182,13 +190,15 @@ func (r *auditReader) ReadSchema(ctx context.Context) (datalayer.SchemaReader, e
 	return wrapper, nil
 }
 
-type auditSchema struct{ datalayer.SchemaReader }
-type storedAuditSchema struct {
-	*auditSchema
-	provider interface {
-		StoredSchema() *datastore.ReadOnlyStoredSchema
+type (
+	auditSchema       struct{ datalayer.SchemaReader }
+	storedAuditSchema struct {
+		*auditSchema
+		provider interface {
+			StoredSchema() *datastore.ReadOnlyStoredSchema
+		}
 	}
-}
+)
 
 func (s *storedAuditSchema) StoredSchema() *datastore.ReadOnlyStoredSchema {
 	return s.provider.StoredSchema()
