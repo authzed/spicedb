@@ -2,15 +2,17 @@ package checkbaseline
 
 import (
 	"context"
-	"fmt"
+	"sort"
+	"strconv"
+
 	bm "github.com/authzed/spicedb/pkg/benchmarks"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"sort"
 )
 
 func RegistryDatasets() []Dataset {
-	var out []Dataset
-	for _, b := range bm.All() {
+	all := bm.All()
+	out := make([]Dataset, 0, len(all))
+	for _, b := range all {
 		out = append(out, Dataset{ID: "registry/" + b.Name, Family: "registry", Source: "pkg/benchmarks/" + b.Name, Setup: func(ctx context.Context, ds datastore.Datastore) ([]Case, error) {
 			qs, err := b.Setup(ctx, ds)
 			if err != nil {
@@ -22,7 +24,7 @@ func RegistryDatasets() []Dataset {
 				depth = 50
 			}
 			for i, q := range qs.Checks {
-				cases = append(cases, Case{ID: fmt.Sprint(i), Query: q, Expected: Decision{Outcome: Allow}, ClassicDepth: uint32(depth), QPDepth: depth})
+				cases = append(cases, Case{ID: strconv.Itoa(i), Query: q, Expected: Decision{Outcome: Allow}, ClassicDepth: uint32(depth), QPDepth: depth})
 			}
 			return cases, nil
 		}})

@@ -2,10 +2,11 @@ package checkbaseline
 
 import (
 	"context"
+	"time"
+
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"time"
 )
 
 // delayLayer is independent of auditing so timing never pays for work counters.
@@ -29,6 +30,7 @@ func (r *delayReader) QueryRelationships(ctx context.Context, f datastore.Relati
 	}
 	return r.RevisionedReader.QueryRelationships(ctx, f, o...)
 }
+
 func (r *delayReader) ReverseQueryRelationships(ctx context.Context, f datastore.SubjectsFilter, o ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	if err := waitDelay(ctx, r.delay); err != nil {
 		return nil, err

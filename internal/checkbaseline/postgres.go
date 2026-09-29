@@ -5,17 +5,19 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
-	"github.com/jackc/pgx/v5"
 )
 
 // DatabaseInfo describes physical PostgreSQL storage after load and VACUUM ANALYZE.
@@ -40,6 +42,7 @@ func validatePostgresEnvironment() error {
 	}
 	return nil
 }
+
 func validateBackendMetadata(value string) error {
 	var m struct {
 		Image, Architecture, DockerVersion, Transport string
@@ -47,22 +50,23 @@ func validateBackendMetadata(value string) error {
 		MemoryBytes, VMCPUs, VMMemoryBytes            int64
 	}
 	if err := json.Unmarshal([]byte(value), &m); err != nil {
-		return fmt.Errorf("CHECKBASELINE_BACKEND_METADATA must be valid deployment JSON")
+		return errors.New("CHECKBASELINE_BACKEND_METADATA must be valid deployment JSON")
 	}
 	if m.Image == "" || m.Architecture == "" || m.DockerVersion == "" || m.Transport == "" || m.CPUs <= 0 || m.MemoryBytes <= 0 || m.VMCPUs <= 0 || m.VMMemoryBytes <= 0 {
-		return fmt.Errorf("backend metadata requires image, architecture, Docker version, transport, container and VM resources")
+		return errors.New("backend metadata requires image, architecture, Docker version, transport, container and VM resources")
 	}
 	return nil
 }
+
 func postgresAdminConfig(uri string) (*pgx.ConnConfig, error) {
 	u, err := url.Parse(uri)
 	if err != nil || u == nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Path != "/postgres" {
-		return nil, fmt.Errorf("benchmark requires a local PostgreSQL admin URI targeting /postgres")
+		return nil, errors.New("benchmark requires a local PostgreSQL admin URI targeting /postgres")
 	}
 	switch u.Hostname() {
 	case "127.0.0.1", "::1", "localhost":
 	default:
-		return nil, fmt.Errorf("benchmark PostgreSQL host must be loopback")
+		return nil, errors.New("benchmark PostgreSQL host must be loopback")
 	}
 	for k := range u.Query() {
 		if k != "sslmode" {
@@ -71,10 +75,11 @@ func postgresAdminConfig(uri string) (*pgx.ConnConfig, error) {
 	}
 	cfg, err := pgx.ParseConfig(uri)
 	if err != nil {
-		return nil, fmt.Errorf("invalid PostgreSQL admin configuration")
+		return nil, errors.New("invalid PostgreSQL admin configuration")
 	}
 	return cfg, nil
 }
+
 func openBaselineBackend(ctx context.Context, cfg AuditConfig) (*baselineBackend, error) {
 	if cfg.Backend == "" || cfg.Backend == "memdb" {
 		ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

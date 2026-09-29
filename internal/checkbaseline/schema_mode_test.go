@@ -1,11 +1,13 @@
 package checkbaseline
 
 import (
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/pkg/datalayer"
 )
 
 func TestSingleStoreBothEnginesAvoidSchemaLoads(t *testing.T) {
@@ -29,6 +31,7 @@ func TestSingleStoreBothEnginesAvoidSchemaLoads(t *testing.T) {
 		}
 	}
 }
+
 func schemaLoadCount(w Work) int {
 	n := 0
 	for _, e := range w.Events {
@@ -47,9 +50,9 @@ func TestSingleStoreColdAndWarmSchemaReads(t *testing.T) {
 	require.NoError(t, err)
 	rev, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
-	_, dl, close, err := baselineDataLayers(ds, datalayer.SchemaModeReadNewWriteNew)
+	_, dl, closeCache, err := baselineDataLayers(ds, datalayer.SchemaModeReadNewWriteNew)
 	require.NoError(t, err)
-	defer close()
+	defer closeCache()
 	for i := 0; i < 2; i++ {
 		record := NewRecorder()
 		reader := dl.SnapshotReader(rev.Revision, datalayer.SchemaHash(rev.SchemaHash))
@@ -58,6 +61,7 @@ func TestSingleStoreColdAndWarmSchemaReads(t *testing.T) {
 		require.Equal(t, 1-i, schemaLoadCount(record.Seal()))
 	}
 }
+
 func TestSingleStoreTraits(t *testing.T) {
 	ds, err := FixtureDatasets("../..")
 	require.NoError(t, err)
@@ -73,6 +77,7 @@ func TestSingleStoreTraits(t *testing.T) {
 		}
 	}
 }
+
 func TestSingleStorePostgres(t *testing.T) {
 	uri := os.Getenv("CHECKBASELINE_POSTGRES_URI")
 	if uri == "" {
@@ -100,9 +105,9 @@ func TestTimedSchemaLayerHasNoAuditInstrumentation(t *testing.T) {
 	require.NoError(t, err)
 	rev, err := ds.HeadRevision(t.Context())
 	require.NoError(t, err)
-	timed, audit, close, err := baselineDataLayers(ds, datalayer.SchemaModeReadNewWriteNew)
+	timed, audit, closeCache, err := baselineDataLayers(ds, datalayer.SchemaModeReadNewWriteNew)
 	require.NoError(t, err)
-	defer close()
+	defer closeCache()
 	record := NewRecorder()
 	_, err = timed.SnapshotReader(rev.Revision, datalayer.SchemaHash(rev.SchemaHash)).ReadSchema(WithRecorder(t.Context(), record))
 	require.NoError(t, err)

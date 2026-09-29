@@ -41,7 +41,8 @@ func (e *classicEngine) Close() error        { return e.dispatcher.Close() }
 func (e *classicEngine) Check(ctx context.Context, c Case) (Decision, error) {
 	q := c.Query
 	result, _, err := computed.ComputeCheck(datalayer.ContextWithDataLayer(ctx, e.dl), e.dispatcher, caveattypes.Default.TypeSet, computed.CheckParameters{
-		ResourceType: tuple.RelationReference{ObjectType: q.ResourceType, Relation: q.Permission}, Subject: tuple.ObjectAndRelation{ObjectType: q.SubjectType, ObjectID: q.SubjectID, Relation: q.SubjectRelation}, CaveatContext: c.Context, AtRevision: e.revision.Revision, MaximumDepth: c.ClassicDepth, SchemaHash: datalayer.SchemaHash(e.revision.SchemaHash), DebugOption: computed.NoDebugging}, q.ResourceID, e.policy.ClassicChunkSize)
+		ResourceType: tuple.RelationReference{ObjectType: q.ResourceType, Relation: q.Permission}, Subject: tuple.ObjectAndRelation{ObjectType: q.SubjectType, ObjectID: q.SubjectID, Relation: q.SubjectRelation}, CaveatContext: c.Context, AtRevision: e.revision.Revision, MaximumDepth: c.ClassicDepth, SchemaHash: datalayer.SchemaHash(e.revision.SchemaHash), DebugOption: computed.NoDebugging,
+	}, q.ResourceID, e.policy.ClassicChunkSize)
 	if err != nil {
 		return Decision{Outcome: Error, ErrorClass: err.Error()}, err
 	}
@@ -100,6 +101,7 @@ func (e *plannerEngine) Check(ctx context.Context, c Case) (Decision, error) {
 	}
 	return Decision{Outcome: Deny}, nil
 }
+
 func PrepareEngines(ctx context.Context, dl datalayer.DataLayer, rev datastore.RevisionWithSchemaHash, s *schema.Schema, cases []Case, p Policy) ([]Engine, error) {
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)

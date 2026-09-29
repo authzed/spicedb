@@ -14,8 +14,8 @@ import (
 // BackgroundDatasets grows the database while holding each checked subgraph
 // constant. Noise occupies separate document resources, 100 relationships each.
 func BackgroundDatasets(totals []int) []Dataset {
-	var out []Dataset
 	bases := GeneratedDatasets([]Scale{{Name: "small", Fanout: 10, Depth: 3, DirectRelationships: 100}})
+	out := make([]Dataset, 0, len(bases)*len(totals))
 	for _, total := range totals {
 		for _, base := range bases {
 			d := base
@@ -109,15 +109,15 @@ func ScalingDatasets() []Dataset {
 			}
 		}
 	}
-	for _, n := range []int{64, 128} {
-		for _, d := range GeneratedDatasets([]Scale{{Name: fmt.Sprintf("depth%d", n), Depth: n}}) {
+	for _, n := range []uint8{64, 128} {
+		for _, d := range GeneratedDatasets([]Scale{{Name: fmt.Sprintf("depth%d", n), Depth: int(n)}}) {
 			if d.Family == "recursive" {
 				setup := d.Setup
 				d.Setup = func(ctx context.Context, ds datastore.Datastore) ([]Case, error) {
 					cases, err := setup(ctx, ds)
 					for i := range cases {
-						cases[i].QPDepth = n + 10
-						cases[i].ClassicDepth = uint32(8 * (n + 10))
+						cases[i].QPDepth = int(n) + 10
+						cases[i].ClassicDepth = 8 * (uint32(n) + 10)
 					}
 					return cases, err
 				}

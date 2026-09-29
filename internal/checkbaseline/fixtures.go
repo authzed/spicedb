@@ -41,6 +41,7 @@ func fixtureDataset(id string, fsys fs.FS, name string, extra []Case) Dataset {
 		return append(cases, extra...), nil
 	}}
 }
+
 func FixtureDatasets(root string) ([]Dataset, error) {
 	names, err := testconfigs.List()
 	if err != nil {
@@ -72,6 +73,7 @@ func FixtureDatasets(root string) ([]Dataset, error) {
 	}
 	return out, nil
 }
+
 func Catalog(root string) ([]Dataset, error) {
 	fixtures, err := FixtureDatasets(root)
 	if err != nil {
