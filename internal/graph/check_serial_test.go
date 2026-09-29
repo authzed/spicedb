@@ -6,8 +6,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/stretchr/testify/require"
+
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // An empty exclusion base must not start the excluded branch at concurrency one.

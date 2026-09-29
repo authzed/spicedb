@@ -3,12 +3,14 @@ package checkbaseline
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type fakeReader struct{ datalayer.RevisionedReader }
@@ -21,6 +23,7 @@ func (fakeReader) QueryRelationships(context.Context, datastore.RelationshipsFil
 		yield(tuple.Relationship{}, errors.New("read failed"))
 	}, nil
 }
+
 func TestReaderAccounting(t *testing.T) {
 	for _, partial := range []bool{true, false} {
 		rec := NewRecorder()
@@ -47,6 +50,7 @@ func TestReaderAccounting(t *testing.T) {
 		}
 	}
 }
+
 func TestDelayCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

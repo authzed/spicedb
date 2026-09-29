@@ -2,6 +2,7 @@ package checkbaseline
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"math"
@@ -14,16 +15,17 @@ var benchmarkMu sync.Mutex
 
 // measurePair uses equal iteration counts, alternates engine order and creates
 // fresh per-request state. Benchmark harness GC and plan setup are outside timing.
-func measurePair(ctx context.Context, engines []Engine, c Case, count int, timeout time.Duration) ([2][]Sample, error) {
-	var out [2][]Sample
+func measurePair(ctx context.Context, engines []Engine, c Case, count int, timeout time.Duration) (out [2][]Sample, resultErr error) {
 	if count < 10 || len(engines) != 2 {
-		return out, fmt.Errorf("need two engines and at least ten samples")
+		return out, errors.New("need two engines and at least ten samples")
 	}
 	benchmarkMu.Lock()
 	defer benchmarkMu.Unlock()
 	testing.Init()
 	old := flag.Lookup("test.benchtime").Value.String()
-	defer flag.Set("test.benchtime", old)
+	defer func() {
+		resultErr = errors.Join(resultErr, flag.Set("test.benchtime", old))
+	}()
 	slowest := time.Duration(1)
 	for _, engine := range engines {
 		start := time.Now()
@@ -77,7 +79,7 @@ func measurePair(ctx context.Context, engines []Engine, c Case, count int, timeo
 			}
 			ns := float64(br.T.Nanoseconds()) / float64(br.N)
 			if math.IsNaN(ns) || ns <= 0 {
-				return out, fmt.Errorf("invalid benchmark duration")
+				return out, errors.New("invalid benchmark duration")
 			}
 			out[index] = append(out[index], Sample{NSPerOp: ns, BytesPerOp: float64(br.MemBytes) / float64(br.N), AllocsPerOp: float64(br.MemAllocs) / float64(br.N), Iterations: br.N})
 		}

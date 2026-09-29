@@ -3,12 +3,13 @@ package checkbaseline
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	bm "github.com/authzed/spicedb/pkg/benchmarks"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"strings"
 )
 
 type Scale struct {
@@ -19,12 +20,14 @@ type Scale struct {
 func DefaultScales() []Scale {
 	return []Scale{{"small", 10, 3, 100}, {"medium", 100, 10, 1000}, {"large", 1000, 30, 10000}, {"boundary99", 99, 3, 99}, {"boundary101", 101, 3, 101}}
 }
+
 func check(id, resource, permission, subject string, outcome Outcome) Case {
 	p := strings.SplitN(resource, ":", 2)
 	return Case{ID: id, Query: bm.CheckQuery{ResourceType: p[0], ResourceID: p[1], Permission: permission, SubjectType: "user", SubjectID: subject, SubjectRelation: tuple.Ellipsis}, Expected: Decision{Outcome: outcome}, ClassicDepth: 200, QPDepth: 50}
 }
+
 func GeneratedDatasets(scales []Scale) []Dataset {
-	var out []Dataset
+	out := make([]Dataset, 0, 8*len(scales))
 	for _, scale := range scales {
 		for _, family := range []string{"direct", "arrow", "groups", "recursive", "union", "intersection", "exclusion", "all"} {
 			effective := scale
@@ -51,11 +54,12 @@ func GeneratedDatasets(scales []Scale) []Dataset {
 					}
 					add("document:doc#viewer@user:target")
 				case "arrow", "all", "groups":
-					if family == "groups" {
+					switch family {
+					case "groups":
 						schemaText = strings.Replace(schemaText, "relation viewer: user", "relation viewer: user | group#member", 1)
-					} else if family == "all" {
+					case "all":
 						schemaText = strings.Replace(schemaText, "view = viewer", "view = group.all(member)", 1)
-					} else {
+					default:
 						schemaText = strings.Replace(schemaText, "view = viewer", "view = group->member", 1)
 					}
 					for i := 0; i < scale.Fanout; i++ {

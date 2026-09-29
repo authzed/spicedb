@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,6 +82,7 @@ type Artifact struct {
 }
 
 func WriteArtifact(w io.Writer, a Artifact) error { enc := json.NewEncoder(w); return enc.Encode(a) }
+
 func ReadArtifact(r io.Reader) (Artifact, error) {
 	var a Artifact
 	err := json.NewDecoder(r).Decode(&a)
@@ -88,18 +91,20 @@ func ReadArtifact(r io.Reader) (Artifact, error) {
 	}
 	return a, err
 }
+
 func provenance(root string) map[string]string {
-	out := map[string]string{"go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH, "gomaxprocs": fmt.Sprint(runtime.GOMAXPROCS(0)), "cpus": fmt.Sprint(runtime.NumCPU()), "invocation": strings.Join(os.Args, " "), "logical_encoding": "encoding/json tuple.Relationship v1; includes caveats, expiration and integrity", "timing": "not measured", "classic": "local, serial, no dispatch result cache, chunk=1", "qp": "local, no advisor; schema execution order; targeted recursion; base-first exclusion; strict subject matching; exhaustive intersection arrows; direct-match early return; deferred caveats and coalesced trait variants; coalesced direct/wildcard reads; unfiltered single-type subject reads; broad single-userset reads; no optional queryopt passes"}
+	out := map[string]string{"go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH, "gomaxprocs": strconv.Itoa(runtime.GOMAXPROCS(0)), "cpus": strconv.Itoa(runtime.NumCPU()), "invocation": strings.Join(os.Args, " "), "logical_encoding": "encoding/json tuple.Relationship v1; includes caveats, expiration and integrity", "timing": "not measured", "classic": "local, serial, no dispatch result cache, chunk=1", "qp": "local, no advisor; schema execution order; targeted recursion; base-first exclusion; strict subject matching; exhaustive intersection arrows; direct-match early return; deferred caveats and coalesced trait variants; coalesced direct/wildcard reads; unfiltered single-type subject reads; broad single-userset reads; no optional queryopt passes"}
 	for key, args := range map[string][]string{"commit": {"rev-parse", "HEAD"}, "dirty": {"status", "--porcelain"}, "diff": {"diff", "HEAD"}} {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = root
 		b, err := cmd.Output()
-		if err != nil {
+		switch {
+		case err != nil:
 			out[key] = err.Error()
-		} else if key == "diff" {
+		case key == "diff":
 			h := sha256.Sum256(b)
 			out["diff_sha256"] = hex.EncodeToString(h[:])
-		} else {
+		default:
 			out[key] = strings.TrimSpace(string(b))
 		}
 	}
@@ -141,6 +146,7 @@ func provenance(root string) map[string]string {
 	}
 	return out
 }
+
 func datasetInfo(ctx context.Context, ds datastore.Datastore, d Dataset) (DatasetInfo, DatasetInput, error) {
 	rev, err := ds.HeadRevision(ctx)
 	if err != nil {
@@ -186,6 +192,7 @@ func datasetInfo(ctx context.Context, ds datastore.Datastore, d Dataset) (Datase
 	hash := sha256.Sum256(data)
 	return DatasetInfo{ID: d.ID, Family: d.Family, Source: d.Source, Hash: hex.EncodeToString(hash[:]), Relationships: len(input.Relationships), Resources: len(resources), Subjects: len(subjects), SchemaBytes: len(schemaText), InputBytes: len(data), Scale: d.Scale}, input, nil
 }
+
 func relationshipEvents(w Work) []*WorkEvent {
 	var out []*WorkEvent
 	for _, e := range w.Events {
@@ -195,6 +202,7 @@ func relationshipEvents(w Work) []*WorkEvent {
 	}
 	return out
 }
+
 func CompareWork(a, b Work) []string {
 	ae, be := relationshipEvents(a), relationshipEvents(b)
 	var diff []string
@@ -245,12 +253,13 @@ func CompareWork(a, b Work) []string {
 	}
 	return diff
 }
+
 func Audit(ctx context.Context, datasets []Dataset, cfg AuditConfig) (Artifact, error) {
 	if cfg.Repetitions < 1 {
-		return Artifact{}, fmt.Errorf("repetitions must be positive")
+		return Artifact{}, errors.New("repetitions must be positive")
 	}
 	if cfg.Samples != 0 && cfg.Samples < 10 {
-		return Artifact{}, fmt.Errorf("timing requires at least ten samples")
+		return Artifact{}, errors.New("timing requires at least ten samples")
 	}
 	dr, err := regexp.Compile(cfg.DatasetPattern)
 	if err != nil {
@@ -349,7 +358,7 @@ func Audit(ctx context.Context, datasets []Dataset, cfg AuditConfig) (Artifact, 
 					return err
 				}
 				defer closeSchemaCache()
-				var dl datalayer.DataLayer = base
+				dl := base
 				if profile == "delay" {
 					dl = WithRelationshipDelay(dl, cfg.Policy.RelationshipDelay)
 					auditDL = WithRelationshipDelay(auditDL, cfg.Policy.RelationshipDelay)
@@ -461,7 +470,7 @@ func Audit(ctx context.Context, datasets []Dataset, cfg AuditConfig) (Artifact, 
 		a.Provenance["timing"] = "Go testing.Benchmark, fixed calibrated iterations per paired case, alternating engine order; request context and caveat runner included"
 	}
 	if len(a.Results) == 0 {
-		return a, fmt.Errorf("no check cases selected")
+		return a, errors.New("no check cases selected")
 	}
 	if invalid > 0 {
 		return a, fmt.Errorf("%d invalid comparisons or dataset failures", invalid)

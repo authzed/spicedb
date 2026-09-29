@@ -1,8 +1,9 @@
 package checkbaseline
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBackgroundGrowthPreservesWork(t *testing.T) {
@@ -19,6 +20,7 @@ func TestBackgroundGrowthPreservesWork(t *testing.T) {
 		}
 	}
 }
+
 func TestScalingCatalogUniqueAndSeparateAxes(t *testing.T) {
 	datasets := ScalingDatasets()
 	seen := map[string]bool{}
@@ -31,6 +33,7 @@ func TestScalingCatalogUniqueAndSeparateAxes(t *testing.T) {
 	require.True(t, seen["generated/arrow/fanout10000"])
 	require.True(t, seen["generated/recursive/depth128"])
 }
+
 func TestDeepScalingDecisions(t *testing.T) {
 	a, err := Audit(t.Context(), ScalingDatasets(), AuditConfig{Policy: DefaultPolicy(), Repetitions: 1, DatasetPattern: "^generated/recursive/depth64$", CasePattern: ".*"})
 	require.NoError(t, err)

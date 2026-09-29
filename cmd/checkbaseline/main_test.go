@@ -3,8 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestInvalidProfile(t *testing.T) {
