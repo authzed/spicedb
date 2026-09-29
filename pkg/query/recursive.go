@@ -113,6 +113,9 @@ func (r *RecursiveIterator) findMatchingSentinels() []uint64 {
 
 // CheckImpl implements traversal for Check operations with strategy selection
 func (r *RecursiveIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.checkExecution.TargetedRecursion {
+		return r.targetedCheck(ctx, resource, subject)
+	}
 	switch r.checkStrategy {
 	case recursiveCheckIterSubjects:
 		return r.recursiveCheckIterSubjects(ctx, resource, subject)
