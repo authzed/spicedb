@@ -42,6 +42,7 @@ func (rg *RelationshipGenerator) GenerateRelationships(t *rapid.T) iter.Seq[tupl
 			// Select a random resource relation.
 			resourceTypeDef, _ := rg.schema.Schema().GetTypeDefinition(resourceTypeName)
 			relationNames := slices.Collect(maps.Keys(resourceTypeDef.Relations()))
+			slices.Sort(relationNames)
 			relationName := rapid.SampledFrom(relationNames).Draw(t, "relationName")
 
 			// Lookup the available subject types for the relation.
@@ -82,12 +83,13 @@ func CheckWithSchema(t *testing.T, handler func(t *rapid.T, schema *schema.Schem
 	rapid.Check(t, func(t *rapid.T) {
 		rapidRelationString := rapid.StringMatching("r_" + objectExpr)
 		rapidPermissionString := rapid.StringMatching("p_" + objectExpr)
-		rapidDefinitionString := rapid.StringMatching("d_" + objectExpr)
+		rapidSubjectDefinitionString := rapid.StringMatching("s_" + objectExpr)
+		rapidResourceDefinitionString := rapid.StringMatching("d_" + objectExpr)
 
 		builder := schema.NewSchemaBuilder()
 
 		// Generate between 1 and 3 types to represent subjects.
-		subjectTypeNames := rapid.SliceOfNDistinct(rapidDefinitionString, 1, 3, rapid.ID[string]).Draw(t, "subjectTypeNames")
+		subjectTypeNames := rapid.SliceOfNDistinct(rapidSubjectDefinitionString, 1, 3, rapid.ID[string]).Draw(t, "subjectTypeNames")
 		subjectTypeRelationMap := map[string]string{}
 		for _, subjectTypeName := range subjectTypeNames {
 			builder = builder.AddDefinition(subjectTypeName).Done()
@@ -108,9 +110,10 @@ func CheckWithSchema(t *testing.T, handler func(t *rapid.T, schema *schema.Schem
 		}
 
 		// Generate between 1 and 3 types to represent resources.
-		resourceTypeNames := rapid.SliceOfNDistinct(rapidDefinitionString, 1, 3, rapid.ID[string]).Draw(t, "resourceTypeNames")
+		resourceTypeNames := rapid.SliceOfNDistinct(rapidResourceDefinitionString, 1, 3, rapid.ID[string]).Draw(t, "resourceTypeNames")
 		for _, resourceTypeName := range resourceTypeNames {
 			resourceBuilder := builder.AddDefinition(resourceTypeName)
+			arrowChoices := make([]arrowChoice, 0)
 
 			// Generate between 3 and 5 relations per resource.
 			relationNames := rapid.SliceOfNDistinct(rapidRelationString, 3, 5, rapid.ID[string]).Draw(t, resourceTypeName+"-relationNames")
@@ -132,16 +135,31 @@ func CheckWithSchema(t *testing.T, handler func(t *rapid.T, schema *schema.Schem
 
 					relationBuilder = relationBuilder.AllowedDirectRelation(subjectTypeName)
 				}
+				// An arrow target must exist on every type allowed by its left relation.
+				if len(subjectTypeNames) > 0 {
+					target := subjectTypeRelationMap[subjectTypeNames[0]]
+					if target != "" {
+						valid := true
+						for _, subjectTypeName := range subjectTypeNames[1:] {
+							if subjectTypeRelationMap[subjectTypeName] != target {
+								valid = false
+								break
+							}
+						}
+						if valid {
+							arrowChoices = append(arrowChoices, arrowChoice{relationName, target})
+						}
+					}
+				}
 
 				resourceBuilder = relationBuilder.Done()
 			}
 
 			// Generate between 1 and 5 permissions per resource.
-			subjectRelationNames := slices.Collect(maps.Values(subjectTypeRelationMap))
 			permissionNames := rapid.SliceOfNDistinct(rapidPermissionString, 1, 5, rapid.ID[string]).Draw(t, resourceTypeName+"-permissionNames")
 			for _, permissionName := range permissionNames {
 				permBuilder := resourceBuilder.AddPermission(permissionName)
-				op := mustGenerateOperation(t, relationNames, subjectRelationNames, 3, "")
+				op := mustGenerateOperation(t, relationNames, arrowChoices, 3, "")
 				resourceBuilder = permBuilder.Operation(op).Done()
 			}
 		}
@@ -158,12 +176,13 @@ func CheckWithSchema(t *testing.T, handler func(t *rapid.T, schema *schema.Schem
 	})
 }
 
-func mustGenerateOperation(t *rapid.T, relationNames []string, subjectRelationNames []string, depthRemaining int, path string) schema.Operation {
+type arrowChoice struct{ left, right string }
+
+func mustGenerateOperation(t *rapid.T, relationNames []string, arrowChoices []arrowChoice, depthRemaining int, path string) schema.Operation {
 	if depthRemaining <= 0 {
-		if rapid.Bool().Draw(t, path+"::leafIsArrow") && len(subjectRelationNames) > 0 {
-			leftRelationName := rapid.SampledFrom(relationNames).Draw(t, path+"::leftSideRelationName")
-			rightRelationName := rapid.SampledFrom(subjectRelationNames).Draw(t, path+"::rightSideRelationName")
-			return schema.NewArrow(leftRelationName, rightRelationName)
+		if len(arrowChoices) > 0 && rapid.Bool().Draw(t, path+"::leafIsArrow") {
+			choice := rapid.SampledFrom(arrowChoices).Draw(t, path+"::arrow")
+			return schema.NewArrow(choice.left, choice.right)
 		}
 
 		// Base case: direct relation.
@@ -183,7 +202,7 @@ func mustGenerateOperation(t *rapid.T, relationNames []string, subjectRelationNa
 		numChildren := rapid.IntRange(1, 3).Draw(t, path+"::unionNumChildren")
 		unionBuilder := schema.NewUnion()
 		for i := range numChildren {
-			childOp := mustGenerateOperation(t, relationNames, subjectRelationNames, depthRemaining-1, path+"::unionChild#"+strconv.Itoa(i))
+			childOp := mustGenerateOperation(t, relationNames, arrowChoices, depthRemaining-1, path+"::unionChild#"+strconv.Itoa(i))
 			unionBuilder = unionBuilder.Add(childOp)
 		}
 		return unionBuilder.Build()
@@ -193,15 +212,15 @@ func mustGenerateOperation(t *rapid.T, relationNames []string, subjectRelationNa
 		numChildren := rapid.IntRange(1, 3).Draw(t, "intersectionNumChildren")
 		intersectionBuilder := schema.NewIntersection()
 		for i := range numChildren {
-			childOp := mustGenerateOperation(t, relationNames, subjectRelationNames, depthRemaining-1, path+"::intersectionChild#"+strconv.Itoa(i))
+			childOp := mustGenerateOperation(t, relationNames, arrowChoices, depthRemaining-1, path+"::intersectionChild#"+strconv.Itoa(i))
 			intersectionBuilder = intersectionBuilder.Add(childOp)
 		}
 		return intersectionBuilder.Build()
 
 	case 3:
 		// Exclusion
-		leftOp := mustGenerateOperation(t, relationNames, subjectRelationNames, depthRemaining-1, path+"::exclusionLeft")
-		rightOp := mustGenerateOperation(t, relationNames, subjectRelationNames, depthRemaining-1, path+"::exclusionRight")
+		leftOp := mustGenerateOperation(t, relationNames, arrowChoices, depthRemaining-1, path+"::exclusionLeft")
+		rightOp := mustGenerateOperation(t, relationNames, arrowChoices, depthRemaining-1, path+"::exclusionRight")
 		exclusionBuilder := schema.NewExclusion().Base(leftOp).Exclude(rightOp)
 		return exclusionBuilder.Build()
 
