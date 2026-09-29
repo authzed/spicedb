@@ -180,14 +180,16 @@ func openBaselineBackend(ctx context.Context, cfg AuditConfig) (*baselineBackend
 		var k, v string
 		if err = rows.Scan(&k, &v); err != nil {
 			rows.Close()
+			if rows.Err() != nil {
+				return nil, errors.Join(err, rows.Err())
+			}
 			return nil, err
 		}
 		settings[k] = v
 	}
-	err = rows.Err()
 	rows.Close()
-	if err != nil {
-		return nil, err
+	if rows.Err() != nil {
+		return nil, rows.Err()
 	}
 	encoded, _ := json.Marshal(settings)
 	b := &baselineBackend{ds: ds, close: cleanup, metadata: map[string]string{"backend": "postgres", "backend_version": version, "backend_settings": string(encoded)}}
