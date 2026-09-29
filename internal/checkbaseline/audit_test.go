@@ -163,3 +163,44 @@ func TestIndirectSubjectWorkFullyMatches(t *testing.T) {
 		require.Equal(t, "relationship work matched", r.Status, r.Dataset.ID+"/"+r.Case.ID+": "+fmt.Sprint(r.Differences))
 	}
 }
+
+// Exercise adapter strategies against the full report catalog, including
+// heterogeneous usersets and caveats.
+func TestCatalogCorrectness(t *testing.T) {
+	datasets, err := Catalog("../..")
+	require.NoError(t, err)
+	artifact, err := Audit(t.Context(), datasets, AuditConfig{
+		Policy: DefaultPolicy(), Repetitions: 1, RepoRoot: "../..",
+		DatasetPattern: ".*", CasePattern: ".*", SchemaMode: "read-new-write-new",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, artifact.Results)
+	for _, result := range artifact.Results {
+		require.True(t, result.Valid, result.Dataset.ID+"/"+result.Case.ID)
+		require.Len(t, result.Engines, 2)
+		for _, engine := range result.Engines {
+			require.Empty(t, engine.Error)
+		}
+	}
+}
+
+func TestAuditRejectsInvalidConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*AuditConfig)
+	}{
+		{"repetitions", func(c *AuditConfig) { c.Repetitions = 0 }},
+		{"samples", func(c *AuditConfig) { c.Samples = 1 }},
+		{"dataset expression", func(c *AuditConfig) { c.DatasetPattern = "[" }},
+		{"case expression", func(c *AuditConfig) { c.CasePattern = "[" }},
+		{"profile", func(c *AuditConfig) { c.Profiles = []string{"invalid"} }},
+		{"schema mode", func(c *AuditConfig) { c.SchemaMode = "invalid" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := AuditConfig{Policy: DefaultPolicy(), Repetitions: 1}
+			tc.change(&cfg)
+			_, err := Audit(t.Context(), nil, cfg)
+			require.Error(t, err)
+		})
+	}
+}
