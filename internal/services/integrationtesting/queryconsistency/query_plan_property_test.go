@@ -101,8 +101,10 @@ func TestQueryPlanCheckProperty(t *testing.T) {
 									ResourceIds:      []string{resourceID},
 									ResultsSetting:   dispatchv1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 									Subject:          subject.ToCoreONR(),
-									Metadata: &dispatchv1.ResolverMeta{AtRevision: revision.String(), DepthRemaining: 50,
-										SchemaHash: []byte(datalayer.NoSchemaHashForTesting), TraversalBloom: bloom},
+									Metadata: &dispatchv1.ResolverMeta{
+										AtRevision: revision.String(), DepthRemaining: 50,
+										SchemaHash: []byte(datalayer.NoSchemaHashForTesting), TraversalBloom: bloom,
+									},
 								})
 								require.NoError(t, err)
 								classic := response.ResultsByResourceId[resourceID] != nil && response.ResultsByResourceId[resourceID].Membership == dispatchv1.ResourceCheckResult_MEMBER
