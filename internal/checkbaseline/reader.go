@@ -29,8 +29,8 @@ type Work struct {
 }
 type Recorder struct {
 	mu     sync.Mutex
-	work   Work
-	sealed bool
+	work   Work // GUARDED_BY(mu)
+	sealed bool // GUARDED_BY(mu)
 }
 type recorderKey struct{}
 
