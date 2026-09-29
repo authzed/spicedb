@@ -45,6 +45,9 @@ func NewDatastoreIterator(base *schema.BaseRelation) *DatastoreIterator {
 }
 
 func (r *DatastoreIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.checkExecution.StrictSubjectMatching && !r.base.Wildcard() && (subject.ObjectType != r.base.Type() || subject.Relation != r.base.Subrelation()) {
+		return nil, nil
+	}
 	// For subrelations, we need to allow type mismatches because the subrelation might bridge different types
 	// For example, group:member -> group:member should find group:everyone#member@group:engineering#member
 	// and then that relationship should be used by the Arrow to check group:engineering#member for user subjects
@@ -65,6 +68,11 @@ func (r *DatastoreIterator) CheckImpl(ctx *Context, resource Object, subject Obj
 		return nil, nil
 	}
 
+	if ctx.checkExecution.CoalesceDirectWildcards && r.base.Wildcard() && r.hasPairedDirectForm(false) {
+		if _, ok := ctx.Reader.(*datalayerQueryDatastoreReader); ok {
+			return nil, nil
+		}
+	}
 	if r.base.Wildcard() {
 		return r.checkWildcardImpl(ctx, resource, subject)
 	}
@@ -76,18 +84,48 @@ func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resource Object, subje
 		ctx.TraceStep(r, "querying datastore for %s:%s with resource=%s:%s", r.base.Type(), r.base.RelationName(), resource.ObjectType, resource.ObjectID)
 	}
 
+	if ctx.checkExecution.CoalesceDirectWildcards && subject.Relation == tuple.Ellipsis && r.hasPairedDirectForm(true) {
+		if reader, ok := ctx.Reader.(*datalayerQueryDatastoreReader); ok {
+			seq, err := reader.checkRelationships(ctx, ObjectType{Type: r.base.DefinitionName()}, resource.ObjectID, r.base.RelationName(), subject, r.relationHasCaveats(), r.relationHasExpiration(), true)
+			if err != nil {
+				return nil, err
+			}
+			var result *Path
+			for path, err := range RewriteSubject(seq, subject) {
+				if err != nil {
+					return nil, err
+				}
+				if result == nil {
+					result = path
+				} else if _, err := result.MergeOr(path); err != nil {
+					return nil, err
+				}
+				if result.Caveat == nil {
+					return result, nil
+				}
+			}
+			return result, nil
+		}
+	}
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+	pathSeq, err := ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
 		subject,
-		r.base.Caveat() != "", r.base.Expiration(),
+		r.relationHasCaveats(), r.relationHasExpiration(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	if ctx.checkExecution.StopAfterDirectMatch {
+		for path, err := range pathSeq {
+			return path, err
+		}
+		return nil, nil
+	}
 	// Collect results and return the first (there is at most one for a single resource).
 	// Eagerly collecting also terminates the database query immediately.
 	paths, err := CollectAll(pathSeq)
@@ -117,12 +155,13 @@ func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resource Object, sub
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	pathSeq, err := ctx.Reader.CheckRelationships(ctx,
+	pathSeq, err := ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
 		wildcardSubject,
-		r.base.Caveat() != "", r.base.Expiration(),
+		r.relationHasCaveats(), r.relationHasExpiration(),
 	)
 	if err != nil {
 		return nil, err
@@ -153,13 +192,47 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 		Subrelation: r.base.Subrelation(),
 	}
 
+	if ctx.checkExecution.BroadSingleUsersetReads && ctx.PaginationLimit == nil && resource.ObjectType != "" && resource.ObjectID != "" {
+		if eligible, caveats, expiration := r.singleUsersetForm(); eligible {
+			if reader, ok := ctx.Reader.(*datalayerQueryDatastoreReader); ok {
+				seq, err := reader.queryIndirectSubjects(ctx, resource, r.base.RelationName(), caveats, expiration)
+				if err != nil {
+					return nil, err
+				}
+				// Preserve this leaf's type/relation semantics even if stale relationships
+				// no longer conform to the current schema. The broad scan still consumes them.
+				paths, err := CollectAll(FilterSubjectsByType(seq, subjectType))
+				if err != nil {
+					return nil, err
+				}
+				return PathSeqFromSlice(paths), nil
+			}
+		}
+	}
+
+	if ctx.checkExecution.UnfilteredSingleTypeReads {
+		if parent, ok := r.base.Parent().(*schema.Relation); ok {
+			same := true
+			for _, br := range parent.BaseRelations() {
+				if br.Type() != r.base.Type() || br.Subrelation() != r.base.Subrelation() || br.Wildcard() {
+					same = false
+					break
+				}
+			}
+			if same {
+				subjectType = ObjectType{}
+			}
+		}
+	}
+
 	// If pagination is not configured, do the simple eager collection
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+		pathSeq, err := ctx.Reader.QuerySubjects(
+			ctx,
 			resource,
 			r.base.RelationName(),
 			subjectType,
-			r.base.Caveat() != "", r.base.Expiration(),
+			r.relationHasCaveats(), r.relationHasExpiration(),
 			QueryPage{},
 		)
 		if err != nil {
@@ -180,11 +253,12 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QuerySubjects(ctx,
+			pathSeq, err := ctx.Reader.QuerySubjects(
+				ctx,
 				resource,
 				r.base.RelationName(),
 				subjectType,
-				r.base.Caveat() != "", r.base.Expiration(),
+				r.relationHasCaveats(), r.relationHasExpiration(),
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
@@ -238,12 +312,13 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	return ctx.Reader.CheckRelationships(ctx,
+	return ctx.Reader.CheckRelationships(
+		ctx,
 		resourceType,
 		resource.ObjectID,
 		r.base.RelationName(),
 		wildcardSubject,
-		r.base.Caveat() != "", r.base.Expiration(),
+		r.relationHasCaveats(), r.relationHasExpiration(),
 	)
 }
 
@@ -272,11 +347,12 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 	}
 
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QueryResources(ctx,
+		pathSeq, err := ctx.Reader.QueryResources(
+			ctx,
 			r.base.DefinitionName(),
 			r.base.RelationName(),
 			subject,
-			r.base.Caveat() != "", r.base.Expiration(),
+			r.relationHasCaveats(), r.relationHasExpiration(),
 			QueryPage{},
 		)
 		if err != nil {
@@ -295,11 +371,12 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QueryResources(ctx,
+			pathSeq, err := ctx.Reader.QueryResources(
+				ctx,
 				r.base.DefinitionName(),
 				r.base.RelationName(),
 				subject,
-				r.base.Caveat() != "", r.base.Expiration(),
+				r.relationHasCaveats(), r.relationHasExpiration(),
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
@@ -352,11 +429,12 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 	}
 
 	if ctx.PaginationLimit == nil {
-		pathSeq, err := ctx.Reader.QueryResources(ctx,
+		pathSeq, err := ctx.Reader.QueryResources(
+			ctx,
 			r.base.DefinitionName(),
 			r.base.RelationName(),
 			wildcardSubject,
-			r.base.Caveat() != "", r.base.Expiration(),
+			r.relationHasCaveats(), r.relationHasExpiration(),
 			QueryPage{},
 		)
 		if err != nil {
@@ -376,11 +454,12 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 		cursor := ctx.GetPaginationCursor(iteratorID)
 
 		for {
-			pathSeq, err := ctx.Reader.QueryResources(ctx,
+			pathSeq, err := ctx.Reader.QueryResources(
+				ctx,
 				r.base.DefinitionName(),
 				r.base.RelationName(),
 				wildcardSubject,
-				r.base.Caveat() != "", r.base.Expiration(),
+				r.relationHasCaveats(), r.relationHasExpiration(),
 				QueryPage{Limit: ctx.PaginationLimit, Cursor: cursor},
 			)
 			if err != nil {
@@ -433,7 +512,7 @@ func (r *DatastoreIterator) Explain() Explain {
 	return Explain{
 		Info: fmt.Sprintf("Datastore(%s:%s -> %s:%s, caveat: %v, expiration: %v)",
 			r.base.DefinitionName(), r.base.RelationName(), r.base.Type(), relationName,
-			r.base.Caveat() != "", r.base.Expiration()),
+			r.relationHasCaveats(), r.relationHasExpiration()),
 	}
 }
 
@@ -559,4 +638,70 @@ func deserializeDatastore(body io.Reader, key CanonicalKey, dctx *DeserializeCon
 	ds := NewDatastoreIterator(base)
 	ds.canonicalKey = key
 	return ds, nil
+}
+
+// A leaf's query filters the subject, not the allowed-relation trait variant.
+// Every variant that can be returned must retain caveats and expiration checks.
+func (r *DatastoreIterator) relationHasCaveats() bool {
+	if r.base.Caveat() != "" {
+		return true
+	}
+	if parent, ok := r.base.Parent().(*schema.Relation); ok {
+		for _, br := range parent.BaseRelations() {
+			if br.Caveat() != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *DatastoreIterator) relationHasExpiration() bool {
+	if r.base.Expiration() {
+		return true
+	}
+	if parent, ok := r.base.Parent().(*schema.Relation); ok {
+		for _, br := range parent.BaseRelations() {
+			if br.Expiration() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasPairedDirectForm checks the other concrete/wildcard form for the same type.
+func (r *DatastoreIterator) hasPairedDirectForm(wildcard bool) bool {
+	if parent, ok := r.base.Parent().(*schema.Relation); ok {
+		for _, br := range parent.BaseRelations() {
+			if br.Type() == r.base.Type() && br.Wildcard() == wildcard && (wildcard || br.Subrelation() == tuple.Ellipsis) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// singleUsersetForm excludes direct subjects and combines every trait variant of
+// the one allowed userset. Multiple indirect types/relations retain typed reads.
+func (r *DatastoreIterator) singleUsersetForm() (eligible, caveats, expiration bool) {
+	if r.base.Wildcard() || r.base.Subrelation() == "" || r.base.Subrelation() == tuple.Ellipsis {
+		return
+	}
+	parent, ok := r.base.Parent().(*schema.Relation)
+	if !ok {
+		return
+	}
+	for _, br := range parent.BaseRelations() {
+		if br.Wildcard() || br.Subrelation() == "" || br.Subrelation() == tuple.Ellipsis {
+			continue
+		}
+		if br.Type() != r.base.Type() || br.Subrelation() != r.base.Subrelation() {
+			return false, false, false
+		}
+		eligible = true
+		caveats = caveats || br.Caveat() != ""
+		expiration = expiration || br.Expiration()
+	}
+	return
 }

@@ -1,6 +1,9 @@
 package queryopt
 
-import "github.com/authzed/spicedb/pkg/query"
+import (
+	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/schema/v2"
+)
 
 func init() {
 	MustRegisterOptimization(Optimizer{
@@ -112,6 +115,15 @@ func caveatPushdownInner(outline query.Outline, originalID query.OutlineNodeID) 
 func outlineContainsCaveat(outline query.Outline, caveatName string) bool {
 	if outline.Type == query.DatastoreIteratorType {
 		if outline.Args != nil && outline.Args.Relation != nil {
+			// A leaf's physical query can return every trait variant of its
+			// parent relation. Preserve evaluation on all such paths.
+			if parent, ok := outline.Args.Relation.Parent().(*schema.Relation); ok {
+				for _, br := range parent.BaseRelations() {
+					if br.Caveat() == caveatName {
+						return true
+					}
+				}
+			}
 			if outline.Args.Relation.Caveat() == caveatName {
 				return true
 			}

@@ -14,10 +14,6 @@ import (
 // WildcardObjectID is the subject ID representing a public wildcard ("*").
 const WildcardObjectID = tuple.PublicWildcard
 
-// limitOne is used for existence-probe queries that only need to know if
-// at least one row exists.
-var limitOne uint64 = 1
-
 // QueryPage bundles pagination parameters for QuerySubjects and QueryResources.
 type QueryPage struct {
 	Limit  *uint64
@@ -61,15 +57,6 @@ type QueryDatastoreReader interface {
 		withCaveats, withExpiration bool,
 		page QueryPage,
 	) (PathSeq, error)
-
-	// SubjectExistsAsRelationship is an existence probe used by AliasIterator.
-	// It includes expired relationships and returns true if any relationship
-	// has the given subject with the specified non-ellipsis relation.
-	SubjectExistsAsRelationship(
-		ctx context.Context,
-		subject Object,
-		nonEllipsisRelation string,
-	) (bool, error)
 
 	// LookupCaveatDefinition fetches a single caveat definition by name.
 	// Implementations are expected to cache results.
@@ -123,6 +110,18 @@ func (r *datalayerQueryDatastoreReader) CheckRelationships(
 	subject ObjectAndRelation,
 	withCaveats, withExpiration bool,
 ) (PathSeq, error) {
+	return r.checkRelationships(ctx, resourceType, resourceID, resourceRelation, subject, withCaveats, withExpiration, false)
+}
+
+func (r *datalayerQueryDatastoreReader) checkRelationships(
+	ctx context.Context,
+	resourceType ObjectType,
+	resourceID string,
+	resourceRelation string,
+	subject ObjectAndRelation,
+	withCaveats, withExpiration bool,
+	includeWildcard bool,
+) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     resourceType.Type,
 		OptionalResourceIds:      []string{resourceID},
@@ -136,7 +135,12 @@ func (r *datalayerQueryDatastoreReader) CheckRelationships(
 		},
 	}
 
-	relIter, err := r.inner.QueryRelationships(ctx, filter,
+	if includeWildcard {
+		filter.OptionalSubjectsSelectors[0].OptionalSubjectIds = []string{subject.ObjectID, WildcardObjectID}
+	}
+
+	relIter, err := r.inner.QueryRelationships(
+		ctx, filter,
 		options.WithSkipCaveats(!withCaveats),
 		options.WithSkipExpiration(!withExpiration),
 		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -163,6 +167,10 @@ func (r *datalayerQueryDatastoreReader) QuerySubjects(
 			},
 		},
 	}
+	if subjectType.Type == "" && subjectType.Subrelation == "" {
+		filter.OptionalSubjectsSelectors = nil
+	}
+
 	// Non-empty fields constrain the query; empty means no constraint on that axis.
 	if resource.ObjectType != "" {
 		filter.OptionalResourceType = resource.ObjectType
@@ -191,7 +199,8 @@ func (r *datalayerQueryDatastoreReader) QuerySubjects(
 		options.WithQueryShape(shape),
 	}
 	if page.Limit != nil {
-		queryOpts = append(queryOpts,
+		queryOpts = append(
+			queryOpts,
 			options.WithLimit(page.Limit),
 			options.WithSort(options.ChooseEfficient),
 		)
@@ -233,7 +242,8 @@ func (r *datalayerQueryDatastoreReader) QueryResources(
 		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
 	}
 	if page.Limit != nil {
-		queryOpts = append(queryOpts,
+		queryOpts = append(
+			queryOpts,
 			options.WithLimit(page.Limit),
 			options.WithSort(options.ChooseEfficient),
 		)
@@ -247,44 +257,6 @@ func (r *datalayerQueryDatastoreReader) QueryResources(
 		return nil, err
 	}
 	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](relIter)), nil
-}
-
-func (r *datalayerQueryDatastoreReader) SubjectExistsAsRelationship(
-	ctx context.Context,
-	subject Object,
-	nonEllipsisRelation string,
-) (bool, error) {
-	filter := datastore.RelationshipsFilter{
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				OptionalSubjectType: subject.ObjectType,
-				OptionalSubjectIds:  []string{subject.ObjectID},
-				RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(nonEllipsisRelation),
-			},
-		},
-		OptionalExpirationOption: datastore.ExpirationFilterOptionNone,
-	}
-
-	relIter, err := r.inner.QueryRelationships(ctx, filter,
-		options.WithLimit(&limitOne),
-		options.WithSkipExpiration(true),
-		// The filter pins the subject but leaves the resource columns open, which
-		// gaps the PK and makes CockroachDB reject a forced index hint. Varying lets
-		// the datastore pick an index from the actual filter columns (the subject
-		// index). This mirrors the reasoning in QuerySubjects above.
-		options.WithQueryShape(queryshape.Varying),
-	)
-	if err != nil {
-		return false, err
-	}
-
-	for _, err := range relIter {
-		if err != nil {
-			return false, err
-		}
-		return true, nil
-	}
-	return false, nil
 }
 
 func (r *datalayerQueryDatastoreReader) LookupCaveatDefinition(
@@ -304,4 +276,18 @@ func (r *datalayerQueryDatastoreReader) LookupCaveatDefinition(
 		return nil, datastore.NewCaveatNameNotFoundErr(name)
 	}
 	return def, nil
+}
+
+// queryIndirectSubjects matches classic Check's indirect-subject scan. Its caller
+// must establish a concrete resource, no pagination, and only one allowed indirect subject form.
+func (r *datalayerQueryDatastoreReader) queryIndirectSubjects(ctx context.Context, resource Object, relation string, withCaveats, withExpiration bool) (PathSeq, error) {
+	filter := datastore.RelationshipsFilter{
+		OptionalResourceType: resource.ObjectType, OptionalResourceIds: []string{resource.ObjectID}, OptionalResourceRelation: relation,
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations()}},
+	}
+	rels, err := r.inner.QueryRelationships(ctx, filter, options.WithSkipCaveats(!withCaveats), options.WithSkipExpiration(!withExpiration), options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects))
+	if err != nil {
+		return nil, err
+	}
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](rels)), nil
 }

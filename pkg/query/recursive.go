@@ -113,6 +113,9 @@ func (r *RecursiveIterator) findMatchingSentinels() []uint64 {
 
 // CheckImpl implements traversal for Check operations with strategy selection
 func (r *RecursiveIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.checkExecution.TargetedRecursion {
+		return r.targetedCheck(ctx, resource, subject)
+	}
 	switch r.checkStrategy {
 	case recursiveCheckIterSubjects:
 		return r.recursiveCheckIterSubjects(ctx, resource, subject)
@@ -695,8 +698,8 @@ func (r *RecursiveIterator) recursiveCheckIterSubjects(ctx *Context, resource Ob
 	}
 
 	// Reflexive identity fast path: if the target subject is the resource itself,
-	// the templateTree's Check (alias self-edge synthesis) resolves it without the
-	// datastore probe that IterSubjects-based BFS would trigger. This matches the
+	// the templateTree's Check (alias self-edge synthesis) resolves it without
+	// running the IterSubjects-based BFS at all. This matches the
 	// dispatcher's MEMBER-when-resource-equals-subject behavior for relations that
 	// allow themselves as subjects (e.g. `relation member: user | group#member`)
 	// without paying the cost of full BFS enumeration just to look up identity.
@@ -715,6 +718,22 @@ func (r *RecursiveIterator) recursiveCheckIterSubjects(ctx *Context, resource Ob
 
 	// Get subject type for filtering (type only, not relation - ellipsis is not a real relation)
 	filterSubjectType := ObjectType{Type: subject.ObjectType}
+
+	// Answering a Check through the IterSubjects machinery means the aliases in
+	// the traversal have to decide the reflexive identity subject, and that
+	// decision needs the subject being checked — see AliasIterator's
+	// shouldIncludeSelfEdge. filterSubjectType cannot carry it: it deliberately
+	// omits the relation, and it is the *filter*, which arrows and recursion
+	// leave empty so they can keep walking intermediate-typed results.
+	//
+	// The target is saved and restored around the traversal rather than simply
+	// assigned, because a Check does not have one target the way a
+	// LookupSubjects does: an arrow changes the subject mid-traversal
+	// (checkRightToLeft passes each intermediate as the subject), so a nested
+	// Check under this one may set its own.
+	previousTarget := ctx.TargetSubjectType
+	ctx.TargetSubjectType = ObjectType{Type: subject.ObjectType, Subrelation: subject.Relation}
+	defer func() { ctx.TargetSubjectType = previousTarget }()
 
 	// Call IterSubjects on the RecursiveIterator itself - this will use BFS
 	pathSeq, err := ctx.IterSubjects(r, resource, filterSubjectType)

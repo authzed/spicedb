@@ -63,7 +63,7 @@ func (ia *IntersectionArrowIterator) CheckImpl(ctx *Context, resource Object, su
 	// 4. Combine all (leftCaveat AND rightCaveat) pairs with AND logic
 
 	validResults := make([]*Path, 0)
-	if ctx.BatchedArrows {
+	if ctx.BatchedArrows || ctx.checkExecution.ExhaustiveIntersectionArrows {
 		var (
 			leftPaths    []*Path
 			concreteRes  []Object

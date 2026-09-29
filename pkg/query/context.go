@@ -15,6 +15,10 @@ import (
 //
 // Context is the concrete type that contains the overall handles, and uses the executor as a strategy for continuing execution.
 type Context struct {
+	checkExecution     CheckExecutionOptions
+	targetedRecursions map[string]*RecursiveIterator
+	targetedDepth      int
+
 	context.Context
 	Executor          Executor
 	Reader            QueryDatastoreReader // Datastore reader for this query at a specific revision
@@ -27,6 +31,39 @@ type Context struct {
 	// this context. It is set exactly once — on the first call — and never changes after that.
 	// Iterators may inspect it to skip work that is irrelevant for the current operation type.
 	TopLevelOperation Operation
+
+	// TargetSubjectType is the subject type and relation whose reachability is
+	// being asked about: the filter of a LookupSubjects, or the subject of a
+	// Check that resolves through the IterSubjects machinery. Iterators consult
+	// it to decide the reflexive identity subject (see
+	// AliasIterator.shouldIncludeSelfEdge). An empty value means nobody asked
+	// for a specific subject, and identity is not decidable.
+	//
+	// It is deliberately distinct from the filterSubjectType threaded through
+	// IterSubjects calls. That parameter says what a *particular* call wants back
+	// and is legitimately empty inside arrows and recursion, which have to walk
+	// intermediate-typed results in order to keep traversing. TargetSubjectType
+	// says what the *request* wants, which is what identity semantics turn on.
+	// This mirrors DispatchLookupSubjectsRequest.SubjectRelation, which the
+	// classic dispatcher threads through every dispatch level for the same reason.
+	//
+	// A LookupSubjects sets this once, on the top-level call, and it stays
+	// constant. A Check does not, because an arrow changes the subject
+	// mid-traversal (checkRightToLeft passes each intermediate as the subject),
+	// so RecursiveIterator.recursiveCheckIterSubjects saves and restores it
+	// around its own traversal.
+	//
+	// TODO: that save/restore is the one piece of scoped mutable state on this
+	// Context, and it is only sound because a Context is driven by a single
+	// goroutine. Making set operations or fan-outs concurrent would break it
+	// silently — a sibling branch would observe another branch's target and
+	// decide identity against the wrong subject, which is a wrong answer rather
+	// than a crash. The fix is to pass the target as a parameter alongside
+	// filterSubjectType through IterSubjectsImpl / IterSubjectsForResourcesImpl
+	// instead of hanging it off the Context. That is more churn (every iterator
+	// signature) which is why it is not done here, but it should be done before
+	// any concurrency is introduced, not after.
+	TargetSubjectType ObjectType
 
 	// BatchedArrows enables the batched arrow check path: arrows drain their
 	// left/right side into a slice and issue a single CheckMany call instead of
@@ -374,6 +411,9 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	}
 
 	isTopLevel := ctx.MarkAsOperation(it, OperationIterSubjects)
+	if isTopLevel {
+		ctx.TargetSubjectType = filterSubjectType
+	}
 
 	var tracedIterator Iterator
 	if ctx.shouldTrace() {
