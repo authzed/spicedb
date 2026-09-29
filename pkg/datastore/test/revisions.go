@@ -420,12 +420,11 @@ func QuantizedRevisionStaysReadableTest(t *testing.T, tester DatastoreTester) {
 		var reason string
 		rel, writtenAt, reason = onePass(attempt)
 		if reason == "" {
-			tooSlow = nil
 			break
 		}
 		tooSlow = append(tooSlow, reason)
 	}
-	require.Empty(tooSlow, "no attempt ran fast enough to test anything: %v", tooSlow)
+	require.Less(len(tooSlow), maxAttempts, "no attempt ran fast enough to test anything: %v", tooSlow)
 
 	// Now age the write out of the retention window. The second write gives the
 	// datastores that read the oldest valid revision off the transaction log a
