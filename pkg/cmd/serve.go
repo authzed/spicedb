@@ -192,6 +192,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryMaximumPrimaryHedgingDelays, "experimental-dispatch-secondary-maximum-primary-hedging-delays", nil, "maximum number of hedging delays to use for each request type to delay the primary request. default is 5ms")
+	experimentalFlags.BoolVar(&config.DispatchLookupResources3CursorRoutingEnabled, "experimental-dispatch-lookup-resources3-cursor-routing-enabled", false, "pin LookupResources3 pagination to the dispatcher that produced its cursor; enable only after all SpiceDB nodes support cursor routing")
 
 	// Deprecated flags for experimental features
 	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", false, "do not use; this flag is unused and will be removed in a future version")

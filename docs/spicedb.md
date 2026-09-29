@@ -614,6 +614,7 @@ spicedb serve [flags]
       --enable-memory-protection-middleware                                             enables middleware that does a best effort at preventing OOM (Out of Memory) if the server's memory usage is too high by returning ResourceExhausted on incoming requests (default true)
       --enable-performance-insight-metrics                                              enables performance insight metrics, which are used to track the latency of API calls by shape
       --enable-revision-heartbeat                                                       enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (Postgres driver only) (default true)
+      --experimental-dispatch-lookup-resources3-cursor-routing-enabled                  pin LookupResources3 pagination to the dispatcher that produced its cursor; enable only after all SpiceDB nodes support cursor routing
       --experimental-dispatch-secondary-maximum-primary-hedging-delays stringToString   maximum number of hedging delays to use for each request type to delay the primary request. default is 5ms (default [])
       --experimental-dispatch-secondary-upstream-addrs stringToString                   secondary upstream addresses for dispatches, each with a name (default [])
       --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request (default [])

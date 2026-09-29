@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -100,6 +101,11 @@ type ClusterDispatcherConfig struct {
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
 	// before it should timeout.
 	DispatchOverallTimeout time.Duration
+
+	// EnableLookupResources3CursorRouting adds dispatcher ownership to new LR3
+	// cursors. Enable only after all SpiceDB nodes understand these sections.
+	// Existing ownership sections are always honored, regardless of this setting.
+	EnableLookupResources3CursorRouting bool
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -148,22 +154,24 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 	}
 
 	return &clusterDispatcher{
-		clusterClient:                   client,
-		conn:                            conn,
-		keyHandler:                      keyHandler,
-		dispatchOverallTimeout:          dispatchOverallTimeout,
-		secondaryDispatch:               secondaryDispatch,
-		secondaryDispatchExprs:          secondaryDispatchExprs,
-		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
-		supportedResourceSubjectTracker: newSupportedResourceSubjectTracker(),
+		clusterClient:                       client,
+		conn:                                conn,
+		keyHandler:                          keyHandler,
+		dispatchOverallTimeout:              dispatchOverallTimeout,
+		enableLookupResources3CursorRouting: config.EnableLookupResources3CursorRouting,
+		secondaryDispatch:                   secondaryDispatch,
+		secondaryDispatchExprs:              secondaryDispatchExprs,
+		secondaryInitialResponseDigests:     secondaryInitialResponseDigests,
+		supportedResourceSubjectTracker:     newSupportedResourceSubjectTracker(),
 	}, nil
 }
 
 type clusterDispatcher struct {
-	clusterClient          ClusterClient
-	conn                   *grpc.ClientConn
-	keyHandler             keys.Handler
-	dispatchOverallTimeout time.Duration
+	clusterClient                       ClusterClient
+	conn                                *grpc.ClientConn
+	keyHandler                          keys.Handler
+	dispatchOverallTimeout              time.Duration
+	enableLookupResources3CursorRouting bool
 
 	secondaryDispatch               map[string]SecondaryDispatch
 	secondaryDispatchExprs          map[string]*DispatchExpr
@@ -423,11 +431,12 @@ type receiver[S any] interface {
 
 const (
 	secondaryCursorPrefix = "$$secondary:"
+	primaryCursorSection  = "$$primary"
 	primaryDispatcher     = "$primary"
 	noDispatcherResults   = "$$no_dispatcher_results"
 )
 
-func publishClient[R any](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
+func publishClient[R any](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string, includeLR3CursorOwner bool) error {
 	isFirstResult := true
 	for {
 		if ctx.Err() != nil {
@@ -459,11 +468,31 @@ func publishClient[R any](ctx context.Context, client receiver[R], reqKey string
 			}
 		}
 
-		serr := stream.Publish(result)
+		serr := publishStreamingResult(result, stream, secondaryDispatchName, includeLR3CursorOwner)
 		if serr != nil {
 			return serr
 		}
 	}
+}
+
+// publishStreamingResult records the owner of every LR3 continuation. LR3 cursors
+// are stacks whose head is at the end, so the routing section must be appended:
+// a cursor can already contain routing sections from nested dispatches.
+func publishStreamingResult[R any](result R, stream dispatch.Stream[R], dispatcherName string, includeLR3CursorOwner bool) error {
+	if response, ok := any(result).(*v1.DispatchLookupResources3Response); ok && includeLR3CursorOwner {
+		section := primaryCursorSection
+		if dispatcherName != primaryDispatcher {
+			section = secondaryCursorPrefix + dispatcherName
+		}
+		for _, item := range response.Items {
+			// Unlimited lookups disable cursor generation.
+			if len(item.AfterResponseCursorSections) == 0 {
+				continue
+			}
+			item.AfterResponseCursorSections = append(slices.Clone(item.AfterResponseCursorSections), section)
+		}
+	}
+	return stream.Publish(result)
 }
 
 type ctxAndCancel struct {
@@ -492,7 +521,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		if err != nil {
 			return err
 		}
-		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
+		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher, cr.enableLookupResources3CursorRouting)
 	}
 
 	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
@@ -539,7 +568,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		if err != nil {
 			return err
 		}
-		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
+		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher, cr.enableLookupResources3CursorRouting)
 	}
 
 	var maximumHedgingDelay time.Duration
@@ -696,7 +725,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 				}
 
 				hasPublishedFirstResult = true
-				serr := stream.Publish(result)
+				serr := publishStreamingResult(result, stream, name, cr.enableLookupResources3CursorRouting)
 				if serr != nil {
 					errorsByDispatcherName.Store(name, serr)
 					return
@@ -822,6 +851,41 @@ func (cr *clusterDispatcher) DispatchLookupResources3(
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return err
+	}
+
+	// A continuation must use the dispatcher that produced it, even if the
+	// routing expression has changed or the primary could now win a hedge.
+	// Leave legacy, untagged cursors on the existing routing path: their format
+	// is opaque and may belong to either the primary or a secondary.
+	if len(req.OptionalCursor) > 0 {
+		section := req.OptionalCursor[len(req.OptionalCursor)-1]
+		secondaryName, isSecondary := strings.CutPrefix(section, secondaryCursorPrefix)
+		if section == primaryCursorSection || isSecondary {
+			client := cr.clusterClient
+			dispatcherName := primaryDispatcher
+			if isSecondary {
+				secondary, ok := cr.secondaryDispatch[secondaryName]
+				if !ok || secondaryName == "" {
+					return errors.New("cursor locked to unknown secondary dispatcher")
+				}
+				client = secondary.Client
+				dispatcherName = secondaryName
+			}
+
+			// The caller may reuse the request (including in another dispatch), so
+			// consume only our routing section on a private copy.
+			req = proto.Clone(req).(*v1.DispatchLookupResources3Request)
+			req.OptionalCursor = req.OptionalCursor[:len(req.OptionalCursor)-1]
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+			defer cancel()
+			results, err := client.DispatchLookupResources3(ctxWithTimeout, req)
+			if err != nil {
+				return err
+			}
+			// Preserve ownership for an existing pagination session even when
+			// emitting ownership for new sessions is disabled.
+			return publishClient(ctxWithTimeout, results, "lookupresources", stream, dispatcherName, true)
+		}
 	}
 
 	return dispatchStreamingRequest(ctx, cr, "lookupresources", req, stream,
