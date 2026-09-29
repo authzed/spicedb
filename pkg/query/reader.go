@@ -110,6 +110,18 @@ func (r *datalayerQueryDatastoreReader) CheckRelationships(
 	subject ObjectAndRelation,
 	withCaveats, withExpiration bool,
 ) (PathSeq, error) {
+	return r.checkRelationships(ctx, resourceType, resourceID, resourceRelation, subject, withCaveats, withExpiration, false)
+}
+
+func (r *datalayerQueryDatastoreReader) checkRelationships(
+	ctx context.Context,
+	resourceType ObjectType,
+	resourceID string,
+	resourceRelation string,
+	subject ObjectAndRelation,
+	withCaveats, withExpiration bool,
+	includeWildcard bool,
+) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType:     resourceType.Type,
 		OptionalResourceIds:      []string{resourceID},
@@ -123,7 +135,12 @@ func (r *datalayerQueryDatastoreReader) CheckRelationships(
 		},
 	}
 
-	relIter, err := r.inner.QueryRelationships(ctx, filter,
+	if includeWildcard {
+		filter.OptionalSubjectsSelectors[0].OptionalSubjectIds = []string{subject.ObjectID, WildcardObjectID}
+	}
+
+	relIter, err := r.inner.QueryRelationships(
+		ctx, filter,
 		options.WithSkipCaveats(!withCaveats),
 		options.WithSkipExpiration(!withExpiration),
 		options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -150,6 +167,10 @@ func (r *datalayerQueryDatastoreReader) QuerySubjects(
 			},
 		},
 	}
+	if subjectType.Type == "" && subjectType.Subrelation == "" {
+		filter.OptionalSubjectsSelectors = nil
+	}
+
 	// Non-empty fields constrain the query; empty means no constraint on that axis.
 	if resource.ObjectType != "" {
 		filter.OptionalResourceType = resource.ObjectType
@@ -178,7 +199,8 @@ func (r *datalayerQueryDatastoreReader) QuerySubjects(
 		options.WithQueryShape(shape),
 	}
 	if page.Limit != nil {
-		queryOpts = append(queryOpts,
+		queryOpts = append(
+			queryOpts,
 			options.WithLimit(page.Limit),
 			options.WithSort(options.ChooseEfficient),
 		)
@@ -220,7 +242,8 @@ func (r *datalayerQueryDatastoreReader) QueryResources(
 		options.WithQueryShape(queryshape.MatchingResourcesForSubject),
 	}
 	if page.Limit != nil {
-		queryOpts = append(queryOpts,
+		queryOpts = append(
+			queryOpts,
 			options.WithLimit(page.Limit),
 			options.WithSort(options.ChooseEfficient),
 		)
@@ -253,4 +276,18 @@ func (r *datalayerQueryDatastoreReader) LookupCaveatDefinition(
 		return nil, datastore.NewCaveatNameNotFoundErr(name)
 	}
 	return def, nil
+}
+
+// queryIndirectSubjects matches classic Check's indirect-subject scan. Its caller
+// must establish a concrete resource, no pagination, and only one allowed indirect subject form.
+func (r *datalayerQueryDatastoreReader) queryIndirectSubjects(ctx context.Context, resource Object, relation string, withCaveats, withExpiration bool) (PathSeq, error) {
+	filter := datastore.RelationshipsFilter{
+		OptionalResourceType: resource.ObjectType, OptionalResourceIds: []string{resource.ObjectID}, OptionalResourceRelation: relation,
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations()}},
+	}
+	rels, err := r.inner.QueryRelationships(ctx, filter, options.WithSkipCaveats(!withCaveats), options.WithSkipExpiration(!withExpiration), options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects))
+	if err != nil {
+		return nil, err
+	}
+	return convertRelationSeqToPathSeq(iter.Seq2[tuple.Relationship, error](rels)), nil
 }

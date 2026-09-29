@@ -64,6 +64,12 @@ func (r *RecursiveSentinelIterator) WithSubRelations() bool {
 // CheckImpl returns nil. If collection mode is enabled, it collects the queried
 // resource to the frontier collection instead of returning a path.
 func (r *RecursiveSentinelIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.checkExecution.TargetedRecursion {
+		if target := ctx.targetedRecursions[r.definitionName+"#"+r.relationName]; target != nil {
+			return target.targetedCheck(ctx, resource, subject)
+		}
+		return nil, spiceerrors.MustBugf("unbound recursive check sentinel %s#%s", r.definitionName, r.relationName)
+	}
 	// Check if collection mode is enabled for this sentinel
 	if ctx.IsCollectingFrontier(r.CanonicalKey().Hash()) {
 		// Only collect if it matches our recursion type

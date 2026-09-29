@@ -15,6 +15,10 @@ import (
 //
 // Context is the concrete type that contains the overall handles, and uses the executor as a strategy for continuing execution.
 type Context struct {
+	checkExecution     CheckExecutionOptions
+	targetedRecursions map[string]*RecursiveIterator
+	targetedDepth      int
+
 	context.Context
 	Executor          Executor
 	Reader            QueryDatastoreReader // Datastore reader for this query at a specific revision

@@ -83,6 +83,24 @@ func combineExclusionCaveats(mainPath, excludedPath *Path) (*Path, bool) {
 }
 
 func (e *ExclusionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	if ctx.checkExecution.BaseFirstExclusion {
+		main, err := ctx.Check(e.mainSet, resource, subject)
+		if err != nil || main == nil {
+			return main, err
+		}
+		excluded, err := ctx.Check(e.excluded, resource, subject)
+		if err != nil {
+			return nil, err
+		}
+		if excluded == nil {
+			return main, nil
+		}
+		result, keep := combineExclusionCaveats(main, excluded)
+		if !keep {
+			return nil, nil
+		}
+		return result, nil
+	}
 	// Get the excluded path first
 	if ctx.shouldTrace() {
 		ctx.TraceStep(e, "getting path from excluded set for resource %s:%s", resource.ObjectType, resource.ObjectID)
