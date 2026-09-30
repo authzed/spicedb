@@ -58,6 +58,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableExperimentalWatchableSchemaCache = c.EnableExperimentalWatchableSchemaCache
 		to.SchemaWatchHeartbeat = c.SchemaWatchHeartbeat
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
+		to.EnableExperimentalRelationshipSetCache = c.EnableExperimentalRelationshipSetCache
+		to.RelationshipSetCacheConfig = c.RelationshipSetCacheConfig
+		to.RelationshipSetCacheMaterializeThreshold = c.RelationshipSetCacheMaterializeThreshold
+		to.RelationshipSetCacheMaximumSetSize = c.RelationshipSetCacheMaximumSetSize
 		to.StoredSchemaCacheConfig = c.StoredSchemaCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.ExperimentalSchemaMode = c.ExperimentalSchemaMode
@@ -219,6 +223,16 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["NamespaceCacheConfig"] = c.NamespaceCacheConfig
 	}
+	debugMap["EnableExperimentalRelationshipSetCache"] = c.EnableExperimentalRelationshipSetCache
+	if dm, ok := any(&c.RelationshipSetCacheConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["RelationshipSetCacheConfig"] = dm.DebugMap()
+	} else {
+		debugMap["RelationshipSetCacheConfig"] = c.RelationshipSetCacheConfig
+	}
+	debugMap["RelationshipSetCacheMaterializeThreshold"] = c.RelationshipSetCacheMaterializeThreshold
+	debugMap["RelationshipSetCacheMaximumSetSize"] = c.RelationshipSetCacheMaximumSetSize
 	if dm, ok := any(&c.StoredSchemaCacheConfig).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -585,6 +599,34 @@ func WithSchemaWatchHeartbeat(schemaWatchHeartbeat time.Duration) ConfigOption {
 func WithNamespaceCacheConfig(namespaceCacheConfig CacheConfig) ConfigOption {
 	return func(c *Config) {
 		c.NamespaceCacheConfig = namespaceCacheConfig
+	}
+}
+
+// WithEnableExperimentalRelationshipSetCache returns an option that can set EnableExperimentalRelationshipSetCache on a Config
+func WithEnableExperimentalRelationshipSetCache(enableExperimentalRelationshipSetCache bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalRelationshipSetCache = enableExperimentalRelationshipSetCache
+	}
+}
+
+// WithRelationshipSetCacheConfig returns an option that can set RelationshipSetCacheConfig on a Config
+func WithRelationshipSetCacheConfig(relationshipSetCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.RelationshipSetCacheConfig = relationshipSetCacheConfig
+	}
+}
+
+// WithRelationshipSetCacheMaterializeThreshold returns an option that can set RelationshipSetCacheMaterializeThreshold on a Config
+func WithRelationshipSetCacheMaterializeThreshold(relationshipSetCacheMaterializeThreshold uint64) ConfigOption {
+	return func(c *Config) {
+		c.RelationshipSetCacheMaterializeThreshold = relationshipSetCacheMaterializeThreshold
+	}
+}
+
+// WithRelationshipSetCacheMaximumSetSize returns an option that can set RelationshipSetCacheMaximumSetSize on a Config
+func WithRelationshipSetCacheMaximumSetSize(relationshipSetCacheMaximumSetSize uint64) ConfigOption {
+	return func(c *Config) {
+		c.RelationshipSetCacheMaximumSetSize = relationshipSetCacheMaximumSetSize
 	}
 }
 

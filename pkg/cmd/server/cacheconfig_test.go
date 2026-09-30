@@ -177,3 +177,68 @@ func TestRevisionKeyedCachesExpire(t *testing.T) {
 			"the %s cache is keyed by revision and must be given a TTL", name)
 	}
 }
+
+func TestCacheRetainsEntries(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		cc      CacheConfig
+		want    bool
+		wantErr bool
+	}{
+		{"enabled percent", CacheConfig{Enabled: true, MaxCost: "30%"}, true, false},
+		{"enabled bytes", CacheConfig{Enabled: true, MaxCost: "1MiB"}, true, false},
+		{"disabled", CacheConfig{Enabled: false, MaxCost: "30%"}, false, false},
+		{"empty max cost", CacheConfig{Enabled: true, MaxCost: ""}, false, false},
+		{"zero percent", CacheConfig{Enabled: true, MaxCost: "0%"}, false, false},
+		{"zero bytes", CacheConfig{Enabled: true, MaxCost: "0"}, false, false},
+		{"zero with unit", CacheConfig{Enabled: true, MaxCost: "0B"}, false, false},
+		{"invalid", CacheConfig{Enabled: true, MaxCost: "lots"}, false, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cacheRetainsEntries(&tt.cc, 1<<30)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+
+	// 1% of 99 bytes is zero bytes, so the cache holds nothing.
+	got, err := cacheRetainsEntries(&CacheConfig{Enabled: true, MaxCost: "1%"}, 99)
+	require.NoError(t, err)
+	require.False(t, got)
+}
+
+func TestEnabledCachePercentTotal(t *testing.T) {
+	require.Zero(t, enabledCachePercentTotal())
+	require.EqualValues(t, 130, enabledCachePercentTotal(
+		&CacheConfig{Enabled: true, MaxCost: "30%"},
+		&CacheConfig{Enabled: true, MaxCost: "70%"},
+		&CacheConfig{Enabled: true, MaxCost: "30%"},
+	))
+	require.EqualValues(t, 30, enabledCachePercentTotal(
+		&CacheConfig{Enabled: true, MaxCost: "30%"},
+		// The total ignores a disabled, absolute or invalid MaxCost.
+		&CacheConfig{Enabled: false, MaxCost: "70%"},
+		&CacheConfig{Enabled: true, MaxCost: "32MiB"},
+		&CacheConfig{Enabled: true, MaxCost: "1000%"},
+		&CacheConfig{Enabled: true, MaxCost: "abc%"},
+	))
+}
+
+func TestBuiltCachePercentTotal(t *testing.T) {
+	var c Config
+	c.SetDefaults()
+	require.EqualValues(t, 30, c.builtCachePercentTotal(), "defaults: dispatch cache only")
+
+	c.EnableExperimentalRelationshipSetCache = true
+	require.EqualValues(t, 60, c.builtCachePercentTotal())
+
+	c.DispatchServer.Enabled = true
+	require.EqualValues(t, 130, c.builtCachePercentTotal(), "shipped defaults over-commit with every cache built")
+
+	c.ClusterDispatchCacheConfig.MaxCost = "40%"
+	require.EqualValues(t, 100, c.builtCachePercentTotal())
+}
