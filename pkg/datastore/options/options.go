@@ -97,6 +97,19 @@ type QueryOptions struct {
 	UseTupleComparison bool `debugmap:"visible"`
 }
 
+// ReturnsAllUnordered reports whether a query with these options returns every matching relationship, in no specified order.
+// It is false if the options set a limit, a sort order, a cursor, a SQL test hook or tuple comparison.
+// SkipCaveats and SkipExpiration only clear columns of each relationship, and QueryShape only labels the query.
+func (opts *QueryOptions) ReturnsAllUnordered() bool {
+	return opts.Limit == nil &&
+		opts.Sort == Unsorted &&
+		opts.After == nil &&
+		opts.BeforeOrEqual == nil &&
+		opts.SQLCheckAssertionForTest == nil &&
+		opts.SQLExplainCallbackForTest == nil &&
+		!opts.UseTupleComparison
+}
+
 // ReverseQueryOptions are the options that can affect the results of a reverse query.
 type ReverseQueryOptions struct {
 	ResRelation *ResourceRelation `debugmap:"visible"`

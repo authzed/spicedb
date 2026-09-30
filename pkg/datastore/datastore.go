@@ -173,6 +173,17 @@ type RelationshipsFilter struct {
 	OptionalExpirationOption ExpirationFilterOption
 }
 
+// IsServableFromCompleteSet reports whether the complete relationship sets of a fixed list of object#relations can answer the filter.
+// It is true if the filter has a resource type, a resource relation and at least one resource ID, and no resource ID prefix.
+// Then every relationship that the filter matches belongs to one of the type:id#relation pairs that the filter names.
+// The other fields are predicates on each relationship, which a caller applies to the relationships of each set.
+func (rf RelationshipsFilter) IsServableFromCompleteSet() bool {
+	return rf.OptionalResourceType != "" &&
+		rf.OptionalResourceRelation != "" &&
+		len(rf.OptionalResourceIds) > 0 &&
+		rf.OptionalResourceIDPrefix == ""
+}
+
 // Test returns true iff the given relationship is matched by this filter.
 func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 	if rf.OptionalResourceType != "" && rf.OptionalResourceType != relationship.Resource.ObjectType {
