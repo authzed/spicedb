@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/authzed/consistent"
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -43,6 +44,51 @@ type optionState struct {
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
 	queryPlanMetadata                            *query.QueryPlanMetadata
+	objectAffinityRouting                        bool
+	hashringBuilder                              consistent.Builder
+	objectSpreadShare                            float64
+	objectSpread                                 uint8
+	objectSpreadLatencyFactor                    float64
+}
+
+// ObjectAffinityRouting enables routing of remote dispatches by the ring owner of each resource object.
+func ObjectAffinityRouting(enabled bool) Option {
+	return func(state *optionState) {
+		state.objectAffinityRouting = enabled
+	}
+}
+
+// HashringBuilder sets the balancer builder that supplies the ring view. A nil builder disables object routing.
+func HashringBuilder(b consistent.Builder) Option {
+	return func(state *optionState) {
+		state.hashringBuilder = b
+	}
+}
+
+// ObjectSpreadShare sets the share-of-traffic test for spread.
+// A key spreads across ring owners when its share of the outbound dispatches of this node
+// is more than share divided by the ring member count.
+// Zero disables spread.
+func ObjectSpreadShare(share float64) Option {
+	return func(state *optionState) {
+		state.objectSpreadShare = share
+	}
+}
+
+// ObjectSpreadLatencyFactor sets the owner-latency gate for spread.
+// A hot key spreads only if the p90 latency of its owner is at least factor times the median p90 latency of all owners.
+// Zero disables the gate.
+func ObjectSpreadLatencyFactor(factor float64) Option {
+	return func(state *optionState) {
+		state.objectSpreadLatencyFactor = factor
+	}
+}
+
+// ObjectSpread sets the number of ring owners for a hot key.
+func ObjectSpread(spread uint8) Option {
+	return func(state *optionState) {
+		state.objectSpread = spread
+	}
 }
 
 // QueryPlanMetadata sets the shared count-stats store used by the receiver-side
@@ -307,6 +353,11 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
+			ObjectAffinityRouting:  opts.objectAffinityRouting,
+			HashringBuilder:        opts.hashringBuilder,
+			SpreadShare:            opts.objectSpreadShare,
+			Spread:                 opts.objectSpread,
+			SpreadLatencyFactor:    opts.objectSpreadLatencyFactor,
 		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
 		if err != nil {
 			return nil, err

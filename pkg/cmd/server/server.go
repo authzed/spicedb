@@ -119,6 +119,12 @@ type Config struct {
 	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
 	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
 
+	// Object-affinity routing
+	EnableExperimentalObjectAffinityRouting bool    `debugmap:"visible"`
+	DispatchObjectSpreadShare               float64 `debugmap:"visible" default:"0"`
+	DispatchObjectSpread                    uint8   `debugmap:"visible" default:"2"`
+	DispatchObjectSpreadLatencyFactor       float64 `debugmap:"visible" default:"1.5"`
+
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
 	LR3ResourceChunkCacheConfig CacheConfig `debugmap:"visible"`
@@ -375,6 +381,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
+			combineddispatch.ObjectAffinityRouting(c.EnableExperimentalObjectAffinityRouting),
+			combineddispatch.HashringBuilder(ConsistentHashringBuilder),
+			combineddispatch.ObjectSpreadShare(c.DispatchObjectSpreadShare),
+			combineddispatch.ObjectSpread(c.DispatchObjectSpread),
+			combineddispatch.ObjectSpreadLatencyFactor(c.DispatchObjectSpreadLatencyFactor),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
