@@ -80,6 +80,37 @@ func CompleteCache[K cache.KeyString, V any](registerer prometheus.Registerer, c
 	})
 }
 
+// cacheRetainsEntries reports whether cc is enabled and its MaxCost gives a non-zero budget of availableMem.
+// An invalid MaxCost returns the parse error.
+func cacheRetainsEntries(cc *CacheConfig, availableMem uint64) (bool, error) {
+	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" {
+		return false, nil
+	}
+	maxCost, err := resolveMaxCost(cc, availableMem)
+	if err != nil {
+		return false, err
+	}
+	return maxCost > 0, nil
+}
+
+// enabledCachePercentTotal adds the MaxCost percentages of the enabled caches in configs.
+// It ignores an absolute MaxCost and an invalid percentage.
+func enabledCachePercentTotal(configs ...*CacheConfig) uint64 {
+	var total uint64
+	for _, cc := range configs {
+		if !cc.Enabled || !strings.HasSuffix(cc.MaxCost, "%") {
+			continue
+		}
+		// With a total of 100, the result is the percentage.
+		percent, err := parsePercent(cc.MaxCost, 100)
+		if err != nil {
+			continue
+		}
+		total += percent
+	}
+	return total
+}
+
 // resolveMaxCost translates the configured MaxCost (an absolute byte value or a
 // percentage of available memory) into a concrete byte budget. availableMem is
 // the figure to apply percentages against, as reported by
