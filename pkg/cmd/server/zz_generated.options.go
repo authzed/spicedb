@@ -58,6 +58,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableExperimentalWatchableSchemaCache = c.EnableExperimentalWatchableSchemaCache
 		to.SchemaWatchHeartbeat = c.SchemaWatchHeartbeat
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
+		to.ExperimentalFullRelationCache = c.ExperimentalFullRelationCache
+		to.FullRelationCacheConfig = c.FullRelationCacheConfig
+		to.FullRelationCacheMaterializeThreshold = c.FullRelationCacheMaterializeThreshold
+		to.FullRelationCacheMaximumSetSize = c.FullRelationCacheMaximumSetSize
 		to.StoredSchemaCacheConfig = c.StoredSchemaCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.ExperimentalSchemaMode = c.ExperimentalSchemaMode
@@ -219,6 +223,20 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["NamespaceCacheConfig"] = c.NamespaceCacheConfig
 	}
+	if c.ExperimentalFullRelationCache == "" {
+		debugMap["ExperimentalFullRelationCache"] = "(empty)"
+	} else {
+		debugMap["ExperimentalFullRelationCache"] = c.ExperimentalFullRelationCache
+	}
+	if dm, ok := any(&c.FullRelationCacheConfig).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["FullRelationCacheConfig"] = dm.DebugMap()
+	} else {
+		debugMap["FullRelationCacheConfig"] = c.FullRelationCacheConfig
+	}
+	debugMap["FullRelationCacheMaterializeThreshold"] = c.FullRelationCacheMaterializeThreshold
+	debugMap["FullRelationCacheMaximumSetSize"] = c.FullRelationCacheMaximumSetSize
 	if dm, ok := any(&c.StoredSchemaCacheConfig).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -585,6 +603,34 @@ func WithSchemaWatchHeartbeat(schemaWatchHeartbeat time.Duration) ConfigOption {
 func WithNamespaceCacheConfig(namespaceCacheConfig CacheConfig) ConfigOption {
 	return func(c *Config) {
 		c.NamespaceCacheConfig = namespaceCacheConfig
+	}
+}
+
+// WithExperimentalFullRelationCache returns an option that can set ExperimentalFullRelationCache on a Config
+func WithExperimentalFullRelationCache(experimentalFullRelationCache string) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalFullRelationCache = experimentalFullRelationCache
+	}
+}
+
+// WithFullRelationCacheConfig returns an option that can set FullRelationCacheConfig on a Config
+func WithFullRelationCacheConfig(fullRelationCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.FullRelationCacheConfig = fullRelationCacheConfig
+	}
+}
+
+// WithFullRelationCacheMaterializeThreshold returns an option that can set FullRelationCacheMaterializeThreshold on a Config
+func WithFullRelationCacheMaterializeThreshold(fullRelationCacheMaterializeThreshold uint64) ConfigOption {
+	return func(c *Config) {
+		c.FullRelationCacheMaterializeThreshold = fullRelationCacheMaterializeThreshold
+	}
+}
+
+// WithFullRelationCacheMaximumSetSize returns an option that can set FullRelationCacheMaximumSetSize on a Config
+func WithFullRelationCacheMaximumSetSize(fullRelationCacheMaximumSetSize uint64) ConfigOption {
+	return func(c *Config) {
+		c.FullRelationCacheMaximumSetSize = fullRelationCacheMaximumSetSize
 	}
 }
 

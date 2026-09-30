@@ -56,6 +56,13 @@ var (
 		Metrics: true,
 		MaxCost: "32MiB",
 	}
+
+	fullRelationCacheDefaults = &server.CacheConfig{
+		Name:    "full_relation",
+		Enabled: true,
+		Metrics: true,
+		MaxCost: "30%",
+	}
 )
 
 func BoldBlue(name string) string {
@@ -208,6 +215,21 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	if err != nil {
 		return fmt.Errorf("could not register stored schema cache flags: %w", err)
 	}
+
+	err = server.RegisterCacheFlags(experimentalFlags, "experimental-full-relation-cache", "full relations (has no effect unless --experimental-full-relation-cache=enabled)", &config.FullRelationCacheConfig, fullRelationCacheDefaults)
+	if err != nil {
+		return fmt.Errorf("could not register full relation cache flags: %w", err)
+	}
+
+	experimentalFlags.StringVar(&config.ExperimentalFullRelationCache,
+		"experimental-full-relation-cache", string(server.FullRelationCacheDisabled),
+		"full relation cache mode: disabled or enabled. When enabled, the server caches the complete set of relationships of a hot object#relation and serves reads — including negative answers — from memory. The --experimental-full-relation-cache-* flags only tune it; with --experimental-full-relation-cache-enabled=false or a zero max cost it stays inactive. When enabling, consider lowering --dispatch-cluster-cache-max-cost (e.g. 70% -> 40%) to fund --experimental-full-relation-cache-max-cost")
+	experimentalFlags.Uint64Var(&config.FullRelationCacheMaterializeThreshold,
+		"experimental-full-relation-cache-materialize-threshold", 3,
+		"accesses to an object#relation at one revision, within the estimator window, before its complete set at that revision is materialized")
+	experimentalFlags.Uint64Var(&config.FullRelationCacheMaximumSetSize,
+		"experimental-full-relation-cache-maximum-set-size", 1024,
+		"maximum number of relationships in a materialized set; larger sets are memoized as too-big and served from the datastore")
 
 	// Flags for tracing
 	server.RegisterOTelFlags(cmd, &config.OTel)
