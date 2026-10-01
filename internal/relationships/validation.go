@@ -3,6 +3,7 @@ package relationships
 import (
 	"context"
 
+	internalcaveats "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -261,7 +262,7 @@ func ValidateOneRelationship(
 			caveats.ErrorForUnknownParameters,
 		)
 		if err != nil {
-			return err
+			return internalcaveats.NewParameterTypeError(internalcaveats.CaveatAsExpr(rel.OptionalCaveat), err)
 		}
 	}
 

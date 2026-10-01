@@ -2551,3 +2551,56 @@ func TestDeleteRelationshipsCursorRequiresLimitAndPartial(t *testing.T) {
 	})
 	require.Equal(codes.InvalidArgument, status.Code(err), "cursor without partial deletions must be rejected: %v", err)
 }
+
+func TestWriteRelationshipsInvalidCaveatContextIsInvalidArgument(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
+	schema := `
+	definition user {}
+
+	caveat has_quota(quota int) {
+		quota > 0
+	}
+
+	definition document {
+		relation viewer: user with has_quota
+		permission view = viewer
+	}
+	`
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		func(t testing.TB, ds datastore.Datastore) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(t, ds, schema, nil)
+		})
+	client := v1.NewPermissionsServiceClient(conn)
+
+	testCases := []struct {
+		name          string
+		context       map[string]any
+		expectedError string
+	}{
+		{"wrong type", map[string]any{"quota": "notanumber"}, "a int64 value is required, but found invalid string value `notanumber`"},
+		{"unknown parameter", map[string]any{"unknown": 1}, "unknown parameter `unknown`"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rel := mustRelWithCaveatAndContext("document", "doc", "viewer", "user", "tom", "", "has_quota", tc.context)
+			_, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
+				Updates: []*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+					Relationship: rel,
+				}},
+			})
+
+			// A caveat context that does not match the caveat's parameters is a client error,
+			// reported the same way CheckPermission reports a bad context.
+			grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+			spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_CAVEAT_PARAMETER_TYPE_ERROR, err, "caveat_name")
+			require.ErrorContains(t, err, tc.expectedError)
+		})
+	}
+}
