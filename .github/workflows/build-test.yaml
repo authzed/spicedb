@@ -465,7 +465,7 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
-      - uses: "chainguard-dev/actions/nodiff@0bacfe710021b5ad6d8886a53a34c40072f2fc90" # main
+      - uses: "chainguard-dev/actions/nodiff@805da2efdffdc42b8afd8880e575a48b471ef544" # main
         with:
           path: ""
           fixup-command: "go run mage.go gen:proto"
