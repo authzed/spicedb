@@ -26,8 +26,8 @@ type cursorDispatchSvc struct {
 
 	name     string
 	mu       sync.Mutex
-	requests [][]string
-	err      error
+	requests [][]string // GUARDED_BY(mu)
+	err      error      // GUARDED_BY(mu)
 }
 
 func (s *cursorDispatchSvc) DispatchLookupResources3(req *v1.DispatchLookupResources3Request, stream v1.DispatchService_DispatchLookupResources3Server) error {
