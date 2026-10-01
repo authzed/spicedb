@@ -218,43 +218,56 @@ func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 	// Check if we should add a self-edge based on identity semantics.
 	// The dispatcher Check includes an identity check (see filterForFoundMemberResource
 	// in internal/graph/check.go): if the resource (with relation) matches the subject
-	// exactly, it returns MEMBER. This only applies if the resource actually appears
-	// as a subject in the data and the filter allows it.
-	shouldAddSelfEdge := a.shouldIncludeSelfEdge(ctx, resource, filterSubjectType)
+	// exactly, it returns MEMBER. Whether that applies here is decided by comparing
+	// against the request's target, not by looking at the data; see
+	// shouldIncludeSelfEdge.
+	shouldAddSelfEdge := a.shouldIncludeSelfEdge(ctx, resource)
 
 	return a.maybePrependSelfEdge(resource, subSeq, shouldAddSelfEdge), nil
 }
 
-// shouldIncludeSelfEdge checks if a self-edge should be included for the given resource.
-// This matches the dispatcher's identity check behavior: if resource#relation appears as
-// a subject anywhere in the datastore (expired or not), and the filter allows it, we
-// include a self-edge in the results.
-func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object, filterSubjectType ObjectType) bool {
-	if ctx.TopLevelOperation != OperationIterSubjects {
+// shouldIncludeSelfEdge reports whether the reflexive identity subject applies:
+// enumerating the subjects of group:a#member includes group:a#member itself.
+//
+// This is a comparison, not a lookup. It holds exactly when the request asked
+// for subjects of this alias's own (definition, relation) — the same condition
+// the classic dispatcher tests at internal/graph/lookupsubjects.go, comparing
+// req.SubjectRelation against req.ResourceRelation, without touching the
+// datastore.
+//
+// The comparison is against Context.TargetSubjectType rather than the caller's
+// filterSubjectType, because arrows and recursion pass no filter (they must walk
+// intermediate-typed results to keep traversing) and an empty filter would make
+// the test vacuously true for every object they visit.
+//
+// Note the decision is per node, not per traversal: in `active = member -
+// banned` with a target of group#member, it holds for the `member` branch and
+// not for the `banned` branch, and that asymmetry is what makes the exclusion
+// come out right.
+func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object) bool {
+	// A Check reaches here too, by way of a recursive permission: Check on one
+	// resolves through RecursiveIterator.recursiveCheckIterSubjects, which
+	// answers by running this same IterSubjects machinery. That traversal sets
+	// the target to the subject it is checking, so the comparison below is the
+	// right question in both cases. An empty target means nobody asked for a
+	// specific subject, and identity cannot be decided — see the field comment
+	// on Context.TargetSubjectType.
+	switch ctx.TopLevelOperation {
+	case OperationIterSubjects, OperationCheck:
+		// Both ask about a specific subject, so identity is decidable below.
+	default:
+		// An IterResources decides identity locally in IterResourcesImpl, where
+		// the subject is a parameter; an unset operation has no request at all.
 		return false
 	}
-	rel := a.effectiveRelation()
-	typeMatches := filterSubjectType.Type == "" || filterSubjectType.Type == resource.ObjectType
-	relationMatches := filterSubjectType.Subrelation == "" || filterSubjectType.Subrelation == rel
-	if !typeMatches || !relationMatches || ctx.Reader == nil {
+	target := ctx.TargetSubjectType
+	if target.Type == "" {
 		return false
 	}
-
-	// Second check: does the resource actually appear as a subject in the data?
-	// We check for ANY relationships (expired or not) because the dispatcher's
-	// identity check applies regardless of expiration.
-	exists, err := a.resourceExistsAsSubject(ctx, resource)
-	if err != nil {
-		// On error, conservatively return false rather than failing the entire operation
+	if target.Type != a.definitionName || target.Type != resource.ObjectType {
 		return false
 	}
-	return exists
-}
-
-// resourceExistsAsSubject queries the datastore to check if the given resource appears
-// as a subject in any relationship, including expired relationships.
-func (a *AliasIterator) resourceExistsAsSubject(ctx *Context, resource Object) (bool, error) {
-	return ctx.Reader.SubjectExistsAsRelationship(ctx, resource, a.effectiveRelation())
+	return target.Subrelation == a.effectiveRelation()
 }
 
 func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
