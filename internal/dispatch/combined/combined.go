@@ -39,6 +39,7 @@ type optionState struct {
 	secondaryUpstreamMaximumPrimaryHedgingDelays map[string]string
 	dispatchChunkSize                            uint16
 	startingPrimaryHedgingDelay                  time.Duration
+	enableLookupResources3CursorRouting          bool
 	caveatTypeSet                                *caveattypes.TypeSet
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
@@ -168,6 +169,14 @@ func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
 func StartingPrimaryHedgingDelay(startingPrimaryHedgingDelay time.Duration) Option {
 	return func(state *optionState) {
 		state.startingPrimaryHedgingDelay = startingPrimaryHedgingDelay
+	}
+}
+
+// EnableLookupResources3CursorRouting enables dispatcher ownership in new LR3
+// cursors. All SpiceDB nodes must support these sections before this is enabled.
+func EnableLookupResources3CursorRouting(enabled bool) Option {
+	return func(state *optionState) {
+		state.enableLookupResources3CursorRouting = enabled
 	}
 }
 
@@ -305,8 +314,9 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		}
 
 		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
-			KeyHandler:             &keys.CanonicalKeyHandler{},
-			DispatchOverallTimeout: opts.remoteDispatchTimeout,
+			KeyHandler:                          &keys.CanonicalKeyHandler{},
+			DispatchOverallTimeout:              opts.remoteDispatchTimeout,
+			EnableLookupResources3CursorRouting: opts.enableLookupResources3CursorRouting,
 		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
 		if err != nil {
 			return nil, err

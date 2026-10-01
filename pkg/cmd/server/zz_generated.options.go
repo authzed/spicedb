@@ -81,6 +81,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchSecondaryMaximumPrimaryHedgingDelays = c.DispatchSecondaryMaximumPrimaryHedgingDelays
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
+		to.DispatchLookupResources3CursorRoutingEnabled = c.DispatchLookupResources3CursorRoutingEnabled
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
@@ -302,6 +303,7 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryMaximumPrimaryHedgingDelays))
 	}
+	debugMap["DispatchLookupResources3CursorRoutingEnabled"] = c.DispatchLookupResources3CursorRoutingEnabled
 	if dm, ok := any(&c.DispatchCacheConfig).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -767,6 +769,13 @@ func SetDispatchSecondaryMaximumPrimaryHedgingDelays(dispatchSecondaryMaximumPri
 func WithDispatchPrimaryDelayForTesting(dispatchPrimaryDelayForTesting time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.DispatchPrimaryDelayForTesting = dispatchPrimaryDelayForTesting
+	}
+}
+
+// WithDispatchLookupResources3CursorRoutingEnabled returns an option that can set DispatchLookupResources3CursorRoutingEnabled on a Config
+func WithDispatchLookupResources3CursorRoutingEnabled(dispatchLookupResources3CursorRoutingEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.DispatchLookupResources3CursorRoutingEnabled = dispatchLookupResources3CursorRoutingEnabled
 	}
 }
 

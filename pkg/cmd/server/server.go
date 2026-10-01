@@ -118,6 +118,7 @@ type Config struct {
 	DispatchSecondaryUpstreamExprs               map[string]string `debugmap:"visible"`
 	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
 	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
+	DispatchLookupResources3CursorRoutingEnabled bool              `debugmap:"visible"`
 
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
@@ -357,6 +358,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.SecondaryMaximumPrimaryHedgingDelays(c.DispatchSecondaryMaximumPrimaryHedgingDelays),
+			combineddispatch.EnableLookupResources3CursorRouting(c.DispatchLookupResources3CursorRoutingEnabled),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
