@@ -1,6 +1,7 @@
 package combined
 
 import (
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/x509util"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -249,11 +251,14 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	} else {
 		// If an upstream is specified, create a cluster dispatcher.
 		if opts.upstreamCAPath != "" {
-			customCertOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
+			// Read at handshake time so that rotating the CA on disk does not
+			// require restarting every node in the dispatch cluster.
+			caPool, err := x509util.NewCAPool(opts.upstreamCAPath)
 			if err != nil {
 				return nil, err
 			}
-			opts.grpcDialOpts = append(opts.grpcDialOpts, customCertOpt)
+			creds := x509util.NewReloadingTLSCreds(caPool, &tls.Config{MinVersion: tls.VersionTLS12})
+			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(creds))
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
 		} else {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithInsecureBearerToken(opts.grpcPresharedKey))
