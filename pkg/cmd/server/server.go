@@ -196,8 +196,8 @@ func (c *Config) SetDefaults() {
 	// NOTE: NumCounters stays 0 here to match RegisterCacheFlags, which
 	// hardcodes the flag default to 0 (the flag is deprecated and unused).
 	c.NamespaceCacheConfig = CacheConfig{Name: "namespace", Enabled: true, Metrics: true, MaxCost: "32MiB"}
-	c.DispatchCacheConfig = CacheConfig{Name: "dispatch", Enabled: true, Metrics: true, MaxCost: "30%"}
-	c.ClusterDispatchCacheConfig = CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "70%"}
+	c.DispatchCacheConfig = CacheConfig{Name: "dispatch", Enabled: true, Metrics: true, MaxCost: "20%"}
+	c.ClusterDispatchCacheConfig = CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "45%"}
 	c.LR3ResourceChunkCacheConfig = CacheConfig{Name: "lr3_chunk", Enabled: true, MaxCost: "50MiB"}
 	c.StoredSchemaCacheConfig = CacheConfig{Name: "stored_schema", Enabled: true, Metrics: true, MaxCost: "32MiB"}
 
