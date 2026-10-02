@@ -600,6 +600,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		select {
 		case <-handlerContext.Done():
 			log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("dispatcher context canceled")
+			errorsByDispatcherName.Store(name, handlerContext.Err())
 			if isPrimary {
 				primaryDispatch.WithLabelValues("true", reqKey).Inc()
 			}
@@ -630,6 +631,9 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			select {
 			case <-handlerContext.Done():
 				log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("dispatcher context canceled, in results loop")
+				// The winning dispatcher may have published only a prefix of its results.
+				// Record cancellation so that prefix is not treated as a complete stream.
+				errorsByDispatcherName.Store(name, handlerContext.Err())
 				return
 
 			default:
