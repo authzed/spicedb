@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,6 +30,21 @@ func (pgd *pgDatastore) tryAcquireLock(ctx context.Context, conn *pgxpool.Conn, 
 	// See: https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
 	row := conn.QueryRow(ctx, `
 		SELECT pg_try_advisory_lock($1)
+	`, lockID)
+
+	var lockAcquired bool
+	if err := row.Scan(&lockAcquired); err != nil {
+		return false, err
+	}
+	return lockAcquired, nil
+}
+
+// tryAcquireXactLock attempts to acquire a transaction-level advisory lock.
+// The lock is automatically released when the transaction commits or rolls back.
+// Returns true if the lock was acquired, false if another session holds it.
+func (pgd *pgDatastore) tryAcquireXactLock(ctx context.Context, tx pgx.Tx, lockID lockID) (bool, error) {
+	row := tx.QueryRow(ctx, `
+		SELECT pg_try_advisory_xact_lock($1)
 	`, lockID)
 
 	var lockAcquired bool
