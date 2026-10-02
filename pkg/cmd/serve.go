@@ -192,6 +192,18 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryMaximumPrimaryHedgingDelays, "experimental-dispatch-secondary-maximum-primary-hedging-delays", nil, "maximum number of hedging delays to use for each request type to delay the primary request. default is 5ms")
+	experimentalFlags.BoolVar(&config.EnableExperimentalObjectAffinityRouting,
+		"enable-experimental-object-affinity-routing", false,
+		"route cross-node dispatch by resource object (namespace + object id) instead of by full request hash; all questions about an object converge on its owner node")
+	experimentalFlags.Float64Var(&config.DispatchObjectSpreadShare,
+		"experimental-dispatch-object-spread-share", 0,
+		"spread an object key across multiple owners when its share of this node's outbound dispatches is above this fraction of one node's fair share (1 / ring members); for example, 0.5 means above half of one node's fair share; 0 disables spreading")
+	experimentalFlags.Uint8Var(&config.DispatchObjectSpread,
+		"experimental-dispatch-object-spread", 2,
+		"number of owner candidates to spread a measured-hot object key across")
+	experimentalFlags.Float64Var(&config.DispatchObjectSpreadLatencyFactor,
+		"experimental-dispatch-object-spread-latency-factor", 1.5,
+		"spread a hot object key only if the p90 dispatch latency of its owner is at least this factor times the median p90 of all owners; check and lookup-subjects latencies share one digest per owner; latency is credited to the first ring owner, which is exact only with --dispatch-hashring-spread=1; 0 disables the latency gate")
 
 	// Deprecated flags for experimental features
 	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", false, "do not use; this flag is unused and will be removed in a future version")

@@ -81,6 +81,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchSecondaryMaximumPrimaryHedgingDelays = c.DispatchSecondaryMaximumPrimaryHedgingDelays
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
+		to.EnableExperimentalObjectAffinityRouting = c.EnableExperimentalObjectAffinityRouting
+		to.DispatchObjectSpreadShare = c.DispatchObjectSpreadShare
+		to.DispatchObjectSpread = c.DispatchObjectSpread
+		to.DispatchObjectSpreadLatencyFactor = c.DispatchObjectSpreadLatencyFactor
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
@@ -302,6 +306,10 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryMaximumPrimaryHedgingDelays))
 	}
+	debugMap["EnableExperimentalObjectAffinityRouting"] = c.EnableExperimentalObjectAffinityRouting
+	debugMap["DispatchObjectSpreadShare"] = c.DispatchObjectSpreadShare
+	debugMap["DispatchObjectSpread"] = c.DispatchObjectSpread
+	debugMap["DispatchObjectSpreadLatencyFactor"] = c.DispatchObjectSpreadLatencyFactor
 	if dm, ok := any(&c.DispatchCacheConfig).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -767,6 +775,34 @@ func SetDispatchSecondaryMaximumPrimaryHedgingDelays(dispatchSecondaryMaximumPri
 func WithDispatchPrimaryDelayForTesting(dispatchPrimaryDelayForTesting time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.DispatchPrimaryDelayForTesting = dispatchPrimaryDelayForTesting
+	}
+}
+
+// WithEnableExperimentalObjectAffinityRouting returns an option that can set EnableExperimentalObjectAffinityRouting on a Config
+func WithEnableExperimentalObjectAffinityRouting(enableExperimentalObjectAffinityRouting bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalObjectAffinityRouting = enableExperimentalObjectAffinityRouting
+	}
+}
+
+// WithDispatchObjectSpreadShare returns an option that can set DispatchObjectSpreadShare on a Config
+func WithDispatchObjectSpreadShare(dispatchObjectSpreadShare float64) ConfigOption {
+	return func(c *Config) {
+		c.DispatchObjectSpreadShare = dispatchObjectSpreadShare
+	}
+}
+
+// WithDispatchObjectSpread returns an option that can set DispatchObjectSpread on a Config
+func WithDispatchObjectSpread(dispatchObjectSpread uint8) ConfigOption {
+	return func(c *Config) {
+		c.DispatchObjectSpread = dispatchObjectSpread
+	}
+}
+
+// WithDispatchObjectSpreadLatencyFactor returns an option that can set DispatchObjectSpreadLatencyFactor on a Config
+func WithDispatchObjectSpreadLatencyFactor(dispatchObjectSpreadLatencyFactor float64) ConfigOption {
+	return func(c *Config) {
+		c.DispatchObjectSpreadLatencyFactor = dispatchObjectSpreadLatencyFactor
 	}
 }
 
