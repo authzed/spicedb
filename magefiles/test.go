@@ -290,7 +290,8 @@ func consistencyTest(ctx context.Context, datastore string, env map[string]strin
 		// 42s each across 73 of them, under -race and repo-wide atomic coverage -
 		// not per-fixture setup, which measures about a second. The last -timeout
 		// wins, so this raises the ceiling for the consistency suites only.
-		"-timeout=45m",
+		// The relationship set cache adds one cluster run for each fixture, which is about 50% more work.
+		"-timeout=60m",
 	}
 	args = append(args, coverageFlags...)
 	return goDirTestWithEnv(ctx, ".", "./internal/services/integrationtesting/...",

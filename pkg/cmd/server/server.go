@@ -27,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/proxy/schemacaching"
+	"github.com/authzed/spicedb/internal/datastore/proxy/setcache"
 	"github.com/authzed/spicedb/internal/dispatch"
 	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
@@ -49,6 +50,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/query"
+	pkgruntime "github.com/authzed/spicedb/pkg/runtime"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -88,6 +90,12 @@ type Config struct {
 	EnableExperimentalWatchableSchemaCache bool          `debugmap:"visible"`
 	SchemaWatchHeartbeat                   time.Duration `debugmap:"visible" default:"1s"`
 	NamespaceCacheConfig                   CacheConfig   `debugmap:"visible"`
+
+	// Relationship set cache
+	EnableExperimentalRelationshipSetCache   bool        `debugmap:"visible"`
+	RelationshipSetCacheConfig               CacheConfig `debugmap:"visible"`
+	RelationshipSetCacheMaterializeThreshold uint64      `debugmap:"visible" default:"3"`
+	RelationshipSetCacheMaximumSetSize       uint64      `debugmap:"visible" default:"1024"`
 
 	// Stored schema hash cache
 	StoredSchemaCacheConfig CacheConfig `debugmap:"visible"`
@@ -200,10 +208,26 @@ func (c *Config) SetDefaults() {
 	c.ClusterDispatchCacheConfig = CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "70%"}
 	c.LR3ResourceChunkCacheConfig = CacheConfig{Name: "lr3_chunk", Enabled: true, MaxCost: "50MiB"}
 	c.StoredSchemaCacheConfig = CacheConfig{Name: "stored_schema", Enabled: true, Metrics: true, MaxCost: "32MiB"}
+	c.RelationshipSetCacheConfig = CacheConfig{Name: "relationship_set", Enabled: true, Metrics: true, MaxCost: "30%"}
 
 	if c.HTTPGatewayCorsAllowedOrigins == nil {
 		c.HTTPGatewayCorsAllowedOrigins = []string{"*"}
 	}
+}
+
+// builtCachePercentTotal adds the percentage budgets of the caches that this config builds.
+func (c *Config) builtCachePercentTotal() uint64 {
+	configs := []*CacheConfig{&c.NamespaceCacheConfig, &c.StoredSchemaCacheConfig, &c.LR3ResourceChunkCacheConfig}
+	if c.Dispatcher == nil {
+		configs = append(configs, &c.DispatchCacheConfig)
+	}
+	if c.DispatchServer.Enabled {
+		configs = append(configs, &c.ClusterDispatchCacheConfig)
+	}
+	if c.EnableExperimentalRelationshipSetCache {
+		configs = append(configs, &c.RelationshipSetCacheConfig)
+	}
+	return enabledCachePercentTotal(configs...)
 }
 
 // Complete validates the config and fills out defaults.
@@ -296,6 +320,53 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	// remains. Skip it when reads come from new schema storage.
 	if !schemaMode.ReadsFromNew() {
 		ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode, c.SchemaWatchHeartbeat)
+	}
+
+	// The relationship set cache is the outermost read proxy.
+	// It serves hot reads before the schema cache, singleflight and observable proxies, and materializes through them.
+	if c.EnableExperimentalRelationshipSetCache {
+		active, err := cacheRetainsEntries(&c.RelationshipSetCacheConfig, pkgruntime.AvailableMemory())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create relationship set cache: %w", err)
+		}
+		if !active {
+			log.Ctx(ctx).Warn().
+				Bool("cache_enabled", c.RelationshipSetCacheConfig.Enabled).
+				Str("max_cost", c.RelationshipSetCacheConfig.MaxCost).
+				Msg("relationship set cache is enabled but its cache is disabled or has zero size; the set cache is inactive")
+		} else {
+			if total := c.builtCachePercentTotal(); total > 100 {
+				log.Ctx(ctx).Warn().Uint64("total_percent", total).
+					Msg("enabled cache memory budgets sum to more than 100% of available memory; consider lowering --dispatch-cluster-cache-max-cost or --experimental-relationship-set-cache-max-cost")
+			}
+
+			relSetCache, err := CompleteCache[setcache.SetKey, *setcache.CachedSet](c.OTel.PrometheusRegistry,
+				// Complete sets have revision keys and expire by TTL.
+				// A hot too-big memo never expires by TTL, so the proxy re-probes it after a fixed interval.
+				c.RelationshipSetCacheConfig.WithRevisionParameters(
+					c.DatastoreConfig.RevisionQuantization,
+					c.DatastoreConfig.FollowerReadDelay,
+					c.DatastoreConfig.MaxRevisionStalenessPercent,
+				))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create relationship set cache: %w", err)
+			}
+			closeables.AddWithoutError(relSetCache.Close)
+			log.Ctx(ctx).Info().EmbedObject(relSetCache).Msg("configured relationship set cache")
+
+			// counterBudget is 8 MiB for the access counter table.
+			const counterBudget = 8 << 20
+			counter, err := setcache.NewAccessCounter(counterBudget, time.Minute)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create relationship set access counter: %w", err)
+			}
+			closeables.AddWithoutError(counter.Close)
+
+			ds = setcache.NewProxy(ds, relSetCache, counter, setcache.Options{
+				MaterializeThreshold: c.RelationshipSetCacheMaterializeThreshold,
+				MaximumSetSize:       c.RelationshipSetCacheMaximumSetSize,
+			})
+		}
 	}
 	closeables.AddWithError(ds.Close)
 

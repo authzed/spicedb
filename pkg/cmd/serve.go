@@ -56,6 +56,13 @@ var (
 		Metrics: true,
 		MaxCost: "32MiB",
 	}
+
+	relationshipSetCacheDefaults = &server.CacheConfig{
+		Name:    "relationship_set",
+		Enabled: true,
+		Metrics: true,
+		MaxCost: "30%",
+	}
 )
 
 func BoldBlue(name string) string {
@@ -208,6 +215,21 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	if err != nil {
 		return fmt.Errorf("could not register stored schema cache flags: %w", err)
 	}
+
+	err = server.RegisterCacheFlags(experimentalFlags, "experimental-relationship-set-cache", "relationship sets (has no effect unless --enable-experimental-relationship-set-cache is set)", &config.RelationshipSetCacheConfig, relationshipSetCacheDefaults)
+	if err != nil {
+		return fmt.Errorf("could not register relationship set cache flags: %w", err)
+	}
+
+	experimentalFlags.BoolVar(&config.EnableExperimentalRelationshipSetCache,
+		"enable-experimental-relationship-set-cache", false,
+		"turn on the relationship set cache: cache complete relationship sets per object#relation and serve reads — including negative answers — from memory. The --experimental-relationship-set-cache-* flags only tune it; with --experimental-relationship-set-cache-enabled=false or a zero max cost it stays inactive. When enabling, consider lowering --dispatch-cluster-cache-max-cost (e.g. 70% -> 40%) to fund --experimental-relationship-set-cache-max-cost")
+	experimentalFlags.Uint64Var(&config.RelationshipSetCacheMaterializeThreshold,
+		"experimental-relationship-set-cache-materialize-threshold", 3,
+		"accesses to an object#relation at one revision, within the estimator window, before its complete set at that revision is materialized")
+	experimentalFlags.Uint64Var(&config.RelationshipSetCacheMaximumSetSize,
+		"experimental-relationship-set-cache-maximum-set-size", 1024,
+		"maximum number of relationships in a materialized set; larger sets are memoized as too-big and served from the datastore")
 
 	// Flags for tracing
 	server.RegisterOTelFlags(cmd, &config.OTel)
