@@ -161,4 +161,10 @@ func (driver *MySQLDriver) Close(_ context.Context) error {
 	return driver.db.Close()
 }
 
+// MigrateToHead runs any pending MySQL migrations on db, using the supplied
+// table prefix. The caller retains ownership of db.
+func MigrateToHead(ctx context.Context, db *sql.DB, tablePrefix string) error {
+	return Manager.Run(ctx, NewMySQLDriverFromDB(db, tablePrefix), migrate.Head, migrate.LiveRun)
+}
+
 var _ migrate.Driver[Wrapper, TxWrapper] = &MySQLDriver{}

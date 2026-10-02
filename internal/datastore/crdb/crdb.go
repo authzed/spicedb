@@ -72,7 +72,12 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	}
 
 	includeQueryParametersInTraces := config.includeQueryParametersInTraces
-	readPoolConfig, err := pgxpool.ParseConfig(url)
+	var readPoolConfig *pgxpool.Config
+	if config.borrowedPool != nil {
+		readPoolConfig = config.borrowedPool.Config()
+	} else {
+		readPoolConfig, err = pgxpool.ParseConfig(url)
+	}
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
@@ -87,7 +92,12 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil
 	}
 
-	writePoolConfig, err := pgxpool.ParseConfig(url)
+	var writePoolConfig *pgxpool.Config
+	if config.borrowedPool != nil {
+		writePoolConfig = config.borrowedPool.Config()
+	} else {
+		writePoolConfig, err = pgxpool.ParseConfig(url)
+	}
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
@@ -118,11 +128,20 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil
 	}
 
-	healthChecker, err := pool.NewNodeHealthChecker(url)
+	var healthChecker *pool.NodeHealthTracker
+	if config.borrowedPool == nil {
+		healthChecker, err = pool.NewNodeHealthChecker(url)
+	}
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
+	newPool := func(ctx context.Context, name string, cfg *pgxpool.Config) (*pool.RetryPool, error) {
+		if config.borrowedPool != nil {
+			return pool.NewBorrowedRetryPool(config.borrowedPool, config.maxRetries, func(c *pgx.Conn) { RegisterTypes(c.TypeMap()) }), nil
+		}
+		return pool.NewRetryPool(ctx, name, cfg, healthChecker, config.maxRetries, config.connectRate)
+	}
 	// The initPool is a 1-connection pool that is only used for setup tasks.
 	// If the database is completely unreachable (e.g. wrong credentials),
 	// this will block for 15 seconds and then error out.
@@ -131,7 +150,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	defer initCancel()
 	initPoolConfig := readPoolConfig.Copy()
 	initPoolConfig.MinConns = 1
-	initPool, err := pool.NewRetryPool(initCtx, "init", initPoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	initPool, err := newPool(initCtx, "init", initPoolConfig)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
@@ -175,7 +194,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	// If watch is enabled, ensure the relationship tables suppress row-level TTL
 	// deletes from changefeeds, so that the Watch API does not emit deletions
 	// performed by CockroachDB's TTL job for expired relationships.
-	if !config.watchDisabled {
+	if !config.watchDisabled && config.borrowedPool == nil {
 		ensureTTLChangefeedReplicationDisabled(initCtx, initPool, version)
 	}
 
@@ -210,6 +229,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		followerReadDelay:            config.followerReadDelay,
 		revisionQuantization:         config.revisionQuantization,
 		dburl:                        url,
+		borrowed:                     config.borrowedPool != nil,
 		acquireTimeout:               config.acquireTimeout,
 		watchBufferLength:            config.watchBufferLength,
 		watchChangeBufferMaximumSize: config.watchChangeBufferMaximumSize,
@@ -230,12 +250,12 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	// The actual pools are not given the initCtx.
 	// This ctx and cancel is tied to the lifetime of the datastore
 	ds.ctx, ds.cancel = context.WithCancel(context.Background())
-	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	ds.writePool, err = newPool(ds.ctx, "write", writePoolConfig)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	ds.readPool, err = newPool(ds.ctx, "read", readPoolConfig)
 	if err != nil {
 		ds.cancel()
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
@@ -346,6 +366,7 @@ type crdbDatastore struct {
 
 	followerReadDelay            time.Duration
 	revisionQuantization         time.Duration
+	borrowed                     bool
 	dburl                        string
 	readPool, writePool          *pool.RetryPool
 	collectors                   []prometheus.Collector
@@ -419,27 +440,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 	}
 
 	err := cds.writePool.TryBeginFunc(ctx, cds.acquireTimeout, func(tx pgx.Tx) error {
-		querier := pgxcommon.QuerierFuncsFor(tx)
-		executor := common.QueryRelationshipsExecutor{
-			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier, cds),
-		}
-
-		reader := &crdbReader{
-			schema:               cds.schema,
-			query:                querier,
-			executor:             executor,
-			keyer:                cds.writeOverlapKeyer,
-			overlapKeySet:        cds.overlapKeyInit(ctx),
-			filterMaximumIDCount: cds.filterMaximumIDCount,
-			withIntegrity:        cds.supportsIntegrity,
-			atSpecificRevision:   "", // No AS OF SYSTEM TIME for writes
-		}
-
-		rwt := &crdbReadWriteTXN{
-			reader,
-			tx,
-			0,
-		}
+		rwt := cds.newReadWriteTransaction(ctx, tx)
 
 		if config.SchemaHashPrecondition != "" {
 			if err := assertSchemaHash(ctx, tx, config.SchemaHashPrecondition); err != nil {
@@ -451,48 +452,9 @@ func (cds *crdbDatastore) ReadWriteTx(
 			return err
 		}
 
-		// If the user supplied transaction metadata, write it to the metadata
-		// table so the Watch API can attach it to the revision's changes.
-		metadata := config.Metadata.AsMap()
-		if len(metadata) > 0 {
-			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
-			insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
-				Columns(schema.ColExpiresAt, schema.ColMetadata).
-				Values(expiresAt, metadata)
-
-			sql, args, err := insertTransactionMetadata.ToSql()
-			if err != nil {
-				return fmt.Errorf("error building metadata insert: %w", err)
-			}
-
-			if _, err := tx.Exec(ctx, sql, args...); err != nil {
-				return fmt.Errorf("error writing metadata: %w", err)
-			}
-		}
-
-		// Touching the transaction key happens last so that the "write intent" for
-		// the transaction as a whole lands in a range for the affected tuples.
-		for k := range rwt.overlapKeySet {
-			if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
-				return fmt.Errorf("error writing overlapping keys: %w", err)
-			}
-		}
-
-		// Reading the commit revision costs a separate SHOW COMMIT TIMESTAMP
-		// round trip. Callers that discard the revision (e.g. bulk deletion)
-		// skip it; the transaction still commits normally via tx.Commit and
-		// this returns NoRevision.
-		if config.SkipCommitRevision {
-			commitTimestamp = datastore.NoRevision
-			return nil
-		}
-
-		var cerr error
-		commitTimestamp, cerr = cds.readTransactionCommitRev(ctx, querier)
-		if cerr != nil {
-			return fmt.Errorf("error getting commit timestamp: %w", cerr)
-		}
-		return nil
+		var err error
+		commitTimestamp, err = cds.finalizeTransaction(ctx, rwt, config.Metadata.AsMap(), config.SkipCommitRevision)
+		return err
 	})
 	if err != nil {
 		return datastore.NoRevision, wrapError(err)
@@ -517,6 +479,15 @@ func wrapError(err error) error {
 // to be ready to receive traffic, and total connections counts connections in the constructing
 // state, which cannot receive traffic.
 func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	if cds.borrowed {
+		var version string
+		err := cds.readPool.QueryRowFunc(ctx, func(_ context.Context, row pgx.Row) error { return row.Scan(&version) }, "SELECT version_num FROM schema_version")
+		if err != nil {
+			return datastore.ReadyState{}, err
+		}
+		return cds.MigrationReadyState(version), nil
+	}
+
 	currentRevision, err := migrations.NewCRDBDriver(ctx, cds.dburl)
 	if err != nil {
 		return datastore.ReadyState{}, err

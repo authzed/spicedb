@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"k8s.io/utils/ptr"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -12,6 +13,7 @@ import (
 )
 
 type crdbOptions struct {
+	borrowedPool                *pgxpool.Pool
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
 	connectRate                 time.Duration
 

@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -32,6 +33,7 @@ const (
 )
 
 type mysqlOptions struct {
+	borrowedDB                   *sql.DB
 	revisionQuantization         time.Duration
 	gcWindow                     time.Duration
 	gcInterval                   time.Duration
