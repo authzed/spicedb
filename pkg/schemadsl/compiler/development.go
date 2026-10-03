@@ -55,41 +55,6 @@ func (nc *NodeChain) String() string {
 	return out.String()
 }
 
-// GetPathToDefinitionOrPartialOrCaveat returns the input source for the AST node defining the given name.
-// For definitions compiled from imports, this will be the imported file path (e.g. "users.zed").
-// For definitions in the root schema, this will be the root source (e.g. "schema").
-// Returns empty string if not found.
-func (cs *CompiledSchema) GetPathToDefinitionOrPartialOrCaveat(name string) string {
-	for _, child := range cs.rootNode.GetChildren() {
-		nodeType := child.GetType()
-		var predicateName string
-		switch nodeType {
-		case dslshape.NodeTypeDefinition:
-			predicateName = dslshape.NodeDefinitionPredicateName
-		case dslshape.NodeTypeCaveatDefinition:
-			predicateName = dslshape.NodeCaveatDefinitionPredicateName
-		case dslshape.NodeTypePartial:
-			predicateName = dslshape.NodePartialPredicateName
-		default:
-			continue
-		}
-
-		defName, err := child.GetString(predicateName)
-		if err != nil {
-			continue
-		}
-
-		if defName == name {
-			source, err := child.GetString(dslshape.NodePredicateSource)
-			if err != nil {
-				return ""
-			}
-			return source
-		}
-	}
-	return ""
-}
-
 // PartialNodePosition returns the start rune position and source of the partial
 // definition with the given name. Returns (-1, -1, "") if not found.
 func (cs *CompiledSchema) PartialNodePosition(name string) (int, int) {
