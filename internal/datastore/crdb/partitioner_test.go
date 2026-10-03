@@ -51,80 +51,23 @@ func TestPlanPartitionedExport(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Split points: resource2, resource4, resource5, resource7, resource8
-	// These are the boundaries available for groupBoundaries to select from.
-	b2 := "resource2:0#viewer@user:0"
-	b4 := "resource4:0#viewer@user:0"
-	b5 := "resource5:0#viewer@user:0"
-	b7 := "resource7:0#viewer@user:0"
-	b8 := "resource8:0#viewer@user:0"
-
-	type bound struct {
-		lower string // "" = nil (start of table)
-		upper string // "" = nil (end of table)
-	}
-
 	tests := []struct {
 		name              string
 		desiredPartitions uint32
-		expectedBounds    []bound
+		// expectSinglePartition is true when we expect exactly one full-table
+		// partition (lower=nil, upper=nil). When false, we just check that
+		// the plan returns ≤desired partitions, all non-overlapping, and
+		// covering all data exactly once. We avoid asserting exact split
+		// positions because real CRDB's range_size for tiny test data is
+		// not deterministic enough to pin them down.
+		expectSinglePartition bool
 	}{
-		{
-			name:              "desired=0 defaults to 1",
-			desiredPartitions: 0,
-			expectedBounds:    []bound{{"", ""}},
-		},
-		{
-			name:              "desired=1 returns single partition",
-			desiredPartitions: 1,
-			expectedBounds:    []bound{{"", ""}},
-		},
-		{
-			name:              "desired=2 groups boundaries into 2",
-			desiredPartitions: 2,
-			// idx for upper[0] = (1*5)/2 = 2 → boundary[2] = resource5
-			// idx for lower[1] = (1*5)/2 = 2 → boundary[2] = resource5
-			expectedBounds: []bound{
-				{"", b5},
-				{b5, ""},
-			},
-		},
-		{
-			name:              "desired=3 downsamples from 5 boundaries",
-			desiredPartitions: 3,
-			// upper[0] = boundary[(1*5)/3=1] = resource4
-			// lower[1] = boundary[(1*5)/3=1] = resource4, upper[1] = boundary[(2*5)/3=3] = resource7
-			// lower[2] = boundary[(2*5)/3=3] = resource7
-			expectedBounds: []bound{
-				{"", b4},
-				{b4, b7},
-				{b7, ""},
-			},
-		},
-		{
-			name:              "desired=exact boundary count+1",
-			desiredPartitions: 6, // 5 boundaries → 6 partitions, all boundaries used
-			expectedBounds: []bound{
-				{"", b2},
-				{b2, b4},
-				{b4, b5},
-				{b5, b7},
-				{b7, b8},
-				{b8, ""},
-			},
-		},
-		{
-			name:              "desired exceeds boundary count+1, capped at 6",
-			desiredPartitions: 100,
-			expectedBounds: []bound{
-				{"", b2},
-				{b2, b4},
-				{b4, b5},
-				{b5, b7},
-				{b7, b8},
-				{b8, ""},
-			},
-		},
+		{name: "desired=0 defaults to 1", desiredPartitions: 0, expectSinglePartition: true},
+		{name: "desired=1 returns single partition", desiredPartitions: 1, expectSinglePartition: true},
+		{name: "desired=2 returns at most 2 partitions", desiredPartitions: 2},
+		{name: "desired=3 returns at most 3 partitions", desiredPartitions: 3},
+		{name: "desired=6 returns at most 6 partitions", desiredPartitions: 6},
+		{name: "desired=100 caps at usable splits", desiredPartitions: 100},
 	}
 
 	rev, err := ds.HeadRevision(ctx)
@@ -134,42 +77,47 @@ func TestPlanPartitionedExport(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			plan, err := v1.PlanPartitionedExport(ctx, ds, tc.desiredPartitions)
 			require.NoError(t, err)
-			require.Len(t, plan.Partitions, len(tc.expectedBounds))
+			require.NotEmpty(t, plan.Partitions)
 
-			for i, expected := range tc.expectedBounds {
-				p := plan.Partitions[i]
-
-				if expected.lower == "" {
-					require.Nil(t, p.LowerBound, "partition %d lower bound should be nil", i)
-				} else {
-					require.NotNil(t, p.LowerBound, "partition %d lower bound should not be nil", i)
-					require.Equal(t, expected.lower, tuple.MustString(*dsoptions.ToRelationship(p.LowerBound)),
-						"partition %d lower bound mismatch", i)
-				}
-
-				if expected.upper == "" {
-					require.Nil(t, p.UpperBound, "partition %d upper bound should be nil", i)
-				} else {
-					require.NotNil(t, p.UpperBound, "partition %d upper bound should not be nil", i)
-					require.Equal(t, expected.upper, tuple.MustString(*dsoptions.ToRelationship(p.UpperBound)),
-						"partition %d upper bound mismatch", i)
+			if tc.expectSinglePartition {
+				require.Len(t, plan.Partitions, 1)
+				require.Nil(t, plan.Partitions[0].LowerBound)
+				require.Nil(t, plan.Partitions[0].UpperBound)
+			} else {
+				require.LessOrEqual(t, len(plan.Partitions), int(tc.desiredPartitions),
+					"got more partitions than requested")
+				// First partition starts at -∞, last ends at +∞, and every
+				// internal boundary is shared.
+				require.Nil(t, plan.Partitions[0].LowerBound)
+				require.Nil(t, plan.Partitions[len(plan.Partitions)-1].UpperBound)
+				for i := 1; i < len(plan.Partitions); i++ {
+					require.NotNil(t, plan.Partitions[i-1].UpperBound)
+					require.NotNil(t, plan.Partitions[i].LowerBound)
+					require.Equal(t,
+						*dsoptions.ToRelationship(plan.Partitions[i-1].UpperBound),
+						*dsoptions.ToRelationship(plan.Partitions[i].LowerBound),
+						"partition %d/%d boundaries do not match", i-1, i)
 				}
 			}
 
-			// All partitions together should cover all data.
-			totalRels := 0
-			for _, partition := range plan.Partitions {
+			// All partitions together should cover all 1000 relationships
+			// exactly once.
+			seen := make(map[string]int)
+			for pi, partition := range plan.Partitions {
 				iter, err := v1.StreamPartitionedExport(ctx, ds, v1.StreamRequest{
 					Partition: partition,
 					Revision:  rev.Revision,
 				})
 				require.NoError(t, err)
-				for _, err := range iter {
+				for rel, err := range iter {
 					require.NoError(t, err)
-					totalRels++
+					key := tuple.MustString(rel)
+					prev, dup := seen[key]
+					require.False(t, dup, "rel %s appeared in partitions %d and %d", key, prev, pi)
+					seen[key] = pi
 				}
 			}
-			require.Equal(t, 1000, totalRels, "all partitions should cover all 1000 relationships")
+			require.Len(t, seen, 1000, "all partitions should cover all 1000 relationships")
 		})
 	}
 }
@@ -481,50 +429,49 @@ func TestParseRangeStartKey(t *testing.T) {
 
 func TestPlanPartitionsLogic(t *testing.T) {
 	t.Run("desiredCount=0 returns single partition", func(t *testing.T) {
-		// PlanPartitions with 0 should behave like 1.
-		// We can't call the real method without a datastore, so test the
-		// boundary grouping logic directly.
-		partitions := groupBoundaries(nil, 0)
+		partitions := groupRanges(t.Context(), nil, 0)
 		require.Len(t, partitions, 1)
 		require.Nil(t, partitions[0].LowerBound)
 		require.Nil(t, partitions[0].UpperBound)
 	})
 
 	t.Run("desiredCount=1 returns single partition", func(t *testing.T) {
-		partitions := groupBoundaries(nil, 1)
+		partitions := groupRanges(t.Context(), nil, 1)
 		require.Len(t, partitions, 1)
 	})
 
-	t.Run("1 boundary produces 2 partitions", func(t *testing.T) {
+	t.Run("single boundary yields two partitions", func(t *testing.T) {
+		// One parseable boundary is a usable split point: it separates the
+		// unparseable prefix region from the parseable range, giving two
+		// partitions [-∞, b) and [b, +∞).
 		b := makeBoundary("ns1", "oid1", "rel1", "uns1", "uoid1", "urel1")
-		partitions := groupBoundaries([]dsoptions.Cursor{b}, 4)
+		partitions := groupRanges(t.Context(), equalSizeRanges(b), 4)
 		require.Len(t, partitions, 2)
-
 		require.Nil(t, partitions[0].LowerBound)
-		require.NotNil(t, partitions[0].UpperBound)
-		require.NotNil(t, partitions[1].LowerBound)
-		require.Nil(t, partitions[1].UpperBound)
-
-		// Shared boundary.
 		require.Equal(t,
+			*dsoptions.ToRelationship(b),
 			*dsoptions.ToRelationship(partitions[0].UpperBound),
+		)
+		require.Equal(t,
+			*dsoptions.ToRelationship(b),
 			*dsoptions.ToRelationship(partitions[1].LowerBound),
 		)
+		require.Nil(t, partitions[1].UpperBound)
 	})
 
-	t.Run("3 boundaries produce 4 partitions when K=4", func(t *testing.T) {
+	t.Run("equal-sized ranges split into K partitions", func(t *testing.T) {
 		boundaries := []dsoptions.Cursor{
 			makeBoundary("a", "0", "r", "u", "0", "..."),
 			makeBoundary("b", "0", "r", "u", "0", "..."),
 			makeBoundary("c", "0", "r", "u", "0", "..."),
+			makeBoundary("d", "0", "r", "u", "0", "..."),
 		}
-		partitions := groupBoundaries(boundaries, 4)
+		// 4 ranges, target = 4/4 = 1; greedy splits before each successor.
+		partitions := groupRanges(t.Context(), equalSizeRanges(boundaries...), 4)
 		require.Len(t, partitions, 4)
 
 		require.Nil(t, partitions[0].LowerBound)
 		require.Nil(t, partitions[3].UpperBound)
-
-		// All adjacent boundaries match.
 		for i := 1; i < len(partitions); i++ {
 			require.Equal(t,
 				*dsoptions.ToRelationship(partitions[i-1].UpperBound),
@@ -533,27 +480,26 @@ func TestPlanPartitionsLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("K larger than boundaries+1 is capped", func(t *testing.T) {
-		boundaries := []dsoptions.Cursor{
-			makeBoundary("a", "0", "r", "u", "0", "..."),
-		}
-		partitions := groupBoundaries(boundaries, 100)
-		require.Len(t, partitions, 2) // 1 boundary → max 2 partitions
+	t.Run("partition count caps at usable splits", func(t *testing.T) {
+		// 1 boundary, K=100: only one split point available, two partitions.
+		b := makeBoundary("a", "0", "r", "u", "0", "...")
+		partitions := groupRanges(t.Context(), equalSizeRanges(b), 100)
+		require.Len(t, partitions, 2)
 	})
 
-	t.Run("many boundaries with small K downsamples", func(t *testing.T) {
+	t.Run("many equal ranges with small K balances by size", func(t *testing.T) {
 		boundaries := make([]dsoptions.Cursor, 20)
 		for i := range boundaries {
 			boundaries[i] = makeBoundary(
 				fmt.Sprintf("ns%02d", i), "0", "r", "u", "0", "...",
 			)
 		}
-		partitions := groupBoundaries(boundaries, 4)
+		// 20 ranges of size 1, K=4 → target 5 → splits every 5 ranges.
+		partitions := groupRanges(t.Context(), equalSizeRanges(boundaries...), 4)
 		require.Len(t, partitions, 4)
 
 		require.Nil(t, partitions[0].LowerBound)
 		require.Nil(t, partitions[3].UpperBound)
-
 		for i := 1; i < len(partitions); i++ {
 			require.Equal(t,
 				*dsoptions.ToRelationship(partitions[i-1].UpperBound),
@@ -562,12 +508,103 @@ func TestPlanPartitionsLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("empty boundaries returns single partition", func(t *testing.T) {
-		partitions := groupBoundaries([]dsoptions.Cursor{}, 4)
+	t.Run("skewed sizes yield fewer but balanced partitions", func(t *testing.T) {
+		// Sizes [10, 1, 1, 1, 1] (total 14), K=3, target = 4. The heavy
+		// first range clears the target on its own, so we split right after
+		// it; the remaining tiny ranges never reach 4 again, so they all
+		// merge into the trailing partition. Result: 2 partitions of sizes
+		// 10 and 4 — fewer than the 3 requested, but each close to its fair
+		// share. This is the behavior trade-off of simple greedy: balance
+		// over partition count.
+		boundaries := make([]dsoptions.Cursor, 5)
+		for i := range boundaries {
+			boundaries[i] = makeBoundary(
+				fmt.Sprintf("ns%02d", i), "0", "r", "u", "0", "...",
+			)
+		}
+		ranges := []rangeInfo{
+			{cursor: boundaries[0], size: 10},
+			{cursor: boundaries[1], size: 1},
+			{cursor: boundaries[2], size: 1},
+			{cursor: boundaries[3], size: 1},
+			{cursor: boundaries[4], size: 1},
+		}
+		partitions := groupRanges(t.Context(), ranges, 3)
+		require.Len(t, partitions, 2)
+		require.Equal(t,
+			*dsoptions.ToRelationship(boundaries[1]),
+			*dsoptions.ToRelationship(partitions[0].UpperBound),
+		)
+	})
+
+	t.Run("empty ranges returns single partition", func(t *testing.T) {
+		partitions := groupRanges(t.Context(), nil, 4)
 		require.Len(t, partitions, 1)
 		require.Nil(t, partitions[0].LowerBound)
 		require.Nil(t, partitions[0].UpperBound)
 	})
+
+	t.Run("size-aware packing skews splits toward heavy ranges", func(t *testing.T) {
+		// 5 ranges, the first carrying 90% of the data:
+		//   R0 [b0 .. b1)  size=900
+		//   R1 [b1 .. b2)  size= 25
+		//   R2 [b2 .. b3)  size= 25
+		//   R3 [b3 .. b4)  size= 25
+		//   R4 [b4 .. -)   size= 25
+		// Total=1000, K=2, target=500. The algorithm must split right after
+		// the heavy first range — i.e., at b1 — even though that's the very
+		// first usable boundary, which the old index-based algorithm would
+		// never pick.
+		b0 := makeBoundary("a", "0", "r", "u", "0", "...")
+		b1 := makeBoundary("b", "0", "r", "u", "0", "...")
+		b2 := makeBoundary("c", "0", "r", "u", "0", "...")
+		b3 := makeBoundary("d", "0", "r", "u", "0", "...")
+		b4 := makeBoundary("e", "0", "r", "u", "0", "...")
+		ranges := []rangeInfo{
+			{cursor: b0, size: 900},
+			{cursor: b1, size: 25},
+			{cursor: b2, size: 25},
+			{cursor: b3, size: 25},
+			{cursor: b4, size: 25},
+		}
+
+		partitions := groupRanges(t.Context(), ranges, 2)
+		require.Len(t, partitions, 2)
+		require.Nil(t, partitions[0].LowerBound)
+		require.NotNil(t, partitions[0].UpperBound)
+		require.Equal(t,
+			*dsoptions.ToRelationship(b1),
+			*dsoptions.ToRelationship(partitions[0].UpperBound),
+			"split should land at b1, isolating the heavy first range",
+		)
+		require.Nil(t, partitions[1].UpperBound)
+	})
+
+	t.Run("zero total size falls back to per-boundary splits", func(t *testing.T) {
+		// Pathological case: every range reports size 0. We should still
+		// produce K partitions from the available split points rather than
+		// dividing by zero or collapsing to one partition.
+		ranges := []rangeInfo{
+			{cursor: makeBoundary("a", "0", "r", "u", "0", "..."), size: 0},
+			{cursor: makeBoundary("b", "0", "r", "u", "0", "..."), size: 0},
+			{cursor: makeBoundary("c", "0", "r", "u", "0", "..."), size: 0},
+			{cursor: makeBoundary("d", "0", "r", "u", "0", "..."), size: 0},
+		}
+		partitions := groupRanges(t.Context(), ranges, 4)
+		require.Len(t, partitions, 4)
+	})
+}
+
+// equalSizeRanges builds a rangeInfo slice modeling N ranges of equal size,
+// each keyed by one of the supplied boundaries. All N boundaries are usable
+// as split points (the first separates the unparseable prefix region from
+// ranges[0]), so groupRanges produces at most N+1 partitions.
+func equalSizeRanges(boundaries ...dsoptions.Cursor) []rangeInfo {
+	ranges := make([]rangeInfo, 0, len(boundaries))
+	for _, b := range boundaries {
+		ranges = append(ranges, rangeInfo{cursor: b, size: 1})
+	}
+	return ranges
 }
 
 // TestPartitionerPrimaryKeyAssumptions verifies that the primary key of the
