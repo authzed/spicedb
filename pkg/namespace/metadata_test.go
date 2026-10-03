@@ -9,6 +9,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 func TestMetadata(t *testing.T) {
@@ -216,4 +217,69 @@ func TestTypeAnnotations(t *testing.T) {
 			require.Equal(t, tt.expectedAnnotations, annotations)
 		})
 	}
+}
+
+func TestMixedOperatorsWithoutParens(t *testing.T) {
+	position := &core.SourcePosition{ZeroIndexedLineNumber: 3, ZeroIndexedColumnPosition: 17}
+
+	t.Run("get from relation with no metadata", func(t *testing.T) {
+		rel := &core.Relation{Name: "test"}
+		require.False(t, HasMixedOperatorsWithoutParens(rel))
+		require.Nil(t, GetMixedOperatorsPosition(rel))
+	})
+
+	t.Run("set false on relation with no metadata is a no-op", func(t *testing.T) {
+		rel := &core.Relation{Name: "test"}
+		require.NoError(t, SetMixedOperatorsWithoutParens(rel, false, nil))
+		require.Nil(t, rel.Metadata)
+		require.False(t, HasMixedOperatorsWithoutParens(rel))
+	})
+
+	t.Run("set true on relation with no metadata creates permission metadata", func(t *testing.T) {
+		rel := &core.Relation{Name: "test"}
+		require.NoError(t, SetMixedOperatorsWithoutParens(rel, true, position))
+		require.True(t, HasMixedOperatorsWithoutParens(rel))
+		testutil.RequireProtoEqual(t, position, GetMixedOperatorsPosition(rel), "mismatched position")
+	})
+
+	t.Run("set true updates existing permission metadata in place", func(t *testing.T) {
+		relationMetadata := &iv1.RelationMetadata{Kind: iv1.RelationMetadata_PERMISSION}
+		metadataAny, err := anypb.New(relationMetadata)
+		require.NoError(t, err)
+		rel := &core.Relation{
+			Name:     "test",
+			Metadata: &core.Metadata{MetadataMessage: []*anypb.Any{metadataAny}},
+		}
+
+		require.NoError(t, SetMixedOperatorsWithoutParens(rel, true, position))
+		require.True(t, HasMixedOperatorsWithoutParens(rel))
+		testutil.RequireProtoEqual(t, position, GetMixedOperatorsPosition(rel), "mismatched position")
+		require.Len(t, rel.Metadata.MetadataMessage, 1, "should update in place, not append")
+	})
+
+	t.Run("set true appends permission metadata when only other metadata exists", func(t *testing.T) {
+		docAny, err := anypb.New(&iv1.DocComment{Comment: "test"})
+		require.NoError(t, err)
+		rel := &core.Relation{
+			Name:     "test",
+			Metadata: &core.Metadata{MetadataMessage: []*anypb.Any{docAny}},
+		}
+
+		require.NoError(t, SetMixedOperatorsWithoutParens(rel, true, position))
+		require.True(t, HasMixedOperatorsWithoutParens(rel))
+		testutil.RequireProtoEqual(t, position, GetMixedOperatorsPosition(rel), "mismatched position")
+		require.Len(t, rel.Metadata.MetadataMessage, 2, "should append a permission metadata entry")
+	})
+
+	t.Run("get ignores non-permission metadata", func(t *testing.T) {
+		relationMetadata := &iv1.RelationMetadata{Kind: iv1.RelationMetadata_RELATION}
+		metadataAny, err := anypb.New(relationMetadata)
+		require.NoError(t, err)
+		rel := &core.Relation{
+			Name:     "test",
+			Metadata: &core.Metadata{MetadataMessage: []*anypb.Any{metadataAny}},
+		}
+		require.False(t, HasMixedOperatorsWithoutParens(rel))
+		require.Nil(t, GetMixedOperatorsPosition(rel))
+	})
 }
