@@ -297,6 +297,9 @@ func (sr spannerReader) LegacyReadNamespaceByName(ctx context.Context, nsName st
 		[]string{colNamespaceConfig, colNamespaceTS},
 	)
 	if err != nil {
+		if IsMissingTableError(err) {
+			return nil, datastore.NoRevision, common.NewSchemaNotInitializedError(err)
+		}
 		if spanner.ErrCode(err) == codes.NotFound {
 			return nil, datastore.NoRevision, datastore.NewNamespaceNotFoundErr(nsName)
 		}
@@ -382,6 +385,9 @@ func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.
 
 		return nil
 	}); err != nil {
+		if IsMissingTableError(err) {
+			err = common.NewSchemaNotInitializedError(err)
+		}
 		return nil, err
 	}
 	span.AddEvent(otelconv.EventDatastoreSpannerIteratorFinished, trace.WithAttributes(attribute.Int(otelconv.AttrDatastoreNamespaceCount, len(allNamespaces))))
