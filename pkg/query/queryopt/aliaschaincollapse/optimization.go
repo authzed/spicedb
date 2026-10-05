@@ -21,6 +21,8 @@ func New() optimization.Optimizer {
 		semantics of the uncollapsed chain.
 		`,
 		NewTransform: func(_ optimization.RequestParams) optimization.OutlineTransform {
+			// Request selection excludes named-userset lookups where collapsing aliases
+			// could change self-edge behavior. This transform relies on that safety gate.
 			return func(outline query.Outline) query.Outline {
 				return query.MutateOutline(outline, []query.OutlineMutation{collapseAliasChain})
 			}
@@ -47,6 +49,8 @@ func New() optimization.Optimizer {
 //	Alias("view")(Alias("viewer")(DS))               → Alias{RelationName:"viewer", AliasedAs:["view"]}(DS)
 //	Alias("perm")(prev)                              → Alias{RelationName:"viewer", AliasedAs:["view","perm"]}(DS)
 func collapseAliasChain(outline query.Outline) query.Outline {
+	// Only adjacent unary aliases can be folded: an intervening set operation or
+	// arrow changes how paths are produced and must keep its place in the tree.
 	if outline.Type != query.AliasIteratorType {
 		return outline
 	}
@@ -64,7 +68,8 @@ func collapseAliasChain(outline query.Outline) query.Outline {
 		return outline
 	}
 
-	// Keep the inner identity; append the outer name to the chain.
+	// Keep the inner datastore identity while preserving the outer emitted relation
+	// and self-edge names. Copy the accumulated slice so cached/shared args are untouched.
 	mergedArgs := *child.Args
 	mergedArgs.AliasedAs = append(append([]string(nil), child.Args.AliasedAs...), outline.Args.RelationName)
 
