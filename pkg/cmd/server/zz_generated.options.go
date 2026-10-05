@@ -9,6 +9,7 @@ import (
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
 	query "github.com/authzed/spicedb/pkg/query"
+	signals "github.com/authzed/spicedb/pkg/query/signals"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpc "google.golang.org/grpc"
@@ -77,6 +78,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchClusterMetricsEnabled = c.DispatchClusterMetricsEnabled
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
 		to.Dispatcher = c.Dispatcher
+		to.QuerySignals = c.QuerySignals
 		to.QueryPlanMetadata = c.QueryPlanMetadata
 		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.DispatchHashringSpread = c.DispatchHashringSpread
@@ -736,6 +738,13 @@ func WithDispatchClusterMetricsPrefix(dispatchClusterMetricsPrefix string) Confi
 func WithDispatcher(dispatcher dispatch.Dispatcher) ConfigOption {
 	return func(c *Config) {
 		c.Dispatcher = dispatcher
+	}
+}
+
+// WithQuerySignals returns an option that can set QuerySignals on a Config
+func WithQuerySignals(querySignals *signals.Owner) ConfigOption {
+	return func(c *Config) {
+		c.QuerySignals = querySignals
 	}
 }
 

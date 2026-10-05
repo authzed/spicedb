@@ -49,6 +49,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -103,18 +104,22 @@ type Config struct {
 	ExperimentalSchemaMode string `debugmap:"visible" default:"read-legacy-write-legacy"`
 
 	// Dispatch options
-	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
-	DispatchMaxDepth                  uint32                   `debugmap:"visible" default:"50"`
-	GlobalDispatchConcurrencyLimit    uint16                   `debugmap:"visible" default:"50"`
-	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
-	DispatchUpstreamAddr              string                   `debugmap:"visible"`
-	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
-	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible" default:"60s"`
-	DispatchClientMetricsEnabled      bool                     `debugmap:"visible" default:"true"`
-	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
-	DispatchClusterMetricsEnabled     bool                     `debugmap:"visible" default:"true"`
-	DispatchClusterMetricsPrefix      string                   `debugmap:"visible"`
-	Dispatcher                        dispatch.Dispatcher      `debugmap:"visible"`
+	DispatchServer                 util.GRPCServerConfig   `debugmap:"visible"`
+	DispatchMaxDepth               uint32                  `debugmap:"visible" default:"50"`
+	GlobalDispatchConcurrencyLimit uint16                  `debugmap:"visible" default:"50"`
+	DispatchConcurrencyLimits      graph.ConcurrencyLimits `debugmap:"visible"`
+	DispatchUpstreamAddr           string                  `debugmap:"visible"`
+	DispatchUpstreamCAPath         string                  `debugmap:"visible"`
+	DispatchUpstreamTimeout        time.Duration           `debugmap:"visible" default:"60s"`
+	DispatchClientMetricsEnabled   bool                    `debugmap:"visible" default:"true"`
+	DispatchClientMetricsPrefix    string                  `debugmap:"visible"`
+	DispatchClusterMetricsEnabled  bool                    `debugmap:"visible" default:"true"`
+	DispatchClusterMetricsPrefix   string                  `debugmap:"visible"`
+	Dispatcher                     dispatch.Dispatcher     `debugmap:"visible"`
+
+	// QuerySignals supplies the server's shared planning signal owner.
+	QuerySignals *signals.Owner `debugmap:"hidden"`
+
 	QueryPlanMetadata                 *query.QueryPlanMetadata `debugmap:"hidden"`
 	DispatchHashringReplicationFactor uint16                   `debugmap:"visible" default:"100"`
 	DispatchHashringSpread            uint8                    `debugmap:"visible" default:"1"`
@@ -259,6 +264,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](c.OTel.PrometheusRegistry,
+
 		// the namespace cache has revisions in its keys, so it needs
 		// this configuration to ensure that those entries expire along
 		// with the revisions. Schema at a revision never changes, so
@@ -271,6 +277,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
+
 	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
 	ds := c.Datastore
@@ -278,6 +285,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		var err error
 		c.supportOldAndNewReadReplicaConnectionPoolFlags()
 		ds, err = datastorecfg.NewDatastore(ctx, c.DatastoreConfig.ToOption(),
+
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
@@ -295,6 +303,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	cachingMode := schemacaching.JustInTimeCaching
+
 	if c.EnableExperimentalWatchableSchemaCache {
 		cachingMode = schemacaching.WatchIfSupported
 	}
@@ -303,6 +312,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
 	}
+
 	log.Ctx(ctx).Info().EmbedObject(storedSchemaCache).Msg("configured stored schema cache")
 	closeables.AddWithoutError(storedSchemaCache.Close)
 
@@ -310,12 +320,14 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	var dlOpts []datalayer.DataLayerOption
 	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
 	schemaMode := datalayer.SchemaModeReadLegacyWriteLegacy
+
 	if c.ExperimentalSchemaMode != "" {
 		schemaMode, err = datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	dlOpts = append(dlOpts, datalayer.WithSchemaMode(schemaMode))
 
 	ds = proxy.NewObservableDatastoreProxy(ds)
@@ -340,10 +352,15 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
 	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
-	// Single QueryPlanMetadata instance shared by the in-process dispatcher and
-	// the permissions service so receiver-side stats accumulate into the same
-	// store the sender consults via the count-based advisor. Callers may inject
+	// Shared learning owners are injected into the in-process dispatcher and
+	// the permissions service so observations and planning share one bounded
+	// signal store. Legacy advisor metadata remains injectable. Callers may inject
 	// their own to share with an externally-constructed dispatcher.
+	querySignals := c.QuerySignals
+	if querySignals == nil {
+		querySignals = signals.NewDefaultOwner()
+	}
+
 	queryPlanMetadata := c.QueryPlanMetadata
 	if queryPlanMetadata == nil {
 		queryPlanMetadata = query.NewQueryPlanMetadata()
@@ -354,6 +371,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LR3 resource chunk cache: %w", err)
 	}
+
 	closeables.AddWithoutError(lr3ChunkCache.Close)
 	log.Ctx(ctx).Info().EmbedObject(lr3ChunkCache).Msg("configured LR3 resource chunk cache")
 
@@ -367,11 +385,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
+
 		closeables.AddWithoutError(cc.Close)
 		log.Ctx(ctx).Info().EmbedObject(cc).Msg("configured dispatch cache")
 
 		// TODO: is there a circumstance under which this could be empty?
 		dispatchPresharedKey := ""
+
 		if len(c.PresharedSecureKey) > 0 {
 			dispatchPresharedKey = c.PresharedSecureKey[0]
 		}
@@ -385,6 +405,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		}
 
 		var prometheusRegistry prometheus.Registerer = nil
+
 		if c.DispatchClientMetricsEnabled {
 			prometheusRegistry = c.OTel.PrometheusRegistry
 		}
@@ -413,6 +434,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
+			combineddispatch.QuerySignals(querySignals),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
@@ -421,9 +443,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).RawJSON("balancerconfig", []byte(hashringConfigJSON)).Msg("configured dispatcher")
 	}
+
 	closeables.AddWithError(dispatcher.Close)
 
 	var cachingClusterDispatch dispatch.Dispatcher
+
 	if c.DispatchServer.Enabled {
 		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](c.OTel.PrometheusRegistry, c.ClusterDispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
@@ -433,10 +457,12 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
+
 		log.Ctx(ctx).Info().EmbedObject(cdcc).Msg("configured cluster dispatch cache")
 		closeables.AddWithoutError(cdcc.Close)
 
 		var prometheusRegistry prometheus.Registerer = nil
+
 		if c.DispatchClusterMetricsEnabled {
 			prometheusRegistry = c.OTel.PrometheusRegistry
 		}
@@ -449,11 +475,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
 			clusterdispatch.RelationshipChunkCache(lr3ChunkCache),
+			clusterdispatch.QuerySignals(querySignals),
 			clusterdispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
+
 		closeables.AddWithError(cachingClusterDispatch.Close)
 	}
 
@@ -463,6 +491,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	v1SchemaServiceOption := services.V1SchemaServiceEnabled
+
 	if c.DisableV1SchemaAPI {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
 	} else if c.V1SchemaAdditiveOnly {
@@ -470,6 +499,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	watchServiceOption := services.WatchServiceEnabled
+
 	if datastoreFeatures.Watch.Status != datastore.FeatureSupported {
 		log.Ctx(ctx).Warn().Str("reason", datastoreFeatures.Watch.Reason).Msg("watch api disabled; underlying datastore does not support it")
 		watchServiceOption = services.WatchServiceDisabled
@@ -511,6 +541,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	closeables.AddCloserWithGracePeriod("dispatch server", c.ShutdownGracePeriod, dispatchGrpcServer.GracefulStop, dispatchGrpcServer.ForceStop)
 
 	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
@@ -544,6 +575,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	// NOTE: Preconditions are disabled if the isolation level is relaxed, as we cannot
 	// ensure the transactional guarantees of preconditions in that case.
 	maxPreconditionCount := c.MaximumPreconditionCount
+
 	if c.DatastoreConfig.RelaxedIsolationLevel {
 		maxPreconditionCount = 0
 	}
@@ -571,6 +603,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			LookupSubjects:  slices.Contains(c.ExperimentalQueryPlan, "ls"),
 		},
 		Metrics:           v1svc.NewMetrics(c.OTel.PrometheusRegistry),
+		QuerySignals:      querySignals,
 		QueryPlanMetadata: queryPlanMetadata,
 	}
 
@@ -594,12 +627,14 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
+
 	closeables.AddCloserWithGracePeriod("grpc", c.ShutdownGracePeriod, grpcServer.GracefulStop, grpcServer.ForceStop)
 
 	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	closeables.AddCloser(gatewayCloser)
 	closeables.AddWithoutError(gatewayServer.Close)
 
@@ -615,6 +650,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	var telemetryRegistry *prometheus.Registry
 
 	reporter := telemetry.DisabledReporter
+
 	switch {
 	case c.SilentlyDisableTelemetry:
 		reporter = telemetry.SilentlyDisabledReporter
@@ -642,12 +678,14 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
 	}
+
 	closeables.AddWithoutError(metricsServer.Close)
 
 	otelShutdown, err := InitOTelProvider(ctx, c.OTel)
 	if err != nil {
 		return nil, fmt.Errorf("initializing OTel provider: %w", err)
 	}
+
 	closeables.AddWithError(otelShutdown)
 
 	// Registered last so it runs first: report NOT_SERVING while every listener
@@ -655,9 +693,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	drainDelay := c.ShutdownDrainDelay
 	closeables.AddWithoutError(func() {
 		healthManager.Close()
+
 		if drainDelay == 0 {
 			return
 		}
+
 		log.Info().Dur("drain-delay", drainDelay).Msg("health set to NOT_SERVING, waiting before closing listeners")
 		time.Sleep(drainDelay)
 	})
@@ -683,6 +723,7 @@ func (c *Config) handleGrpcAuthn(ctx context.Context) error {
 
 	if c.GRPCAuthFunc == nil {
 		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedSecureKey)).Msg("using gRPC auth with preshared key(s)")
+
 		for index, presharedKey := range c.PresharedSecureKey {
 			if len(presharedKey) == 0 {
 				return fmt.Errorf("preshared key #%d is empty", index+1)
@@ -695,6 +736,7 @@ func (c *Config) handleGrpcAuthn(ctx context.Context) error {
 	} else {
 		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
 	}
+
 	return nil
 }
 
@@ -727,6 +769,7 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 		log.Warn().Msg("memory protection is enabled, but no default is configured; falling back to using noop provider")
 		return memoryprotection.NewNoopMemoryUsageProvider()
 	}
+
 	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
@@ -762,6 +805,7 @@ func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
 			ReadReplicaConnPool.MaxOpenConns = c.DatastoreConfig.
 			OldReadReplicaConnPool.MaxOpenConns
 	}
+
 	if c.DatastoreConfig.
 		ReadReplicaConnPool.MinOpenConns == defaultReadConnPoolCfg.MinOpenConns && c.DatastoreConfig.
 		OldReadReplicaConnPool.MinOpenConns != defaultReadConnPoolCfg.MinOpenConns {
@@ -769,6 +813,7 @@ func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
 			ReadReplicaConnPool.MinOpenConns = c.DatastoreConfig.
 			OldReadReplicaConnPool.MinOpenConns
 	}
+
 	if c.DatastoreConfig.
 		ReadReplicaConnPool.MaxLifetime == defaultReadConnPoolCfg.MaxLifetime && c.DatastoreConfig.
 		OldReadReplicaConnPool.MaxLifetime != defaultReadConnPoolCfg.MaxLifetime {
@@ -776,6 +821,7 @@ func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
 			ReadReplicaConnPool.MaxLifetime = c.DatastoreConfig.
 			OldReadReplicaConnPool.MaxLifetime
 	}
+
 	if c.DatastoreConfig.
 		ReadReplicaConnPool.MaxLifetimeJitter == defaultReadConnPoolCfg.MaxLifetimeJitter && c.DatastoreConfig.
 		OldReadReplicaConnPool.MaxLifetimeJitter != defaultReadConnPoolCfg.MaxLifetimeJitter {
@@ -783,16 +829,19 @@ func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
 			ReadReplicaConnPool.MaxLifetimeJitter = c.DatastoreConfig.
 			OldReadReplicaConnPool.MaxLifetimeJitter
 	}
+
 	if c.DatastoreConfig.
 		ReadReplicaConnPool.MaxIdleTime == defaultReadConnPoolCfg.MaxIdleTime && c.DatastoreConfig.
 		OldReadReplicaConnPool.MaxIdleTime != defaultReadConnPoolCfg.MaxIdleTime {
 		c.DatastoreConfig.
 			ReadReplicaConnPool.MaxIdleTime = c.DatastoreConfig.OldReadReplicaConnPool.MaxIdleTime
 	}
+
 	if c.DatastoreConfig.ReadReplicaConnPool.HealthCheckInterval == defaultReadConnPoolCfg.HealthCheckInterval &&
 		c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval != defaultReadConnPoolCfg.HealthCheckInterval {
 		c.DatastoreConfig.ReadReplicaConnPool.HealthCheckInterval = c.DatastoreConfig.OldReadReplicaConnPool.HealthCheckInterval
 	}
+
 	if c.DatastoreConfig.ReadReplicaConnPool.PingTimeout == defaultReadConnPoolCfg.PingTimeout &&
 		c.DatastoreConfig.OldReadReplicaConnPool.PingTimeout != defaultReadConnPoolCfg.PingTimeout {
 		c.DatastoreConfig.ReadReplicaConnPool.PingTimeout = c.DatastoreConfig.OldReadReplicaConnPool.PingTimeout
@@ -801,6 +850,7 @@ func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
 
 func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.UnaryServerInterceptor]) ([]grpc.UnaryServerInterceptor, error) {
 	chain := MiddlewareChain[grpc.UnaryServerInterceptor]{}
+
 	if defaultMiddleware != nil {
 		chain.chain = append(chain.chain, defaultMiddleware.chain...)
 	}
@@ -814,6 +864,7 @@ func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.Un
 
 func (c *Config) buildStreamingMiddleware(defaultMiddleware *MiddlewareChain[grpc.StreamServerInterceptor]) ([]grpc.StreamServerInterceptor, error) {
 	chain := MiddlewareChain[grpc.StreamServerInterceptor]{}
+
 	if defaultMiddleware != nil {
 		chain.chain = append(chain.chain, defaultMiddleware.chain...)
 	}
@@ -846,6 +897,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed skipping rest gateway initialization: %w", err)
 		}
+
 		return gatewayServer, nil, nil
 	}
 
@@ -854,6 +906,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
+
 	gatewayHandler = closeableGatewayHandler
 
 	if c.HTTPGatewayCorsEnabled {
@@ -874,6 +927,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
+
 	return gatewayServer, closeableGatewayHandler, nil
 }
 
@@ -881,6 +935,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 type RunnableServer interface {
 	// Run blocks until the context is cancelled.
 	Run(ctx context.Context) error
+
 	// NewClient returns a grpc connection to this server.
 	// It is up to the caller to close the connection when done using it.
 	NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error)
@@ -906,6 +961,7 @@ var _ RunnableServer = &completedServerConfig{}
 
 func (c *completedServerConfig) Run(ctx context.Context) error {
 	log.Ctx(ctx).Info().Type("datastore", c.ds).Msg("running server")
+
 	if startable := datastore.UnwrapAs[datastore.StartableDatastore](c.ds); startable != nil {
 		log.Ctx(ctx).Info().Msg("Start-ing datastore")
 		err := startable.Start(ctx)
@@ -953,6 +1009,7 @@ func (c *completedServerConfig) NewClient(opts ...grpc.DialOption) (*grpc.Client
 	if bufferedListener != nil {
 		return grpchelpers.NewBufferedClient(bufferedListener, opts...)
 	}
+
 	return grpc.NewClient(c.gRPCServer.Address(), opts...)
 }
 
