@@ -23,13 +23,18 @@ func New() optimization.Optimizer {
 func reachabilityPruning(params optimization.RequestParams) func(outline query.Outline) query.Outline {
 	return func(outline query.Outline) query.Outline {
 		if params.SubjectType == "" || (params.SubjectRelation != "" && params.SubjectRelation != "...") {
-			// do not mutate if subjectType is empty or if subjectRelation is non-empty
+			// A type-only proof needs a known final type and a bare/ellipsis subject.
+			// Named usersets can match intermediate relations, so retain their full plans.
 			return outline
 		}
+
 		// Pre-pass: find all node IDs inside arrow left subtrees.
 		// These are intermediate hops whose subject type does not need
 		// to match the target, so they must be excluded from pruning.
 		immune := collectArrowLeftSubtreeIDs(outline)
+
+		// First remove impossible leaves, then simplify parents made empty by those
+		// removals. Bottom-up mutation lets a single pass propagate the proof upward.
 		return query.MutateOutline(outline, []query.OutlineMutation{
 			leafSubjectTypePruner(params.SubjectType, immune),
 			query.NullPropagation,
@@ -54,15 +59,21 @@ func leafSubjectTypePruner(targetSubjectType string, immune map[query.OutlineNod
 
 		switch outline.Type {
 		case query.DatastoreIteratorType:
+			// A compiled datastore leaf's base relation fixes its reachable subject type.
+			// A mismatch cannot yield the requested type and needs no datastore query.
 			if outline.Args != nil && outline.Args.Relation != nil && outline.Args.Relation.Type() == targetSubjectType {
 				return outline
 			}
+
 			return query.Outline{Type: query.NullIteratorType, ID: outline.ID}
 
 		case query.SelfIteratorType:
+			// A self-edge yields an object of the containing definition's type, so it can
+			// survive only when that definition is the requested final subject type.
 			if outline.Args != nil && outline.Args.DefinitionName == targetSubjectType {
 				return outline
 			}
+
 			return query.Outline{Type: query.NullIteratorType, ID: outline.ID}
 
 		default:
@@ -80,6 +91,7 @@ func collectArrowLeftSubtreeIDs(outline query.Outline) map[query.OutlineNodeID]b
 		if (node.Type == query.ArrowIteratorType || node.Type == query.IntersectionArrowIteratorType) && len(node.SubOutlines) == 2 {
 			markAllIDs(node.SubOutlines[0], ids)
 		}
+
 		return nil
 	})
 	return ids
@@ -88,6 +100,7 @@ func collectArrowLeftSubtreeIDs(outline query.Outline) map[query.OutlineNodeID]b
 // markAllIDs recursively adds the ID of every node in the subtree to the set.
 func markAllIDs(outline query.Outline, ids map[query.OutlineNodeID]bool) {
 	ids[outline.ID] = true
+
 	for _, sub := range outline.SubOutlines {
 		markAllIDs(sub, ids)
 	}

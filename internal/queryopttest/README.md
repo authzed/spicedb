@@ -76,3 +76,39 @@ setup-error artifacts do not belong in the shipped regression corpus.
 Harness self-tests deliberately add/remove access and strip conditional access.
 Comparator tests pin order/duplicate invariance, subject identities, missing
 context and wildcard exclusion behavior.
+
+Signal-aware tests can supply `Signals` with an independent fake view, `Hints` with
+typed recommendations and `Inspect` for the resulting ledger. `Optimizers` checks
+composed pipelines. Exercise absent and deliberately misleading evidence: permission
+equivalence must hold regardless of prediction quality. Declines require reasons
+with or without a trace sink.
+
+## Readable unit fixtures
+
+Use composable helpers for small trees, then canonicalize once before referring
+to node IDs. `Fixed` parses relationships and reports invalid inputs at the test
+call site; `Canonical` checks errors instead of ignoring them.
+
+```go
+co := queryopttest.Canonical(t, queryopttest.Arrow(
+    queryopttest.Empty(),
+    queryopttest.Fixed(t, "folder:f#viewer@user:a"),
+))
+```
+
+`Union`, `Intersection`, and `Exclusion` express set operations. For realistic
+relation names, schema footprints, caveats, or arrows, use the real schema planner:
+
+```go
+co := queryopttest.FromSchema(t, `
+    definition user {}
+    definition folder {
+        relation viewer: user
+        permission read = viewer
+    }
+`, "folder", "read")
+```
+
+These helpers return normal query outlines; explicit literals remain available
+for unusual iterator arguments. Schema construction preserves the planner's
+alias wrappers rather than automatically optimizing them away.

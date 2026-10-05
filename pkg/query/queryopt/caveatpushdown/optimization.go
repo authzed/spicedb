@@ -16,6 +16,8 @@ func New() optimization.Optimizer {
 		`,
 		Priority: 20,
 		NewTransform: func(_ optimization.RequestParams) optimization.OutlineTransform {
+			// This is a schema-only placement rule. Context stability signals do not
+			// influence it yet; every move must be safe for all supplied caveat contexts.
 			return func(outline query.Outline) query.Outline {
 				return query.MutateOutline(outline, []query.OutlineMutation{caveatPushdown})
 			}
@@ -47,6 +49,7 @@ func caveatPushdown(outline query.Outline) query.Outline {
 	if outline.Type != query.CaveatIteratorType {
 		return outline
 	}
+
 	return caveatPushdownInner(outline, outline.ID)
 }
 
@@ -59,6 +62,7 @@ func caveatPushdownInner(outline query.Outline, originalID query.OutlineNodeID) 
 	if len(outline.SubOutlines) != 1 {
 		return outline
 	}
+
 	child := outline.SubOutlines[0]
 
 	// Do not push through IntersectionArrow (all() semantics require post-intersection caveat eval).
@@ -78,12 +82,15 @@ func caveatPushdownInner(outline query.Outline, originalID query.OutlineNodeID) 
 
 	caveat := outline.Args.Caveat
 
+	// Evaluate closer to the branches producing caveated paths so unrelated branches
+	// avoid the wrapper and affected branches can resolve caveats earlier.
 	// For each grandchild, wrap it in the caveat if it contains the caveat relation,
 	// then recursively push the new caveat wrapper as deep as it will go.
 	// The originalID is threaded through so every new caveat wrapper carries the
 	// same ID as the caveat node being relocated.
 	newSubs := make([]query.Outline, len(child.SubOutlines))
 	changed := false
+
 	for i, sub := range child.SubOutlines {
 		if outlineContainsCaveat(sub, caveat.CaveatName) {
 			wrapped := query.Outline{
@@ -126,15 +133,18 @@ func outlineContainsCaveat(outline query.Outline, caveatName string) bool {
 					}
 				}
 			}
+
 			if outline.Args.Relation.Caveat() == caveatName {
 				return true
 			}
 		}
 	}
+
 	for _, sub := range outline.SubOutlines {
 		if outlineContainsCaveat(sub, caveatName) {
 			return true
 		}
 	}
+
 	return false
 }
