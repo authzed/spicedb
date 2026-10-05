@@ -74,3 +74,20 @@ builders for provider-specific tests. Numeric distribution helpers are tested in
 `signal` without depending on a built-in provider.
 
 Time-sensitive tests use `testing/synctest` to control time without a custom clock.
+
+## Built-in providers
+
+`NewDefaultRegistry` registers the following providers explicitly;
+`NewDefaultOwner` constructs their isolated bounded store.
+
+| Provider | Scope | Observation |
+| --- | --- | --- |
+| [Context fields](contextfield/README.md) | Exact revision | Presence and value fingerprints by context field name |
+| [Result size](resultsize/README.md) | Exact revision | Completed enumeration path counts |
+| [Historical result size](historicalresultsize/README.md) | Cross revision | Aged result-size observations with configurable windows |
+| [Branch outcomes](branchoutcome/README.md) | Exact revision | Completed Check grants, denials and conditional outcomes |
+
+Each provider package includes examples, unit tests and Rapid properties. These
+providers estimate observed populations; their predictions are never permission
+proofs. They do not issue datastore queries. Collecting observations during checks
+and applying the estimates to optimization decisions are subsequent layers.
