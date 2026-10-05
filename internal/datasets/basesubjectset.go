@@ -143,6 +143,13 @@ func (bss BaseSubjectSet[T]) Subtract(toRemove T) {
 // SubtractAll subtracts the other set of subjects from this set of subtracts, modifying this
 // set *in place*.
 func (bss BaseSubjectSet[T]) SubtractAll(other BaseSubjectSet[T]) {
+	// Batch concrete removals from a wildcard so we only copy its exclusion list
+	// once. The wildcard's caveat stays the same; removals affect its exclusions.
+	//
+	// Fall back to Subtract if there is no wildcard to update, or if other has a
+	// wildcard. Subtracting a wildcard can remove this set's wildcard and turn
+	// the other wildcard's exclusions into concrete results. A single concrete
+	// removal doesn't need batching.
 	wildcard, hasWildcard := bss.wildcard.get()
 	if !hasWildcard || other.wildcard.getOrNil() != nil || len(other.concrete) < 2 {
 		for _, subject := range other.AsSlice() {
@@ -150,25 +157,38 @@ func (bss BaseSubjectSet[T]) SubtractAll(other BaseSubjectSet[T]) {
 		}
 		return
 	}
-	// Build the exclusions once instead of copying the growing slice for each subject.
+
+	// The exclusion slice may be shared with a cloned set, so allocate a new one.
+	// Track existing exclusions that also appear in other so the second pass
+	// doesn't add them again.
 	existingExclusions := wildcard.GetExcludedSubjects()
 	exclusions := make([]T, 0, len(existingExclusions)+len(other.concrete))
 	matched := make(map[string]struct{}, min(len(existingExclusions), len(other.concrete)))
 	for _, exclusion := range existingExclusions {
 		if removing, ok := other.concrete[exclusion.GetSubjectId()]; ok {
+			// Either caveat can exclude the subject, so combine them with OR. If
+			// either has no caveat, the result is an unconditional exclusion:
+			//   {* - {tom[c1]}} - {tom[c2], sarah} => {* - {tom[c1 || c2], sarah}}
+			// Keep both source subjects so the constructor can combine their bookkeeping.
 			matched[exclusion.GetSubjectId()] = struct{}{}
 			exclusion = bss.constructor(exclusion.GetSubjectId(), shortcircuitedOr(exclusion.GetCaveatExpression(), removing.GetCaveatExpression()), nil, exclusion, removing)
 		}
 		exclusions = append(exclusions, exclusion)
 	}
+
 	for subjectID, removing := range other.concrete {
 		if _, ok := matched[subjectID]; !ok {
+			// Keep the removed subject's caveat and bookkeeping for a new exclusion.
 			exclusions = append(exclusions, removing)
 		}
 		if existing, ok := bss.concrete[subjectID]; ok {
+			// The set can also contain this subject as a concrete entry. Remove it
+			// too, or keep it only when its caveat holds and the removal's does not.
 			bss.setConcrete(subjectID, subtractConcreteFromConcrete(existing, removing, bss.constructor))
 		}
 	}
+
+	// Only the exclusions changed; keep the wildcard's own caveat and bookkeeping.
 	updated := bss.constructor(tuple.PublicWildcard, wildcard.GetCaveatExpression(), exclusions, wildcard)
 	bss.wildcard.setOrNil(&updated)
 }
