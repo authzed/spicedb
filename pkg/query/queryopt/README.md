@@ -19,15 +19,19 @@ where their identities remain valid; new identities use ID zero so the runner
 can assign fresh IDs and keys.
 
 Leaf packages import `query` and `queryopt/optimization`, not this parent
-catalog. This package explicitly registers the four standard descriptors in
+catalog. This package explicitly registers the structural and decision descriptors in
 init. Add a new descriptor there and add its request selection rules to
 OptimizersForRequest. Registration alone does not enable a pass. Duplicate
 names panic; GetOptimization reports unknown names. Existing Optimizer,
 RequestParams and OutlineTransform names are aliases for compatibility.
 
-ApplyOptimizations orders descriptors by descending Priority and runs each
-whole-tree transform once. Equal priorities carry no additional ordering
-contract. It copies/extends canonical keys, fills missing IDs, and retains hints.
+NewPipeline orders explicit After edges and hint producers before consumers.
+Independent passes use descending Priority then name. Declare RequiredSignals /
+OptionalSignals, RequiredHints / OptionalHints and ProducesHints. A Run callback
+receives an optimization.Context; NewTransform remains available for structural
+passes. Undeclared reads/emissions and malformed declarations are errors. Missing
+required evidence skips that pass. Consumers must accept or justify declining
+hints. Structural rewrites invalidate stale targets unless explicitly remapped.
 
 ## Documentation and testing contract
 
@@ -42,18 +46,21 @@ named targeted generators with RequireChange and appropriate applicability.
 Keep catalog selection/registration tests here. External test packages avoid
 an import cycle when the harness imports the catalog to apply a descriptor.
 
-## Existing signals and advisor stage
+## Signal and hint phase
 
-RequestParams carries operation and subject type/relation. Each rewrite may
-also inspect schema-derived outline structure. These standard passes consume
-no runtime observations. After standard rewrites and dispatch wrapping, the
-service separately applies CountAdvisor using accumulated call/result counts
-to choose arrow direction, then compiles and executes the plan.
-
-The common signal interface and any advisor-policy extraction are deferred.
-Checkbaseline leaves optional rewrites/advising disabled by default; this
-organization change does not change the benchmark's execution controls.
+RequestParams carries operation and subject type/relation. Standard structural
+passes consume no runtime observations. After these passes and dispatch wrapping,
+DecisionOptimizers uses exact result sizes with aged historical fallback to emit
+typed arrow-direction recommendations. The branch-order consumer accepts validated
+union/intersection permutations; no statistical branch predictor is installed yet.
+See [signals](../signals/README.md) and [hints](../planhint/README.md).
+Legacy CountAdvisor remains available to callers; production QP execution uses the
+shared signal owner and completion-aware collector.
 
 ```sh
 go test ./pkg/query/queryopt/...
 ```
+
+`NewPipeline(passes, registry)` validates signal declarations against an explicit
+provider catalog; omitting the registry uses the default catalog. Unknown signal
+names and hint kinds fail during construction, even if a callback never reads them.

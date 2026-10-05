@@ -1,12 +1,12 @@
 package queryopt
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt/aliaschaincollapse"
+	"github.com/authzed/spicedb/pkg/query/queryopt/applybranchorder"
+	"github.com/authzed/spicedb/pkg/query/queryopt/arrowdirection"
 	"github.com/authzed/spicedb/pkg/query/queryopt/caveatpushdown"
 	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
 	"github.com/authzed/spicedb/pkg/query/queryopt/reachabilitypruning"
@@ -19,22 +19,28 @@ func init() {
 	MustRegisterOptimization(setsimplification.New())
 	MustRegisterOptimization(reachabilitypruning.New())
 	MustRegisterOptimization(aliaschaincollapse.New())
+	MustRegisterOptimization(arrowdirection.New())
+	MustRegisterOptimization(applybranchorder.New())
 }
 
 var optimizationRegistry = make(map[string]Optimizer)
 
+// MustRegisterOptimization registers an optimization by name, panicking on duplicate registration.
 func MustRegisterOptimization(opt Optimizer) {
 	if _, ok := optimizationRegistry[opt.Name]; ok {
 		panic("queryopt: `" + opt.Name + "` registered twice at initialization")
 	}
+
 	optimizationRegistry[opt.Name] = opt
 }
 
+// GetOptimization returns the registered optimization with the supplied name.
 func GetOptimization(name string) (Optimizer, error) {
 	v, ok := optimizationRegistry[name]
 	if !ok {
 		return Optimizer{}, fmt.Errorf("queryopt: no optimizer named `%s`", name)
 	}
+
 	return v, nil
 }
 
@@ -80,29 +86,15 @@ type Optimizer = optimization.Optimizer
 // synthesized nodes (ID==0) receive fresh IDs via query.FillMissingNodeIDs.
 // The returned CanonicalOutline is ready to compile.
 func ApplyOptimizations(co query.CanonicalOutline, opts []Optimizer, params RequestParams) (query.CanonicalOutline, error) {
-	// Sort by descending priority so higher-priority mutations run first.
-	sorted := slices.SortedFunc(slices.Values(opts), func(a, b Optimizer) int {
-		return cmp.Compare(b.Priority, a.Priority)
-	})
-
-	// Apply each optimizer's transform sequentially in priority order.
-	mutated := co.Root
-	for _, opt := range sorted {
-		transform := opt.NewTransform(params)
-		mutated = transform(mutated)
+	p, err := NewPipeline(opts)
+	if err != nil {
+		return query.CanonicalOutline{}, err
 	}
 
-	// Extend the CanonicalKeys map with entries for any newly created nodes.
-	// We copy first so the original CanonicalOutline's map is not mutated.
-	extendedKeys := make(map[query.OutlineNodeID]query.CanonicalKey, len(co.CanonicalKeys))
-	for id, key := range co.CanonicalKeys {
-		extendedKeys[id] = key
-	}
-	filled := query.FillMissingNodeIDs(mutated, extendedKeys)
+	return p.Run(co, optimization.NewContext(params, nil, nil))
+}
 
-	return query.CanonicalOutline{
-		Root:          filled,
-		CanonicalKeys: extendedKeys,
-		Hints:         co.Hints,
-	}, nil
+// DecisionOptimizers returns the signal/hint phase after structural passes and dispatch wrapping.
+func DecisionOptimizers() []Optimizer {
+	return []Optimizer{optimizationRegistry["observed-arrow-direction"], optimizationRegistry["apply-branch-order"]}
 }
