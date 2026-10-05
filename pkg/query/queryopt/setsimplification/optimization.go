@@ -1,13 +1,15 @@
-package queryopt
+package setsimplification
 
 import (
 	"slices"
 
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
 )
 
-func init() {
-	MustRegisterOptimization(Optimizer{
+// New returns the optimization descriptor.
+func New() optimization.Optimizer {
+	return optimization.Optimizer{
 		Name: "set-simplification",
 		Description: `
 		Removes subsumed branches from union and intersection expressions, and
@@ -41,7 +43,7 @@ func init() {
 		smaller tree.
 		`,
 		Priority: 10,
-		NewTransform: func(_ RequestParams) OutlineTransform {
+		NewTransform: func(_ optimization.RequestParams) optimization.OutlineTransform {
 			return func(outline query.Outline) query.Outline {
 				return query.MutateOutline(outline, []query.OutlineMutation{
 					flattenAssociativity,
@@ -58,7 +60,7 @@ func init() {
 				})
 			}
 		},
-	})
+	}
 }
 
 // flattenAssociativity is an OutlineMutation that inlines nested same-type union
