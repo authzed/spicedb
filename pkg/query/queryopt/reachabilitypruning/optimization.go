@@ -1,24 +1,26 @@
-package queryopt
+package reachabilitypruning
 
 import (
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
 )
 
-func init() {
-	MustRegisterOptimization(Optimizer{
+// New returns the optimization descriptor.
+func New() optimization.Optimizer {
+	return optimization.Optimizer{
 		Name: "reachability-pruning",
 		Description: `
 		Replaces subtrees with NullIteratorType nodes when they can never
 		produce the target subject type of the request.
 		`,
 		Priority: 0,
-		NewTransform: func(params RequestParams) OutlineTransform {
+		NewTransform: func(params optimization.RequestParams) optimization.OutlineTransform {
 			return reachabilityPruning(params)
 		},
-	})
+	}
 }
 
-func reachabilityPruning(params RequestParams) func(outline query.Outline) query.Outline {
+func reachabilityPruning(params optimization.RequestParams) func(outline query.Outline) query.Outline {
 	return func(outline query.Outline) query.Outline {
 		if params.SubjectType == "" || (params.SubjectRelation != "" && params.SubjectRelation != "...") {
 			// do not mutate if subjectType is empty or if subjectRelation is non-empty

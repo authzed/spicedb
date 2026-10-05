@@ -1,11 +1,13 @@
-package queryopt
+package aliaschaincollapse
 
 import (
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
 )
 
-func init() {
-	MustRegisterOptimization(Optimizer{
+// New returns the optimization descriptor.
+func New() optimization.Optimizer {
+	return optimization.Optimizer{
 		Name: "alias-chain-collapse",
 		Description: `
 		Collapses a chain of AliasIteratorType nodes into a single alias iterator.
@@ -18,12 +20,12 @@ func init() {
 		(RelationName ∪ AliasedAs), preserving the multi-level self-edge
 		semantics of the uncollapsed chain.
 		`,
-		NewTransform: func(_ RequestParams) OutlineTransform {
+		NewTransform: func(_ optimization.RequestParams) optimization.OutlineTransform {
 			return func(outline query.Outline) query.Outline {
 				return query.MutateOutline(outline, []query.OutlineMutation{collapseAliasChain})
 			}
 		},
-	})
+	}
 }
 
 // collapseAliasChain is an OutlineMutation that collapses a chain of

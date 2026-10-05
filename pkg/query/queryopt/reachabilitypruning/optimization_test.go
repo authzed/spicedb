@@ -1,4 +1,4 @@
-package queryopt
+package reachabilitypruning
 
 import (
 	"testing"
@@ -6,13 +6,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
 // applyReachabilityPruning is a test helper that applies the reachability
 // pruning transform to a CanonicalOutline, bypassing the registry.
 func applyReachabilityPruning(co query.CanonicalOutline, targetSubjectType, targetSubjectRelation string) query.CanonicalOutline {
-	co.Root = reachabilityPruning(RequestParams{SubjectType: targetSubjectType, SubjectRelation: targetSubjectRelation})(co.Root)
+	co.Root = reachabilityPruning(optimization.RequestParams{SubjectType: targetSubjectType, SubjectRelation: targetSubjectRelation})(co.Root)
 	return co
 }
 
@@ -375,3 +376,28 @@ func TestReachabilityPruning(t *testing.T) {
 		})
 	})
 }
+
+func unionOutline(children ...query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.UnionIteratorType,
+		SubOutlines: children,
+	}
+}
+
+// intersectionOutline returns an IntersectionIteratorType outline with the given children.
+func intersectionOutline(children ...query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.IntersectionIteratorType,
+		SubOutlines: children,
+	}
+}
+
+// intersectionArrowOutline returns an IntersectionArrowIteratorType outline with left/right children.
+func intersectionArrowOutline(left, right query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.IntersectionArrowIteratorType,
+		SubOutlines: []query.Outline{left, right},
+	}
+}
+
+// applyPushdown runs caveatPushdown bottom-up over outline via MutateOutline.

@@ -1,4 +1,4 @@
-package queryopt
+package caveatpushdown
 
 import (
 	"testing"

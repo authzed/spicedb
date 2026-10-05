@@ -1,24 +1,26 @@
-package queryopt
+package caveatpushdown
 
 import (
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
-func init() {
-	MustRegisterOptimization(Optimizer{
+// New returns the optimization descriptor.
+func New() optimization.Optimizer {
+	return optimization.Optimizer{
 		Name: "simple-caveat-pushdown",
 		Description: `
 		Pushes caveat evalution to the lowest point in the tree.
 		Cannot push through intersection arrows
 		`,
 		Priority: 20,
-		NewTransform: func(_ RequestParams) OutlineTransform {
+		NewTransform: func(_ optimization.RequestParams) optimization.OutlineTransform {
 			return func(outline query.Outline) query.Outline {
 				return query.MutateOutline(outline, []query.OutlineMutation{caveatPushdown})
 			}
 		},
-	})
+	}
 }
 
 // caveatPushdown is an OutlineMutation that implements caveat pushdown on Outline trees.
