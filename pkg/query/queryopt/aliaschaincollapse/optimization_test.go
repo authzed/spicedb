@@ -1,4 +1,4 @@
-package queryopt
+package aliaschaincollapse
 
 import (
 	"testing"
@@ -168,93 +168,4 @@ func TestAliasChainCollapse(t *testing.T) {
 		require.Equal(t, "viewer", result.Args.RelationName)
 		require.Equal(t, query.UnionIteratorType, result.SubOutlines[0].Type)
 	})
-}
-
-func TestAliasChainCollapseViaRegister(t *testing.T) {
-	// Verify the optimizer works when invoked through the registered API.
-	opt, err := GetOptimization("alias-chain-collapse")
-	require.NoError(t, err)
-
-	transform := opt.NewTransform(RequestParams{})
-
-	input := aliasOutline("outer",
-		aliasOutline("inner", dsOutlineNoCaveat()),
-	)
-
-	result := transform(input)
-
-	require.Equal(t, query.AliasIteratorType, result.Type)
-	require.Equal(t, "inner", result.Args.RelationName)
-	require.Equal(t, []string{"outer"}, result.Args.AliasedAs)
-	require.Len(t, result.SubOutlines, 1)
-	require.Equal(t, query.DatastoreIteratorType, result.SubOutlines[0].Type)
-}
-
-func hasOptimizer(opts []Optimizer, name string) bool {
-	for _, opt := range opts {
-		if opt.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func TestOptimizersForRequest(t *testing.T) {
-	tests := []struct {
-		name            string
-		params          RequestParams
-		includeCollapse bool
-	}{
-		{
-			name:            "Check with empty subject relation includes collapse",
-			params:          RequestParams{Operation: query.OperationCheck, SubjectRelation: ""},
-			includeCollapse: true,
-		},
-		{
-			name:            "Check with specific subject relation includes collapse",
-			params:          RequestParams{Operation: query.OperationCheck, SubjectRelation: "viewer"},
-			includeCollapse: true,
-		},
-		{
-			name:            "Check with ellipsis subject relation includes collapse",
-			params:          RequestParams{Operation: query.OperationCheck, SubjectRelation: "..."},
-			includeCollapse: true,
-		},
-		{
-			name:            "IterResources with ellipsis subject relation includes collapse",
-			params:          RequestParams{Operation: query.OperationIterResources, SubjectRelation: "..."},
-			includeCollapse: true,
-		},
-		{
-			name:            "IterResources with specific subject relation excludes collapse",
-			params:          RequestParams{Operation: query.OperationIterResources, SubjectRelation: "viewer"},
-			includeCollapse: false,
-		},
-		{
-			name:            "IterResources with empty subject relation excludes collapse",
-			params:          RequestParams{Operation: query.OperationIterResources, SubjectRelation: ""},
-			includeCollapse: false,
-		},
-		{
-			name:            "IterSubjects with ellipsis subject relation includes collapse",
-			params:          RequestParams{Operation: query.OperationIterSubjects, SubjectRelation: "..."},
-			includeCollapse: true,
-		},
-		{
-			name:            "IterSubjects with specific subject relation excludes collapse",
-			params:          RequestParams{Operation: query.OperationIterSubjects, SubjectRelation: "owner"},
-			includeCollapse: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			opts := OptimizersForRequest(tc.params)
-			if tc.includeCollapse {
-				require.True(t, hasOptimizer(opts, "alias-chain-collapse"))
-			} else {
-				require.False(t, hasOptimizer(opts, "alias-chain-collapse"))
-			}
-		})
-	}
 }

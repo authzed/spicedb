@@ -6,8 +6,20 @@ import (
 	"slices"
 
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryopt/aliaschaincollapse"
+	"github.com/authzed/spicedb/pkg/query/queryopt/caveatpushdown"
+	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
+	"github.com/authzed/spicedb/pkg/query/queryopt/reachabilitypruning"
+	"github.com/authzed/spicedb/pkg/query/queryopt/setsimplification"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func init() {
+	MustRegisterOptimization(caveatpushdown.New())
+	MustRegisterOptimization(setsimplification.New())
+	MustRegisterOptimization(reachabilitypruning.New())
+	MustRegisterOptimization(aliaschaincollapse.New())
+}
 
 var optimizationRegistry = make(map[string]Optimizer)
 
@@ -26,22 +38,8 @@ func GetOptimization(name string) (Optimizer, error) {
 	return v, nil
 }
 
-// RequestParams holds request-specific values available to optimizations and
-// optimizer selection. Static (schema-level) optimizations ignore these;
-// request-parameterized optimizations (e.g. reachability pruning) use them
-// to tailor their behavior. The selection function uses them to decide which
-// optimizers to include.
-type RequestParams struct {
-	// Operation identifies which query operation is being planned.
-	// Used by the selection function to determine which optimizers are safe.
-	Operation query.Operation
-	// SubjectType is the object type of the subject/filter.
-	SubjectType string
-	// SubjectRelation is the relation on the subject.
-	// Set to "..." for ellipsis subjects (e.g. user:...), "" for bare subjects,
-	// or a specific relation name (e.g. "viewer").
-	SubjectRelation string
-}
+// RequestParams contains request-specific optimization inputs.
+type RequestParams = optimization.RequestParams
 
 // OptimizersForRequest returns the list of optimizers to apply for the given
 // request parameters. The selection logic lives here (in the queryopt package)
@@ -70,22 +68,11 @@ func OptimizersForRequest(params RequestParams) []Optimizer {
 	return base
 }
 
-// OutlineTransform is a function that transforms an entire outline tree.
-// Each optimizer produces one of these, and they are applied sequentially.
-type OutlineTransform func(query.Outline) query.Outline
+// OutlineTransform rewrites an entire outline.
+type OutlineTransform = optimization.OutlineTransform
 
-// Optimizer describes a single named outline optimization.
-type Optimizer struct {
-	Name        string
-	Description string
-	// NewTransform creates a whole-tree transformation for this optimizer,
-	// optionally using request-specific parameters. Each transform typically
-	// calls query.MutateOutline internally with its own mutations.
-	NewTransform func(RequestParams) OutlineTransform
-	// Priority controls the order in which optimizations are applied.
-	// Higher values run first.
-	Priority int
-}
+// Optimizer describes a named outline transformation.
+type Optimizer = optimization.Optimizer
 
 // ApplyOptimizations sorts the given optimizers by descending Priority
 // (higher priority runs first), and applies their transforms to the outline.

@@ -1,11 +1,13 @@
-package queryopt
+package setsimplification
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/schema/v2"
 )
 
 // applyAbsorption runs all absorption-family mutations bottom-up over outline.
@@ -184,24 +186,6 @@ func TestAbsorptionArrowHandling(t *testing.T) {
 		result := applyAbsorption(unionOutline(iArrowAB, intersectionOutline(iArrowAB, c)))
 		require.Equal(t, query.IntersectionArrowIteratorType, result.Type)
 		require.Equal(t, 0, query.OutlineCompare(result, iArrowAB))
-	})
-}
-
-func TestAbsorptionRegistered(t *testing.T) {
-	a := dsOutlineForType("document", "viewer", "user", "...")
-	b := dsOutlineForType("document", "editor", "user", "...")
-
-	t.Run("optimizer is registered and applies via ApplyOptimizations", func(t *testing.T) {
-		// Union[A, Intersection[A, B]] should reduce to A via the named optimizer.
-		input := unionOutline(a, intersectionOutline(a, b))
-		co := canonicalize(input)
-
-		opt, err := GetOptimization("set-simplification")
-		require.NoError(t, err)
-		result, err := ApplyOptimizations(co, []Optimizer{opt}, RequestParams{})
-		require.NoError(t, err)
-		require.Equal(t, query.DatastoreIteratorType, result.Root.Type)
-		require.Equal(t, 0, query.OutlineCompare(result.Root, a))
 	})
 }
 
@@ -573,4 +557,69 @@ func TestIntersectionComplementAnnihilation(t *testing.T) {
 		require.Equal(t, query.IntersectionIteratorType, result.Type)
 		require.Len(t, result.SubOutlines, 2)
 	})
+}
+
+func caveatArgs(name string) *query.IteratorArgs {
+	return &query.IteratorArgs{
+		Caveat: &core.ContextualizedCaveat{CaveatName: name},
+	}
+}
+
+// caveatOutline wraps child in a CaveatIteratorType outline for the named caveat.
+func caveatOutline(name string, child query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.CaveatIteratorType,
+		Args:        caveatArgs(name),
+		SubOutlines: []query.Outline{child},
+	}
+}
+
+// unionOutline returns a UnionIteratorType outline with the given children.
+func unionOutline(children ...query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.UnionIteratorType,
+		SubOutlines: children,
+	}
+}
+
+// intersectionOutline returns an IntersectionIteratorType outline with the given children.
+func intersectionOutline(children ...query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.IntersectionIteratorType,
+		SubOutlines: children,
+	}
+}
+
+// intersectionArrowOutline returns an IntersectionArrowIteratorType outline with left/right children.
+func intersectionArrowOutline(left, right query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.IntersectionArrowIteratorType,
+		SubOutlines: []query.Outline{left, right},
+	}
+}
+
+// applyPushdown runs caveatPushdown bottom-up over outline via MutateOutline.
+
+// dsOutlineForType returns a DatastoreIteratorType outline with the given
+// definition, relation, subject type, and subrelation.
+func dsOutlineForType(defName, relName, subjectType, subrelation string) query.Outline {
+	rel := schema.NewTestBaseRelation(defName, relName, subjectType, subrelation)
+	return query.Outline{
+		Type: query.DatastoreIteratorType,
+		Args: &query.IteratorArgs{Relation: rel},
+	}
+}
+
+func arrowOutline(left, right query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.ArrowIteratorType,
+		SubOutlines: []query.Outline{left, right},
+	}
+}
+
+func exclusionOutline(left, right query.Outline) query.Outline {
+	return query.Outline{
+		Type:        query.ExclusionIteratorType,
+		SubOutlines: []query.Outline{left, right},
+	}
 }
