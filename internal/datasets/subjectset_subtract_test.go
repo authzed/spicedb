@@ -11,6 +11,112 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
+func TestBatchedSubtract(t *testing.T) {
+	tcs := []struct {
+		name             string
+		startingSubjects []*v1.FoundSubject
+		toSubtract       []*v1.FoundSubject
+		expected         []*v1.FoundSubject
+	}{
+		{
+			"subtract two subjects from a bare wildcard",
+			[]*v1.FoundSubject{wc()},
+			[]*v1.FoundSubject{sub("alice"), sub("bob")},
+			[]*v1.FoundSubject{wc("alice", "bob")},
+		},
+		{
+			"retain an existing exclusion when adding new exclusions",
+			[]*v1.FoundSubject{wc("carol")},
+			[]*v1.FoundSubject{sub("alice"), sub("bob")},
+			[]*v1.FoundSubject{wc("alice", "bob", "carol")},
+		},
+		{
+			"merge overlapping exclusions without duplicates",
+			[]*v1.FoundSubject{wc("alice", "carol")},
+			[]*v1.FoundSubject{sub("alice"), sub("bob")},
+			[]*v1.FoundSubject{wc("alice", "bob", "carol")},
+		},
+		{
+			"all removed subjects are already excluded",
+			[]*v1.FoundSubject{wc("alice", "bob")},
+			[]*v1.FoundSubject{sub("alice"), sub("bob")},
+			[]*v1.FoundSubject{wc("alice", "bob")},
+		},
+		{
+			"preserve the wildcard caveat and new exclusion caveats",
+			[]*v1.FoundSubject{cwc(caveatexpr("public"))},
+			[]*v1.FoundSubject{csub("alice", caveatexpr("banned")), csub("bob", caveatexpr("suspended"))},
+			[]*v1.FoundSubject{
+				cwc(caveatexpr("public"),
+					csub("alice", caveatexpr("banned")),
+					csub("bob", caveatexpr("suspended")),
+				),
+			},
+		},
+		{
+			"combine overlapping exclusion caveats with OR",
+			[]*v1.FoundSubject{cwc(nil, csub("alice", caveatexpr("banned")), csub("carol", caveatexpr("suspended")))},
+			[]*v1.FoundSubject{csub("alice", caveatexpr("suspended")), sub("bob")},
+			[]*v1.FoundSubject{
+				cwc(nil,
+					csub("alice", caveatOr(caveatexpr("banned"), caveatexpr("suspended"))),
+					sub("bob"),
+					csub("carol", caveatexpr("suspended")),
+				),
+			},
+		},
+		{
+			"unconditional removal replaces a conditional exclusion",
+			[]*v1.FoundSubject{cwc(nil, csub("alice", caveatexpr("banned")))},
+			[]*v1.FoundSubject{sub("alice"), sub("bob")},
+			[]*v1.FoundSubject{wc("alice", "bob")},
+		},
+		{
+			"conditional removal preserves an unconditional exclusion",
+			[]*v1.FoundSubject{wc("alice")},
+			[]*v1.FoundSubject{csub("alice", caveatexpr("banned")), sub("bob")},
+			[]*v1.FoundSubject{wc("alice", "bob")},
+		},
+		{
+			"remove a matching concrete subject and retain an unrelated subject",
+			[]*v1.FoundSubject{wc(), sub("alice"), sub("carol")},
+			[]*v1.FoundSubject{sub("alice"), sub("bob")},
+			[]*v1.FoundSubject{wc("alice", "bob"), sub("carol")},
+		},
+		{
+			"conditional removal updates both the concrete subject and wildcard",
+			[]*v1.FoundSubject{cwc(caveatexpr("public")), csub("alice", caveatexpr("member"))},
+			[]*v1.FoundSubject{csub("alice", caveatexpr("banned")), sub("bob")},
+			[]*v1.FoundSubject{
+				cwc(caveatexpr("public"), csub("alice", caveatexpr("banned")), sub("bob")),
+				csub("alice", caveatAnd(caveatexpr("member"), caveatInvert(caveatexpr("banned")))),
+			},
+		},
+		{
+			"subtract a wildcard alongside concrete subjects",
+			[]*v1.FoundSubject{wc("carol")},
+			[]*v1.FoundSubject{wc("alice"), sub("bob"), sub("dave")},
+			[]*v1.FoundSubject{sub("alice")},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			set := NewSubjectSet()
+			for _, subject := range tc.startingSubjects {
+				set.MustAdd(subject)
+			}
+			toRemove := NewSubjectSet()
+			for _, subject := range tc.toSubtract {
+				toRemove.MustAdd(subject)
+			}
+
+			set.SubtractAll(toRemove)
+			testutil.RequireEquivalentSets(t, tc.expected, set.AsSlice())
+		})
+	}
+}
+
 func TestBatchedSubtractMatchesSequential(t *testing.T) {
 	expressions := []*core.CaveatExpression{nil, caveatexpr("a"), caveatexpr("b")}
 	for wi, wexpr := range expressions {
