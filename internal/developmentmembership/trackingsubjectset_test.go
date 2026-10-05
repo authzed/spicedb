@@ -383,3 +383,29 @@ func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, found.ParentResources(), 1)
 }
+
+func TestBatchedExclusionResources(t *testing.T) {
+	wildcardResource := tuple.ONR("document", "public", "view")
+	existingResource := tuple.ONR("document", "old", "banned")
+	removingResource := tuple.ONR("document", "new", "banned")
+	wildcard := NewFoundSubject(DS("user", "*", "..."), wildcardResource)
+	wildcard.excludedSubjects = []FoundSubject{NewFoundSubject(DS("user", "u0", "..."), existingResource)}
+	initial := MustNewTrackingSubjectSetWith(wildcard)
+	removing := MustNewTrackingSubjectSetWith(
+		NewFoundSubject(DS("user", "u0", "..."), removingResource),
+		NewFoundSubject(DS("user", "u1", "..."), removingResource),
+	)
+	initial.RemoveFrom(removing)
+	found, ok := initial.getSet(wildcard).Get("*")
+	require.True(t, ok)
+	require.ElementsMatch(t, []tuple.ObjectAndRelation{wildcardResource}, found.resources.AsSlice())
+	require.Len(t, found.excludedSubjects, 2)
+	for _, exclusion := range found.excludedSubjects {
+		expected := []tuple.ObjectAndRelation{removingResource}
+		if exclusion.GetSubjectId() == "u0" {
+			expected = append(expected, existingResource)
+		}
+		require.ElementsMatch(t, expected, exclusion.resources.AsSlice())
+	}
+	require.ElementsMatch(t, []tuple.ObjectAndRelation{existingResource}, wildcard.excludedSubjects[0].resources.AsSlice())
+}
