@@ -13,7 +13,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/authzed/authzed-go v1.11.0
 	github.com/authzed/cel-go v0.32.0
-	github.com/authzed/consistent v0.3.0
+	github.com/authzed/consistent v0.4.0
 	github.com/authzed/ctxkey v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/authzed/jitterbug v0.0.0-20260128162915-e97d76daaa24
