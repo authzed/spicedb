@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/querysignals"
 	"github.com/authzed/spicedb/internal/telemetry/otelconv"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -27,6 +28,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -73,6 +75,7 @@ func limitOrDefault(limit uint16, defaultLimit uint16) uint16 {
 	if limit <= 0 {
 		return defaultLimit
 	}
+
 	return limit
 }
 
@@ -94,11 +97,8 @@ type DispatcherParameters struct {
 	TypeSet                *caveattypes.TypeSet
 	RelationshipChunkCache cache.Cache[cache.StringKey, any]
 
-	// QueryPlanMetadata is the shared count-stats store consulted and updated
-	// by the receiver-side DispatchQueryPlan handler (advisor at compile,
-	// observer-driven merge after execution). When nil, the dispatcher
-	// allocates a fresh per-instance store; to share stats with the calling
-	// permissions service, pass the same instance to both.
+	// QuerySignals shares revision-scoped evidence with the co-located dispatcher.
+	QuerySignals      *signals.Owner
 	QueryPlanMetadata *query.QueryPlanMetadata
 }
 
@@ -120,6 +120,7 @@ func MustNewLocalOnlyDispatcher(params DispatcherParameters) dispatch.Dispatcher
 	if err != nil {
 		panic(err)
 	}
+
 	return dispatcher
 }
 
@@ -148,6 +149,7 @@ func MustNewDefaultDispatcherParametersForTesting() DispatcherParameters {
 	if err != nil {
 		panic(err)
 	}
+
 	return params
 }
 
@@ -159,6 +161,7 @@ func NewLocalOnlyDispatcher(parameters DispatcherParameters) (dispatch.Dispatche
 
 	d := &localDispatcher{
 		dispatchChunkSize: parameters.DispatchChunkSize,
+		querySignals:      querySignalsOrNew(parameters.QuerySignals),
 		queryPlanMetadata: queryPlanMetadataOrNew(parameters.QueryPlanMetadata),
 	}
 
@@ -207,14 +210,24 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, parameters DispatcherParame
 		lookupResourcesHandler2: lookupResourcesHandler2,
 		lookupResourcesHandler3: lr3,
 		dispatchChunkSize:       chunkSize,
+		querySignals:            querySignalsOrNew(parameters.QuerySignals),
 		queryPlanMetadata:       queryPlanMetadataOrNew(parameters.QueryPlanMetadata),
 	}, nil
+}
+
+func querySignalsOrNew(o *signals.Owner) *signals.Owner {
+	if o != nil {
+		return o
+	}
+
+	return signals.NewDefaultOwner()
 }
 
 func queryPlanMetadataOrNew(m *query.QueryPlanMetadata) *query.QueryPlanMetadata {
 	if m != nil {
 		return m
 	}
+
 	return query.NewQueryPlanMetadata()
 }
 
@@ -225,6 +238,7 @@ type localDispatcher struct {
 	lookupResourcesHandler2 *graph.CursoredLookupResources2
 	lookupResourcesHandler3 *graph.CursoredLookupResources3
 	dispatchChunkSize       uint16
+	querySignals            *signals.Owner
 	queryPlanMetadata       *query.QueryPlanMetadata
 }
 
@@ -236,13 +250,16 @@ func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, rev
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
+
 	revDef, found, err := schemaReader.LookupTypeDefByName(ctx, nsName)
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
+
 	if !found {
 		return nil, rewriteNamespaceError(datastore.NewNamespaceNotFoundErr(nsName))
 	}
+
 	ns := revDef.Definition
 
 	return ns, nil
@@ -255,6 +272,7 @@ func (ld *localDispatcher) parseRevision(ctx context.Context, s string) (datasto
 
 func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceDefinition, relationName string) (*core.Relation, error) {
 	var relation *core.Relation
+
 	for _, candidate := range ns.Relation {
 		if candidate.Name == relationName {
 			relation = candidate
@@ -526,7 +544,12 @@ func (ld *localDispatcher) DispatchQueryPlan(
 
 	schemaHash := datalayer.SchemaHash(planCtx.GetSchemaHash())
 
-	it, err := ld.deserializePlanFromRequest(ctx, revision, schemaHash, req)
+	var signalView *signals.View
+	it, err := ld.deserializePlanFromRequest(ctx, revision, schemaHash, req, func(sr datalayer.SchemaReader) error {
+		var bindErr error
+		signalView, bindErr = querysignals.Bind(ld.querySignals, sr, revision, string(schemaHash))
+		return bindErr
+	})
 	if err != nil {
 		return err
 	}
@@ -536,22 +559,15 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	dl := datalayer.MustFromContext(ctx)
 	executor := dispatch.NewDispatchExecutor(ld, planCtx, ld.dispatchChunkSize)
 
-	// Attach a CountObserver so the receiver augments the shared metadata with
-	// stats from the iterator subtree it executes. After the operation
-	// completes, results merge back so the next sender or receiver advisor
-	// pass picks up data-driven hints (e.g. arrow direction reversal) for
-	// nodes only this hop has visibility into.
-	countObserver := query.NewCountObserver()
+	collector := querysignals.NewCollector(signalView, querysignals.CollectorOptions{})
+	defer collector.Flush()
 	qctx := query.NewQueryContext(ctx, executor,
 		query.WithReader(query.NewQueryDatastoreReader(dl.SnapshotReader(revision, schemaHash))),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(caveattypes.Default.TypeSet)),
 		query.WithCaveatContext(dispatch.CaveatContextFromPlanContext(planCtx)),
 		query.WithBatchedArrows(true),
-		query.WithObserver(countObserver),
+		query.WithExecutionObserver(collector),
 	)
-	defer func() {
-		ld.queryPlanMetadata.MergeCountStats(countObserver.GetStats())
-	}()
 
 	resource := query.Object{ObjectType: req.Resource.Namespace, ObjectID: req.Resource.ObjectId}
 	subject := query.ObjectAndRelation{
@@ -570,6 +586,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 	if err != nil {
 		return err
 	}
+
 	qctx.MarkAsOperation(it, topLevelOp)
 
 	// MarkAsOperation is pre-sealed above, so the inner ctx.IterX calls will not
@@ -583,53 +600,62 @@ func (ld *localDispatcher) DispatchQueryPlan(
 			Subrelation: target.Relation,
 		}
 	}
+
 	switch req.Operation {
 	case v1.PlanOperation_PLAN_OPERATION_CHECK:
-		path, err := it.CheckImpl(qctx, resource, subject)
+		path, err := qctx.ObserveImplCheck(it, resource, subject)
 		if err != nil {
 			return err
 		}
+
 		if path != nil {
 			return stream.Publish(&v1.DispatchQueryPlanResponse{
 				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
 			})
 		}
+
 		return nil
 
 	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
 		// TODO: implement caching for LookupResources results
-		pathSeq, err := it.IterResourcesImpl(qctx, subject, query.NoObjectFilter())
+		pathSeq, err := qctx.ObserveImplResources(it, subject, query.NoObjectFilter())
 		if err != nil {
 			return err
 		}
+
 		for path, err := range pathSeq {
 			if err != nil {
 				return err
 			}
+
 			if err := stream.Publish(&v1.DispatchQueryPlanResponse{
 				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
 			}); err != nil {
 				return err
 			}
 		}
+
 		return nil
 
 	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
 		// TODO: implement caching for LookupSubjects results
-		pathSeq, err := it.IterSubjectsImpl(qctx, resource, query.NoObjectFilter())
+		pathSeq, err := qctx.ObserveImplSubjects(it, resource, query.NoObjectFilter())
 		if err != nil {
 			return err
 		}
+
 		for path, err := range pathSeq {
 			if err != nil {
 				return err
 			}
+
 			if err := stream.Publish(&v1.DispatchQueryPlanResponse{
 				Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
 			}); err != nil {
 				return err
 			}
 		}
+
 		return nil
 
 	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES:
@@ -637,10 +663,11 @@ func (ld *localDispatcher) DispatchQueryPlan(
 		// alias. qctx still uses DispatchExecutor, so nested aliases re-dispatch.
 		for _, res := range req.Many {
 			resource := query.Object{ObjectType: res.Namespace, ObjectID: res.ObjectId}
-			path, err := it.CheckImpl(qctx, resource, subject)
+			path, err := qctx.ObserveImplCheckManyResources(it, resource, subject)
 			if err != nil {
 				return err
 			}
+
 			if path != nil {
 				if err := stream.Publish(&v1.DispatchQueryPlanResponse{
 					Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
@@ -649,6 +676,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 				}
 			}
 		}
+
 		return nil
 
 	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
@@ -658,10 +686,11 @@ func (ld *localDispatcher) DispatchQueryPlan(
 				ObjectID:   sub.ObjectId,
 				Relation:   sub.Relation,
 			}
-			path, err := it.CheckImpl(qctx, resource, subject)
+			path, err := qctx.ObserveImplCheckManySubjects(it, resource, subject)
 			if err != nil {
 				return err
 			}
+
 			if path != nil {
 				if err := stream.Publish(&v1.DispatchQueryPlanResponse{
 					Paths: []*v1.ResultPath{dispatch.QueryPathToResultPath(path)},
@@ -670,6 +699,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 				}
 			}
 		}
+
 		return nil
 
 	default:
@@ -682,7 +712,7 @@ func (ld *localDispatcher) DispatchQueryPlan(
 // schema is required so DatastoreIterator children can resolve back to live
 // *schema.BaseRelation pointers via DeserializeContext. Optimization and
 // compilation already happened on the sender; this side just decodes and runs.
-func (ld *localDispatcher) deserializePlanFromRequest(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, req *v1.DispatchQueryPlanRequest) (query.Iterator, error) {
+func (ld *localDispatcher) deserializePlanFromRequest(ctx context.Context, revision datastore.Revision, schemaHash datalayer.SchemaHash, req *v1.DispatchQueryPlanRequest, bind ...func(datalayer.SchemaReader) error) (query.Iterator, error) {
 	if len(req.Plan) == 0 {
 		return nil, errors.New("DispatchQueryPlan: missing serialized plan")
 	}
@@ -693,6 +723,12 @@ func (ld *localDispatcher) deserializePlanFromRequest(ctx context.Context, revis
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("DispatchQueryPlan: failed to read schema: %w", err)
+	}
+
+	for _, callback := range bind {
+		if err := callback(sr); err != nil {
+			return nil, err
+		}
 	}
 
 	nsDefs, err := sr.ListAllTypeDefinitions(ctx)
@@ -717,6 +753,7 @@ func (ld *localDispatcher) deserializePlanFromRequest(ctx context.Context, revis
 	if err != nil {
 		return nil, fmt.Errorf("DispatchQueryPlan: failed to deserialize plan: %w", err)
 	}
+
 	return it, nil
 }
 
@@ -741,6 +778,7 @@ func (ld *localDispatcher) Close() error {
 	if ld.lookupResourcesHandler3 != nil {
 		ld.lookupResourcesHandler3.Close()
 	}
+
 	return nil
 }
 

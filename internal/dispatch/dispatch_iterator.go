@@ -19,6 +19,7 @@ func init() {
 			if len(subs) != 1 {
 				return nil, fmt.Errorf("DispatchIterator requires exactly 1 subiterator, got %d", len(subs))
 			}
+
 			d := NewDispatchIterator(subs[0])
 			d.canonicalKey = key
 			return d, nil
@@ -78,6 +79,7 @@ func (d *DispatchIterator) ReplaceSubiterators(newSubs []query.Iterator) (query.
 	if len(newSubs) != 1 {
 		return nil, fmt.Errorf("DispatchIterator requires exactly 1 subiterator, got %d", len(newSubs))
 	}
+
 	return &DispatchIterator{
 		subIt:        newSubs[0],
 		canonicalKey: d.canonicalKey,
@@ -107,7 +109,16 @@ func deserializeDispatch(body io.Reader, key query.CanonicalKey, dctx *query.Des
 	if err != nil {
 		return nil, fmt.Errorf("dispatch sub: %w", err)
 	}
+
 	d := NewDispatchIterator(sub)
 	d.canonicalKey = key
 	return d, nil
 }
+
+// PlanningNode exposes dispatch shape to signal identity collection without an import cycle.
+func (d *DispatchIterator) PlanningNode() query.Outline {
+	return query.Outline{Type: DispatchIteratorType}
+}
+
+// ObservationRole identifies the dispatch sender wrapper's observation population.
+func (d *DispatchIterator) ObservationRole() string { return "dispatch-wrapper" }
