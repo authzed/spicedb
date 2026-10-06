@@ -1067,6 +1067,7 @@ type primarySleeper struct {
 	reqKey     string
 	waitTime   time.Duration
 	cancelFunc context.CancelFunc // GUARDED_BY(lock)
+	canceled   bool               // GUARDED_BY(lock)
 	lock       sync.Mutex
 }
 
@@ -1080,6 +1081,10 @@ func (s *primarySleeper) sleep(parentCtx context.Context) {
 
 	s.lock.Lock()
 	s.cancelFunc = cf
+	if s.canceled {
+		// cancelSleep ran before sleep did, so don't wait at all.
+		cf()
+	}
 	s.lock.Unlock()
 
 	hedgeWaitHistogram.WithLabelValues(s.reqKey).Observe(s.waitTime.Seconds())
@@ -1109,6 +1114,7 @@ func (s *primarySleeper) sleep(parentCtx context.Context) {
 func (s *primarySleeper) cancelSleep() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	s.canceled = true
 	s.cancelFunc()
 }
 
