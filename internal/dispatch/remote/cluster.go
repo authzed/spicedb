@@ -748,6 +748,10 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		return primaryErr
 	}
 
+	if err := ctxWithTimeout.Err(); err != nil {
+		return err
+	}
+
 	// Otherwise return a combined error.
 	return errors.New("no dispatcher returned results; please check the logs for more information")
 }
