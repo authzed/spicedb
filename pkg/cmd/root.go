@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/cmd/demo"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 	"github.com/authzed/spicedb/pkg/releases"
@@ -117,6 +118,14 @@ func BuildRootCommand() (*cobra.Command, error) {
 	testingCmd := NewTestingCommand(rootCmd.Use, &testServerConfig)
 	RegisterTestingFlags(testingCmd, &testServerConfig)
 	rootCmd.AddCommand(testingCmd)
+
+	// Add demo command
+	demoConfig := demo.Config{
+		TestServerConfig: &testserver.Config{},
+	}
+	demoCmd := NewDemoCommand(rootCmd.Use, &demoConfig)
+	RegisterDemoFlags(demoCmd, &demoConfig)
+	rootCmd.AddCommand(demoCmd)
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "man",
