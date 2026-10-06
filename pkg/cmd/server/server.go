@@ -460,6 +460,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		MiddlewareServiceLabel:    serverName,
 		MismatchingZedTokenOption: mismatchZedTokenOption,
 		MemoryUsageProvider:       memoryUsageProvider,
+		ReadinessChecker:          ds,
 	}
 	opts = opts.WithDatastore(ds, dlOpts...)
 
