@@ -143,7 +143,7 @@ func TestPrimarySleeper_CancelSleepBeforeSleep(t *testing.T) {
 		elapsed = time.Since(start)
 	})
 
-	require.Equal(t, elapsed, waitTime)
+	require.Equal(t, 0*time.Millisecond, elapsed)
 }
 
 func TestPrimarySleeper_MultipleCancelSleep(t *testing.T) {
