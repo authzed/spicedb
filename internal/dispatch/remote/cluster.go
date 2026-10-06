@@ -385,7 +385,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	var foundError error
 	select {
 	case <-withTimeout.Done():
-		return *new(S), errors.New("check dispatch has timed out")
+		return *new(S), withTimeout.Err()
 
 	case r := <-primaryResultChan:
 		if r.err == nil {
