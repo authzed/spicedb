@@ -134,14 +134,15 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
 	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, rdc.caveatTypeSet, computed.CheckParameters{
-		ResourceType:  tuple.FromCoreRelationReference(rdc.newSubjectType),
-		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
-		CaveatContext: rdc.parentRequest.Context.AsMap(),
-		AtRevision:    rdc.parentRequest.Revision,
-		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,
-		DebugOption:   computed.NoDebugging,
-		CheckHints:    checkHints,
-		SchemaHash:    datalayer.SchemaHash(rdc.parentRequest.Metadata.GetSchemaHash()),
+		ResourceType:   tuple.FromCoreRelationReference(rdc.newSubjectType),
+		Subject:        tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
+		CaveatContext:  rdc.parentRequest.Context.AsMap(),
+		AtRevision:     rdc.parentRequest.Revision,
+		MaximumDepth:   rdc.parentRequest.Metadata.DepthRemaining - 1,
+		DebugOption:    computed.NoDebugging,
+		CheckHints:     checkHints,
+		SchemaHash:     datalayer.SchemaHash(rdc.parentRequest.Metadata.GetSchemaHash()),
+		RevisionSource: rdc.parentRequest.Metadata.GetRevisionSource(),
 	}, resourceIDsToCheck, rdc.dispatchChunkSize)
 	if err != nil {
 		return err
@@ -241,11 +242,7 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 		SubjectRelation:  rdc.newSubjectType,
 		SubjectIds:       resourceIDsToDispatch,
 		TerminalSubject:  rdc.parentRequest.TerminalSubject,
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     rdc.parentRequest.Revision.String(),
-			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
-			SchemaHash:     rdc.parentRequest.Metadata.SchemaHash,
-		},
+		Metadata:         childMetaWithoutBloom(rdc.parentRequest.Metadata, rdc.parentRequest.Revision.String()),
 		OptionalCursor:   updatedCi.currentCursor,
 		OptionalLimit:    rdc.ci.limits.currentLimit,
 		Context:          rdc.parentRequest.Context,

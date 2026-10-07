@@ -51,6 +51,18 @@ func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 		DepthRemaining: md.DepthRemaining - 1,
 		TraversalBloom: md.TraversalBloom,
 		SchemaHash:     md.SchemaHash,
+		RevisionSource: md.RevisionSource,
+	}
+}
+
+// childMetaWithoutBloom derives a child dispatch's metadata from its parent's, for
+// lookup dispatches that do not carry the traversal bloom filter.
+func childMetaWithoutBloom(parent *v1.ResolverMeta, atRevision string) *v1.ResolverMeta {
+	return &v1.ResolverMeta{
+		AtRevision:     atRevision,
+		DepthRemaining: parent.DepthRemaining - 1,
+		SchemaHash:     parent.SchemaHash,
+		RevisionSource: parent.RevisionSource,
 	}
 }
 

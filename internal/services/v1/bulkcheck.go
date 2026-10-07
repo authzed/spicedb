@@ -81,6 +81,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 		maxCaveatContextSize: bc.maxCaveatContextSize,
 		maximumAPIDepth:      bc.maxAPIDepth,
 		withTracing:          req.WithTracing,
+		revisionSource:       consistency.RevisionSourceFromContext(ctx),
 	}, req.Items)
 	if err != nil {
 		return nil, err
