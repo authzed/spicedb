@@ -6,7 +6,9 @@ directly against a datastore — paying neither network nor gRPC-serialization c
 passing caveat context as native Go values rather than `structpb`.
 
 It is a thin, focused wrapper over SpiceDB's dispatch engine (`computed.ComputeCheck` + a
-local dispatcher), exposing a single operation: `Check`.
+local dispatcher), with committed permission checks, revisioned reads, and validated schema and
+relationship writes. It can also share a SQL transaction with application writes so both commit
+together; see [Application-owned SQL transactions](#application-owned-sql-transactions).
 
 ## When to use it
 
@@ -18,12 +20,13 @@ local dispatcher), exposing a single operation: `Check`.
 
 ## When **not** to use it
 
-- You need the full SpiceDB v1 API surface (schema writes, relationship writes, bulk
-  operations, watch, lookup, reflection, etc.). This package only does `CheckPermission`.
+- You need the full SpiceDB v1 API surface, including bulk operations, watch, lookup,
+  or reflection.
 - You need remote access or multiple processes sharing one logical SpiceDB. Run a real
   SpiceDB server instead.
 
-Checks are always **fully consistent** (evaluated at the datastore head revision).
+`Permissions.Check` evaluates at the committed datastore head.
+`Permissions.SnapshotReader(revision).Check` evaluates at the supplied committed revision.
 
 ## Quick start
 
@@ -175,3 +178,141 @@ Call `Close` when finished to release the dispatcher. `Close` does **not** close
 datastore you passed in — you own that.
 
 A `Permissions` value is safe for concurrent use.
+
+
+## Revisioned reads and writes
+
+These methods write schema and relationships, then let you read or check the resulting state
+at a fixed committed revision.
+
+### `WriteSchema(ctx, text)`
+
+`WriteSchema(ctx context.Context, text string) (WriteSchemaResult, error)` compiles, validates,
+and commits a complete schema. The result contains the committed `Revision`. Changes that
+invalidate existing relationships are rejected.
+
+### `WriteRelationships(ctx, updates)`
+
+`WriteRelationships(ctx context.Context, updates []tuple.RelationshipUpdate) (WriteRelationshipsResult, error)`
+validates and commits a batch of CREATE, TOUCH, or DELETE updates. The result contains the
+committed `Revision`. The default limit is 1,000 updates per call and 25,000 bytes per caveat
+context; configure `MaxUpdatesPerWrite` or `MaxRelationshipContextSize` to change these limits.
+Expiring relationships require `ExpiringRelationshipsEnabled`.
+
+### `HeadRevision(ctx)`
+
+`HeadRevision(ctx context.Context) (HeadRevisionResult, error)` returns a fresh committed
+revision in `HeadRevisionResult.Revision`. Use it to read the current datastore state at one
+consistent revision.
+
+### `SnapshotReader(revision)`
+
+`SnapshotReader(revision datastore.Revision) *RevisionedReader` creates a reader for a committed
+revision. It performs no I/O; the revision is validated when a reader method runs. Use a revision
+from `HeadRevision`, a successful write, or a committed transaction.
+
+### `RevisionedReader.Check(ctx, req)`
+
+`Check(ctx context.Context, req CheckRequest) (CheckResult, error)` checks permission at the
+reader's revision. `req` contains the resource type, ID, and permission; subject type and ID; and
+optional subject relation and caveat context. See [The `Check` API](#the-check-api) for all
+fields and result values.
+
+### `RevisionedReader.ReadSchema(ctx)`
+
+`ReadSchema(ctx context.Context) (ReadSchemaResult, error)` returns `SchemaText`, the schema
+visible at the reader's revision.
+
+### `RevisionedReader.ReadRelationships(ctx, filter, opts...)`
+
+`ReadRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (ReadRelationshipsResult, error)`
+reads relationships matching `filter`; optional query options customize the read. The result's
+`Relationships` iterator yields `(tuple.Relationship, error)` pairs. Check each error and finish
+iteration before closing the parent permissions instance.
+
+Revisions apply only to the originating datastore and remain usable only within its garbage
+collection window. A reader holds no connection and does not prevent history collection. Each
+read validates the revision and returns an error if it is no longer valid; it never advances an
+expired reader to the head.
+
+## Application-owned SQL transactions
+
+Use an existing SQL database when your application needs to update its own rows and SpiceDB
+relationships as one unit. This keeps both changes together: either the database commits both,
+or neither.
+
+To get started, run `MigrateIfNeeded` on the config, then construct permissions with your
+existing pool and write your authorization schema:
+
+```go
+// Apply any missing SpiceDB tables using the caller-owned pool.
+cfg := embedded.PostgresConfig{}
+if err := cfg.MigrateIfNeeded(ctx, pool); err != nil {
+	return err
+}
+
+// Create the embedded permissions API over that same pool.
+p, err := embedded.NewPostgresPermissions(ctx, pool, cfg)
+if err != nil {
+	return err
+}
+
+// Install the authorization schema used by checks and relationship writes.
+if _, err := p.WriteSchema(ctx, schema); err != nil {
+	return err
+}
+```
+
+Then, for each change, begin a transaction, make the application changes, stage relationship
+changes with the matching `With…Transaction` method, and finish with `pending.Commit(ctx)`.
+
+The commit returns a revision you can use for permission checks.
+
+```go
+// Begin one SERIALIZABLE transaction for application and SpiceDB writes.
+tx, err := p.BeginTransaction(ctx)
+if err != nil {
+	return err
+}
+defer tx.Rollback(context.Background())
+
+// Write the application row in the shared transaction.
+_, err = tx.Exec(
+	ctx,
+	"INSERT INTO documents (id) VALUES ($1)",
+	"doc1",
+)
+if err != nil {
+	return err
+}
+
+// Stage the matching SpiceDB relationship on that same transaction.
+pending, err := p.WithPostgresTransaction(
+	ctx,
+	tx,
+	func(ctx context.Context, rels *embedded.RelationshipTransaction) error {
+		_, err := rels.WriteRelationships(ctx, updates)
+		return err
+	},
+)
+if err != nil {
+	return err
+}
+
+// Commit both sets of writes and retain the revision for later checks.
+committed, err := pending.Commit(ctx)
+if err != nil {
+	return err
+}
+revision := committed.Revision
+```
+
+`committed.Revision` (shown as `revision` above) can then be used for permission checks.
+
+See the [Postgres](example_postgres_test.go), [CRDB](example_crdb_test.go), and
+[MySQL](example_mysql_test.go) examples for the full setup and transaction flow.
+
+For MySQL, use InnoDB application tables and avoid DDL or other statements that implicitly
+commit inside the shared transaction. The connection needs `parseTime=true`; transaction
+instrumentation and the `performance_schema.events_transactions_current` consumer must be
+enabled and accessible.

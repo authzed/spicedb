@@ -132,60 +132,69 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	mysqlConfig, err := mysql.ParseDSN(uri)
-	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: could not parse connection URI", err, uri)
-	}
+	db := config.borrowedDB
+	var collectors []prometheus.Collector
+	if db == nil {
+		mysqlConfig, err := mysql.ParseDSN(uri)
+		if err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: could not parse connection URI", err, uri)
+		}
 
-	if !mysqlConfig.ParseTime {
-		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see " + sharederrors.MySQLParseErrorLink + " for more details")
-	}
+		if !mysqlConfig.ParseTime {
+			return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see " + sharederrors.MySQLParseErrorLink + " for more details")
+		}
 
-	// Setup the credentials provider
-	var credentialsProvider datastore.CredentialsProvider
-	if config.credentialsProviderName != "" {
-		credentialsProvider, err = datastore.NewCredentialsProvider(ctx, config.credentialsProviderName)
+		// Setup the credentials provider
+		var credentialsProvider datastore.CredentialsProvider
+		if config.credentialsProviderName != "" {
+			credentialsProvider, err = datastore.NewCredentialsProvider(ctx, config.credentialsProviderName)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		err = mysqlCommon.MaybeAddCredentialsProviderHook(mysqlConfig, credentialsProvider)
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	err = mysqlCommon.MaybeAddCredentialsProviderHook(mysqlConfig, credentialsProvider)
-	if err != nil {
-		return nil, err
-	}
+		// Feed our logger through to the Connector
+		mysqlConfig.Logger = debugLogger{}
 
-	// Feed our logger through to the Connector
-	mysqlConfig.Logger = debugLogger{}
-
-	// Call NewConnector with the existing parsed configuration to preserve the BeforeConnect added by the CredentialsProvider
-	connector, err := mysql.NewConnector(mysqlConfig)
-	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to create connector", err, uri)
-	}
-
-	if config.lockWaitTimeoutSeconds != nil {
-		log.Info().Uint8("timeout", *config.lockWaitTimeoutSeconds).Msg("overriding innodb_lock_wait_timeout")
-		connector, err = addSessionVariables(connector, map[string]string{
-			"innodb_lock_wait_timeout": strconv.FormatUint(uint64(*config.lockWaitTimeoutSeconds), 10),
-		})
+		// Call NewConnector with the existing parsed configuration to preserve the BeforeConnect added by the CredentialsProvider
+		connector, err := mysql.NewConnector(mysqlConfig)
 		if err != nil {
-			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to add session variables to connector", err, uri)
+			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to create connector", err, uri)
+		}
+
+		if config.lockWaitTimeoutSeconds != nil {
+			log.Info().Uint8("timeout", *config.lockWaitTimeoutSeconds).Msg("overriding innodb_lock_wait_timeout")
+			connector, err = addSessionVariables(connector, map[string]string{
+				"innodb_lock_wait_timeout": strconv.FormatUint(uint64(*config.lockWaitTimeoutSeconds), 10),
+			})
+			if err != nil {
+				return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to add session variables to connector", err, uri)
+			}
+		}
+
+		db, collectors, err = registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, connector, config.enablePrometheusStats)
+		if err != nil {
+			for _, collector := range collectors {
+				_ = prometheus.Unregister(collector)
+			}
+			return nil, err
+		}
+
+		db.SetConnMaxLifetime(config.connMaxLifetime)
+		db.SetConnMaxIdleTime(config.connMaxIdleTime)
+		db.SetMaxOpenConns(config.maxOpenConns)
+		db.SetMaxIdleConns(config.maxOpenConns)
+	} else {
+		var now time.Time
+		if err := db.QueryRowContext(ctx, "SELECT UTC_TIMESTAMP(6)").Scan(&now); err != nil {
+			return nil, fmt.Errorf("borrowed MySQL DB must decode timestamps: %w", err)
 		}
 	}
-
-	db, collectors, err := registerAndReturnPrometheusCollectors(replicaIndex, isPrimary, connector, config.enablePrometheusStats)
-	if err != nil {
-		for _, collector := range collectors {
-			_ = prometheus.Unregister(collector)
-		}
-		return nil, err
-	}
-
-	db.SetConnMaxLifetime(config.connMaxLifetime)
-	db.SetConnMaxIdleTime(config.connMaxIdleTime)
-	db.SetMaxOpenConns(config.maxOpenConns)
-	db.SetMaxIdleConns(config.maxOpenConns)
 
 	driver := migrations.NewMySQLDriverFromDB(db, config.tablePrefix)
 	queryBuilder := NewQueryBuilder(driver)
@@ -245,6 +254,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	store := &mysqlDatastore{
 		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		db:                           db,
+		borrowed:                     config.borrowedDB != nil,
 		driver:                       driver,
 		collectors:                   collectors,
 		url:                          uri,
@@ -357,28 +367,7 @@ func (mds *mysqlDatastore) ReadWriteTx(
 				return fmt.Errorf("unable to create new txn ID: %w", err)
 			}
 
-			longLivedTx := func(context.Context) (*sql.Tx, txCleanupFunc, error) {
-				return tx, noCleanup, nil
-			}
-
-			executor := common.QueryRelationshipsExecutor{
-				Executor: newMySQLExecutor(tx, mds),
-			}
-
-			rwt := &mysqlReadWriteTXN{
-				&mysqlReader{
-					mds.QueryBuilder,
-					longLivedTx,
-					executor,
-					currentlyLivingObjects,
-					mds.filterMaximumIDCount,
-					mds.schema,
-				},
-				mds.driver.RelationTuple(),
-				mds.driver.SchemaRevision(),
-				tx,
-				newTxnID,
-			}
+			rwt := mds.newReadWriteTransaction(tx, newTxnID)
 
 			if config.SchemaHashPrecondition != "" {
 				if err := assertSchemaHash(ctx, rwt, config.SchemaHashPrecondition, config.SchemaHashPreconditionExclusive); err != nil {
@@ -473,6 +462,7 @@ func newMySQLExecutor(tx querier, explainable datastore.Explainable) common.Exec
 type mysqlDatastore struct {
 	*common.MigrationValidator
 
+	borrowed           bool
 	db                 *sql.DB
 	driver             *migrations.MySQLDriver
 	readTxOptions      *sql.TxOptions
@@ -510,7 +500,9 @@ type mysqlDatastore struct {
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
-	mds.driver.Close(context.Background())
+	if !mds.borrowed {
+		mds.driver.Close(context.Background())
+	}
 	mds.cancelGc()
 	if mds.gcGroup != nil {
 		if err := mds.gcGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {
@@ -519,6 +511,9 @@ func (mds *mysqlDatastore) Close() error {
 	}
 	for _, collector := range mds.collectors {
 		_ = prometheus.Unregister(collector)
+	}
+	if mds.borrowed {
+		return nil
 	}
 	return mds.db.Close()
 }

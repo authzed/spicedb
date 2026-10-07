@@ -13,7 +13,6 @@ import (
 
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/ccoveille/go-safecast/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -141,7 +140,12 @@ func newPostgresDatastore(
 	}
 
 	// Parse the DB URI into configuration.
-	pgConfig, err := pgxpool.ParseConfig(pgURL)
+	var pgConfig *pgxpool.Config
+	if config.borrowedPool != nil {
+		pgConfig = config.borrowedPool.Config()
+	} else {
+		pgConfig, err = pgxpool.ParseConfig(pgURL)
+	}
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
@@ -223,14 +227,21 @@ func newPostgresDatastore(
 	// what its timeout was for.
 	poolContext := context.WithoutCancel(initializationContext)
 
-	readPool, err := pgxpool.NewWithConfig(poolContext, readPoolConfig)
+	readPool := config.borrowedPool
+	if readPool == nil {
+		readPool, err = pgxpool.NewWithConfig(poolContext, readPoolConfig)
+	}
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	var writePool *pgxpool.Pool
 	if isPrimary {
-		wp, err := pgxpool.NewWithConfig(poolContext, writePoolConfig)
+		wp := config.borrowedPool
+		var err error
+		if wp == nil {
+			wp, err = pgxpool.NewWithConfig(poolContext, writePoolConfig)
+		}
 		if err != nil {
 			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 		}
@@ -311,6 +322,7 @@ func newPostgresDatastore(
 	datastore := &pgDatastore{
 		MigrationValidator:           common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		dburl:                        pgURL,
+		borrowed:                     config.borrowedPool != nil,
 		readPool:                     pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:                    nil, /* disabled by default */
 		collectors:                   collectors,
@@ -346,6 +358,10 @@ func newPostgresDatastore(
 		datastore.writePool = pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor)
 	}
 
+	if config.borrowedPool != nil {
+		datastore.readPool = preparedPool{config.borrowedPool}
+		datastore.writePool = preparedPool{config.borrowedPool}
+	}
 	// Start a goroutine for garbage collection and the revision heartbeat.
 	if isPrimary {
 		datastore.workerGroup, datastore.workerCtx = errgroup.WithContext(datastore.workerCtx)
@@ -376,6 +392,7 @@ func newPostgresDatastore(
 type pgDatastore struct {
 	*common.MigrationValidator
 
+	borrowed                       bool
 	dburl                          string
 	readPool, writePool            pgxcommon.ConnPooler
 	collectors                     []prometheus.Collector
@@ -460,7 +477,11 @@ func (pgd *pgDatastore) ReadWriteTx(
 		var newXID xid8
 		var newSnapshot pgSnapshot
 		var timestamp time.Time
-		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgd.isolationLevel}, func(tx pgx.Tx) error {
+		txOptions := pgx.TxOptions{IsoLevel: pgd.isolationLevel}
+		if pgd.borrowed {
+			txOptions.AccessMode = pgx.ReadWrite
+		}
+		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, txOptions, func(tx pgx.Tx) error {
 			var err error
 			var metadata map[string]any
 			if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
@@ -472,22 +493,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				return err
 			}
 
-			queryFuncs := pgxcommon.QuerierFuncsFor(tx)
-			executor := common.QueryRelationshipsExecutor{
-				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs, pgd),
-			}
-
-			rwt := &pgReadWriteTXN{
-				&pgReader{
-					queryFuncs,
-					executor,
-					currentlyLivingObjects,
-					pgd.filterMaximumIDCount,
-					pgd.schema,
-				},
-				tx,
-				newXID,
-			}
+			rwt := pgd.newReadWriteTransaction(tx, newXID)
 
 			if config.SchemaHashPrecondition != "" {
 				if err := assertSchemaHash(ctx, tx, config.SchemaHashPrecondition, config.SchemaHashPreconditionExclusive); err != nil {
@@ -509,12 +515,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			log.Debug().Uint8("retries", i).Msg("transaction succeeded after retry")
 		}
 
-		nanosTimestamp, err := safecast.Convert[uint64](timestamp.UnixNano())
-		if err != nil {
-			return nil, spiceerrors.MustBugf("could not cast timestamp to uint64")
-		}
-
-		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID, optionalInexactNanosTimestamp: nanosTimestamp}, nil
+		return committedRevision(newXID, newSnapshot, timestamp)
 	}
 
 	if !config.DisableRetries {
@@ -684,6 +685,13 @@ func errorRetryable(err error) bool {
 }
 
 func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	if pgd.borrowed {
+		var version string
+		if err := pgd.readPool.QueryRow(ctx, "SELECT version_num FROM alembic_version").Scan(&version); err != nil {
+			return datastore.ReadyState{}, err
+		}
+		return pgd.MigrationReadyState(version), nil
+	}
 	pgDriver, err := migrations.NewAlembicPostgresDriver(ctx, pgd.dburl, pgd.credentialsProvider, pgd.includeQueryParametersInTraces)
 	if err != nil {
 		return datastore.ReadyState{}, err
@@ -743,6 +751,9 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 const defaultMaxHeartbeatLeaderJitterPercent = 10
 
 func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
+	if pgd.borrowed {
+		return pgd.startBorrowedRevisionHeartbeat(ctx)
+	}
 	heartbeatDuration := max(time.Second, time.Nanosecond*time.Duration(pgd.quantizationPeriodNanos))
 	log.Info().Stringer("interval", heartbeatDuration).Msg("starting revision heartbeat")
 	tick := time.NewTicker(heartbeatDuration)

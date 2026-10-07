@@ -6,6 +6,8 @@ package datalayer
 type SchemaHash string
 
 const (
+	// NoSchemaHashForExplicitRevision loads schema at the caller-selected snapshot.
+	NoSchemaHashForExplicitRevision SchemaHash = "no-schema-hash-for-explicit-revision"
 	// NoSchemaHashInTransaction is a sentinel value used when reading within a
 	// read-write transaction where the schema revision is not yet stable.
 	NoSchemaHashInTransaction SchemaHash = "no-schema-hash-in-transaction"
@@ -41,7 +43,7 @@ const (
 // should bypass any caching.
 func (sh SchemaHash) IsBypassSentinel() bool {
 	switch sh {
-	case NoSchemaHashInTransaction,
+	case NoSchemaHashForExplicitRevision, NoSchemaHashInTransaction,
 		NoSchemaHashInDevelopment,
 		NoSchemaHashForTesting,
 		NoSchemaHashForWatch,

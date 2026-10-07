@@ -78,6 +78,12 @@ func (apd *CRDBDriver) Close(ctx context.Context) error {
 	return apd.db.Close(ctx)
 }
 
+// MigrateToHead runs any pending CRDB migrations on an existing connection.
+// The caller retains ownership of db.
+func MigrateToHead(ctx context.Context, db *pgx.Conn) error {
+	return CRDBMigrations.Run(ctx, &CRDBDriver{db: db}, migrate.Head, migrate.LiveRun)
+}
+
 func (apd *CRDBDriver) WriteVersion(ctx context.Context, tx pgx.Tx, version, replaced string) error {
 	result, err := tx.Exec(ctx, queryWriteVersion, version, replaced)
 	if err != nil {

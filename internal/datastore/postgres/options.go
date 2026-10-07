@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
 type postgresOptions struct {
+	borrowedPool                *pgxpool.Pool
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
 
 	credentialsProviderName string

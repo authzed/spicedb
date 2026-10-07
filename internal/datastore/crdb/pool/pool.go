@@ -47,6 +47,8 @@ var (
 )
 
 type RetryPool struct {
+	borrowed      bool
+	prepare       func(*pgx.Conn)
 	pool          pgxPool
 	id            string
 	healthTracker *NodeHealthTracker
@@ -59,6 +61,11 @@ type RetryPool struct {
 	maxRetries  uint8
 	nodeForConn map[*pgx.Conn]uint32   // GUARDED_BY(RWMutex)
 	gc          map[*pgx.Conn]struct{} // GUARDED_BY(RWMutex)
+}
+
+// NewBorrowedRetryPool uses an existing pool without replacing hooks, balancing nodes, or closing it.
+func NewBorrowedRetryPool(p *pgxpool.Pool, maxRetries uint8, prepare func(*pgx.Conn)) *RetryPool {
+	return &RetryPool{pool: p, id: "borrowed", borrowed: true, maxRetries: maxRetries, prepare: prepare}
 }
 
 func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
@@ -222,7 +229,11 @@ func (p *RetryPool) BeginFunc(ctx context.Context, txFunc func(pgx.Tx) error) er
 // If unsuccessful, it returns ErrAcquire.
 func (p *RetryPool) TryBeginFunc(ctx context.Context, acquireTimeout time.Duration, txFunc func(pgx.Tx) error) error {
 	return p.withRetries(ctx, acquireTimeout, func(conn *pgxpool.Conn) error {
-		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+		opts := pgx.TxOptions{}
+		if p.borrowed {
+			opts = pgx.TxOptions{IsoLevel: pgx.Serializable, AccessMode: pgx.ReadWrite}
+		}
+		tx, err := conn.BeginTx(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -256,6 +267,9 @@ func (p *RetryPool) Config() *pgxpool.Config {
 
 // Close closes the underlying pgxpool.Pool
 func (p *RetryPool) Close() {
+	if p.borrowed {
+		return
+	}
 	p.pool.Close()
 }
 
@@ -286,6 +300,42 @@ func (p *RetryPool) Range(f func(conn *pgx.Conn, nodeID uint32)) {
 
 // withRetries acquires a connection and attempts the request multiple times
 func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duration, fn func(conn *pgxpool.Conn) error) error {
+	if p.borrowed {
+		attempts := int(p.maxRetries) + 1
+		if disabled, _ := ctx.Value(CtxDisableRetries).(bool); disabled {
+			attempts = 1
+		}
+		var err error
+		for i := 0; i < attempts; i++ {
+			acqCtx := ctx
+			cancel := func() {}
+			if acquireTimeout > 0 {
+				acqCtx, cancel = context.WithTimeout(ctx, acquireTimeout)
+			}
+			conn, acqErr := p.pool.Acquire(acqCtx)
+			cancel()
+			if acqErr != nil {
+				return acqErr
+			}
+			err = func() error {
+				defer conn.Release()
+				p.prepare(conn.Conn())
+				return fn(conn)
+			}()
+			if err == nil {
+				return nil
+			}
+			var pgErr *pgconn.PgError
+			if !errors.As(err, &pgErr) || pgErr.Code != "40001" {
+				return err
+			}
+			if i+1 < attempts {
+				common.SleepOnErr(ctx, err, uint8(i))
+			}
+		}
+		return err
+	}
+
 	acquireCtx := ctx
 	acquireCancel := func() {}
 
