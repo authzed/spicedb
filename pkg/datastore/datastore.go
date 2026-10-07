@@ -403,21 +403,19 @@ func (ss SubjectsSelector) Test(subject tuple.ObjectAndRelation) bool {
 		return false
 	}
 
-	if !ss.RelationFilter.IsEmpty() {
-		if ss.RelationFilter.IncludeEllipsisRelation && subject.Relation == tuple.Ellipsis {
-			return true
-		}
-
-		if ss.RelationFilter.NonEllipsisRelation != "" && ss.RelationFilter.NonEllipsisRelation != subject.Relation {
-			return false
-		}
-
-		if ss.RelationFilter.OnlyNonEllipsisRelations && subject.Relation == tuple.Ellipsis {
-			return false
-		}
+	if ss.RelationFilter.OnlyNonEllipsisRelations {
+		return subject.Relation != tuple.Ellipsis
 	}
 
-	return true
+	if ss.RelationFilter.IsEmpty() {
+		return true
+	}
+
+	if ss.RelationFilter.IncludeEllipsisRelation && subject.Relation == tuple.Ellipsis {
+		return true
+	}
+
+	return ss.RelationFilter.NonEllipsisRelation != "" && ss.RelationFilter.NonEllipsisRelation == subject.Relation
 }
 
 // SubjectRelationFilter is the filter to use for relation(s) of subjects being queried.

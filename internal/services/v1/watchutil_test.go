@@ -8,6 +8,8 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestConvertWatchKindToContent(t *testing.T) {
@@ -59,4 +61,25 @@ func TestConvertWatchKindToContent(t *testing.T) {
 			require.Equal(tt.exp, result)
 		})
 	}
+}
+
+func TestFilterRelationshipUpdatesSubjectWithNoRelation(t *testing.T) {
+	filter, err := datastore.RelationshipsFilterFromPublicFilter(&v1.RelationshipFilter{
+		ResourceType: "document",
+		OptionalSubjectFilter: &v1.SubjectFilter{
+			SubjectType:      "group",
+			OptionalRelation: &v1.SubjectFilter_RelationFilter{Relation: ""},
+		},
+	})
+	require.NoError(t, err)
+
+	noRelation := tuple.Create(tuple.MustParse("document:doc1#viewer@group:eng"))
+	withRelation := tuple.Create(tuple.MustParse("document:doc1#viewer@group:eng#member"))
+
+	filtered := filterRelationshipUpdates(
+		mapz.NewSet[string](),
+		[]datastore.RelationshipsFilter{filter},
+		[]tuple.RelationshipUpdate{noRelation, withRelation},
+	)
+	require.Equal(t, []tuple.RelationshipUpdate{noRelation}, filtered)
 }
