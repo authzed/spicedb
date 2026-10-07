@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -62,7 +61,7 @@ var testResolverBuilder = &SafeManualResolverBuilder{}
 
 func init() {
 	// register hashring balancer
-	balancer.Register(consistent.NewBuilder(xxhash.Sum64))
+	balancer.Register(server.ConsistentHashringBuilder)
 
 	// Register a manual resolver.Builder  that we can feed addresses for tests
 	// Registration is not thread safe, so we register a single resolver.Builder
@@ -148,6 +147,11 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 	}
 	testResolverBuilder.SetAddrs(prefix, addresses)
 
+	// Resolve the options first, so dispatcher settings reach the dispatcher below.
+	resolvedCfg := server.NewConfigWithOptionsAndDefaults(additionalServerOptions...)
+	routingMode, err := server.ParseObjectAffinityRoutingMode(resolvedCfg.ExperimentalObjectAffinityRouting)
+	require.NoError(t, err)
+
 	dialers := make([]dialerFunc, 0, size)
 	conns := make([]*grpc.ClientConn, 0, size)
 
@@ -165,6 +169,11 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 				PrometheusSubsystem: fmt.Sprintf("%s_%d_client_dispatch", prefix, i),
 			}),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
+			combineddispatch.ObjectAffinityRouting(routingMode == server.ObjectAffinityRoutingModeEnabled),
+			combineddispatch.HashringBuilder(server.ConsistentHashringBuilder),
+			combineddispatch.ObjectSpreadShare(resolvedCfg.DispatchObjectSpreadShare),
+			combineddispatch.ObjectSpread(resolvedCfg.DispatchObjectSpread),
+			combineddispatch.ObjectSpreadLatencyFactor(resolvedCfg.DispatchObjectSpreadLatencyFactor),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
 				grpc.WithDefaultServiceConfig(
