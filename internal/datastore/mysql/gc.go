@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -42,14 +43,6 @@ func (mds *mysqlDatastore) ResetGCCompleted() {
 
 func (mcc *mysqlGarbageCollector) Close() {
 	mcc.isClosed = true
-}
-
-func (mcc *mysqlGarbageCollector) LockForGCRun(ctx context.Context) (bool, error) {
-	return mcc.mds.tryAcquireLock(ctx, gcRunLock)
-}
-
-func (mcc *mysqlGarbageCollector) UnlockAfterGCRun() error {
-	return mcc.mds.releaseLock(context.Background(), gcRunLock)
 }
 
 func (mcc *mysqlGarbageCollector) Now(ctx context.Context) (time.Time, error) {
@@ -105,7 +98,29 @@ func (mcc *mysqlGarbageCollector) TxIDBefore(ctx context.Context, before time.Ti
 	return revisions.NewForTransactionID(uintValue), nil
 }
 
-// - implementation misses metrics
+// acquireGCRunLock acquires the cluster-wide GC run lock and returns a
+// release function to be deferred. Returns ErrGCPreempted when another node
+// holds the lock.
+func (mcc *mysqlGarbageCollector) acquireGCRunLock(ctx context.Context) (func(), error) {
+	lock, err := mcc.mds.tryAcquireLock(ctx, gcRunLock)
+	if err != nil {
+		return nil, fmt.Errorf("error acquiring gc lock: %w", err)
+	}
+	if lock == nil {
+		return nil, datastore.ErrGCPreempted
+	}
+	return func() {
+		// NOTE: context.Background() because the release must happen even if
+		// the GC run's context has been canceled or timed out.
+		if releaseErr := lock.Release(context.Background()); releaseErr != nil {
+			log.Warn().Err(releaseErr).Msg("error releasing gc lock")
+		}
+	}, nil
+}
+
+// NOTE: MySQL uses GET_LOCK/RELEASE_LOCK (session-level) rather than per-batch
+// transaction-level locks like PostgreSQL, because MySQL lacks xact-level advisory
+// locks. The lock is held for the entire method, so preemption is coarser-grained.
 func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	ctx context.Context,
 	txID datastore.Revision,
@@ -113,6 +128,12 @@ func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 	if mcc.isClosed {
 		return removed, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
 	}
+
+	release, err := mcc.acquireGCRunLock(ctx)
+	if err != nil {
+		return removed, err
+	}
+	defer release()
 
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	removed.Relationships, err = mcc.batchDelete(ctx, mcc.mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
@@ -135,9 +156,19 @@ func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 }
 
 func (mcc *mysqlGarbageCollector) DeleteExpiredRels(ctx context.Context) (int64, error) {
+	if mcc.isClosed {
+		return 0, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
+	}
+
 	if mcc.mds.schema.ExpirationDisabled {
 		return 0, nil
 	}
+
+	release, err := mcc.acquireGCRunLock(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer release()
 
 	now, err := mcc.Now(ctx)
 	if err != nil {
