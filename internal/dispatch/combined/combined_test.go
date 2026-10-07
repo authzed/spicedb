@@ -162,7 +162,7 @@ func TestNewDispatcher_WithUpstream(t *testing.T) {
 }
 
 // TestNewDispatcher_UpstreamCAPathMissing exercises the TLS branch by pointing
-// UpstreamCAPath at a non-existent file; grpcutil.WithCustomCerts will error.
+// UpstreamCAPath at a non-existent file, which fails when the CA is read.
 func TestNewDispatcher_UpstreamCAPathMissing(t *testing.T) {
 	_, err := NewDispatcher(
 		UpstreamAddr("localhost:0"),
