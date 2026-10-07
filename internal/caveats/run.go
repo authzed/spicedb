@@ -88,6 +88,7 @@ func (cr *CaveatRunner) RunCaveatExpression(
 	reader CaveatDefinitionLookup,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
+	observeEvaluation(ctx, "expression", "")
 	ctx, span := tracer.Start(ctx, "RunCaveatExpression")
 	defer span.End()
 
@@ -240,6 +241,7 @@ func (cr *CaveatRunner) runExpressionWithCaveats(
 			return nil, NewParameterTypeError(expr, err)
 		}
 
+		observeEvaluation(ctx, "leaf", expr.GetCaveat().CaveatName)
 		result, err := caveats.EvaluateCaveat(compiled, typedParameters)
 		if err != nil {
 			var evalErr caveats.EvaluationError
