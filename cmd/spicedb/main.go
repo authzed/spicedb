@@ -12,6 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/cmd/spicedb/memoryprotection"
 	log "github.com/authzed/spicedb/internal/logging"
+	ecsresolver "github.com/authzed/spicedb/internal/resolver/ecs"
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	_ "github.com/authzed/spicedb/pkg/runtime"
@@ -26,8 +27,9 @@ func main() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	log.SetGlobalLogger(zerolog.New(os.Stderr).Level(zerolog.InfoLevel))
 
-	// Enable Kubernetes gRPC resolver
+	// Enable Kubernetes and Amazon ECS gRPC resolvers
 	kuberesolver.RegisterInCluster()
+	ecsresolver.Register()
 
 	// Enable consistent hashring gRPC load balancer
 	balancer.Register(cmdutil.ConsistentHashringBuilder)
