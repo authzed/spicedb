@@ -161,6 +161,9 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 		}
 	}
 
+	// Snapshot the healthy node count exactly once.
+	// Other goroutines mark nodes unhealthy concurrently, so re-reading it
+	// below could observe zero and divide by zero.
 	// It's highly unlikely that we'll ever have an overflow in
 	// this context, so we cast directly.
 	nodeCount, err := safecast.Convert[uint32](p.healthTracker.HealthyNodeCount())
@@ -218,8 +221,7 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 		// If we underestimate, the balancer will fight the pool, and if we overestimate,
 		// it's possible for the difference in connections between nodes to differ by up to
 		// the number of nodes.
-		if p.healthTracker.HealthyNodeCount() == 0 ||
-			i < int(p.pool.MaxConns())%p.healthTracker.HealthyNodeCount() {
+		if genutil.MustEnsureUInt32(i) < p.pool.MaxConns()%nodeCount {
 			perNodeMax++
 		}
 
