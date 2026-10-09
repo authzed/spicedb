@@ -89,6 +89,12 @@ type Config struct {
 	SchemaWatchHeartbeat                   time.Duration `debugmap:"visible" default:"1s"`
 	NamespaceCacheConfig                   CacheConfig   `debugmap:"visible"`
 
+	// Full relation cache
+	ExperimentalFullRelationCache         string      `debugmap:"visible" default:"disabled"`
+	FullRelationCacheConfig               CacheConfig `debugmap:"visible"`
+	FullRelationCacheMaterializeThreshold uint64      `debugmap:"visible" default:"3"`
+	FullRelationCacheMaximumSetSize       uint64      `debugmap:"visible" default:"1024"`
+
 	// Stored schema hash cache
 	StoredSchemaCacheConfig CacheConfig `debugmap:"visible"`
 
@@ -200,10 +206,26 @@ func (c *Config) SetDefaults() {
 	c.ClusterDispatchCacheConfig = CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "70%"}
 	c.LR3ResourceChunkCacheConfig = CacheConfig{Name: "lr3_chunk", Enabled: true, MaxCost: "50MiB"}
 	c.StoredSchemaCacheConfig = CacheConfig{Name: "stored_schema", Enabled: true, Metrics: true, MaxCost: "32MiB"}
+	c.FullRelationCacheConfig = CacheConfig{Name: "full_relation", Enabled: true, Metrics: true, MaxCost: "30%"}
 
 	if c.HTTPGatewayCorsAllowedOrigins == nil {
 		c.HTTPGatewayCorsAllowedOrigins = []string{"*"}
 	}
+}
+
+// builtCachePercentTotal adds the percentage budgets of the caches that this config builds.
+func (c *Config) builtCachePercentTotal() uint64 {
+	configs := []*CacheConfig{&c.NamespaceCacheConfig, &c.StoredSchemaCacheConfig, &c.LR3ResourceChunkCacheConfig}
+	if c.Dispatcher == nil {
+		configs = append(configs, &c.DispatchCacheConfig)
+	}
+	if c.DispatchServer.Enabled {
+		configs = append(configs, &c.ClusterDispatchCacheConfig)
+	}
+	if c.ExperimentalFullRelationCache == string(FullRelationCacheEnabled) {
+		configs = append(configs, &c.FullRelationCacheConfig)
+	}
+	return enabledCachePercentTotal(configs...)
 }
 
 // Complete validates the config and fills out defaults.
@@ -226,6 +248,14 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	err = c.handleGrpcAuthn(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	fullRelationCacheMode := FullRelationCacheDisabled
+	if c.ExperimentalFullRelationCache != "" {
+		fullRelationCacheMode, err = ParseFullRelationCacheMode(c.ExperimentalFullRelationCache)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](c.OTel.PrometheusRegistry,
@@ -296,6 +326,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	// remains. Skip it when reads come from new schema storage.
 	if !schemaMode.ReadsFromNew() {
 		ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode, c.SchemaWatchHeartbeat)
+	}
+
+	// The full relation cache is the outermost read proxy.
+	// It serves hot reads before the schema cache, singleflight and observable proxies, and materializes through them.
+	ds, err = c.withFullRelationCache(ctx, ds, fullRelationCacheMode, &closeables)
+	if err != nil {
+		return nil, err
 	}
 	closeables.AddWithError(ds.Close)
 

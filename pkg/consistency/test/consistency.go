@@ -71,7 +71,7 @@ func AllConsistency(t *testing.T, tester dstest.DatastoreTester, opts ...SuiteOp
 // validation files in the testconfigs directory and executing the full set of APIs
 // against the data within, ensuring that all results of the various APIs are consistent
 // with one another. It runs the suite against the local and caching dispatchers and
-// multiple dispatch chunk sizes.
+// multiple dispatch chunk sizes, and also with the full relation cache.
 //
 // The datastore under test is obtained in one of two ways:
 //   - If tester is non-nil, it is used to create a fresh datastore for each test file.
@@ -154,14 +154,30 @@ func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.Datastore
 
 			accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, dsCtx, populated, ds)
 
-			for _, chunkSize := range []uint16{5, 10} {
-				t.Run(fmt.Sprintf("chunk-size-%d", chunkSize), func(t *testing.T) {
+			// The full relation cache runs at one chunk size to limit the runtime of the suite.
+			for _, tc := range []struct {
+				chunkSize         uint16
+				fullRelationCache bool
+			}{
+				{5, false},
+				{10, false},
+				{10, true},
+			} {
+				chunkSize, fullRelationCache := tc.chunkSize, tc.fullRelationCache
+				t.Run(fmt.Sprintf("chunk-size-%d-fullrelationcache-%v", chunkSize, fullRelationCache), func(t *testing.T) {
 					t.Parallel()
 
 					options := []server.ConfigOption{
 						server.WithDispatchChunkSize(chunkSize),
 						server.WithEnableExperimentalLookupResources(true),
 						server.WithExperimentalLookupResourcesVersion("lr3"),
+					}
+					if fullRelationCache {
+						options = append(options,
+							server.WithExperimentalFullRelationCache(string(server.FullRelationCacheEnabled)),
+							// Threshold 1 makes the test serve from materialized sets.
+							server.WithFullRelationCacheMaterializeThreshold(1),
+						)
 					}
 
 					connections := testserver.TestClusterWithDispatch(t, 1, ds, options...)
