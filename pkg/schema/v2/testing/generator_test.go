@@ -60,3 +60,32 @@ func TestGenerateRelationshipsConformsToRegex(t *testing.T) {
 		}
 	})
 }
+
+func TestGenerateRelationshipsPopulatesBackingRelations(t *testing.T) {
+	built := schema.NewSchemaBuilder().
+		AddDefinition("user").Done().
+		AddDefinition("group").AddRelation("member").AllowedDirectRelation("user").Done().Done().
+		AddDefinition("document").AddRelation("viewer").AllowedRelation("group", "member").Done().Done().Build()
+	resolved, err := schema.ResolveSchema(built)
+	require.NoError(t, err)
+	rapid.Check(t, func(t *rapid.T) {
+		generator := RelationshipGenerator{schema: resolved}
+		types := map[string]bool{}
+		ids := map[string]bool{}
+		count := 0
+		for rel := range generator.GenerateRelationships(t) {
+			types[rel.Resource.ObjectType] = true
+			ids[rel.Resource.ObjectID] = true
+			ids[rel.Subject.ObjectID] = true
+			count++
+			if count == 2 {
+				require.True(t, types["document"])
+				require.True(t, types["group"], "the stream must populate userset backing relations")
+			}
+			if count == 100 {
+				break
+			}
+		}
+		require.LessOrEqual(t, len(ids), 4, "a small shared ID pool should connect the graph")
+	})
+}
