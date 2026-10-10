@@ -113,83 +113,71 @@ func (b *scenarioBuilder) compile(shape *Shape, definition string) string {
 	if ref, ok := b.refs[key]; ok {
 		return ref
 	}
-	def := b.builder.AddDefinition(definition)
+	b.builder.AddDefinition(definition)
 	var op schema.Operation
 	switch shape.kind {
 	case directShape:
-		relation := b.name("rel")
-		def.AddRelation(relation).AllowedDirectRelation("user")
-		parity := b.nextDirect % 2
-		b.nextDirect++
-		for i := range b.objects {
-			for j, subject := range b.subjects {
-				present := false
-				switch j {
-				case 0:
-					present = true
-				case 1, 2:
-					present = (i+parity)%2 == j-1
-				case 3:
-					// Keep a concrete negative check candidate in the initial graph.
-				default:
-					present = rapid.Bool().Draw(b.t, definition+"/"+relation+"/member")
-				}
-				b.relationship(object(definition, i, relation), subject, present)
-			}
-		}
+		relation := b.compileDirect(definition)
 		b.refs[key] = relation
 		return relation
 	case emptyShape:
-		op = &schema.NilReference{}
-	case usersetShape, arrowShape, allArrowShape:
-		child := shape.children[0]
-		target, ok := b.nested[child]
-		if !ok {
-			target = b.name("type")
-			b.nested[child] = target
-		}
-		ref := b.compile(child, target)
-		relation := b.name("rel")
-		subjectRelation := tuple.Ellipsis
-		if shape.kind == usersetShape {
-			def.AddRelation(relation).AllowedRelation(target, ref)
-			subjectRelation = ref
-			op = schema.NewRelationRef(relation)
-		} else {
-			def.AddRelation(relation).AllowedDirectRelation(target)
-			op = schema.NewArrow(relation, ref)
-			if shape.kind == allArrowShape {
-				op = schema.IntersectionArrowRef(relation, ref)
-			}
-		}
-		for i := range b.objects {
-			for j := range b.objects {
-				// Include a common target and the matching object; additional
-				// edges vary fan-out while retaining connected paths as we shrink.
-				present := j == 0 || i == j || rapid.Bool().Draw(b.t, definition+"/"+relation+"/link")
-				b.relationship(object(definition, i, relation), object(target, j, subjectRelation), present)
-			}
-		}
-	case aliasShape, unionShape, intersectionShape, exclusionShape:
-		children := make([]schema.Operation, 0, len(shape.children))
-		for _, child := range shape.children {
-			children = append(children, schema.NewRelationRef(b.compile(child, definition)))
-		}
-		switch shape.kind {
-		case aliasShape:
-			op = children[0]
-		case unionShape:
-			op = schema.Union(children...)
-		case intersectionShape:
-			op = schema.Intersection(children...)
-		case exclusionShape:
-			op = schema.Exclusion(children[0], children[1])
-		}
+		op = compileEmpty()
+	case usersetShape:
+		op = b.compileUserset(shape, definition)
+	case arrowShape:
+		op = b.compileArrow(shape, definition)
+	case allArrowShape:
+		op = b.compileAllArrow(shape, definition)
+	case aliasShape:
+		op = b.compileAlias(shape, definition)
+	case unionShape:
+		op = b.compileUnion(shape, definition)
+	case intersectionShape:
+		op = b.compileIntersection(shape, definition)
+	case exclusionShape:
+		op = b.compileExclusion(shape, definition)
 	default:
 		panic("unsupported shape")
 	}
 	permission := b.name("perm")
-	def.AddPermission(permission).Operation(op)
+	b.builder.AddDefinition(definition).AddPermission(permission).Operation(op)
 	b.refs[key] = permission
 	return permission
+}
+
+// compileChildren creates a fresh operation for each reference to preserve parent pointers.
+func (b *scenarioBuilder) compileChildren(shape *Shape, definition string) []schema.Operation {
+	children := make([]schema.Operation, 0, len(shape.children))
+	for _, child := range shape.children {
+		children = append(children, schema.NewRelationRef(b.compile(child, definition)))
+	}
+	return children
+}
+
+// compileLinked generates the shared backing graph for usersets and arrows.
+func (b *scenarioBuilder) compileLinked(child *Shape, definition string, userset bool) (string, string) {
+	def := b.builder.AddDefinition(definition)
+	target, ok := b.nested[child]
+	if !ok {
+		target = b.name("type")
+		b.nested[child] = target
+	}
+	ref := b.compile(child, target)
+	relation := b.name("rel")
+	subjectRelation := tuple.Ellipsis
+	if userset {
+		def.AddRelation(relation).AllowedRelation(target, ref)
+		subjectRelation = ref
+	} else {
+		def.AddRelation(relation).AllowedDirectRelation(target)
+	}
+	for i := range b.objects {
+		for j := range b.objects {
+			// Include a common target and the matching object; additional
+			// edges vary fan-out while retaining connected paths as we shrink.
+			present := j == 0 || i == j || rapid.Bool().Draw(b.t, definition+"/"+relation+"/link")
+			b.relationship(object(definition, i, relation), object(target, j, subjectRelation), present)
+		}
+	}
+	return relation, ref
 }

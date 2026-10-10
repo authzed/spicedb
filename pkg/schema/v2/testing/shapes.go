@@ -33,36 +33,6 @@ const (
 	exclusionShape
 )
 
-// Direct generates a relation with direct user membership. Each call creates an
-// independent relation; reuse the returned value to share a relation.
-func Direct() *Shape { return &Shape{kind: directShape} }
-
-// Empty generates a permission whose expression is nil.
-func Empty() *Shape { return &Shape{kind: emptyShape} }
-
-// Alias adds a permission that references the child's relation or permission.
-func Alias(child *Shape) *Shape { return mustNewShape(aliasShape, child) }
-
-// Userset generates a relation to objects with the child's relation/permission
-// as their subject relation, including the backing memberships on those objects.
-func Userset(child *Shape) *Shape { return mustNewShape(usersetShape, child) }
-
-// Arrow generates a relation to intermediate objects and follows an ordinary
-// (any) arrow to the child on those objects.
-func Arrow(child *Shape) *Shape { return mustNewShape(arrowShape, child) }
-
-// AllArrow is like Arrow but requires membership through every linked object.
-func AllArrow(child *Shape) *Shape { return mustNewShape(allArrowShape, child) }
-
-// Union combines one or more shapes on the same resource objects.
-func Union(children ...*Shape) *Shape { return mustNewShape(unionShape, children...) }
-
-// Intersection combines one or more shapes on the same resource objects.
-func Intersection(children ...*Shape) *Shape { return mustNewShape(intersectionShape, children...) }
-
-// Exclusion subtracts excluded from base on the same resource objects.
-func Exclusion(base, excluded *Shape) *Shape { return mustNewShape(exclusionShape, base, excluded) }
-
 func mustNewShape(kind shapeKind, children ...*Shape) *Shape {
 	if len(children) == 0 {
 		panic("a composed shape requires at least one child")

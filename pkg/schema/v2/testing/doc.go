@@ -21,6 +21,11 @@
 // during shrinking. Shapes may be reused to produce shared paths, for example
 // Union(Arrow(member), Arrow(member)).
 //
+// Each shape is defined in its own shape_*.go file alongside a Go composition,
+// generated schema, and representative initial relationships. Names in those
+// examples apply to standalone compositions; nesting allocates names in traversal
+// order. Object counts and extra memberships vary with Rapid draws.
+//
 // These shapes are based on the consistency suite's groupsintersection,
 // directandindirect, multipleexclusion, aliasing, and intersectionarrow fixtures.
 // CheckWithSchema retains the original arbitrary-name/expression generator;
