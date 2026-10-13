@@ -26,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Shutdown: on SIGINT or SIGTERM, SpiceDB now reports `NOT_SERVING` on its gRPC health service and keeps its listeners open for `--grpc-shutdown-drain-delay` before draining. This gives load balancers and Kubernetes readiness probes time to stop routing to the instance, so new requests do not fail with `Unavailable` (connection refused) in the window between the signal and the endpoint update. (https://github.com/authzed/spicedb/pull/3295, https://github.com/authzed/spicedb/pull/3314)
 - Dispatch: `--dispatch-upstream-timeout` was ignored; dispatches to other nodes always used a hardcoded 60s timeout. Lowering it now works, so an unresponsive node no longer holds up checks for a full minute. No change on the 60s default. (https://github.com/authzed/spicedb/pull/3304)
 
+### Security
+- Build with Go 1.26.9 and `golang.org/x/net` v0.60.0, which fix GO-2026-6612, GO-2026-6613 and GO-2026-6617 in the HTTP/2 and `net/http` code that the gRPC and HTTP servers use. The container images also update `grpc_health_probe` to v0.4.59, which is built with the same fixes. (https://github.com/authzed/spicedb/pull/3407)
+
 ## [1.56.2] - 2026-09-11
 ### Changed
 - Increase the timeout for datastore readiness checks to account for the possibility of far away databases (https://github.com/authzed/spicedb/pull/3305)
