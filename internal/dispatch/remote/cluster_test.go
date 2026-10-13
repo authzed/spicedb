@@ -209,7 +209,7 @@ func TestDispatchTimeout(t *testing.T) {
 			})
 			if tc.sleepTime > tc.timeout {
 				require.Error(t, err)
-				require.True(t, strings.Contains(err.Error(), "context deadline exceeded") || strings.Contains(err.Error(), "CANCEL"))
+				require.True(t, strings.Contains(err.Error(), "context deadline exceeded") || strings.Contains(err.Error(), "CANCEL") || grpcstatus.Code(err) == codes.Unavailable)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
@@ -229,7 +229,7 @@ func TestDispatchTimeout(t *testing.T) {
 			}, stream)
 			if tc.sleepTime > tc.timeout {
 				require.Error(t, err)
-				require.True(t, strings.Contains(err.Error(), "context deadline exceeded") || strings.Contains(err.Error(), "CANCEL"))
+				require.True(t, strings.Contains(err.Error(), "context deadline exceeded") || strings.Contains(err.Error(), "CANCEL") || grpcstatus.Code(err) == codes.Unavailable)
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, stream.Results())
@@ -1308,4 +1308,91 @@ func TestReadyStateConnecting(t *testing.T) {
 	t.Cleanup(func() { dispatcher.Close() })
 	require.NoError(t, err)
 	require.True(t, dispatcher.ReadyState().IsReady, "expected dispatcher to be ready but was not")
+}
+
+func TestReshapeDispatchError(t *testing.T) {
+	canceledInbound, cancelInbound := context.WithCancel(context.Background())
+	cancelInbound()
+
+	for _, tc := range []struct {
+		name         string
+		inboundCtx   context.Context
+		err          error
+		expectedCode codes.Code
+		expectNil    bool
+	}{
+		{"nil error", context.Background(), nil, codes.OK, true},
+		{"non-canceled error passes through", context.Background(), grpcstatus.Error(codes.NotFound, "nope"), codes.NotFound, false},
+		{"canceled with live inbound context becomes unavailable", context.Background(), grpcstatus.Error(codes.Canceled, "hedge lost"), codes.Unavailable, false},
+		{"canceled with canceled inbound context stays canceled", canceledInbound, grpcstatus.Error(codes.Canceled, "client went away"), codes.Canceled, false},
+		{"plain context.Canceled with live inbound context becomes unavailable", context.Background(), context.Canceled, codes.Unavailable, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reshaped := reshapeDispatchError(tc.inboundCtx, tc.err)
+			if tc.expectNil {
+				require.NoError(t, reshaped)
+				return
+			}
+			require.Equal(t, tc.expectedCode, grpcstatus.Code(reshaped))
+		})
+	}
+}
+
+func TestCheckDispatchCancelledReshapedToUnavailable(t *testing.T) {
+	conn := connectionForDispatching(t, &fakeDispatchSvc{errorOnCheck: grpcstatus.Error(codes.Canceled, "simulated internal cancel")})
+
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, nil, nil, 0*time.Second)
+	require.NoError(t, err)
+	require.True(t, dispatcher.ReadyState().IsReady)
+
+	// The remote boundary returns CANCELED even though the caller's context is still live:
+	// the caller should see UNAVAILABLE, not CANCELED.
+	_, err = dispatcher.DispatchCheck(t.Context(), &v1.DispatchCheckRequest{
+		ResourceRelation: &corev1.RelationReference{Namespace: "sometype", Relation: "somerel"},
+		ResourceIds:      []string{"foo"},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+		Subject: &corev1.ObjectAndRelation{Namespace: "foo", ObjectId: "bar", Relation: "..."},
+	})
+	require.Error(t, err)
+	require.Equal(t, codes.Unavailable, grpcstatus.Code(err))
+}
+
+func TestStreamingDispatchCancelledReshapedToUnavailable(t *testing.T) {
+	primaryConn := connectionForDispatching(t, &fakeDispatchSvc{errorOnLS: grpcstatus.Error(codes.Canceled, "simulated internal cancel")})
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{errorOnLS: grpcstatus.Error(codes.Canceled, "simulated internal cancel")})
+
+	parsed, err := ParseDispatchExpression("lookupsubjects", "['secondary']")
+	require.NoError(t, err)
+
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(primaryConn), primaryConn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, map[string]SecondaryDispatch{
+		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
+	}, map[string]*DispatchExpr{
+		"lookupsubjects": parsed,
+	}, 0*time.Second)
+	require.NoError(t, err)
+	require.True(t, dispatcher.ReadyState().IsReady)
+
+	// Both dispatchers return CANCELED while the caller's context is live: the caller should
+	// see UNAVAILABLE, not CANCELED.
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](t.Context())
+	err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+		ResourceRelation: &corev1.RelationReference{Namespace: "somenamespace", Relation: "somerelation"},
+		SubjectRelation:  &corev1.RelationReference{Namespace: "somenamespace", Relation: "somerelation"},
+		ResourceIds:      []string{"foo"},
+		Metadata: &v1.ResolverMeta{
+			DepthRemaining: 50,
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+	}, stream)
+	require.Error(t, err)
+	require.Equal(t, codes.Unavailable, grpcstatus.Code(err))
 }
