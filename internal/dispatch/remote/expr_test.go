@@ -162,6 +162,55 @@ func TestRunCheckDispatchExpr(t *testing.T) {
 	}
 }
 
+func TestRunDispatchExprRevisionSource(t *testing.T) {
+	const expr = "request.metadata.revision_source != 2 ? ['secondary'] : []"
+
+	metaFor := func(source dispatchv1.RevisionSource) *dispatchv1.ResolverMeta {
+		return &dispatchv1.ResolverMeta{DepthRemaining: 50, RevisionSource: source}
+	}
+
+	tcs := []struct {
+		source         dispatchv1.RevisionSource
+		expectedResult []string
+	}{
+		{dispatchv1.RevisionSource_REVISION_SOURCE_HEAD, []string{}},
+		{dispatchv1.RevisionSource_REVISION_SOURCE_OPTIMIZED, []string{"secondary"}},
+		{dispatchv1.RevisionSource_REVISION_SOURCE_REQUESTED, []string{"secondary"}},
+		{dispatchv1.RevisionSource_REVISION_SOURCE_UNSPECIFIED, []string{"secondary"}},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.source.String(), func(t *testing.T) {
+			t.Run("check", func(t *testing.T) {
+				parsed, err := ParseDispatchExpression("check", expr)
+				require.NoError(t, err)
+
+				resp, err := RunDispatchExpr(parsed, &dispatchv1.DispatchCheckRequest{Metadata: metaFor(tc.source)})
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedResult, resp)
+			})
+
+			t.Run("lookupresources3", func(t *testing.T) {
+				parsed, err := ParseDispatchExpression("lookupresources", expr)
+				require.NoError(t, err)
+
+				resp, err := RunDispatchExpr(parsed, &dispatchv1.DispatchLookupResources3Request{Metadata: metaFor(tc.source)})
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedResult, resp)
+			})
+
+			t.Run("lookupsubjects", func(t *testing.T) {
+				parsed, err := ParseDispatchExpression("lookupsubjects", expr)
+				require.NoError(t, err)
+
+				resp, err := RunDispatchExpr(parsed, &dispatchv1.DispatchLookupSubjectsRequest{Metadata: metaFor(tc.source)})
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedResult, resp)
+			})
+		})
+	}
+}
+
 func BenchmarkRunDispatchExpression(b *testing.B) {
 	req := &dispatchv1.DispatchCheckRequest{
 		ResourceRelation: &corev1.RelationReference{

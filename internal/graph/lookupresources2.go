@@ -598,14 +598,15 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 						}
 
 						resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, crr.dc, crr.caveatTypeSet, computed.CheckParameters{
-							ResourceType:  tuple.FromCoreRelationReference(parentRequest.ResourceRelation),
-							Subject:       tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
-							CaveatContext: parentRequest.Context.AsMap(),
-							AtRevision:    parentRequest.Revision,
-							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,
-							DebugOption:   computed.NoDebugging,
-							CheckHints:    checkHints,
-							SchemaHash:    datalayer.SchemaHash(parentRequest.Metadata.GetSchemaHash()),
+							ResourceType:   tuple.FromCoreRelationReference(parentRequest.ResourceRelation),
+							Subject:        tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
+							CaveatContext:  parentRequest.Context.AsMap(),
+							AtRevision:     parentRequest.Revision,
+							MaximumDepth:   parentRequest.Metadata.DepthRemaining - 1,
+							DebugOption:    computed.NoDebugging,
+							CheckHints:     checkHints,
+							SchemaHash:     datalayer.SchemaHash(parentRequest.Metadata.GetSchemaHash()),
+							RevisionSource: parentRequest.Metadata.GetRevisionSource(),
 						}, resourceIDs, crr.dispatchChunkSize)
 						if err != nil {
 							return err
@@ -692,11 +693,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					SubjectRelation:  newSubjectType,
 					SubjectIds:       filteredSubjectIDs,
 					TerminalSubject:  parentRequest.TerminalSubject,
-					Metadata: &v1.ResolverMeta{
-						AtRevision:     parentRequest.Revision.String(),
-						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-						SchemaHash:     parentRequest.Metadata.SchemaHash,
-					},
+					Metadata:         childMetaWithoutBloom(parentRequest.Metadata, parentRequest.Revision.String()),
 					OptionalCursor:   ci.currentCursor,
 					OptionalLimit:    parentRequest.OptionalLimit,
 					Context:          parentRequest.Context,

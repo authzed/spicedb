@@ -41,14 +41,15 @@ const (
 
 // CheckParameters are the parameters for the ComputeCheck call. *All* are required.
 type CheckParameters struct {
-	ResourceType  tuple.RelationReference
-	Subject       tuple.ObjectAndRelation
-	CaveatContext map[string]any
-	AtRevision    datastore.Revision
-	MaximumDepth  uint32
-	DebugOption   DebugOption
-	CheckHints    []*v1.CheckHint
-	SchemaHash    datalayer.SchemaHash
+	ResourceType   tuple.RelationReference
+	Subject        tuple.ObjectAndRelation
+	CaveatContext  map[string]any
+	AtRevision     datastore.Revision
+	MaximumDepth   uint32
+	DebugOption    DebugOption
+	CheckHints     []*v1.CheckHint
+	SchemaHash     datalayer.SchemaHash
+	RevisionSource v1.RevisionSource
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any
@@ -130,6 +131,7 @@ func computeCheck(ctx context.Context,
 				DepthRemaining: params.MaximumDepth,
 				TraversalBloom: bf,
 				SchemaHash:     []byte(params.SchemaHash),
+				RevisionSource: params.RevisionSource,
 			},
 			Debug:      debugging,
 			CheckHints: params.CheckHints,
