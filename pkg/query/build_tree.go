@@ -16,19 +16,24 @@ type recursiveSentinelInfo struct {
 }
 
 type outlineBuilder struct {
-	schema             *schema.Schema
-	building           map[string]bool              // Track what's currently being built (call stack)
-	collectedCaveats   []*core.ContextualizedCaveat // Collect caveats to combine with AND logic
-	recursiveSentinels []*recursiveSentinelInfo     // Track recursion points for wrapping in RecursiveIterator
+	preserveExecutionOrder bool
+	deferCaveats           bool
+	schema                 *schema.Schema
+	building               map[string]bool              // Track what's currently being built (call stack)
+	collectedCaveats       []*core.ContextualizedCaveat // Collect caveats to combine with AND logic
+	recursiveSentinels     []*recursiveSentinelInfo     // Track recursion points for wrapping in RecursiveIterator
 }
 
 // BuildOutlineFromSchema builds a canonical Outline tree from the schema.
-func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (CanonicalOutline, error) {
+func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, relationName string, opts ...BuildOption) (CanonicalOutline, error) {
 	builder := &outlineBuilder{
 		schema:             fullSchema,
 		building:           make(map[string]bool),
 		collectedCaveats:   make([]*core.ContextualizedCaveat, 0),
 		recursiveSentinels: make([]*recursiveSentinelInfo, 0),
+	}
+	for _, opt := range opts {
+		opt(builder)
 	}
 	outline, err := builder.buildOutlineFromSchemaInternal(definitionName, relationName, true)
 	if err != nil {
@@ -38,6 +43,9 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 	// Apply collected caveats at top level as individual caveat iterators
 	result := outline
 	for _, caveat := range builder.collectedCaveats {
+		if builder.deferCaveats {
+			break
+		}
 		result = Outline{
 			Type:        CaveatIteratorType,
 			Args:        &IteratorArgs{Caveat: caveat},
@@ -52,6 +60,9 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 		return CanonicalOutline{}, spiceerrors.MustBugf("unwrapped sentinels remaining: %d", len(builder.recursiveSentinels))
 	}
 
+	if builder.preserveExecutionOrder {
+		return canonicalizeForExecutionOrder(result)
+	}
 	return CanonicalizeOutline(result)
 }
 
@@ -159,7 +170,7 @@ func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRel
 		}, nil
 	}
 	subIts := make([]Outline, 0, len(r.BaseRelations()))
-	for _, br := range r.BaseRelations() {
+	for _, br := range b.orderedBaseRelations(r) {
 		it, err := b.buildBaseDatastoreOutline(br, withSubRelations)
 		if err != nil {
 			return Outline{}, err
@@ -344,7 +355,7 @@ func (b *outlineBuilder) buildArrowOutline(rel *schema.Relation, rightSide strin
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
-	for _, br := range rel.BaseRelations() {
+	for _, br := range b.orderedBaseRelations(rel) {
 		left, err := b.buildBaseDatastoreOutline(br, false)
 		if err != nil {
 			return Outline{}, err
@@ -388,7 +399,7 @@ func (b *outlineBuilder) buildIntersectionArrowOutline(rel *schema.Relation, rig
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
-	for _, br := range rel.BaseRelations() {
+	for _, br := range b.orderedBaseRelations(rel) {
 		left, err := b.buildBaseDatastoreOutline(br, false)
 		if err != nil {
 			return Outline{}, err
