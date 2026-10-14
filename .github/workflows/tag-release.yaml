@@ -6,6 +6,9 @@ on:
     paths:
       - 'SYNC.md'
 
+permissions:
+  contents: read
+
 jobs:
   tag-release:
     name: Create release tag

@@ -1,5 +1,23 @@
 # Security Policy
 
+## Red Hat Fork Reporting Policy
+
+The project-kessel fork supports its current default branch and latest stable release. Older releases are not supported; upgrade to a supported version before requesting a fix.
+
+| Version | Supported |
+| --- | --- |
+| Default branch | Yes |
+| Latest stable release | Yes |
+| Older releases | No |
+
+Do not open a public issue or pull request for a suspected vulnerability in this fork or a Red Hat build. Report it privately to Red Hat Product Security at [secalert@redhat.com](mailto:secalert@redhat.com). Include the affected version, environment, reproduction steps, potential impact, and whether the issue is already public, when known.
+
+For secure-contact options and the current Red Hat coordinated vulnerability disclosure process, see [Red Hat Security Contacts and Procedures](https://access.redhat.com/security/team/contact).
+
+Red Hat Product Security owns acknowledgement, triage, remediation coordination, and disclosure timing for this fork. This repository does not promise a separate response-time SLA. The upstream Authzed policy and threat model are retained below for upstream-specific reports and context.
+
+## Upstream Authzed Policy
+
 This project operates under a security embargo program.
 This means that vulnerabilities are privately reported, analyzed for applicability, notice is given, and a resolution is created and distributed.
 The issue is only made public once those affected in the embargo program have enough time to address the issue or have accepted the risks.

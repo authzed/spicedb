@@ -2,6 +2,10 @@
 
 This document captures all changes made by Red Hat that diverge from the upstream fork. It outlines why these changes were made for historical reference and to help ensure they are kept when syncing with upstream.
 
+### OpenSSF Scorecard
+
+GitHub's Scorecard action does not support fork repositories. The [upstream authzed/spicedb Scorecard](https://securityscorecards.dev/viewer/?uri=github.com/authzed/spicedb) is authoritative for upstream code; Red Hat-specific changes in this fork are covered by the repository's existing security scans and review controls.
+
 &nbsp;
 
 ### Drift Tracking
@@ -33,6 +37,7 @@ The table below captures all changes to our fork from upstream. Each entry inclu
 | `.github/workflows/security.yaml` | Removed | Replaced by our own security scanning workflow | Delete |
 | `.github/workflows/wasm.yaml` | Removed | Not applicable to our fork | Delete |
 | `.github/workflows/security-scanning.yml` | Added | Required ConsoleDot platform security workflow for CVE scanning | Red Hat only |
+| `SECURITY.md` | Prepended Red Hat Product Security reporting and supported-version guidance while preserving the upstream policy and threat model | Routes fork and Red Hat build reports through the required disclosure process | Re-apply |
 | `.github/workflows/tag-release.yaml` | Added | Automatically creates a git tag on the merge commit whenever `SYNC.md` changes on `main`; required for accurate CVE scanning (Go VCS stamping reads the nearest ancestor tag to set `debug.BuildInfo.Main.Version`) | Red Hat only |
 | `.tekton/spicedb-pull-request.yaml`, `.tekton/spicedb-push.yaml` | Added; `fetchTags: "true"` and `depth: "0"` added to `clone-repository` task params | Konflux PR and merge build pipelines; `fetchTags` + `depth: "0"` (full clone) ensure Go's VCS stamping can walk history back to the nearest semver tag and embed it as `debug.BuildInfo.Main.Version` — without this CVE scanners see a `v0.0.0` pseudo-version and generate false positives. A shallow clone with only `fetchTags` is not sufficient because Go must walk the ancestor chain to find the tag. Konflux automated updates may remove these params — re-add them if missing. | Red Hat only |
 | `Dockerfile.fips` | Added | FIPS-compliant builds using Hummingbird base images for Konflux; grpc-health-probe built from source (pinned to a `grpc-ecosystem/grpc-health-probe` tag matching upstream `Dockerfile`, updated during syncs) to enable FIPS compilation, reads version from `SYNC.md` and embeds it via `-ldflags` so `spicedb version` reports the correct release tag | Red Hat only |

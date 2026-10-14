@@ -8,8 +8,7 @@ on: # yamllint disable-line rule:truthy
       - "main"
 
 permissions:
-  # permission to update benchmark contents in gh-pages branch
-  contents: "write"
+  contents: "read"
 
 jobs:
   benchmarks:
@@ -17,6 +16,9 @@ jobs:
     runs-on: "ubuntu-latest"
     if: false
     timeout-minutes: 20
+    permissions:
+      # permission to update benchmark contents in gh-pages branch
+      contents: "write"
     steps:
       - uses: "actions/checkout@v7"
         with:

@@ -11,10 +11,7 @@ env:
   TARGET_DOCS_FILE: "app/spicedb/concepts/commands/page.mdx"
 
 permissions:
-  contents: "write"
-  pull-requests: "write"
-  actions: "write"
-  repository-projects: "write"
+  contents: "read"
 
 jobs:
   sync-docs:
