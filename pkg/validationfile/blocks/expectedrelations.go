@@ -72,6 +72,8 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 		return spiceerrors.NewWithSourceError(
 			fmt.Errorf("could not parse %s: %w", ors.ObjectRelationString, err),
 			ors.ObjectRelationString,
+			// TODO: this should point at the filename. is there a way to get that context here?
+			"",
 			line,
 			column,
 		)
@@ -144,6 +146,8 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 		return spiceerrors.NewWithSourceError(
 			subErr,
 			subErr.SourceCodeString,
+			// TODO: this should point at the filename. is there a way to get that context here?
+			"",
 			line+subErr.LineNumber,
 			column+subErr.ColumnPosition,
 		)
@@ -154,6 +158,8 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 		return spiceerrors.NewWithSourceError(
 			onrErr,
 			onrErr.SourceCodeString,
+			// TODO: this should point at the filename. is there a way to get that context here?
+			"",
 			line+onrErr.LineNumber,
 			column+onrErr.ColumnPosition,
 		)
@@ -192,13 +198,13 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.WithS
 	groups := vsSubjectWithExceptionsOrCaveatRegex.FindStringSubmatch(subjectStr)
 	if len(groups) == 0 {
 		bracketedSubjectString := "[" + subjectStr + "]"
-		return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
+		return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, "", 0, 0)
 	}
 
 	subjectONRString := groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
 	subjectONR, err := tuple.ParseSubjectONR(subjectONRString)
 	if err != nil {
-		return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`: %w", subjectONRString, err), subjectONRString, 0, 0)
+		return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`: %w", subjectONRString, err), subjectONRString, "", 0, 0)
 	}
 
 	exceptionsString := strings.TrimSpace(groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
@@ -216,7 +222,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.WithS
 
 			exceptionONR, err := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
 			if err != nil {
-				return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`: %w", exceptionString, err), exceptionString, 0, 0)
+				return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`: %w", exceptionString, err), exceptionString, "", 0, 0)
 			}
 
 			exceptions = append(exceptions, SubjectAndCaveat{exceptionONR, isCaveated})
@@ -244,7 +250,7 @@ func (vs ValidationString) ONRS() ([]tuple.ObjectAndRelation, *spiceerrors.WithS
 	for _, onrString := range onrStrings {
 		found, err := tuple.ParseONR(onrString)
 		if err != nil {
-			return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid resource and relation: `%s`: %w", onrString, err), onrString, 0, 0)
+			return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid resource and relation: `%s`: %w", onrString, err), onrString, "", 0, 0)
 		}
 
 		onrs = append(onrs, found)
