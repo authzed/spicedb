@@ -290,6 +290,9 @@ func loadAllNamespaces(
 		return rows.Err()
 	}, sql, args...)
 	if err != nil {
+		if pgxcommon.IsMissingTableError(err) {
+			err = common.NewSchemaNotInitializedError(err)
+		}
 		return nil, err
 	}
 

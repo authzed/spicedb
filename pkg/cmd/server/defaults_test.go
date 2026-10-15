@@ -35,6 +35,7 @@ func TestWithDatastore(t *testing.T) {
 		"service",
 		consistency.TreatMismatchingTokensAsError,
 		memoryprotection.NewNoopMemoryUsageProvider(),
+		nil, // ReadinessChecker
 		nil,
 		nil,
 	}
@@ -78,6 +79,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		"service",
 		consistency.TreatMismatchingTokensAsError,
 		memoryprotection.NewNoopMemoryUsageProvider(),
+		nil, // ReadinessChecker
 		nil,
 		nil,
 	}
