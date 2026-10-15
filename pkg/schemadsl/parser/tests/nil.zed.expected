@@ -67,32 +67,37 @@ NodeTypeFile
                   input-source = nil test
                   start-rune = 117
                   left-expr =>
-                    NodeTypeUnionExpression
-                      end-rune = 128
+                    NodeTypeParenthesizedExpression
+                      end-rune = 129
                       input-source = nil test
-                      start-rune = 118
-                      left-expr =>
+                      start-rune = 117
+                      inner-expr =>
                         NodeTypeUnionExpression
-                          end-rune = 122
+                          end-rune = 128
                           input-source = nil test
                           start-rune = 118
                           left-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 118
-                              identifier-value = a
+                            NodeTypeUnionExpression
+                              end-rune = 122
                               input-source = nil test
                               start-rune = 118
+                              left-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 118
+                                  identifier-value = a
+                                  input-source = nil test
+                                  start-rune = 118
+                              right-expr =>
+                                NodeTypeIdentifier
+                                  end-rune = 122
+                                  identifier-value = b
+                                  input-source = nil test
+                                  start-rune = 122
                           right-expr =>
-                            NodeTypeIdentifier
-                              end-rune = 122
-                              identifier-value = b
+                            NodeTypeNilExpression
+                              end-rune = 128
                               input-source = nil test
-                              start-rune = 122
-                      right-expr =>
-                        NodeTypeNilExpression
-                          end-rune = 128
-                          input-source = nil test
-                          start-rune = 126
+                              start-rune = 126
                   right-expr =>
                     NodeTypeIdentifier
                       end-rune = 133
