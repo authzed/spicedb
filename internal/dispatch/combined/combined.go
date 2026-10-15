@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/authzed/consistent"
 	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -43,6 +44,52 @@ type optionState struct {
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
 	queryPlanMetadata                            *query.QueryPlanMetadata
+	objectAffinityRouting                        bool
+	hashringBuilder                              consistent.Builder
+	objectSpreadShare                            float64
+	objectSpread                                 uint8
+	objectSpreadLatencyFactor                    float64
+}
+
+// ObjectAffinityRouting enables routing of remote dispatches by the ring owner of each resource object.
+func ObjectAffinityRouting(enabled bool) Option {
+	return func(state *optionState) {
+		state.objectAffinityRouting = enabled
+	}
+}
+
+// HashringBuilder sets the balancer builder that supplies the ring view.
+// With a nil builder, each chunk routes by the object key of its first ID.
+func HashringBuilder(b consistent.Builder) Option {
+	return func(state *optionState) {
+		state.hashringBuilder = b
+	}
+}
+
+// ObjectSpreadShare sets the share-of-traffic test for spread.
+// A key spreads across ring owners when its share of the outbound dispatches of this node
+// is more than share divided by the ring member count.
+// Zero disables spread.
+func ObjectSpreadShare(share float64) Option {
+	return func(state *optionState) {
+		state.objectSpreadShare = share
+	}
+}
+
+// ObjectSpreadLatencyFactor sets the owner-latency gate for spread.
+// A hot key spreads only if the p90 latency of its owner is at least factor times the median p90 latency of all owners.
+// Zero disables the gate.
+func ObjectSpreadLatencyFactor(factor float64) Option {
+	return func(state *optionState) {
+		state.objectSpreadLatencyFactor = factor
+	}
+}
+
+// ObjectSpread sets the number of ring owners for a hot key.
+func ObjectSpread(spread uint8) Option {
+	return func(state *optionState) {
+		state.objectSpread = spread
+	}
 }
 
 // QueryPlanMetadata sets the shared count-stats store used by the receiver-side
@@ -191,6 +238,16 @@ func newOptions(options ...Option) optionState {
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
 func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
+	d, _, err := NewDispatcherWithChunker(options...)
+	return d, err
+}
+
+// NewDispatcherWithChunker returns the dispatcher of NewDispatcher and the chunker for its dispatches.
+// A graph that dispatches to the returned dispatcher must chunk with the returned chunker.
+// Put the chunker on the request context with dispatch.ContextWithChunker.
+// Without an upstream, the chunker is dispatch.DefaultChunker.
+// With object-affinity routing off, the chunker splits by size only, as dispatch.DefaultChunker does.
+func NewDispatcherWithChunker(options ...Option) (dispatch.Dispatcher, dispatch.Chunker, error) {
 	opts := newOptions(options...)
 	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
 
@@ -200,8 +257,10 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 
 	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metrics, &keys.CanonicalKeyHandler{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+
+	chunker := dispatch.DefaultChunker
 
 	var redispatch dispatch.Dispatcher
 
@@ -230,7 +289,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			var err error
 			relationshipChunkCache, err = cache.NewStandardCache[cache.StringKey, any](relationshipChunkCacheConfig)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create relationship chunk cache: %w", err)
+				return nil, nil, fmt.Errorf("failed to create relationship chunk cache: %w", err)
 			}
 		}
 
@@ -243,7 +302,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		}
 		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+			return nil, nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
 		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 	} else {
@@ -251,7 +310,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if opts.upstreamCAPath != "" {
 			customCertOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			opts.grpcDialOpts = append(opts.grpcDialOpts, customCertOpt)
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
@@ -266,24 +325,24 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 
 		conn, err := grpc.NewClient(opts.upstreamAddr, opts.grpcDialOpts...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		secondaryClients := make(map[string]remote.SecondaryDispatch, len(opts.secondaryUpstreamAddrs))
 		for name, addr := range opts.secondaryUpstreamAddrs {
 			secondaryConn, err := grpc.NewClient(addr, opts.grpcDialOpts...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			maximumHedgingDelay := 5 * time.Millisecond
 			if maximumHedgingDelayStr, ok := opts.secondaryUpstreamMaximumPrimaryHedgingDelays[name]; ok {
 				mgd, err := time.ParseDuration(maximumHedgingDelayStr)
 				if err != nil {
-					return nil, fmt.Errorf("error parsing maximum primary hedging delay for secondary dispatch `%s`: %w", name, err)
+					return nil, nil, fmt.Errorf("error parsing maximum primary hedging delay for secondary dispatch `%s`: %w", name, err)
 				}
 				if mgd <= 0 {
-					return nil, fmt.Errorf("maximum primary hedging delay for secondary dispatch `%s` must be greater than 0", name)
+					return nil, nil, fmt.Errorf("maximum primary hedging delay for secondary dispatch `%s` must be greater than 0", name)
 				}
 				maximumHedgingDelay = mgd
 			}
@@ -299,22 +358,28 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		for name, exprString := range opts.secondaryUpstreamExprs {
 			parsed, err := remote.ParseDispatchExpression(name, exprString)
 			if err != nil {
-				return nil, fmt.Errorf("error parsing secondary dispatch expr `%s` for method `%s`: %w", exprString, name, err)
+				return nil, nil, fmt.Errorf("error parsing secondary dispatch expr `%s` for method `%s`: %w", exprString, name, err)
 			}
 			secondaryExprs[name] = parsed
 		}
 
-		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
+		re, remoteChunker, err := remote.NewClusterDispatcherWithChunker(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
+			ObjectAffinityRouting:  opts.objectAffinityRouting,
+			HashringBuilder:        opts.hashringBuilder,
+			SpreadShare:            opts.objectSpreadShare,
+			Spread:                 opts.objectSpread,
+			SpreadLatencyFactor:    opts.objectSpreadLatencyFactor,
 		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		chunker = remoteChunker
 		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)
 
-	return cachingRedispatch, nil
+	return cachingRedispatch, chunker, nil
 }

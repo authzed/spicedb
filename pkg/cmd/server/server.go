@@ -119,6 +119,18 @@ type Config struct {
 	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
 	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
 
+	// Object-affinity routing
+	ExperimentalObjectAffinityRouting string  `debugmap:"visible" default:"disabled"`
+	DispatchObjectSpreadShare         float64 `debugmap:"visible" default:"0"`
+	DispatchObjectSpread              uint8   `debugmap:"visible" default:"2"`
+	DispatchObjectSpreadLatencyFactor float64 `debugmap:"visible" default:"1.5"`
+
+	// DispatchChunker forms the dispatch chunks for Dispatcher.
+	// The API and dispatch servers put it on the context of each request.
+	// A caller that sets Dispatcher sets DispatchChunker from the same constructor.
+	// A nil chunker selects dispatch.DefaultChunker.
+	DispatchChunker dispatch.Chunker `debugmap:"hidden"`
+
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
 	LR3ResourceChunkCacheConfig CacheConfig `debugmap:"visible"`
@@ -223,6 +235,21 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		}
 	}()
 
+	objectAffinityRoutingMode, err := ParseObjectAffinityRoutingMode(c.ExperimentalObjectAffinityRouting)
+	if err != nil {
+		return nil, err
+	}
+
+	spreadWarnings, err := validateObjectSpread(objectAffinityRoutingMode,
+		c.DispatchObjectSpreadShare, c.DispatchObjectSpread, c.DispatchObjectSpreadLatencyFactor)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, warning := range spreadWarnings {
+		log.Ctx(ctx).Warn().Msg(warning)
+	}
+
 	err = c.handleGrpcAuthn(ctx)
 	if err != nil {
 		return nil, err
@@ -320,6 +347,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	log.Ctx(ctx).Info().EmbedObject(lr3ChunkCache).Msg("configured LR3 resource chunk cache")
 
 	dispatcher := c.Dispatcher
+	dispatchChunker := c.DispatchChunker
 	if dispatcher == nil {
 		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.OTel.PrometheusRegistry, c.DispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
@@ -351,7 +379,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			prometheusRegistry = c.OTel.PrometheusRegistry
 		}
 
-		dispatcher, err = combineddispatch.NewDispatcher(
+		dispatcher, dispatchChunker, err = combineddispatch.NewDispatcherWithChunker(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
 			combineddispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
@@ -376,6 +404,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
+			combineddispatch.ObjectAffinityRouting(objectAffinityRoutingMode == ObjectAffinityRoutingModeEnabled),
+			combineddispatch.HashringBuilder(ConsistentHashringBuilder),
+			combineddispatch.ObjectSpreadShare(c.DispatchObjectSpreadShare),
+			combineddispatch.ObjectSpread(c.DispatchObjectSpread),
+			combineddispatch.ObjectSpreadLatencyFactor(c.DispatchObjectSpreadLatencyFactor),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -450,16 +483,17 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	memoryUsageProvider := c.BuildMemoryUsageProvider()
 
 	opts := MiddlewareOption{
-		Logger:                    log.Logger,
-		AuthFunc:                  c.GRPCAuthFunc,
-		EnableVersionResponse:     !c.DisableVersionResponse,
-		DispatcherForMiddleware:   dispatcher,
-		EnableRequestLog:          c.EnableRequestLogs,
-		EnableResponseLog:         c.EnableResponseLogs,
-		DisableGRPCHistogram:      c.DisableGRPCLatencyHistogram,
-		MiddlewareServiceLabel:    serverName,
-		MismatchingZedTokenOption: mismatchZedTokenOption,
-		MemoryUsageProvider:       memoryUsageProvider,
+		Logger:                       log.Logger,
+		AuthFunc:                     c.GRPCAuthFunc,
+		EnableVersionResponse:        !c.DisableVersionResponse,
+		DispatcherForMiddleware:      dispatcher,
+		DispatchChunkerForMiddleware: dispatchChunker,
+		EnableRequestLog:             c.EnableRequestLogs,
+		EnableResponseLog:            c.EnableResponseLogs,
+		DisableGRPCHistogram:         c.DisableGRPCLatencyHistogram,
+		MiddlewareServiceLabel:       serverName,
+		MismatchingZedTokenOption:    mismatchZedTokenOption,
+		MemoryUsageProvider:          memoryUsageProvider,
 	}
 	opts = opts.WithDatastore(ds, dlOpts...)
 
@@ -469,7 +503,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		otelgrpc.WithFilter(filters.Not(filters.HealthCheck())),
 	}
 
-	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, statsHandlerOpts, dlOpts)
+	dispatchGrpcServer, err := c.buildDispatchServer(memoryUsageProvider, ds, cachingClusterDispatch, dispatchChunker, statsHandlerOpts, dlOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -692,7 +726,7 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
-func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
+func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, dispatchChunker dispatch.Chunker, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
 			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
@@ -703,7 +737,7 @@ func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.Memory
 
 	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
-			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
+			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch, dispatchChunker)
 		},
 		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
