@@ -480,7 +480,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	}
 
 	// Dispatch and map to the associated resource ID(s).
-	toDispatch := checksToDispatch.dispatchChunks(crc.dispatchChunkSize)
+	toDispatch := checksToDispatch.dispatchChunks(ctx, crc.dispatchChunkSize)
 	result := union(ctx, crc, toDispatch, func(ctx context.Context, crc currentRequestContext, dd checkDispatchChunk) CheckResult {
 		// If there are caveats on any of the incoming relationships for the subjects to dispatch, then we must require all
 		// results to be found, as we need to ensure that all caveats are used for building the final expression.
@@ -502,7 +502,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			},
 			crc.parentReq.Revision,
 			noOriginalRelation,
-		})
+		}, dd.hint)
 
 		if childResult.Err != nil {
 			return childResult
@@ -558,9 +558,11 @@ func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, crc curren
 	}
 }
 
-func (cc *ConcurrentChecker) dispatch(ctx context.Context, _ currentRequestContext, req ValidatedCheckRequest) CheckResult {
+// dispatch sends req with hint as its routing hint.
+// The hint applies only to this dispatch. A zero hint removes a hint that ctx carries.
+func (cc *ConcurrentChecker) dispatch(ctx context.Context, _ currentRequestContext, req ValidatedCheckRequest, hint dispatch.RoutingHint) CheckResult {
 	log.Ctx(ctx).Trace().Object("dispatch", req).Send()
-	result, err := cc.d.DispatchCheck(ctx, req.DispatchCheckRequest)
+	result, err := cc.d.DispatchCheck(dispatch.WithRoutingHintIfNeeded(ctx, hint), req.DispatchCheckRequest)
 	return CheckResult{result, err}
 }
 
@@ -569,7 +571,7 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 	case *core.SetOperation_Child_XThis:
 		return checkResultError(spiceerrors.MustBugf("use of _this is unsupported; please rewrite your schema"), emptyMetadata)
 	case *core.SetOperation_Child_ComputedUserset:
-		return cc.checkComputedUserset(ctx, crc, child.ComputedUserset, nil, nil)
+		return cc.checkComputedUserset(ctx, crc, child.ComputedUserset, nil, nil, dispatch.RoutingHint{})
 	case *core.SetOperation_Child_UsersetRewrite:
 		return cc.checkUsersetRewrite(ctx, crc, child.UsersetRewrite)
 	case *core.SetOperation_Child_TupleToUserset:
@@ -620,7 +622,11 @@ func (cc *ConcurrentChecker) checkSelf(ctx context.Context, crc currentRequestCo
 	return noMembers()
 }
 
-func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc currentRequestContext, cu *core.ComputedUserset, rr *tuple.RelationReference, resourceIds []string) CheckResult {
+// checkComputedUserset dispatches the computed userset cu.
+// For an arrow, hint is the hint of the chunk of resourceIds. The IDs can be a subset of the chunk.
+// The object key does not depend on the relation, so the owner is the same.
+// For a computed-userset forward, hint is zero.
+func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc currentRequestContext, cu *core.ComputedUserset, rr *tuple.RelationReference, resourceIds []string, hint dispatch.RoutingHint) CheckResult {
 	ctx, span := tracer.Start(ctx, cu.Relation)
 	defer span.End()
 
@@ -685,7 +691,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 		},
 		crc.parentReq.Revision,
 		noOriginalRelation,
-	})
+	}, hint)
 	return combineResultWithFoundResources(result, membershipSet)
 }
 
@@ -838,7 +844,7 @@ func checkIntersectionTupleToUserset(
 	}
 
 	// Convert the subjects into batched requests.
-	toDispatch := checksToDispatch.dispatchChunks(crc.dispatchChunkSize)
+	toDispatch := checksToDispatch.dispatchChunks(ctx, crc.dispatchChunkSize)
 	if len(toDispatch) == 0 {
 		return noMembers()
 	}
@@ -857,7 +863,7 @@ func checkIntersectionTupleToUserset(
 		toDispatch,
 		func(ctx context.Context, crc currentRequestContext, dd checkDispatchChunk) checkResultWithType {
 			resourceType := dd.resourceType
-			childResult := cc.checkComputedUserset(ctx, crc, ttu.GetComputedUserset(), &resourceType, dd.resourceIds)
+			childResult := cc.checkComputedUserset(ctx, crc, ttu.GetComputedUserset(), &resourceType, dd.resourceIds, dd.hint)
 			return checkResultWithType{
 				CheckResult:  childResult,
 				relationType: dd.resourceType,
@@ -1001,7 +1007,7 @@ func checkTupleToUserset[T relation](
 		checksToDispatch.addForRelationship(rel)
 	}
 
-	toDispatch := checksToDispatch.dispatchChunks(crc.dispatchChunkSize)
+	toDispatch := checksToDispatch.dispatchChunks(ctx, crc.dispatchChunkSize)
 	return combineWithComputedHints(union(
 		ctx,
 		crc,
@@ -1011,7 +1017,7 @@ func checkTupleToUserset[T relation](
 			if dd.hasIncomingCaveats {
 				crc.resultsSetting = v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS
 			}
-			childResult := cc.checkComputedUserset(ctx, crc, ttu.GetComputedUserset(), &resourceType, dd.resourceIds)
+			childResult := cc.checkComputedUserset(ctx, crc, ttu.GetComputedUserset(), &resourceType, dd.resourceIds, dd.hint)
 			if childResult.Err != nil {
 				return childResult
 			}

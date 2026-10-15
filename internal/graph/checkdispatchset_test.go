@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/chunkertest"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -370,7 +372,7 @@ func TestCheckDispatchSet(t *testing.T) {
 				set.addForRelationship(rel)
 			}
 
-			chunks := set.dispatchChunks(tc.dispatchChunkSize)
+			chunks := set.dispatchChunks(t.Context(), tc.dispatchChunkSize)
 			for _, c := range chunks {
 				sort.Strings(c.resourceIds)
 			}
@@ -385,6 +387,48 @@ func TestCheckDispatchSet(t *testing.T) {
 				mappings := set.mappingsForSubject(parsed.ObjectType, parsed.ObjectID, parsed.Relation)
 				require.ElementsMatch(t, expectedMappings, mappings)
 			}
+		})
+	}
+}
+
+func TestCheckDispatchSetCaveatFlagPerChunk(t *testing.T) {
+	set := newCheckDispatchSet()
+	for _, rel := range []string{
+		"document:somedoc#viewer@group:a1#member",
+		"document:somedoc#viewer@group:a2#member[somecaveat]",
+		"document:somedoc#viewer@group:b1#member",
+	} {
+		set.addForRelationship(tuple.MustParse(rel))
+	}
+
+	memberType := tuple.RelationReference{ObjectType: "group", Relation: "member"}
+	aHint := chunkertest.HintFor("group", "a1")
+	bHint := chunkertest.HintFor("group", "b1")
+	for _, tc := range []struct {
+		name     string
+		size     uint16
+		expected []checkDispatchChunk
+	}{
+		{
+			"owner chunks",
+			100,
+			[]checkDispatchChunk{
+				{resourceType: memberType, resourceIds: []string{"a2", "a1"}, hasIncomingCaveats: true, hint: aHint},
+				{resourceType: memberType, resourceIds: []string{"b1"}, hasIncomingCaveats: false, hint: bHint},
+			},
+		},
+		{
+			"owner chunks split by size",
+			1,
+			[]checkDispatchChunk{
+				{resourceType: memberType, resourceIds: []string{"a2"}, hasIncomingCaveats: true, hint: aHint},
+				{resourceType: memberType, resourceIds: []string{"a1"}, hasIncomingCaveats: false, hint: aHint},
+				{resourceType: memberType, resourceIds: []string{"b1"}, hasIncomingCaveats: false, hint: bHint},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, set.dispatchChunks(dispatch.ContextWithChunker(t.Context(), &chunkertest.ByFirstByte{}), tc.size))
 		})
 	}
 }
