@@ -2021,6 +2021,256 @@ func (mr *MockCursoredDeleteDatastoreMockRecorder) Watch(ctx, afterRevision, arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockCursoredDeleteDatastore)(nil).Watch), ctx, afterRevision, arg2)
 }
 
+// MockIdempotentBulkLoadDatastore is a mock of IdempotentBulkLoadDatastore interface.
+type MockIdempotentBulkLoadDatastore struct {
+	ctrl     *gomock.Controller
+	recorder *MockIdempotentBulkLoadDatastoreMockRecorder
+	isgomock struct{}
+}
+
+// MockIdempotentBulkLoadDatastoreMockRecorder is the mock recorder for MockIdempotentBulkLoadDatastore.
+type MockIdempotentBulkLoadDatastoreMockRecorder struct {
+	mock *MockIdempotentBulkLoadDatastore
+}
+
+// NewMockIdempotentBulkLoadDatastore creates a new mock instance.
+func NewMockIdempotentBulkLoadDatastore(ctrl *gomock.Controller) *MockIdempotentBulkLoadDatastore {
+	mock := &MockIdempotentBulkLoadDatastore{ctrl: ctrl}
+	mock.recorder = &MockIdempotentBulkLoadDatastoreMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockIdempotentBulkLoadDatastore) EXPECT() *MockIdempotentBulkLoadDatastoreMockRecorder {
+	return m.recorder
+}
+
+// CheckRevision mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckRevision", ctx, revision)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckRevision indicates an expected call of CheckRevision.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) CheckRevision(ctx, revision any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckRevision", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).CheckRevision), ctx, revision)
+}
+
+// Close mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).Close))
+}
+
+// Features mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Features", ctx)
+	ret0, _ := ret[0].(*datastore.Features)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Features indicates an expected call of Features.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) Features(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Features", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).Features), ctx)
+}
+
+// HeadRevision mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HeadRevision", ctx)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHash)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HeadRevision indicates an expected call of HeadRevision.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) HeadRevision(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HeadRevision", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).HeadRevision), ctx)
+}
+
+// MetricsID mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) MetricsID() (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MetricsID")
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MetricsID indicates an expected call of MetricsID.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) MetricsID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MetricsID", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).MetricsID))
+}
+
+// OfflineFeatures mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) OfflineFeatures() (*datastore.Features, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OfflineFeatures")
+	ret0, _ := ret[0].(*datastore.Features)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OfflineFeatures indicates an expected call of OfflineFeatures.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) OfflineFeatures() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OfflineFeatures", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).OfflineFeatures))
+}
+
+// OptimizedRevision mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) OptimizedRevision(ctx context.Context) (datastore.RevisionWithSchemaHashAndValidity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OptimizedRevision", ctx)
+	ret0, _ := ret[0].(datastore.RevisionWithSchemaHashAndValidity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OptimizedRevision indicates an expected call of OptimizedRevision.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) OptimizedRevision(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptimizedRevision", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).OptimizedRevision), ctx)
+}
+
+// ReadWriteTx mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) ReadWriteTx(arg0 context.Context, arg1 datastore.TxUserFunc, arg2 ...options.RWTOptionsOption) (datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReadWriteTx", varargs...)
+	ret0, _ := ret[0].(datastore.Revision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadWriteTx indicates an expected call of ReadWriteTx.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) ReadWriteTx(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadWriteTx", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).ReadWriteTx), varargs...)
+}
+
+// ReadyState mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadyState", ctx)
+	ret0, _ := ret[0].(datastore.ReadyState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadyState indicates an expected call of ReadyState.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) ReadyState(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadyState", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).ReadyState), ctx)
+}
+
+// RevisionFromString mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) RevisionFromString(serialized string) (datastore.Revision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevisionFromString", serialized)
+	ret0, _ := ret[0].(datastore.Revision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RevisionFromString indicates an expected call of RevisionFromString.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) RevisionFromString(serialized any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevisionFromString", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).RevisionFromString), serialized)
+}
+
+// SnapshotReader mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) SnapshotReader(arg0 datastore.Revision) datastore.Reader {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SnapshotReader", arg0)
+	ret0, _ := ret[0].(datastore.Reader)
+	return ret0
+}
+
+// SnapshotReader indicates an expected call of SnapshotReader.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) SnapshotReader(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotReader", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).SnapshotReader), arg0)
+}
+
+// Statistics mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Statistics", ctx)
+	ret0, _ := ret[0].(datastore.Stats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Statistics indicates an expected call of Statistics.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) Statistics(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Statistics", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).Statistics), ctx)
+}
+
+// SupportsIdempotentBulkLoad mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) SupportsIdempotentBulkLoad() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SupportsIdempotentBulkLoad")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SupportsIdempotentBulkLoad indicates an expected call of SupportsIdempotentBulkLoad.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) SupportsIdempotentBulkLoad() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportsIdempotentBulkLoad", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).SupportsIdempotentBulkLoad))
+}
+
+// UniqueID mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) UniqueID(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UniqueID", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UniqueID indicates an expected call of UniqueID.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) UniqueID(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UniqueID", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).UniqueID), arg0)
+}
+
+// Watch mocks base method.
+func (m *MockIdempotentBulkLoadDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, arg2 datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Watch", ctx, afterRevision, arg2)
+	ret0, _ := ret[0].(<-chan datastore.RevisionChanges)
+	ret1, _ := ret[1].(<-chan error)
+	return ret0, ret1
+}
+
+// Watch indicates an expected call of Watch.
+func (mr *MockIdempotentBulkLoadDatastoreMockRecorder) Watch(ctx, afterRevision, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockIdempotentBulkLoadDatastore)(nil).Watch), ctx, afterRevision, arg2)
+}
+
 // MockStartableDatastore is a mock of StartableDatastore interface.
 type MockStartableDatastore struct {
 	ctrl     *gomock.Controller
