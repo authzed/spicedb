@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -38,7 +37,9 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -708,31 +709,52 @@ func validatePrecondition(ctx context.Context, precond *v1.Precondition, sr data
 	return validateRelationshipsFilter(ctx, precond.Filter, sr)
 }
 
-func checkFilterComponent(ctx context.Context, objectType, optionalRelation string, sr datalayer.SchemaReader) error {
+// checkFilterComponent validates the definition+relation of one side of a relationship filter.
+// When rejectPermission is true, the relation must be an actual relation and not a permission;
+// this applies to a filter's *resource* relation, since a relationship can never be written to a
+// permission and so reading or deleting one on a permission is always a mistake. It must be false
+// for the *subject* relation, which legally may be a permission (e.g. `group#some_permission`).
+func checkFilterComponent(ctx context.Context, objectType, optionalRelation string, rejectPermission bool, sr datalayer.SchemaReader) error {
 	if objectType == "" {
 		return nil
 	}
 
-	relationToTest := cmp.Or(optionalRelation, datastore.Ellipsis)
-	allowEllipsis := optionalRelation == ""
-	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, sr)
+	// When no relation is specified, the ellipsis is used, which is always valid; just
+	// ensure the referenced definition exists.
+	if optionalRelation == "" {
+		return namespace.CheckNamespaceAndRelation(ctx, objectType, datastore.Ellipsis, true, sr)
+	}
+
+	// Ensure the definition and relation exist.
+	_, relation, err := namespace.ReadNamespaceAndRelation(ctx, objectType, optionalRelation, sr)
+	if err != nil {
+		return err
+	}
+
+	if rejectPermission && nspkg.GetRelationKind(relation) == iv1.RelationMetadata_PERMISSION {
+		return NewCannotFilterOnPermissionErr(objectType, optionalRelation)
+	}
+
+	return nil
 }
 
 func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFilter, sr datalayer.SchemaReader) error {
-	// ResourceType is optional, so only check the relation if it is specified.
+	// ResourceType is optional, so only check the relation if it is specified. The resource
+	// relation must not be a permission: relationships only ever exist on relations.
 	if filter.ResourceType != "" {
-		if err := checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, sr); err != nil {
+		if err := checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, true, sr); err != nil {
 			return err
 		}
 	}
 
-	// SubjectFilter is optional, so only check if it is specified.
+	// SubjectFilter is optional, so only check if it is specified. The subject relation may
+	// legally be a permission (e.g. `group#some_permission`), so permissions are not rejected here.
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 		subjectRelation := ""
 		if subjectFilter.OptionalRelation != nil {
 			subjectRelation = subjectFilter.OptionalRelation.Relation
 		}
-		if err := checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, sr); err != nil {
+		if err := checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, false, sr); err != nil {
 			return err
 		}
 	}
