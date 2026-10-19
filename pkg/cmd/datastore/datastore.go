@@ -175,6 +175,10 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 	flagSet.StringVar(&opts.SpannerDatastoreMetricsOption, flagName("datastore-spanner-metrics"), "otel", `configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel")`)
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
+	flagSet.BoolVar(&opts.SPIFFEEnabled, flagName("datastore-spiffe"), false, spiffeFlagUsage)
+	flagSet.StringVar(&opts.SPIFFESocket, flagName("datastore-spiffe-socket"), "", spiffeSocketFlagUsage)
+	flagSet.StringVar(&opts.SPIFFEID, flagName("datastore-spiffe-id"), "", spiffeIDFlagUsage)
+	flagSet.StringVar(&opts.SPIFFEServerID, flagName("datastore-spiffe-server-id"), "", spiffeServerIDFlagUsage)
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
@@ -216,6 +220,25 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	return nil
 }
 
+// Usage of the flags configuring a SPIFFE workload identity for the datastore
+// connection, shared by the commands that register them.
+const (
+	spiffeFlagUsage         = "authenticate the datastore connection over mutual TLS with an X.509-SVID and trust bundles from the SPIFFE Workload API (MySQL only)"
+	spiffeSocketFlagUsage   = "address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --datastore-spiffe (MySQL only)"
+	spiffeIDFlagUsage       = "SPIFFE ID of the X.509-SVID presented to the datastore, and no other; startup waits until the Workload API issues it (default: the Workload API's default SVID); requires --datastore-spiffe (MySQL only)"
+	spiffeServerIDFlagUsage = "SPIFFE ID, or trust domain (e.g. spiffe://example.org) for any of its workloads, the datastore server must present; verified against the Workload API bundle of its trust domain (default: any workload in the trust domain of the client's SVID); requires --datastore-spiffe (MySQL only)"
+)
+
+// RegisterSPIFFEFlags registers the flags configuring a SPIFFE workload
+// identity for the datastore connection on a command that does not register
+// the full set of datastore flags.
+func RegisterSPIFFEFlags(flagSet *pflag.FlagSet) {
+	flagSet.Bool("datastore-spiffe", false, spiffeFlagUsage)
+	flagSet.String("datastore-spiffe-socket", "", spiffeSocketFlagUsage)
+	flagSet.String("datastore-spiffe-id", "", spiffeIDFlagUsage)
+	flagSet.String("datastore-spiffe-server-id", "", spiffeServerIDFlagUsage)
+}
+
 // NewDatastore initializes a datastore given the options
 func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datastore, error) {
 	opts := DefaultDatastoreConfig()
@@ -232,6 +255,10 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	if opts.LegacyFuzzing >= 0 {
 		log.Ctx(ctx).Warn().Stringer("period", opts.LegacyFuzzing).Msg("deprecated datastore-revision-fuzzing-duration flag specified")
 		opts.RevisionQuantization = opts.LegacyFuzzing
+	}
+
+	if err := ValidateSPIFFE(opts.Engine, opts.SPIFFEOptions()); err != nil {
+		return nil, err
 	}
 
 	dsBuilder, ok := BuilderForEngine[opts.Engine]

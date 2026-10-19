@@ -12,6 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
+	"github.com/authzed/spicedb/internal/spiffetls"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -29,36 +30,57 @@ var sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 type MySQLDriver struct {
 	db *sql.DB
 	*tables
+
+	// spiffeSource is set when the driver opened its own connections with a
+	// SPIFFE identity, and is closed with them.
+	spiffeSource *spiffetls.Source
 }
 
 // NewMySQLDriverFromDSN creates a new migration driver with a connection pool to the database DSN specified.
 //
 // URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
 // See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
-func NewMySQLDriverFromDSN(url string, tablePrefix string, credentialsProvider datastore.CredentialsProvider) (*MySQLDriver, error) {
+//
+// When spiffeOptions are set, the connections authenticate with an X.509-SVID
+// from the SPIFFE Workload API; see mysqlCommon.MaybeConfigureSPIFFE.
+func NewMySQLDriverFromDSN(ctx context.Context, url string, tablePrefix string, credentialsProvider datastore.CredentialsProvider, spiffeOptions spiffetls.Options) (*MySQLDriver, error) {
 	dbConfig, err := sqlDriver.ParseDSN(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
+	spiffeSource, err := mysqlCommon.MaybeConfigureSPIFFE(ctx, dbConfig, spiffeOptions)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+	closeSource := func() {
+		if spiffeSource != nil {
+			_ = spiffeSource.Close()
+		}
+	}
+
 	err = mysqlCommon.MaybeAddCredentialsProviderHook(dbConfig, credentialsProvider)
 	if err != nil {
+		closeSource()
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
 	// Call NewConnector with the existing parsed configuration to preserve the BeforeConnect added by the CredentialsProvider
 	connector, err := sqlDriver.NewConnector(dbConfig)
 	if err != nil {
+		closeSource()
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
 	db := sql.OpenDB(connector)
-	return NewMySQLDriverFromDB(db, tablePrefix), nil
+	driver := NewMySQLDriverFromDB(db, tablePrefix)
+	driver.spiffeSource = spiffeSource
+	return driver, nil
 }
 
 // NewMySQLDriverFromDB creates a new migration driver with a connection pool specified upfront.
 func NewMySQLDriverFromDB(db *sql.DB, tablePrefix string) *MySQLDriver {
-	return &MySQLDriver{db, newTables(tablePrefix)}
+	return &MySQLDriver{db: db, tables: newTables(tablePrefix)}
 }
 
 // revisionToColumnName generates the column name that will denote a given migration revision
@@ -158,7 +180,11 @@ func (driver *MySQLDriver) WriteVersion(ctx context.Context, txWrapper TxWrapper
 }
 
 func (driver *MySQLDriver) Close(_ context.Context) error {
-	return driver.db.Close()
+	err := driver.db.Close()
+	if driver.spiffeSource != nil {
+		err = errors.Join(err, driver.spiffeSource.Close())
+	}
+	return err
 }
 
 var _ migrate.Driver[Wrapper, TxWrapper] = &MySQLDriver{}

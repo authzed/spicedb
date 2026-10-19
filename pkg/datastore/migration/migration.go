@@ -13,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/spiffetls"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -25,6 +26,10 @@ type Config struct {
 	SpannerCredentialsFile  string
 	SpannerEmulatorHost     string
 	MySQLTablePrefix        string
+	SPIFFEEnabled           bool
+	SPIFFESocket            string
+	SPIFFEID                string
+	SPIFFEServerID          string
 	Timeout                 time.Duration
 	BatchSize               uint64
 
@@ -42,6 +47,12 @@ func (cfg *Config) CredentialsProvider(ctx context.Context) (datastore.Credentia
 		return nil, nil
 	}
 	return datastore.NewCredentialsProvider(ctx, cfg.CredentialsProviderName)
+}
+
+// SPIFFEOptions returns the SPIFFE workload identity configured for the
+// datastore connection.
+func (cfg *Config) SPIFFEOptions() spiffetls.Options {
+	return spiffetls.Options{Enabled: cfg.SPIFFEEnabled, Socket: cfg.SPIFFESocket, ID: cfg.SPIFFEID, ServerID: cfg.SPIFFEServerID}
 }
 
 type migratableEngine struct {
