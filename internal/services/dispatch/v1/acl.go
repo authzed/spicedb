@@ -24,12 +24,18 @@ type dispatchServer struct {
 	shared.WithServiceSpecificInterceptors
 
 	localDispatch dispatch.Dispatcher
+
+	// chunker forms the dispatch chunks of the requests that this server receives.
+	chunker dispatch.Chunker
 }
 
 // NewDispatchServer creates a server which can be called for internal dispatch.
-func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchServiceServer {
+// The server puts chunker on the context of each request, so the dispatches of localDispatch use it.
+// Use the chunker of the dispatcher that localDispatch sends dispatches to. A nil chunker selects dispatch.DefaultChunker.
+func NewDispatchServer(localDispatch dispatch.Dispatcher, chunker dispatch.Chunker) dispatchv1.DispatchServiceServer {
 	return &dispatchServer{
 		localDispatch: localDispatch,
+		chunker:       chunker,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Stream: middleware.ChainStreamServer(
 				streamtimeout.MustStreamServerInterceptor(streamAPITimeout),
@@ -39,12 +45,12 @@ func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchSer
 }
 
 func (ds *dispatchServer) DispatchCheck(ctx context.Context, req *dispatchv1.DispatchCheckRequest) (*dispatchv1.DispatchCheckResponse, error) {
-	resp, err := ds.localDispatch.DispatchCheck(ctx, req)
+	resp, err := ds.localDispatch.DispatchCheck(dispatch.ContextWithChunker(ctx, ds.chunker), req)
 	return resp, rewriteGraphError(ctx, err)
 }
 
 func (ds *dispatchServer) DispatchExpand(ctx context.Context, req *dispatchv1.DispatchExpandRequest) (*dispatchv1.DispatchExpandResponse, error) {
-	resp, err := ds.localDispatch.DispatchExpand(ctx, req)
+	resp, err := ds.localDispatch.DispatchExpand(dispatch.ContextWithChunker(ctx, ds.chunker), req)
 	return resp, rewriteGraphError(ctx, err)
 }
 
@@ -52,28 +58,33 @@ func (ds *dispatchServer) DispatchLookupResources2(
 	req *dispatchv1.DispatchLookupResources2Request,
 	resp dispatchv1.DispatchService_DispatchLookupResources2Server,
 ) error {
-	return ds.localDispatch.DispatchLookupResources2(req, dispatch.WrapGRPCStream(resp))
+	return ds.localDispatch.DispatchLookupResources2(req, withChunker(ds.chunker, dispatch.WrapGRPCStream(resp)))
 }
 
 func (ds *dispatchServer) DispatchLookupResources3(
 	req *dispatchv1.DispatchLookupResources3Request,
 	resp dispatchv1.DispatchService_DispatchLookupResources3Server,
 ) error {
-	return ds.localDispatch.DispatchLookupResources3(req, dispatch.WrapGRPCStream(resp))
+	return ds.localDispatch.DispatchLookupResources3(req, withChunker(ds.chunker, dispatch.WrapGRPCStream(resp)))
 }
 
 func (ds *dispatchServer) DispatchLookupSubjects(
 	req *dispatchv1.DispatchLookupSubjectsRequest,
 	resp dispatchv1.DispatchService_DispatchLookupSubjectsServer,
 ) error {
-	return ds.localDispatch.DispatchLookupSubjects(req, dispatch.WrapGRPCStream(resp))
+	return ds.localDispatch.DispatchLookupSubjects(req, withChunker(ds.chunker, dispatch.WrapGRPCStream(resp)))
 }
 
 func (ds *dispatchServer) DispatchQueryPlan(
 	req *dispatchv1.DispatchQueryPlanRequest,
 	resp dispatchv1.DispatchService_DispatchQueryPlanServer,
 ) error {
-	return ds.localDispatch.DispatchQueryPlan(req, dispatch.WrapGRPCStream(resp))
+	return ds.localDispatch.DispatchQueryPlan(req, withChunker(ds.chunker, dispatch.WrapGRPCStream(resp)))
+}
+
+// withChunker returns stream with chunker on its context.
+func withChunker[T any](chunker dispatch.Chunker, stream dispatch.Stream[T]) dispatch.Stream[T] {
+	return dispatch.StreamWithContext(dispatch.ContextWithChunker(stream.Context(), chunker), stream)
 }
 
 func (ds *dispatchServer) Close() error {
