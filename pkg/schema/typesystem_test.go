@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
 func TestTypeSystemConcurrency(t *testing.T) {
@@ -701,4 +702,70 @@ func TestPossibleTraitsForFilter(t *testing.T) {
 			require.Equal(tc.expectedTraits.AllowsExpiration, traits.AllowsExpiration, "AllowsExpiration mismatch")
 		})
 	}
+}
+
+// The same relation name in different definitions must have independent wildcard results.
+func TestWildcardReferencesAcrossDefinitions(t *testing.T) {
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		SchemaString: `
+			definition user {}
+			definition direct {
+				relation member: user
+			}
+			definition public {
+				relation member: user:*
+			}
+		`,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	for _, order := range [][]string{{"direct", "public"}, {"public", "direct"}} {
+		t.Run(fmt.Sprint(order), func(t *testing.T) {
+			ts := NewTypeSystem(ResolverForSchema(compiled))
+			for _, name := range order {
+				def, err := ts.GetDefinition(t.Context(), name)
+				require.NoError(t, err)
+				ref, err := ts.referencesWildcardType(t.Context(), def, "member")
+				require.NoError(t, err)
+				if name == "direct" {
+					require.Nil(t, ref)
+				} else {
+					require.NotNil(t, ref)
+					require.Equal(t, "public", ref.ReferencingRelation.Namespace)
+					require.Equal(t, "member", ref.ReferencingRelation.Relation)
+					require.Equal(t, "user", ref.WildcardType.Namespace)
+				}
+			}
+		})
+	}
+}
+
+func TestTransitiveWildcardValidationAfterUnrelatedDefinition(t *testing.T) {
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		SchemaString: `
+			definition ty0 {
+				relation rel0: ty3#rel0
+				relation rel1: ty2#rel1
+			}
+			definition ty1 {
+				relation rel0: ty0
+			}
+			definition ty2 {
+				relation rel1: ty1#rel0
+			}
+			definition ty3 {
+				relation rel0: ty0:*
+			}
+		`,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	ts := NewTypeSystem(ResolverForSchema(compiled))
+	// Validating ty2 first caches a negative wildcard result for ty1#rel0.
+	_, err = ts.GetValidatedDefinition(t.Context(), "ty2")
+	require.NoError(t, err)
+
+	// That result must not hide the wildcard in ty3#rel0 when validating ty0.
+	_, err = ts.GetValidatedDefinition(t.Context(), "ty0")
+	require.ErrorContains(t, err, "wildcard relations cannot be transitively included")
 }
