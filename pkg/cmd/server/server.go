@@ -245,6 +245,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		}
 	}()
 
+	// Dispatch clients cannot yet present an SVID, so a dispatch server
+	// requiring one would refuse every peer.
+	if c.DispatchServer.SPIFFE {
+		err = errors.New("--dispatch-cluster-spiffe is not supported yet: dispatch clients cannot present an X.509-SVID")
+		return nil, err
+	}
+
 	err = c.handleGrpcAuthn(ctx)
 	if err != nil {
 		return nil, err
@@ -595,7 +602,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 	closeables.AddCloserWithGracePeriod("grpc", c.ShutdownGracePeriod, grpcServer.GracefulStop, grpcServer.ForceStop)
 
-	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx)
+	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx, grpcServer)
 	if err != nil {
 		return nil, err
 	}
@@ -825,9 +832,15 @@ func (c *Config) buildStreamingMiddleware(defaultMiddleware *MiddlewareChain[grp
 }
 
 // initializeGateway Configures the gateway to serve HTTP
-func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer, io.Closer, error) {
+func (c *Config) initializeGateway(ctx context.Context, grpcServer util.RunnableGRPCServer) (util.RunnableHTTPServer, io.Closer, error) {
+	var gatewayOpts []gateway.HandlerOption
 	if len(c.HTTPGatewayUpstreamAddr) == 0 {
 		c.HTTPGatewayUpstreamAddr = c.GRPCServer.Address
+
+		// A server that requires client SVIDs is reached with its own one.
+		if c.GRPCServer.SPIFFE {
+			gatewayOpts = append(gatewayOpts, gateway.WithUpstreamCredentials(grpcServer.DialCredentials()))
+		}
 	} else {
 		log.Ctx(ctx).Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
 	}
@@ -849,7 +862,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, gatewayOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}

@@ -2,6 +2,7 @@
 package util
 
 import (
+	"fmt"
 	defaults "github.com/creasty/defaults"
 	"time"
 )
@@ -39,6 +40,10 @@ func (g *GRPCServerConfig) ToOption() GRPCServerConfigOption {
 		to.BufferSize = g.BufferSize
 		to.ClientCAPath = g.ClientCAPath
 		to.MaxWorkers = g.MaxWorkers
+		to.SPIFFE = g.SPIFFE
+		to.SPIFFESocket = g.SPIFFESocket
+		to.SPIFFEID = g.SPIFFEID
+		to.SPIFFEAllowedIDs = g.SPIFFEAllowedIDs
 	}
 }
 
@@ -80,6 +85,22 @@ func (g *GRPCServerConfig) DebugMap() map[string]any {
 		debugMap["ClientCAPath"] = g.ClientCAPath
 	}
 	debugMap["MaxWorkers"] = g.MaxWorkers
+	debugMap["SPIFFE"] = g.SPIFFE
+	if g.SPIFFESocket == "" {
+		debugMap["SPIFFESocket"] = "(empty)"
+	} else {
+		debugMap["SPIFFESocket"] = g.SPIFFESocket
+	}
+	if g.SPIFFEID == "" {
+		debugMap["SPIFFEID"] = "(empty)"
+	} else {
+		debugMap["SPIFFEID"] = g.SPIFFEID
+	}
+	if g.SPIFFEAllowedIDs == nil {
+		debugMap["SPIFFEAllowedIDs"] = "nil"
+	} else {
+		debugMap["SPIFFEAllowedIDs"] = fmt.Sprintf("(slice of size %d)", len(g.SPIFFEAllowedIDs))
+	}
 	return debugMap
 }
 
@@ -180,6 +201,41 @@ func WithClientCAPath(clientCAPath string) GRPCServerConfigOption {
 func WithMaxWorkers(maxWorkers uint32) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.MaxWorkers = maxWorkers
+	}
+}
+
+// WithSPIFFE returns an option that can set SPIFFE on a GRPCServerConfig
+func WithSPIFFE(sPIFFE bool) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.SPIFFE = sPIFFE
+	}
+}
+
+// WithSPIFFESocket returns an option that can set SPIFFESocket on a GRPCServerConfig
+func WithSPIFFESocket(sPIFFESocket string) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.SPIFFESocket = sPIFFESocket
+	}
+}
+
+// WithSPIFFEID returns an option that can set SPIFFEID on a GRPCServerConfig
+func WithSPIFFEID(sPIFFEID string) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.SPIFFEID = sPIFFEID
+	}
+}
+
+// WithSPIFFEAllowedIDs returns an option that can append SPIFFEAllowedIDss to GRPCServerConfig.SPIFFEAllowedIDs
+func WithSPIFFEAllowedIDs(sPIFFEAllowedIDs string) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.SPIFFEAllowedIDs = append(g.SPIFFEAllowedIDs, sPIFFEAllowedIDs)
+	}
+}
+
+// SetSPIFFEAllowedIDs returns an option that can set SPIFFEAllowedIDs on a GRPCServerConfig
+func SetSPIFFEAllowedIDs(sPIFFEAllowedIDs []string) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.SPIFFEAllowedIDs = sPIFFEAllowedIDs
 	}
 }
 

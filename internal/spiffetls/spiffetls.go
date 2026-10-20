@@ -1,6 +1,7 @@
-// Package spiffetls provides the TLS configuration a datastore client uses to
-// authenticate with an X.509-SVID obtained from the SPIFFE Workload API, and
-// to authenticate the datastore server by its SPIFFE ID.
+// Package spiffetls provides TLS configurations that authenticate with an
+// X.509-SVID obtained from the SPIFFE Workload API, and authenticate the peer
+// by its SPIFFE ID: for a datastore client verifying its server, and for a
+// gRPC server verifying its clients.
 //
 // The SVID and the trust bundles are streamed from the Workload API and
 // resolved on every handshake, so a rotated SVID or bundle is used by the next
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
@@ -64,44 +66,14 @@ func (o Options) IsSet() bool {
 	return o.Enabled || o.Socket != "" || o.ID != "" || o.ServerID != ""
 }
 
-// socket returns the Workload API address to use, and whether it came from the
-// environment.
-func (o Options) socket() (string, bool) {
-	if o.Socket != "" {
-		return o.Socket, false
-	}
-	return os.Getenv(workloadapi.SocketEnv), true
-}
-
 // Validate checks that the options are unset, or enabled with a Workload API
 // address and well-formed IDs.
 func (o Options) Validate() error {
 	if !o.IsSet() {
 		return nil
 	}
-
-	if !o.Enabled {
-		return errors.New("the datastore SPIFFE options require the SPIFFE identity to be enabled: set --datastore-spiffe")
-	}
-
-	socket, fromEnv := o.socket()
-	if socket == "" {
-		return fmt.Errorf("no SPIFFE Workload API address for the datastore: set --datastore-spiffe-socket or %s", workloadapi.SocketEnv)
-	}
-	if err := workloadapi.ValidateAddress(socket); err != nil {
-		if fromEnv {
-			return fmt.Errorf("invalid SPIFFE Workload API address %q in %s: %w", socket, workloadapi.SocketEnv, err)
-		}
-		return fmt.Errorf("invalid datastore SPIFFE socket %q: %w", socket, err)
-	}
-	if o.ID != "" {
-		id, err := spiffeid.FromString(o.ID)
-		if err != nil {
-			return fmt.Errorf("invalid datastore SPIFFE ID %q: %w", o.ID, err)
-		}
-		if id.Path() == "" {
-			return fmt.Errorf("invalid datastore SPIFFE ID %q: a trust domain is not the ID of an SVID", o.ID)
-		}
+	if err := validateIdentity("datastore", o.Enabled, o.Socket, o.ID); err != nil {
+		return err
 	}
 	if o.ServerID != "" {
 		if _, err := spiffeid.FromString(o.ServerID); err != nil {
@@ -111,10 +83,53 @@ func (o Options) Validate() error {
 	return nil
 }
 
+// socketOrEnv returns the Workload API address to use, and whether it came
+// from the environment.
+func socketOrEnv(socket string) (string, bool) {
+	if socket != "" {
+		return socket, false
+	}
+	return os.Getenv(workloadapi.SocketEnv), true
+}
+
+// validateIdentity checks the options shared by every use of the package,
+// naming the flags of the given prefix in its errors.
+func validateIdentity(prefix string, enabled bool, socketFlag, id string) error {
+	if !enabled {
+		return fmt.Errorf("the %[1]s SPIFFE options require the SPIFFE identity to be enabled: set --%[1]s-spiffe", prefix)
+	}
+
+	socket, fromEnv := socketOrEnv(socketFlag)
+	if socket == "" {
+		return fmt.Errorf("no SPIFFE Workload API address for the %[1]s: set --%[1]s-spiffe-socket or %[2]s", prefix, workloadapi.SocketEnv)
+	}
+	if err := workloadapi.ValidateAddress(socket); err != nil {
+		if fromEnv {
+			return fmt.Errorf("invalid SPIFFE Workload API address %q in %s: %w", socket, workloadapi.SocketEnv, err)
+		}
+		return fmt.Errorf("invalid %s SPIFFE socket %q: %w", prefix, socket, err)
+	}
+	if id != "" {
+		parsed, err := spiffeid.FromString(id)
+		if err != nil {
+			return fmt.Errorf("invalid %s SPIFFE ID %q: %w", prefix, id, err)
+		}
+		if parsed.Path() == "" {
+			return fmt.Errorf("invalid %s SPIFFE ID %q: a trust domain is not the ID of an SVID", prefix, id)
+		}
+	}
+	return nil
+}
+
 // Source holds a connection to the Workload API and the identities a datastore
 // client authenticates with. It must be closed when the datastore is closed.
 type Source struct {
-	x509       *workloadapi.X509Source
+	x509 *workloadapi.X509Source
+
+	// ownID is the SPIFFE ID of the SVID the source started with.
+	ownID spiffeid.ID
+
+	// authorizer decides which peers are accepted.
 	authorizer tlsconfig.Authorizer
 }
 
@@ -129,7 +144,23 @@ func New(ctx context.Context, opts Options) (*Source, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	socket, fromEnv := opts.socket()
+
+	x509Source, svid, logEvent, err := fetch(ctx, opts.Socket, opts.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	authorizer, allowed := serverAuthorizer(opts.ServerID, svid.ID.TrustDomain())
+	logEvent.Str("server_allowed", allowed).Msg("using X.509-SVID from the SPIFFE Workload API for the datastore")
+	return &Source{x509: x509Source, ownID: svid.ID, authorizer: authorizer}, nil
+}
+
+// fetch connects to the Workload API, located by socketFlag or the
+// environment, and waits, bounded, until it has issued an SVID: the one for id
+// when set, or else the default one. The returned log event describes the SVID
+// and is left for the caller to complete and send.
+func fetch(ctx context.Context, socketFlag, id string) (*workloadapi.X509Source, *x509svid.SVID, *zerolog.Event, error) {
+	socket, fromEnv := socketOrEnv(socketFlag)
 
 	// The context bounds only the wait for the first update: the Workload API
 	// stream itself runs until Close.
@@ -140,38 +171,34 @@ func New(ctx context.Context, opts Options) (*Source, error) {
 		workloadapi.WithClientOptions(workloadapi.WithAddr(socket)),
 	}
 	wanted := "an X.509-SVID"
-	if opts.ID != "" {
-		id := spiffeid.RequireFromString(opts.ID)
-		sourceOpts = append(sourceOpts, workloadapi.WithDefaultX509SVIDPicker(pickByID(id)))
-		wanted = "an X.509-SVID for " + id.String()
+	if id != "" {
+		parsed := spiffeid.RequireFromString(id)
+		sourceOpts = append(sourceOpts, workloadapi.WithDefaultX509SVIDPicker(pickByID(parsed)))
+		wanted = "an X.509-SVID for " + parsed.String()
 	}
 
 	x509Source, err := workloadapi.NewX509Source(startupCtx, sourceOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("unable to receive X.509-SVIDs from the SPIFFE Workload API at %s: %w", socket, err)
+		return nil, nil, nil, fmt.Errorf("unable to receive X.509-SVIDs from the SPIFFE Workload API at %s: %w", socket, err)
 	}
 
 	for {
 		svid, err := x509Source.GetX509SVID()
 		if err == nil {
-			authorizer, allowed := serverAuthorizer(opts.ServerID, svid.ID.TrustDomain())
-
 			leaf := svid.Certificates[0]
-			log.Ctx(ctx).Info().
+			event := log.Ctx(ctx).Info().
 				Str("workload_api", socket).
 				Bool("workload_api_from_env", fromEnv).
 				Str("spiffe_id", svid.ID.String()).
-				Bool("default_svid", opts.ID == "").
+				Bool("default_svid", id == "").
 				Str("subject", leaf.Subject.String()).
-				Time("not_after", leaf.NotAfter).
-				Str("server_allowed", allowed).
-				Msg("using X.509-SVID from the SPIFFE Workload API for the datastore")
-			return &Source{x509: x509Source, authorizer: authorizer}, nil
+				Time("not_after", leaf.NotAfter)
+			return x509Source, svid, event, nil
 		}
 
 		if err := x509Source.WaitUntilUpdated(startupCtx); err != nil {
 			_ = x509Source.Close()
-			return nil, fmt.Errorf("the SPIFFE Workload API at %s did not issue %s: %w", socket, wanted, err)
+			return nil, nil, nil, fmt.Errorf("the SPIFFE Workload API at %s did not issue %s: %w", socket, wanted, err)
 		}
 	}
 }
