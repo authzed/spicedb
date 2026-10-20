@@ -44,7 +44,7 @@ var ParseRevisionString = revisions.RevisionParser(revisions.HybridLogicalClock)
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	gcTTLRegex = regexp.MustCompile(`gc\.ttlseconds\s*=\s*([1-9][0-9]+)`)
+	gcTTLRegex = regexp.MustCompile(`gc\.ttlseconds\s*=\s*([0-9]+)`)
 
 	tracer = otel.Tracer("spicedb/internal/datastore/crdb")
 )
@@ -59,6 +59,7 @@ const (
 	queryTransactionNowPreV23 = querySelectNow
 	queryTransactionNow       = "SHOW COMMIT TIMESTAMP"
 	queryShowZoneConfig       = "SHOW ZONE CONFIGURATION FOR RANGE default;"
+	queryShowTableZoneConfig  = "SHOW ZONE CONFIGURATION FROM TABLE %s;"
 
 	spicedbTransactionKey = "$spicedb_transaction_key"
 )
@@ -158,19 +159,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		transactionNowQuery = queryTransactionNowPreV23
 	}
 
-	clusterTTLNanos, err := readClusterTTLNanos(initCtx, initPool)
+	gcWindow, err := resolveGCWindow(initCtx, initPool, config.gcWindow, config.withIntegrity)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read cluster gc window: %w", err)
 	}
-
-	gcWindowNanos := config.gcWindow.Nanoseconds()
-	if clusterTTLNanos < gcWindowNanos {
-		log.Warn().
-			Int64("cockroach_cluster_gc_window_nanos", clusterTTLNanos).
-			Int64("spicedb_gc_window_nanos", gcWindowNanos).
-			Msg("configured CockroachDB cluster gc window is less than configured SpiceDB gc window, falling back to CRDB value. See " + sharederrors.CrdbGcWindowErrorLink)
-		config.gcWindow = time.Duration(clusterTTLNanos) * time.Nanosecond
-	}
+	config.gcWindow = gcWindow
 
 	// If watch is enabled, ensure the relationship tables suppress row-level TTL
 	// deletes from changefeeds, so that the Watch API does not emit deletions
@@ -750,17 +743,68 @@ func (cds *crdbDatastore) readTransactionCommitRev(ctx context.Context, reader p
 	return revisions.NewForHLC(hlcNow)
 }
 
-func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
-	var target, configSQL string
+type zoneGCTTL struct {
+	target string
+	ttl    time.Duration
+}
 
-	if err := conn.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-		return row.Scan(&target, &configSQL)
-	}, queryShowZoneConfig); err != nil {
-		return 0, err
+func resolveGCWindow(ctx context.Context, conn pgxcommon.DBFuncQuerier, configured time.Duration, withIntegrity bool) (time.Duration, error) {
+	relationTable := schema.TableTuple
+	if withIntegrity {
+		relationTable = schema.TableTupleWithIntegrity
 	}
 
+	var effective time.Duration
+	var rangeDefault zoneGCTTL
+	dataZone, dataErr := readZoneGCTTL(ctx, conn, fmt.Sprintf(queryShowTableZoneConfig, relationTable))
+	if dataErr == nil {
+		effective = min(configured, dataZone.ttl)
+	} else {
+		var err error
+		rangeDefault, err = readZoneGCTTL(ctx, conn, queryShowZoneConfig)
+		if err != nil {
+			return 0, err
+		}
+		log.Warn().Err(dataErr).Str("table", relationTable).Msg("unable to read the CockroachDB zone configuration of the relationship table, falling back to RANGE default")
+		effective = min(configured, rangeDefault.ttl)
+	}
+
+	event, msg := log.Info(), "using configured SpiceDB gc window, covered by the CockroachDB gc window"
+	if effective < configured {
+		event, msg = log.Warn(), "configured CockroachDB cluster gc window is less than configured SpiceDB gc window, falling back to CRDB value. See "+sharederrors.CrdbGcWindowErrorLink
+	}
+	if dataErr == nil {
+		event = event.
+			Int64("cockroach_data_gc_window_nanos", dataZone.ttl.Nanoseconds()).
+			Str("cockroach_data_zone_target", dataZone.target)
+	} else {
+		event = event.Int64("cockroach_cluster_gc_window_nanos", rangeDefault.ttl.Nanoseconds())
+	}
+	event.
+		Int64("spicedb_gc_window_nanos", configured.Nanoseconds()).
+		Int64("effective_gc_window_nanos", effective.Nanoseconds()).
+		Msg(msg)
+	return effective, nil
+}
+
+func readZoneGCTTL(ctx context.Context, conn pgxcommon.DBFuncQuerier, query string) (zoneGCTTL, error) {
+	var target, configSQL string
+	if err := conn.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&target, &configSQL)
+	}, query); err != nil {
+		return zoneGCTTL{}, err
+	}
+
+	ttl, err := parseGCTTL(configSQL)
+	if err != nil {
+		return zoneGCTTL{}, fmt.Errorf("zone config of %s: %w", target, err)
+	}
+	return zoneGCTTL{target: target, ttl: ttl}, nil
+}
+
+func parseGCTTL(configSQL string) (time.Duration, error) {
 	groups := gcTTLRegex.FindStringSubmatch(configSQL)
-	if groups == nil || len(groups) != 2 {
+	if len(groups) != 2 {
 		return 0, errors.New("CRDB zone config unexpected format")
 	}
 
@@ -768,8 +812,11 @@ func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int
 	if err != nil {
 		return 0, err
 	}
+	if gcSeconds <= 0 {
+		return 0, fmt.Errorf("CRDB zone config has invalid gc.ttlseconds %d", gcSeconds)
+	}
 
-	return gcSeconds * 1_000_000_000, nil
+	return time.Duration(gcSeconds) * time.Second, nil
 }
 
 func (cds *crdbDatastore) registerPrometheusCollectors(enablePrometheusStats bool) error {
