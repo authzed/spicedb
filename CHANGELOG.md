@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- Schema validation: schemas that transitively include wildcard subjects are now consistently rejected, even when unrelated definitions reuse the same relation names. (https://github.com/authzed/spicedb/pull/3421)
 
 ## [1.57.0] - 2026-10-20
 ### Added
