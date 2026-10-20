@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [1.57.0] - 2026-10-20
 ### Added
 - Experimental: `--experimental-full-relation-cache=enabled` turns on the full relation cache. It caches the complete relationship set of a hot object#relation at one revision and serves reads from it, including empty answers, with no datastore query. Off by default. (https://github.com/authzed/spicedb/pull/3392)
 - Datastore: `datastore.SortKeyRevision`, an optional extension to `datastore.Revision` for revision types that are totally ordered. Its `AppendSortKey` returns an order-preserving, prefix-free byte encoding of the revision, suitable as a key — or as one field of a composite key — in an ordered key/value store; `String()` offers neither property, being a variable-width decimal. Implemented for the hybrid logical clock, timestamp and transaction ID revision types. Postgres revisions are backed by transaction snapshots and are only partially ordered, so they deliberately do not implement it, and a type assertion is how a consumer discovers that. Supersedes `ByteSortable()`, which reports the same capability but cannot supply the encoding that satisfies it. (https://github.com/authzed/spicedb/pull/3319)
@@ -3721,7 +3723,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - First release.
 
-[Unreleased]: https://github.com/authzed/spicedb/compare/v1.56.2...HEAD
+[Unreleased]: https://github.com/authzed/spicedb/compare/v1.57.0...HEAD
+[1.57.0]: https://github.com/authzed/spicedb/compare/v1.56.2...v1.57.0
 [1.56.2]: https://github.com/authzed/spicedb/compare/v1.56.1...v1.56.2
 [1.56.1]: https://github.com/authzed/spicedb/compare/v1.56.0...v1.56.1
 [1.56.0]: https://github.com/authzed/spicedb/compare/v1.54.0...v1.56.0
