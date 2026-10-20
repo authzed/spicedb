@@ -13,9 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/spiffetls"
@@ -141,16 +145,121 @@ func freeAddr(t *testing.T) string {
 	return net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 }
 
-func TestServerRejectsDispatchSPIFFE(t *testing.T) {
+// TestDispatchSPIFFE runs a node that dispatches to itself over the cluster
+// port, with both ends using SPIFFE: the dispatch server requires a client
+// SVID and the dispatch client verifies the server by SPIFFE ID. Every check
+// crosses that handshake.
+func TestDispatchSPIFFE(t *testing.T) {
+	// As cmd/spicedb does; registering is idempotent.
+	balancer.Register(ConsistentHashringBuilder)
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
+	ca := spiffetest.NewCA(t, "spicedb.test")
+	api := spiffetest.NewWorkloadAPI(t)
+	api.SetX509SVIDs(t, []*x509svid.SVID{ca.MintX509SVID(t, spiffeServerID)}, ca)
+
+	for _, tc := range []struct {
+		name     string
+		serverID string
+		wantErr  bool
+	}{
+		{name: "peer with the expected ID", serverID: spiffeServerID},
+		{name: "peer in the expected trust domain", serverID: "spiffe://spicedb.test"},
+		{name: "peer with another ID", serverID: "spiffe://spicedb.test/other", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			permissions := runDispatchingServer(t, api.Addr, tc.serverID)
+
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			resp, err := permissions.CheckPermission(ctx, &v1.CheckPermissionRequest{
+				Consistency: &v1.Consistency{Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true}},
+				Resource:    &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
+				Permission:  "view",
+				Subject:     &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
+			})
+			if tc.wantErr {
+				require.Error(t, err, "the dispatch client must refuse a peer with another SPIFFE ID")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, resp.Permissionship)
+		})
+	}
+}
+
+// runDispatchingServer starts a node whose API is in memory and whose
+// dispatches go to its own cluster port over SPIFFE mutual TLS, expecting the
+// upstream to present serverID. It writes a schema and one relationship.
+func runDispatchingServer(t *testing.T, socket, serverID string) v1.PermissionsServiceClient {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(t.Context())
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
 
-	_, err = ConfigWithOptions(
+	dispatchAddr := freeAddr(t)
+	rs, err := ConfigWithOptions(
 		&Config{},
 		WithPresharedSecureKey("psk"),
 		WithDatastore(ds),
 		WithGRPCServer(util.GRPCServerConfig{Network: util.BufferedNetwork, Enabled: true}),
-		WithDispatchServer(util.GRPCServerConfig{Enabled: true, SPIFFE: true}),
-	).Complete(t.Context())
-	require.ErrorContains(t, err, "--dispatch-cluster-spiffe is not supported yet")
+		WithDispatchServer(util.GRPCServerConfig{
+			Network:      "tcp",
+			Address:      dispatchAddr,
+			Enabled:      true,
+			SPIFFE:       true,
+			SPIFFESocket: socket,
+		}),
+		WithDispatchUpstreamAddr(dispatchAddr),
+		WithDispatchUpstreamSPIFFE(true),
+		WithDispatchUpstreamSPIFFESocket(socket),
+		WithDispatchUpstreamSPIFFEServerID(serverID),
+		WithDispatchCacheConfig(CacheConfig{Enabled: false}),
+		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false}),
+		WithNamespaceCacheConfig(CacheConfig{Enabled: false}),
+		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithSilentlyDisableTelemetry(true),
+		WithEnableMemoryProtectionMiddleware(false),
+	).Complete(ctx)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		_ = rs.Run(ctx)
+		close(done)
+	}()
+
+	conn, err := rs.NewClient(grpcutil.WithInsecureBearerToken("psk"), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = conn.Close()
+		cancel()
+		<-done
+	})
+
+	_, err = v1.NewSchemaServiceClient(conn).WriteSchema(ctx, &v1.WriteSchemaRequest{Schema: `
+definition user {}
+
+definition document {
+	relation viewer: user
+	permission view = viewer
+}`})
+	require.NoError(t, err)
+
+	permissions := v1.NewPermissionsServiceClient(conn)
+	_, err = permissions.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{Updates: []*v1.RelationshipUpdate{{
+		Operation: v1.RelationshipUpdate_OPERATION_TOUCH,
+		Relationship: &v1.Relationship{
+			Resource: &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
+			Relation: "viewer",
+			Subject:  &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
+		},
+	}}})
+	require.NoError(t, err)
+
+	return permissions
 }

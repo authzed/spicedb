@@ -11,7 +11,6 @@ package spiffetls
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -30,9 +29,15 @@ import (
 // SVID. It is a variable so that tests can shorten it.
 var startupTimeout = 60 * time.Second
 
-// Options configures the SPIFFE identity of a datastore client. Only Enabled
-// is needed to use it; the other options override the defaults.
+// Options configures the SPIFFE identity of a client, such as a datastore or
+// dispatch client. Only Enabled is needed to use it; the other options
+// override the defaults.
 type Options struct {
+	// FlagPrefix is the prefix of the flags that set these options, such as
+	// "dispatch-upstream", and names them in errors. It defaults to
+	// "datastore".
+	FlagPrefix string
+
 	// Enabled turns the SPIFFE identity on. The other options are an error
 	// without it, rather than being ignored or turning it on themselves.
 	Enabled bool
@@ -60,6 +65,13 @@ type Options struct {
 	ServerID string
 }
 
+func (o Options) prefix() string {
+	if o.FlagPrefix == "" {
+		return "datastore"
+	}
+	return o.FlagPrefix
+}
+
 // IsSet returns whether any option is set, so that callers validate stray
 // options even when the SPIFFE identity is not enabled.
 func (o Options) IsSet() bool {
@@ -72,12 +84,12 @@ func (o Options) Validate() error {
 	if !o.IsSet() {
 		return nil
 	}
-	if err := validateIdentity("datastore", o.Enabled, o.Socket, o.ID); err != nil {
+	if err := validateIdentity(o.prefix(), o.Enabled, o.Socket, o.ID); err != nil {
 		return err
 	}
 	if o.ServerID != "" {
 		if _, err := spiffeid.FromString(o.ServerID); err != nil {
-			return fmt.Errorf("invalid datastore server SPIFFE ID %q: %w", o.ServerID, err)
+			return fmt.Errorf("invalid %s server SPIFFE ID %q: %w", o.prefix(), o.ServerID, err)
 		}
 	}
 	return nil
@@ -139,7 +151,7 @@ type Source struct {
 // connection.
 func New(ctx context.Context, opts Options) (*Source, error) {
 	if !opts.Enabled {
-		return nil, errors.New("the datastore SPIFFE identity is not enabled")
+		return nil, fmt.Errorf("the %s SPIFFE identity is not enabled", opts.prefix())
 	}
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -151,7 +163,9 @@ func New(ctx context.Context, opts Options) (*Source, error) {
 	}
 
 	authorizer, allowed := serverAuthorizer(opts.ServerID, svid.ID.TrustDomain())
-	logEvent.Str("server_allowed", allowed).Msg("using X.509-SVID from the SPIFFE Workload API for the datastore")
+	logEvent.Str("service", opts.prefix()).
+		Str("server_allowed", allowed).
+		Msg("using X.509-SVID from the SPIFFE Workload API to connect")
 	return &Source{x509: x509Source, ownID: svid.ID, authorizer: authorizer}, nil
 }
 

@@ -40,6 +40,7 @@ import (
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	"github.com/authzed/spicedb/internal/spiffetls"
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/cache"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
@@ -109,6 +110,10 @@ type Config struct {
 	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
 	DispatchUpstreamAddr              string                   `debugmap:"visible"`
 	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
+	DispatchUpstreamSPIFFE            bool                     `debugmap:"visible"`
+	DispatchUpstreamSPIFFESocket      string                   `debugmap:"visible"`
+	DispatchUpstreamSPIFFEID          string                   `debugmap:"visible"`
+	DispatchUpstreamSPIFFEServerID    string                   `debugmap:"visible"`
 	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible" default:"60s"`
 	DispatchClientMetricsEnabled      bool                     `debugmap:"visible" default:"true"`
 	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
@@ -244,13 +249,6 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			log.Ctx(ctx).Err(closeableErr).Msg("failed to clean up resources on Config.Complete")
 		}
 	}()
-
-	// Dispatch clients cannot yet present an SVID, so a dispatch server
-	// requiring one would refuse every peer.
-	if c.DispatchServer.SPIFFE {
-		err = errors.New("--dispatch-cluster-spiffe is not supported yet: dispatch clients cannot present an X.509-SVID")
-		return nil, err
-	}
 
 	err = c.handleGrpcAuthn(ctx)
 	if err != nil {
@@ -398,6 +396,12 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
+			combineddispatch.UpstreamSPIFFE(spiffetls.Options{
+				Enabled:  c.DispatchUpstreamSPIFFE,
+				Socket:   c.DispatchUpstreamSPIFFESocket,
+				ID:       c.DispatchUpstreamSPIFFEID,
+				ServerID: c.DispatchUpstreamSPIFFEServerID,
+			}),
 			combineddispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
