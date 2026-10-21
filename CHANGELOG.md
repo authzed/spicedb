@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- CockroachDB: the GC window is now derived from the zone configuration that applies to SpiceDB's relationship table instead of the cluster-wide `RANGE default`. SpiceDB reads `SHOW ZONE CONFIGURATION FROM TABLE relation_tuple` (or `relation_tuple_with_integrity`), for which CockroachDB resolves table, database and `RANGE default` precedence, and caps `--datastore-gc-window` at that TTL. Previously a database configured with `ALTER DATABASE ... CONFIGURE ZONE USING gc.ttlseconds = 86400` on a cluster with the default 4h `RANGE default` rejected revisions older than 4h as stale, and a database configured below a longer `RANGE default` kept a window wider than the data's real TTL, so reads past it failed with CockroachDB's GC threshold error instead of being rejected as stale. If the table's zone configuration cannot be read, the `RANGE default` value is used as before. A single-digit `gc.ttlseconds` is now also parsed correctly.
 
 ## [1.57.0] - 2026-10-20
 ### Added
