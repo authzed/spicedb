@@ -1,12 +1,12 @@
 # vim: syntax=dockerfile
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-ARG BASE=cgr.dev/chainguard/static@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0
+ARG BASE=cgr.dev/chainguard/static@sha256:17367e4d3ae2b46c3290858e483fac09be085c92b372360fe3bf6a6150848fde
 FROM $BASE
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETPLATFORM
 # NOTE: downloads the health probe binary directly from the official release.
-ADD --chmod=755 https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.59/grpc_health_probe-${TARGETOS}-${TARGETARCH} /usr/local/bin/grpc_health_probe
+ADD --chmod=755 https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.60/grpc_health_probe-${TARGETOS}-${TARGETARCH} /usr/local/bin/grpc_health_probe
 COPY $TARGETPLATFORM/spicedb /usr/local/bin/spicedb
 ENV PATH="$PATH:/usr/local/bin"
 EXPOSE 50051
