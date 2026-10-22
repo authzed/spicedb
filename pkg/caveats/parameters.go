@@ -43,7 +43,7 @@ func ConvertContextToParameters(
 		paramType, ok := parameterTypes[key]
 		if !ok {
 			if unknownParametersOption == ErrorForUnknownParameters {
-				return nil, fmt.Errorf("unknown parameter `%s`", key)
+				return nil, ParameterConversionError{fmt.Errorf("unknown parameter `%s`", key), key}
 			}
 
 			continue
