@@ -168,7 +168,7 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	}
 	closeables.AddCloserWithGracePeriod("readonly-grpc", c.ShutdownGracePeriod, readOnlyGRPCSrv.GracefulStop, readOnlyGRPCSrv.ForceStop)
 
-	gatewayHandler, err := gateway.NewHandler(ctx, c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
+	gatewayHandler, err := gateway.NewHandler(ctx, c.GRPCServer.Address, c.GRPCServer.TLSCertPath, upstreamOptions(c.GRPCServer, gRPCSrv)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
@@ -184,7 +184,7 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	}
 	closeables.AddWithoutError(gatewayServer.Close)
 
-	readOnlyGatewayHandler, err := gateway.NewHandler(ctx, c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
+	readOnlyGatewayHandler, err := gateway.NewHandler(ctx, c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath, upstreamOptions(c.ReadOnlyGRPCServer, readOnlyGRPCSrv)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
@@ -262,4 +262,13 @@ func (c *completedTestServer) NewClient(opts ...grpc.DialOption) (*grpc.ClientCo
 	// running through a buffcon is necessary, as opposed to the implementation in
 	// pkg/cmd/server/server.go
 	return grpc.NewClient(c.gRPCServer.Address(), opts...)
+}
+
+// upstreamOptions returns the gateway options for reaching server: its own
+// SVID, when it requires client SVIDs.
+func upstreamOptions(config util.GRPCServerConfig, server util.RunnableGRPCServer) []gateway.HandlerOption {
+	if !config.SPIFFE {
+		return nil
+	}
+	return []gateway.HandlerOption{gateway.WithUpstreamCredentials(server.DialCredentials())}
 }
