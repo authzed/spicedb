@@ -100,6 +100,28 @@ type ClusterDispatcherConfig struct {
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
 	// before it should timeout.
 	DispatchOverallTimeout time.Duration
+
+	// ObjectAffinityRouting enables routing by the ring owner of each resource object.
+	ObjectAffinityRouting bool
+
+	// HashringBuilder is the balancer builder that supplies the ring view.
+	// With a nil builder, each chunk routes by the object key of its first ID.
+	HashringBuilder consistent.Builder
+
+	// SpreadShare sets the share-of-traffic test for spread.
+	// A key spreads across ring owners when its share of the outbound dispatches of this node
+	// is more than SpreadShare divided by the ring member count.
+	// Zero disables spread.
+	SpreadShare float64
+
+	// Spread is the number of ring owners for a hot key.
+	Spread uint8
+
+	// SpreadLatencyFactor sets the owner-latency gate for spread.
+	// A hot key spreads only if the p90 latency of its owner is at least
+	// SpreadLatencyFactor times the median p90 latency of all owners.
+	// Zero disables the gate.
+	SpreadLatencyFactor float64
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -119,6 +141,27 @@ type SecondaryDispatch struct {
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
 func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (dispatch.Dispatcher, error) {
+	cr, err := newClusterDispatcher(client, conn, config, secondaryDispatch, secondaryDispatchExprs, startingPrimaryHedgingDelay)
+	if err != nil {
+		// Return a nil interface. A nil *clusterDispatcher in a dispatch.Dispatcher is not nil.
+		return nil, err
+	}
+
+	return cr, nil
+}
+
+// NewClusterDispatcherWithChunker returns the dispatcher of NewClusterDispatcher and the chunker for its dispatches.
+// With object-affinity routing on, each chunk belongs to one ring owner. Otherwise the chunker splits by size only,
+// as dispatch.DefaultChunker does.
+func NewClusterDispatcherWithChunker(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (dispatch.Dispatcher, dispatch.Chunker, error) {
+	cr, err := newClusterDispatcher(client, conn, config, secondaryDispatch, secondaryDispatchExprs, startingPrimaryHedgingDelay)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cr, cr.router, nil
+}
+
+func newClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (*clusterDispatcher, error) {
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
@@ -147,11 +190,17 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		}
 	}
 
+	var r router = &requestHashRouter{keyHandler: keyHandler}
+	if config.ObjectAffinityRouting {
+		r = newObjectRouter(r, conn, config)
+	}
+
 	return &clusterDispatcher{
 		clusterClient:                   client,
 		conn:                            conn,
 		keyHandler:                      keyHandler,
 		dispatchOverallTimeout:          dispatchOverallTimeout,
+		router:                          r,
 		secondaryDispatch:               secondaryDispatch,
 		secondaryDispatchExprs:          secondaryDispatchExprs,
 		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
@@ -164,6 +213,9 @@ type clusterDispatcher struct {
 	conn                   *grpc.ClientConn
 	keyHandler             keys.Handler
 	dispatchOverallTimeout time.Duration
+
+	// router selects the hashring keys of check and lookup subjects dispatches and forms the dispatch chunks.
+	router router
 
 	secondaryDispatch               map[string]SecondaryDispatch
 	secondaryDispatchExprs          map[string]*DispatchExpr
@@ -203,17 +255,26 @@ func (dal *digestAndLock) addResultTime(ctx context.Context, duration time.Durat
 	}
 }
 
+// DispatchCheck sends req in one RPC.
+// The router gives the hashring key and the owner for the latency sample.
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	requestKey, err := cr.keyHandler.CheckDispatchKey(ctx, req)
+	routingKey, owner, err := cr.router.checkKey(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
+	return cr.checkWithRoutingKey(ctx, req, routingKey, owner)
+}
 
-	ctx = context.WithValue(ctx, consistent.CtxKey, requestKey)
+// checkWithRoutingKey dispatches req with routingKey as the hashring key.
+// If owner is not empty, it is the ring member key of the owner of routingKey,
+// and the primary dispatch latency counts for that owner.
+func (cr *clusterDispatcher) checkWithRoutingKey(ctx context.Context, req *v1.DispatchCheckRequest, routingKey dispatch.RoutingKey, owner string) (*v1.DispatchCheckResponse, error) {
+	// The balancer reads the key as []byte, so do not store a dispatch.RoutingKey.
+	ctx = context.WithValue(ctx, consistent.CtxKey, []byte(routingKey))
 
 	resp, err := dispatchSyncRequest(
 		ctx,
@@ -222,6 +283,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 		req,
 		tuple.FromCoreRelationReference(req.ResourceRelation),
 		tuple.RR(req.Subject.Namespace, req.Subject.Relation),
+		cr.router.latencyObserver(owner),
 		func(ctx context.Context, client ClusterClient) (*v1.DispatchCheckResponse, error) {
 			resp, err := client.DispatchCheck(ctx, req)
 			if err != nil {
@@ -268,6 +330,7 @@ type secondaryRespTuple[S responseMessage] struct {
 // dispatchSyncRequest handles the dispatch of a unary request.
 // It first attempts to use the secondary dispatchers, if any are defined and match,
 // before falling back to the primary dispatcher.
+// If observePrimary is not nil, it receives the duration of each primary dispatch that succeeds or exceeds its deadline.
 func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	ctx context.Context,
 	cr *clusterDispatcher,
@@ -275,19 +338,33 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	req Q,
 	resourceTypeAndRelation tuple.RelationReference,
 	subjectTypeAndRelation tuple.RelationReference,
+	observePrimary func(time.Duration),
 	handler func(context.Context, ClusterClient) (S, error),
 ) (S, error) {
 	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
+	primaryHandler := handler
+	if observePrimary != nil {
+		primaryHandler = func(ctx context.Context, client ClusterClient) (S, error) {
+			start := time.Now()
+
+			resp, err := handler(ctx, client)
+			if isLatencySample(err) {
+				observePrimary(time.Since(start))
+			}
+			return resp, err
+		}
+	}
+
 	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
-		return handler(withTimeout, cr.clusterClient)
+		return primaryHandler(withTimeout, cr.clusterClient)
 	}
 
 	// If no secondary dispatches are defined, just invoke directly.
 	expr, ok := cr.secondaryDispatchExprs[reqKey]
 	if !ok {
-		return handler(withTimeout, cr.clusterClient)
+		return primaryHandler(withTimeout, cr.clusterClient)
 	}
 
 	// Run the dispatch expression to find the name(s) of the secondary dispatchers to use, if any.
@@ -295,14 +372,14 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	secondaryDispatcherNames, err := RunDispatchExpr(expr, req)
 	if err != nil {
 		log.Ctx(ctx).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
-		return handler(withTimeout, cr.clusterClient)
+		return primaryHandler(withTimeout, cr.clusterClient)
 	}
 
 	if len(secondaryDispatcherNames) == 0 {
 		// If no secondary dispatches are defined, just invoke directly.
 		log.Ctx(ctx).Trace().Str("request-key", reqKey).Msg("no secondary dispatches defined, running primary dispatch")
 		primaryDispatch.WithLabelValues("false", reqKey).Inc()
-		return handler(withTimeout, cr.clusterClient)
+		return primaryHandler(withTimeout, cr.clusterClient)
 	}
 
 	var maximumHedgingDelay time.Duration
@@ -336,7 +413,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 			return
 
 		default:
-			resp, err := handler(withTimeout, cr.clusterClient)
+			resp, err := primaryHandler(withTimeout, cr.clusterClient)
 			log.Ctx(ctx).Trace().Str("request-key", reqKey).Msg("primary dispatch completed")
 			primaryResultChan <- respTuple[S]{resp, err}
 			primaryDispatch.WithLabelValues("false", reqKey).Inc()
@@ -475,20 +552,40 @@ type ctxAndCancel struct {
 // secondary dispatchers. Unlike dispatchSyncRequest, this will first attempt to dispatch
 // from the allowed secondary dispatchers before falling back to the primary, rather than running
 // them in parallel.
+// If observePrimary is not nil, it receives the time from the start of each primary dispatch
+// to its first result, end of stream, or deadline error.
 func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	ctx context.Context,
 	cr *clusterDispatcher,
 	reqKey string,
 	req Q,
 	stream dispatch.Stream[R],
+	observePrimary func(time.Duration),
 	handler func(context.Context, ClusterClient) (receiver[R], error),
 ) error {
 	ctxWithTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
+	primaryHandler := handler
+	if observePrimary != nil {
+		primaryHandler = func(ctx context.Context, client ClusterClient) (receiver[R], error) {
+			start := time.Now()
+
+			r, err := handler(ctx, client)
+			if err != nil {
+				if isLatencySample(err) {
+					observePrimary(time.Since(start))
+				}
+				return r, err
+			}
+
+			return &firstResultTimer[R]{receiver: r, start: start, observe: observePrimary}, nil
+		}
+	}
+
 	// If no secondary dispatches are defined, just invoke directly.
 	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
-		client, err := handler(ctxWithTimeout, cr.clusterClient)
+		client, err := primaryHandler(ctxWithTimeout, cr.clusterClient)
 		if err != nil {
 			return err
 		}
@@ -535,7 +632,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 			return errors.New("cursor locked to unknown secondary dispatcher")
 		}
 
-		client, err := handler(ctxWithTimeout, cr.clusterClient)
+		client, err := primaryHandler(ctxWithTimeout, cr.clusterClient)
 		if err != nil {
 			return err
 		}
@@ -611,7 +708,13 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		}
 
 		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("creating streaming dispatcher stream client")
-		client, err := handler(handlerContext, clusterClient)
+
+		h := handler
+		if isPrimary {
+			h = primaryHandler
+		}
+
+		client, err := h(handlerContext, clusterClient)
 		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("created streaming dispatcher stream client")
 		if isPrimary {
 			primaryDispatch.WithLabelValues("false", reqKey).Inc()
@@ -756,6 +859,34 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	return errors.New("no dispatcher returned results; please check the logs for more information")
 }
 
+// firstResultTimer passes the duration from start to the first result, end of stream, or deadline error to observe.
+// It needs no lock: one goroutine calls Recv, as gRPC requires for a client stream.
+type firstResultTimer[R any] struct {
+	receiver[R]
+	start    time.Time
+	observe  func(time.Duration)
+	observed bool
+}
+
+// Recv returns the next result of the stream.
+// At the first result, end of stream, or deadline error, it passes the elapsed time to observe once.
+func (t *firstResultTimer[R]) Recv() (R, error) {
+	result, err := t.receiver.Recv()
+	if !t.observed && (errors.Is(err, io.EOF) || isLatencySample(err)) {
+		t.observed = true
+		t.observe(time.Since(t.start))
+	}
+	return result, err
+}
+
+// isLatencySample checks whether a primary dispatch that ended with err gives an owner latency sample.
+// It returns true for a success.
+// It returns true for a deadline error, so an owner whose calls time out reads high.
+// It returns false for a cancellation or any other error.
+func isLatencySample(err error) bool {
+	return err == nil || errors.Is(err, context.DeadlineExceeded) || status.Code(err) == codes.DeadlineExceeded
+}
+
 func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {
 	if metadata == nil {
 		return spiceerrors.MustBugf("received a nil metadata")
@@ -810,7 +941,7 @@ func (cr *clusterDispatcher) DispatchLookupResources2(
 		return err
 	}
 
-	return dispatchStreamingRequest(ctx, cr, "lookupresources", req, stream,
+	return dispatchStreamingRequest(ctx, cr, "lookupresources", req, stream, nil,
 		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupResources2Response], error) {
 			return client.DispatchLookupResources2(ctx, req)
 		})
@@ -832,29 +963,43 @@ func (cr *clusterDispatcher) DispatchLookupResources3(
 		return err
 	}
 
-	return dispatchStreamingRequest(ctx, cr, "lookupresources", req, stream,
+	return dispatchStreamingRequest(ctx, cr, "lookupresources", req, stream, nil,
 		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupResources3Response], error) {
 			return client.DispatchLookupResources3(ctx, req)
 		})
 }
 
+// DispatchLookupSubjects sends req in one streaming RPC.
+// The router gives the hashring key and the owner for the latency sample from the stream context.
 func (cr *clusterDispatcher) DispatchLookupSubjects(
 	req *v1.DispatchLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
 ) error {
-	requestKey, err := cr.keyHandler.LookupSubjectsDispatchKey(stream.Context(), req)
+	routingKey, owner, err := cr.router.lookupSubjectsKey(stream.Context(), req)
 	if err != nil {
 		return err
 	}
+	return cr.lookupSubjectsWithKey(req, stream, routingKey, owner)
+}
 
-	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
+// lookupSubjectsWithKey dispatches req with routingKey as the hashring key.
+// If owner is not empty, it is the ring member key of the owner of routingKey,
+// and the primary dispatch latency counts for that owner.
+func (cr *clusterDispatcher) lookupSubjectsWithKey(
+	req *v1.DispatchLookupSubjectsRequest,
+	stream dispatch.LookupSubjectsStream,
+	routingKey dispatch.RoutingKey,
+	owner string,
+) error {
+	// The balancer reads the key as []byte, so do not store a dispatch.RoutingKey.
+	ctx := context.WithValue(stream.Context(), consistent.CtxKey, []byte(routingKey))
 	stream = dispatch.StreamWithContext(ctx, stream)
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return err
 	}
 
-	return dispatchStreamingRequest(ctx, cr, "lookupsubjects", req, stream,
+	return dispatchStreamingRequest(ctx, cr, "lookupsubjects", req, stream, cr.router.latencyObserver(owner),
 		func(ctx context.Context, client ClusterClient) (receiver[*v1.DispatchLookupSubjectsResponse], error) {
 			return client.DispatchLookupSubjects(ctx, req)
 		})
@@ -922,6 +1067,8 @@ func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest,
 }
 
 func (cr *clusterDispatcher) Close() error {
+	cr.router.Close()
+
 	if cr.conn != nil {
 		return cr.conn.Close()
 	}

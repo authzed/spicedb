@@ -654,3 +654,56 @@ func (m mockDispatcher) Close() error {
 func (m mockDispatcher) ReadyState() dispatch.ReadyState {
 	return dispatch.ReadyState{}
 }
+
+// hintDispatcher records the routing hint of each DispatchCheck.
+// It sleeps first, so concurrent identical requests share one flight.
+type hintDispatcher struct {
+	mockDispatcher
+
+	mu    sync.Mutex
+	hints []dispatch.RoutingHint // GUARDED_BY(mu)
+}
+
+func (h *hintDispatcher) DispatchCheck(ctx context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+	time.Sleep(100 * time.Millisecond)
+	hint, _ := dispatch.RoutingHintFrom(ctx)
+	h.mu.Lock()
+	h.hints = append(h.hints, hint)
+	h.mu.Unlock()
+	return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, nil
+}
+
+func TestSingleFlightDispatcherSharesFlightAcrossHints(t *testing.T) {
+	delegate := &hintDispatcher{mockDispatcher: mockDispatcher{f: func() {}}}
+	disp := New(delegate, &keys.DirectKeyHandler{})
+
+	req := &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
+		ResourceIds:      []string{"foo"},
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     "1234",
+			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+		},
+	}
+
+	// The salts differ, so the hints differ. The requests are identical.
+	hints := []dispatch.RoutingHint{
+		{Key: dispatch.RoutingKey("document:foo!\x00"), Owner: "n0"},
+		{Key: dispatch.RoutingKey("document:foo!\x01"), Owner: "n1"},
+	}
+	var wg sync.WaitGroup
+	for _, hint := range hints {
+		wg.Go(func() {
+			_, err := disp.DispatchCheck(dispatch.WithRoutingHint(t.Context(), hint), req.CloneVT())
+			assert.NoError(t, err)
+		})
+	}
+	wg.Wait()
+
+	delegate.mu.Lock()
+	defer delegate.mu.Unlock()
+	require.Len(t, delegate.hints, 1, "the follower shares the flight of the leader")
+	require.Contains(t, hints, delegate.hints[0], "the flight uses the hint of one of its callers")
+}
