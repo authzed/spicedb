@@ -71,6 +71,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchConcurrencyLimits = c.DispatchConcurrencyLimits
 		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
+		to.DispatchUpstreamSPIFFE = c.DispatchUpstreamSPIFFE
+		to.DispatchUpstreamSPIFFESocket = c.DispatchUpstreamSPIFFESocket
+		to.DispatchUpstreamSPIFFEID = c.DispatchUpstreamSPIFFEID
+		to.DispatchUpstreamSPIFFEServerID = c.DispatchUpstreamSPIFFEServerID
 		to.DispatchUpstreamTimeout = c.DispatchUpstreamTimeout
 		to.DispatchClientMetricsEnabled = c.DispatchClientMetricsEnabled
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
@@ -275,6 +279,22 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["DispatchUpstreamCAPath"] = "(empty)"
 	} else {
 		debugMap["DispatchUpstreamCAPath"] = c.DispatchUpstreamCAPath
+	}
+	debugMap["DispatchUpstreamSPIFFE"] = c.DispatchUpstreamSPIFFE
+	if c.DispatchUpstreamSPIFFESocket == "" {
+		debugMap["DispatchUpstreamSPIFFESocket"] = "(empty)"
+	} else {
+		debugMap["DispatchUpstreamSPIFFESocket"] = c.DispatchUpstreamSPIFFESocket
+	}
+	if c.DispatchUpstreamSPIFFEID == "" {
+		debugMap["DispatchUpstreamSPIFFEID"] = "(empty)"
+	} else {
+		debugMap["DispatchUpstreamSPIFFEID"] = c.DispatchUpstreamSPIFFEID
+	}
+	if c.DispatchUpstreamSPIFFEServerID == "" {
+		debugMap["DispatchUpstreamSPIFFEServerID"] = "(empty)"
+	} else {
+		debugMap["DispatchUpstreamSPIFFEServerID"] = c.DispatchUpstreamSPIFFEServerID
 	}
 	if dm, ok := any(&c.DispatchUpstreamTimeout).(interface {
 		DebugMap() map[string]any
@@ -694,6 +714,34 @@ func WithDispatchUpstreamAddr(dispatchUpstreamAddr string) ConfigOption {
 func WithDispatchUpstreamCAPath(dispatchUpstreamCAPath string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchUpstreamCAPath = dispatchUpstreamCAPath
+	}
+}
+
+// WithDispatchUpstreamSPIFFE returns an option that can set DispatchUpstreamSPIFFE on a Config
+func WithDispatchUpstreamSPIFFE(dispatchUpstreamSPIFFE bool) ConfigOption {
+	return func(c *Config) {
+		c.DispatchUpstreamSPIFFE = dispatchUpstreamSPIFFE
+	}
+}
+
+// WithDispatchUpstreamSPIFFESocket returns an option that can set DispatchUpstreamSPIFFESocket on a Config
+func WithDispatchUpstreamSPIFFESocket(dispatchUpstreamSPIFFESocket string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchUpstreamSPIFFESocket = dispatchUpstreamSPIFFESocket
+	}
+}
+
+// WithDispatchUpstreamSPIFFEID returns an option that can set DispatchUpstreamSPIFFEID on a Config
+func WithDispatchUpstreamSPIFFEID(dispatchUpstreamSPIFFEID string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchUpstreamSPIFFEID = dispatchUpstreamSPIFFEID
+	}
+}
+
+// WithDispatchUpstreamSPIFFEServerID returns an option that can set DispatchUpstreamSPIFFEServerID on a Config
+func WithDispatchUpstreamSPIFFEServerID(dispatchUpstreamSPIFFEServerID string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchUpstreamSPIFFEServerID = dispatchUpstreamSPIFFEServerID
 	}
 }
 

@@ -598,6 +598,10 @@ spicedb serve [flags]
       --dispatch-cluster-max-conn-age duration                                          how long a connection serving dispatch should be able to live (default 30s)
       --dispatch-cluster-max-workers uint32                                             set the number of workers for this server (0 value means 1 worker per request)
       --dispatch-cluster-network string                                                 network type to serve dispatch ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
+      --dispatch-cluster-spiffe                                                         serve dispatch over mutual TLS with an X.509-SVID from the SPIFFE Workload API, and require clients to present an X.509-SVID allowed by --dispatch-cluster-spiffe-allowed-ids; cannot be combined with --dispatch-cluster-tls-cert-path
+      --dispatch-cluster-spiffe-allowed-ids strings                                     SPIFFE IDs, or trust domains (e.g. spiffe://example.org) for any of their workloads, of the clients allowed to connect to dispatch; the server's own SPIFFE ID is always allowed (default: any workload in the trust domain of the server's SVID); requires --dispatch-cluster-spiffe
+      --dispatch-cluster-spiffe-id string                                               SPIFFE ID of the X.509-SVID presented to clients of dispatch (default: the Workload API's default SVID); requires --dispatch-cluster-spiffe
+      --dispatch-cluster-spiffe-socket string                                           address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --dispatch-cluster-spiffe
       --dispatch-cluster-tls-cert-path string                                           local path to the TLS certificate used to serve dispatch
       --dispatch-cluster-tls-key-path string                                            local path to the TLS key used to serve dispatch
       --dispatch-concurrency-limit uint16                                               maximum number of parallel goroutines to create for each request or subrequest (default 50)
@@ -609,6 +613,10 @@ spicedb serve [flags]
       --dispatch-reachable-resources-concurrency-limit uint16                           maximum number of parallel goroutines to create for each reachable resources request or subrequest. defaults to --dispatch-concurrency-limit
       --dispatch-upstream-addr string                                                   upstream grpc address to dispatch to
       --dispatch-upstream-ca-path string                                                local path to the TLS CA used when connecting to the dispatch cluster
+      --dispatch-upstream-spiffe                                                        connect to the dispatch cluster over mutual TLS with an X.509-SVID and trust bundles from the SPIFFE Workload API; cannot be combined with --dispatch-upstream-ca-path
+      --dispatch-upstream-spiffe-id string                                              SPIFFE ID of the X.509-SVID presented to the dispatch cluster (default: the Workload API's default SVID); requires --dispatch-upstream-spiffe
+      --dispatch-upstream-spiffe-server-id string                                       SPIFFE ID, or trust domain (e.g. spiffe://example.org) for any of its workloads, the dispatch cluster must present (default: any workload in the trust domain of the client's SVID); requires --dispatch-upstream-spiffe
+      --dispatch-upstream-spiffe-socket string                                          address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --dispatch-upstream-spiffe
       --dispatch-upstream-timeout duration                                              maximum duration of a dispatch call an upstream cluster before it times out (default 1m0s)
       --enable-experimental-watchable-schema-cache                                      enables the experimental schema cache, which uses the Watch API to keep the schema up to date
       --enable-memory-protection-middleware                                             enables middleware that does a best effort at preventing OOM (Out of Memory) if the server's memory usage is too high by returning ResourceExhausted on incoming requests (default true)
@@ -636,6 +644,10 @@ spicedb serve [flags]
       --grpc-preshared-key strings                                                      (required) preshared key(s) that must be provided by clients to authenticate requests
       --grpc-shutdown-drain-delay duration                                              the lame duck period between SpiceDB's health service reporting NOT_SERVING and server shutdown; used to signal to load balancers that SpiceDB is going out of service. configure according to your load balancer's health check behavior.
       --grpc-shutdown-grace-period duration                                             time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit (default 5s)
+      --grpc-spiffe                                                                     serve gRPC over mutual TLS with an X.509-SVID from the SPIFFE Workload API, and require clients to present an X.509-SVID allowed by --grpc-spiffe-allowed-ids; cannot be combined with --grpc-tls-cert-path
+      --grpc-spiffe-allowed-ids strings                                                 SPIFFE IDs, or trust domains (e.g. spiffe://example.org) for any of their workloads, of the clients allowed to connect to gRPC; the server's own SPIFFE ID is always allowed (default: any workload in the trust domain of the server's SVID); requires --grpc-spiffe
+      --grpc-spiffe-id string                                                           SPIFFE ID of the X.509-SVID presented to clients of gRPC (default: the Workload API's default SVID); requires --grpc-spiffe
+      --grpc-spiffe-socket string                                                       address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --grpc-spiffe
       --grpc-tls-cert-path string                                                       local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                                        local path to the TLS key used to serve gRPC
       --http-addr string                                                                address to listen on to serve proxy (default ":8443")
@@ -710,6 +722,10 @@ spicedb serve-testing [flags]
       --grpc-max-workers uint32                                  set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                      network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-shutdown-grace-period duration                      time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit (default 5s)
+      --grpc-spiffe                                              serve gRPC over mutual TLS with an X.509-SVID from the SPIFFE Workload API, and require clients to present an X.509-SVID allowed by --grpc-spiffe-allowed-ids; cannot be combined with --grpc-tls-cert-path
+      --grpc-spiffe-allowed-ids strings                          SPIFFE IDs, or trust domains (e.g. spiffe://example.org) for any of their workloads, of the clients allowed to connect to gRPC; the server's own SPIFFE ID is always allowed (default: any workload in the trust domain of the server's SVID); requires --grpc-spiffe
+      --grpc-spiffe-id string                                    SPIFFE ID of the X.509-SVID presented to clients of gRPC (default: the Workload API's default SVID); requires --grpc-spiffe
+      --grpc-spiffe-socket string                                address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --grpc-spiffe
       --grpc-tls-cert-path string                                local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                 local path to the TLS key used to serve gRPC
       --http-addr string                                         address to listen on to serve http (default ":8443")
@@ -730,6 +746,10 @@ spicedb serve-testing [flags]
       --readonly-grpc-max-conn-age duration                      how long a connection serving read-only gRPC should be able to live (default 30s)
       --readonly-grpc-max-workers uint32                         set the number of workers for this server (0 value means 1 worker per request)
       --readonly-grpc-network string                             network type to serve read-only gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
+      --readonly-grpc-spiffe                                     serve read-only gRPC over mutual TLS with an X.509-SVID from the SPIFFE Workload API, and require clients to present an X.509-SVID allowed by --readonly-grpc-spiffe-allowed-ids; cannot be combined with --readonly-grpc-tls-cert-path
+      --readonly-grpc-spiffe-allowed-ids strings                 SPIFFE IDs, or trust domains (e.g. spiffe://example.org) for any of their workloads, of the clients allowed to connect to read-only gRPC; the server's own SPIFFE ID is always allowed (default: any workload in the trust domain of the server's SVID); requires --readonly-grpc-spiffe
+      --readonly-grpc-spiffe-id string                           SPIFFE ID of the X.509-SVID presented to clients of read-only gRPC (default: the Workload API's default SVID); requires --readonly-grpc-spiffe
+      --readonly-grpc-spiffe-socket string                       address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --readonly-grpc-spiffe
       --readonly-grpc-tls-cert-path string                       local path to the TLS certificate used to serve read-only gRPC
       --readonly-grpc-tls-key-path string                        local path to the TLS key used to serve read-only gRPC
       --readonly-http-addr string                                address to listen on to serve read-only HTTP (default ":8444")

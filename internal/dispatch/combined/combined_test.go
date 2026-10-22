@@ -5,19 +5,24 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/spiffetls"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testutil/spiffetest"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -208,4 +213,46 @@ func TestNewDispatcher_InvalidSecondaryDispatchExpr(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "error parsing secondary dispatch expr")
+}
+
+func TestNewDispatcher_UpstreamSPIFFE(t *testing.T) {
+	t.Run("combined with a CA path", func(t *testing.T) {
+		_, err := NewDispatcher(
+			UpstreamAddr("localhost:0"),
+			UpstreamCAPath("/some/ca.pem"),
+			UpstreamSPIFFE(spiffetls.Options{Enabled: true, Socket: "unix:///run/spire/agent.sock"}),
+			GrpcPresharedKey("test-key"),
+		)
+		require.ErrorContains(t, err, "--dispatch-upstream-spiffe cannot be combined with --dispatch-upstream-ca-path")
+	})
+
+	t.Run("options without enabling", func(t *testing.T) {
+		_, err := NewDispatcher(
+			UpstreamSPIFFE(spiffetls.Options{ServerID: "spiffe://example.org/spicedb"}),
+		)
+		require.ErrorContains(t, err, "set --dispatch-upstream-spiffe")
+	})
+
+	t.Run("closing the dispatcher ends the Workload API stream", func(t *testing.T) {
+		// Taken before the dispatcher exists, so that its goroutines count.
+		before := goleak.IgnoreCurrent()
+
+		ca := spiffetest.NewCA(t, "example.org")
+		api := spiffetest.NewWorkloadAPI(t)
+		api.SetX509SVIDs(t, []*x509svid.SVID{ca.MintX509SVID(t, "spiffe://example.org/spicedb")}, ca)
+
+		dispatcher, err := NewDispatcher(
+			UpstreamAddr("localhost:0"),
+			UpstreamSPIFFE(spiffetls.Options{Enabled: true, Socket: api.Addr}),
+			GrpcPresharedKey("test-key"),
+		)
+		require.NoError(t, err)
+		require.NoError(t, dispatcher.Close())
+
+		// The fake Workload API's server still runs; only the client side
+		// opened by the dispatcher has to be gone.
+		goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), before,
+			goleak.IgnoreAnyFunction("github.com/authzed/spicedb/internal/testutil/spiffetest.NewWorkloadAPI.func1"),
+		)...)
+	})
 }

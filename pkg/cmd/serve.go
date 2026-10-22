@@ -165,6 +165,10 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	dispatchFlags.Uint32Var(&config.DispatchMaxDepth, "dispatch-max-depth", 50, "maximum recursion depth for nested calls")
 	dispatchFlags.StringVar(&config.DispatchUpstreamAddr, "dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
 	dispatchFlags.StringVar(&config.DispatchUpstreamCAPath, "dispatch-upstream-ca-path", "", "local path to the TLS CA used when connecting to the dispatch cluster")
+	dispatchFlags.BoolVar(&config.DispatchUpstreamSPIFFE, "dispatch-upstream-spiffe", false, "connect to the dispatch cluster over mutual TLS with an X.509-SVID and trust bundles from the SPIFFE Workload API; cannot be combined with --dispatch-upstream-ca-path")
+	dispatchFlags.StringVar(&config.DispatchUpstreamSPIFFESocket, "dispatch-upstream-spiffe-socket", "", "address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --dispatch-upstream-spiffe")
+	dispatchFlags.StringVar(&config.DispatchUpstreamSPIFFEID, "dispatch-upstream-spiffe-id", "", "SPIFFE ID of the X.509-SVID presented to the dispatch cluster (default: the Workload API's default SVID); requires --dispatch-upstream-spiffe")
+	dispatchFlags.StringVar(&config.DispatchUpstreamSPIFFEServerID, "dispatch-upstream-spiffe-server-id", "", "SPIFFE ID, or trust domain (e.g. spiffe://example.org) for any of its workloads, the dispatch cluster must present (default: any workload in the trust domain of the client's SVID); requires --dispatch-upstream-spiffe")
 	dispatchFlags.DurationVar(&config.DispatchUpstreamTimeout, "dispatch-upstream-timeout", 60*time.Second, "maximum duration of a dispatch call an upstream cluster before it times out")
 
 	dispatchFlags.Uint16Var(&config.GlobalDispatchConcurrencyLimit, "dispatch-concurrency-limit", 50, "maximum number of parallel goroutines to create for each request or subrequest")

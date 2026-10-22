@@ -1,10 +1,14 @@
 package combined
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/authzed/grpcutil"
@@ -16,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/spiffetls"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -29,6 +34,7 @@ type optionState struct {
 	metrics                                      dispatch.MetricsOptions
 	upstreamAddr                                 string
 	upstreamCAPath                               string
+	upstreamSPIFFE                               spiffetls.Options
 	grpcPresharedKey                             string
 	grpcDialOpts                                 []grpc.DialOption
 	cache                                        cache.Cache[keys.DispatchCacheKey, any]
@@ -73,6 +79,16 @@ func UpstreamAddr(addr string) Option {
 func UpstreamCAPath(path string) Option {
 	return func(state *optionState) {
 		state.upstreamCAPath = path
+	}
+}
+
+// UpstreamSPIFFE makes the cluster dispatcher connect to its upstreams over
+// mutual TLS with an X.509-SVID from the SPIFFE Workload API, and accept only
+// upstreams the options allow. It cannot be combined with UpstreamCAPath.
+func UpstreamSPIFFE(opts spiffetls.Options) Option {
+	return func(state *optionState) {
+		opts.FlagPrefix = "dispatch-upstream"
+		state.upstreamSPIFFE = opts
 	}
 }
 
@@ -190,9 +206,16 @@ func newOptions(options ...Option) optionState {
 
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
-func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
+func NewDispatcher(options ...Option) (_ dispatch.Dispatcher, err error) {
 	opts := newOptions(options...)
 	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
+
+	if err := opts.upstreamSPIFFE.Validate(); err != nil {
+		return nil, err
+	}
+	if opts.upstreamSPIFFE.Enabled && opts.upstreamCAPath != "" {
+		return nil, errors.New("--dispatch-upstream-spiffe cannot be combined with --dispatch-upstream-ca-path")
+	}
 
 	if opts.metrics.PrometheusSubsystem == "" {
 		opts.metrics.PrometheusSubsystem = "dispatch_client"
@@ -248,14 +271,30 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 	} else {
 		// If an upstream is specified, create a cluster dispatcher.
-		if opts.upstreamCAPath != "" {
+		var spiffeSource *spiffetls.Source
+		switch {
+		case opts.upstreamSPIFFE.Enabled:
+			// The Workload API stream outlives this function; the cluster
+			// dispatcher closes it when it is closed.
+			spiffeSource, err = spiffetls.New(context.Background(), opts.upstreamSPIFFE)
+			if err != nil {
+				return nil, err
+			}
+			defer func() {
+				if err != nil {
+					_ = spiffeSource.Close()
+				}
+			}()
+			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(credentials.NewTLS(spiffeSource.ClientConfig())))
+			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
+		case opts.upstreamCAPath != "":
 			customCertOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
 			if err != nil {
 				return nil, err
 			}
 			opts.grpcDialOpts = append(opts.grpcDialOpts, customCertOpt)
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
-		} else {
+		default:
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithInsecureBearerToken(opts.grpcPresharedKey))
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
@@ -311,10 +350,24 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, err
 		}
+		if spiffeSource != nil {
+			re = &closingDispatcher{Dispatcher: re, closer: spiffeSource}
+		}
 		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)
 
 	return cachingRedispatch, nil
+}
+
+// closingDispatcher closes closer, such as a Workload API stream, along with
+// the dispatcher it wraps.
+type closingDispatcher struct {
+	dispatch.Dispatcher
+	closer io.Closer
+}
+
+func (d *closingDispatcher) Close() error {
+	return errors.Join(d.Dispatcher.Close(), d.closer.Close())
 }

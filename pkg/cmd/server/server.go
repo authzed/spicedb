@@ -40,6 +40,7 @@ import (
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	"github.com/authzed/spicedb/internal/spiffetls"
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/cache"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
@@ -109,6 +110,10 @@ type Config struct {
 	DispatchConcurrencyLimits         graph.ConcurrencyLimits  `debugmap:"visible"`
 	DispatchUpstreamAddr              string                   `debugmap:"visible"`
 	DispatchUpstreamCAPath            string                   `debugmap:"visible"`
+	DispatchUpstreamSPIFFE            bool                     `debugmap:"visible"`
+	DispatchUpstreamSPIFFESocket      string                   `debugmap:"visible"`
+	DispatchUpstreamSPIFFEID          string                   `debugmap:"visible"`
+	DispatchUpstreamSPIFFEServerID    string                   `debugmap:"visible"`
 	DispatchUpstreamTimeout           time.Duration            `debugmap:"visible" default:"60s"`
 	DispatchClientMetricsEnabled      bool                     `debugmap:"visible" default:"true"`
 	DispatchClientMetricsPrefix       string                   `debugmap:"visible"`
@@ -391,6 +396,12 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
+			combineddispatch.UpstreamSPIFFE(spiffetls.Options{
+				Enabled:  c.DispatchUpstreamSPIFFE,
+				Socket:   c.DispatchUpstreamSPIFFESocket,
+				ID:       c.DispatchUpstreamSPIFFEID,
+				ServerID: c.DispatchUpstreamSPIFFEServerID,
+			}),
 			combineddispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
@@ -595,7 +606,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 	closeables.AddCloserWithGracePeriod("grpc", c.ShutdownGracePeriod, grpcServer.GracefulStop, grpcServer.ForceStop)
 
-	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx)
+	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx, grpcServer)
 	if err != nil {
 		return nil, err
 	}
@@ -825,9 +836,15 @@ func (c *Config) buildStreamingMiddleware(defaultMiddleware *MiddlewareChain[grp
 }
 
 // initializeGateway Configures the gateway to serve HTTP
-func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer, io.Closer, error) {
+func (c *Config) initializeGateway(ctx context.Context, grpcServer util.RunnableGRPCServer) (util.RunnableHTTPServer, io.Closer, error) {
+	var gatewayOpts []gateway.HandlerOption
 	if len(c.HTTPGatewayUpstreamAddr) == 0 {
 		c.HTTPGatewayUpstreamAddr = c.GRPCServer.Address
+
+		// A server that requires client SVIDs is reached with its own one.
+		if c.GRPCServer.SPIFFE {
+			gatewayOpts = append(gatewayOpts, gateway.WithUpstreamCredentials(grpcServer.DialCredentials()))
+		}
 	} else {
 		log.Ctx(ctx).Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
 	}
@@ -849,7 +866,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	var gatewayHandler http.Handler
-	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath, gatewayOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
