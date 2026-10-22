@@ -34,6 +34,17 @@ func TestMemdbDatastore(t *testing.T) {
 	test.AllWithExceptions(t, memdbFactory.NewTester(memDBTest{}), test.WithCategories(test.ConcurrentWriteCategory, test.MigrationCategory))
 }
 
+// TestMemdbDatastoreIdempotentBulkLoad runs the suite with BulkLoad set to
+// overwrite relationships that already exist. No other in-tree datastore does
+// this, so this is the only run that exercises the idempotent path of the bulk
+// tests.
+func TestMemdbDatastoreIdempotentBulkLoad(t *testing.T) {
+	tester := test.DatastoreTesterFunc(func(_ testing.TB, revisionParameters test.RevisionParameters, watchBufferLength uint16) (datastore.Datastore, error) {
+		return NewMemdbDatastore(watchBufferLength, revisionParameters.Quantization, time.Duration(revisionParameters.GCRetentionWindow), WithIdempotentBulkLoad())
+	})
+	test.AllWithExceptions(t, memdbFactory.NewTester(tester), test.WithCategories(test.ConcurrentWriteCategory, test.MigrationCategory))
+}
+
 func TestConcurrentWritePanic(t *testing.T) {
 	require := require.New(t)
 
