@@ -78,6 +78,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerMaxSessions = c.SpannerMaxSessions
 		to.SpannerDatastoreMetricsOption = c.SpannerDatastoreMetricsOption
 		to.TablePrefix = c.TablePrefix
+		to.SPIFFEEnabled = c.SPIFFEEnabled
+		to.SPIFFESocket = c.SPIFFESocket
+		to.SPIFFEID = c.SPIFFEID
+		to.SPIFFEServerID = c.SPIFFEServerID
 		to.RelationshipIntegrityEnabled = c.RelationshipIntegrityEnabled
 		to.RelationshipIntegrityCurrentKey = c.RelationshipIntegrityCurrentKey
 		to.RelationshipIntegrityExpiredKeys = c.RelationshipIntegrityExpiredKeys
@@ -277,6 +281,22 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["TablePrefix"] = "(empty)"
 	} else {
 		debugMap["TablePrefix"] = c.TablePrefix
+	}
+	debugMap["SPIFFEEnabled"] = c.SPIFFEEnabled
+	if c.SPIFFESocket == "" {
+		debugMap["SPIFFESocket"] = "(empty)"
+	} else {
+		debugMap["SPIFFESocket"] = c.SPIFFESocket
+	}
+	if c.SPIFFEID == "" {
+		debugMap["SPIFFEID"] = "(empty)"
+	} else {
+		debugMap["SPIFFEID"] = c.SPIFFEID
+	}
+	if c.SPIFFEServerID == "" {
+		debugMap["SPIFFEServerID"] = "(empty)"
+	} else {
+		debugMap["SPIFFEServerID"] = c.SPIFFEServerID
 	}
 	debugMap["RelationshipIntegrityEnabled"] = c.RelationshipIntegrityEnabled
 	if dm, ok := any(&c.RelationshipIntegrityCurrentKey).(interface {
@@ -703,6 +723,34 @@ func WithSpannerDatastoreMetricsOption(spannerDatastoreMetricsOption string) Con
 func WithTablePrefix(tablePrefix string) ConfigOption {
 	return func(c *Config) {
 		c.TablePrefix = tablePrefix
+	}
+}
+
+// WithSPIFFEEnabled returns an option that can set SPIFFEEnabled on a Config
+func WithSPIFFEEnabled(sPIFFEEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.SPIFFEEnabled = sPIFFEEnabled
+	}
+}
+
+// WithSPIFFESocket returns an option that can set SPIFFESocket on a Config
+func WithSPIFFESocket(sPIFFESocket string) ConfigOption {
+	return func(c *Config) {
+		c.SPIFFESocket = sPIFFESocket
+	}
+}
+
+// WithSPIFFEID returns an option that can set SPIFFEID on a Config
+func WithSPIFFEID(sPIFFEID string) ConfigOption {
+	return func(c *Config) {
+		c.SPIFFEID = sPIFFEID
+	}
+}
+
+// WithSPIFFEServerID returns an option that can set SPIFFEServerID on a Config
+func WithSPIFFEServerID(sPIFFEServerID string) ConfigOption {
+	return func(c *Config) {
+		c.SPIFFEServerID = sPIFFEServerID
 	}
 }
 
