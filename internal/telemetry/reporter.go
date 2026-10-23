@@ -143,19 +143,14 @@ func RemoteReporter(
 
 	client := &http.Client{}
 	if caOverridePath != "" {
-		pool, err := x509util.CustomCertPool(caOverridePath)
+		caPool, err := x509util.NewCAPool(caOverridePath)
 		if err != nil {
 			return nil, fmt.Errorf("invalid custom cert pool path `%s`: %w", caOverridePath, err)
 		}
 
-		t := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:    pool,
-				MinVersion: tls.VersionTLS12,
-			},
+		client.Transport = &http.Transport{
+			DialTLSContext: caPool.DialTLSContext(&tls.Config{MinVersion: tls.VersionTLS12}),
 		}
-
-		client.Transport = t
 	}
 
 	return func(ctx context.Context) error {
