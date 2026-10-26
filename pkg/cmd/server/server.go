@@ -261,12 +261,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](c.OTel.PrometheusRegistry,
 		// the namespace cache has revisions in its keys, so it needs
 		// this configuration to ensure that those entries expire along
-		// with the revisions.
+		// with the revisions. Schema at a revision never changes, so
+		// reads can safely keep a hot entry alive.
 		c.NamespaceCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
-		))
+		).WithTTLRefreshedOnAccess())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}

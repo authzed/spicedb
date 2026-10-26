@@ -40,6 +40,8 @@ func NewAccessCounter(maxCost int64, window time.Duration) (AccessCounter, error
 	c, err := cache.NewStandardCache[counterKey, *atomic.Uint64](&cache.Config{
 		MaxCost:    maxCost,
 		DefaultTTL: window,
+		// Touch reads the counter, so each Touch restarts the window.
+		RefreshTTLOnAccess: true,
 	})
 	if err != nil {
 		return nil, err
