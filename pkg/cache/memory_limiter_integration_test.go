@@ -77,7 +77,7 @@ func TestCacheFillingDoesNotTripMemoryLimiter(t *testing.T) {
 			// live heap (dominated by the dispatch caches) is what the memory limiter sees.
 			"GOGC": envOr("SPICEDB_GOGC", "25"),
 			// A long quantization window with staleness gives dispatch cache
-			// entries a sliding TTL of roughly 2 x (5m x 1.1) = 11m, so nothing
+			// entries a TTL of roughly 2 x (5m x 1.1) = 11m, so nothing
 			// expires during the run and the caches reach their budgets.
 			"SPICEDB_DATASTORE_REVISION_QUANTIZATION_INTERVAL":              "5m",
 			"SPICEDB_DATASTORE_REVISION_QUANTIZATION_MAX_STALENESS_PERCENT": "10",
