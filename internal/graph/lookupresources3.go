@@ -714,6 +714,11 @@ type coh = cter.ChunkOrHold[*relationshipsChunk, datastoreIndex]
 // relationshipsIter reads per datastore query, for requests with a limit.
 const datastorePageSizeInChunks = 10
 
+// readAheadMaxBufferedRelationships bounds the relationships relationshipsIter buffers per query
+// for requests without a limit. Beyond it, the query is closed and later resumed with a new query,
+// which re-sorts the remaining relationships, so it is set well above typical fanouts.
+const readAheadMaxBufferedRelationships = 100_000
+
 // relationshipsIter is an iterator that fetches relationships for the given subjects and processes them
 // by further dispatching the found resources as the next step's subjects.
 func (crr *CursoredLookupResources3) relationshipsIter(
@@ -805,8 +810,9 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					// independently of their processing:
 					//
 					// - Without a limit, every relationship is needed: a single query is read ahead on a separate
-					//   goroutine while results are processed here. (Paging is avoided here, as the reverse index
-					//   does not cover the sort order, so each page would re-sort all remaining relationships.)
+					//   goroutine while results are processed here, buffering up to readAheadMaxBufferedRelationships
+					//   before pausing. (Paging is avoided here, as the reverse index does not cover the sort order,
+					//   so each page would re-sort all remaining relationships.)
 					// - With a limit, relationships are read in pages, each in full before being processed, so the
 					//   request can stop early without reading relationships it does not need.
 					queryRelationships := func(after options.Cursor, limit *uint64) (datastore.RelationshipIterator, error) {
@@ -828,13 +834,11 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 
 					relationships := func(yield func(tuple.Relationship, error) bool) {
 						if refs.req.OptionalLimit == 0 {
-							it, err := queryRelationships(dbCursor, nil)
-							if err != nil {
-								yield(tuple.Relationship{}, err)
-								return
-							}
-
-							for rel, err := range readAheadRelationships(it) {
+							readAhead := readAheadRelationships(dbCursor, readAheadMaxBufferedRelationships,
+								func(after options.Cursor) (datastore.RelationshipIterator, error) {
+									return queryRelationships(after, nil)
+								})
+							for rel, err := range readAhead {
 								if !yield(rel, err) {
 									return
 								}
