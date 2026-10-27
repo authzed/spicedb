@@ -710,6 +710,10 @@ type relationshipsIterConfig struct {
 
 type coh = cter.ChunkOrHold[*relationshipsChunk, datastoreIndex]
 
+// datastorePageSizeInChunks is the number of dispatch chunks' worth of relationships that
+// relationshipsIter reads per datastore query, for requests with a limit.
+const datastorePageSizeInChunks = 10
+
 // relationshipsIter is an iterator that fetches relationships for the given subjects and processes them
 // by further dispatching the found resources as the next step's subjects.
 func (crr *CursoredLookupResources3) relationshipsIter(
@@ -792,23 +796,77 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					skipCaveats := !possibleTraits.AllowsCaveats
 					skipExpiration := !possibleTraits.AllowsExpiration
 
-					// Continue by querying for relationships from the datastore, after the optional cursor.
-					it, err := refs.reader.ReverseQueryRelationships(
-						ctx,
-						config.subjectsFilter,
-						options.WithResRelation(&options.ResourceRelation{
-							Namespace: config.sourceResourceType.Namespace,
-							Relation:  config.sourceResourceType.Relation,
-						}),
-						options.WithSortForReverse(options.BySubject),
-						options.WithAfterForReverse(dbCursor),
-						options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
-						options.WithSkipCaveatsForReverse(skipCaveats),
-						options.WithSkipExpirationForReverse(skipExpiration),
-					)
-					if err != nil {
-						yieldError(err)
-						return
+					// Query for relationships from the datastore, after the optional cursor.
+					//
+					// A query holds its datastore connection until its results are fully read, while processing
+					// them below dispatches, and dispatched work needs connections of its own. Reading results only
+					// as fast as they are processed could therefore exhaust the connection pool with callers that
+					// each hold a connection while waiting for another (#3433), so results are always read
+					// independently of their processing:
+					//
+					// - Without a limit, every relationship is needed: a single query is read ahead on a separate
+					//   goroutine while results are processed here. (Paging is avoided here, as the reverse index
+					//   does not cover the sort order, so each page would re-sort all remaining relationships.)
+					// - With a limit, relationships are read in pages, each in full before being processed, so the
+					//   request can stop early without reading relationships it does not need.
+					queryRelationships := func(after options.Cursor, limit *uint64) (datastore.RelationshipIterator, error) {
+						return refs.reader.ReverseQueryRelationships(
+							ctx,
+							config.subjectsFilter,
+							options.WithResRelation(&options.ResourceRelation{
+								Namespace: config.sourceResourceType.Namespace,
+								Relation:  config.sourceResourceType.Relation,
+							}),
+							options.WithSortForReverse(options.BySubject),
+							options.WithAfterForReverse(after),
+							options.WithLimitForReverse(limit),
+							options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+							options.WithSkipCaveatsForReverse(skipCaveats),
+							options.WithSkipExpirationForReverse(skipExpiration),
+						)
+					}
+
+					relationships := func(yield func(tuple.Relationship, error) bool) {
+						if refs.req.OptionalLimit == 0 {
+							it, err := queryRelationships(dbCursor, nil)
+							if err != nil {
+								yield(tuple.Relationship{}, err)
+								return
+							}
+
+							for rel, err := range readAheadRelationships(it) {
+								if !yield(rel, err) {
+									return
+								}
+							}
+							return
+						}
+
+						pageSize := uint64(crr.dispatchChunkSize) * datastorePageSizeInChunks
+						for pageCursor := dbCursor; ; {
+							it, err := queryRelationships(pageCursor, &pageSize)
+							if err != nil {
+								yield(tuple.Relationship{}, err)
+								return
+							}
+
+							page, err := datastore.IteratorToSlice(it)
+							if err != nil {
+								yield(tuple.Relationship{}, err)
+								return
+							}
+
+							for _, rel := range page {
+								if !yield(rel, nil) {
+									return
+								}
+							}
+
+							if uint64(len(page)) < pageSize {
+								return
+							}
+							pageCursor = options.ToCursor(page[len(page)-1])
+						}
 					}
 
 					// Start the new relationships chunk that we will fill as we iterate over the results.
@@ -820,7 +878,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					}
 
 					rm := newRelationshipsChunk(int(crr.dispatchChunkSize), dbCursor)
-					for rel, err := range it {
+					for rel, err := range relationships {
 						if err != nil {
 							yieldError(err)
 							return
