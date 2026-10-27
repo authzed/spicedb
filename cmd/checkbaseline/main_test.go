@@ -16,12 +16,12 @@ import (
 
 func TestInvalidProfile(t *testing.T) {
 	var out bytes.Buffer
-	require.Equal(t, 2, run(context.Background(), []string{"-profile=invalid", "-output=unused"}, &out, &out))
+	require.Equal(t, 2, run(context.Background(), []string{"--profile=invalid", "--output=unused"}, &out, &out))
 }
 
 func TestListScalingDatasets(t *testing.T) {
 	var out bytes.Buffer
-	require.Equal(t, 0, run(context.Background(), []string{"-catalog=scaling", "-list", "-dataset=^sized/direct/background/1000000$"}, &out, &out))
+	require.Equal(t, 0, run(context.Background(), []string{"--catalog=scaling", "--list", "--dataset=^sized/direct/background/1000000$"}, &out, &out))
 	require.JSONEq(t, `["sized/direct/background/1000000"]`, out.String())
 }
 
@@ -29,7 +29,7 @@ func TestArtifactPublication(t *testing.T) {
 	for _, mode := range []string{"audit", "measure"} {
 		t.Run(mode, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "result.json")
-			args := []string{"-catalog=scaling", "-dataset=^generated/direct/small$", "-case=^hit$", "-repo-root=../..", "-profile=both", "-mode=" + mode, "-repetitions=1", "-output=" + path}
+			args := []string{"--catalog=scaling", "--dataset=^generated/direct/small$", "--case=^hit$", "--repo-root=../..", "--profile=both", "--mode=" + mode, "--repetitions=1", "--output=" + path}
 			var stdout, stderr bytes.Buffer
 			require.Equal(t, 0, run(t.Context(), args, &stdout, &stderr), stderr.String())
 			data, err := os.ReadFile(path)
@@ -48,7 +48,7 @@ func TestArtifactPublication(t *testing.T) {
 			preserved, err := os.ReadFile(path)
 			require.NoError(t, err)
 			require.Equal(t, data, preserved)
-			require.Equal(t, 0, run(t.Context(), slices.Concat(args, []string{"-overwrite"}), &stdout, &stderr), stderr.String())
+			require.Equal(t, 0, run(t.Context(), slices.Concat(args, []string{"--overwrite"}), &stdout, &stderr), stderr.String())
 			leftovers, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".check-baseline-*"))
 			require.NoError(t, err)
 			require.Empty(t, leftovers)
@@ -59,7 +59,7 @@ func TestArtifactPublication(t *testing.T) {
 func TestFailedAuditStillPublishesArtifact(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "failed.json")
 	var output bytes.Buffer
-	require.Equal(t, 1, run(t.Context(), []string{"-catalog=scaling", "-dataset=^missing$", "-output=" + path}, &output, &output))
+	require.Equal(t, 1, run(t.Context(), []string{"--catalog=scaling", "--dataset=^missing$", "--output=" + path}, &output, &output))
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	artifact, err := checkbaseline.ReadArtifact(bytes.NewReader(data))
@@ -70,10 +70,10 @@ func TestFailedAuditStillPublishesArtifact(t *testing.T) {
 
 func TestCommandRejectsBadInputs(t *testing.T) {
 	for _, args := range [][]string{
-		{"-unknown"},
-		{"-output=unused", "-dataset=["},
-		{"-output=unused", "-case=["},
-		{"-mode=invalid", "-output=unused"},
+		{"--unknown"},
+		{"--output=unused", "--dataset=["},
+		{"--output=unused", "--case=["},
+		{"--mode=invalid", "--output=unused"},
 	} {
 		var output bytes.Buffer
 		require.NotZero(t, run(t.Context(), args, &output, &output))
@@ -84,7 +84,7 @@ func TestCommandRejectsBadInputs(t *testing.T) {
 func TestOutputFailure(t *testing.T) {
 	var output bytes.Buffer
 	path := filepath.Join(t.TempDir(), "missing", "result.json")
-	require.Equal(t, 1, run(t.Context(), []string{"-catalog=scaling", "-dataset=^missing$", "-output=" + path}, &output, &output))
+	require.Equal(t, 1, run(t.Context(), []string{"--catalog=scaling", "--dataset=^missing$", "--output=" + path}, &output, &output))
 	require.Contains(t, output.String(), "no such file or directory")
 }
 
@@ -94,5 +94,31 @@ func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("write fa
 
 func TestListWriteFailure(t *testing.T) {
 	var stderr bytes.Buffer
-	require.Equal(t, 1, run(t.Context(), []string{"-catalog=scaling", "-list"}, failingWriter{}, &stderr))
+	require.Equal(t, 1, run(t.Context(), []string{"--catalog=scaling", "--list"}, failingWriter{}, &stderr))
+}
+
+func TestInterruptWritesNoArtifact(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "interrupted.json")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var output bytes.Buffer
+	require.Equal(t, exitInterrupted, run(ctx, []string{"--catalog=scaling", "--dataset=^generated/direct/small$", "--output=" + path}, &output, &output))
+	require.Contains(t, output.String(), "interrupted")
+	require.NoFileExists(t, path)
+}
+
+func TestInvalidConfigurationMessages(t *testing.T) {
+	for args, want := range map[string]string{
+		"--repetitions=0": "--repetitions must be at least 1",
+		"--samples=9":     "--samples must be at least 10",
+		"--timeout=0s":    "--timeout must be positive",
+		"--backend=mysql": `invalid --backend "mysql"`,
+	} {
+		var output bytes.Buffer
+		require.Equal(t, exitUsage, run(t.Context(), []string{args, "--output=unused"}, &output, &output))
+		require.Contains(t, output.String(), want)
+	}
+	var output bytes.Buffer
+	require.Equal(t, exitUsage, run(t.Context(), nil, &output, &output))
+	require.Contains(t, output.String(), "--output is required")
 }

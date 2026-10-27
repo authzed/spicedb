@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/authzed/ctxkey"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -32,15 +34,16 @@ type Recorder struct {
 	work   Work // GUARDED_BY(mu)
 	sealed bool // GUARDED_BY(mu)
 }
-type recorderKey struct{}
+
+var recorderKey = ctxkey.New[*Recorder]()
 
 func NewRecorder() *Recorder { return &Recorder{} }
 func WithRecorder(ctx context.Context, r *Recorder) context.Context {
-	ctx = context.WithValue(ctx, recorderKey{}, r)
+	ctx = recorderKey.Set(ctx, r)
 	return caveats.WithEvaluationObserver(ctx, func(e caveats.EvaluationEvent) { event(ctx, "caveat-"+e.Stage, e.Name, nil, 0) })
 }
 
-func recorder(ctx context.Context) *Recorder { r, _ := ctx.Value(recorderKey{}).(*Recorder); return r }
+func recorder(ctx context.Context) *Recorder { r, _ := recorderKey.Value(ctx); return r }
 
 func (r *Recorder) change(f func()) {
 	r.mu.Lock()

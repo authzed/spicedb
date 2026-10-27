@@ -37,3 +37,25 @@ func TestRegistryCatalog(t *testing.T) {
 		require.Less(t, ds[i-1].ID, ds[i].ID)
 	}
 }
+
+func TestGeneratedSchema(t *testing.T) {
+	for family, want := range map[string][2]string{
+		"direct":       {"relation viewer: user\n", "permission view = viewer\n"},
+		"arrow":        {"relation viewer: user\n", "permission view = group->member\n"},
+		"groups":       {"relation viewer: user | group#member\n", "permission view = viewer\n"},
+		"all":          {"relation viewer: user\n", "permission view = group.all(member)\n"},
+		"recursive":    {"relation viewer: user\n", "permission view = viewer + parent->view\n"},
+		"union":        {"relation viewer: user\n", "permission view = viewer + other\n"},
+		"intersection": {"relation viewer: user\n", "permission view = viewer & other\n"},
+		"exclusion":    {"relation viewer: user\n", "permission view = viewer - other\n"},
+	} {
+		t.Run(family, func(t *testing.T) {
+			schemaText, err := GeneratedSchema(family)
+			require.NoError(t, err)
+			require.Contains(t, schemaText, want[0])
+			require.Contains(t, schemaText, want[1])
+		})
+	}
+	_, err := GeneratedSchema("unknown")
+	require.Error(t, err)
+}

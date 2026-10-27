@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: "Check Baseline Report"
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - "!dependabot/*"
+      - "main"
+    paths:
+      - ".github/workflows/checkbaseline-report.yaml"
+      - "internal/checkbaseline/report/**"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - ".github/workflows/checkbaseline-report.yaml"
+      - "internal/checkbaseline/report/**"
+  merge_group:
+    types:
+      - "checks_requested"
+permissions:
+  contents: "read"
+concurrency:
+  group: "spicedb-checkbaseline-report-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
+defaults:
+  run:
+    working-directory: "internal/checkbaseline/report"
+jobs:
+  lint-and-test:
+    name: "Lint and Test"
+    runs-on: "depot-ubuntu-24.04-small"
+    steps:
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+      - uses: "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884" # v10.3.0
+      - name: "Ruff format"
+        run: "uv run --locked ruff format --check ."
+      - name: "Ruff lint"
+        run: "uv run --locked ruff check ."
+      - name: "Pytest"
+        run: "uv run --locked pytest"

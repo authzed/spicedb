@@ -1,0 +1,24 @@
+[project]
+name = "checkbaseline-report"
+version = "0"
+description = "Report rendering and history tooling for cmd/checkbaseline"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["."]
+addopts = "-ra"

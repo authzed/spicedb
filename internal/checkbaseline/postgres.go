@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"time"
@@ -19,6 +20,29 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
+
+// postgresDatastoreOptions configure the benchmark datastore: single-connection
+// pools and no background work, so timings reflect only the checks themselves.
+var postgresDatastoreOptions = []postgres.Option{
+	postgres.GCEnabled(false),
+	postgres.WithRevisionHeartbeat(false),
+	postgres.ReadConnsMinOpen(1),
+	postgres.ReadConnsMaxOpen(1),
+	postgres.WriteConnsMinOpen(1),
+	postgres.WriteConnsMaxOpen(1),
+	postgres.RevisionQuantization(0),
+}
+
+// postgresRunSettings are recorded in report provenance alongside pg_settings
+// and describe postgresDatastoreOptions and the run's cache policy.
+var postgresRunSettings = map[string]string{
+	"pool_read_max":  "1",
+	"pool_write_max": "1",
+	"gc":             "disabled",
+	"heartbeat":      "disabled",
+	"cache_policy":   "warm; shared datastore pools; no buffer flush between engines",
+	"preparation":    "VACUUM ANALYZE after load; dataset export and warmup before timing",
+}
 
 // DatabaseInfo describes physical PostgreSQL storage after load and VACUUM ANALYZE.
 // These bytes are distinct from the canonical input and consumed-row encodings.
@@ -138,6 +162,8 @@ func openBaselineBackend(ctx context.Context, cfg AuditConfig) (*baselineBackend
 		}
 		return first
 	}
+	// On success, ownership of cleanup passes to the returned backend's close,
+	// which the caller runs once the dataset completes.
 	success := false
 	defer func() {
 		if !success {
@@ -159,7 +185,7 @@ func openBaselineBackend(ctx context.Context, cfg AuditConfig) (*baselineBackend
 	if closeErr != nil {
 		return nil, closeErr
 	}
-	ds, err = postgres.NewPostgresDatastore(ctx, u.String(), postgres.GCEnabled(false), postgres.WithRevisionHeartbeat(false), postgres.ReadConnsMinOpen(1), postgres.ReadConnsMaxOpen(1), postgres.WriteConnsMinOpen(1), postgres.WriteConnsMaxOpen(1), postgres.RevisionQuantization(0))
+	ds, err = postgres.NewPostgresDatastore(ctx, u.String(), postgresDatastoreOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +197,8 @@ func openBaselineBackend(ctx context.Context, cfg AuditConfig) (*baselineBackend
 	if err = sql.QueryRow(ctx, "SELECT version()").Scan(&version); err != nil {
 		return nil, err
 	}
-	settings := map[string]string{"pool_read_max": "1", "pool_write_max": "1", "gc": "disabled", "heartbeat": "disabled", "cache_policy": "warm; shared datastore pools; no buffer flush between engines", "preparation": "VACUUM ANALYZE after load; dataset export and warmup before timing", "container": cfg.BackendMetadata}
+	settings := maps.Clone(postgresRunSettings)
+	settings["container"] = cfg.BackendMetadata
 	rows, err := sql.Query(ctx, `SELECT name,setting||COALESCE(unit,'') FROM pg_settings ORDER BY name`)
 	if err != nil {
 		return nil, err

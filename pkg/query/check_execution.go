@@ -8,7 +8,14 @@ import (
 )
 
 // CheckExecutionOptions selects alternative local check strategies. Defaults
-// preserve the existing execution behavior. These controls support work audits.
+// preserve the existing execution behavior.
+//
+// These controls exist so the query planner's check execution can be made to
+// behave as similarly as possible to classic Check, allowing an apples-to-apples
+// comparison of their underlying machinery and measurement of how much each
+// strategy contributes to performance. They are intended to be temporary: once
+// the comparison work concludes, these flags and their branches should be
+// removed.
 type CheckExecutionOptions struct {
 	TargetedRecursion            bool
 	BaseFirstExclusion           bool
