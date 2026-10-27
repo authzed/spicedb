@@ -27,6 +27,12 @@ type Engine interface {
 	Check(context.Context, Case) (Decision, error)
 	Close() error
 }
+
+var (
+	_ Engine = (*classicEngine)(nil)
+	_ Engine = (*plannerEngine)(nil)
+)
+
 type classicEngine struct {
 	prepared   Sample
 	dl         datalayer.DataLayer

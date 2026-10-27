@@ -297,6 +297,9 @@ func Audit(ctx context.Context, datasets []Dataset, cfg AuditConfig) (Artifact, 
 	invalid := 0
 	var recordings []auditRecording
 	for _, d := range datasets {
+		if err := ctx.Err(); err != nil {
+			return a, err
+		}
 		if !dr.MatchString(d.ID) {
 			continue
 		}

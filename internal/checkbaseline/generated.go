@@ -2,8 +2,10 @@ package checkbaseline
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strings"
+	"text/template"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	bm "github.com/authzed/spicedb/pkg/benchmarks"
@@ -11,6 +13,38 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+//go:embed generated_schema.zed.tmpl
+var generatedSchemaTemplate string
+
+var generatedSchema = template.Must(template.New("generated").Option("missingkey=error").Parse(generatedSchemaTemplate))
+
+// generatedSchemaParams fills the generated schema template for each family.
+type generatedSchemaParams struct{ Viewer, View string }
+
+var generatedSchemaFamilies = map[string]generatedSchemaParams{
+	"direct":       {Viewer: "user", View: "viewer"},
+	"arrow":        {Viewer: "user", View: "group->member"},
+	"groups":       {Viewer: "user | group#member", View: "viewer"},
+	"all":          {Viewer: "user", View: "group.all(member)"},
+	"recursive":    {Viewer: "user", View: "viewer + parent->view"},
+	"union":        {Viewer: "user", View: "viewer + other"},
+	"intersection": {Viewer: "user", View: "viewer & other"},
+	"exclusion":    {Viewer: "user", View: "viewer - other"},
+}
+
+// GeneratedSchema renders the schema used by a generated dataset family.
+func GeneratedSchema(family string) (string, error) {
+	params, ok := generatedSchemaFamilies[family]
+	if !ok {
+		return "", fmt.Errorf("unknown generated family %q", family)
+	}
+	var b strings.Builder
+	if err := generatedSchema.Execute(&b, params); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
 
 type Scale struct {
 	Name                               string
@@ -43,7 +77,10 @@ func GeneratedDatasets(scales []Scale) []Dataset {
 				effective.DirectRelationships = 0
 			}
 			out = append(out, Dataset{ID: "generated/" + family + "/" + scale.Name, Family: family, Source: "deterministic generator v2", Scale: &effective, Setup: func(ctx context.Context, ds datastore.Datastore) ([]Case, error) {
-				schemaText := "definition user {}\ndefinition group { relation member: user | group#member }\ndefinition document { relation viewer: user relation other: user relation banned: user relation parent: document relation group: group permission view = viewer }"
+				schemaText, err := GeneratedSchema(family)
+				if err != nil {
+					return nil, err
+				}
 				var rels []tuple.Relationship
 				add := func(s string) { rels = append(rels, tuple.MustParse(s)) }
 				cases := []Case{check("hit", "document:doc", "view", "target", Allow), check("miss", "document:doc", "view", "absent", Deny)}
@@ -54,14 +91,6 @@ func GeneratedDatasets(scales []Scale) []Dataset {
 					}
 					add("document:doc#viewer@user:target")
 				case "arrow", "all", "groups":
-					switch family {
-					case "groups":
-						schemaText = strings.Replace(schemaText, "relation viewer: user", "relation viewer: user | group#member", 1)
-					case "all":
-						schemaText = strings.Replace(schemaText, "view = viewer", "view = group.all(member)", 1)
-					default:
-						schemaText = strings.Replace(schemaText, "view = viewer", "view = group->member", 1)
-					}
 					for i := 0; i < scale.Fanout; i++ {
 						if family == "groups" {
 							add(fmt.Sprintf("document:doc#viewer@group:g%06d#member", i))
@@ -79,7 +108,6 @@ func GeneratedDatasets(scales []Scale) []Dataset {
 						cases = append(cases, check("early-hit", "document:doc", "view", "early", Allow))
 					}
 				case "recursive":
-					schemaText = strings.Replace(schemaText, "view = viewer", "view = viewer + parent->view", 1)
 					add("document:doc#parent@document:d0")
 					for i := 0; i < scale.Depth-1; i++ {
 						add(fmt.Sprintf("document:d%d#parent@document:d%d", i, i+1))
@@ -90,9 +118,6 @@ func GeneratedDatasets(scales []Scale) []Dataset {
 						add(fmt.Sprintf("document:doc#viewer@user:noise%06d", i))
 						add(fmt.Sprintf("document:doc#other@user:noise%06d", i))
 					}
-
-					op := map[string]string{"union": "+", "intersection": "&", "exclusion": "-"}[family]
-					schemaText = strings.Replace(schemaText, "view = viewer", "view = viewer "+op+" other", 1)
 					add("document:doc#viewer@user:target")
 					if family == "intersection" {
 						add("document:doc#other@user:target")
@@ -103,7 +128,6 @@ func GeneratedDatasets(scales []Scale) []Dataset {
 						cases[len(cases)-1].Expected.Outcome = Allow
 					}
 				}
-				schemaText = strings.NewReplacer(" relation ", "\nrelation ", " permission ", "\npermission ", " }", "\n}").Replace(schemaText)
 				if _, err := datalayer.WriteStoredSchemaForTest(ctx, ds, schemaText); err != nil {
 					return nil, err
 				}

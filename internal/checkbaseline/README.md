@@ -10,16 +10,16 @@ From the repository root, using an installed Go toolchain:
 ```sh
 mkdir -p artifacts/check-baseline
 GOPROXY=off GOSUMDB=off go run ./cmd/checkbaseline \
-  -mode=measure -profile=both -samples=10 -repetitions=3 \
-  -output=artifacts/check-baseline/results.json
+  --mode=measure --profile=both --samples=10 --repetitions=3 \
+  --output=artifacts/check-baseline/results.json
 python3 internal/checkbaseline/report/render.py \
   artifacts/check-baseline/results.json artifacts/check-baseline/report.html
 open artifacts/check-baseline/report.html
 ```
 
 Set `GOTOOLCHAIN=local` and use the cached toolchain binary directly if your Go
-launcher attempts a toolchain download. `-dataset` and `-case` accept regular
-expressions. `-mode=audit` skips timing. Output replacement requires `-overwrite`.
+launcher attempts a toolchain download. `--dataset` and `--case` accept regular
+expressions. `--mode=audit` skips timing. Output replacement requires `--overwrite`.
 The HTML is standalone; JSON contains the complete inputs and query traces.
 
 ## Boundary and controls
@@ -83,7 +83,7 @@ go test ./internal/checkbaseline ./cmd/checkbaseline ./pkg/query/... \
 go test -tags=integration ./internal/services/integrationtesting/queryconsistency \
   -run TestQueryPlanConsistency -count=1
 go test -race ./internal/checkbaseline ./internal/graph -run 'Test(Serial|Cycle|Reader|Audit|Engine|Timing|Mixed|Aligned|Direct|Wildcard|Deferred|Caveat)'
-python3 -m unittest discover -s internal/checkbaseline/report -v
+(cd internal/checkbaseline/report && uv run --locked ruff format --check . && uv run --locked ruff check . && uv run --locked pytest)
 ```
 
 ## Immutable report history and scaling
