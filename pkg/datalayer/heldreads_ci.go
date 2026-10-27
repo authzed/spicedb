@@ -23,7 +23,7 @@ func trackHeldIterator(operation string, it datastore.RelationshipIterator) data
 	return func(yield func(tuple.Relationship, error) bool) {
 		assertNoHeldIterator(operation)
 
-		gid := goroutineid.Current()
+		gid := goroutineid.MustCurrent()
 		heldIterators.Lock()
 		heldIterators.byGoroutine[gid] = append(heldIterators.byGoroutine[gid], operation)
 		heldIterators.Unlock()
@@ -48,7 +48,7 @@ func trackHeldIterator(operation string, it datastore.RelationshipIterator) data
 }
 
 func assertNoHeldIterator(operation string) {
-	gid := goroutineid.Current()
+	gid := goroutineid.MustCurrent()
 	heldIterators.Lock()
 	held := strings.Join(heldIterators.byGoroutine[gid], ", ")
 	heldIterators.Unlock()

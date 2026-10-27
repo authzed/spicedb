@@ -184,7 +184,7 @@ func newPoolNestingFixture(t *testing.T, config poolNestingConfig, poolSize int,
 	})
 	require.NoError(t, err)
 
-	pool := poolsim.New(testfixtures.NewValidatingDatastore(rawDS), poolSize, opts...)
+	pool := poolsim.MustNew(testfixtures.NewValidatingDatastore(rawDS), poolSize, opts...)
 
 	// Use a real (cold) schema cache and hash, as the server does.
 	schemaCache, err := cache.NewStandardCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](&cache.Config{

@@ -13,7 +13,7 @@ import (
 var goroutinePrefix = []byte("goroutine ")
 
 // Current returns the ID of the calling goroutine.
-func Current() uint64 {
+func Current() (uint64, error) {
 	var buf [64]byte
 	n := runtime.Stack(buf[:], false)
 	b := bytes.TrimPrefix(buf[:n], goroutinePrefix)
@@ -22,7 +22,16 @@ func Current() uint64 {
 	}
 	id, err := strconv.ParseUint(string(b), 10, 64)
 	if err != nil {
-		panic(fmt.Sprintf("goroutineid: unable to parse goroutine ID: %v", err))
+		return 0, fmt.Errorf("unable to parse goroutine ID: %w", err)
+	}
+	return id, nil
+}
+
+// MustCurrent returns the ID of the calling goroutine, panicking if it cannot be determined.
+func MustCurrent() uint64 {
+	id, err := Current()
+	if err != nil {
+		panic(err)
 	}
 	return id
 }

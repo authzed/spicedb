@@ -7,11 +7,11 @@ import (
 )
 
 func TestCurrent(t *testing.T) {
-	id := Current()
+	id := MustCurrent()
 	require.Positive(t, id)
-	require.Equal(t, id, Current())
+	require.Equal(t, id, MustCurrent())
 
 	other := make(chan uint64)
-	go func() { other <- Current() }()
+	go func() { other <- MustCurrent() }()
 	require.NotEqual(t, id, <-other)
 }
