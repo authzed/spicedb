@@ -37,6 +37,8 @@ type CacheConfig struct {
 	Metrics     bool          `debugmap:"visible"`
 	Enabled     bool          `debugmap:"visible"`
 	defaultTTL  time.Duration `debugmap:"visible"`
+	// refreshTTLOnAccess makes reads extend an entry's TTL; see cache.Config.
+	refreshTTLOnAccess bool `debugmap:"visible"`
 }
 
 // WithRevisionParameters configures a cache such that all entries are given a TTL
@@ -55,6 +57,14 @@ func (cc *CacheConfig) WithRevisionParameters(
 	return cc
 }
 
+// WithTTLRefreshedOnAccess configures a cache such that reading an entry extends
+// its TTL. Only use it for caches whose values cannot become stale while their
+// key is unchanged, such as schema keyed by revision.
+func (cc *CacheConfig) WithTTLRefreshedOnAccess() *CacheConfig {
+	cc.refreshTTLOnAccess = true
+	return cc
+}
+
 // CompleteCache translates the CLI cache config into a cache. If metrics are
 // enabled for the cache, its metrics are registered with the given registerer.
 func CompleteCache[K cache.KeyString, V any](registerer prometheus.Registerer, cc *CacheConfig) (cache.Cache[K, V], error) {
@@ -69,14 +79,16 @@ func CompleteCache[K cache.KeyString, V any](registerer prometheus.Registerer, c
 
 	if cc.Metrics {
 		return cache.NewStandardCacheWithMetrics[K, V](registerer, cc.Name, &cache.Config{
-			MaxCost:    intMaxCost,
-			DefaultTTL: cc.defaultTTL,
+			MaxCost:            intMaxCost,
+			DefaultTTL:         cc.defaultTTL,
+			RefreshTTLOnAccess: cc.refreshTTLOnAccess,
 		})
 	}
 
 	return cache.NewStandardCache[K, V](&cache.Config{
-		MaxCost:    intMaxCost,
-		DefaultTTL: cc.defaultTTL,
+		MaxCost:            intMaxCost,
+		DefaultTTL:         cc.defaultTTL,
+		RefreshTTLOnAccess: cc.refreshTTLOnAccess,
 	})
 }
 

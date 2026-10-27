@@ -83,7 +83,11 @@ func newOtterCache[K KeyString, V any](name string, config *Config) (*otterCache
 		StatsRecorder: counter,
 	}
 	if config.DefaultTTL > 0 {
-		opts.ExpiryCalculator = otter.ExpiryAccessing[string, valueAndCost[V]](config.DefaultTTL)
+		if config.RefreshTTLOnAccess {
+			opts.ExpiryCalculator = otter.ExpiryAccessing[string, valueAndCost[V]](config.DefaultTTL)
+		} else {
+			opts.ExpiryCalculator = otter.ExpiryWriting[string, valueAndCost[V]](config.DefaultTTL)
+		}
 	}
 
 	cache, err := otter.New(opts)

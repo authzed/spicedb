@@ -2,11 +2,15 @@ package server
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
+	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
@@ -175,6 +179,55 @@ func TestRevisionKeyedCachesExpire(t *testing.T) {
 	} {
 		require.Positive(t, cacheConfig.defaultTTL,
 			"the %s cache is keyed by revision and must be given a TTL", name)
+	}
+
+	// Schema at a revision never changes, so namespace cache reads may extend
+	// the TTL. A dispatch result can go stale without its key changing (for
+	// example, when a relationship it depends on expires), so reads of the
+	// dispatch caches must not keep an entry alive past its TTL.
+	require.True(t, c.NamespaceCacheConfig.refreshTTLOnAccess,
+		"the namespace cache should extend its TTL on access")
+	require.False(t, c.DispatchCacheConfig.refreshTTLOnAccess,
+		"the dispatch cache must not extend its TTL on access")
+	require.False(t, c.ClusterDispatchCacheConfig.refreshTTLOnAccess,
+		"the cluster dispatch cache must not extend its TTL on access")
+}
+
+func TestCompleteCacheTTLOnAccess(t *testing.T) {
+	const ttl = 1 * time.Minute
+
+	for _, tc := range []struct {
+		name            string
+		refreshOnAccess bool
+		expectFound     bool
+	}{
+		{"fixed TTL expires despite reads", false, false},
+		{"TTL refreshed on access survives reads", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				cc := &CacheConfig{Name: "test", Enabled: true, MaxCost: "1MiB", defaultTTL: ttl}
+				if tc.refreshOnAccess {
+					cc = cc.WithTTLRefreshedOnAccess()
+				}
+
+				c, err := CompleteCache[cache.StringKey, string](prometheus.NewRegistry(), cc)
+				//nolint:testifylint  // we're in a goroutine
+				if !assert.NoError(t, err) {
+					return
+				}
+				defer c.Close()
+
+				assert.True(t, c.Set(cache.StringKey("key"), "value", 10))
+				for range 4 {
+					time.Sleep(ttl / 2)
+					_, _ = c.Get(cache.StringKey("key"))
+				}
+
+				_, found := c.Get(cache.StringKey("key"))
+				assert.Equal(t, tc.expectFound, found)
+			})
+		})
 	}
 }
 
