@@ -110,15 +110,3 @@ func TestReadAheadRelationshipsStopsReadingWhenConsumerStops(t *testing.T) {
 		require.Fail(t, "source iterator kept being read after the consumer stopped")
 	}
 }
-
-func TestReadAheadRelationshipsRepanicsOnConsumer(t *testing.T) {
-	source := func(yield func(tuple.Relationship, error) bool) {
-		yield(tuple.MustParse("document:first#viewer@user:tom"), nil)
-		panic("source panicked")
-	}
-
-	require.PanicsWithValue(t, "source panicked", func() {
-		for range readAheadRelationships(source) {
-		}
-	})
-}

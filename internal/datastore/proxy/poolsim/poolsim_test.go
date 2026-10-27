@@ -19,7 +19,7 @@ func newTestPool(t *testing.T, size int, opts ...Option) (*Datastore, datastore.
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
-	return New(ds, size, opts...), rev
+	return MustNew(ds, size, opts...), rev
 }
 
 func TestIteratorHoldsConnectionUntilIterationEnds(t *testing.T) {

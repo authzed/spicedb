@@ -62,7 +62,7 @@ type Datastore struct {
 	failOnNested   bool
 
 	heldMu sync.Mutex
-	held   map[uint64]int
+	held   map[uint64]int // GUARDED_BY(heldMu)
 
 	nestedCount  atomic.Int64
 	timeoutCount atomic.Int64
@@ -70,9 +70,9 @@ type Datastore struct {
 	maxInUse     atomic.Int64
 }
 
-// New wraps the delegate datastore with a simulated connection pool of the given
-// size.
-func New(delegate datastore.Datastore, size int, opts ...Option) *Datastore {
+// MustNew wraps the delegate datastore with a simulated connection pool of the
+// given size, which must be at least 1.
+func MustNew(delegate datastore.Datastore, size int, opts ...Option) *Datastore {
 	if size < 1 {
 		panic("poolsim: pool size must be at least 1")
 	}
@@ -112,7 +112,10 @@ func (d *Datastore) Unwrap() datastore.Datastore {
 }
 
 func (d *Datastore) acquire(operation string) (func(), error) {
-	gid := goroutineid.Current()
+	gid, err := goroutineid.Current()
+	if err != nil {
+		return nil, err
+	}
 
 	d.heldMu.Lock()
 	alreadyHeld := d.held[gid]

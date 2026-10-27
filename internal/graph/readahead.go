@@ -15,26 +15,22 @@ import (
 // long the consumer takes to process them (including any datastore access of its own), while
 // still letting processing start with the first result.
 //
-// If the consumer stops early, reading stops at the next result. A panic while reading is
-// re-raised on the consumer's goroutine.
+// If the consumer stops early, reading stops at the next result.
 func readAheadRelationships(it datastore.RelationshipIterator) datastore.RelationshipIterator {
 	return func(yield func(tuple.Relationship, error) bool) {
 		var (
-			mu       sync.Mutex
-			ready    = sync.NewCond(&mu)
-			buffer   []tuple.Relationship
-			done     bool
-			stopped  bool
-			readErr  error
-			panicked any
+			mu      sync.Mutex
+			ready   = sync.NewCond(&mu)
+			buffer  []tuple.Relationship
+			done    bool
+			stopped bool
+			readErr error
 		)
 
 		go func() {
 			defer func() {
-				r := recover()
 				mu.Lock()
 				done = true
-				panicked = r
 				mu.Unlock()
 				ready.Signal()
 			}()
@@ -71,7 +67,7 @@ func readAheadRelationships(it datastore.RelationshipIterator) datastore.Relatio
 			// Swap buffers, so the reader appends to the (emptied) previous batch while this one
 			// is consumed.
 			batch, buffer = buffer, batch[:0]
-			finished, err, p := done, readErr, panicked
+			finished, err := done, readErr
 			mu.Unlock()
 
 			for _, rel := range batch {
@@ -81,9 +77,6 @@ func readAheadRelationships(it datastore.RelationshipIterator) datastore.Relatio
 			}
 
 			if finished {
-				if p != nil {
-					panic(p)
-				}
 				if err != nil {
 					yield(tuple.Relationship{}, err)
 				}
