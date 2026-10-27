@@ -312,7 +312,7 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 	}
 
 	resourceType := ObjectType{Type: r.base.DefinitionName()}
-	return ctx.Reader.CheckRelationships(
+	pathSeq, err := ctx.Reader.CheckRelationships(
 		ctx,
 		resourceType,
 		resource.ObjectID,
@@ -320,6 +320,17 @@ func (r *DatastoreIterator) iterSubjectsWildcardImpl(ctx *Context, resource Obje
 		wildcardSubject,
 		r.relationHasCaveats(), r.relationHasExpiration(),
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect before returning, as consumers (e.g. caveat evaluation) may read from the datastore
+	// while iterating, which would otherwise need a second connection while this query holds one.
+	paths, err := CollectAll(pathSeq)
+	if err != nil {
+		return nil, err
+	}
+	return PathSeqFromSlice(paths), nil
 }
 
 func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
