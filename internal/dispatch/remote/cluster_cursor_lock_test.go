@@ -23,7 +23,7 @@ type cursorEchoDispatchSvc struct {
 	sleepTime time.Duration
 
 	lock            sync.Mutex
-	receivedCursors [][]string
+	receivedCursors [][]string // GUARDED_BY(lock)
 }
 
 func (s *cursorEchoDispatchSvc) record(cursor []string) []string {
