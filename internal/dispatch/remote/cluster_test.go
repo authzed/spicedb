@@ -423,7 +423,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 			false,
 		},
 		{
-			"cursored multidispatch to invalid secondary",
+			"untagged cursor is locked to the primary",
 			"['secondary']",
 			&v1.DispatchLookupResources2Request{
 				ResourceRelation: &corev1.RelationReference{
@@ -449,7 +449,7 @@ func TestLRSecondaryDispatch(t *testing.T) {
 					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
 				},
 			},
-			2, // Falls back to the default secondary.
+			1, // Produced by the primary, so no secondary can resume it.
 			false,
 		},
 		{

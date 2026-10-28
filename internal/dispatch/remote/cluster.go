@@ -406,16 +406,6 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	return *new(S), foundError
 }
 
-type requestMessageWithCursor interface {
-	requestMessage
-	GetOptionalCursor() *v1.Cursor
-}
-
-type responseMessageWithCursor interface {
-	responseMessage
-	GetAfterResponseCursor() *v1.Cursor
-}
-
 type receiver[S any] interface {
 	Recv() (S, error)
 	grpc.ClientStream
@@ -449,20 +439,73 @@ func publishClient[R any](ctx context.Context, client receiver[R], reqKey string
 		}
 		isFirstResult = false
 
-		if secondaryDispatchName != primaryDispatcher {
-			if supportsCursors, ok := any(result).(responseMessageWithCursor); ok {
-				afterResponseCursor := supportsCursors.GetAfterResponseCursor()
-				if afterResponseCursor == nil {
-					return spiceerrors.MustBugf("received a nil after response cursor for secondary dispatch")
-				}
-				afterResponseCursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, afterResponseCursor.Sections...)
-			}
-		}
-
 		serr := stream.Publish(result)
 		if serr != nil {
 			return serr
 		}
+	}
+}
+
+// stripCursorDispatcherTag removes the secondary tag from the request's cursor, if any, and returns the
+// name of the dispatcher that produced the cursor, or "" if the request has no cursor. LR2 cursors carry
+// the tag at the front, while LR3 cursors are stacks whose head is the last section. Every streaming
+// request type must be handled here, so that none skips the cursor lock unnoticed.
+func stripCursorDispatcherTag(req any) (string, error) {
+	switch r := req.(type) {
+	case *v1.DispatchLookupResources3Request:
+		last := len(r.OptionalCursor) - 1
+		if last < 0 {
+			return "", nil
+		}
+		if name, ok := strings.CutPrefix(r.OptionalCursor[last], secondaryCursorPrefix); ok {
+			r.OptionalCursor = r.OptionalCursor[:last]
+			return name, nil
+		}
+		return primaryDispatcher, nil
+
+	case *v1.DispatchLookupResources2Request:
+		cursor := r.GetOptionalCursor()
+		if len(cursor.GetSections()) == 0 {
+			return "", nil
+		}
+		if name, ok := strings.CutPrefix(cursor.Sections[0], secondaryCursorPrefix); ok {
+			cursor.Sections = cursor.Sections[1:]
+			return name, nil
+		}
+		return primaryDispatcher, nil
+
+	case *v1.DispatchLookupSubjectsRequest:
+		return "", nil
+
+	default:
+		return "", spiceerrors.MustBugf("unhandled streaming dispatch request type %T", req)
+	}
+}
+
+// tagCursorWithSecondary marks the result's cursors as produced by the named secondary dispatcher. Like
+// stripCursorDispatcherTag, it must handle every streaming response type.
+func tagCursorWithSecondary(result any, secondaryDispatchName string) error {
+	tag := secondaryCursorPrefix + secondaryDispatchName
+	switch r := result.(type) {
+	case *v1.DispatchLookupResources3Response:
+		for _, item := range r.Items {
+			if len(item.AfterResponseCursorSections) > 0 {
+				item.AfterResponseCursorSections = append(item.AfterResponseCursorSections, tag)
+			}
+		}
+		return nil
+
+	case *v1.DispatchLookupResources2Response:
+		if cursor := r.GetAfterResponseCursor(); cursor != nil {
+			cursor.Sections = append([]string{tag}, cursor.Sections...)
+		}
+		return nil
+
+	case *v1.DispatchLookupSubjectsResponse:
+		return nil
+
+	default:
+		return spiceerrors.MustBugf("unhandled streaming dispatch response type %T", result)
 	}
 }
 
@@ -495,37 +538,36 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
-	// Check the cursor to see if the dispatch went to one of the secondary endpoints.
-	cursorLockedSecondaryName := ""
-	if cursorSupports, ok := any(req).(requestMessageWithCursor); ok {
-		cursor := cursorSupports.GetOptionalCursor()
-		if cursor != nil && len(cursor.Sections) > 0 {
-			if after, ok0 := strings.CutPrefix(cursor.Sections[0], secondaryCursorPrefix); ok0 {
-				cursorLockedSecondaryName = after
-				cursor.Sections = cursor.Sections[1:]
-			}
-		}
-	}
-
 	// Find the set of valid secondary dispatchers, if any.
 	validSecondaryDispatchers := make([]SecondaryDispatch, 0, len(cr.secondaryDispatch))
 	allowPrimary := true
-	if cursorLockedSecondaryName != "" {
-		// If the cursor is locked to a known secondary, dispatch to it.
-		allowPrimary = false
-		if sd, ok := cr.secondaryDispatch[cursorLockedSecondaryName]; ok {
-			validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
-		}
-	} else if expr, ok := cr.secondaryDispatchExprs[reqKey]; ok {
-		dispatcherNames, err := RunDispatchExpr(expr, req)
-		if err != nil {
-			log.Ctx(ctxWithTimeout).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
-		} else {
-			for _, secondaryDispatchName := range dispatcherNames {
-				if sd, ok := cr.secondaryDispatch[secondaryDispatchName]; ok {
-					validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
+	cursorLockedDispatcherName, err := stripCursorDispatcherTag(req)
+	if err != nil {
+		return err
+	}
+	switch cursorLockedDispatcherName {
+	case primaryDispatcher:
+		// An untagged cursor was produced by the primary, so no secondary can resume it.
+
+	case "":
+		if expr, ok := cr.secondaryDispatchExprs[reqKey]; ok {
+			dispatcherNames, err := RunDispatchExpr(expr, req)
+			if err != nil {
+				log.Ctx(ctxWithTimeout).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
+			} else {
+				for _, secondaryDispatchName := range dispatcherNames {
+					if sd, ok := cr.secondaryDispatch[secondaryDispatchName]; ok {
+						validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
+					}
 				}
 			}
+		}
+
+	default:
+		// If the cursor is locked to a known secondary, dispatch to it.
+		allowPrimary = false
+		if sd, ok := cr.secondaryDispatch[cursorLockedDispatcherName]; ok {
+			validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
 		}
 	}
 
@@ -699,6 +741,12 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 					return
 				}
 
+				if !isPrimary {
+					if terr := tagCursorWithSecondary(result, name); terr != nil {
+						errorsByDispatcherName.Store(name, terr)
+						return
+					}
+				}
 				hasPublishedFirstResult = true
 				serr := stream.Publish(result)
 				if serr != nil {
