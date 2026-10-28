@@ -39,6 +39,7 @@ func (g *GRPCServerConfig) ToOption() GRPCServerConfigOption {
 		to.BufferSize = g.BufferSize
 		to.ClientCAPath = g.ClientCAPath
 		to.MaxWorkers = g.MaxWorkers
+		to.TLSReloadInterval = g.TLSReloadInterval
 	}
 }
 
@@ -80,6 +81,13 @@ func (g *GRPCServerConfig) DebugMap() map[string]any {
 		debugMap["ClientCAPath"] = g.ClientCAPath
 	}
 	debugMap["MaxWorkers"] = g.MaxWorkers
+	if dm, ok := any(&g.TLSReloadInterval).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["TLSReloadInterval"] = dm.DebugMap()
+	} else {
+		debugMap["TLSReloadInterval"] = g.TLSReloadInterval
+	}
 	return debugMap
 }
 
@@ -183,6 +191,13 @@ func WithMaxWorkers(maxWorkers uint32) GRPCServerConfigOption {
 	}
 }
 
+// WithTLSReloadInterval returns an option that can set TLSReloadInterval on a GRPCServerConfig
+func WithTLSReloadInterval(tLSReloadInterval time.Duration) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.TLSReloadInterval = tLSReloadInterval
+	}
+}
+
 type HTTPServerConfigOption func(h *HTTPServerConfig)
 
 // NewHTTPServerConfigWithOptions creates a new HTTPServerConfig with the passed in options set
@@ -211,6 +226,7 @@ func (h *HTTPServerConfig) ToOption() HTTPServerConfigOption {
 		to.HTTPTLSCertPath = h.HTTPTLSCertPath
 		to.HTTPTLSKeyPath = h.HTTPTLSKeyPath
 		to.HTTPEnabled = h.HTTPEnabled
+		to.HTTPTLSReloadInterval = h.HTTPTLSReloadInterval
 	}
 }
 
@@ -233,6 +249,13 @@ func (h *HTTPServerConfig) DebugMap() map[string]any {
 		debugMap["HTTPTLSKeyPath"] = h.HTTPTLSKeyPath
 	}
 	debugMap["HTTPEnabled"] = h.HTTPEnabled
+	if dm, ok := any(&h.HTTPTLSReloadInterval).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["HTTPTLSReloadInterval"] = dm.DebugMap()
+	} else {
+		debugMap["HTTPTLSReloadInterval"] = h.HTTPTLSReloadInterval
+	}
 	return debugMap
 }
 
@@ -298,5 +321,12 @@ func WithHTTPTLSKeyPath(hTTPTLSKeyPath string) HTTPServerConfigOption {
 func WithHTTPEnabled(hTTPEnabled bool) HTTPServerConfigOption {
 	return func(h *HTTPServerConfig) {
 		h.HTTPEnabled = hTTPEnabled
+	}
+}
+
+// WithHTTPTLSReloadInterval returns an option that can set HTTPTLSReloadInterval on a HTTPServerConfig
+func WithHTTPTLSReloadInterval(hTTPTLSReloadInterval time.Duration) HTTPServerConfigOption {
+	return func(h *HTTPServerConfig) {
+		h.HTTPTLSReloadInterval = hTTPTLSReloadInterval
 	}
 }

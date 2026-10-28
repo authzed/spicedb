@@ -42,6 +42,8 @@ type GRPCServerConfig struct {
 	ClientCAPath string        `debugmap:"visible"`
 	MaxWorkers   uint32        `debugmap:"visible"`
 
+	TLSReloadInterval time.Duration `debugmap:"visible"`
+
 	flagPrefix string
 }
 
@@ -78,7 +80,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		MaxConnectionAge: c.MaxConnAge,
 	}), grpc.NumStreamWorkers(c.MaxWorkers))
 
-	tlsOpts, certWatcher, err := c.tlsOpts()
+	tlsOpts, err := c.tlsOpts()
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +112,6 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		listener:          l,
 		svcRegistrationFn: svcRegistrationFn,
 		creds:             clientCreds,
-		certWatcher:       certWatcher,
 	}, nil
 }
 
@@ -121,27 +122,30 @@ func (c *GRPCServerConfig) listen() (net.Listener, error) {
 	return net.Listen(c.Network, c.Address)
 }
 
-func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *x509util.CertWatcher, error) {
+func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, error) {
 	// Ensure that we've either got both TLS config options or neither
 	if err := c.validateTLSConfig(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// If no TLS configuration is provided, we're in plaintext mode
 	if c.TLSCertPath == "" {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	// Else we've got TLS configuration and we'll construct the server options
-	watcher, err := x509util.NewTLSCertWatcher(c.TLSCertPath, c.TLSKeyPath)
+	keyPair, err := x509util.NewKeyPair(c.TLSCertPath, c.TLSKeyPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	if c.TLSReloadInterval > 0 {
+		keyPair.WithReloadInterval(c.TLSReloadInterval)
 	}
 	creds := credentials.NewTLS(&tls.Config{
-		GetCertificate: watcher.GetCertificate,
+		GetCertificate: keyPair.GetCertificate,
 		MinVersion:     tls.VersionTLS12,
 	})
-	return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil
+	return []grpc.ServerOption{grpc.Creds(creds)}, nil
 }
 
 func (c *GRPCServerConfig) validateTLSConfig() error {
@@ -204,23 +208,13 @@ type completedGRPCServer struct {
 	listener          net.Listener
 	svcRegistrationFn func(*grpc.Server)
 	creds             credentials.TransportCredentials
-	certWatcher       *x509util.CertWatcher
 	srv               *grpc.Server
 }
 
 var _ RunnableGRPCServer = &completedGRPCServer{}
 
 // Listen runs a configured server
-func (c *completedGRPCServer) Run(ctx context.Context) error {
-	if c.certWatcher != nil {
-		go func() {
-			c.certWatcher.Start(ctx)
-		}()
-		err := <-c.certWatcher.Started()
-		if err != nil {
-			return err
-		}
-	}
+func (c *completedGRPCServer) Run(_ context.Context) error {
 	return c.srv.Serve(c.listener)
 }
 
@@ -275,6 +269,8 @@ type HTTPServerConfig struct {
 	HTTPTLSKeyPath  string `debugmap:"visible"`
 	HTTPEnabled     bool   `debugmap:"visible"`
 
+	HTTPTLSReloadInterval time.Duration `debugmap:"visible"`
+
 	flagPrefix string
 }
 
@@ -295,13 +291,16 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 		}
 
 	case c.HTTPTLSCertPath != "" && c.HTTPTLSKeyPath != "":
-		watcher, err := x509util.NewTLSCertWatcher(c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
+		keyPair, err := x509util.NewKeyPair(c.HTTPTLSCertPath, c.HTTPTLSKeyPath)
 		if err != nil {
 			return nil, err
 		}
+		if c.HTTPTLSReloadInterval > 0 {
+			keyPair.WithReloadInterval(c.HTTPTLSReloadInterval)
+		}
 
 		listener, err := tls.Listen("tcp", srv.Addr, &tls.Config{
-			GetCertificate: watcher.GetCertificate,
+			GetCertificate: keyPair.GetCertificate,
 			MinVersion:     tls.VersionTLS12,
 		})
 		if err != nil {
