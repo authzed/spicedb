@@ -193,3 +193,27 @@ func TestLR2CursorLockedToProducingDispatcher(t *testing.T) {
 	require.Equal(t, [][]string{{"primary"}}, primary.received())
 	require.Empty(t, secondary.received())
 }
+
+func TestCursorDispatcherTagHandlesEveryStreamingType(t *testing.T) {
+	t.Parallel()
+
+	for _, req := range []any{
+		&v1.DispatchLookupResources2Request{},
+		&v1.DispatchLookupResources3Request{},
+		&v1.DispatchLookupSubjectsRequest{},
+	} {
+		name, err := stripCursorDispatcherTag(req)
+		require.NoError(t, err, "%T", req)
+		require.Empty(t, name, "%T", req)
+	}
+	for _, resp := range []any{
+		&v1.DispatchLookupResources2Response{},
+		&v1.DispatchLookupResources3Response{},
+		&v1.DispatchLookupSubjectsResponse{},
+	} {
+		require.NoError(t, tagCursorWithSecondary(resp, "secondary"), "%T", resp)
+	}
+
+	require.Panics(t, func() { _, _ = stripCursorDispatcherTag(&v1.DispatchCheckRequest{}) })
+	require.Panics(t, func() { _ = tagCursorWithSecondary(&v1.DispatchCheckResponse{}, "secondary") })
+}

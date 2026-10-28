@@ -406,16 +406,6 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	return *new(S), foundError
 }
 
-type requestMessageWithCursor interface {
-	requestMessage
-	GetOptionalCursor() *v1.Cursor
-}
-
-type responseMessageWithCursor interface {
-	responseMessage
-	GetAfterResponseCursor() *v1.Cursor
-}
-
 type receiver[S any] interface {
 	Recv() (S, error)
 	grpc.ClientStream
@@ -458,38 +448,43 @@ func publishClient[R any](ctx context.Context, client receiver[R], reqKey string
 
 // stripCursorDispatcherTag removes the secondary tag from the request's cursor, if any, and returns the
 // name of the dispatcher that produced the cursor, or "" if the request has no cursor. LR2 cursors carry
-// the tag at the front, while LR3 cursors are stacks whose head is the last section.
-func stripCursorDispatcherTag(req any) string {
+// the tag at the front, while LR3 cursors are stacks whose head is the last section. Every streaming
+// request type must be handled here, so that none skips the cursor lock unnoticed.
+func stripCursorDispatcherTag(req any) (string, error) {
 	switch r := req.(type) {
 	case *v1.DispatchLookupResources3Request:
 		last := len(r.OptionalCursor) - 1
 		if last < 0 {
-			return ""
+			return "", nil
 		}
 		if name, ok := strings.CutPrefix(r.OptionalCursor[last], secondaryCursorPrefix); ok {
 			r.OptionalCursor = r.OptionalCursor[:last]
-			return name
+			return name, nil
 		}
-		return primaryDispatcher
+		return primaryDispatcher, nil
 
-	case requestMessageWithCursor:
+	case *v1.DispatchLookupResources2Request:
 		cursor := r.GetOptionalCursor()
 		if len(cursor.GetSections()) == 0 {
-			return ""
+			return "", nil
 		}
 		if name, ok := strings.CutPrefix(cursor.Sections[0], secondaryCursorPrefix); ok {
 			cursor.Sections = cursor.Sections[1:]
-			return name
+			return name, nil
 		}
-		return primaryDispatcher
+		return primaryDispatcher, nil
+
+	case *v1.DispatchLookupSubjectsRequest:
+		return "", nil
 
 	default:
-		return ""
+		return "", spiceerrors.MustBugf("unhandled streaming dispatch request type %T", req)
 	}
 }
 
-// tagCursorWithSecondary marks the result's cursors as produced by the named secondary dispatcher.
-func tagCursorWithSecondary(result any, secondaryDispatchName string) {
+// tagCursorWithSecondary marks the result's cursors as produced by the named secondary dispatcher. Like
+// stripCursorDispatcherTag, it must handle every streaming response type.
+func tagCursorWithSecondary(result any, secondaryDispatchName string) error {
 	tag := secondaryCursorPrefix + secondaryDispatchName
 	switch r := result.(type) {
 	case *v1.DispatchLookupResources3Response:
@@ -498,11 +493,19 @@ func tagCursorWithSecondary(result any, secondaryDispatchName string) {
 				item.AfterResponseCursorSections = append(item.AfterResponseCursorSections, tag)
 			}
 		}
+		return nil
 
-	case responseMessageWithCursor:
+	case *v1.DispatchLookupResources2Response:
 		if cursor := r.GetAfterResponseCursor(); cursor != nil {
 			cursor.Sections = append([]string{tag}, cursor.Sections...)
 		}
+		return nil
+
+	case *v1.DispatchLookupSubjectsResponse:
+		return nil
+
+	default:
+		return spiceerrors.MustBugf("unhandled streaming dispatch response type %T", result)
 	}
 }
 
@@ -538,7 +541,10 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	// Find the set of valid secondary dispatchers, if any.
 	validSecondaryDispatchers := make([]SecondaryDispatch, 0, len(cr.secondaryDispatch))
 	allowPrimary := true
-	cursorLockedDispatcherName := stripCursorDispatcherTag(req)
+	cursorLockedDispatcherName, err := stripCursorDispatcherTag(req)
+	if err != nil {
+		return err
+	}
 	switch cursorLockedDispatcherName {
 	case primaryDispatcher:
 		// An untagged cursor was produced by the primary, so no secondary can resume it.
@@ -735,10 +741,13 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 					return
 				}
 
-				hasPublishedFirstResult = true
 				if !isPrimary {
-					tagCursorWithSecondary(result, name)
+					if terr := tagCursorWithSecondary(result, name); terr != nil {
+						errorsByDispatcherName.Store(name, terr)
+						return
+					}
 				}
+				hasPublishedFirstResult = true
 				serr := stream.Publish(result)
 				if serr != nil {
 					errorsByDispatcherName.Store(name, serr)
