@@ -1,34 +1,20 @@
 package x509util
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"slices"
-	"sync"
 	"time"
 
 	"google.golang.org/grpc/credentials"
-
-	log "github.com/authzed/spicedb/internal/logging"
 )
 
-const defaultCAReloadInterval = 10 * time.Second
-
 // CAPool holds the certificate authorities read from a path and re-reads them
-// when the contents of that path change. Unlike CertWatcher it runs no
-// background goroutine: the path is re-read on demand, at most once per
-// interval.
+// when the contents of that path change. The path is re-read on demand, at
+// most once per interval.
 type CAPool struct {
-	path     string
-	interval time.Duration
-
-	mu       sync.Mutex
-	pool     *x509.CertPool // GUARDED_BY(mu)
-	contents [][]byte       // GUARDED_BY(mu)
-	lastRead time.Time      // GUARDED_BY(mu)
+	authorities *reloading[*x509.CertPool]
 }
 
 // NewCAPool returns a new CAPool for the certificate authorities at caPath,
@@ -36,31 +22,19 @@ type CAPool struct {
 // eagerly, so a missing or malformed bundle is reported here rather than at the
 // first handshake.
 func NewCAPool(caPath string) (*CAPool, error) {
-	contents, err := readCertFiles(caPath)
+	authorities, err := newReloading("certificate authorities", caPath,
+		func() ([][]byte, error) { return readCertFiles(caPath) },
+		certPoolFromPEM)
 	if err != nil {
 		return nil, err
 	}
-
-	pool, err := certPoolFromPEM(contents)
-	if err != nil {
-		return nil, err
-	}
-
-	return &CAPool{
-		path:     caPath,
-		interval: defaultCAReloadInterval,
-		pool:     pool,
-		contents: contents,
-		lastRead: time.Now(),
-	}, nil
+	return &CAPool{authorities: authorities}, nil
 }
 
 // WithReloadInterval sets the minimum time between reads of the path and
 // returns the CAPool pointer
 func (p *CAPool) WithReloadInterval(interval time.Duration) *CAPool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.interval = interval
+	p.authorities.setInterval(interval)
 	return p
 }
 
@@ -69,35 +43,7 @@ func (p *CAPool) WithReloadInterval(interval time.Duration) *CAPool {
 // authorities, so a bundle that is briefly absent or truncated partway through
 // a rotation does not empty the trust store.
 func (p *CAPool) CertPool() *x509.CertPool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	now := time.Now()
-	if now.Sub(p.lastRead) < p.interval {
-		return p.pool
-	}
-	p.lastRead = now
-
-	contents, err := readCertFiles(p.path)
-	if err != nil {
-		log.Warn().Err(err).Str("path", p.path).Msg("failed to re-read certificate authorities")
-		return p.pool
-	}
-
-	if slices.EqualFunc(p.contents, contents, bytes.Equal) {
-		return p.pool
-	}
-
-	pool, err := certPoolFromPEM(contents)
-	if err != nil {
-		log.Warn().Err(err).Str("path", p.path).Msg("failed to parse re-read certificate authorities")
-		return p.pool
-	}
-
-	log.Info().Str("path", p.path).Msg("reloaded certificate authorities")
-	p.pool = pool
-	p.contents = contents
-	return p.pool
+	return p.authorities.get()
 }
 
 // DialTLSContext returns a dial function that verifies the server against the

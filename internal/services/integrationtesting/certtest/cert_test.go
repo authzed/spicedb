@@ -150,6 +150,9 @@ func TestCertRotation(t *testing.T) {
 			Enabled:     true,
 			TLSCertPath: certFile.Name(),
 			TLSKeyPath:  keyFile.Name(),
+			// Re-read the rotated key pair on the next handshake rather than
+			// after the 10s default.
+			TLSReloadInterval: time.Millisecond,
 			// ClientCAPath is used by the server's outbound dispatch credentials, not
 			// for server-side client-cert validation — the server does not set ClientAuth,
 			// so this test does not exercise mutual TLS.
@@ -306,7 +309,7 @@ func TestCertRotation(t *testing.T) {
 	// Wait for the server to reload the rotated certificate. Each iteration dials
 	// a fresh connection to force a new TLS handshake — a reused connection keeps
 	// its existing session and would never re-present the cert. This assertion
-	// fails if hot reloading in updateCachedCertificate is disabled.
+	// fails if x509util.KeyPair stops re-reading the files.
 	require.Eventually(t, func() bool {
 		rotatedConn, rotatedRec, err := newConn()
 		if err != nil {
