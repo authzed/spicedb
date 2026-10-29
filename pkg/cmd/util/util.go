@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/spiffetls"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/runtime"
 	"github.com/authzed/spicedb/pkg/x509util"
@@ -41,6 +42,14 @@ type GRPCServerConfig struct {
 	BufferSize   int           `debugmap:"visible"`
 	ClientCAPath string        `debugmap:"visible"`
 	MaxWorkers   uint32        `debugmap:"visible"`
+
+	// SPIFFE serves over mutual TLS with an X.509-SVID from the SPIFFE
+	// Workload API, and requires clients to present one; see
+	// spiffetls.ServerOptions.
+	SPIFFE           bool     `debugmap:"visible"`
+	SPIFFESocket     string   `debugmap:"visible"`
+	SPIFFEID         string   `debugmap:"visible"`
+	SPIFFEAllowedIDs []string `debugmap:"visible"`
 
 	flagPrefix string
 }
@@ -64,10 +73,25 @@ func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, fla
 	flags.DurationVar(&config.MaxConnAge, flagPrefix+"-max-conn-age", 30*time.Second, "how long a connection serving "+serviceName+" should be able to live")
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" gRPC server")
 	flags.Uint32Var(&config.MaxWorkers, flagPrefix+"-max-workers", 0, "set the number of workers for this server (0 value means 1 worker per request)")
+	flags.BoolVar(&config.SPIFFE, flagPrefix+"-spiffe", false, "serve "+serviceName+" over mutual TLS with an X.509-SVID from the SPIFFE Workload API, and require clients to present an X.509-SVID allowed by --"+flagPrefix+"-spiffe-allowed-ids; cannot be combined with --"+flagPrefix+"-tls-cert-path")
+	flags.StringVar(&config.SPIFFESocket, flagPrefix+"-spiffe-socket", "", "address of the SPIFFE Workload API (e.g. unix:///spiffe-workload-api/spire-agent.sock) (default: $SPIFFE_ENDPOINT_SOCKET); requires --"+flagPrefix+"-spiffe")
+	flags.StringVar(&config.SPIFFEID, flagPrefix+"-spiffe-id", "", "SPIFFE ID of the X.509-SVID presented to clients of "+serviceName+" (default: the Workload API's default SVID); requires --"+flagPrefix+"-spiffe")
+	flags.StringSliceVar(&config.SPIFFEAllowedIDs, flagPrefix+"-spiffe-allowed-ids", nil, "SPIFFE IDs, or trust domains (e.g. spiffe://example.org) for any of their workloads, of the clients allowed to connect to "+serviceName+"; the server's own SPIFFE ID is always allowed (default: any workload in the trust domain of the server's SVID); requires --"+flagPrefix+"-spiffe")
+}
+
+// spiffeOptions returns the SPIFFE identity configured for the server.
+func (c *GRPCServerConfig) spiffeOptions() spiffetls.ServerOptions {
+	return spiffetls.ServerOptions{
+		FlagPrefix: cmp.Or(c.flagPrefix, "grpc"),
+		Enabled:    c.SPIFFE,
+		Socket:     c.SPIFFESocket,
+		ID:         c.SPIFFEID,
+		AllowedIDs: c.SPIFFEAllowedIDs,
+	}
 }
 
 // Complete takes a set of default options and returns a completed server
-func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(server *grpc.Server), opts ...grpc.ServerOption) (RunnableGRPCServer, error) {
+func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(server *grpc.Server), opts ...grpc.ServerOption) (_ RunnableGRPCServer, err error) {
 	if !c.Enabled {
 		return &disabledGrpcServer{}, nil
 	}
@@ -78,13 +102,20 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		MaxConnectionAge: c.MaxConnAge,
 	}), grpc.NumStreamWorkers(c.MaxWorkers))
 
-	tlsOpts, certWatcher, err := c.tlsOpts()
+	tlsOpts, certWatcher, spiffeSource, err := c.tlsOpts()
 	if err != nil {
 		return nil, err
 	}
+	if spiffeSource != nil {
+		defer func() {
+			if err != nil {
+				_ = spiffeSource.Close()
+			}
+		}()
+	}
 	opts = append(opts, tlsOpts...)
 
-	clientCreds, err := c.clientCreds()
+	clientCreds, err := c.clientCreds(spiffeSource)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +129,8 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		Str("network", c.Network).
 		Str("service", c.flagPrefix).
 		Uint32("workers", c.MaxWorkers).
-		Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
+		Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "" && !c.SPIFFE).
+		Bool("spiffe", c.SPIFFE).
 		Msg("grpc server started serving")
 
 	srv := grpc.NewServer(opts...)
@@ -111,6 +143,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		svcRegistrationFn: svcRegistrationFn,
 		creds:             clientCreds,
 		certWatcher:       certWatcher,
+		spiffeSource:      spiffeSource,
 	}, nil
 }
 
@@ -121,27 +154,37 @@ func (c *GRPCServerConfig) listen() (net.Listener, error) {
 	return net.Listen(c.Network, c.Address)
 }
 
-func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *x509util.CertWatcher, error) {
+func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *x509util.CertWatcher, *spiffetls.Source, error) {
 	// Ensure that we've either got both TLS config options or neither
 	if err := c.validateTLSConfig(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	if c.SPIFFE {
+		// The Workload API stream outlives Complete; the server closes it when
+		// it stops.
+		source, err := spiffetls.NewServer(context.Background(), c.spiffeOptions())
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to start %s gRPC server: %w", c.flagPrefix, err)
+		}
+		return []grpc.ServerOption{grpc.Creds(credentials.NewTLS(source.ServerConfig()))}, nil, source, nil
 	}
 
 	// If no TLS configuration is provided, we're in plaintext mode
 	if c.TLSCertPath == "" {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	// Else we've got TLS configuration and we'll construct the server options
 	watcher, err := x509util.NewTLSCertWatcher(c.TLSCertPath, c.TLSKeyPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	creds := credentials.NewTLS(&tls.Config{
 		GetCertificate: watcher.GetCertificate,
 		MinVersion:     tls.VersionTLS12,
 	})
-	return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil
+	return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil, nil
 }
 
 func (c *GRPCServerConfig) validateTLSConfig() error {
@@ -153,11 +196,26 @@ func (c *GRPCServerConfig) validateTLSConfig() error {
 			c.flagPrefix,
 		)
 	}
+	if c.SPIFFE && c.TLSCertPath != "" {
+		return fmt.Errorf(
+			"failed to start %s gRPC server: --%s-spiffe cannot be combined with --%s-tls-cert-path and --%s-tls-key-path",
+			c.flagPrefix,
+			c.flagPrefix,
+			c.flagPrefix,
+			c.flagPrefix,
+		)
+	}
+	if err := c.spiffeOptions().Validate(); err != nil {
+		return fmt.Errorf("failed to start %s gRPC server: %w", c.flagPrefix, err)
+	}
 	return nil
 }
 
-func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, error) {
+// clientCreds returns the credentials with which to connect to the server.
+func (c *GRPCServerConfig) clientCreds(spiffeSource *spiffetls.Source) (credentials.TransportCredentials, error) {
 	switch {
+	case spiffeSource != nil:
+		return credentials.NewTLS(spiffeSource.SelfClientConfig()), nil
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		return insecure.NewCredentials(), nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
@@ -192,6 +250,10 @@ type RunnableGRPCServer interface {
 	Address() string
 	// Insecure returns true if the server is configured without TLS enabled
 	Insecure() bool
+	// DialCredentials returns the transport credentials with which the process
+	// connects to its own server: plaintext, TLS, or, for a server requiring
+	// client SVIDs, its own SVID.
+	DialCredentials() credentials.TransportCredentials
 	// GracefulStop stops a running server, allowing cleanup actions to complete
 	GracefulStop()
 	// ForceStop brings down the running server immediately without waiting for cleanup
@@ -205,6 +267,7 @@ type completedGRPCServer struct {
 	svcRegistrationFn func(*grpc.Server)
 	creds             credentials.TransportCredentials
 	certWatcher       *x509util.CertWatcher
+	spiffeSource      *spiffetls.Source
 	srv               *grpc.Server
 }
 
@@ -212,6 +275,7 @@ var _ RunnableGRPCServer = &completedGRPCServer{}
 
 // Listen runs a configured server
 func (c *completedGRPCServer) Run(ctx context.Context) error {
+	defer c.closeSPIFFESource()
 	if c.certWatcher != nil {
 		go func() {
 			c.certWatcher.Start(ctx)
@@ -237,13 +301,27 @@ func (c *completedGRPCServer) Insecure() bool {
 	return c.creds.Info().SecurityProtocol == "insecure"
 }
 
+func (c *completedGRPCServer) DialCredentials() credentials.TransportCredentials {
+	return c.creds
+}
+
 // GracefulStop stops a running server
 func (c *completedGRPCServer) GracefulStop() {
 	c.srv.GracefulStop()
+	c.closeSPIFFESource()
 }
 
 func (c *completedGRPCServer) ForceStop() {
 	c.srv.Stop()
+	c.closeSPIFFESource()
+}
+
+// closeSPIFFESource ends the Workload API stream, if any. It is safe to call
+// more than once.
+func (c *completedGRPCServer) closeSPIFFESource() {
+	if c.spiffeSource != nil {
+		_ = c.spiffeSource.Close()
+	}
 }
 
 type disabledGrpcServer struct{}
@@ -260,6 +338,10 @@ func (d *disabledGrpcServer) Address() string {
 
 func (d *disabledGrpcServer) Insecure() bool {
 	return true
+}
+
+func (d *disabledGrpcServer) DialCredentials() credentials.TransportCredentials {
+	return insecure.NewCredentials()
 }
 
 func (d *disabledGrpcServer) BufferedListener() *bufconn.Listener { return nil }
