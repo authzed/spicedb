@@ -70,7 +70,7 @@ jobs:
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"
-          version: "2.15.2"
+          version: "2.19.0"
           args: "release --clean --split --snapshot --single-target --skip archive,nfpm,snapcraft"
         env:
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
