@@ -192,17 +192,20 @@ func ApplySchemaChangesOverExisting(
 			return nil, err
 		}
 
+		// Annotate every definition, not only changed ones: the non-additive path below
+		// writes all compiled definitions, so an unannotated copy of an unchanged
+		// definition would overwrite the stored, annotated one.
+		vts, ok := validated.validatedDefinitions[nsdef.Name]
+		if !ok {
+			return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
+		}
+
+		if err := namespace.AnnotateNamespace(vts); err != nil {
+			return nil, err
+		}
+
 		if len(diff.Deltas()) > 0 {
 			objectDefsWithChanges = append(objectDefsWithChanges, nsdef)
-
-			vts, ok := validated.validatedDefinitions[nsdef.Name]
-			if !ok {
-				return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
-			}
-
-			if err := namespace.AnnotateNamespace(vts); err != nil {
-				return nil, err
-			}
 		}
 	}
 
