@@ -20,7 +20,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schema"
@@ -697,20 +696,31 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		}
 
 		// Dispatch the found subjects as the resources of the next step.
-		slicez.ForEachChunk(resourceIds, cl.dispatchChunkSize, func(resourceIdChunk []string) {
+		// The stream of each chunk has a context with the hint of that chunk.
+		chunks := dispatch.ChunkerFromContext(subCtx).Chunk(subCtx, resourceType.Namespace, resourceIds, cl.dispatchChunkSize)
+		for _, chunk := range chunks {
+			chunkCtx := dispatch.WithRoutingHintIfNeeded(subCtx, chunk.Hint)
+
+			// With routing off, the chunk has no hint and subCtx has no hint, so chunkCtx is subCtx.
+			// Then the stream needs no new context.
+			var chunkStream dispatch.LookupSubjectsStream = stream
+			if chunkCtx != subCtx {
+				chunkStream = dispatch.StreamWithContext(chunkCtx, stream)
+			}
+
 			g.Go(func() error {
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,
-					ResourceIds:      resourceIdChunk,
+					ResourceIds:      chunk.ResourceIDs,
 					SubjectRelation:  parentRequest.SubjectRelation,
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
 						SchemaHash:     parentRequest.Metadata.SchemaHash,
 					},
-				}, stream)
+				}, chunkStream)
 			})
-		})
+		}
 	})
 
 	return g.Wait()

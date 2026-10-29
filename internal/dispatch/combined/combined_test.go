@@ -209,3 +209,33 @@ func TestNewDispatcher_InvalidSecondaryDispatchExpr(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "error parsing secondary dispatch expr")
 }
+
+func TestNewDispatcherWithChunker(t *testing.T) {
+	t.Run("no upstream", func(t *testing.T) {
+		d, chunker, err := NewDispatcherWithChunker(DispatchChunkSize(10))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = d.Close() })
+		require.Equal(t, dispatch.DefaultChunker, chunker)
+	})
+
+	t.Run("upstream with routing off", func(t *testing.T) {
+		d, chunker, err := NewDispatcherWithChunker(UpstreamAddr("localhost:0"), GrpcDialOpts())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = d.Close() })
+		ids := []string{"a", "b", "c"}
+		require.Equal(t, dispatch.DefaultChunker.Chunk(t.Context(), "document", ids, 2),
+			chunker.Chunk(t.Context(), "document", ids, 2), "with routing off, the chunker splits by size only")
+	})
+
+	t.Run("upstream with routing on", func(t *testing.T) {
+		d, chunker, err := NewDispatcherWithChunker(UpstreamAddr("localhost:0"), GrpcDialOpts(), ObjectAffinityRouting(true))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = d.Close() })
+		chunks := chunker.Chunk(t.Context(), "document", []string{"a", "b"}, 1)
+		require.Len(t, chunks, 2)
+		for _, chunk := range chunks {
+			require.Equal(t, dispatch.RoutingKey("document:"+chunk.ResourceIDs[0]), chunk.Hint.Key,
+				"without a ring view, each chunk routes by the object key of its first ID")
+		}
+	})
+}
