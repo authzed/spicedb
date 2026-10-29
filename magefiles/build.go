@@ -32,6 +32,12 @@ func (Build) Wasm() error {
 		"go", "build", "-ldflags=-s -w", "-o", "dist/development.wasm", "./pkg/development/wasm/...")
 }
 
+// Wasi Build the testing server as a WASI reactor module
+func (Build) Wasi() error {
+	return sh.RunWithV(map[string]string{"GOOS": "wasip1", "GOARCH": "wasm"},
+		"go", "build", "-buildmode=c-shared", "-ldflags=-s -w", "-o", "dist/spicedb-testserver.wasm", "./pkg/cmd/testserver/wasi")
+}
+
 // Testimage Build the spicedb image for tests
 func (Build) Testimage() error {
 	mg.Deps(checkDocker)
