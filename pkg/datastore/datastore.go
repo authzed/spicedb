@@ -632,7 +632,8 @@ type ReadWriteTransaction interface {
 	// relationships to the backing datastore in an optimized fashion. This
 	// method can and will omit checks and otherwise cut corners in the
 	// interest of performance, and should not be relied upon for OLTP-style
-	// workloads.
+	// workloads. The behavior for a relationship that already exists depends
+	// on the datastore: see IdempotentBulkLoadDatastore.
 	BulkLoad(ctx context.Context, iter BulkWriteRelationshipSource) (uint64, error)
 }
 
@@ -902,6 +903,17 @@ type CursoredDeleteDatastore interface {
 	// SupportsCursoredDelete returns whether cursored deletion is available
 	// for this datastore instance.
 	SupportsCursoredDelete() bool
+}
+
+// IdempotentBulkLoadDatastore is optionally implemented by datastores whose
+// BulkLoad overwrites a relationship that already exists, instead of returning
+// an AlreadyExists error. Use UnwrapAs to find it behind wrapping proxies.
+type IdempotentBulkLoadDatastore interface {
+	Datastore
+
+	// SupportsIdempotentBulkLoad returns whether BulkLoad overwrites
+	// relationships that already exist for this datastore instance.
+	SupportsIdempotentBulkLoad() bool
 }
 
 type strArray []string

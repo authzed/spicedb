@@ -114,6 +114,11 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 		return serr
 	}, options.WithDisableRetries(true))
 
+	if supportsIdempotentBulkLoad(ds) {
+		require.NoError(err)
+		return
+	}
+
 	// NOTE: spanner does not return an error for duplicates.
 	if err == nil {
 		return
@@ -293,24 +298,45 @@ func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 	}, options.WithDisableRetries(true))
 	require.NoError(err)
 
-	// Bulk write it again and ensure we get the expected error.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
-			testfixtures.DocumentNS.Name,
-			"viewer",
-			testfixtures.UserNS.Name,
-			1,
-			t,
-		))
+	// Bulk write it again, with an expiration so that an overwrite is visible.
+	// The expected result depends on the datastore.
+	second := testfixtures.NewBulkRelationshipGenerator(
+		testfixtures.DocumentNS.Name,
+		"viewer",
+		testfixtures.UserNS.Name,
+		1,
+		t,
+	)
+	second.WithExpiration = true
+	lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, serr := rwt.BulkLoad(ctx, second)
 		return serr
 	}, options.WithDisableRetries(true))
 
-	// NOTE: spanner does not return an error for duplicates.
-	if err == nil {
+	if !supportsIdempotentBulkLoad(ds) {
+		grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 		return
 	}
 
-	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
+	require.NoError(err)
+
+	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: testfixtures.DocumentNS.Name,
+	}, options.WithQueryShape(queryshape.FindResourceOfType))
+	require.NoError(err)
+
+	found := 0
+	for rel, err := range iter {
+		require.NoError(err)
+		require.NotNil(rel.OptionalExpiration)
+		found++
+	}
+	require.Equal(1, found)
+}
+
+func supportsIdempotentBulkLoad(ds datastore.Datastore) bool {
+	ids := datastore.UnwrapAs[datastore.IdempotentBulkLoadDatastore](ds)
+	return ids != nil && ids.SupportsIdempotentBulkLoad()
 }
 
 type onlyErrorSource struct{}
