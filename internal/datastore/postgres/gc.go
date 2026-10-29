@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -63,7 +65,16 @@ func (pgg *pgGarbageCollector) LockForGCRun(ctx context.Context) (bool, error) {
 }
 
 func (pgg *pgGarbageCollector) UnlockAfterGCRun() error {
-	return pgg.pgd.releaseLock(context.Background(), pgg.conn, gcRunLock)
+	err := pgg.pgd.releaseLock(context.Background(), pgg.conn, gcRunLock)
+	if errors.Is(err, ErrLockNotHeld) {
+		// The session lost the lock before release (e.g. a connection reset
+		// mid-GC), so there is nothing left to release. GC deletes are
+		// txID-watermark-bounded and idempotent, so a concurrent run is safe;
+		// keep a warn-level breadcrumb instead of surfacing a scary error.
+		log.Warn().Err(err).Msg("gc advisory lock was already released")
+		return nil
+	}
+	return err
 }
 
 func (pgg *pgGarbageCollector) Now(ctx context.Context) (time.Time, error) {
