@@ -34,6 +34,14 @@ const (
 // engine name. See dsconfig.BuilderForEngine.
 var BuilderForEngine = dsconfig.BuilderForEngine
 
+// SPIFFEEngines are the engines that support --datastore-spiffe.
+// See dsconfig.SPIFFEEngines.
+var SPIFFEEngines = dsconfig.SPIFFEEngines
+
+// ValidateSPIFFE checks a SPIFFE workload identity against an engine. See
+// dsconfig.ValidateSPIFFE.
+var ValidateSPIFFE = dsconfig.ValidateSPIFFE
+
 var (
 	RegisterEngine                           = dsconfig.RegisterEngine
 	DefaultDatastoreConfig                   = dsconfig.DefaultDatastoreConfig
@@ -111,6 +119,10 @@ var (
 	WithSpannerEmulatorHost                  = dsconfig.WithSpannerEmulatorHost
 	WithSpannerMaxSessions                   = dsconfig.WithSpannerMaxSessions
 	WithSpannerMinSessions                   = dsconfig.WithSpannerMinSessions
+	WithSPIFFEEnabled                        = dsconfig.WithSPIFFEEnabled
+	WithSPIFFEID                             = dsconfig.WithSPIFFEID
+	WithSPIFFEServerID                       = dsconfig.WithSPIFFEServerID
+	WithSPIFFESocket                         = dsconfig.WithSPIFFESocket
 	WithTablePrefix                          = dsconfig.WithTablePrefix
 	WithURI                                  = dsconfig.WithURI
 	WithWatchBufferLength                    = dsconfig.WithWatchBufferLength

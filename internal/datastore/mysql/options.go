@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/spiffetls"
 )
 
 const (
@@ -54,6 +55,7 @@ type mysqlOptions struct {
 	allowedMigrations            []string
 	columnOptimizationOption     common.ColumnOptimizationOption
 	watchDisabled                bool
+	spiffeOptions                spiffetls.Options
 }
 
 // Option provides the facility to configure how clients within the
@@ -297,5 +299,17 @@ func WithColumnOptimization(isEnabled bool) Option {
 func WithWatchDisabled(isDisabled bool) Option {
 	return func(mo *mysqlOptions) {
 		mo.watchDisabled = isDisabled
+	}
+}
+
+// WithSPIFFE configures the connections to MySQL to authenticate over mutual
+// TLS with an X.509-SVID from the SPIFFE Workload API, and to accept only a
+// server the options allow; see spiffetls.Options. The connection URI must not
+// set the tls parameter to anything but true.
+//
+// TLS is configured by the connection URI alone by default.
+func WithSPIFFE(opts spiffetls.Options) Option {
+	return func(mo *mysqlOptions) {
+		mo.spiffeOptions = opts
 	}
 }

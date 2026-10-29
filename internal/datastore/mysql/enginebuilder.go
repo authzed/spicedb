@@ -47,7 +47,7 @@ func newMigrationDriverFromConfig(ctx context.Context, cfg *migration.Config) (*
 		return nil, err
 	}
 
-	return migrations.NewMySQLDriverFromDSN(cfg.DatastoreURI, cfg.MySQLTablePrefix, credentialsProvider)
+	return migrations.NewMySQLDriverFromDSN(ctx, cfg.DatastoreURI, cfg.MySQLTablePrefix, credentialsProvider, cfg.SPIFFEOptions())
 }
 
 func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {
@@ -99,6 +99,7 @@ func commonDatastoreOptionsFromConfig(opts datastorecfg.Config) ([]Option, error
 		FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		AllowedMigrations(opts.AllowedMigrations),
 		WithColumnOptimization(opts.ExperimentalColumnOptimization),
+		WithSPIFFE(opts.SPIFFEOptions()),
 	}, nil
 }
 
