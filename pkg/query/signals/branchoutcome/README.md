@@ -1,26 +1,13 @@
-# branchoutcome
+# Branch outcomes
 
-Check outcomes among attempted subtrees at the exact revision. Denial, unconditional grant and conditional results have distinct counters. Errors and cancellation count as attempts but never as denial or completed outcome. This population depends on execution order; no unbiased winner probability is claimed.
+When a permission has several ways to grant access, some paths may succeed much
+more often than others. This signal records what happens when each part of a check
+actually runs: it grants access, denies access, or returns a result that still
+needs caveat context.
 
-Registered through the explicit signal catalog. Access with typed Ref/Input values.
-Evidence remains in its original schema/revision view. Colocated unit tests and
-Rapid properties compare the estimate with an exact independent counting model.
-Run `go test -race ./pkg/query/signals/branchoutcome`.
-
-Completed batches contribute per-element outcomes with their batch mode preserved.
-Receiver loops observe each attempted element, including its own error. When an
-executor returns a whole-batch error without per-element results, actual attempts
-are unknown: `UnresolvedBatches` and `UnresolvedAttemptUpperBound` record that
-uncertainty separately. Such events add no known attempts or completed outcomes.
-
-## Revision policy
-
-[`New`](signal.go) declares `Policy: signal.RevisionBound`. The shared store includes
-`scope.Revision.String()` in the entry key for revision-bound providers, alongside
-the schema hash, signal name, and execution population key. If checks select the
-same datastore quantization revision, they share evidence. Selecting a different
-revision starts a separate population; this provider does not quantize revisions
-or carry its counters forward.
+That history can help an optimization choose what to try first. It also records
+unfinished work separately: an error or cancellation is not a denial, and a branch
+that was never tried tells us nothing about whether it would have succeeded.
 
 ## Example
 
@@ -36,26 +23,52 @@ definition document {
 }
 ```
 
-Summarized request: `CheckPermission(document:report, view, user:alice)` at
-revision `R1`, with optional context `{ "flag": true }`. Consider observations
-of the `direct` subtree across requests with the same schema and population key.
-The key distinguishes subtree identity, Check filters, invocation mode, execution
-strategy, and sender/receiver role; it does not identify individual object IDs.
+A request checks whether Alice can view `document:report`, optionally supplying
+`{ "flag": true }`. The signal can record what happens when the `direct` part of
+that check runs. Requests for different documents or users can contribute to the
+same history when they execute the same part of the plan in the same way.
 
-Each row below is a separate scenario, with counters starting empty:
+Each row starts with an empty history at revision `R1`:
 
-| Scenario | What the signal stores |
+| What happens to `direct` | What the signal records |
 | --- | --- |
-| `direct` returns no path | `Attempted=1`, `Completed=1`, `Denied=1`, `DenyFraction=1` |
-| `direct` returns an unconditional path | `Attempted=1`, `Completed=1`, `Granted=1`, `GrantFraction=1` |
-| `direct` returns a caveated path with unresolved context | `Attempted=1`, `Completed=1`, `Conditional=1`, `ConditionalFraction=1` |
-| `direct` errors or is canceled | `Attempted=1`, `Completed=0`; no outcome counter or fraction increases |
-| Another branch short-circuits the union before `direct` runs | No observation of `direct`; its counters stay unchanged |
-| A many-resources batch fails with only a whole-batch error, for 8 inputs | `UnresolvedBatches=1`, `UnresolvedAttemptUpperBound=8`; known attempt/outcome counters stay zero |
+| It finds no match | One attempted check and one denial |
+| It grants access without a caveat | One attempted check and one grant |
+| It needs more caveat context | One attempted check and one conditional result |
+| It fails or is canceled | One attempt, with no completed outcome |
+| `fallback` finishes the request before `direct` runs | No observation for `direct` |
+| A batch of eight inputs fails without individual results | One unresolved batch, with at most eight attempts; no assumed outcomes |
 
-Combining one denial, one unconditional grant, one conditional result, and one
-single-invocation error yields `Attempted=4`, `Completed=3`, and each completed
-outcome fraction equal to `1/3`. Batch modes have separate keys from single checks.
-At `R2`, none of these `R1` counters are visible. An eventual union-ordering pass
-could use these frequencies to recommend ordering, while accounting for the bias
-from branches that were never attempted. No such producer is enabled yet.
+One denial, one grant, one conditional result and one error produce four attempts
+but only three completed outcomes. Each completed outcome accounts for one-third
+of those results. A request at a different datastore revision starts a separate
+history.
+
+The order in which branches run affects what we get to observe. A branch tried
+only after another branch fails has a different history from one always tried
+first. Consumers need to account for that when using these frequencies.
+
+## Details
+
+`New` declares `Policy: signal.RevisionBound`. The store keys evidence by schema,
+exact `scope.Revision.String()`, signal name, and execution population. Requests
+selecting the same datastore quantization revision can share evidence. This
+provider neither chooses the revision nor carries counters to another revision.
+
+The execution key distinguishes subtree identity, Check filters, invocation mode,
+strategy, and sender/receiver role. It does not identify individual object IDs.
+Batch modes have separate populations from single checks. Only attempted Check
+subtrees contribute; this is not an unbiased probability that a branch would win.
+
+The estimate tracks `Attempted`, `Completed`, `Denied`, `Granted`, and
+`Conditional`. Fractions divide their outcome counters by `Completed`. The combined
+example above gives `Attempted=4`, `Completed=3`, and each outcome fraction `1/3`.
+Errors and cancellation increase known attempts but never completed-outcome counts.
+
+Completed batches supply per-element outcomes. When only a whole-batch error is
+available, `UnresolvedBatches` and `UnresolvedAttemptUpperBound` record uncertainty
+without adding known per-element attempts or outcomes. For eight inputs, those
+counters increase by 1 and 8 respectively.
+
+Unit tests and Rapid properties compare the estimate with an independent counting
+model. Run `go test -race ./pkg/query/signals/branchoutcome`.

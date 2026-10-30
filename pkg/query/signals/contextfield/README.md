@@ -1,11 +1,13 @@
-# contextfield
+# Context-field stability
 
-Request-context stability by field name, at the exact request revision. Missing and explicit null are distinct at the input adapter. Track counts, all-equal and a bounded dominant-frequency lower bound using at most 16 fingerprints. Overflow never becomes evidence of stability. No raw values are retained. This is input evidence, not an authorization result or effective relationship caveat context.
+Does a request's `region` usually stay the same, or does it change every time?
+This signal tracks how steady each context field is across requests. That can help
+an optimization decide whether doing work for a particular context value early is
+likely to pay off.
 
-Registered through the explicit signal catalog. Access with typed Ref/Input values.
-Evidence remains in its original schema/revision view. Colocated unit tests and
-Rapid properties compare the estimate with an exact independent counting model.
-Run `go test -race ./pkg/query/signals/contextfield`.
+It compares values without keeping the values themselves. An absent field is
+tracked separately from a supplied value, so a field that is usually missing does
+not accidentally look reliable.
 
 ## Example
 
@@ -20,28 +22,47 @@ definition document {
 }
 ```
 
-Summarized request: `CheckPermission(document:report, view, user:alice,
-context={ "region": "east" })` at revision `R1`. At validated request ingress,
-the adapter selects `region` from the caveat parameter names and publishes once
-for this logical request. The key is the field name `region`, rather than the
-caveat, object, or subtree. Other caveats using that field share this population
-within the same schema and revision.
+A request checks whether Alice can view `document:report`, supplying
+`{ "region": "east" }`. Requests using the same schema and datastore revision
+contribute to the same history for `region`, even when they check different
+objects or use different caveats that read that field.
 
-Each row below starts with an empty `region` population:
+Each row below starts with an empty history:
 
-| Scenario at `R1` | What the signal stores |
+| Requests | What the signal learns |
 | --- | --- |
-| Four requests all supply `"east"` | One fingerprint with frequency 4; `Samples=4`, `Missing=0`, `AllEqual=true`, `DominantShareLowerBound=1` |
-| Three requests supply `"east"` and one supplies `"west"` | Two fingerprints; `Samples=4`, `AllEqual=false`, `DominantShareLowerBound=0.75` |
-| Two requests supply `"east"`, one omits `region` | `Samples=3`, `Missing=1`, `AllEqual=true`, `DominantShareLowerBound=1` among the two present values |
-| One request explicitly supplies null | A present null fingerprint: `Samples=1`, `Missing=0`; it differs from an absent field |
-| Seventeen requests supply seventeen distinct strings | Sixteen retained fingerprints; `Samples=17`, `Overflow=1`, `AllEqual=false`, `DominantShareLowerBound=1/17` |
-| Encoding fails or the request exceeds a sampling budget | The adapter skips that field; no observation is stored |
+| Four requests supply `"east"` | Every supplied value has been the same |
+| Three supply `"east"` and one supplies `"west"` | The value varies; the most common value accounts for 75% of supplied values |
+| Two supply `"east"` and one omits `region` | The supplied values agree, but one request had no value |
+| One explicitly supplies null | A value was supplied; this is different from omitting the field |
+| Seventeen requests supply seventeen different strings | The field is changing; reaching the tracking limit does not make it look stable |
+| A value cannot be sampled within the request budget | That request contributes no observation for the field |
 
-Only process-keyed fingerprints and counters are retained, not the context values.
-`AllEqual` refers to present values; a consumer must inspect `Missing` as well.
-The provider's `RevisionBound` policy starts a separate field population at `R2`.
-These are stability observations for a future caveat-placement optimization;
-the implementation does not yet change caveat placement based on them. Explicit
-null here illustrates input sampling, not whether that context satisfies the
-caveat's parameter type.
+A different datastore revision starts a fresh history. These observations can
+inform a later context-placement decision; this signal alone does not make that
+decision.
+
+## Details
+
+The key is the context field name, not the caveat, object or subtree. The provider
+uses `RevisionBound`, so histories are isolated by schema and exact selected
+revision. It does not choose or quantize the revision.
+
+Observations distinguish missing fields from explicit null at the input adapter.
+Only process-keyed value fingerprints and counters are retained. This describes
+request input, not the effective context after combining it with relationship
+caveat data, and not whether a value satisfies a caveat's parameter type.
+
+The estimate includes `Samples`, `Missing`, `Overflow`, `AllEqual`, and
+`DominantShareLowerBound`. At most 16 distinct fingerprints are retained. Additional
+values increase `Overflow` and rule out `AllEqual`. Retained fingerprint strings
+own their backing storage, including when a repeated value updates a counter.
+
+`AllEqual` considers present values only; consumers must also inspect `Missing`.
+For example, two `"east"` values and one omission produce `Samples=3`, `Missing=1`,
+`AllEqual=true`, and `DominantShareLowerBound=1`. Seventeen distinct present values
+produce `Samples=17`, `Overflow=1`, `AllEqual=false`, and a dominant-share lower
+bound of `1/17`.
+
+Unit tests and Rapid properties compare estimates with an independent counting
+model. Run `go test -race ./pkg/query/signals/contextfield`.
