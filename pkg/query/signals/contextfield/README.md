@@ -1,5 +1,14 @@
 # Context-field stability
 
+## Summary
+
+Tracks whether each request-context field keeps the same value.
+
+- **Revision scope:** Exact datastore revision.
+- **Aging:** No time-based aging; storage limits apply.
+
+## Description
+
 Does a request's `region` usually stay the same, or does it change every time?
 This signal tracks how steady each context field is across requests. That can help
 an optimization decide whether doing work for a particular context value early is
