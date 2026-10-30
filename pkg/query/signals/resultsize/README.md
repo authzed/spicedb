@@ -1,11 +1,13 @@
-# resultsize
+# Result size
 
-Completed iterator path-count distribution at an exact revision, keyed by subtree, operation, filter, mode and strategy. Only normal exhaustion supplies samples; Check, cancellation, error and early stop supply no cardinality sample. Zero is a real sample. Paths include duplicates, wildcard and conditional paths: this is not distinct entity cardinality. Use a compression-100 t-digest plus exact sums and zero counters.
+Some permission operations build a list of possible matches before checking them.
+This signal records how large those completed lists tend to be. An optimization
+can use that history to compare ways of doing the work, such as which side of an
+arrow to explore first.
 
-Registered through the explicit signal catalog. Access with typed Ref/Input values.
-Evidence remains in its original schema/revision view. Colocated unit tests and
-Rapid properties compare the estimate with an exact independent counting model.
-Run `go test -race ./pkg/query/signals/resultsize`.
+It learns only from work that finishes. A search that stops early, fails, or is
+canceled tells us too little about the full list, so it is not counted as an empty
+result.
 
 ## Example
 
@@ -23,33 +25,52 @@ definition document {
 }
 ```
 
-Summarized check: `CheckPermission(document:report, view, user:alice)` at revision
-`R1`. A point Check outcome does not train this signal. However, iterator populations
-enumerated while evaluating an arrow can supply evidence when they exhaust normally.
-An explicit `LookupSubjects(document:report, view, user)` also trains the subject
-enumeration populations it actually executes and exhausts.
+A request checks whether Alice can view `document:report`. Gathering the possible
+matches while following `group->member` can teach this signal about list sizes.
+A request to list the document's viewers can also contribute. A simple yes/no
+answer to the permission check is not itself a size measurement.
 
-For one fixed subtree, operation, type/relation filter, mode, strategy, and role
-at `R1`, consider these scenarios:
+For the same part of the plan at one datastore revision:
 
-| Scenario | What the signal stores |
+| What happens | What the signal learns |
 | --- | --- |
-| Three enumerations exhaust with raw path counts 0, 2, and 4 | `Samples=3`, `Weight=3`, `Mean=2`, `ZeroFraction=1/3`, `Min=0`, `Max=4`; a compression-100 t-digest represents the distribution |
-| The consumer stops after one path, before exhaustion | No additional sample, even if more paths may exist |
-| Enumeration fails or is canceled | No additional sample; neither outcome is treated as zero |
-| Two paths refer to the same user | A completed enumeration contributes count 2, even if the API later deduplicates to one user |
-| A completed enumeration includes a wildcard or caveated path | Each produced path contributes to its raw count |
-| A request selects `R2` | It reads a separate revision-bound population; the three `R1` samples do not appear there |
+| Three searches finish with 0, 2, and 4 paths | The average is 2; one-third of searches are empty; sizes range from 0 to 4 |
+| A search stops after its first path | Nothing about its full size; no sample is added |
+| A search fails or is canceled | No sample is added |
+| Two paths lead to the same user | Both paths count, even if the final API response lists the user once |
+| A path includes a wildcard or a caveat | It still counts as a produced path |
+| A request uses a different datastore revision | It starts with a separate size history |
 
-The store retains digest centroids, sums, counts, and provenance rather than a list
-of users or individual raw counts. Quantiles are approximate. If API deduplication
-eagerly exhausts an underlying iterator, that completed raw population is a valid
-sample even if the API consumer later stops. The arrow-direction optimization
-uses the mean from matching enumeration keys, falling back to historical evidence
-when the exact-revision estimate is unavailable.
+The signal keeps a summary of the sizes, not the users or a list of every past
+measurement. Older measurements from other revisions are handled separately by
+[historical result size](../historicalresultsize/README.md).
 
-The memory estimate includes the digest's preallocated buffers and slice-growth
-headroom. Even a sparse compression-100 digest reserves about 16 KiB before entry
-and key overhead, so a smaller per-entry budget declines it. Historical buckets
-account for their digests independently and can be evicted before their configured
-retention period when the shared storage budget is exhausted.
+## Details
+
+The provider uses `RevisionBound`. Its execution key distinguishes subtree,
+operation, type/relation filter, invocation mode, strategy and role within the
+schema and exact selected revision.
+
+Only normally exhausted enumerations contribute. Point `Check` operations,
+cancellation, errors and consumer early stops supply no cardinality sample. Zero
+is a valid completed sample. Counts are raw iterator paths before API projection
+or deduplication, not distinct-entity cardinalities. If API deduplication eagerly
+exhausts an underlying iterator, that completed population is valid even if the
+API consumer later stops.
+
+A compression-100 t-digest represents the distribution; exact sums, sample counts
+and zero counters supply the other statistics. The example counts 0, 2 and 4 give
+`Samples=3`, `Weight=3`, `Mean=2`, `ZeroFraction=1/3`, `Min=0`, and `Max=4`.
+Quantiles are approximate. Consumers must match the enumeration key rather than
+substituting the enclosing Check's outcome population.
+
+Digest clones use a concurrency-safe random source so independently retained
+schema histories can continue learning concurrently. Memory accounting includes
+preallocated buffers and slice-growth headroom: even a sparse digest reserves
+about 16 KiB before entry and key overhead. A smaller per-entry budget declines
+it. Historical buckets account for their digests independently and may be evicted
+before their configured retention period when storage is exhausted.
+
+Unit tests and Rapid properties compare estimates with independent expectations
+and cover snapshot ownership and memory bounds. Run
+`go test -race ./pkg/query/signals/resultsize`.
