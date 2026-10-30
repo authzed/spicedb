@@ -40,8 +40,12 @@ func (r *Registry) Register(d signal.Descriptor) error {
 	}
 
 	if d.Name == "" || d.KeyType == nil || !d.KeyType.Comparable() ||
-		d.ObservationType == nil || d.ValueType == nil || d.New == nil || d.Policy > signal.CrossRevision {
+		d.ObservationType == nil || d.ValueType == nil || (d.New == nil && d.Build == nil) || d.Policy > signal.CrossRevision {
 		return fmt.Errorf("invalid signal descriptor %q", d.Name)
+	}
+
+	if !supportedKey(d.KeyType) {
+		return fmt.Errorf("unsupported signal key type for %q", d.Name)
 	}
 
 	if _, ok := r.definitions[d.Name]; ok {

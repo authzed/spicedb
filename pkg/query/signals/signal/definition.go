@@ -143,10 +143,11 @@ func NewSource[K comparable, O, V any](name Name, c SourceConfig[K, O, V]) Descr
 		KeyType:         reflect.TypeFor[K](),
 		ObservationType: reflect.TypeFor[O](),
 		ValueType:       reflect.TypeFor[V](),
-		New: func() State {
-			return adapter[O, V]{c.New()}
-		},
-		Transfer: c.Transfer,
+		Transfer:        c.Transfer,
+	}
+
+	if c.New != nil {
+		d.New = func() State { return adapter[O, V]{c.New()} }
 	}
 
 	if c.Build != nil {
