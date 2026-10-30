@@ -3,6 +3,7 @@ package resultsize_test
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
@@ -42,8 +43,8 @@ func TestAccumulatorClonesCanLearnConcurrently(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	a, _ := original.Value(querysignalstest.NewClock().Now())
-	b, _ := cloned.Value(querysignalstest.NewClock().Now())
+	a, _ := original.Value(time.Now())
+	b, _ := cloned.Value(time.Now())
 
 	require.Equal(t, uint64(2100), a.Samples)
 	require.Equal(t, a.Samples, b.Samples)
