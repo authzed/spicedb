@@ -3,6 +3,7 @@ package resultsize
 
 import (
 	"errors"
+	"math/rand/v2"
 	"time"
 
 	"github.com/caio/go-tdigest/v4"
@@ -78,8 +79,27 @@ func NewAccumulator() signal.Accumulator[Observation, Estimate] {
 	return &accumulator{digest: mustDigest()}
 }
 
+const digestCompression = 100
+
+// Digest clones share their RNG. The package-level generator is safe when
+// independent schema accumulators continue learning on different goroutines.
+type sharedRNG struct{}
+
+// Float32 returns a random value from the concurrent package-level generator.
+func (sharedRNG) Float32() float32 {
+	return rand.Float32() //nolint:gosec // Digest sampling does not require cryptographic randomness.
+}
+
+// Intn returns a random index from the concurrent package-level generator.
+func (sharedRNG) Intn(n int) int {
+	return rand.IntN(n) //nolint:gosec // Digest sampling does not require cryptographic randomness.
+}
+
 func mustDigest() *tdigest.TDigest {
-	d, err := tdigest.New(tdigest.Compression(100))
+	d, err := tdigest.New(
+		tdigest.Compression(digestCompression),
+		tdigest.RandomNumberGenerator(sharedRNG{}),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -167,7 +187,12 @@ func (a *accumulator) Value(time.Time) (Estimate, signal.Availability) {
 func (a *accumulator) Size() int64 {
 	n := int64(0)
 	a.digest.ForEachCentroid(func(float64, uint64) bool { n++; return true })
-	return 128 + 32*n
+	// go-tdigest v4 reserves two compression*10 slices of eight-byte elements.
+	// Centroid growth can retain capacity beyond the live length. Reserve twice
+	// that length once it exceeds the initial allocation; compression replaces
+	// both buffers with a fresh initial allocation. Clones may need less, so this
+	// deliberately remains a conservative bound rather than reporting live data.
+	return 256 + 16*max(digestCompression*10, 2*n)
 }
 
 // Clone returns an independent copy of the accumulator state.
