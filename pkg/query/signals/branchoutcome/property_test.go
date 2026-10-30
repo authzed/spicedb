@@ -14,8 +14,7 @@ import (
 
 func TestOutcomeModel(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		c := querysignalstest.NewClock()
-		v := querysignalstest.View(t, querysignalstest.Owner(t, c, branchoutcome.New()), "a", 1)
+		v := querysignalstest.View(t, querysignalstest.Owner(t, branchoutcome.New()), "a", 1)
 		k := signal.ExecutionKey{Identity: "x", Operation: signal.Check}
 		counts := [3]uint64{}
 		n := rapid.IntRange(1, 100).Draw(rt, "attempts")

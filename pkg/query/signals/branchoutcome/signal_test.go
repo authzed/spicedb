@@ -11,8 +11,7 @@ import (
 )
 
 func TestCompletedCheckOutcomes(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, branchoutcome.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, branchoutcome.New()), "a", 1)
 	k := signal.ExecutionKey{Identity: "x", Operation: signal.Check}
 
 	for _, o := range []branchoutcome.Observation{
