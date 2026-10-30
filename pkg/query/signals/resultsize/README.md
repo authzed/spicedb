@@ -1,5 +1,14 @@
 # Result size
 
+## Summary
+
+Summarizes how many paths completed searches produce.
+
+- **Revision scope:** Exact datastore revision.
+- **Aging:** No time-based aging; storage limits apply.
+
+## Description
+
 Some permission operations build a list of possible matches before checking them.
 This signal records how large those completed lists tend to be. An optimization
 can use that history to compare ways of doing the work, such as which side of an

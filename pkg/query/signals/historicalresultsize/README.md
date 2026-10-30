@@ -1,5 +1,14 @@
 # Historical result size
 
+## Summary
+
+Keeps recent result-size estimates useful across datastore revisions.
+
+- **Revision scope:** Across datastore revisions, subject to schema compatibility.
+- **Aging:** Half the weight each minute; up to five minutes of history by default.
+
+## Description
+
 Recent list sizes can still be useful when a request moves to a newer datastore
 revision. This signal carries that history forward while gradually reducing the
 influence of older measurements. It gives an optimization something to work with

@@ -1,5 +1,14 @@
 # Branch outcomes
 
+## Summary
+
+Tracks grants, denials, and conditional outcomes for attempted checks.
+
+- **Revision scope:** Exact datastore revision.
+- **Aging:** No time-based aging; storage limits apply.
+
+## Description
+
 When a permission has several ways to grant access, some paths may succeed much
 more often than others. This signal records what happens when each part of a check
 actually runs: it grants access, denies access, or returns a result that still
