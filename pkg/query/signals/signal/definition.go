@@ -57,6 +57,8 @@ func (a adapter[O, V]) DiscountEvidence(f float64) bool {
 func (a adapter[O, V]) Clone() State { return adapter[O, V]{a.Accumulator.Clone()} }
 
 // Descriptor defines a named provider and its lifecycle callbacks.
+// It retains runtime types so the shared registry can validate named accesses and
+// dependencies between providers with different generic types.
 type Descriptor struct {
 	// Build constructs an accumulator using the store's clock, when supplied.
 	Build func(func() time.Time) State
