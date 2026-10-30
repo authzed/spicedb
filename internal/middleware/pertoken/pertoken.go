@@ -73,6 +73,16 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 	return ds, nil
 }
 
+// DropDatastore discards the datastore created for the given token, if any. A later request
+// with the same token starts from a fresh datastore.
+func (m *MiddlewareForTesting) DropDatastore(token string) error {
+	ds, ok := m.datastoreByToken.LoadAndDelete(token)
+	if !ok {
+		return nil
+	}
+	return ds.(datastore.Datastore).Close()
+}
+
 // UnaryServerInterceptor returns a new unary server interceptor that sets a separate in-memory datastore per token
 func (m *MiddlewareForTesting) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
