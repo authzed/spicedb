@@ -23,7 +23,8 @@ func (err EvaluationError) DetailsMetadata() map[string]string {
 	return map[string]string{}
 }
 
-// ParameterConversionError is an error in type conversion of a supplied parameter.
+// ParameterConversionError is an error in type conversion of a supplied parameter,
+// or a supplied parameter that the caveat does not define.
 type ParameterConversionError struct {
 	error
 	parameterName string
