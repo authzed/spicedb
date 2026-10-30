@@ -47,3 +47,9 @@ eagerly exhausts an underlying iterator, that completed raw population is a vali
 sample even if the API consumer later stops. The arrow-direction optimization
 uses the mean from matching enumeration keys, falling back to historical evidence
 when the exact-revision estimate is unavailable.
+
+The memory estimate includes the digest's preallocated buffers and slice-growth
+headroom. Even a sparse compression-100 digest reserves about 16 KiB before entry
+and key overhead, so a smaller per-entry budget declines it. Historical buckets
+account for their digests independently and can be evicted before their configured
+retention period when the shared storage budget is exhausted.

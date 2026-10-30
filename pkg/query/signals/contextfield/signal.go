@@ -2,6 +2,7 @@
 package contextfield
 
 import (
+	"strings"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -76,14 +77,20 @@ func (a *accumulator) Add(o Observation) error {
 	}
 
 	present := a.samples - a.missing
-	if present == 1 {
-		a.first = o.Fingerprint
-	} else if a.first != o.Fingerprint {
+	if present > 1 && a.first != o.Fingerprint {
 		a.different = true
 	}
 
 	if _, ok := a.frequencies[o.Fingerprint]; ok || len(a.frequencies) < 16 {
-		a.frequencies[o.Fingerprint]++
+		// Map updates can replace an equal string key's backing pointer. Own the
+		// fingerprint on every write, including repeated values, so a substring
+		// supplied by an observer cannot retain a much larger context buffer.
+		fingerprint := strings.Clone(o.Fingerprint)
+		if present == 1 {
+			a.first = fingerprint
+		}
+
+		a.frequencies[fingerprint]++
 	} else {
 		a.overflow++
 		a.different = true
@@ -118,7 +125,8 @@ func (a *accumulator) Value(time.Time) (Estimate, signal.Availability) {
 
 // Size returns the estimated resident size of the accumulator in bytes.
 func (a *accumulator) Size() int64 {
-	size := int64(64)
+	// A later equal map-key update can leave first with its own backing bytes.
+	size := int64(64) + safecast.MustConvert[int64](len(a.first))
 
 	for k := range a.frequencies {
 		size += 64 + safecast.MustConvert[int64](len(k))
