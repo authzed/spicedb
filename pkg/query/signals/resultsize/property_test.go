@@ -14,8 +14,7 @@ import (
 
 func TestCompletedCountModel(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		c := querysignalstest.NewClock()
-		v := querysignalstest.View(t, querysignalstest.Owner(t, c, resultsize.New()), "a", 1)
+		v := querysignalstest.View(t, querysignalstest.Owner(t, resultsize.New()), "a", 1)
 		k := signal.ExecutionKey{Identity: "x", Operation: signal.IterSubjects}
 		values := rapid.SliceOfN(rapid.IntRange(0, 100), 1, 100).Draw(rt, "values")
 		total, zeros := 0, 0

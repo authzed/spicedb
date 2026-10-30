@@ -14,8 +14,7 @@ import (
 
 func TestObservationModel(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		c := querysignalstest.NewClock()
-		v := querysignalstest.View(t, querysignalstest.Owner(t, c, contextfield.New()), "a", 1)
+		v := querysignalstest.View(t, querysignalstest.Owner(t, contextfield.New()), "a", 1)
 		values := rapid.SliceOfN(rapid.IntRange(-1, 20), 1, 100).Draw(rt, "values")
 		freq := map[int]int{}
 		missing := 0

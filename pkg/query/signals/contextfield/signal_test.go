@@ -11,8 +11,7 @@ import (
 )
 
 func TestFieldStability(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, contextfield.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, contextfield.New()), "a", 1)
 
 	for _, o := range []contextfield.Observation{{Present: true, Fingerprint: "a"}, {Present: true, Fingerprint: "a"}, {Present: false}} {
 		require.NoError(t, signal.Observe(v, contextfield.Input, "ip", o))
@@ -31,8 +30,7 @@ func TestFieldStability(t *testing.T) {
 }
 
 func TestMissingOnlyAndFingerprintOverflow(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, contextfield.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, contextfield.New()), "a", 1)
 	require.NoError(t, signal.Observe(v, contextfield.Input, "ip", contextfield.Observation{}))
 	e, _ := signal.Lookup(v, contextfield.Ref, "ip")
 	require.False(t, e.Value.AllEqual)

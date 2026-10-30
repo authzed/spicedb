@@ -11,8 +11,7 @@ import (
 )
 
 func TestCompletedSizesAndImmutableDistribution(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, resultsize.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, resultsize.New()), "a", 1)
 	k := signal.ExecutionKey{Identity: "x", Operation: signal.IterSubjects}
 
 	for _, o := range []resultsize.Observation{
@@ -37,8 +36,7 @@ func TestCompletedSizesAndImmutableDistribution(t *testing.T) {
 }
 
 func TestCheckAndIncompleteNeverBecomeSizeSamples(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, resultsize.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, resultsize.New()), "a", 1)
 
 	for _, k := range []signal.ExecutionKey{{Identity: "x", Operation: signal.Check}, {Identity: "y", Operation: signal.IterResources}} {
 		require.NoError(t, signal.Observe(v, resultsize.Input, k, resultsize.Observation{Status: signal.Canceled}))
