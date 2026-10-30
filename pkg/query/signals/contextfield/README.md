@@ -9,10 +9,10 @@ Tracks whether each request-context field keeps the same value.
 
 ## Description
 
-Does a request's `region` usually stay the same, or does it change every time?
-This signal tracks how steady each context field is across requests. That can help
-an optimization decide whether doing work for a particular context value early is
-likely to pay off.
+Some context values stay the same across many requests, while others change
+frequently. This signal tracks that pattern separately for each context field.
+An optimization can use that history to decide whether doing work for a particular
+context value early is likely to pay off.
 
 It compares values without keeping the values themselves. An absent field is
 tracked separately from a supplied value, so a field that is usually missing does
