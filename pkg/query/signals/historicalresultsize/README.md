@@ -9,10 +9,11 @@ Keeps recent result-size estimates useful across datastore revisions.
 
 ## Description
 
-Recent list sizes can still be useful when a request moves to a newer datastore
-revision. This signal carries that history forward while gradually reducing the
-influence of older measurements. It gives an optimization something to work with
-before enough observations exist at the new revision.
+The [result-size signal](../resultsize/README.md) records how large completed
+searches are at one datastore revision. This signal keeps that history useful
+across revisions, gradually reducing the influence of older measurements. It gives
+an optimization something to work with before enough observations exist at the
+new revision.
 
 Old measurements become less convincing, not numerically smaller: a list that
 contained 100 paths remains a measurement of 100 paths. With enough time and no
@@ -51,8 +52,7 @@ Suppose two earlier searches found 2 and 6 paths at the same time:
 | `group#member` or a caveat it depends on changes | The affected history is discarded |
 
 This is a prediction about likely work, not a claim that the data is unchanged at
-`R2`. The original exact-revision observations remain separate in
-[result size](../resultsize/README.md).
+`R2`. The original observations stay tied to the revision where they were collected.
 
 ## Details
 
