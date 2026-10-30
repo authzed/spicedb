@@ -38,6 +38,8 @@ const (
 // ExecutionKey identifies an observed execution population independently of dispatch keys.
 type ExecutionKey struct {
 	// Identity is the full structural identity of the observed subtree.
+	// It must include all descendants, unlike query.CanonicalKey, which omits
+	// children of caveat nodes.
 	Identity string
 
 	// Operation identifies the execution operation represented by evidence.
