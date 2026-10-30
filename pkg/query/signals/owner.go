@@ -4,11 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"weak"
-
-	"github.com/ccoveille/go-safecast/v2"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -23,13 +22,14 @@ type entryKey struct {
 }
 
 type entry struct {
-	publicationMu sync.Mutex
-	mu            sync.Mutex
-	state         signal.State    // GUARDED_BY(mu)
-	evidence      signal.Evidence // GUARDED_BY(publicationMu)
-	footprint     signal.Footprint
-	cost          int64
-	used          uint64
+	publicationMu      sync.Mutex
+	publicationVersion uint64 // GUARDED_BY(publicationMu)
+	mu                 sync.Mutex
+	state              signal.State    // GUARDED_BY(mu)
+	evidence           signal.Evidence // GUARDED_BY(mu)
+	footprint          signal.Footprint
+	cost               int64
+	used               uint64
 }
 
 type schemaState struct {
@@ -330,7 +330,7 @@ func (o *Owner) touch(k entryKey, create bool, d signal.Descriptor) *entry {
 		state = d.New()
 	}
 
-	cost := 128 + safecast.MustConvert[int64](len(fmt.Sprint(k.key))) + state.Size()
+	cost := entryCost(k, state, signal.Footprint{})
 	o.mu.Lock()
 
 	if _, ok := o.schemas[k.schema]; !ok {
@@ -391,6 +391,11 @@ func (o *Owner) touch(k entryKey, create bool, d signal.Descriptor) *entry {
 		return nil
 	}
 
+	// Copy string backing only when admitting a new population. Lookup hits do
+	// not allocate, and a short substring cannot retain an unaccounted buffer.
+	k.key = ownedKey(reflect.ValueOf(k.key)).Interface()
+	k.schema = strings.Clone(k.schema)
+	k.revision = strings.Clone(k.revision)
 	o.entries[k] = e
 	o.bytes += e.cost
 	o.trimLocked()
@@ -466,14 +471,15 @@ func (o *Owner) write(scope signal.Scope, d signal.Descriptor, key, observation 
 	}
 
 	e.evidence.PublishedAt = now
-	e.evidence.ID.Version++
+	e.publicationVersion++
+	e.evidence.ID.Version = e.publicationVersion
 	update := signal.UpdateID{Epoch: e.evidence.ID.Epoch, Sequence: e.evidence.ID.Version}
 
 	if d.Footprint != nil {
-		e.footprint = d.Footprint(key)
+		e.footprint = ownedFootprint(d.Footprint(key))
 	}
 
-	cost := 128 + safecast.MustConvert[int64](len(fmt.Sprint(key))) + e.state.Size()
+	cost := entryCost(k, e.state, e.footprint)
 	e.mu.Unlock()
 	o.mu.Lock()
 	resident := o.entries[k] == e

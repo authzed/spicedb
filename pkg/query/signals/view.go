@@ -20,6 +20,10 @@ func (v *View) Read(n signal.Name, k any, kt, vt reflect.Type) (any, signal.Avai
 		return nil, signal.Missing, signal.Evidence{}, err
 	}
 
+	if err := validateKey(k, d.KeyType); err != nil {
+		return nil, signal.Missing, signal.Evidence{}, err
+	}
+
 	return v.owner.read(v.scope, d, k)
 }
 
@@ -27,6 +31,10 @@ func (v *View) Read(n signal.Name, k any, kt, vt reflect.Type) (any, signal.Avai
 func (v *View) Write(n signal.Name, k, observation any, kt, ot reflect.Type) error {
 	d, err := v.owner.binding(n, kt, ot, true)
 	if err != nil {
+		return err
+	}
+
+	if err := validateKey(k, d.KeyType); err != nil {
 		return err
 	}
 
@@ -57,6 +65,10 @@ type planView struct {
 
 // Read reads an estimate after validating its key and value types.
 func (p *planView) Read(n signal.Name, k any, kt, vt reflect.Type) (any, signal.Availability, signal.Evidence, error) {
+	if err := validateKey(k, kt); err != nil {
+		return nil, signal.Missing, signal.Evidence{}, err
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	key := planKey{n, k, kt, vt}

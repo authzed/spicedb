@@ -1,11 +1,8 @@
 package signals
 
 import (
-	"fmt"
 	"maps"
 	"slices"
-
-	"github.com/ccoveille/go-safecast/v2"
 
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/diff"
@@ -75,10 +72,10 @@ func (o *Owner) transfer(hash string, target *schemaState, donor schemaSeed) {
 		seed.entry.mu.Lock()
 		state := seed.entry.state.Clone()
 		ev := seed.entry.evidence
-		footprint := seed.entry.footprint
+		footprint := ownedFootprint(seed.entry.footprint)
 		seed.entry.mu.Unlock()
 		d := o.registry.definitions[seed.key.name]
-		decision := d.Transfer(signal.SchemaChange{Diff: changes}, footprint)
+		decision := d.Transfer(signal.SchemaChange{Diff: changes}, ownedFootprint(footprint))
 
 		switch decision.Action {
 		case signal.Retain:
@@ -97,11 +94,13 @@ func (o *Owner) transfer(hash string, target *schemaState, donor schemaSeed) {
 
 		k := seed.key
 		k.schema = hash
-		cost := 128 + safecast.MustConvert[int64](len(fmt.Sprint(k.key))) + state.Size()
+		cost := entryCost(k, state, footprint)
 		if cost > o.options.MaxEntryBytes {
 			continue
 		}
 
+		// The new schema owns an independent accumulator and publication stream.
+		ev.ID = signal.EvidenceID{Epoch: epochs.Add(1)}
 		next := &entry{state: state, evidence: ev, footprint: footprint, cost: cost}
 		o.mu.Lock()
 
