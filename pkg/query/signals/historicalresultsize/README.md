@@ -1,25 +1,13 @@
 # Historical result size
 
-A cross-revision derivative of accepted `result-size-at-revision` increments.
-Source epochs/sequences prevent re-applying an increment. Cumulative snapshots
-are never replayed as observations. Original start time determines observation age.
+Recent list sizes can still be useful when a request moves to a newer datastore
+revision. This signal carries that history forward while gradually reducing the
+influence of older measurements. It gives an optimization something to work with
+before enough observations exist at the new revision.
 
-By default, 10-second buckets retain at most five minutes of evidence. Bucket midpoint
-age gives a 60-second exponential half-life. Exact sums and zero counters use the
-same weights as the mixture of compression-100 t-digest CDFs. Quantiles use at
-most 64 bisection steps. Effective weight below one is unavailable. Decay reduces
-weight, not the numeric value estimated; no integer rounding of decayed weights.
-
-Schema transfer retains only unchanged transitive dependencies/comment changes,
-with immutable cloning and original timestamps; structural/caveat changes reset
-its affected entries. This evidence may describe different or incomparable revisions
-and is a heuristic, never a snapshot fact. Package properties compare constant streams
-and weighted mixture fixtures against independent expectations.
-
-`NewWithOptions` configures bucket width, retention and half-life; zero values use
-10 seconds, five minutes and one minute respectively. Invalid durations or more
-than 1024 buckets are rejected. Decay changes evidence weight, never observed values.
-Weighted CDF mixtures preserve fractional bucket weights.
+Old measurements become less convincing, not numerically smaller: a list that
+contained 100 paths remains a measurement of 100 paths. With enough time and no
+new observations, the signal stops offering an estimate.
 
 ## Example
 
@@ -36,30 +24,58 @@ definition document {
 }
 ```
 
-Summarized check: `CheckPermission(document:report, view, user:alice)` at revision
-`R2`. The check's outcome is not a result-size observation. The arrow planner can
-use historical size estimates for its matching enumeration subtrees when `R2`
-has no exact-revision size evidence. For example, completed `LookupSubjects`
-enumerations at `R1` can have trained those populations earlier.
+A request checks whether Alice can view `document:report` at revision `R2`. If the
+planner has no size observations for the relevant search at `R2`, recent completed
+searches at `R1` can provide a starting estimate. The permission check's yes/no
+answer does not contribute a size observation.
 
-For a fixed schema and execution key, assume two accepted `R1` enumerations had
-raw counts 2 and 6. Their original start times are at the same 10-second bucket
-midpoint, `t0`. With the default aging options:
+Suppose two earlier searches found 2 and 6 paths at the same time:
 
-| Scenario | What the signal stores or returns |
+| What happens next | What the signal offers |
 | --- | --- |
-| Both source increments arrive at `t0` | One bucket containing a digest, exact count/sum/zero statistics, plus source epoch/sequence watermarks; `Samples=2`, `Weight=2`, `Mean=4`, `Min=2`, `Max=6` |
-| The same execution key is read at `R2`, 60 seconds after `t0` | The `CrossRevision` entry is shared: `Samples=2`, `Weight=1`, `Mean=4`; effective weight halves while the estimated values stay the same |
-| That population is read 120 seconds after `t0`, with no new samples | Effective weight is 0.5, below the threshold of 1; availability is `Expired` |
-| A previously accepted source epoch/sequence is delivered again | No additional sample; accepted increments are deduplicated |
-| A source observation arrives after its retention window | No historical sample is added; arrival does not renew its original age |
-| An unrelated schema definition changes | The provider can clone compatible evidence into the new schema scope while preserving original timestamps |
-| `group#member` changes, or a dependent caveat changes | Affected evidence is reset; an old size estimate is not transferred |
+| The measurements first arrive | An average size of 4, based on two samples |
+| A request uses `R2` one minute later | The same average of 4, with half the original weight |
+| Another minute passes without new samples | Too little weight remains; the estimate is unavailable |
+| A measurement is delivered twice | It is counted once |
+| A measurement arrives after its retention period | It is ignored; late delivery does not make old work fresh |
+| An unrelated schema definition changes | Compatible history can carry over with its original age |
+| `group#member` or a caveat it depends on changes | The affected history is discarded |
 
-The source samples remain revision-bound in `resultsize`; only this derivative
-has `Policy: signal.CrossRevision`. It stores aged bucket distributions rather
-than treating `R1` observations as facts about `R2`. No ordering or comparability
-between those datastore revisions is required. Retention is measured from each
-bucket's start, while decay uses its midpoint. Colocated tests and Rapid properties
-verify aging, deduplication, schema transfer, and weighted mixtures; run
-`go test -race ./pkg/query/signals/historicalresultsize`.
+This is a prediction about likely work, not a claim that the data is unchanged at
+`R2`. The original exact-revision observations remain separate in
+[result size](../resultsize/README.md).
+
+## Details
+
+This cross-revision provider consumes accepted `result-size-at-revision`
+increments, never cumulative snapshots. Source epochs and sequence numbers prevent
+re-applying an increment. The execution key identifies the same enumeration
+population across revisions; no ordering or comparability between those revisions
+is assumed. `Policy: signal.CrossRevision` makes this sharing explicit.
+
+Defaults are 10-second buckets, at most five minutes of retention, and a 60-second
+exponential half-life based on bucket midpoint age. Original invocation start
+times determine age. Retention is measured from bucket start; late publication
+does not renew it. Storage limits can evict evidence earlier.
+
+Exact sums and zero counters use the same fractional weights as the mixture of
+compression-100 t-digest distributions. Quantiles use at most 64 bisection steps.
+Decay reduces evidence weight, not the observed numeric values. Effective weight
+below one returns `Expired`.
+
+For two samples of 2 and 6 at one bucket midpoint, the initial estimate is
+`Samples=2`, `Weight=2`, `Mean=4`, `Min=2`, and `Max=6`. After 60 seconds it has
+`Weight=1` and `Mean=4`; after 120 seconds its weight is 0.5 and it is unavailable.
+
+`NewWithOptions` configures bucket width, retention and half-life. Zero values use
+the defaults above. Invalid durations or configurations requiring more than 1024
+buckets are rejected. Each bucket retains a digest, exact statistics, and its
+weighting factor; source watermarks track accepted increments.
+
+Schema transfer clones compatible history, retaining observation timestamps.
+Unchanged transitive dependencies and comment-only changes can preserve evidence;
+affected structural or caveat changes reset it. Each schema copy learns
+independently after transfer.
+
+Unit tests and Rapid properties cover aging, deduplication, schema transfer, and
+weighted mixtures. Run `go test -race ./pkg/query/signals/historicalresultsize`.
