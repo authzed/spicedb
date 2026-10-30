@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -127,21 +128,23 @@ func TestFootprintIsOwnedByEntry(t *testing.T) {
 }
 
 func TestBuildOnlySource(t *testing.T) {
-	d := signal.NewSource[string, int, int]("sum", signal.SourceConfig[string, int, int]{
-		Build: func(now func() time.Time) signal.Accumulator[int, int] {
-			require.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), now())
-			return &sum{}
-		},
+	synctest.Test(t, func(t *testing.T) {
+		started := time.Now()
+		d := signal.NewSource[string, int, int]("sum", signal.SourceConfig[string, int, int]{
+			Build: func(now func() time.Time) signal.Accumulator[int, int] {
+				require.Equal(t, started, now())
+				return &sum{}
+			},
+		})
+		o := querysignalstest.Owner(t, d)
+		v := querysignalstest.View(t, o, "a", 1)
+
+		require.NoError(t, signal.Observe(v, sumInput, "x", 4))
+		e, err := signal.Lookup(v, sumRef, "x")
+
+		require.NoError(t, err)
+		require.Equal(t, 4, e.Value)
 	})
-	clock := querysignalstest.NewClock()
-	o := querysignalstest.Owner(t, clock, d)
-	v := querysignalstest.View(t, o, "a", 1)
-
-	require.NoError(t, signal.Observe(v, sumInput, "x", 4))
-	e, err := signal.Lookup(v, sumRef, "x")
-
-	require.NoError(t, err)
-	require.Equal(t, 4, e.Value)
 }
 
 func TestDerivedSignalsReceiveIncrementsAcrossRevisions(t *testing.T) {
@@ -150,8 +153,7 @@ func TestDerivedSignalsReceiveIncrementsAcrossRevisions(t *testing.T) {
 		Policy: signal.CrossRevision,
 		New:    func() signal.Accumulator[int, int] { return &sum{} },
 	})
-	clock := querysignalstest.NewClock()
-	o := querysignalstest.Owner(t, clock, source, derived)
+	o := querysignalstest.Owner(t, source, derived)
 	a := querysignalstest.View(t, o, "a", 1)
 	b := querysignalstest.View(t, o, "a", 2)
 
@@ -178,39 +180,40 @@ func TestSelectiveSchemaTransfer(t *testing.T) {
 		{"changed", "definition user {}\ndefinition doc {\n relation editor: user\n permission read = editor\n}", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := definition("sum")
-			d.Policy = signal.CrossRevision
-			d.Footprint = func(any) signal.Footprint {
-				return signal.Footprint{Elements: []signal.Element{{Namespace: "doc", Relation: "read"}, {Namespace: "doc", Relation: "viewer"}}}
-			}
-			d.Transfer = signal.Unchanged
-			clock := querysignalstest.NewClock()
-			o := querysignalstest.Owner(t, clock, d)
-			a, err := o.Bind(querysignalstest.Schema(t, "a", original), signal.Scope{
-				SchemaHash: "a", Revision: revisions.NewForTransactionID(1),
+			synctest.Test(t, func(t *testing.T) {
+				d := definition("sum")
+				d.Policy = signal.CrossRevision
+				d.Footprint = func(any) signal.Footprint {
+					return signal.Footprint{Elements: []signal.Element{{Namespace: "doc", Relation: "read"}, {Namespace: "doc", Relation: "viewer"}}}
+				}
+				d.Transfer = signal.Unchanged
+				o := querysignalstest.Owner(t, d)
+				a, err := o.Bind(querysignalstest.Schema(t, "a", original), signal.Scope{
+					SchemaHash: "a", Revision: revisions.NewForTransactionID(1),
+				})
+
+				require.NoError(t, err)
+				require.NoError(t, signal.Observe(a, sumInput, "x", 7))
+				before, err := signal.Lookup(a, sumRef, "x")
+
+				require.NoError(t, err)
+				time.Sleep(time.Minute)
+				b, err := o.Bind(querysignalstest.Schema(t, "b", tc.next), signal.Scope{
+					SchemaHash: "b", Revision: revisions.NewForTransactionID(2),
+				})
+
+				require.NoError(t, err)
+				after, err := signal.Lookup(b, sumRef, "x")
+
+				require.NoError(t, err)
+				require.Equal(t, tc.keep, after.IsAvailable())
+
+				if tc.keep {
+					require.Equal(t, 7, after.Value)
+					require.Equal(t, before.Evidence.LastObserved, after.Evidence.LastObserved)
+					require.Equal(t, before.Evidence.PublishedAt, after.Evidence.PublishedAt)
+				}
 			})
-
-			require.NoError(t, err)
-			require.NoError(t, signal.Observe(a, sumInput, "x", 7))
-			before, err := signal.Lookup(a, sumRef, "x")
-
-			require.NoError(t, err)
-			clock.Advance(time.Minute)
-			b, err := o.Bind(querysignalstest.Schema(t, "b", tc.next), signal.Scope{
-				SchemaHash: "b", Revision: revisions.NewForTransactionID(2),
-			})
-
-			require.NoError(t, err)
-			after, err := signal.Lookup(b, sumRef, "x")
-
-			require.NoError(t, err)
-			require.Equal(t, tc.keep, after.IsAvailable())
-
-			if tc.keep {
-				require.Equal(t, 7, after.Value)
-				require.Equal(t, before.Evidence.LastObserved, after.Evidence.LastObserved)
-				require.Equal(t, before.Evidence.PublishedAt, after.Evidence.PublishedAt)
-			}
 		})
 	}
 }

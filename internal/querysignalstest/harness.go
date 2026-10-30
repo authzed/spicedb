@@ -1,3 +1,4 @@
+// Package querysignalstest supplies shared fixtures for signal tests.
 package querysignalstest
 
 import (
@@ -12,12 +13,12 @@ import (
 	"github.com/authzed/spicedb/pkg/query/signals/signal"
 )
 
-// Owner creates an isolated signal owner using the supplied fake clock and providers.
-func Owner(t testing.TB, clock *Clock, ds ...signal.Descriptor) *signals.Owner {
+// Owner creates an isolated signal owner using the supplied providers.
+func Owner(t testing.TB, ds ...signal.Descriptor) *signals.Owner {
 	t.Helper()
 	r, err := signals.NewRegistry(ds...)
 	require.NoError(t, err)
-	o, err := signals.NewOwner(r, signals.Options{Now: clock.Now})
+	o, err := signals.NewOwner(r, signals.Options{})
 	require.NoError(t, err)
 	return o
 }

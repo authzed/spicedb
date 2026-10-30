@@ -69,6 +69,8 @@ They cannot be written directly through the public observation API.
 
 Package tests use synthetic providers and stored-schema fixtures to cover scope
 isolation, publication, snapshots, eviction, schema compatibility and concurrency.
-The shared `internal/querysignalstest` helpers provide a fake clock and schema
+The shared `internal/querysignalstest` helpers provide owner and schema
 builders for provider-specific tests. Numeric distribution helpers are tested in
 `signal` without depending on a built-in provider.
+
+Time-sensitive tests use `testing/synctest` to control time without a custom clock.

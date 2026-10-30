@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
@@ -23,7 +24,7 @@ func TestCompositePopulationsRemainIndependent(t *testing.T) {
 	d := signal.NewSource[key, int, int]("sum", signal.SourceConfig[key, int, int]{
 		New: func() signal.Accumulator[int, int] { return &sum{} },
 	})
-	o := querysignalstest.Owner(t, querysignalstest.NewClock(), d)
+	o := querysignalstest.Owner(t, d)
 	v := querysignalstest.View(t, o, "schema", 1)
 	a := key{Names: [2]string{"doc", "view"}, Mode: 1}
 	b := a
@@ -160,52 +161,53 @@ func (a *growingAccumulator) DiscountEvidence(factor float64) {
 }
 
 func TestPublicationMetadataAndGrowingEntry(t *testing.T) {
-	clock := querysignalstest.NewClock()
-	observed := clock.Now()
-	var updates []signal.UpdateID
-	d := signal.NewSource[string, int, qualityEstimate]("size", signal.SourceConfig[string, int, qualityEstimate]{
-		New:    func() signal.Accumulator[int, qualityEstimate] { return &growingAccumulator{} },
-		Accept: func(k string, _ int) bool { return k != "ignored" },
-		Stamp: func(value int, id signal.UpdateID, at time.Time) int {
-			updates = append(updates, id)
-			require.Equal(t, observed, at)
-			return value
-		},
-		ObservationTime: func(int) time.Time { return observed },
+	synctest.Test(t, func(t *testing.T) {
+		observed := time.Now()
+		var updates []signal.UpdateID
+		d := signal.NewSource[string, int, qualityEstimate]("size", signal.SourceConfig[string, int, qualityEstimate]{
+			New:    func() signal.Accumulator[int, qualityEstimate] { return &growingAccumulator{} },
+			Accept: func(k string, _ int) bool { return k != "ignored" },
+			Stamp: func(value int, id signal.UpdateID, at time.Time) int {
+				updates = append(updates, id)
+				require.Equal(t, observed, at)
+				return value
+			},
+			ObservationTime: func(int) time.Time { return observed },
+		})
+		r, err := signals.NewRegistry(d)
+
+		require.NoError(t, err)
+		o, err := signals.NewOwner(r, signals.Options{MaxEntryBytes: 512})
+
+		require.NoError(t, err)
+		v := view(t, o, "a", 1)
+		input := signal.Input[string, int]{Name: "size"}
+		ref := signal.Reference[string, qualityEstimate]{Name: "size"}
+
+		require.NoError(t, signal.Observe(v, input, "ignored", 1))
+		require.NoError(t, signal.Observe(v, input, "x", 4))
+		require.ErrorContains(t, signal.Observe(v, input, "x", -1), "negative")
+		plan := v.ForPlan()
+		before, err := signal.Lookup(plan, ref, "x")
+
+		require.NoError(t, err)
+		require.Equal(t, uint64(4), before.Evidence.Samples)
+		require.InDelta(t, 4.0, before.Evidence.EffectiveWeight, 1e-9)
+		time.Sleep(time.Minute)
+
+		require.NoError(t, signal.Observe(v, input, "x", 64))
+		fresh, err := signal.Lookup(v, ref, "x")
+
+		require.NoError(t, err)
+		require.False(t, fresh.IsAvailable())
+		after, err := signal.Lookup(plan, ref, "x")
+
+		require.NoError(t, err)
+		require.Equal(t, before, after)
+		require.Len(t, updates, 2)
+		require.Equal(t, updates[0].Epoch, updates[1].Epoch)
+		require.Equal(t, updates[0].Sequence+1, updates[1].Sequence)
 	})
-	r, err := signals.NewRegistry(d)
-
-	require.NoError(t, err)
-	o, err := signals.NewOwner(r, signals.Options{Now: clock.Now, MaxEntryBytes: 512})
-
-	require.NoError(t, err)
-	v := view(t, o, "a", 1)
-	input := signal.Input[string, int]{Name: "size"}
-	ref := signal.Reference[string, qualityEstimate]{Name: "size"}
-
-	require.NoError(t, signal.Observe(v, input, "ignored", 1))
-	require.NoError(t, signal.Observe(v, input, "x", 4))
-	require.ErrorContains(t, signal.Observe(v, input, "x", -1), "negative")
-	plan := v.ForPlan()
-	before, err := signal.Lookup(plan, ref, "x")
-
-	require.NoError(t, err)
-	require.Equal(t, uint64(4), before.Evidence.Samples)
-	require.InDelta(t, 4.0, before.Evidence.EffectiveWeight, 1e-9)
-	clock.Advance(time.Minute)
-
-	require.NoError(t, signal.Observe(v, input, "x", 64))
-	fresh, err := signal.Lookup(v, ref, "x")
-
-	require.NoError(t, err)
-	require.False(t, fresh.IsAvailable())
-	after, err := signal.Lookup(plan, ref, "x")
-
-	require.NoError(t, err)
-	require.Equal(t, before, after)
-	require.Len(t, updates, 2)
-	require.Equal(t, updates[0].Epoch, updates[1].Epoch)
-	require.Equal(t, updates[0].Sequence+1, updates[1].Sequence)
 }
 
 func TestSchemaTransferDecisions(t *testing.T) {
@@ -228,7 +230,7 @@ func TestSchemaTransferDecisions(t *testing.T) {
 					return signal.TransferDecision{Action: tc.action, Factor: tc.factor}
 				},
 			})
-			o := querysignalstest.Owner(t, querysignalstest.NewClock(), d)
+			o := querysignalstest.Owner(t, d)
 			a := view(t, o, "a", 1)
 
 			require.NoError(t, signal.Observe(a, signal.Input[string, int]{Name: "weighted"}, "x", 8))
