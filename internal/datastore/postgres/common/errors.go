@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	dscommon "github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -117,20 +116,4 @@ func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) e
 func IsMissingTableError(err error) bool {
 	var pgerr *pgconn.PgError
 	return errors.As(err, &pgerr) && pgerr.Code == PgMissingTable
-}
-
-// WrapMissingTableError checks if the error is a missing table error and wraps it with
-// a helpful message instructing the user to run migrations. If it's not a missing table error,
-// it returns nil. If it's already a SchemaNotInitializedError, it returns the original error
-// to preserve the wrapped error through the call chain.
-func WrapMissingTableError(err error) error {
-	// Don't double-wrap if already a SchemaNotInitializedError - return original to preserve it
-	var schemaErr dscommon.SchemaNotInitializedError
-	if errors.As(err, &schemaErr) {
-		return err
-	}
-	if IsMissingTableError(err) {
-		return dscommon.NewSchemaNotInitializedError(err)
-	}
-	return nil
 }

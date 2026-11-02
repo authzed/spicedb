@@ -2,16 +2,20 @@ package readiness
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"resenje.org/singleflight"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -19,11 +23,7 @@ const (
 	// We bypass readiness checks for health endpoints so Kubernetes probes work.
 	healthCheckPrefix = "/grpc.health.v1.Health/"
 
-	// readyCacheTTL is how long to cache a positive ready state.
-	readyCacheTTL = 500 * time.Millisecond
-
-	// notReadyCacheTTL is how long to cache a negative ready state.
-	// Shorter than readyCacheTTL to allow faster recovery detection.
+	// notReadyCacheTTL is how long to cache a not-migrated state before checking again.
 	notReadyCacheTTL = 100 * time.Millisecond
 
 	// readinessCheckTimeout is the maximum time to wait for a readiness check.
@@ -37,17 +37,22 @@ type ReadinessChecker interface {
 	ReadyState(ctx context.Context) (datastore.ReadyState, error)
 }
 
-// Gate blocks gRPC requests until the datastore is ready.
-// It caches the ready state briefly to avoid overwhelming the datastore
-// with readiness checks on every request.
+// Gate blocks gRPC requests until the datastore has been migrated.
+//
+// Once the datastore reports ready, the gate stays open for the lifetime of
+// the process, mirroring the health checker. This avoids a datastore call per
+// request and ensures that running servers keep serving when a newer version
+// of SpiceDB migrates the datastore ahead of them during a rolling upgrade.
 type Gate struct {
 	checker ReadinessChecker
 
-	// singleflight prevents thundering herd when cache expires
-	sfGroup singleflight.Group[string, readinessResult]
+	// open is set once the datastore has reported ready.
+	open atomic.Bool
+
+	// singleflight prevents thundering herd when the not-ready cache expires
+	sfGroup singleflight.Group[string, string]
 
 	mu            sync.RWMutex
-	cachedReady   bool      // GUARDED_BY(mu)
 	cachedMessage string    // GUARDED_BY(mu)
 	cacheTime     time.Time // GUARDED_BY(mu)
 }
@@ -58,58 +63,28 @@ func NewGate(checker ReadinessChecker) *Gate {
 	return &Gate{checker: checker}
 }
 
-// readinessResult holds the result of a readiness check for singleflight.
-type readinessResult struct {
-	ready   bool
-	message string
-}
-
 // isMigrationIssue returns true if the not-ready message indicates
 // the database schema hasn't been migrated. Other not-ready reasons
 // (like connection pool warmup) are transient and shouldn't block requests.
 func isMigrationIssue(msg string) bool {
-	return strings.Contains(msg, "not migrated") || strings.Contains(msg, "migration")
+	return strings.Contains(msg, "not migrated")
 }
 
-// isReady checks if the datastore is ready, using a cached value if available.
-// Uses singleflight to prevent thundering herd on cache expiry.
-// Only blocks requests for migration-related issues; transient states like
-// connection pool warmup are allowed through.
-func (g *Gate) isReady(ctx context.Context) (bool, string) {
-	// If no checker is configured, pass through
-	if g.checker == nil {
-		return true, ""
+// notMigratedMessage returns an empty string if requests may proceed, or the
+// datastore's not-migrated message if they should be rejected.
+func (g *Gate) notMigratedMessage(ctx context.Context) string {
+	if g.checker == nil || g.open.Load() {
+		return ""
 	}
 
-	// Fast path: check cache with read lock
-	g.mu.RLock()
-	elapsed := time.Since(g.cacheTime)
-	ttl := readyCacheTTL
-	if !g.cachedReady {
-		ttl = notReadyCacheTTL
+	if msg, ok := g.cachedNotMigrated(); ok {
+		return msg
 	}
-	if elapsed < ttl {
-		ready, msg := g.cachedReady, g.cachedMessage
-		g.mu.RUnlock()
-		return ready, msg
-	}
-	g.mu.RUnlock()
 
-	// Slow path: use singleflight to deduplicate concurrent checks
-	result, _, _ := g.sfGroup.Do(ctx, "readiness", func(ctx context.Context) (readinessResult, error) {
-		// Double-check cache after acquiring singleflight
-		g.mu.RLock()
-		elapsed := time.Since(g.cacheTime)
-		ttl := readyCacheTTL
-		if !g.cachedReady {
-			ttl = notReadyCacheTTL
+	msg, _, _ := g.sfGroup.Do(ctx, "readiness", func(_ context.Context) (string, error) {
+		if msg, ok := g.cachedNotMigrated(); ok {
+			return msg, nil
 		}
-		if elapsed < ttl {
-			ready, msg := g.cachedReady, g.cachedMessage
-			g.mu.RUnlock()
-			return readinessResult{ready: ready, message: msg}, nil
-		}
-		g.mu.RUnlock()
 
 		// Use an independent context with timeout for the readiness check.
 		// This ensures consistent behavior when multiple requests are coalesced
@@ -123,42 +98,50 @@ func (g *Gate) isReady(ctx context.Context) (bool, string) {
 			// On error checking readiness, allow requests through.
 			// If the datastore is truly unavailable, requests will fail
 			// with appropriate errors from the datastore layer.
-			return readinessResult{ready: true, message: ""}, nil
+			return "", nil
+		}
+
+		if state.IsReady {
+			g.open.Store(true)
+			return "", nil
 		}
 
 		// Only block requests for migration-related issues.
 		// Transient states (connection pool warmup, etc.) should not block.
-		ready := state.IsReady || !isMigrationIssue(state.Message)
+		if !isMigrationIssue(state.Message) {
+			return "", nil
+		}
 
-		// Update cache
 		g.mu.Lock()
-		g.cachedReady = ready
 		g.cachedMessage = state.Message
 		g.cacheTime = time.Now()
 		g.mu.Unlock()
 
-		return readinessResult{ready: ready, message: state.Message}, nil
+		return state.Message, nil
 	})
 
-	return result.ready, result.message
+	return msg
 }
 
-// formatNotReadyError creates a user-friendly error message based on the readiness failure reason.
-// TODO: use spiceerrors.WithCodeAndReason with ERROR_REASON_DATASTORE_NOT_MIGRATED
-// to include the structured error reason for migration-related failures.
-func formatNotReadyError(msg string) error {
-	// Check if this is a migration-related issue
-	if strings.Contains(msg, "not migrated") || strings.Contains(msg, "migration") {
-		return status.Errorf(codes.FailedPrecondition,
-			"SpiceDB datastore is not migrated. Please run 'spicedb datastore migrate'. Details: %s", msg)
+func (g *Gate) cachedNotMigrated() (string, bool) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	if g.cachedMessage != "" && time.Since(g.cacheTime) < notReadyCacheTTL {
+		return g.cachedMessage, true
 	}
-	// Generic not-ready message for other cases (connection issues, pool not ready, etc.)
-	return status.Errorf(codes.FailedPrecondition,
-		"SpiceDB datastore is not ready. Details: %s", msg)
+	return "", false
+}
+
+func notMigratedError(msg string) error {
+	return spiceerrors.WithCodeAndReason(
+		errors.New(msg),
+		codes.FailedPrecondition,
+		v1.ErrorReason_ERROR_REASON_DATASTORE_NOT_MIGRATED,
+	)
 }
 
 // UnaryServerInterceptor returns a gRPC unary interceptor that blocks
-// requests until the datastore is ready.
+// requests until the datastore is migrated.
 func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		// Bypass health checks so Kubernetes probes work
@@ -166,9 +149,8 @@ func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 
-		ready, msg := g.isReady(ctx)
-		if !ready {
-			return nil, formatNotReadyError(msg)
+		if msg := g.notMigratedMessage(ctx); msg != "" {
+			return nil, notMigratedError(msg)
 		}
 
 		return handler(ctx, req)
@@ -176,7 +158,7 @@ func (g *Gate) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 }
 
 // StreamServerInterceptor returns a gRPC stream interceptor that blocks
-// streams until the datastore is ready.
+// streams until the datastore is migrated.
 func (g *Gate) StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		// Bypass health checks so Kubernetes probes work
@@ -184,9 +166,8 @@ func (g *Gate) StreamServerInterceptor() grpc.StreamServerInterceptor {
 			return handler(srv, ss)
 		}
 
-		ready, msg := g.isReady(ss.Context())
-		if !ready {
-			return formatNotReadyError(msg)
+		if msg := g.notMigratedMessage(ss.Context()); msg != "" {
+			return notMigratedError(msg)
 		}
 
 		return handler(srv, ss)

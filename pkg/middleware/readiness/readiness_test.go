@@ -13,7 +13,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type mockChecker struct {
@@ -37,7 +40,7 @@ func (m *mockChecker) ReadyState(_ context.Context) (datastore.ReadyState, error
 func TestGate_BlocksWhenNotReady(t *testing.T) {
 	checker := &mockChecker{
 		ready:   false,
-		message: "datastore is not migrated",
+		message: "datastore is not migrated: currently at revision \"\", but requires \"head\". Please run \"spicedb datastore migrate\".",
 	}
 	gate := NewGate(checker)
 
@@ -139,25 +142,64 @@ func TestGate_CachesReadyState(t *testing.T) {
 	require.Equal(t, int32(1), checker.callCount.Load())
 }
 
-func TestGate_CacheExpires(t *testing.T) {
+func TestGate_NotReadyCacheExpires(t *testing.T) {
+	checker := &mockChecker{ready: false, message: "datastore is not migrated"}
+	gate := NewGate(checker)
+
+	interceptor := gate.UnaryServerInterceptor()
+	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return nil, nil
+	}
+
+	_, err := interceptor(t.Context(), nil, info, handler)
+	require.Error(t, err)
+	require.Equal(t, int32(1), checker.callCount.Load())
+
+	// Expire the not-ready cache
+	gate.mu.Lock()
+	gate.cacheTime = time.Now().Add(-2 * notReadyCacheTTL)
+	gate.mu.Unlock()
+
+	_, err = interceptor(t.Context(), nil, info, handler)
+	require.Error(t, err)
+	require.Equal(t, int32(2), checker.callCount.Load())
+}
+
+func TestGate_StaysOpenOnceReady(t *testing.T) {
 	checker := &mockChecker{ready: true}
 	gate := NewGate(checker)
 
-	// Override cache time to test expiry
-	gate.mu.Lock()
-	gate.cachedReady = true
-	gate.cacheTime = time.Now().Add(-2 * readyCacheTTL) // Expired
-	gate.mu.Unlock()
-
 	interceptor := gate.UnaryServerInterceptor()
-	_, _ = interceptor(t.Context(), nil, &grpc.UnaryServerInfo{
+	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return "ok", nil
+	}
+
+	_, err := interceptor(t.Context(), nil, info, handler)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), checker.callCount.Load())
+
+	// Simulate a newer SpiceDB migrating the datastore ahead of this server.
+	checker.ready = false
+	checker.message = "datastore is not migrated: currently at revision \"newer\""
+
+	_, err = interceptor(t.Context(), nil, info, handler)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), checker.callCount.Load())
+}
+
+func TestGate_NotMigratedErrorReason(t *testing.T) {
+	checker := &mockChecker{ready: false, message: "datastore is not migrated"}
+	gate := NewGate(checker)
+
+	_, err := gate.UnaryServerInterceptor()(t.Context(), nil, &grpc.UnaryServerInfo{
 		FullMethod: "/test/Method",
 	}, func(ctx context.Context, req any) (any, error) {
 		return nil, nil
 	})
 
-	// Should have called checker because cache expired
-	require.Equal(t, int32(1), checker.callCount.Load())
+	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_DATASTORE_NOT_MIGRATED, err)
 }
 
 func TestGate_SingleflightPreventsThunderingHerd(t *testing.T) {
@@ -334,7 +376,7 @@ func TestGate_ErrorMessageContextAware(t *testing.T) {
 	t.Run("migration issue blocks with actionable message", func(t *testing.T) {
 		checker := &mockChecker{
 			ready:   false,
-			message: "datastore is not migrated: currently at revision \"\"",
+			message: "datastore is not migrated: currently at revision \"\". Please run \"spicedb datastore migrate\".",
 		}
 		gate := NewGate(checker)
 
