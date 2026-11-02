@@ -8,8 +8,12 @@ package dsconfig
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/authzed/spicedb/internal/spiffetls"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer/schemamode"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -150,6 +154,12 @@ type Config struct {
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
 
+	// SPIFFE workload identity for the datastore connection
+	SPIFFEEnabled  bool   `debugmap:"visible"`
+	SPIFFESocket   string `debugmap:"visible"`
+	SPIFFEID       string `debugmap:"visible"`
+	SPIFFEServerID string `debugmap:"visible"`
+
 	// Relationship Integrity
 	RelationshipIntegrityEnabled     bool            `debugmap:"visible"`
 	RelationshipIntegrityCurrentKey  RelIntegrityKey `debugmap:"visible"`
@@ -260,4 +270,27 @@ func DefaultDatastoreConfig() *Config {
 		WriteAcquisitionTimeout:          30 * time.Millisecond,
 		CaveatTypeSet:                    caveattypes.Default.TypeSet,
 	}
+}
+
+// SPIFFEOptions returns the SPIFFE workload identity configured for the
+// datastore connection.
+func (c *Config) SPIFFEOptions() spiffetls.Options {
+	return spiffetls.Options{Enabled: c.SPIFFEEnabled, Socket: c.SPIFFESocket, ID: c.SPIFFEID, ServerID: c.SPIFFEServerID}
+}
+
+// SPIFFEEngines are the datastore engines that can authenticate with a SPIFFE
+// workload identity.
+var SPIFFEEngines = []string{MySQLEngine}
+
+// ValidateSPIFFE returns an error when a SPIFFE workload identity is
+// configured for an engine that cannot use it, so that it is never silently
+// ignored, or when it is configured inconsistently.
+func ValidateSPIFFE(engine string, opts spiffetls.Options) error {
+	if !opts.IsSet() {
+		return nil
+	}
+	if !slices.Contains(SPIFFEEngines, engine) {
+		return fmt.Errorf("--datastore-spiffe and the --datastore-spiffe-* flags are not supported by the %s datastore engine; supported engines: %s", engine, strings.Join(SPIFFEEngines, ", "))
+	}
+	return opts.Validate()
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	dscmd "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/util"
@@ -28,6 +29,7 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	cmd.Flags().String("datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().String("datastore-mysql-table-prefix", "", "prefix to add to the name of all mysql database tables")
+	dscmd.RegisterSPIFFEFlags(cmd.Flags())
 	cmd.Flags().Uint64("migration-backfill-batch-size", 1000, "number of items to migrate per iteration of a datastore backfill")
 	cmd.Flags().Duration("migration-timeout", 1*time.Hour, "defines a timeout for the execution of the migration, set to 1 hour by default")
 
@@ -61,9 +63,17 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		SpannerCredentialsFile:  cobrautil.MustGetStringExpanded(cmd, "datastore-spanner-credentials"),
 		SpannerEmulatorHost:     cobrautil.MustGetString(cmd, "datastore-spanner-emulator-host"),
 		MySQLTablePrefix:        cobrautil.MustGetString(cmd, "datastore-mysql-table-prefix"),
+		SPIFFEEnabled:           cobrautil.MustGetBool(cmd, "datastore-spiffe"),
+		SPIFFESocket:            cobrautil.MustGetStringExpanded(cmd, "datastore-spiffe-socket"),
+		SPIFFEID:                cobrautil.MustGetString(cmd, "datastore-spiffe-id"),
+		SPIFFEServerID:          cobrautil.MustGetString(cmd, "datastore-spiffe-server-id"),
 		Timeout:                 cobrautil.MustGetDuration(cmd, "migration-timeout"),
 		BatchSize:               cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size"),
 		ExtraConfig:             extraConfig,
+	}
+
+	if err := dscmd.ValidateSPIFFE(cfg.DatastoreEngine, cfg.SPIFFEOptions()); err != nil {
+		return err
 	}
 
 	return migration.Run(cmd.Context(), cfg, args[0])
