@@ -151,6 +151,13 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	dispatchFlags := nfs.FlagSet(BoldBlue("Dispatch"))
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(dispatchFlags, &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
+	// Dispatch clients cannot yet present an X.509-SVID, so the dispatch
+	// server's SPIFFE flags stay hidden until they can.
+	for _, name := range []string{"dispatch-cluster-spiffe", "dispatch-cluster-spiffe-socket", "dispatch-cluster-spiffe-id", "dispatch-cluster-spiffe-allowed-ids"} {
+		if err := dispatchFlags.MarkHidden(name); err != nil {
+			return fmt.Errorf("failed to mark flag as hidden: %w", err)
+		}
+	}
 	err = server.RegisterCacheFlags(dispatchFlags, "dispatch-cache", "dispatch calls this server makes to other servers", &config.DispatchCacheConfig, dispatchCacheDefaults)
 	if err != nil {
 		return fmt.Errorf("could not register dispatch cache flags: %w", err)

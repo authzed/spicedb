@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
@@ -37,11 +38,31 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Help:      "A histogram of the duration spent processing requests to the SpiceDB REST Gateway.",
 }, []string{"method"})
 
+// HandlerOption configures a REST gateway handler.
+type HandlerOption func(*handlerOptions)
+
+type handlerOptions struct {
+	upstreamCreds credentials.TransportCredentials
+}
+
+// WithUpstreamCredentials makes the gateway connect to its upstream with the
+// given transport credentials, in place of those derived from the upstream TLS
+// certificate path. A server that requires client SVIDs uses it to give the
+// gateway its own SVID.
+func WithUpstreamCredentials(creds credentials.TransportCredentials) HandlerOption {
+	return func(o *handlerOptions) { o.upstreamCreds = creds }
+}
+
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
 // configuration.
-func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
+func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string, options ...HandlerOption) (*CloserHandler, error) {
 	if upstreamAddr == "" {
 		return nil, errors.New("upstreamAddr must not be empty")
+	}
+
+	var handlerOpts handlerOptions
+	for _, option := range options {
+		option(&handlerOpts)
 	}
 
 	// Always disable health check tracing to reduce trace volume
@@ -52,9 +73,12 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(clientHandlerOpts...)),
 	}
-	if upstreamTLSCertPath == "" {
+	switch {
+	case handlerOpts.upstreamCreds != nil:
+		opts = append(opts, grpc.WithTransportCredentials(handlerOpts.upstreamCreds))
+	case upstreamTLSCertPath == "":
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	} else {
+	default:
 		certsOpt, err := grpcutil.WithCustomCerts(grpcutil.SkipVerifyCA, upstreamTLSCertPath)
 		if err != nil {
 			return nil, err
