@@ -294,6 +294,37 @@ func TestWarnings(t *testing.T) {
 			schema:          "definition user {}\ndefinition doc {\nrelation a1a: user\nrelation b1b: user\nrelation c1c: user\npermission view = a1a + b1b + c1c\n}",
 			expectedWarning: nil,
 		},
+		{
+			name: "mixed operators across multiple lines",
+			schema: `definition user {}
+			definition doc {
+				relation viewer: user
+				relation editor: user
+				relation blocked: user
+				permission view = viewer -
+					blocked &
+					editor
+			}`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Permission \"view\" mixes operators (union, intersection, exclusion) at the same level without explicit parentheses; consider adding parentheses to clarify precedence (mixed-operators-without-parentheses)",
+				Line:       7,
+				Column:     6,
+				SourceCode: "view",
+			},
+		},
+		{
+			name: "mixed operators across multiple lines with explicit parentheses",
+			schema: `definition user {}
+			definition doc {
+				relation viewer: user
+				relation editor: user
+				relation blocked: user
+				permission view = (viewer -
+					blocked) &
+					editor
+			}`,
+			expectedWarning: nil,
+		},
 	}
 
 	for _, tc := range tcs {
