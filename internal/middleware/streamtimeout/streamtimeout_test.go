@@ -165,7 +165,7 @@ func (t recvActivityTestServer) PingClientStream(server testpb.TestService_PingC
 	// The client has half-closed, so nothing further will arrive to reset the timer.
 	// Committing the received work must not be bounded by the timeout either, so stay
 	// quiet well past it before responding.
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	if err := server.Context().Err(); err != nil {
 		return fmt.Errorf("context canceled after client half-close: %w", err)
 	}
@@ -182,7 +182,7 @@ func TestStreamTimeoutResetByReceives(t *testing.T) {
 		InterceptorTestSuite: &testpb.InterceptorTestSuite{
 			TestService: &recvActivityTestServer{},
 			ServerOpts: []grpc.ServerOption{
-				grpc.StreamInterceptor(MustStreamServerInterceptor(50 * time.Millisecond)),
+				grpc.StreamInterceptor(MustStreamServerInterceptor(100 * time.Millisecond)),
 			},
 		},
 	}
@@ -193,17 +193,17 @@ func (s *recvActivityTestSuite) TestReceivesResetTheTimeout() {
 	stream, err := s.Client.PingClientStream(s.SimpleCtx())
 	s.Require().NoError(err)
 
-	// Send batches spaced under the 50ms timeout but totaling well over it. Each
-	// receive has to reset the timer, otherwise the call is canceled partway through
-	// even though the client never stopped sending.
-	for range 5 {
+	// Send batches spaced well under the 100ms timeout but totaling well over it.
+	// Each receive has to reset the timer, otherwise the call is canceled partway
+	// through even though the client never stopped sending.
+	for range 10 {
 		s.Require().NoError(stream.Send(&testpb.PingClientStreamRequest{Value: "batch"}))
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	resp, err := stream.CloseAndRecv()
 	s.Require().NoError(err, "client-streaming call must not be canceled while the client is sending")
-	s.Require().Equal(int32(5), resp.Counter)
+	s.Require().Equal(int32(10), resp.Counter)
 }
 
 type mixedTestServer struct {
