@@ -831,6 +831,20 @@ func TestDebugMapRedactsURI(t *testing.T) {
 	require.NotContains(t, out, "postgresql://root@localhost:26257/defaultdb")
 }
 
+func TestDebugMapRedactsGranularDatastoreCredentials(t *testing.T) {
+	c := &Config{
+		DatastoreConfig: datastore.Config{
+			Host:       "db.example.com",
+			Password:   "hunter2-password",
+			ConnParams: map[string]string{"sslpassword": "hunter2-sslpassword"},
+		},
+	}
+	out := fmt.Sprintln(c.FlatDebugMap())
+	require.Contains(t, out, "db.example.com")
+	require.NotContains(t, out, "hunter2-password")
+	require.NotContains(t, out, "hunter2-sslpassword")
+}
+
 func TestHandleGRPCAuthn(t *testing.T) {
 	t.Run("empty configuration errors", func(t *testing.T) {
 		require.ErrorContains(t, (&Config{}).handleGrpcAuthn(t.Context()), "a preshared key must be provided")

@@ -85,7 +85,7 @@ type Config struct {
 	Username   string            `debugmap:"visible"`
 	Password   string            `debugmap:"sensitive"`
 	Database   string            `debugmap:"visible"`
-	ConnParams map[string]string `debugmap:"visible"`
+	ConnParams map[string]string `debugmap:"sensitive"`
 
 	GCWindow                    time.Duration `debugmap:"visible" default:"24h"`
 	LegacyFuzzing               time.Duration `debugmap:"visible" default:"-1ns"`

@@ -137,11 +137,7 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["Database"] = c.Database
 	}
-	if c.ConnParams == nil {
-		debugMap["ConnParams"] = "nil"
-	} else {
-		debugMap["ConnParams"] = fmt.Sprintf("(map of size %d)", len(c.ConnParams))
-	}
+	debugMap["ConnParams"] = "(sensitive)"
 	if dm, ok := any(&c.GCWindow).(interface {
 		DebugMap() map[string]any
 	}); ok {
