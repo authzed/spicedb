@@ -134,9 +134,7 @@ func buildCursoredDeleteQuery(
 		if err != nil {
 			return "", nil, options.Unsorted, err
 		}
-		if expr != nil {
-			query = query.Where(expr)
-		}
+		query = query.Where(expr)
 	}
 
 	orderColumns, err := cursorOrderColumns(schemaInfo, order, staticColumns)
@@ -195,9 +193,8 @@ func cursorOrderColumns(
 		// full (unfiltered) key column list instead of erroring: it is redundant
 		// but still valid and index-served, and it keeps the CTE shape intact so
 		// the statement still RETURNs a row and yields a cursor. The resumed
-		// batch's cursor comparison then has no non-static columns either, so it
-		// degenerates to no predicate at all — the same filter re-runs, matches
-		// nothing (the row is already gone), and the loop terminates.
+		// batch's cursor comparison falls back to the full key the same way, so
+		// it matches nothing and the loop terminates.
 		return all, nil
 	}
 

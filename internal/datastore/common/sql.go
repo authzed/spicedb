@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -267,7 +268,9 @@ func CursorColumnsAndValues(
 // CursorComparisonExpr builds the predicate selecting rows sorted strictly
 // after the cursor, rendered in the given form. Columns for which isStatic
 // reports true are omitted, as the caller's query already constrains them to a
-// single value. Returns a nil Sqlizer when every column is static.
+// single value. When every column is static, none are omitted: dropping them
+// all would leave no predicate, and the query would return the cursor's own
+// row again on every page.
 //
 // The form is a parameter rather than being read from
 // schema.PaginationFilterType because the cursored delete path deliberately
@@ -287,6 +290,10 @@ func CursorComparisonExpr(
 		return nil, err
 	}
 
+	if !slices.ContainsFunc(columnsAndValues, func(cav NameAndValue) bool { return !isStatic(cav.Name) }) {
+		isStatic = func(string) bool { return false }
+	}
+
 	switch form {
 	case TupleComparison:
 		columnNames := make([]string, 0, len(columnsAndValues))
@@ -298,10 +305,6 @@ func CursorComparisonExpr(
 			}
 			columnNames = append(columnNames, cav.Name)
 			valueSlots = append(valueSlots, cav.Value)
-		}
-
-		if len(columnNames) == 0 {
-			return nil, nil
 		}
 
 		comparisonTuple := "(" + strings.Join(columnNames, ",") + ") > (" +
@@ -327,9 +330,6 @@ func CursorComparisonExpr(
 			orClause = append(orClause, andClause)
 		}
 
-		if len(orClause) == 0 {
-			return nil, nil
-		}
 		return orClause, nil
 
 	default:
@@ -356,9 +356,7 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 		return sqf, err
 	}
 
-	if expr != nil {
-		sqf.queryBuilder = sqf.queryBuilder.Where(expr)
-	}
+	sqf.queryBuilder = sqf.queryBuilder.Where(expr)
 
 	return sqf, nil
 }

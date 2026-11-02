@@ -514,6 +514,33 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 		},
 		{
+			name: "after with every cursor column fixed",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithRelationshipsFilter(
+					datastore.RelationshipsFilter{
+						OptionalResourceType:     "someresourcetype",
+						OptionalResourceIds:      []string{"foo"},
+						OptionalResourceRelation: "viewer",
+						OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
+							OptionalSubjectType: "user",
+							OptionalSubjectIds:  []string{"bar"},
+							RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member"),
+						}},
+					},
+				).MustAfter(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar#member")), options.ByResource)
+			},
+			expectedForTuple: expected{
+				sql:        "SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?) AND ((subject_ns = ? AND subject_object_id IN (?) AND subject_relation = ?)) AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"someresourcetype", "viewer", "foo", "user", "bar", "member", "someresourcetype", "foo", "viewer", "user", "bar", "member"},
+				staticCols: []string{"ns", "object_id", "relation", "subject_ns", "subject_object_id", "subject_relation"},
+			},
+			expectedForExpanded: expected{
+				sql:        "SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?) AND ((subject_ns = ? AND subject_object_id IN (?) AND subject_relation = ?)) AND ((ns > ?) OR (ns = ? AND object_id > ?) OR (ns = ? AND object_id = ? AND relation > ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns > ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id > ?) OR (ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation > ?)) AND (expiration IS NULL OR expiration > NOW())",
+				args:       []any{"someresourcetype", "viewer", "foo", "user", "bar", "member", "someresourcetype", "someresourcetype", "foo", "someresourcetype", "foo", "viewer", "someresourcetype", "foo", "viewer", "user", "someresourcetype", "foo", "viewer", "user", "bar", "someresourcetype", "foo", "viewer", "user", "bar", "member"},
+				staticCols: []string{"ns", "object_id", "relation", "subject_ns", "subject_object_id", "subject_relation"},
+			},
+		},
+		{
 			name: "after with just relation",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithRelationshipsFilter(
@@ -1886,7 +1913,7 @@ func TestCursorComparisonExprTupleForm(t *testing.T) {
 	require.Equal(t, []any{"doc1", "viewer", "user", "alice", "..."}, args)
 }
 
-func TestCursorComparisonExprAllColumnsStaticReturnsNil(t *testing.T) {
+func TestCursorComparisonExprAllColumnsStaticComparesAll(t *testing.T) {
 	schema := NewSchemaInformationWithOptions(
 		WithRelationshipTableName("relation_tuple"),
 		WithColNamespace("namespace"),
@@ -1906,7 +1933,14 @@ func TestCursorComparisonExprAllColumnsStaticReturnsNil(t *testing.T) {
 	expr, err := CursorComparisonExpr(*schema, options.ByResource, cursor, TupleComparison,
 		func(string) bool { return true })
 	require.NoError(t, err)
-	require.Nil(t, expr)
+	require.NotNil(t, expr)
+
+	sql, args, err := expr.ToSql()
+	require.NoError(t, err)
+	require.Equal(t,
+		"(namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) > (?,?,?,?,?,?)",
+		sql)
+	require.Equal(t, []any{"document", "doc1", "viewer", "user", "alice", "..."}, args)
 }
 
 func TestCursorColumnsByResourceAndBySubject(t *testing.T) {
