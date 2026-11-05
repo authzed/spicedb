@@ -33,10 +33,10 @@ const (
 	//
 	// The query shape selects a specific relationship based on filling in all fields
 	// on the resource (except the caveat name, context and expiration) and the relation
-	// name. Neither the subject type nor the ID are filled in and the optional subject relation is
-	// set to match non-`...`.
+	// name. Each subject selector fills in the subject type and a non-`...` subject relation,
+	// but not the subject ID.
 	//
-	// ✅ resource_type, ✅ resource_id, ✅ resource_relation, *️⃣ subject_type, *️⃣ subject_id, 🆔 subject_relation, *️⃣ caveat, *️⃣ expiration
+	// ✅ resource_type, ✅ resource_id, ✅ resource_relation, ✅ subject_type, *️⃣ subject_id, ✅ subject_relation, *️⃣ caveat, *️⃣ expiration
 	CheckPermissionSelectIndirectSubjects Shape = "check-permission-select-indirect-subjects"
 
 	// AllSubjectsForResources indicates that the query is selecting all subjects for a

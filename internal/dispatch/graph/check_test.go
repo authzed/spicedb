@@ -20,6 +20,8 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -2110,4 +2112,103 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tup
 	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
 
 	return ctx, cachingDispatcher, revision
+}
+
+func TestCheckIndirectSubjectsSelectors(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		allowed           string
+		rels              []tuple.Relationship
+		isMember          bool
+		expectedSelectors [][]datastore.SubjectsSelector
+	}{
+		{
+			name:    "one selector per allowed userset",
+			allowed: "user | user:* | group#member | team#member",
+			rels: []tuple.Relationship{
+				tuple.MustParse("group:g1#member@user:bob"),
+				tuple.MustParse("document:doc1#viewer@group:g1#member"),
+			},
+			isMember: true,
+			expectedSelectors: [][]datastore.SubjectsSelector{{
+				{OptionalSubjectType: "group", RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member")},
+				{OptionalSubjectType: "team", RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member")},
+			}},
+		},
+		{
+			name:    "wildcard is not a userset",
+			allowed: "user | user:*",
+			rels: []tuple.Relationship{
+				tuple.MustParse("document:doc1#viewer@user:alice"),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			schema := fmt.Sprintf(`
+				definition user {}
+				definition group {
+					relation member: user
+				}
+				definition team {
+					relation member: user
+				}
+				definition document {
+					relation viewer: %s
+					permission view = viewer
+				}`, tc.allowed)
+
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+			require.NoError(t, err)
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, schema, tc.rels)
+			recorder := &indirectSubjectRecorder{Datastore: ds}
+
+			dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
+			require.NoError(t, err)
+			t.Cleanup(func() { dispatcher.Close() })
+
+			ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+			require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(recorder)))
+
+			result, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+				ResourceRelation: RR("document", "view").ToCoreRR(),
+				ResourceIds:      []string{"doc1"},
+				Subject:          ONR("user", "bob", tuple.Ellipsis).ToCoreONR(),
+				ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+					SchemaHash:     []byte(datalayer.NoSchemaHashForTesting),
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.isMember, result.ResultsByResourceId["doc1"].GetMembership() == v1.ResourceCheckResult_MEMBER)
+			require.Equal(t, tc.expectedSelectors, recorder.indirectSelectors)
+		})
+	}
+}
+
+type indirectSubjectRecorder struct {
+	datastore.Datastore
+	indirectSelectors [][]datastore.SubjectsSelector
+}
+
+func (r *indirectSubjectRecorder) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	return &indirectSubjectRecorderReader{Reader: r.Datastore.SnapshotReader(rev), recorder: r}
+}
+
+type indirectSubjectRecorderReader struct {
+	datastore.Reader
+	recorder *indirectSubjectRecorder
+}
+
+func (rr *indirectSubjectRecorderReader) QueryRelationships(
+	ctx context.Context,
+	filter datastore.RelationshipsFilter,
+	opts ...options.QueryOptionsOption,
+) (datastore.RelationshipIterator, error) {
+	qopts := options.NewQueryOptionsWithOptions(opts...)
+	if qopts.QueryShape == queryshape.CheckPermissionSelectIndirectSubjects {
+		rr.recorder.indirectSelectors = append(rr.recorder.indirectSelectors, filter.OptionalSubjectsSelectors)
+	}
+	return rr.Reader.QueryRelationships(ctx, filter, opts...)
 }

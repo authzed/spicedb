@@ -428,6 +428,44 @@ func TestIndexingHintForAllSpecificShapes(t *testing.T) {
 	}
 }
 
+func TestIndexingHintForIndirectSubjects(t *testing.T) {
+	schema := Schema(common.ColumnOptimizationOptionNone, false, false)
+	selector := func(subjectType string) datastore.SubjectsSelector {
+		return datastore.SubjectsSelector{
+			OptionalSubjectType: subjectType,
+			RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member"),
+		}
+	}
+
+	for _, tc := range []struct {
+		name         string
+		resourceIDs  []string
+		selectors    []datastore.SubjectsSelector
+		expectForced bool
+	}{
+		{"one resource, one selector", []string{"d1"}, []datastore.SubjectsSelector{selector("group")}, false},
+		{"one resource, two selectors", []string{"d1"}, []datastore.SubjectsSelector{selector("group"), selector("team")}, true},
+		{"two resources, one selector", []string{"d1", "d2"}, []datastore.SubjectsSelector{selector("group")}, true},
+		{"two resources, two selectors", []string{"d1", "d2"}, []datastore.SubjectsSelector{selector("group"), selector("team")}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			filter := datastore.RelationshipsFilter{
+				OptionalResourceType:      "document",
+				OptionalResourceIds:       tc.resourceIDs,
+				OptionalResourceRelation:  "viewer",
+				OptionalSubjectsSelectors: tc.selectors,
+			}
+			hint, err := IndexingHintForQueryShape(*schema, queryshape.CheckPermissionSelectIndirectSubjects, &filter)
+			require.NoError(t, err)
+			if tc.expectForced {
+				require.Equal(t, forcedIndex{IndexPrimaryKey}, hint)
+			} else {
+				require.Equal(t, NoIndexingHint, hint)
+			}
+		})
+	}
+}
+
 func TestIndexingHintForVaryingShapeWithFilter(t *testing.T) {
 	schema := Schema(common.ColumnOptimizationOptionNone, false, false)
 

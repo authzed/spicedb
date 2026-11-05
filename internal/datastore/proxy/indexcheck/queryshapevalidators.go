@@ -77,8 +77,8 @@ func validateDirectSubjectsSelectors(selectors []datastore.SubjectsSelector, que
 
 func validateIndirectSubjectsSelectors(selectors []datastore.SubjectsSelector, queryShape queryshape.Shape) error {
 	for _, subjectSelector := range selectors {
-		if subjectSelector.OptionalSubjectType != "" {
-			return fmt.Errorf("no optional subject type allowed for %s", queryShape)
+		if subjectSelector.OptionalSubjectType == "" {
+			return fmt.Errorf("subject type required for %s", queryShape)
 		}
 		if len(subjectSelector.OptionalSubjectIds) != 0 {
 			return fmt.Errorf("no optional subject ids allowed for %s", queryShape)
@@ -86,8 +86,8 @@ func validateIndirectSubjectsSelectors(selectors []datastore.SubjectsSelector, q
 		if subjectSelector.RelationFilter.IsEmpty() {
 			return fmt.Errorf("relation filter required for %s", queryShape)
 		}
-		if !subjectSelector.RelationFilter.OnlyNonEllipsisRelations {
-			return fmt.Errorf("only non-ellipsis relations allowed for %s", queryShape)
+		if subjectSelector.RelationFilter.NonEllipsisRelation == "" || subjectSelector.RelationFilter.IncludeEllipsisRelation {
+			return fmt.Errorf("only a non-ellipsis subject relation allowed for %s", queryShape)
 		}
 	}
 	return nil

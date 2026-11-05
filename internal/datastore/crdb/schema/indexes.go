@@ -81,6 +81,14 @@ func IndexingHintForQueryShape(schema common.SchemaInformation, qs queryshape.Sh
 		return forcedIndex{IndexPrimaryKey}, nil
 
 	case queryshape.CheckPermissionSelectIndirectSubjects:
+		// With one resource ID and one subject selector, the equality filters are a prefix
+		// of ix_relation_tuple_by_subject_relation. CockroachDB 25.2 then plans a prepared
+		// statement with that index, even when the query names a different index, and fails
+		// with "index cannot be used for this query". All filter columns are fixed in this
+		// case, so each plan reads one exact span.
+		if optionalFilter != nil && len(optionalFilter.OptionalResourceIds) == 1 && len(optionalFilter.OptionalSubjectsSelectors) == 1 {
+			return NoIndexingHint, nil
+		}
 		return forcedIndex{IndexPrimaryKey}, nil
 
 	case queryshape.AllSubjectsForResources:

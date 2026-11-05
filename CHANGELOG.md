@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Tracing: `--otel-ignore-remote-sampling` makes SpiceDB apply `--otel-sample-ratio` to every request, ignoring the sampling decision callers send in their trace headers. Without it, a caller that marks most requests as sampled makes SpiceDB trace most requests, whatever the ratio. The caller's trace ID is still kept, and spans created inside SpiceDB still follow their parent, so traces stay whole. Off by default. (https://github.com/authzed/spicedb/pull/3452)
 
+### Changed
+- Check: the query for nested usersets, such as `group#member`, now selects each allowed subject type and relation. An index on the subject type lets the datastore skip the direct subjects of the resource. A relation that allows only direct subjects and wildcards does not send this query. Results do not change. (https://github.com/authzed/spicedb/pull/3455)
+
 ### Fixed
 - Query plan (`--experimental-query-plan`): Check, LookupResources and LookupSubjects now follow a nested userset that is more than one step from the resource, such as a `folder#member` that allows `group#member`, which allows `team#member`. Before, the query plan returned the inner userset as a result and did not read its members, so it denied permissions that the dispatcher grants. Arrows into such relations, such as `parent->member`, had the same defect. (https://github.com/authzed/spicedb/pull/3455)
 - Dispatch (`--experimental-query-plan`): the cluster dispatcher now sends batched query plan checks to other nodes. Before, it failed these requests with `unknown plan operation`. (https://github.com/authzed/spicedb/pull/3455)
