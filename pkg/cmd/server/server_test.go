@@ -134,8 +134,8 @@ func TestServerDefaultOptions(t *testing.T) {
 	// stays 0 in every site to match RegisterCacheFlags, which hardcodes the
 	// (deprecated) flag default to 0.
 	require.Equal(t, CacheConfig{Name: "namespace", Enabled: true, Metrics: true, MaxCost: "32MiB"}, cfg.NamespaceCacheConfig)
-	require.Equal(t, CacheConfig{Name: "dispatch", Enabled: true, Metrics: true, MaxCost: "30%"}, cfg.DispatchCacheConfig)
-	require.Equal(t, CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "70%"}, cfg.ClusterDispatchCacheConfig)
+	require.Equal(t, CacheConfig{Name: "dispatch", Enabled: true, Metrics: true, MaxCost: "20%"}, cfg.DispatchCacheConfig)
+	require.Equal(t, CacheConfig{Name: "cluster_dispatch", Enabled: true, Metrics: true, MaxCost: "45%"}, cfg.ClusterDispatchCacheConfig)
 	require.Equal(t, CacheConfig{Name: "lr3_chunk", Enabled: true, MaxCost: "50MiB"}, cfg.LR3ResourceChunkCacheConfig)
 	require.Equal(t, CacheConfig{Name: "stored_schema", Enabled: true, Metrics: true, MaxCost: "32MiB"}, cfg.StoredSchemaCacheConfig)
 	require.True(t, cfg.DispatchClusterMetricsEnabled)

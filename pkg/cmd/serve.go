@@ -33,14 +33,14 @@ var (
 		Name:    "dispatch",
 		Enabled: true,
 		Metrics: true,
-		MaxCost: "30%",
+		MaxCost: "20%",
 	}
 
 	dispatchClusterCacheDefaults = &server.CacheConfig{
 		Name:    "cluster_dispatch",
 		Enabled: true,
 		Metrics: true,
-		MaxCost: "70%",
+		MaxCost: "45%",
 	}
 
 	lr3ChunkCacheDefaults = &server.CacheConfig{

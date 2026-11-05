@@ -586,13 +586,13 @@ spicedb serve [flags]
       --datastore-watch-connect-timeout duration                                        how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
       --disable-version-response                                                        disables version response support in the API
       --dispatch-cache-enabled                                                          enable caching of dispatch calls this server makes to other servers (default true)
-      --dispatch-cache-max-cost string                                                  upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server makes to other servers (default "30%")
+      --dispatch-cache-max-cost string                                                  upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server makes to other servers (default "20%")
       --dispatch-cache-metrics                                                          enable metrics for the cache for dispatch calls this server makes to other servers (default true)
       --dispatch-check-permission-concurrency-limit uint16                              maximum number of parallel goroutines to create for each check request or subrequest. defaults to --dispatch-concurrency-limit
       --dispatch-chunk-size uint16                                                      maximum number of object IDs in a dispatched request (default 100)
       --dispatch-cluster-addr string                                                    address to listen on to serve dispatch (default ":50053")
       --dispatch-cluster-cache-enabled                                                  enable caching of dispatch calls this server receives from other servers (default true)
-      --dispatch-cluster-cache-max-cost string                                          upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server receives from other servers (default "70%")
+      --dispatch-cluster-cache-max-cost string                                          upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server receives from other servers (default "45%")
       --dispatch-cluster-cache-metrics                                                  enable metrics for the cache for dispatch calls this server receives from other servers (default true)
       --dispatch-cluster-enabled                                                        enable dispatch gRPC server
       --dispatch-cluster-max-conn-age duration                                          how long a connection serving dispatch should be able to live (default 30s)
