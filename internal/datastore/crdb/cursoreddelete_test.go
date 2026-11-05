@@ -154,10 +154,8 @@ func TestBuildCursoredDeleteQueryFullyPinnedFilterFallsBackToFullOrdering(t *tes
 	require.Contains(t, sql, "ORDER BY namespace DESC, object_id DESC, relation DESC, userset_namespace DESC, userset_object_id DESC, userset_relation DESC LIMIT 1")
 
 	// The second batch (as issued after the row is deleted and its cursor
-	// returned) has every column static, so the tuple comparison degenerates
-	// to no predicate at all: the unchanged filter re-runs, matches nothing
-	// because the row is already gone, and the loop terminates instead of
-	// looping forever.
+	// returned) has every column static, so the cursor comparison falls back
+	// to the full key: it matches nothing, and the loop terminates.
 	cursor := options.ToCursor(tuple.MustParse("document:doc1#viewer@user:alice"))
 	sql2, args2, _, err := buildCursoredDeleteQuery(
 		testSchemaInfo(t),
@@ -168,8 +166,11 @@ func TestBuildCursoredDeleteQueryFullyPinnedFilterFallsBackToFullOrdering(t *tes
 		),
 	)
 	require.NoError(t, err)
-	require.Equal(t, []any{"document", "doc1", "viewer", "user", "alice", "..."}, args2)
-	require.NotContains(t, sql2, ") > (", "with every column static, no cursor comparison predicate should be emitted")
+	require.Equal(t, []any{
+		"document", "doc1", "viewer", "user", "alice", "...",
+		"document", "doc1", "viewer", "user", "alice", "...",
+	}, args2)
+	require.Contains(t, sql2, "(namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) > ($7,$8,$9,$10,$11,$12)")
 }
 
 func TestCursorOrderForIndexRejectsUnalignedIndex(t *testing.T) {

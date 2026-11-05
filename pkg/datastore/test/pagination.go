@@ -382,6 +382,65 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+func FullyFilteredCursorTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(t, DefaultRevisionParameters(), 1)
+	require.NoError(t, err)
+
+	ds, rev := testfixtures.StandardDatastoreWithData(t, rawDS)
+
+	for _, relString := range []string{
+		"folder:company#viewer@folder:auditors#viewer",
+		"folder:company#viewer@user:legal",
+	} {
+		rel := tuple.MustParse(relString)
+		filter := datastore.RelationshipsFilter{
+			OptionalResourceType:     rel.Resource.ObjectType,
+			OptionalResourceIds:      []string{rel.Resource.ObjectID},
+			OptionalResourceRelation: rel.Resource.Relation,
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
+				OptionalSubjectType: rel.Subject.ObjectType,
+				OptionalSubjectIds:  []string{rel.Subject.ObjectID},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithRelation(rel.Subject.Relation),
+			}},
+		}
+
+		for _, sortBy := range []options.SortOrder{options.ByResource, options.BySubject} {
+			t.Run(fmt.Sprintf("%s-SortBy-%d", relString, sortBy), func(t *testing.T) {
+				ctx := t.Context()
+
+				foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
+					var limit uint64 = 1
+					var cursor options.Cursor
+					var found []string
+
+					for range 5 {
+						iter, err := reader.QueryRelationships(ctx, filter,
+							options.WithSort(sortBy),
+							options.WithLimit(&limit),
+							options.WithAfter(cursor),
+							options.WithQueryShape(queryshape.Varying),
+						)
+						require.NoError(t, err)
+
+						pageSize := 0
+						for rel, err := range iter {
+							require.NoError(t, err)
+							found = append(found, tuple.MustString(rel))
+							cursor = options.ToCursor(rel)
+							pageSize++
+						}
+						if pageSize == 0 {
+							break
+						}
+					}
+
+					require.Equal(t, []string{tuple.MustString(rel)}, found)
+				})
+			})
+		}
+	}
+}
+
 func foreachTxType(
 	ctx context.Context,
 	ds datastore.Datastore,
