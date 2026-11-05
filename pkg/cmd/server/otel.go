@@ -32,13 +32,17 @@ type otelShutdowner interface {
 }
 
 type OTelConfig struct {
-	Provider           string                `debugmap:"visible" default:"none"`
-	Endpoint           string                `debugmap:"visible"`
-	ServiceName        string                `debugmap:"visible" default:"spicedb"`
-	TracePropagator    string                `debugmap:"visible" default:"w3c"`
-	UsePlaintext       bool                  `debugmap:"visible"`
-	SampleRatio        float64               `debugmap:"visible" default:"0.01"`
-	PrometheusRegistry prometheus.Registerer `debugmap:"hidden"`
+	Provider        string  `debugmap:"visible" default:"none"`
+	Endpoint        string  `debugmap:"visible"`
+	ServiceName     string  `debugmap:"visible" default:"spicedb"`
+	TracePropagator string  `debugmap:"visible" default:"w3c"`
+	UsePlaintext    bool    `debugmap:"visible"`
+	SampleRatio     float64 `debugmap:"visible" default:"0.01"`
+	// IgnoreRemoteSampling makes SpiceDB apply SampleRatio to every request,
+	// including those the caller marked as sampled (or not sampled) in its trace
+	// headers. The zero value keeps the default behaviour of following the caller.
+	IgnoreRemoteSampling bool                  `debugmap:"visible"`
+	PrometheusRegistry   prometheus.Registerer `debugmap:"hidden"`
 }
 
 func (o *OTelConfig) SetDefaults() {
@@ -54,6 +58,7 @@ func RegisterOTelFlags(cmd *cobra.Command, cfg *OTelConfig) {
 	f.StringVar(&cfg.TracePropagator, "otel-trace-propagator", "w3c", `OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma.`)
 	f.BoolVar(&cfg.UsePlaintext, "otel-insecure", false, `connect to the OpenTelemetry collector in plaintext`)
 	f.Float64Var(&cfg.SampleRatio, "otel-sample-ratio", 0.01, `ratio of traces that are sampled`)
+	f.BoolVar(&cfg.IgnoreRemoteSampling, "otel-ignore-remote-sampling", false, `ignore the sampling decision sent by callers in their trace headers and apply otel-sample-ratio to every request. The caller's trace ID is still kept`)
 }
 
 // InitOTelProvider builds a TracerProvider from cfg, sets it as the global OTel
@@ -116,9 +121,8 @@ func InitOTelProvider(ctx context.Context, cfg OTelConfig) (func() error, error)
 		)
 	}
 
-	sampleRatio := cfg.SampleRatio
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampleRatio))),
+		sdktrace.WithSampler(buildSampler(cfg.SampleRatio, cfg.IgnoreRemoteSampling)),
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
 	)
@@ -127,6 +131,28 @@ func InitOTelProvider(ctx context.Context, cfg OTelConfig) (func() error, error)
 	otel.SetTextMapPropagator(buildPropagator(cfg.TracePropagator))
 
 	return func() error { return ShutdownOTelProvider(context.Background(), tp) }, nil
+}
+
+// buildSampler returns the sampler for the given ratio.
+//
+// Spans whose parent was created in this process always follow the parent, so
+// a trace is never cut in the middle. By default, spans whose parent came from a
+// caller's trace headers follow the caller's decision. When ignoreRemote is set,
+// the ratio applies to them too, so callers can't make SpiceDB trace more (or
+// less) than the configured ratio.
+//
+// The ratio sampler decides from the trace ID alone, so every SpiceDB node (and
+// any downstream service that follows its parent) reaches the same decision for
+// a given trace, as long as they all use the same ratio.
+func buildSampler(ratio float64, ignoreRemote bool) sdktrace.Sampler {
+	ratioSampler := sdktrace.TraceIDRatioBased(ratio)
+	if !ignoreRemote {
+		return sdktrace.ParentBased(ratioSampler)
+	}
+	return sdktrace.ParentBased(ratioSampler,
+		sdktrace.WithRemoteParentSampled(ratioSampler),
+		sdktrace.WithRemoteParentNotSampled(ratioSampler),
+	)
 }
 
 // ShutdownOTelProvider flushes all pending spans then shuts the provider down.
