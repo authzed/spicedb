@@ -180,10 +180,11 @@ const (
 	DefaultMiddlewareServerVersion    = "serverversion"
 	DefaultMiddlewareMemoryProtection = "memoryprotection"
 
-	DefaultInternalMiddlewareDispatch       = "dispatch"
-	DefaultInternalMiddlewareDatastore      = "datastore"
-	DefaultInternalMiddlewareConsistency    = "consistency"
-	DefaultInternalMiddlewareServerSpecific = "servicespecific"
+	DefaultInternalMiddlewareDispatch        = "dispatch"
+	DefaultInternalMiddlewareDispatchChunker = "dispatchchunker"
+	DefaultInternalMiddlewareDatastore       = "datastore"
+	DefaultInternalMiddlewareConsistency     = "consistency"
+	DefaultInternalMiddlewareServerSpecific  = "servicespecific"
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go . MiddlewareOption
@@ -199,6 +200,10 @@ type MiddlewareOption struct {
 	MismatchingZedTokenOption consistencymw.MismatchingTokenOption `debugmap:"visible"`
 
 	MemoryUsageProvider memoryprotection.MemoryUsageProvider `debugmap:"hidden"`
+
+	// DispatchChunkerForMiddleware forms the dispatch chunks of each request.
+	// Use the chunker of DispatcherForMiddleware. A nil chunker selects dispatch.DefaultChunker.
+	DispatchChunkerForMiddleware dispatch.Chunker `debugmap:"hidden"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -338,6 +343,12 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			WithInterceptor(dispatchmw.UnaryServerInterceptor(opts.DispatcherForMiddleware)).
 			Done(),
 
+		NewUnaryMiddleware().
+			WithName(DefaultInternalMiddlewareDispatchChunker).
+			WithInternal(true).
+			WithInterceptor(dispatch.UnaryServerInterceptor(opts.DispatchChunkerForMiddleware)).
+			Done(),
+
 		*opts.unaryDatastoreMiddleware,
 
 		NewUnaryMiddleware().
@@ -409,6 +420,12 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			WithName(DefaultInternalMiddlewareDispatch).
 			WithInternal(true).
 			WithInterceptor(dispatchmw.StreamServerInterceptor(opts.DispatcherForMiddleware)).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultInternalMiddlewareDispatchChunker).
+			WithInternal(true).
+			WithInterceptor(dispatch.StreamServerInterceptor(opts.DispatchChunkerForMiddleware)).
 			Done(),
 
 		*opts.streamDatastoreMiddleware,

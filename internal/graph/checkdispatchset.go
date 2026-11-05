@@ -1,10 +1,11 @@
 package graph
 
 import (
+	"context"
 	"sort"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -35,15 +36,10 @@ type checkDispatchChunk struct {
 	// This is used to determine whether the check operation should be dispatched requiring
 	// all results.
 	hasIncomingCaveats bool
-}
 
-// subjectIDAndHasCaveat is a tuple of a subject ID and whether it has a caveat.
-type subjectIDAndHasCaveat struct {
-	// objectID is the ID of the subject.
-	objectID string
-
-	// hasIncomingCaveats is true if the subject has a caveat.
-	hasIncomingCaveats bool
+	// hint is the routing hint for the dispatch of this chunk.
+	// It only improves cache locality. A dispatch with no hint or a different hint gives the same result.
+	hint dispatch.RoutingHint
 }
 
 // resourceIDAndCaveat is a tuple of a resource ID and a caveat.
@@ -74,10 +70,7 @@ func (s *checkDispatchSet) addForRelationship(rel tuple.Relationship) {
 	s.bySubject.Add(rel.Subject, riac)
 
 	// Add the subject ID to the map of subjects for the type of subject.
-	siac := subjectIDAndHasCaveat{
-		objectID:           rel.Subject.ObjectID,
-		hasIncomingCaveats: rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "",
-	}
+	hasIncomingCaveats := rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != ""
 
 	subjectIDsForType, ok := s.bySubjectType[rel.Subject.RelationReference()]
 	if !ok {
@@ -86,49 +79,53 @@ func (s *checkDispatchSet) addForRelationship(rel tuple.Relationship) {
 	}
 
 	// If a caveat exists for the subject ID in any branch, the whole branch is considered caveated.
-	subjectIDsForType[rel.Subject.ObjectID] = siac.hasIncomingCaveats || subjectIDsForType[rel.Subject.ObjectID]
+	subjectIDsForType[rel.Subject.ObjectID] = hasIncomingCaveats || subjectIDsForType[rel.Subject.ObjectID]
 }
 
-func (s *checkDispatchSet) dispatchChunks(dispatchChunkSize uint16) []checkDispatchChunk {
+// dispatchChunks forms the dispatch chunks with the chunker of ctx.
+func (s *checkDispatchSet) dispatchChunks(ctx context.Context, dispatchChunkSize uint16) []checkDispatchChunk {
+	chunker := dispatch.ChunkerFromContext(ctx)
+
 	// Start with an estimate of one chunk per type, plus one for the remainder.
 	expectedNumberOfChunks := len(s.bySubjectType) + 1
 	toDispatch := make([]checkDispatchChunk, 0, expectedNumberOfChunks)
 
 	// For each type of subject, create chunks of the IDs over which to dispatch.
-	for subjectType, subjectIDsAndHasCaveats := range s.bySubjectType {
-		entries := make([]subjectIDAndHasCaveat, 0, len(subjectIDsAndHasCaveats))
-		for objectID, hasIncomingCaveats := range subjectIDsAndHasCaveats {
-			entries = append(entries, subjectIDAndHasCaveat{objectID: objectID, hasIncomingCaveats: hasIncomingCaveats})
+	for subjectType, hasCaveatBySubjectID := range s.bySubjectType {
+		subjectIDs := make([]string, 0, len(hasCaveatBySubjectID))
+		for objectID := range hasCaveatBySubjectID {
+			subjectIDs = append(subjectIDs, objectID)
 		}
 
-		// Sort the list of subject IDs by whether they have caveats and then the ID itself.
-		sort.Slice(entries, func(i, j int) bool {
-			iHasCaveat := entries[i].hasIncomingCaveats
-			jHasCaveat := entries[j].hasIncomingCaveats
+		// Sort the subject IDs by whether they have caveats and then by the ID itself.
+		sort.Slice(subjectIDs, func(i, j int) bool {
+			iHasCaveat := hasCaveatBySubjectID[subjectIDs[i]]
+			jHasCaveat := hasCaveatBySubjectID[subjectIDs[j]]
 			if iHasCaveat == jHasCaveat {
-				return entries[i].objectID < entries[j].objectID
+				return subjectIDs[i] < subjectIDs[j]
 			}
 			return iHasCaveat && !jHasCaveat
 		})
 
-		chunkCount := 0.0
-		slicez.ForEachChunk(entries, dispatchChunkSize, func(subjectIdChunk []subjectIDAndHasCaveat) {
-			chunkCount++
-
-			subjectIDsToDispatch := make([]string, 0, len(subjectIdChunk))
+		// The chunker can move IDs between chunks, so compute the caveat flag for each chunk.
+		chunks := chunker.Chunk(ctx, subjectType.ObjectType, subjectIDs, dispatchChunkSize)
+		for _, chunk := range chunks {
 			hasIncomingCaveats := false
-			for _, entry := range subjectIdChunk {
-				subjectIDsToDispatch = append(subjectIDsToDispatch, entry.objectID)
-				hasIncomingCaveats = hasIncomingCaveats || entry.hasIncomingCaveats
+			for _, subjectID := range chunk.ResourceIDs {
+				if hasCaveatBySubjectID[subjectID] {
+					hasIncomingCaveats = true
+					break
+				}
 			}
 
 			toDispatch = append(toDispatch, checkDispatchChunk{
 				resourceType:       subjectType,
-				resourceIds:        subjectIDsToDispatch,
+				resourceIds:        chunk.ResourceIDs,
 				hasIncomingCaveats: hasIncomingCaveats,
+				hint:               chunk.Hint,
 			})
-		})
-		dispatchChunkCountHistogram.Observe(chunkCount)
+		}
+		dispatchChunkCountHistogram.Observe(float64(len(chunks)))
 	}
 
 	return toDispatch

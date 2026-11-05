@@ -5,6 +5,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -28,6 +29,9 @@ func branchContext(ctx context.Context) (context.Context, func(cancelErr error))
 	}
 
 	detachedContext = requestid.PropagateIfExists(ctx, detachedContext)
+
+	// Add the dispatch chunker to the context.
+	detachedContext = dispatch.ContextWithChunker(detachedContext, dispatch.ChunkerFromContext(ctx))
 
 	return context.WithCancelCause(detachedContext)
 }

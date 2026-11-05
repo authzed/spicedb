@@ -25,7 +25,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -250,8 +249,11 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 		return nil
 	}
 
+	// Each task dispatches one chunk. With object-affinity routing, the chunk belongs to one ring owner.
+	chunker := dispatch.ChunkerFromContext(ctx)
 	for _, group := range groupedItems {
-		slicez.ForEachChunk(group.resourceIDs, bc.dispatchChunkSize, func(resourceIDs []string) {
+		for _, chunk := range chunker.Chunk(ctx, group.params.ResourceType.ObjectType, group.resourceIDs, bc.dispatchChunkSize) {
+			resourceIDs := chunk.ResourceIDs
 			tr.Add(func(ctx context.Context) error {
 				startTime := time.Now()
 
@@ -280,8 +282,8 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 					return appendResultsForError(group.params, resourceIDs, err)
 				}
 
-				// Call bulk check to compute the check result(s) for the resource ID(s).
-				rcr, metadata, debugInfos, err := computed.ComputeBulkCheck(ctx, bc.dispatch, bc.caveatTypeSet, *group.params, resourceIDs, bc.dispatchChunkSize)
+				// Compute the check result(s) for the chunk. Dispatch the chunk as given.
+				rcr, metadata, debugInfos, err := computed.ComputeBulkCheckChunk(ctx, bc.dispatch, bc.caveatTypeSet, *group.params, chunk)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}
@@ -296,7 +298,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 
 				return appendResultsForCheck(group.params, resourceIDs, metadata, debugInfos, rcr)
 			})
-		})
+		}
 	}
 
 	// Run the checks in parallel.

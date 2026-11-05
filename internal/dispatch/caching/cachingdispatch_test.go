@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/chunkertest"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -383,3 +385,37 @@ func (ddm delegateDispatchMock) ReadyState() dispatch.ReadyState {
 }
 
 var _ dispatch.Dispatcher = &delegateDispatchMock{}
+
+func TestCachingDispatcherKeepsRoutingHint(t *testing.T) {
+	recorder := &chunkertest.Recorder{}
+	cd, err := NewCachingDispatcher(nil, dispatch.MetricsOptions{}, &keys.DirectKeyHandler{})
+	require.NoError(t, err)
+	cd.SetDelegate(recorder)
+
+	hint := dispatch.RoutingHint{Key: []byte("document:a"), Owner: "n1"}
+	ctx := dispatch.WithRoutingHint(t.Context(), hint)
+	metadata := &v1.ResolverMeta{AtRevision: "1234", DepthRemaining: 50, SchemaHash: []byte(datalayer.NoSchemaHashForTesting)}
+
+	_, err = cd.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
+		ResourceIds:      []string{"a"},
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
+		Metadata:         metadata,
+	})
+	require.NoError(t, err)
+
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
+	require.NoError(t, cd.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
+		ResourceIds:      []string{"a"},
+		SubjectRelation:  tuple.RR("user", "...").ToCoreRR(),
+		Metadata:         metadata,
+	}, stream))
+
+	dispatches := recorder.Dispatches()
+	require.Len(t, dispatches, 2)
+	for _, d := range dispatches {
+		require.True(t, d.HasHint)
+		require.Equal(t, hint, d.Hint)
+	}
+}

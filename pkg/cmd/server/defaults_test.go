@@ -37,6 +37,7 @@ func TestWithDatastore(t *testing.T) {
 		memoryprotection.NewNoopMemoryUsageProvider(),
 		nil,
 		nil,
+		nil,
 	}
 
 	someDS, err := memdb.NewMemdbDatastore(0, time.Hour, time.Hour)
@@ -78,6 +79,7 @@ func TestWithDatastoreMiddleware(t *testing.T) {
 		"service",
 		consistency.TreatMismatchingTokensAsError,
 		memoryprotection.NewNoopMemoryUsageProvider(),
+		nil,
 		nil,
 		nil,
 	}

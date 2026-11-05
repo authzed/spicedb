@@ -8,7 +8,6 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -86,12 +85,37 @@ func ComputeBulkCheck(
 	return computeCheck(ctx, d, ts, params, resourceIDs, dispatchChunkSize)
 }
 
+// ComputeBulkCheckChunk computes a check result for each resource of chunk, with any caveat expressions that it finds.
+// It dispatches chunk with its hint as given and does not chunk it again.
+func ComputeBulkCheckChunk(
+	ctx context.Context,
+	d dispatch.Check,
+	ts *caveattypes.TypeSet,
+	params CheckParameters,
+	chunk dispatch.Chunk,
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, []*v1.DebugInformation, error) {
+	return computeCheckChunks(ctx, d, ts, params, []dispatch.Chunk{chunk}, len(chunk.ResourceIDs))
+}
+
 func computeCheck(ctx context.Context,
 	d dispatch.Check,
 	ts *caveattypes.TypeSet,
 	params CheckParameters,
 	resourceIDs []string,
 	dispatchChunkSize uint16,
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, []*v1.DebugInformation, error) {
+	chunks := dispatch.ChunkerFromContext(ctx).Chunk(ctx, params.ResourceType.ObjectType, resourceIDs, dispatchChunkSize)
+	return computeCheckChunks(ctx, d, ts, params, chunks, len(resourceIDs))
+}
+
+// computeCheckChunks dispatches the chunks one at a time, in order.
+// It stops at the first error. resourceCount is the number of resource IDs in all chunks.
+func computeCheckChunks(ctx context.Context,
+	d dispatch.Check,
+	ts *caveattypes.TypeSet,
+	params CheckParameters,
+	chunks []dispatch.Chunk,
+	resourceCount int,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, []*v1.DebugInformation, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
 	switch params.DebugOption {
@@ -102,12 +126,11 @@ func computeCheck(ctx context.Context,
 	}
 
 	setting := v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS
-	if len(resourceIDs) == 1 {
+	if resourceCount == 1 {
 		setting = v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT
 	}
 
-	// Ensure that the number of resources IDs given to each dispatch call is not in excess of the maximum.
-	results := make(map[string]*v1.ResourceCheckResult, len(resourceIDs))
+	results := make(map[string]*v1.ResourceCheckResult, resourceCount)
 	metadata := &v1.ResponseMeta{}
 
 	bf, err := v1.NewTraversalBloomFilter(uint(params.MaximumDepth))
@@ -119,10 +142,11 @@ func computeCheck(ctx context.Context,
 
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
 	debugInfo := make([]*v1.DebugInformation, 0)
-	_, err = slicez.ForEachChunkUntil(resourceIDs, dispatchChunkSize, func(resourceIDsToCheck []string) (bool, error) {
-		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+	for _, chunk := range chunks {
+		cctx := dispatch.WithRoutingHintIfNeeded(ctx, chunk.Hint)
+		checkResult, err := d.DispatchCheck(cctx, &v1.DispatchCheckRequest{
 			ResourceRelation: params.ResourceType.ToCoreRR(),
-			ResourceIds:      resourceIDsToCheck,
+			ResourceIds:      chunk.ResourceIDs,
 			ResultsSetting:   setting,
 			Subject:          params.Subject.ToCoreONR(),
 			Metadata: &v1.ResolverMeta{
@@ -139,7 +163,7 @@ func computeCheck(ctx context.Context,
 			debugInfo = append(debugInfo, checkResult.Metadata.DebugInfo)
 		}
 
-		if len(resourceIDs) == 1 {
+		if resourceCount == 1 {
 			metadata = checkResult.Metadata
 		} else {
 			metadata = &v1.ResponseMeta{
@@ -151,20 +175,18 @@ func computeCheck(ctx context.Context,
 		}
 
 		if err != nil {
-			return false, err
+			return results, metadata, debugInfo, err
 		}
 
-		for _, resourceID := range resourceIDsToCheck {
+		for _, resourceID := range chunk.ResourceIDs {
 			computed, err := computeCaveatedCheckResult(ctx, caveatRunner, params, resourceID, checkResult)
 			if err != nil {
-				return false, err
+				return results, metadata, debugInfo, err
 			}
 			results[resourceID] = computed
 		}
-
-		return true, nil
-	})
-	return results, metadata, debugInfo, err
+	}
+	return results, metadata, debugInfo, nil
 }
 
 func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
