@@ -129,6 +129,15 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		GCWindow(retainAllRevisions),
 		WithAcquireTimeout(5*time.Second),
 	))
+
+	t.Run("TestTransactionsTableTTL", createDatastoreTest(
+		b,
+		TransactionsTableTTLTest,
+		RevisionQuantization(0),
+		GCWindow(retainAllRevisions),
+		OverlapStrategy(overlapStrategyStatic),
+		WithAcquireTimeout(5*time.Second),
+	))
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
@@ -721,6 +730,53 @@ func TransactionMetadataMarkingTest(t *testing.T, rawDS datastore.Datastore) {
 		return nil
 	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactionMetadata))
 	require.NoError(err)
+}
+
+func TransactionsTableTTLTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+	ctx := t.Context()
+
+	cds := datastore.UnwrapAs[*crdbDatastore](ds)
+	require.NotNil(cds)
+
+	var createStatement string
+	err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&createStatement)
+	}, fmt.Sprintf("SELECT create_statement FROM [SHOW CREATE TABLE %s]", schema.TableTransactions))
+	require.NoError(err)
+	require.Contains(createStatement, "ttl_expire_after",
+		"expected the overlay-key transactions table to have row-level TTL enabled; got: %s", createStatement)
+	// CRDB rewrites the interval in SHOW CREATE TABLE; accept either spelling.
+	require.True(
+		strings.Contains(createStatement, "24 hours") ||
+			strings.Contains(createStatement, "24:00:00") ||
+			strings.Contains(createStatement, "1 day") ||
+			strings.Contains(createStatement, "1 days"),
+		"expected overlay-key rows to expire after 24h; got: %s", createStatement,
+	)
+
+	wrapped, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, `
+		definition user {}
+		definition resource {
+			relation viewer: user
+		}
+	`, []tuple.Relationship{
+		tuple.MustParse("resource:foo#viewer@user:tom"),
+	})
+
+	_, err = wrapped.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("resource:foo#viewer@user:tom")),
+		})
+	})
+	require.NoError(err)
+
+	var keyCount int
+	err = cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&keyCount)
+	}, fmt.Sprintf("SELECT COUNT(*) FROM %s", schema.TableTransactions))
+	require.NoError(err)
+	require.Positive(keyCount, "static overlap writes should still upsert overlay keys after TTL is enabled")
 }
 
 func TTLChangefeedSuppressionParamTest(t *testing.T, ds datastore.Datastore) {
