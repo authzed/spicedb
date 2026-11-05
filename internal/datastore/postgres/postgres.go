@@ -742,55 +742,107 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 
 const defaultMaxHeartbeatLeaderJitterPercent = 10
 
+// revisionHeartbeatUnlockTimeout bounds releasing the heartbeat lock, which happens
+// after the worker context may already be canceled.
+const revisionHeartbeatUnlockTimeout = 5 * time.Second
+
 func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
 	heartbeatDuration := max(time.Second, time.Nanosecond*time.Duration(pgd.quantizationPeriodNanos))
 	log.Info().Stringer("interval", heartbeatDuration).Msg("starting revision heartbeat")
-	tick := time.NewTicker(heartbeatDuration)
 
-	conn, err := pgd.writePool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Release()
-
-	// Leader election. Continue trying to acquire in case the current leader died.
+	// Leader election. Continue trying to acquire in case the current leader died
+	// or this node lost its leadership.
 	for {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
-		ok, err := pgd.tryAcquireLock(ctx, conn, revisionHeartbeatLock)
-		if err != nil {
-			log.Warn().Err(err).Msg("failed to acquire revision heartbeat lock")
-		}
-
-		if ok {
-			break
-		}
+		pgd.runRevisionHeartbeatElection(ctx, heartbeatDuration)
 
 		jitter := time.Duration(float64(heartbeatDuration) * rand.Float64() * defaultMaxHeartbeatLeaderJitterPercent / 100) // nolint:gosec
-		time.Sleep(heartbeatDuration + jitter)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(heartbeatDuration + jitter):
+		}
+	}
+}
+
+// runRevisionHeartbeatElection acquires a fresh connection and tries once to take the
+// heartbeat lock on it. If elected, it writes heartbeats until the context is canceled
+// or a write fails, at which point the lock is released and the method returns.
+func (pgd *pgDatastore) runRevisionHeartbeatElection(ctx context.Context, heartbeatDuration time.Duration) {
+	conn, err := pgd.writePool.Acquire(ctx)
+	if err != nil {
+		if ctx.Err() == nil {
+			log.Warn().Err(err).Msg("failed to acquire connection for revision heartbeat")
+		}
+		return
 	}
 
-	defer func() {
-		if err := pgd.releaseLock(ctx, conn, revisionHeartbeatLock); err != nil && !errors.Is(err, context.Canceled) {
-			log.Warn().Err(err).Msg("failed to release revision heartbeat lock")
+	ok, err := pgd.tryAcquireLock(ctx, conn, revisionHeartbeatLock)
+	if err != nil {
+		if ctx.Err() == nil {
+			log.Warn().Err(err).Msg("failed to acquire revision heartbeat lock")
 		}
-	}()
+		// The lock may have been granted before the error, so the session is not
+		// returned to the pool.
+		closeConn(conn)
+		return
+	}
+	if !ok {
+		conn.Release()
+		return
+	}
+	defer pgd.releaseRevisionHeartbeatLock(conn)
 
 	log.Info().Stringer("interval", heartbeatDuration).Msg("got elected revision heartbeat leader, starting")
+
+	tick := time.NewTicker(heartbeatDuration)
+	defer tick.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-tick.C:
-			_, err := pgd.writePool.Exec(ctx, pgd.revisionHeartbeatQuery)
-			if err != nil {
-				log.Warn().Err(err).Msg("failed to write heartbeat revision")
+			// Heartbeats are written on the session holding the lock, so that losing the
+			// session (and with it the lock) surfaces as a write error.
+			if _, err := conn.Exec(ctx, pgd.revisionHeartbeatQuery); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				log.Warn().Err(err).Msg("failed to write heartbeat revision, returning to election")
+				return
 			}
 		}
 	}
+}
+
+// releaseRevisionHeartbeatLock unlocks the heartbeat lock and releases the connection.
+// If the unlock fails, the connection is closed so a locked session never returns to the pool.
+func (pgd *pgDatastore) releaseRevisionHeartbeatLock(conn *pgxpool.Conn) {
+	if conn.Conn().IsClosed() {
+		conn.Release()
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), revisionHeartbeatUnlockTimeout)
+	defer cancel()
+
+	if err := pgd.releaseLock(ctx, conn, revisionHeartbeatLock); err != nil {
+		if !conn.Conn().IsClosed() {
+			log.Warn().Err(err).Msg("failed to release revision heartbeat lock")
+		}
+		closeConn(conn)
+		return
+	}
+	conn.Release()
+}
+
+// closeConn closes the underlying connection, which makes Release destroy it instead of
+// returning it to the pool.
+func closeConn(conn *pgxpool.Conn) {
+	ctx, cancel := context.WithTimeout(context.Background(), revisionHeartbeatUnlockTimeout)
+	defer cancel()
+	_ = conn.Conn().Close(ctx)
+	conn.Release()
 }
 
 func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer {
