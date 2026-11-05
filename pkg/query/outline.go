@@ -196,7 +196,8 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 				continue
 			}
 
-			if _, ok := hint.Payload.(planhint.ArrowDirection); !ok {
+			direction, ok := hint.Payload.(planhint.ArrowDirection)
+			if !ok {
 				continue
 			}
 
@@ -204,6 +205,10 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 
 			if outline.Type != ArrowIteratorType {
 				outcome, reason = planhint.Declined, planhint.UnsupportedTarget
+			} else if direction.Direction == planhint.RightToLeft && outline.SubOutlines[1].HasFreeRecursiveReferences() {
+				// Enumerating a free sentinel loses its enclosing controller's grants.
+				// Enforce this independently of the producer and its signal estimates.
+				outcome, reason = planhint.Declined, planhint.CorrectnessConstraint
 			} else if err := applyHint(it, hint); err != nil {
 				return nil, err
 			}

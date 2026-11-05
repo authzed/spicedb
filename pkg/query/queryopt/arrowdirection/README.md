@@ -23,6 +23,15 @@ occurrence; it does not rewrite the outline. The iterator compiler applies the h
 and records its disposition. Intersection arrows (`all()`) are excluded because
 their semantics differ from an ordinary arrow.
 
+Arrows whose right operand contains a free recursive reference also retain forward
+execution. For example, inside a recursive `group#member` controller, the arrow for
+`direct_member: group#member` can Check its right sentinel through that controller,
+but enumerating the sentinel independently returns only a frontier. Reversing that
+arrow could incorrectly deny access to a user in a nested group. A complete recursive
+controller on the right is eligible because it owns the enumeration fixpoint. The
+compiler independently rejects unsafe reverse hints with `correctness-constraint`,
+including hints supplied by another advisor; debug traces can explain that decline.
+
 ## Inputs and signals
 
 Each starting side uses `signal.LookupFirst` with this preference order:
