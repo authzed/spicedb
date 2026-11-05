@@ -18,7 +18,7 @@ func TestRevisionHeartbeatFollowerReconnects(t *testing.T) {
 	engine := testdatastore.RunPostgresForTesting(t, postgresTestVersion(), false)
 	uri := engine.NewDatabase(t)
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	t.Cleanup(cancel)
 	admin, err := pgx.Connect(ctx, uri)
 	require.NoError(t, err)
 	defer admin.Close(context.Background())
