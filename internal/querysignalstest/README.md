@@ -1,7 +1,7 @@
 # Signal test framework
 
-Use the fake Clock for deterministic aging, then observe typed streams into isolated
-registries/owners. Provider properties should compare counts, means, availability
+Use `testing/synctest` for deterministic aging, then observe typed streams into
+isolated registries/owners. Provider properties should compare counts, means, availability
 and revision/schema isolation against exact independent models. Quantile sketches
 need rank tolerances rather than exact centroid assertions. Run concurrency tests
 under the race detector. No live datastore is needed to produce a signal.
@@ -20,8 +20,8 @@ subtree and accepts one raw path count per invocation:
 
 ```go
 left, right := co.Root.SubOutlines[0], co.Root.SubOutlines[1]
-querysignalstest.ResultSizes(t, view, left, query.OperationIterSubjects, clock.Now(), 8, 8, 8, 8)
-querysignalstest.ResultSizes(t, view, right, query.OperationIterResources, clock.Now(), 2, 2, 2, 2)
+querysignalstest.ResultSizes(t, view, left, query.OperationIterSubjects, time.Now(), 8, 8, 8, 8)
+querysignalstest.ResultSizes(t, view, right, query.OperationIterResources, time.Now(), 2, 2, 2, 2)
 ctx.Key = querysignalstest.ExecutionKey
 ```
 
