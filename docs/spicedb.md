@@ -625,7 +625,7 @@ spicedb serve [flags]
       --experimental-full-relation-cache-metrics                                        enable metrics for the cache for full relations (has no effect unless --experimental-full-relation-cache=enabled) (default true)
       --experimental-lookup-resources-version lr3                                       if non-empty, the version of the experimental lookup resources API to use: lr3 or empty
       --experimental-query-plan check                                                   comma-separated list of operations to route through the experimental query plan engine; valid values are check, `lr` (LookupResources), and `ls` (LookupSubjects)
-      --experimental-schema-mode string                                                 schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new (default "read-legacy-write-legacy")
+      --experimental-schema-mode string                                                 schema storage mode: read-new-write-both reads unified storage and keeps legacy storage current; use read-legacy-write-both for legacy reads, read-legacy-write-legacy for legacy-only storage, or read-new-write-new for unified-only storage (default "read-new-write-both")
       --grpc-addr string                                                                address to listen on to serve gRPC (default ":50051")
       --grpc-enabled                                                                    enable gRPC gRPC server (default true)
       --grpc-log-requests-enabled                                                       enable logging of API request payloads
