@@ -2,6 +2,7 @@ package querysignalstest_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -12,14 +13,13 @@ import (
 )
 
 func TestRecordingKeepsRevisionAndOperationPopulationsSeparate(t *testing.T) {
-	clock := querysignalstest.NewClock()
-	owner := querysignalstest.Owner(t, clock, resultsize.New())
+	owner := querysignalstest.Owner(t, resultsize.New())
 	first := querysignalstest.View(t, owner, "schema", 1)
 	second := querysignalstest.View(t, owner, "schema", 2)
 	node := query.Outline{Type: query.NullIteratorType}
 
 	// Zero is a completed empty enumeration, not a missing observation.
-	querysignalstest.ResultSizes(t, first, node, query.OperationIterSubjects, clock.Now(), 0, 8)
+	querysignalstest.ResultSizes(t, first, node, query.OperationIterSubjects, time.Now(), 0, 8)
 	key := querysignalstest.ExecutionKey(node, query.OperationIterSubjects)
 	estimate, err := signal.Lookup(first.ForPlan(), resultsize.Ref, key)
 	require.NoError(t, err)

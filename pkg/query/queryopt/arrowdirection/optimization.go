@@ -17,6 +17,7 @@ import (
 func New() optimization.Optimizer {
 	return optimization.Optimizer{
 		Name:            "observed-arrow-direction",
+		Description:     "Recommend arrow direction from exact-revision or historical enumeration sizes",
 		OptionalSignals: []signal.Name{resultsize.Name, historicalresultsize.Name},
 		ProducesHints:   []planhint.Kind{planhint.ArrowDirectionKind},
 		Run:             run,

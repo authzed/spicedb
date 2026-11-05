@@ -11,6 +11,7 @@ import (
 func New() optimization.Optimizer {
 	return optimization.Optimizer{
 		Name:          "apply-branch-order",
+		Description:   "Apply declared child-order recommendations to commutative set operands",
 		OptionalHints: []planhint.Kind{planhint.BranchOrderKind},
 		Run:           run,
 	}
