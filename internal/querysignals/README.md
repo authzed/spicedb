@@ -11,7 +11,7 @@ after an eager deduplicator exhausted its underlying iterator does not invalidat
 that completed sample. Directly stopped, canceled or errored populations never train
 result-size evidence. Unknown descriptors are dropped, not pooled with known ones.
 
-Use the [shared fake-clock harness](../querysignalstest/README.md) for deterministic
+Use the [shared signal test harness](../querysignalstest/README.md) for deterministic
 streams. Tests cover revision binding, context typing/truncation, idempotent flush
 and incomplete observations. Run under the race detector. Benchmarks measure batch
 and planning overhead, not overall QP speedup.
