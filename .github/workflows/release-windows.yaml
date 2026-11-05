@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-      - uses: "nowsprinting/check-version-format-action@af8787bf5058bea78ecc228899471187575e48c3" # v5.0.6
+      - uses: "nowsprinting/check-version-format-action@62b39fce3eab26b761544e58016e2183d7a73c0b" # v5.0.8
         id: "version"
         with:
           prefix: "v"
@@ -27,7 +27,7 @@ jobs:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94" # v7.2.3
+      - uses: "goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de" # v7.3.0
         with:
           distribution: "goreleaser-pro"
           # NOTE: keep in sync with goreleaser version in other job.
