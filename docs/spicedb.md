@@ -661,6 +661,7 @@ spicedb serve [flags]
       --ns-cache-max-cost string                                                        upper bound (in bytes or as a percent of available memory) of the cache for schema (default "32MiB")
       --ns-cache-metrics                                                                enable metrics for the cache for schema (default true)
       --otel-endpoint string                                                            OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
+      --otel-ignore-remote-sampling                                                     ignore the sampling decision sent by callers in their trace headers and apply otel-sample-ratio to every request. The caller's trace ID is still kept
       --otel-insecure                                                                   connect to the OpenTelemetry collector in plaintext
       --otel-provider string                                                            OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
       --otel-sample-ratio float                                                         ratio of traces that are sampled (default 0.01)

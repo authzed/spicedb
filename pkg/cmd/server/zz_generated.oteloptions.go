@@ -36,6 +36,7 @@ func (o *OTelConfig) ToOption() OTelConfigOption {
 		to.TracePropagator = o.TracePropagator
 		to.UsePlaintext = o.UsePlaintext
 		to.SampleRatio = o.SampleRatio
+		to.IgnoreRemoteSampling = o.IgnoreRemoteSampling
 		to.PrometheusRegistry = o.PrometheusRegistry
 	}
 }
@@ -65,6 +66,7 @@ func (o *OTelConfig) DebugMap() map[string]any {
 	}
 	debugMap["UsePlaintext"] = o.UsePlaintext
 	debugMap["SampleRatio"] = o.SampleRatio
+	debugMap["IgnoreRemoteSampling"] = o.IgnoreRemoteSampling
 	return debugMap
 }
 
@@ -144,6 +146,13 @@ func WithUsePlaintext(usePlaintext bool) OTelConfigOption {
 func WithSampleRatio(sampleRatio float64) OTelConfigOption {
 	return func(o *OTelConfig) {
 		o.SampleRatio = sampleRatio
+	}
+}
+
+// WithIgnoreRemoteSampling returns an option that can set IgnoreRemoteSampling on a OTelConfig
+func WithIgnoreRemoteSampling(ignoreRemoteSampling bool) OTelConfigOption {
+	return func(o *OTelConfig) {
+		o.IgnoreRemoteSampling = ignoreRemoteSampling
 	}
 }
 
