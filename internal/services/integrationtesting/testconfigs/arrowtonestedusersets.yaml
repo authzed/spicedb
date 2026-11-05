@@ -1,0 +1,35 @@
+---
+schema: |+
+  definition user {}
+
+  definition team {
+    relation member: user
+  }
+
+  definition group {
+    relation member: user | team#member
+  }
+
+  definition folder {
+    relation member: user | group#member
+  }
+
+  definition document {
+    relation parent: folder
+    permission view = parent->member
+  }
+
+relationships: |
+  team:t#member@user:tina
+  group:g#member@user:gary
+  group:g#member@team:t#member
+  folder:f#member@user:fred
+  folder:f#member@group:g#member
+  document:d#parent@folder:f
+assertions:
+  assertTrue:
+    - "document:d#view@user:fred"
+    - "document:d#view@user:gary"
+    - "document:d#view@user:tina"
+  assertFalse:
+    - "document:d#view@user:other"
