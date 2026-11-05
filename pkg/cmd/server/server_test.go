@@ -82,6 +82,20 @@ func TestServerGracefulTermination(t *testing.T) {
 	<-ch
 }
 
+func TestServerRejectsInvalidSchemaModeBeforeBootstrap(t *testing.T) {
+	c := NewConfigWithOptionsAndDefaults(
+		WithPresharedSecureKey("psk"),
+		WithExperimentalSchemaMode("invalid"),
+	)
+	// Bootstrap would fail to parse this input if datastore creation ran first.
+	c.DatastoreConfig.BootstrapFileContents = map[string][]byte{
+		"invalid": []byte("not valid bootstrap data"),
+	}
+
+	_, err := c.Complete(t.Context())
+	require.ErrorContains(t, err, `invalid schema mode "invalid"`)
+}
+
 func TestServerBootstrapSchemaMode(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
