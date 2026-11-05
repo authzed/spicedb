@@ -19,6 +19,10 @@ const (
 	pgReadOnlyTransaction       = "25006"
 	pgQueryCanceled             = "57014"
 	pgInvalidArgument           = "22023"
+
+	// PgMissingTable is the Postgres error code for "relation does not exist".
+	// This is used to detect when migrations have not been run.
+	PgMissingTable = "42P01"
 )
 
 var (
@@ -105,4 +109,11 @@ func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) e
 	}
 
 	return nil
+}
+
+// IsMissingTableError returns true if the error is a Postgres error indicating a missing table.
+// This typically happens when migrations have not been run.
+func IsMissingTableError(err error) bool {
+	var pgerr *pgconn.PgError
+	return errors.As(err, &pgerr) && pgerr.Code == PgMissingTable
 }
