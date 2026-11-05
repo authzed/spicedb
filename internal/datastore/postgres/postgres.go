@@ -747,30 +747,35 @@ func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
 	log.Info().Stringer("interval", heartbeatDuration).Msg("starting revision heartbeat")
 	tick := time.NewTicker(heartbeatDuration)
 
-	conn, err := pgd.writePool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Release()
-
+	var conn *pgxpool.Conn
 	// Leader election. Continue trying to acquire in case the current leader died.
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 
-		ok, err := pgd.tryAcquireLock(ctx, conn, revisionHeartbeatLock)
+		var err error
+		conn, err = pgd.writePool.Acquire(ctx)
 		if err != nil {
-			log.Warn().Err(err).Msg("failed to acquire revision heartbeat lock")
-		}
+			log.Warn().Err(err).Msg("failed to acquire revision heartbeat connection")
+		} else {
+			ok, err := pgd.tryAcquireLock(ctx, conn, revisionHeartbeatLock)
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to acquire revision heartbeat lock")
+			}
 
-		if ok {
-			break
+			if ok {
+				break
+			}
+			// Return unsuccessful election connections so the pool can replace
+			// closed sessions before the next attempt.
+			conn.Release()
 		}
 
 		jitter := time.Duration(float64(heartbeatDuration) * rand.Float64() * defaultMaxHeartbeatLeaderJitterPercent / 100) // nolint:gosec
 		time.Sleep(heartbeatDuration + jitter)
 	}
+	defer conn.Release()
 
 	defer func() {
 		if err := pgd.releaseLock(ctx, conn, revisionHeartbeatLock); err != nil && !errors.Is(err, context.Canceled) {
