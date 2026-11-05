@@ -18,6 +18,7 @@ import (
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -43,7 +44,10 @@ func TestBurst(t *testing.T) {
 				dsconfig.WithWriteAcquisitionTimeout(5*time.Second)))
 			ds, revision := tf.StandardDatastoreWithData(t, ds)
 
-			conns := testserver.TestClusterWithDispatch(t, 1, ds)
+			// StandardDatastoreWithData writes legacy definitions directly.
+			conns := testserver.TestClusterWithDispatch(t, 1, ds,
+				server.WithExperimentalSchemaMode("read-legacy-write-legacy"),
+			)
 
 			client := v1.NewPermissionsServiceClient(conns[0])
 			var wg sync.WaitGroup

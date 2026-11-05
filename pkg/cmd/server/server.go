@@ -331,9 +331,10 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	log.Ctx(ctx).Info().EmbedObject(storedSchemaCache).Msg("configured stored schema cache")
 	closeables.AddWithoutError(storedSchemaCache.Close)
 
-	var dlOpts []datalayer.DataLayerOption
-	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
-	dlOpts = append(dlOpts, datalayer.WithSchemaMode(schemaMode))
+	dlOpts := []datalayer.DataLayerOption{
+		datalayer.WithSchemaCache(storedSchemaCache),
+		datalayer.WithSchemaMode(schemaMode),
+	}
 
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	ds = proxy.NewSingleflightDatastoreProxy(ds)
