@@ -188,7 +188,23 @@ func NewPermissionsServer(
 				grpcvalidate.StreamServerInterceptor(validator),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
-				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
+				streamtimeout.MustStreamServerInterceptor(
+					configWithDefaults.StreamingAPITimeout,
+					// Bulk export sends one batch per datastore page and sends nothing
+					// while fetching the next one. The quiet stretches between sends
+					// scale with the cost of scanning for each page, which grows with
+					// selective filters, and with how fast the client reads, since a
+					// slow reader blocks the send. They do not reflect the health of
+					// the stream. Its handler holds no transaction and no connection
+					// between pages, so exempting it costs nothing.
+					// Bulk import is deliberately not exempt: it holds an open write
+					// transaction for the life of the stream, and receiving a batch from
+					// the client counts as activity, so the timeout still bounds a client
+					// that stops sending.
+					streamtimeout.WithExemptMethods(
+						v1.PermissionsService_ExportBulkRelationships_FullMethodName,
+					),
+				),
 				perfinsights.StreamServerInterceptor(configWithDefaults.PerformanceInsightMetricsEnabled),
 			),
 		},
