@@ -2,6 +2,7 @@ package querysignals_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -15,11 +16,10 @@ import (
 )
 
 func TestCollectorFlushIsIdempotent(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, resultsize.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, resultsize.New()), "a", 1)
 	collector := querysignals.NewCollector(v, querysignals.CollectorOptions{})
 	k := signal.ExecutionKey{Identity: "x", Operation: signal.IterSubjects}
-	collector.ObserveExecution(query.ExecutionObservation{Invocation: 1, Key: k, Count: 7, Status: signal.Complete, Started: c.Now()})
+	collector.ObserveExecution(query.ExecutionObservation{Invocation: 1, Key: k, Count: 7, Status: signal.Complete, Started: time.Now()})
 	collector.Flush()
 	collector.Flush()
 	e, err := signal.Lookup(v, resultsize.Ref, k)
@@ -42,8 +42,7 @@ func TestContextFingerprintOrderAndTypes(t *testing.T) {
 }
 
 func TestMissingNullAndPresentFieldObservations(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, contextfield.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, contextfield.New()), "a", 1)
 	querysignals.ObserveRequestContext(
 		v,
 		map[string]any{"null": nil, "present": true},
@@ -65,13 +64,12 @@ func TestMissingNullAndPresentFieldObservations(t *testing.T) {
 }
 
 func TestCollectorDropsTruncatedAndIncompleteObservations(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, resultsize.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, resultsize.New()), "a", 1)
 	k := signal.ExecutionKey{Identity: "x", Operation: signal.IterSubjects}
 	collector := querysignals.NewCollector(v, querysignals.CollectorOptions{MaxObservations: 2})
 
 	for _, status := range []signal.Terminal{signal.ConsumerStopped, signal.Canceled, signal.Complete} {
-		collector.ObserveExecution(query.ExecutionObservation{Key: k, Count: 1, Status: status, Started: c.Now()})
+		collector.ObserveExecution(query.ExecutionObservation{Key: k, Count: 1, Status: status, Started: time.Now()})
 	}
 
 	collector.Flush()
@@ -82,8 +80,7 @@ func TestCollectorDropsTruncatedAndIncompleteObservations(t *testing.T) {
 }
 
 func TestContextTruncationIsNotMissingness(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, contextfield.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, contextfield.New()), "a", 1)
 	stats := querysignals.ObserveRequestContext(
 		v,
 		map[string]any{"a": "too large"},
@@ -100,11 +97,10 @@ func TestContextTruncationIsNotMissingness(t *testing.T) {
 }
 
 func TestFailedBatchKeepsUnknownAttemptsSeparate(t *testing.T) {
-	c := querysignalstest.NewClock()
-	v := querysignalstest.View(t, querysignalstest.Owner(t, c, branchoutcome.New()), "a", 1)
+	v := querysignalstest.View(t, querysignalstest.Owner(t, branchoutcome.New()), "a", 1)
 	k := signal.ExecutionKey{Identity: "x", Operation: signal.Check, Mode: "many-subjects"}
 	collector := querysignals.NewCollector(v, querysignals.CollectorOptions{})
-	collector.ObserveExecution(query.ExecutionObservation{Key: k, Status: signal.Errored, BatchSize: 7, Started: c.Now()})
+	collector.ObserveExecution(query.ExecutionObservation{Key: k, Status: signal.Errored, BatchSize: 7, Started: time.Now()})
 	collector.Flush()
 	e, err := signal.Lookup(v, branchoutcome.Ref, k)
 	require.NoError(t, err)
