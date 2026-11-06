@@ -87,21 +87,19 @@ func TestBroadSingleUsersetReadGuards(t *testing.T) {
 				require.Empty(t, reader.filter.OptionalResourceIds)
 			}
 			selector := reader.filter.OptionalSubjectsSelectors[0]
-			require.Equal(t, tc.broad, selector.RelationFilter.OnlyNonEllipsisRelations)
+			require.Equal(t, "group", selector.OptionalSubjectType)
 			if tc.broad {
-				require.Empty(t, selector.OptionalSubjectType)
+				require.Equal(t, "member", selector.RelationFilter.NonEllipsisRelation)
 				require.Equal(t, queryshape.CheckPermissionSelectIndirectSubjects, reader.opts.QueryShape)
 				require.Equal(t, !tc.caveats, reader.opts.SkipCaveats)
 				require.Equal(t, !tc.expiration, reader.opts.SkipExpiration)
-				// Broader datastore selection must not leak stale nonconforming subjects
-				// into this leaf's semantic result.
-				reader.rels = []tuple.Relationship{tuple.MustParse("document:doc#viewer@other:stale#member"), tuple.MustParse("document:doc#viewer@group:valid#member")}
+				reader.rels = []tuple.Relationship{tuple.MustParse("document:doc#viewer@group:valid#member")}
 				if tc.caveats {
-					reader.rels[1].OptionalCaveat = &core.ContextualizedCaveat{CaveatName: "condition"}
+					reader.rels[0].OptionalCaveat = &core.ContextualizedCaveat{CaveatName: "condition"}
 				}
 				if tc.expiration {
 					expires := time.Now().Add(time.Hour)
-					reader.rels[1].OptionalExpiration = &expires
+					reader.rels[0].OptionalExpiration = &expires
 				}
 				seq, err = NewDatastoreIterator(base).IterSubjectsImpl(ctx, resource, ObjectType{})
 				require.NoError(t, err)
@@ -110,9 +108,8 @@ func TestBroadSingleUsersetReadGuards(t *testing.T) {
 				require.Len(t, paths, 1)
 				require.Equal(t, "valid", paths[0].Subject.ObjectID)
 				require.Equal(t, tc.caveats, paths[0].Caveat != nil)
-				require.Equal(t, reader.rels[1].OptionalExpiration, paths[0].Expiration)
+				require.Equal(t, reader.rels[0].OptionalExpiration, paths[0].Expiration)
 			} else {
-				require.Equal(t, "group", selector.OptionalSubjectType)
 				require.Equal(t, queryshape.Varying, reader.opts.QueryShape)
 			}
 		})

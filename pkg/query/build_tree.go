@@ -332,7 +332,7 @@ func (b *outlineBuilder) buildBaseDatastoreOutline(br *schema.BaseRelation, with
 		return base, nil
 	}
 
-	rightside, err := b.buildOutlineFromSchemaInternal(br.Type(), br.Subrelation(), false)
+	rightside, err := b.buildOutlineFromSchemaInternal(br.Type(), br.Subrelation(), true)
 	if err != nil {
 		return Outline{}, err
 	}
@@ -360,7 +360,7 @@ func (b *outlineBuilder) buildArrowOutline(rel *schema.Relation, rightSide strin
 		if err != nil {
 			return Outline{}, err
 		}
-		right, err := b.buildOutlineFromSchemaInternal(br.Type(), rightSide, false)
+		right, err := b.buildOutlineFromSchemaInternal(br.Type(), rightSide, true)
 		if err != nil {
 			// If the right side doesn't exist on this type, the arrow produces an empty set.
 			if errors.As(err, &RelationNotFoundError{}) {
@@ -404,7 +404,7 @@ func (b *outlineBuilder) buildIntersectionArrowOutline(rel *schema.Relation, rig
 		if err != nil {
 			return Outline{}, err
 		}
-		right, err := b.buildOutlineFromSchemaInternal(br.Type(), rightSide, false)
+		right, err := b.buildOutlineFromSchemaInternal(br.Type(), rightSide, true)
 		if err != nil {
 			// If the right side doesn't exist on this type, the intersection arrow produces an empty set.
 			if errors.As(err, &RelationNotFoundError{}) {

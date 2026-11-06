@@ -1,0 +1,66 @@
+---
+schema: |+
+  definition user {}
+
+  definition team {
+    relation member: user
+  }
+
+  definition group {
+    relation admin: user
+    relation member: user | group#member | team#member
+  }
+
+  definition document {
+    relation viewer: user | user:* | group#member | group#admin | team#member
+    relation editor: user | user:*
+    permission view = viewer + editor
+  }
+
+relationships: |
+  team:t1#member@user:tina
+  group:g1#admin@user:alice
+  group:g1#member@user:bob
+  group:g2#member@group:g1#member
+  group:g3#member@team:t1#member
+
+  document:direct#viewer@user:dan
+  document:direct#viewer@user:dave
+  document:direct#viewer@user:dora
+
+  document:bymember#viewer@user:dan
+  document:bymember#viewer@group:g1#member
+
+  document:byadmin#viewer@user:dan
+  document:byadmin#viewer@group:g1#admin
+
+  document:byteam#viewer@team:t1#member
+
+  document:nested#viewer@group:g2#member
+  document:nestedteam#viewer@group:g3#member
+
+  document:public#viewer@user:*
+  document:public#viewer@group:g1#member
+
+  document:editonly#editor@user:*
+assertions:
+  assertTrue:
+    - "document:direct#view@user:dan"
+    - "document:bymember#view@user:bob"
+    - "document:bymember#view@user:dan"
+    - "document:bymember#view@group:g1#member"
+    - "document:byadmin#view@user:alice"
+    - "document:byteam#view@user:tina"
+    - "document:nested#view@user:bob"
+    - "document:nestedteam#view@user:tina"
+    - "document:public#view@user:anyone"
+    - "document:public#view@user:bob"
+    - "document:editonly#view@user:anyone"
+  assertFalse:
+    - "document:direct#view@user:bob"
+    - "document:bymember#view@user:alice"
+    - "document:byadmin#view@user:bob"
+    - "document:byteam#view@user:bob"
+    - "document:nested#view@user:alice"
+    - "document:nestedteam#view@user:bob"
+    - "document:byteam#view@group:g1#member"
