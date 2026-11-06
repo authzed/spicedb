@@ -36,6 +36,17 @@ var (
 // interval high enough that it will never run.
 const DisableGC = time.Duration(math.MaxInt64)
 
+// Option configures a memdb datastore.
+type Option func(*memdbDatastore)
+
+// WithIdempotentBulkLoad makes BulkLoad overwrite relationships that already
+// exist, instead of returning an AlreadyExists error. The default matches the
+// other datastores, so use this only to test callers of
+// datastore.IdempotentBulkLoadDatastore.
+func WithIdempotentBulkLoad() Option {
+	return func(mdb *memdbDatastore) { mdb.idempotentBulkLoad = true }
+}
+
 // NewMemdbDatastore creates a new Datastore compliant datastore backed by memdb.
 //
 // If the watchBufferLength value of 0 is set then a default value of 128 will be used.
@@ -43,6 +54,7 @@ func NewMemdbDatastore(
 	watchBufferLength uint16,
 	revisionQuantization,
 	gcWindow time.Duration,
+	opts ...Option,
 ) (datastore.Datastore, error) {
 	if revisionQuantization > gcWindow {
 		return nil, errors.New("gc window must be larger than quantization interval")
@@ -87,6 +99,9 @@ func NewMemdbDatastore(
 		uniqueID:                uniqueID,
 	}
 	mdb.writeTxReady = sync.NewCond(&mdb.RWMutex)
+	for _, opt := range opts {
+		opt(mdb)
+	}
 	return mdb, nil
 }
 
@@ -106,6 +121,7 @@ type memdbDatastore struct {
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	uniqueID                string
+	idempotentBulkLoad      bool
 }
 
 type snapshot struct {
@@ -192,6 +208,10 @@ func (mdb *memdbDatastore) SupportsIntegrity() bool {
 	return true
 }
 
+func (mdb *memdbDatastore) SupportsIdempotentBulkLoad() bool {
+	return mdb.idempotentBulkLoad
+}
+
 func (mdb *memdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
@@ -206,7 +226,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 	for i := 0; i < txNumAttempts; i++ {
 		var tx *memdb.Txn
 		var newRevision revisions.TimestampRevision
-		rwt := &memdbReadWriteTx{}
+		rwt := &memdbReadWriteTx{idempotentBulkLoad: mdb.idempotentBulkLoad}
 		createTxOnce := sync.Once{}
 		txSrc := func() (*memdb.Txn, error) {
 			var err error
