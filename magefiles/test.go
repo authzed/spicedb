@@ -159,6 +159,13 @@ func (Test) Wasm() error {
 	return buildAndRunTool("magefiles", "github.com/agnivade/wasmbrowsertest", "wasm.test")
 }
 
+// Wasi Run the tests of the testing server's WASI module, hosted in wazero
+func (Test) Wasi() error {
+	// Without -race: the host is single-threaded, and the race detector slows wazero's
+	// compilation of the module from seconds to minutes.
+	return sh.RunV("go", "test", "-tags", "wasitests", "-count=1", "-timeout=15m", "./pkg/cmd/testserver/wasi/...")
+}
+
 type Testds mg.Namespace
 
 // Crdb Run datastore tests for crdb

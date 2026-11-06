@@ -453,6 +453,8 @@ jobs:
         # There's a whole bunch of vars in the environment that aren't needed for running this test, so we clear them out.
         # NOTE: if you need to do this in the future, I recommend bashing into the container and running `env | sort | less`
         run: "cleanenv -remove-prefix GITHUB_ -remove-prefix ANDROID_ -remove-prefix JAVA_ -remove-prefix DOTNET_ -remove-prefix RUNNER_ -remove-prefix HOMEBREW_ -remove-prefix runner_ -- go run mage.go test:wasm"
+      - name: "WASI tests"
+        run: "go run mage.go test:wasi"
 
   protobuf:
     name: "Generate Protobufs"

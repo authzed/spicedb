@@ -12,25 +12,19 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	"github.com/authzed/spicedb/internal/middleware/readonly"
-	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	"github.com/authzed/spicedb/internal/testingserver"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
-)
-
-const (
-	maxDepth                = 50
-	defaultConcurrencyLimit = 10
-	defaultMaxChunkSize     = 100
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -77,14 +71,7 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 
 	cts := caveattypes.TypeSetOrDefault(c.CaveatTypeSet)
 
-	params, err := graph.NewDefaultDispatcherParametersForTesting()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create default dispatcher parameters: %w", err)
-	}
-	params.TypeSet = cts
-	params.ConcurrencyLimits = graph.SharedConcurrencyLimits(defaultConcurrencyLimit)
-	params.DispatchChunkSize = defaultMaxChunkSize
-	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
+	dispatcher, err := testingserver.NewDispatcher(cts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 	}
@@ -93,30 +80,18 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	healthManager := health.NewHealthManager(dispatcher, &datastoreReady{})
 
 	metrics := v1svc.NewMetrics(prometheus.DefaultRegisterer)
+	limits := testingserver.Limits{
+		MaximumUpdatesPerWrite:          c.MaximumUpdatesPerWrite,
+		MaximumPreconditionCount:        c.MaximumPreconditionCount,
+		MaxCaveatContextSize:            c.MaxCaveatContextSize,
+		MaxReadRelationshipsLimit:       c.MaxReadRelationshipsLimit,
+		MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
+		MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
+		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
+	}
 
 	registerServices := func(srv *grpc.Server) {
-		services.RegisterGrpcServices(
-			srv,
-			healthManager,
-			dispatcher,
-			services.V1SchemaServiceEnabled,
-			services.WatchServiceEnabled,
-			v1svc.PermissionsServerConfig{
-				Metrics:                         metrics,
-				MaxPreconditionsCount:           c.MaximumPreconditionCount,
-				MaxUpdatesPerWrite:              c.MaximumUpdatesPerWrite,
-				MaximumAPIDepth:                 maxDepth,
-				MaxCaveatContextSize:            c.MaxCaveatContextSize,
-				MaxReadRelationshipsLimit:       c.MaxReadRelationshipsLimit,
-				MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
-				MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
-				MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
-				DispatchChunkSize:               defaultMaxChunkSize,
-				ExpiringRelationshipsEnabled:    true,
-				CaveatTypeSet:                   cts,
-			},
-			1*time.Second,
-		)
+		testingserver.RegisterServices(srv, healthManager, dispatcher, limits, cts, metrics)
 	}
 
 	noAuth := server.WithAuthFunc(func(ctx context.Context) (context.Context, error) {
@@ -125,6 +100,8 @@ func (c *Config) complete(ctx context.Context) (*completedTestServer, error) {
 	})
 	opts := *server.NewMiddlewareOptionWithOptions(noAuth,
 		server.WithLogger(log.Logger),
+		server.WithMiddlewareServiceLabel(testingserver.ConsistencyServiceLabel),
+		server.WithMismatchingZedTokenOption(testingserver.MismatchingZedTokenOption),
 		server.WithMemoryUsageProvider(&memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}))
 	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
 
@@ -257,9 +234,9 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 }
 
 func (c *completedTestServer) NewClient(opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	// NOTE: NewClient as implemented by TestServer just provides a handle on the address,
-	// under the assumption that most folks won't be running this in a context where
-	// running through a buffcon is necessary, as opposed to the implementation in
-	// pkg/cmd/server/server.go
+	bufferedListener := c.gRPCServer.BufferedListener()
+	if bufferedListener != nil {
+		return grpchelpers.NewBufferedClient(bufferedListener, opts...)
+	}
 	return grpc.NewClient(c.gRPCServer.Address(), opts...)
 }
