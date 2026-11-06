@@ -21,6 +21,7 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 
@@ -44,12 +45,16 @@ type optionState struct {
 	caveatTypeSet                                *caveattypes.TypeSet
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
+	querySignals                                 *signals.Owner
 	queryPlanMetadata                            *query.QueryPlanMetadata
 }
 
-// QueryPlanMetadata sets the shared count-stats store used by the receiver-side
-// query plan dispatcher. Pass the same instance to the permissions service so
-// stats accumulate across both compile and dispatch boundaries.
+// QuerySignals shares the bounded signal owner with the permissions service.
+func QuerySignals(owner *signals.Owner) Option {
+	return func(state *optionState) { state.querySignals = owner }
+}
+
+// QueryPlanMetadata preserves the legacy advisor configuration option.
 func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
 	return func(state *optionState) {
 		state.queryPlanMetadata = m
@@ -184,9 +189,11 @@ func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
 // newOptions applies the provided Options and returns the resulting state.
 func newOptions(options ...Option) optionState {
 	var opts optionState
+
 	for _, fn := range options {
 		fn(&opts)
 	}
+
 	return opts
 }
 
@@ -241,12 +248,14 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			TypeSet:                caveattypes.TypeSetOrDefault(opts.caveatTypeSet),
 			DispatchChunkSize:      chunkSize,
 			RelationshipChunkCache: relationshipChunkCache,
+			QuerySignals:           opts.querySignals,
 			QueryPlanMetadata:      opts.queryPlanMetadata,
 		}
 		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
+
 		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 	} else {
 		// If an upstream is specified, create a cluster dispatcher.
@@ -275,6 +284,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		}
 
 		secondaryClients := make(map[string]remote.SecondaryDispatch, len(opts.secondaryUpstreamAddrs))
+
 		for name, addr := range opts.secondaryUpstreamAddrs {
 			secondaryConn, err := grpc.NewClient(addr, opts.grpcDialOpts...)
 			if err != nil {
@@ -282,14 +292,17 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			}
 
 			maximumHedgingDelay := 5 * time.Millisecond
+
 			if maximumHedgingDelayStr, ok := opts.secondaryUpstreamMaximumPrimaryHedgingDelays[name]; ok {
 				mgd, err := time.ParseDuration(maximumHedgingDelayStr)
 				if err != nil {
 					return nil, fmt.Errorf("error parsing maximum primary hedging delay for secondary dispatch `%s`: %w", name, err)
 				}
+
 				if mgd <= 0 {
 					return nil, fmt.Errorf("maximum primary hedging delay for secondary dispatch `%s` must be greater than 0", name)
 				}
+
 				maximumHedgingDelay = mgd
 			}
 
@@ -301,11 +314,13 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		}
 
 		secondaryExprs := make(map[string]*remote.DispatchExpr, len(opts.secondaryUpstreamExprs))
+
 		for name, exprString := range opts.secondaryUpstreamExprs {
 			parsed, err := remote.ParseDispatchExpression(name, exprString)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing secondary dispatch expr `%s` for method `%s`: %w", exprString, name, err)
 			}
+
 			secondaryExprs[name] = parsed
 		}
 
@@ -316,6 +331,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
 	}
 
