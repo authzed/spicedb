@@ -448,6 +448,29 @@ definition user {
 	permission view = viewer
 }`,
 		},
+		{
+			"permission type annotations",
+			`use typechecking
+
+			definition user {}
+
+			definition team {}
+
+			definition group {
+				relation member: user | team
+				permission perm: user | team = member
+			}`,
+			`use typechecking
+
+definition user {}
+
+definition team {}
+
+definition group {
+	relation member: user | team
+	permission perm: user | team = member
+}`,
+		},
 	}
 
 	for _, test := range tests {
