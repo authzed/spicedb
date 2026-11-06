@@ -13,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datalayer/schemamode"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -27,6 +28,8 @@ type Config struct {
 	MySQLTablePrefix        string
 	Timeout                 time.Duration
 	BatchSize               uint64
+	SchemaMode              string
+	MigrationPhase          string
 
 	// ExtraConfig holds the string value of every flag registered on the
 	// command being run, keyed by flag name. Engines defined outside this
@@ -126,6 +129,12 @@ func Run(ctx context.Context, cfg *Config, revision string) error {
 	if revision == "" {
 		return errors.New("missing required revision")
 	}
+
+	mode, err := schemamode.Resolve(cfg.SchemaMode, cfg.MigrationPhase)
+	if err != nil {
+		return err
+	}
+	ctx = context.WithValue(ctx, migrate.SchemaMigrationMode, mode)
 
 	e, ok := migratableEngines[cfg.DatastoreEngine]
 	if !ok {

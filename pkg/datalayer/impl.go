@@ -61,6 +61,7 @@ func WithSchemaCache(cache SchemaCache) DataLayerOption {
 func NewDataLayer(ds datastore.Datastore, opts ...DataLayerOption) DataLayer {
 	d := &defaultDataLayer{
 		ds:         ds,
+		migration:  &schemaMigrationState{reader: datastore.UnwrapAs[datastore.SchemaMigrationBoundaryReader](ds)},
 		schemaMode: SchemaModeReadLegacyWriteLegacy,
 		cache:      noopSchemaCache{},
 	}
@@ -73,6 +74,7 @@ func NewDataLayer(ds datastore.Datastore, opts ...DataLayerOption) DataLayer {
 // defaultDataLayer wraps a datastore.Datastore and implements DataLayer.
 type defaultDataLayer struct {
 	ds             datastore.Datastore
+	migration      *schemaMigrationState
 	schemaMode     SchemaMode
 	cache          storedSchemaCache
 	lastSchemaHash atomic.Pointer[string] // most recently observed non-bypass schema hash
@@ -102,6 +104,7 @@ func (d *defaultDataLayer) SnapshotReader(rev datastore.Revision, schemaHash Sch
 	d.observeSchemaHash(schemaHash)
 	return &revisionedReader{
 		reader:     d.ds.SnapshotReader(rev),
+		migration:  d.migration,
 		rev:        rev,
 		schemaMode: d.schemaMode,
 		schemaHash: schemaHash,
@@ -252,6 +255,7 @@ func (d *defaultDataLayer) Close() error {
 
 // revisionedReader wraps a datastore.Reader and implements RevisionedReader.
 type revisionedReader struct {
+	migration  *schemaMigrationState
 	reader     datastore.Reader
 	rev        datastore.Revision
 	schemaMode SchemaMode
@@ -265,6 +269,15 @@ type revisionedReader struct {
 
 func (r *revisionedReader) ReadSchema(ctx context.Context) (SchemaReader, error) {
 	assertNoHeldIterator("ReadSchema")
+	if r.schemaMode == SchemaModeReadNewWriteBoth {
+		legacy, err := r.migration.useLegacy(ctx, r.rev, r.schemaHash)
+		if err != nil {
+			return nil, err
+		}
+		if legacy {
+			return newHistoricalSchemaReader(ctx, r.reader, r.rev)
+		}
+	}
 	if r.schemaMode.ReadsFromNew() {
 		return newStoredSchemaReaderAdapter(ctx, r.reader, r.schemaHash, r.rev, r.cache)
 	}

@@ -22,6 +22,10 @@ func init() {
 }
 
 func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
+	return populateSchemaTables(ctx, wrapper, false)
+}
+
+func populateSchemaTables(ctx context.Context, wrapper TxWrapper, replaceExisting bool) error {
 	tx := wrapper.tx
 
 	// Read all existing namespaces (not deleted ones)
@@ -99,9 +103,21 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 		return fmt.Errorf("error iterating caveats: %w", err)
 	}
 
-	// If there are no namespaces or caveats, skip migration
+	// Leave a pristine database without a stored schema. An empty legacy schema
+	// must still replace an existing, stale unified copy during refresh.
 	if len(namespaces) == 0 && len(caveats) == 0 {
-		return nil
+		if !replaceExisting {
+			return nil
+		}
+		var exists bool
+		//nolint:gosec // Table names come from validated internal schema configuration.
+		query := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE name = ? AND deleted_transaction = 9223372036854775807)`, wrapper.tables.Schema())
+		if err := tx.QueryRowContext(ctx, query, unifiedSchemaName).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
 	}
 
 	// Generate canonical schema for hash computation
@@ -149,6 +165,20 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 	newTxnID, err := mysqlCommon.InsertNewTransaction(ctx, tx, wrapper.tables.RelationTupleTransaction(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create transaction for schema population: %w", err)
+	}
+
+	if replaceExisting {
+		for _, entry := range []struct{ table, name string }{
+			{wrapper.tables.Schema(), unifiedSchemaName},
+			{wrapper.tables.SchemaRevision(), schemaRevisionName},
+		} {
+			//nolint:gosec // Table names come from validated internal schema configuration.
+			query := fmt.Sprintf(`UPDATE %s SET deleted_transaction = ?
+				WHERE name = ? AND deleted_transaction = 9223372036854775807`, entry.table)
+			if _, err := tx.ExecContext(ctx, query, newTxnID, entry.name); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Insert schema chunks
