@@ -467,17 +467,17 @@ var generatorFuncs = map[string]generatorFunc{
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
 		return checkRequestToKey(&v1.DispatchCheckRequest{
-				ResourceRelation: resourceRelation,
-				ResourceIds:      resourceIds,
-				Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				Metadata:         metadata,
-			}), []string{
-				resourceRelation.Namespace,
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
-				subjectIds[0],
-				subjectRelation.Relation,
-			}
+			ResourceRelation: resourceRelation,
+			ResourceIds:      resourceIds,
+			Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+			Metadata:         metadata,
+		}), []string{
+			resourceRelation.Namespace,
+			resourceRelation.Relation,
+			subjectRelation.Namespace,
+			subjectIds[0],
+			subjectRelation.Relation,
+		}
 	},
 
 	// Canonical Check.
@@ -536,13 +536,13 @@ var generatorFuncs = map[string]generatorFunc{
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
 		return expandRequestToKey(&v1.DispatchExpandRequest{
-				ResourceAndRelation: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
-				Metadata:            metadata,
-			}), []string{
-				resourceRelation.Namespace,
-				resourceIds[0],
-				resourceRelation.Relation,
-			}
+			ResourceAndRelation: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+			Metadata:            metadata,
+		}), []string{
+			resourceRelation.Namespace,
+			resourceIds[0],
+			resourceRelation.Relation,
+		}
 	},
 
 	// Plan Check.
@@ -554,20 +554,20 @@ var generatorFuncs = map[string]generatorFunc{
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
 		return planCheckRequestToKey(&v1.DispatchQueryPlanRequest{
-				Resource: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
-				Subject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				PlanContext: &v1.PlanContext{
-					Revision:       metadata.AtRevision,
-					InProgressKeys: []string{resourceRelation.Relation},
-				},
-			}), []string{
-				resourceRelation.Relation,
-				resourceRelation.Namespace,
-				resourceIds[0],
-				subjectRelation.Namespace,
-				subjectIds[0],
-				subjectRelation.Relation,
-			}
+			Resource: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+			Subject:  ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+			PlanContext: &v1.PlanContext{
+				Revision:       metadata.AtRevision,
+				InProgressKeys: []string{resourceRelation.Relation},
+			},
+		}), []string{
+			resourceRelation.Relation,
+			resourceRelation.Namespace,
+			resourceIds[0],
+			subjectRelation.Namespace,
+			subjectIds[0],
+			subjectRelation.Relation,
+		}
 	},
 
 	// Plan Lookup Resources.
@@ -579,17 +579,17 @@ var generatorFuncs = map[string]generatorFunc{
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
 		return planLookupResourcesRequestToKey(&v1.DispatchQueryPlanRequest{
-				Subject: ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				PlanContext: &v1.PlanContext{
-					Revision:       metadata.AtRevision,
-					InProgressKeys: []string{resourceRelation.Relation},
-				},
-			}), []string{
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
-				subjectIds[0],
-				subjectRelation.Relation,
-			}
+			Subject: ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+			PlanContext: &v1.PlanContext{
+				Revision:       metadata.AtRevision,
+				InProgressKeys: []string{resourceRelation.Relation},
+			},
+		}), []string{
+			resourceRelation.Relation,
+			subjectRelation.Namespace,
+			subjectIds[0],
+			subjectRelation.Relation,
+		}
 	},
 
 	// Plan Lookup Subjects.
@@ -601,16 +601,16 @@ var generatorFuncs = map[string]generatorFunc{
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
 		return planLookupSubjectsRequestToKey(&v1.DispatchQueryPlanRequest{
-				Resource: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
-				PlanContext: &v1.PlanContext{
-					Revision:       metadata.AtRevision,
-					InProgressKeys: []string{resourceRelation.Relation},
-				},
-			}), []string{
-				resourceRelation.Relation,
-				resourceRelation.Namespace,
-				resourceIds[0],
-			}
+			Resource: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
+			PlanContext: &v1.PlanContext{
+				Revision:       metadata.AtRevision,
+				InProgressKeys: []string{resourceRelation.Relation},
+			},
+		}), []string{
+			resourceRelation.Relation,
+			resourceRelation.Namespace,
+			resourceIds[0],
+		}
 	},
 
 	// Lookup Subjects.
