@@ -10,7 +10,7 @@ type Hint = planhint.Hint
 
 // ArrowDirectionHint creates an unbound typed arrow recommendation for a legacy advisor.
 func ArrowDirectionHint(direction arrowDirection) Hint {
-	typed := planhint.Direction(255)
+	typed := planhint.InvalidDirection
 
 	switch direction {
 	case leftToRight:

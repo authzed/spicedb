@@ -35,6 +35,9 @@ const (
 
 	// RightToLeft recommends evaluating the arrow from its right side.
 	RightToLeft
+
+	// InvalidDirection marks an unsupported direction and fails validation.
+	InvalidDirection Direction = 255
 )
 
 // Payload is a typed recommendation with validation and kind inspection.
