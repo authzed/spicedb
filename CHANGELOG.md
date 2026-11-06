@@ -419,7 +419,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - add codecov badge
 - include integration tests in code coverage
 - collect unit test coverage for codecov to work
-- Handle both kinds of cancelation errors in test, part 2
+- Handle both kinds of cancellation errors in test, part 2
 - revert PR #2382
 - Remove subject check for deleted definitions in schema
 
