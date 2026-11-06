@@ -45,6 +45,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/datalayer/schemamode"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -100,7 +101,7 @@ type Config struct {
 
 	// Schema options
 	SchemaPrefixesRequired bool   `debugmap:"visible"`
-	ExperimentalSchemaMode string `debugmap:"visible" default:"read-legacy-write-legacy"`
+	ExperimentalSchemaMode string `debugmap:"visible" default:"read-new-write-both"`
 
 	// Dispatch options
 	DispatchServer                    util.GRPCServerConfig    `debugmap:"visible"`
@@ -258,6 +259,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		}
 	}
 
+	// Select the mode before creating the datastore so bootstrap writes use the
+	// same schema storage as the server. Keep legacy storage current for fallback.
+	schemaMode, err := schemamode.Resolve(c.ExperimentalSchemaMode, c.DatastoreConfig.MigrationPhase)
+	if err != nil {
+		return nil, err
+	}
+
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](c.OTel.PrometheusRegistry,
 		// the namespace cache has revisions in its keys, so it needs
 		// this configuration to ensure that those entries expire along
@@ -272,6 +280,10 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
 	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
+	if schemaMode.ReadsFromNew() {
+		// Unified reads skip the legacy caching proxy, which normally closes this cache.
+		closeables.AddWithoutError(nscc.Close)
+	}
 
 	ds := c.Datastore
 	if ds == nil {
@@ -282,6 +294,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			// are at most the number of elements returned from a datastore query
 			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
 			datastorecfg.WithEnableRevisionHeartbeat(c.EnableRevisionHeartbeat),
+			datastorecfg.WithBootstrapSchemaMode(schemaMode),
 		)
 		if err != nil {
 			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).
@@ -306,17 +319,10 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	log.Ctx(ctx).Info().EmbedObject(storedSchemaCache).Msg("configured stored schema cache")
 	closeables.AddWithoutError(storedSchemaCache.Close)
 
-	// Parse schema mode early so proxy setup can depend on it.
-	var dlOpts []datalayer.DataLayerOption
-	dlOpts = append(dlOpts, datalayer.WithSchemaCache(storedSchemaCache))
-	schemaMode := datalayer.SchemaModeReadLegacyWriteLegacy
-	if c.ExperimentalSchemaMode != "" {
-		schemaMode, err = datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
-		if err != nil {
-			return nil, err
-		}
+	dlOpts := []datalayer.DataLayerOption{
+		datalayer.WithSchemaCache(storedSchemaCache),
+		datalayer.WithSchemaMode(schemaMode),
 	}
-	dlOpts = append(dlOpts, datalayer.WithSchemaMode(schemaMode))
 
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	ds = proxy.NewSingleflightDatastoreProxy(ds)

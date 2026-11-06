@@ -39,7 +39,7 @@ func TestConsistencyWithSelfKeyword(t *testing.T) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dl := datalayer.NewDataLayer(ds)
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth))
 	dsCtx := datalayer.ContextWithHandle(t.Context())
 	require.NoError(t, datalayer.SetInContext(dsCtx, dl))
 

@@ -22,136 +22,158 @@ func init() {
 	if err := SpannerMigrations.Register("populate-schema-tables", "add-schema-tables",
 		nil, // No DDL changes needed
 		func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
-			// Read all existing namespaces
-			stmt := spanner.Statement{
-				SQL: `SELECT namespace, serialized_config
-				      FROM namespace_config
-				      WHERE timestamp = (SELECT MAX(timestamp) FROM namespace_config nc WHERE nc.namespace = namespace_config.namespace)`,
-			}
-
-			iter := rwt.Query(ctx, stmt)
-			defer iter.Stop()
-
-			namespaces := make(map[string]*core.NamespaceDefinition)
-			err := iter.Do(func(row *spanner.Row) error {
-				var name string
-				var config []byte
-				if err := row.Columns(&name, &config); err != nil {
-					return fmt.Errorf("failed to scan namespace: %w", err)
-				}
-
-				var ns core.NamespaceDefinition
-				if err := ns.UnmarshalVT(config); err != nil {
-					return fmt.Errorf("failed to unmarshal namespace %s: %w", name, err)
-				}
-				namespaces[name] = &ns
-				return nil
-			})
-			if err != nil {
-				return fmt.Errorf("failed to query namespaces: %w", err)
-			}
-
-			// Read all existing caveats
-			stmt = spanner.Statement{
-				SQL: `SELECT name, definition
-				      FROM caveat
-				      WHERE timestamp = (SELECT MAX(timestamp) FROM caveat c WHERE c.name = caveat.name)`,
-			}
-
-			iter = rwt.Query(ctx, stmt)
-			defer iter.Stop()
-
-			caveats := make(map[string]*core.CaveatDefinition)
-			err = iter.Do(func(row *spanner.Row) error {
-				var name string
-				var definition []byte
-				if err := row.Columns(&name, &definition); err != nil {
-					return fmt.Errorf("failed to scan caveat: %w", err)
-				}
-
-				var caveat core.CaveatDefinition
-				if err := caveat.UnmarshalVT(definition); err != nil {
-					return fmt.Errorf("failed to unmarshal caveat %s: %w", name, err)
-				}
-				caveats[name] = &caveat
-				return nil
-			})
-			if err != nil {
-				return fmt.Errorf("failed to query caveats: %w", err)
-			}
-
-			// If there are no namespaces or caveats, skip migration
-			if len(namespaces) == 0 && len(caveats) == 0 {
-				return nil
-			}
-
-			// Generate canonical schema for hash computation
-			allDefs := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
-			for _, ns := range namespaces {
-				allDefs = append(allDefs, ns)
-			}
-			for _, caveat := range caveats {
-				allDefs = append(allDefs, caveat)
-			}
-
-			// Generate schema text
-			schemaText, _, err := generator.GenerateSchema(ctx, allDefs)
-			if err != nil {
-				return fmt.Errorf("failed to generate schema: %w", err)
-			}
-
-			// Compute schema hash
-			schemaHash, err := generator.ComputeSchemaHash(allDefs)
-			if err != nil {
-				return fmt.Errorf("failed to compute schema hash: %w", err)
-			}
-
-			// Create stored schema proto
-			storedSchema := &core.StoredSchema{
-				Version: currentSchemaVersion,
-				VersionOneof: &core.StoredSchema_V1{
-					V1: &core.StoredSchema_V1StoredSchema{
-						SchemaText:           schemaText,
-						SchemaHash:           schemaHash,
-						NamespaceDefinitions: namespaces,
-						CaveatDefinitions:    caveats,
-					},
-				},
-			}
-
-			// Marshal schema
-			schemaData, err := storedSchema.MarshalVT()
-			if err != nil {
-				return fmt.Errorf("failed to marshal schema: %w", err)
-			}
-
-			// Insert schema chunks using mutations
-			var mutations []*spanner.Mutation
-			for chunkIndex := 0; chunkIndex*schemaChunkSize < len(schemaData); chunkIndex++ {
-				start := chunkIndex * schemaChunkSize
-				end := start + schemaChunkSize
-				if end > len(schemaData) {
-					end = len(schemaData)
-				}
-				chunk := schemaData[start:end]
-
-				mutations = append(mutations, spanner.Insert(
-					"schema",
-					[]string{"name", "chunk_index", "chunk_data", "timestamp"},
-					[]any{unifiedSchemaName, chunkIndex, chunk, spanner.CommitTimestamp},
-				))
-			}
-
-			// Insert schema hash
-			mutations = append(mutations, spanner.Insert(
-				"schema_revision",
-				[]string{"name", "schema_hash", "timestamp"},
-				[]any{schemaRevisionName, schemaHash, spanner.CommitTimestamp},
-			))
-
-			// Apply mutations
-			return rwt.BufferWrite(mutations)
+			return populateSchemaTables(ctx, rwt, false)
 		}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}
+}
+
+func populateSchemaTables(ctx context.Context, rwt *spanner.ReadWriteTransaction, replaceExisting bool) error {
+	// Read all existing namespaces
+	stmt := spanner.Statement{
+		SQL: `SELECT namespace, serialized_config
+		      FROM namespace_config
+		      WHERE timestamp = (SELECT MAX(timestamp) FROM namespace_config nc WHERE nc.namespace = namespace_config.namespace)`,
+	}
+
+	iter := rwt.Query(ctx, stmt)
+	defer iter.Stop()
+
+	namespaces := make(map[string]*core.NamespaceDefinition)
+	err := iter.Do(func(row *spanner.Row) error {
+		var name string
+		var config []byte
+		if err := row.Columns(&name, &config); err != nil {
+			return fmt.Errorf("failed to scan namespace: %w", err)
+		}
+
+		var ns core.NamespaceDefinition
+		if err := ns.UnmarshalVT(config); err != nil {
+			return fmt.Errorf("failed to unmarshal namespace %s: %w", name, err)
+		}
+		namespaces[name] = &ns
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to query namespaces: %w", err)
+	}
+
+	// Read all existing caveats
+	stmt = spanner.Statement{
+		SQL: `SELECT name, definition
+		      FROM caveat
+		      WHERE timestamp = (SELECT MAX(timestamp) FROM caveat c WHERE c.name = caveat.name)`,
+	}
+
+	iter = rwt.Query(ctx, stmt)
+	defer iter.Stop()
+
+	caveats := make(map[string]*core.CaveatDefinition)
+	err = iter.Do(func(row *spanner.Row) error {
+		var name string
+		var definition []byte
+		if err := row.Columns(&name, &definition); err != nil {
+			return fmt.Errorf("failed to scan caveat: %w", err)
+		}
+
+		var caveat core.CaveatDefinition
+		if err := caveat.UnmarshalVT(definition); err != nil {
+			return fmt.Errorf("failed to unmarshal caveat %s: %w", name, err)
+		}
+		caveats[name] = &caveat
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to query caveats: %w", err)
+	}
+
+	// Leave a pristine database without a stored schema. An empty legacy schema
+	// must still replace an existing, stale unified copy during refresh.
+	if len(namespaces) == 0 && len(caveats) == 0 {
+		if !replaceExisting {
+			return nil
+		}
+		var count int64
+		iter := rwt.Query(ctx, spanner.Statement{SQL: `SELECT COUNT(*) FROM schema WHERE name = @name`, Params: map[string]any{"name": unifiedSchemaName}})
+		defer iter.Stop()
+		if err := iter.Do(func(row *spanner.Row) error { return row.Columns(&count) }); err != nil {
+			return err
+		}
+		if count == 0 {
+			return nil
+		}
+	}
+
+	// Generate canonical schema for hash computation
+	allDefs := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
+	for _, ns := range namespaces {
+		allDefs = append(allDefs, ns)
+	}
+	for _, caveat := range caveats {
+		allDefs = append(allDefs, caveat)
+	}
+
+	// Generate schema text
+	schemaText, _, err := generator.GenerateSchema(ctx, allDefs)
+	if err != nil {
+		return fmt.Errorf("failed to generate schema: %w", err)
+	}
+
+	// Compute schema hash
+	schemaHash, err := generator.ComputeSchemaHash(allDefs)
+	if err != nil {
+		return fmt.Errorf("failed to compute schema hash: %w", err)
+	}
+
+	// Create stored schema proto
+	storedSchema := &core.StoredSchema{
+		Version: currentSchemaVersion,
+		VersionOneof: &core.StoredSchema_V1{
+			V1: &core.StoredSchema_V1StoredSchema{
+				SchemaText:           schemaText,
+				SchemaHash:           schemaHash,
+				NamespaceDefinitions: namespaces,
+				CaveatDefinitions:    caveats,
+			},
+		},
+	}
+
+	// Marshal schema
+	schemaData, err := storedSchema.MarshalVT()
+	if err != nil {
+		return fmt.Errorf("failed to marshal schema: %w", err)
+	}
+
+	// Insert schema chunks using mutations
+	var mutations []*spanner.Mutation
+	if replaceExisting {
+		mutations = append(mutations,
+			spanner.Delete("schema", spanner.Key{unifiedSchemaName}.AsPrefix()),
+			spanner.Delete("schema_revision", spanner.Key{schemaRevisionName}),
+		)
+	}
+	for chunkIndex := 0; chunkIndex*schemaChunkSize < len(schemaData); chunkIndex++ {
+		start := chunkIndex * schemaChunkSize
+		end := start + schemaChunkSize
+		if end > len(schemaData) {
+			end = len(schemaData)
+		}
+		chunk := schemaData[start:end]
+
+		mutations = append(mutations, spanner.Insert(
+			"schema",
+			[]string{"name", "chunk_index", "chunk_data", "timestamp"},
+			[]any{unifiedSchemaName, chunkIndex, chunk, spanner.CommitTimestamp},
+		))
+	}
+
+	// Insert schema hash
+	mutations = append(mutations, spanner.Insert(
+		"schema_revision",
+		[]string{"name", "schema_hash", "timestamp"},
+		[]any{schemaRevisionName, schemaHash, spanner.CommitTimestamp},
+	))
+
+	// Apply mutations
+	return rwt.BufferWrite(mutations)
 }

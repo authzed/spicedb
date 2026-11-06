@@ -29,6 +29,8 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().String("datastore-mysql-table-prefix", "", "prefix to add to the name of all mysql database tables")
 	cmd.Flags().Uint64("migration-backfill-batch-size", 1000, "number of items to migrate per iteration of a datastore backfill")
+	cmd.Flags().String("experimental-schema-mode", "read-new-write-both", "schema storage mode; read-new-write-new preserves unified-only schema during migration")
+	cmd.Flags().String("datastore-migration-phase", "", "phase of a multi-step migration: schema-write-both-read-old prepares unified storage, schema-write-both-read-new enables unified reads, or an engine-specific phase")
 	cmd.Flags().Duration("migration-timeout", 1*time.Hour, "defines a timeout for the execution of the migration, set to 1 hour by default")
 
 	util.RegisterCommonFlags(cmd)
@@ -63,6 +65,8 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		MySQLTablePrefix:        cobrautil.MustGetString(cmd, "datastore-mysql-table-prefix"),
 		Timeout:                 cobrautil.MustGetDuration(cmd, "migration-timeout"),
 		BatchSize:               cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size"),
+		SchemaMode:              cobrautil.MustGetString(cmd, "experimental-schema-mode"),
+		MigrationPhase:          cobrautil.MustGetString(cmd, "datastore-migration-phase"),
 		ExtraConfig:             extraConfig,
 	}
 
