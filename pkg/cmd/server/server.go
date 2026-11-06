@@ -45,6 +45,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/datalayer/schemamode"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -265,12 +266,9 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	// Select the mode before creating the datastore so bootstrap writes use the
 	// same schema storage as the server. Keep legacy storage current for fallback.
-	schemaMode := datalayer.SchemaModeReadNewWriteBoth
-	if c.ExperimentalSchemaMode != "" {
-		schemaMode, err = datalayer.ParseSchemaMode(c.ExperimentalSchemaMode)
-		if err != nil {
-			return nil, err
-		}
+	schemaMode, err := schemamode.Resolve(c.ExperimentalSchemaMode, c.DatastoreConfig.MigrationPhase)
+	if err != nil {
+		return nil, err
 	}
 
 	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](c.OTel.PrometheusRegistry,

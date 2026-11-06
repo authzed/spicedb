@@ -141,7 +141,7 @@ spicedb datastore delete-relationships [flags]
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
-      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-migration-phase string                                      phase of a multi-step migration: schema-write-both-read-old prepares unified storage, schema-write-both-read-new enables unified reads, or an engine-specific phase
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -234,7 +234,7 @@ spicedb datastore gc [flags]
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
-      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-migration-phase string                                      phase of a multi-step migration: schema-write-both-read-old prepares unified storage, schema-write-both-read-new enables unified reads, or an engine-specific phase
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -318,9 +318,11 @@ spicedb datastore migrate [revision] [flags]
       --datastore-conn-uri string                    connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")
       --datastore-credentials-provider-name string   retrieve datastore credentials dynamically using ("aws-iam")
       --datastore-engine string                      type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
+      --datastore-migration-phase string             phase of a multi-step migration: schema-write-both-read-old prepares unified storage, schema-write-both-read-new enables unified reads, or an engine-specific phase
       --datastore-mysql-table-prefix string          prefix to add to the name of all mysql database tables
       --datastore-spanner-credentials string         path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string       URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
+      --experimental-schema-mode string              schema storage mode; read-new-write-new preserves unified-only schema during migration (default "read-new-write-both")
       --migration-backfill-batch-size uint           number of items to migrate per iteration of a datastore backfill (default 1000)
       --migration-timeout duration                   defines a timeout for the execution of the migration, set to 1 hour by default (default 1h0m0s)
       --pprof-block-profile-rate int                 sets the block profile sampling rate (between 0 and 1)
@@ -379,7 +381,7 @@ spicedb datastore repair [flags]
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
-      --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-migration-phase string                                      phase of a multi-step migration: schema-write-both-read-old prepares unified storage, schema-write-both-read-new enables unified reads, or an engine-specific phase
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -557,7 +559,7 @@ spicedb serve [flags]
       --datastore-gc-window duration                                                    how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
       --datastore-include-query-parameters-in-traces                                    include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
-      --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
+      --datastore-migration-phase string                                                phase of a multi-step migration: schema-write-both-read-old prepares unified storage, schema-write-both-read-new enables unified reads, or an engine-specific phase
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
       --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration             amount of time between connection health checks in a remote datastore's connection pool (default 30s)

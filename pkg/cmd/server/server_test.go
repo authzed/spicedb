@@ -105,15 +105,20 @@ func TestServerBootstrapSchemaMode(t *testing.T) {
 		mode       string
 		wantLegacy bool
 		wantStored bool
+		phase      string
 	}{
-		{"default", NewConfigWithOptionsAndDefaults().ExperimentalSchemaMode, true, true},
-		{"empty", "", true, true},
-		{"legacy fallback", "read-legacy-write-both", true, true},
-		{"legacy only", "read-legacy-write-legacy", true, false},
-		{"unified only", "read-new-write-new", false, true},
+		{"default", NewConfigWithOptionsAndDefaults().ExperimentalSchemaMode, true, true, ""},
+		{"empty", "", true, true, ""},
+		{"legacy fallback", "read-legacy-write-both", true, true, ""},
+		{"legacy only", "read-legacy-write-legacy", true, false, ""},
+		{"unified only", "read-new-write-new", false, true, ""},
+		{"prepare", "read-new-write-both", true, true, "schema-write-both-read-old"},
+		{"promote", "read-new-write-both", true, true, "schema-write-both-read-new"},
+		{"prepare unified only", "read-new-write-new", false, true, "schema-write-both-read-old"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dsConfig := datastore.DefaultDatastoreConfig()
+			dsConfig.MigrationPhase = tc.phase
 			dsConfig.BootstrapFileContents = map[string][]byte{
 				"test": []byte("schema: definition user {}"),
 			}
@@ -159,6 +164,43 @@ func TestServerBootstrapSchemaMode(t *testing.T) {
 			_, found, err := schema.LookupTypeDefByName(t.Context(), "user")
 			require.NoError(t, err)
 			require.True(t, found)
+		})
+	}
+}
+
+func TestServerSchemaPreparationReadsLegacy(t *testing.T) {
+	for _, mode := range []string{"", "read-new-write-new"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			ds, err := datastore.NewDatastore(ctx,
+				datastore.WithEngine(datastore.MemoryEngine),
+				datastore.SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition legacy {}")}),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ds.Close()) })
+			cfg := *datastore.DefaultDatastoreConfig()
+			cfg.MigrationPhase = "schema-write-both-read-old"
+			c := ConfigWithOptions(&Config{}, WithDatastore(ds), WithDatastoreConfig(cfg),
+				WithPresharedSecureKey("psk"), WithExperimentalSchemaMode(mode),
+				WithGRPCServer(util.GRPCServerConfig{Network: util.BufferedNetwork, Enabled: true}),
+				WithEnableMemoryProtectionMiddleware(false),
+			)
+			completed, err := c.complete(ctx)
+			require.NoError(t, err)
+			done := make(chan error, 1)
+			go func() { done <- completed.Run(ctx) }()
+			t.Cleanup(func() { cancel(); require.NoError(t, <-done) })
+			conn, err := completed.NewClient(grpcutil.WithInsecureBearerToken("psk"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, conn.Close()) })
+			response, err := v1.NewSchemaServiceClient(conn).ReadSchema(ctx, &v1.ReadSchemaRequest{}, grpc.WaitForReady(true))
+			if mode == "read-new-write-new" {
+				require.ErrorContains(t, err, "schema not found")
+			} else {
+				require.NoError(t, err)
+				require.Contains(t, response.SchemaText, "definition legacy")
+			}
 		})
 	}
 }
