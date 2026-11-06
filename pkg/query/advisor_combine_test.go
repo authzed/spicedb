@@ -10,10 +10,10 @@ import (
 func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 	t.Run("returns first non-nil hints", func(t *testing.T) {
 		advisor1 := &mockAdvisor{
-			hints: []Hint{func(Iterator) error { return nil }},
+			hints: []Hint{ArrowDirectionHint(leftToRight)},
 		}
 		advisor2 := &mockAdvisor{
-			hints: []Hint{func(Iterator) error { return nil }},
+			hints: []Hint{ArrowDirectionHint(leftToRight)},
 		}
 
 		combined := CombinePlanAdvisors(advisor1, advisor2)
@@ -28,7 +28,7 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 			hints: []Hint{},
 		}
 		advisor2 := &mockAdvisor{
-			hints: []Hint{func(Iterator) error { return nil }},
+			hints: []Hint{ArrowDirectionHint(leftToRight)},
 		}
 
 		combined := CombinePlanAdvisors(advisor1, advisor2)
@@ -59,7 +59,7 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 			err: testErr,
 		}
 		advisor2 := &mockAdvisor{
-			hints: []Hint{func(Iterator) error { return nil }},
+			hints: []Hint{ArrowDirectionHint(leftToRight)},
 		}
 
 		combined := CombinePlanAdvisors(advisor1, advisor2)
@@ -77,7 +77,7 @@ func TestCombinePlanAdvisors_GetHints(t *testing.T) {
 			hints: []Hint{},
 		}
 		advisor3 := &mockAdvisor{
-			hints: []Hint{func(Iterator) error { return nil }},
+			hints: []Hint{ArrowDirectionHint(leftToRight)},
 		}
 
 		combined := CombinePlanAdvisors(advisor1, advisor2, advisor3)
