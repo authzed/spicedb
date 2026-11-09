@@ -470,7 +470,10 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)
 	spanName := "DispatchLookupSubjects → " + resourceType + "@" + subjectRelation
 
-	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(
+	// An incoming hint is for the dispatch to this node. The dispatches of this node set their own hints.
+	// Remove it, so a dispatch without a hint does not use it.
+	ctx := dispatch.WithRoutingHintIfNeeded(stream.Context(), dispatch.RoutingHint{})
+	ctx, span := tracer.Start(ctx, spanName, trace.WithAttributes(
 		attribute.String(otelconv.AttrDispatchResourceType, resourceType),
 		attribute.String(otelconv.AttrDispatchSubjectType, subjectRelation),
 		attribute.StringSlice(otelconv.AttrDispatchResourceIds, req.ResourceIds),

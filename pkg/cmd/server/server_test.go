@@ -640,7 +640,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultUnaryMiddleware(opt)
@@ -668,7 +668,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultStreamingMiddleware(opt)
@@ -813,7 +813,7 @@ func TestBuildDispatchServer(t *testing.T) {
 
 			sampler := memoryprotection.NewNoopMemoryUsageProvider()
 
-			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, nil, nil)
+			srv, err := tc.config.buildDispatchServer(sampler, mockDatastore, mockDispatcher, nil, nil, nil)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 			require.Len(t, tc.config.DispatchUnaryMiddleware, tc.expectedDispatchUnnaryMiddleware)

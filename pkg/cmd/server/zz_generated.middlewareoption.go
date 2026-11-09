@@ -44,6 +44,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
 		to.MemoryUsageProvider = m.MemoryUsageProvider
+		to.DispatchChunkerForMiddleware = m.DispatchChunkerForMiddleware
 	}
 }
 
@@ -173,5 +174,12 @@ func WithMismatchingZedTokenOption(mismatchingZedTokenOption consistency.Mismatc
 func WithMemoryUsageProvider(memoryUsageProvider memoryprotection.MemoryUsageProvider) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MemoryUsageProvider = memoryUsageProvider
+	}
+}
+
+// WithDispatchChunkerForMiddleware returns an option that can set DispatchChunkerForMiddleware on a MiddlewareOption
+func WithDispatchChunkerForMiddleware(dispatchChunkerForMiddleware dispatch.Chunker) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.DispatchChunkerForMiddleware = dispatchChunkerForMiddleware
 	}
 }
