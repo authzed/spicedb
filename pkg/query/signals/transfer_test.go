@@ -79,7 +79,10 @@ func TestHistoricalSelectiveSchemaTransfer(t *testing.T) {
 func TestSchemaABADoesNotDoubleSeed(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		o := querysignalstest.Owner(t, resultsize.New(), historicalresultsize.New())
-		a, err := o.Bind(querysignalstest.Schema(t, "a", original), signal.Scope{SchemaHash: "a", Revision: revisions.NewForTransactionID(1)})
+		a, err := o.Bind(
+			querysignalstest.Schema(t, "a", original),
+			signal.Scope{SchemaHash: "a", Revision: revisions.NewForTransactionID(1)},
+		)
 		require.NoError(t, err)
 		k := signal.ExecutionKey{Identity: "x", Operation: signal.IterSubjects}
 
@@ -112,7 +115,10 @@ func TestSchemaDiscountPreservesValueAndAge(t *testing.T) {
 			return signal.TransferDecision{Action: signal.Discount, Factor: .5, Reason: "test-compatible-change"}
 		}
 		o := querysignalstest.Owner(t, resultsize.New(), d)
-		a, err := o.Bind(querysignalstest.Schema(t, "a", original), signal.Scope{SchemaHash: "a", Revision: revisions.NewForTransactionID(1)})
+		a, err := o.Bind(
+			querysignalstest.Schema(t, "a", original),
+			signal.Scope{SchemaHash: "a", Revision: revisions.NewForTransactionID(1)},
+		)
 		require.NoError(t, err)
 		k := signal.ExecutionKey{Identity: "x", Operation: signal.IterSubjects}
 

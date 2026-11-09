@@ -347,6 +347,16 @@ func TestCompareResultsEvaluationErrors(t *testing.T) {
 	conditional := testPath("o_a", "...")
 	conditional.Caveat = caveats.CaveatAsExpr(&core.ContextualizedCaveat{CaveatName: "enabled"})
 	plain := testPath("o_a", "...")
-	require.NoError(t, compareResults(t.Context(), sr, query.OperationCheck, []*query.Path{conditional, plain}, []*query.Path{plain}, map[string]any{"ok": false}))
-	require.NoError(t, compareResults(t.Context(), sr, query.OperationCheck, []*query.Path{conditional, conditional}, []*query.Path{conditional}, map[string]any{"ok": true}))
+	require.NoError(t, compareResults(
+		t.Context(), sr, query.OperationCheck,
+		[]*query.Path{conditional, plain},
+		[]*query.Path{plain},
+		map[string]any{"ok": false},
+	))
+	require.NoError(t, compareResults(
+		t.Context(), sr, query.OperationCheck,
+		[]*query.Path{conditional, conditional},
+		[]*query.Path{conditional},
+		map[string]any{"ok": true},
+	))
 }
