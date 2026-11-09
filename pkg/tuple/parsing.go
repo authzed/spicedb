@@ -39,7 +39,7 @@ var subjectExpr = fmt.Sprintf(
 
 var (
 	caveatExpr     = fmt.Sprintf(`\[(?P<caveatName>(%s))(:(?P<caveatContext>(\{(.+)\})))?\]`, caveatNameExpr)
-	expirationExpr = `\[expiration:(?P<expirationDateTime>([\d\-\.:TZ]+))\]`
+	expirationExpr = `\[expiration:(?P<expirationDateTime>([\d+\-.:TZ]+))\]`
 )
 
 var (
