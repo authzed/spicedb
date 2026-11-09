@@ -94,10 +94,11 @@ func caveatPushdownInner(outline query.Outline, originalID query.OutlineNodeID) 
 	for i, sub := range child.SubOutlines {
 		if outlineContainsCaveat(sub, caveat.CaveatName) {
 			wrapped := query.Outline{
-				Type:        query.CaveatIteratorType,
-				Args:        outline.Args,
-				SubOutlines: []query.Outline{sub},
-				ID:          originalID,
+				Type:                     query.CaveatIteratorType,
+				Args:                     outline.Args,
+				IndependentCheckBranches: outline.IndependentCheckBranches,
+				SubOutlines:              []query.Outline{sub},
+				ID:                       originalID,
 			}
 			newSubs[i] = caveatPushdownInner(wrapped, originalID)
 			changed = true
@@ -112,10 +113,11 @@ func caveatPushdownInner(outline query.Outline, originalID query.OutlineNodeID) 
 
 	// Return the child with updated grandchildren, dropping the outer caveat wrapper.
 	return query.Outline{
-		Type:        child.Type,
-		Args:        child.Args,
-		SubOutlines: newSubs,
-		ID:          child.ID,
+		Type:                     child.Type,
+		Args:                     child.Args,
+		IndependentCheckBranches: child.IndependentCheckBranches,
+		SubOutlines:              newSubs,
+		ID:                       child.ID,
 	}
 }
 

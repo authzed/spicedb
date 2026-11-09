@@ -118,7 +118,8 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resource Object, subject ObjectA
 			if ctx.shouldTrace() {
 				ctx.TraceStep(f, "found matching path")
 			}
-			return &path, nil
+
+			return ownedPath(&path), nil
 		}
 	}
 
@@ -139,7 +140,8 @@ func (f *FixedIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 			// Check if the path's resource matches the requested resource
 			if f.paths[i].Resource.Equals(resource) {
 				count++
-				if !yield(&f.paths[i], nil) {
+
+				if !yield(ownedPath(&f.paths[i]), nil) {
 					return
 				}
 			}
@@ -162,7 +164,8 @@ func (f *FixedIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 			// Check if the path's subject matches the requested subject
 			if f.paths[i].Subject.ObjectID == subject.ObjectID && f.paths[i].Subject.ObjectType == subject.ObjectType && f.paths[i].Subject.Relation == subject.Relation {
 				count++
-				if !yield(&f.paths[i], nil) {
+
+				if !yield(ownedPath(&f.paths[i]), nil) {
 					return
 				}
 			}
@@ -184,7 +187,10 @@ func (f *FixedIterator) Explain() Explain {
 func (f *FixedIterator) Clone() Iterator {
 	// Create a copy of the paths slice
 	clonedPaths := make([]Path, len(f.paths))
-	copy(clonedPaths, f.paths)
+
+	for index := range f.paths {
+		clonedPaths[index] = *ownedPath(&f.paths[index])
+	}
 
 	// Create a copy of subject types slice
 	clonedSubjectTypes := make([]ObjectType, len(f.subjectTypes))

@@ -103,9 +103,10 @@ func flattenAssociativity(outline query.Outline) query.Outline {
 
 	default:
 		return query.Outline{
-			Type:        outline.Type,
-			Args:        outline.Args,
-			SubOutlines: newChildren,
+			Type:                     outline.Type,
+			Args:                     outline.Args,
+			IndependentCheckBranches: outline.IndependentCheckBranches,
+			SubOutlines:              newChildren,
 		}
 	}
 }
@@ -275,13 +276,18 @@ func exclusionLeftPruning(outline query.Outline) query.Outline {
 	case 1:
 		newLeft = survivors[0]
 	default:
-		newLeft = query.Outline{Type: query.UnionIteratorType, SubOutlines: survivors}
+		newLeft = query.Outline{
+			Type:                     query.UnionIteratorType,
+			IndependentCheckBranches: left.IndependentCheckBranches,
+			SubOutlines:              survivors,
+		}
 	}
 
 	return query.Outline{
-		Type:        query.ExclusionIteratorType,
-		Args:        outline.Args,
-		SubOutlines: []query.Outline{newLeft, right},
+		Type:                     query.ExclusionIteratorType,
+		Args:                     outline.Args,
+		IndependentCheckBranches: outline.IndependentCheckBranches,
+		SubOutlines:              []query.Outline{newLeft, right},
 	}
 }
 
@@ -312,7 +318,11 @@ func exclusionNullIdentity(outline query.Outline) query.Outline {
 // the second for removal without letting the second also mark the first.
 //
 // A single surviving child is returned unwrapped to avoid a redundant wrapper.
-func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorType, shouldDrop func(y, x query.Outline) bool) query.Outline {
+func eliminateRedundantChildren(
+	outline query.Outline,
+	nodeType query.IteratorType,
+	shouldDrop func(y, x query.Outline) bool,
+) query.Outline {
 	if outline.Type != nodeType || len(outline.SubOutlines) <= 1 {
 		return outline
 	}
@@ -357,9 +367,10 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 	}
 
 	return query.Outline{
-		Type:        nodeType,
-		Args:        outline.Args,
-		SubOutlines: newSubs,
+		Type:                     nodeType,
+		Args:                     outline.Args,
+		IndependentCheckBranches: outline.IndependentCheckBranches,
+		SubOutlines:              newSubs,
 	}
 }
 
