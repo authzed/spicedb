@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -55,7 +56,11 @@ func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates
 // dispatch requests and caches the responses when possible and desirable.
-func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], prometheusmetrics dispatch.MetricsOptions, keyHandler keys.Handler) (*Dispatcher, error) {
+func NewCachingDispatcher(
+	cacheInst cache.Cache[keys.DispatchCacheKey, any],
+	prometheusmetrics dispatch.MetricsOptions,
+	keyHandler keys.Handler,
+) (*Dispatcher, error) {
 	if cacheInst == nil {
 		cacheInst = cache.NoopCache[keys.DispatchCacheKey, any]()
 	}
@@ -432,8 +437,17 @@ func (cd *Dispatcher) LookupPlanCheck(ctx context.Context, lookup dispatch.PlanC
 		lookup.Resource,
 		lookup.Subject,
 		lookup.PlanContext.CaveatContext,
+		lookup.PlanContext.MaxRecursionDepth,
 	)
 	if cachedRaw, found := cd.c.Get(cacheKey); found {
+		// Empty bytes represent a completed denial, distinct from a cache miss.
+		if len(cachedRaw.([]byte)) == 0 {
+			op := dispatch.PlanOperationLabel(v1.PlanOperation_PLAN_OPERATION_CHECK)
+			cd.queryPlanTotalCounter.WithLabelValues(op).Inc()
+			cd.queryPlanFromCacheCounter.WithLabelValues(op).Inc()
+			return nil, true, nil
+		}
+
 		var cachedPath v1.ResultPath
 		if err := cachedPath.UnmarshalVT(cachedRaw.([]byte)); err != nil {
 			return nil, false, err
@@ -452,10 +466,87 @@ func (cd *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream
 	switch req.Operation {
 	case v1.PlanOperation_PLAN_OPERATION_CHECK:
 		return cd.dispatchQueryPlanCheckCached(req, stream)
+	case v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
+		return cd.dispatchQueryPlanBatchCached(req, stream)
 	default:
 		// TODO: add caching for LookupResources and LookupSubjects
 		return cd.d.DispatchQueryPlan(req, stream)
 	}
+}
+
+// dispatchQueryPlanBatchCached buffers the finite Check response sequence, as
+// native dispatch does for its batched result map. Only successful, uncanceled
+// execution can establish a completed denial. Encoded responses give each
+// consumer independent paths and retain every response in an exhaustive batch.
+func (cd *Dispatcher) dispatchQueryPlanBatchCached(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
+	if err := stream.Context().Err(); err != nil {
+		return err
+	}
+
+	key, err := cd.keyHandler.PlanCheckCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := cd.c.Get(key); found {
+		cd.queryPlanFromCacheCounter.WithLabelValues(dispatch.PlanOperationLabel(req.Operation)).Inc()
+
+		for _, encoded := range raw.([][]byte) {
+			response := &v1.DispatchQueryPlanResponse{}
+
+			if err := response.UnmarshalVT(encoded); err != nil {
+				return err
+			}
+
+			if err := stream.Publish(response); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	collected := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](stream.Context())
+
+	if err := cd.d.DispatchQueryPlan(req, collected); err != nil {
+		return err
+	}
+
+	if err := stream.Context().Err(); err != nil {
+		return err
+	}
+
+	responses := collected.Results()
+	encoded := make([][]byte, 0, len(responses))
+	cost := int64(unsafe.Sizeof(encoded)) + safecast.MustConvert[int64](len(responses))*int64(unsafe.Sizeof([]byte{}))
+
+	for _, response := range responses {
+		adjusted := response.CloneVT()
+		if adjusted.Metadata != nil {
+			adjusted.Metadata.CachedDispatchCount = adjusted.Metadata.DispatchCount
+			adjusted.Metadata.DispatchCount = 0
+			adjusted.Metadata.DebugInfo = nil
+		}
+
+		bytes, err := adjusted.MarshalVT()
+		if err != nil {
+			return err
+		}
+
+		encoded = append(encoded, bytes)
+		cost += safecast.MustConvert[int64](len(bytes))
+
+		if err := stream.Publish(response); err != nil {
+			return err
+		}
+	}
+
+	if err := stream.Context().Err(); err != nil {
+		return err
+	}
+
+	cd.c.Set(key, encoded, cost)
+	return nil
 }
 
 func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
@@ -465,6 +556,11 @@ func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequ
 	}
 
 	if cachedPathRaw, found := cd.c.Get(requestKey); found {
+		if len(cachedPathRaw.([]byte)) == 0 {
+			cd.queryPlanFromCacheCounter.WithLabelValues(dispatch.PlanOperationLabel(req.Operation)).Inc()
+			return nil
+		}
+
 		var cachedPath v1.ResultPath
 		if err := cachedPath.UnmarshalVT(cachedPathRaw.([]byte)); err != nil {
 			return err
@@ -475,15 +571,23 @@ func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequ
 		})
 	}
 
-	// Cache miss — collect the streamed result to cache the path.
-	// Check produces at most one response containing a single ResultPath.
+	// A successful scalar Check has either one path or a completed denial.
+	// Store an empty byte slice for a denial; every real path has endpoint fields
+	// and therefore a nonempty encoding. Batch requests never enter this cache.
 	collecting := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](stream.Context())
 	if err := cd.d.DispatchQueryPlan(req, collecting); err != nil {
 		return err
 	}
 
+	if err := stream.Context().Err(); err != nil {
+		return err
+	}
+
+	foundPath := false
+
 	for _, resp := range collecting.Results() {
 		if len(resp.Paths) > 0 {
+			foundPath = true
 			pathBytes, err := resp.Paths[0].MarshalVT()
 			if err == nil {
 				cd.c.Set(requestKey, pathBytes, sliceSize(pathBytes))
@@ -493,6 +597,11 @@ func (cd *Dispatcher) dispatchQueryPlanCheckCached(req *v1.DispatchQueryPlanRequ
 		if err := stream.Publish(resp); err != nil {
 			return err
 		}
+	}
+
+	if !foundPath {
+		denied := []byte{}
+		cd.c.Set(requestKey, denied, sliceSize(denied))
 	}
 
 	return nil

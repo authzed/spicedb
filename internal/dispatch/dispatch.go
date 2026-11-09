@@ -108,7 +108,8 @@ type Plan interface {
 	// LookupPlanCheck consults any caches in the dispatcher chain for a
 	// Plan-Check answer matching lookup, without forcing the caller to
 	// serialize the iterator subtree first. Returns (path, true, nil) on a
-	// cache hit; (nil, false, nil) on a miss (caller should proceed to
+	// grant hit; (nil, true, nil) for a cached denial; (nil, false, nil) on a
+	// miss (caller should proceed to
 	// DispatchQueryPlan); error on a cache I/O failure. Implementations that
 	// hold no cache return (nil, false, nil) and should forward to any wrapped
 	// delegate so chained caches all get probed.

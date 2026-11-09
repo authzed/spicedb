@@ -14,31 +14,35 @@ func New(iteratorType query.IteratorType) optimization.Optimizer {
 	return optimization.Optimizer{
 		Name: Name,
 		Description: `
-		Wraps every AliasIteratorType node in a DispatchIteratorType passthrough
+		Wraps eligible aliases and complete recursive controllers in a dispatch passthrough
 		so the dispatch layer can recognize the (definition, relation) boundary
 		as a dispatch candidate without re-deriving it at runtime. Aliases whose
 		subtree contains an unmatched RecursiveSentinel are left unwrapped — the
 		sentinel must execute inside the collection context established by its
-		matching RecursiveIterator, which is broken by an RPC hop.
+		matching RecursiveIterator, which is broken by an RPC hop. A complete
+		recursive controller is safe to ship and gives the recursive relation
+		ordinary result-cache coverage.
 		`,
 		NewTransform: func(_ optimization.RequestParams) optimization.OutlineTransform {
 			return func(outline query.Outline) query.Outline {
-				return query.MutateOutline(outline, []query.OutlineMutation{func(node query.Outline) query.Outline { return wrapAliasWithDispatch(node, iteratorType) }})
+				return query.MutateOutline(
+					outline,
+					[]query.OutlineMutation{func(node query.Outline) query.Outline { return wrapDispatchBoundary(node, iteratorType) }},
+				)
 			}
 		},
 	}
 }
 
-// wrapAliasWithDispatch is a bottom-up OutlineMutation that wraps each
-// AliasIteratorType node in a DispatchIteratorType node. The wrap is the
-// static portion of the old DispatchExecutor.shouldDispatchAlias check:
-//   - the "is this an alias" test becomes "is this outline node an alias?"
-//   - the sentinel-recursion guard runs over the outline subtree
+// wrapDispatchBoundary marks aliases and complete recursive controllers as
+// relation boundaries. The controller includes the state required by its
+// sentinels; wrapping only the alias inside its template would sever that state.
+// This lets recursive relation results use the same cache as ordinary aliases.
 //
 // The remaining runtime guard (in-progress dispatch-key cycle break) cannot
 // be made static and stays in the executor.
-func wrapAliasWithDispatch(outline query.Outline, iteratorType query.IteratorType) query.Outline {
-	if outline.Type != query.AliasIteratorType {
+func wrapDispatchBoundary(outline query.Outline, iteratorType query.IteratorType) query.Outline {
+	if outline.Type != query.AliasIteratorType && outline.Type != query.RecursiveIteratorType {
 		return outline
 	}
 	if containsUnmatchedRecursiveSentinelOutline(outline) {

@@ -1,6 +1,8 @@
 package keys
 
 import (
+	"strconv"
+
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
@@ -22,6 +24,7 @@ const (
 	expandPrefix              cachePrefix = "e"
 	lookupSubjectsPrefix      cachePrefix = "ls"
 	planCheckPrefix           cachePrefix = "pc"
+	planCheckBatchPrefix      cachePrefix = "pcb"
 	planLookupResourcesPrefix cachePrefix = "pr"
 	planLookupSubjectsPrefix  cachePrefix = "ps"
 )
@@ -33,6 +36,7 @@ var cachePrefixes = []cachePrefix{
 	expandPrefix,
 	lookupSubjectsPrefix,
 	planCheckPrefix,
+	planCheckBatchPrefix,
 	planLookupResourcesPrefix,
 	planLookupSubjectsPrefix,
 }
@@ -72,7 +76,11 @@ func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey s
 	cacheKey := dispatchCacheKeyHash(checkViaCanonicalPrefix, req.Metadata.AtRevision, args...)
 
 	if canonicalKey == "" {
-		return cacheKey, spiceerrors.MustBugf("given empty canonical key for request: %s => %s", req.ResourceRelation, tuple.StringCoreONR(req.Subject))
+		return cacheKey, spiceerrors.MustBugf(
+			"given empty canonical key for request: %s => %s",
+			req.ResourceRelation,
+			tuple.StringCoreONR(req.Subject),
+		)
 	}
 
 	return cacheKey, nil
@@ -80,7 +88,8 @@ func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey s
 
 // expandRequestToKey converts an expand request into a cache key
 func expandRequestToKey(req *v1.DispatchExpandRequest) DispatchCacheKey {
-	return dispatchCacheKeyHash(expandPrefix, req.Metadata.AtRevision,
+	return dispatchCacheKeyHash(
+		expandPrefix, req.Metadata.AtRevision,
 		hashableOnr{req.ResourceAndRelation},
 	)
 }
@@ -91,7 +100,9 @@ func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request) (Disp
 	if err != nil {
 		return emptyDispatchCacheKey, err
 	}
-	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision,
+
+	return dispatchCacheKeyHash(
+		lookupPrefix, req.Metadata.AtRevision,
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
 		hashableIds(req.SubjectIds),
@@ -108,7 +119,9 @@ func lookupResourcesRequest3ToKey(req *v1.DispatchLookupResources3Request) (Disp
 	if err != nil {
 		return emptyDispatchCacheKey, err
 	}
-	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision,
+
+	return dispatchCacheKeyHash(
+		lookupPrefix, req.Metadata.AtRevision,
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
 		hashableIds(req.SubjectIds),
@@ -121,7 +134,8 @@ func lookupResourcesRequest3ToKey(req *v1.DispatchLookupResources3Request) (Disp
 
 // lookupSubjectsRequestToKey converts a lookup subjects request into a cache key
 func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) DispatchCacheKey {
-	return dispatchCacheKeyHash(lookupSubjectsPrefix, req.Metadata.AtRevision,
+	return dispatchCacheKeyHash(
+		lookupSubjectsPrefix, req.Metadata.AtRevision,
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
 		hashableIds(req.ResourceIds),
@@ -130,13 +144,43 @@ func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) DispatchC
 
 // planCheckRequestToKey converts a plan check request into a cache key
 func planCheckRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
+	if req.Operation == v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES || req.Operation == v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS {
+		return planCheckBatchRequestToKey(req)
+	}
+
 	return PlanCheckLookupKey(
 		req.PlanContext.Revision,
 		currentDispatchKey(req.PlanContext),
 		req.Resource,
 		req.Subject,
 		req.PlanContext.CaveatContext,
+		req.PlanContext.MaxRecursionDepth,
 	)
+}
+
+// Finite batch keys preserve the full target vector and result requirement.
+// An existential response can omit unresolved targets, so it must never satisfy
+// an exhaustive batch. A dedicated prefix also isolates the batch's response
+// sequence encoding from the scalar path/denial encoding.
+func planCheckBatchRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
+	pc := req.GetPlanContext()
+	args := make([]hashableValue, 0, 7+len(req.Many))
+	args = append(
+		args,
+		hashableString(currentDispatchKey(pc)),
+		hashableString(strconv.FormatInt(int64(req.Operation), 10)),
+		hashableOnr{req.Resource},
+		hashableOnr{req.Subject},
+		hashableContext{Struct: pc.GetCaveatContext()},
+		hashableString(strconv.FormatInt(int64(pc.GetMaxRecursionDepth()), 10)),
+		hashableResultSetting(req.ResultsSetting),
+	)
+
+	for _, target := range req.Many {
+		args = append(args, hashableOnr{target})
+	}
+
+	return dispatchCacheKeyHash(planCheckBatchPrefix, pc.GetRevision(), args...)
 }
 
 // currentDispatchKey returns the canonical "def#rel" key for the dispatch
@@ -158,19 +202,29 @@ func currentDispatchKey(pc *v1.PlanContext) string {
 // cache without first having to construct a DispatchQueryPlanRequest (which
 // forces iterator serialization). The hashed component set must stay identical
 // to planCheckRequestToKey or the cache-hit fast path and the DispatchQueryPlan
-// slow path will end up on different cache entries.
-func PlanCheckLookupKey(revision string, canonicalKey string, resource, subject *core.ObjectAndRelation, caveatContext *structpb.Struct) DispatchCacheKey {
-	return dispatchCacheKeyHash(planCheckPrefix, revision,
+// slow path will end up on different cache entries. The recursion budget is
+// included because a smaller budget can stop traversal before a cached result.
+func PlanCheckLookupKey(
+	revision string,
+	canonicalKey string,
+	resource, subject *core.ObjectAndRelation,
+	caveatContext *structpb.Struct,
+	maxRecursionDepth int32,
+) DispatchCacheKey {
+	return dispatchCacheKeyHash(
+		planCheckPrefix, revision,
 		hashableString(canonicalKey),
 		hashableOnr{resource},
 		hashableOnr{subject},
 		hashableContext{Struct: caveatContext},
+		hashableString(strconv.FormatInt(int64(maxRecursionDepth), 10)),
 	)
 }
 
 // planLookupResourcesRequestToKey converts a plan lookup resources request into a cache key
 func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
-	return dispatchCacheKeyHash(planLookupResourcesPrefix, req.PlanContext.Revision,
+	return dispatchCacheKeyHash(
+		planLookupResourcesPrefix, req.PlanContext.Revision,
 		hashableString(currentDispatchKey(req.PlanContext)),
 		hashableOnr{req.Subject},
 		hashableContext{Struct: req.PlanContext.CaveatContext},
@@ -179,7 +233,8 @@ func planLookupResourcesRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchC
 
 // planLookupSubjectsRequestToKey converts a plan lookup subjects request into a cache key
 func planLookupSubjectsRequestToKey(req *v1.DispatchQueryPlanRequest) DispatchCacheKey {
-	return dispatchCacheKeyHash(planLookupSubjectsPrefix, req.PlanContext.Revision,
+	return dispatchCacheKeyHash(
+		planLookupSubjectsPrefix, req.PlanContext.Revision,
 		hashableString(currentDispatchKey(req.PlanContext)),
 		hashableOnr{req.Resource},
 		hashableContext{Struct: req.PlanContext.CaveatContext},

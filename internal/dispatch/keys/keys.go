@@ -40,10 +40,10 @@ type Handler interface {
 	// ExpandDispatchKey computes the dispatch key for an Expand operation.
 	ExpandDispatchKey(ctx context.Context, req *v1.DispatchExpandRequest) ([]byte, error)
 
-	// PlanCheckCacheKey computes the caching key for a plan Check operation.
+	// PlanCheckCacheKey computes the caching key for a scalar or finite batch Check.
 	PlanCheckCacheKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) (DispatchCacheKey, error)
 
-	// PlanCheckDispatchKey computes the dispatch key for a plan Check operation.
+	// PlanCheckDispatchKey computes the dispatch key for a scalar or finite batch Check.
 	PlanCheckDispatchKey(ctx context.Context, req *v1.DispatchQueryPlanRequest) ([]byte, error)
 
 	// PlanLookupResourcesCacheKey computes the caching key for a plan LookupResources operation.

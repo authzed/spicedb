@@ -24,9 +24,15 @@ func Bind(owner *signals.Owner, loaded any, revision datastore.Revision, hash st
 	return owner.Local(scope), nil
 }
 
-// Plan runs the decision phase on a memoized read view after dispatch wrapping.
-func Plan(co query.CanonicalOutline, params queryopt.RequestParams, view *signals.View, batched bool) (query.CanonicalOutline, error) {
-	pipeline, err := queryopt.NewPipeline(queryopt.DecisionOptimizers(), view.Registry())
+// Plan runs the policy-selected decision passes on a memoized read view after dispatch wrapping.
+func Plan(
+	co query.CanonicalOutline,
+	params queryopt.RequestParams,
+	view *signals.View,
+	batched bool,
+	passes []optimization.Optimizer,
+) (query.CanonicalOutline, error) {
+	pipeline, err := queryopt.NewPipeline(passes, view.Registry())
 	if err != nil {
 		return query.CanonicalOutline{}, err
 	}

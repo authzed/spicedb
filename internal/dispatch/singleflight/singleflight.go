@@ -60,7 +60,8 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	if len(req.Metadata.TraversalBloom) == 0 {
 		tb, err := v1.NewTraversalBloomFilter(50)
 		if err != nil {
-			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
+			response := &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}
+			return response, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
 		}
 
 		singleFlightCount.WithLabelValues("DispatchCheck", "missing").Inc()
@@ -120,7 +121,8 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	if len(req.Metadata.TraversalBloom) == 0 {
 		tb, err := v1.NewTraversalBloomFilter(50)
 		if err != nil {
-			return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
+			response := &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}
+			return response, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
 		}
 
 		singleFlightCount.WithLabelValues("DispatchExpand", "missing").Inc()
@@ -169,14 +171,17 @@ func (d *Dispatcher) LookupPlanCheck(ctx context.Context, lookup dispatch.PlanCh
 }
 
 func (d *Dispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
-	// Only PLAN_OPERATION_CHECK is request/response-shaped (single ResultPath
-	// per call) and therefore safe to deduplicate via singleflight. The lookup
+	// Scalar and finite batch Checks produce bounded response sequences and are
+	// safe to deduplicate by their complete execution keys. The lookup
 	// variants produce streamed multi-result outputs that don't fit the
 	// single-value singleflight model. Recursion safety is provided by the
 	// receiver-side DispatchExecutor, which refuses to dispatch any alias
 	// whose key is already in PlanContext.in_progress_keys, so a plan-check
 	// can never recurse to itself with the same dispatch key.
-	if req.Operation != v1.PlanOperation_PLAN_OPERATION_CHECK {
+	switch req.Operation {
+	case v1.PlanOperation_PLAN_OPERATION_CHECK, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
+		// These keys include batch targets/result mode and the recursion budget.
+	default:
 		singleFlightCount.WithLabelValues("DispatchQueryPlan", "passthrough").Inc()
 		return d.delegate.DispatchQueryPlan(req, stream)
 	}

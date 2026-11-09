@@ -576,6 +576,41 @@ var generatorFuncs = map[string]generatorFunc{
 		}
 	},
 
+	// Finite resource batch Check.
+	string(planCheckBatchPrefix): func(
+		resourceIds []string,
+		subjectIds []string,
+		resourceRelation *core.RelationReference,
+		subjectRelation *core.RelationReference,
+		metadata *v1.ResolverMeta,
+	) (DispatchCacheKey, []string) {
+		targets := make([]*core.ObjectAndRelation, len(resourceIds))
+
+		for index, id := range resourceIds {
+			targets[index] = &core.ObjectAndRelation{
+				Namespace: resourceRelation.Namespace,
+				ObjectId:  id,
+			}
+		}
+
+		return planCheckRequestToKey(&v1.DispatchQueryPlanRequest{
+				Operation: v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES,
+				Resource:  &core.ObjectAndRelation{},
+				Subject:   ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+				Many:      targets,
+				PlanContext: &v1.PlanContext{
+					Revision:       metadata.AtRevision,
+					InProgressKeys: []string{resourceRelation.Relation},
+				},
+			}), append([]string{
+				resourceRelation.Relation,
+				resourceRelation.Namespace,
+				subjectRelation.Namespace,
+				subjectIds[0],
+				subjectRelation.Relation,
+			}, resourceIds...)
+	},
+
 	// Plan Lookup Resources.
 	string(planLookupResourcesPrefix): func(
 		resourceIds []string,
@@ -698,10 +733,19 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 
 											for prefix, f := range generatorFuncs {
 												t.Run(prefix, func(t *testing.T) {
-													generated, usedData := f(resourceIds, subjectIds, resourceRelation, subjectRelation, metadata)
+													generated, usedData := f(
+														resourceIds,
+														subjectIds,
+														resourceRelation,
+														subjectRelation,
+														metadata,
+													)
 													usedDataString := fmt.Sprintf("%s:%s", prefix, strings.Join(usedData, ","))
 													if dataCombinationSeen.Add(usedDataString) {
-														require.True(t, stableCacheKeysSeen.Add(hex.EncodeToString(generated.StableSumAsBytes())))
+														require.True(
+															t,
+															stableCacheKeysSeen.Add(hex.EncodeToString(generated.StableSumAsBytes())),
+														)
 													}
 												})
 											}
@@ -808,9 +852,24 @@ func TestCheckRequestKeyIncludesCheckHints(t *testing.T) {
 	withTwoHintsReversed.CheckHints = twoHintsReversed()
 
 	t.Run("relation key", func(t *testing.T) {
-		require.NotEqual(t, checkRequestToKey(noHints), checkRequestToKey(withMember), "a hint-influenced check must not share a cache key with a hint-free check")
-		require.NotEqual(t, checkRequestToKey(withMember), checkRequestToKey(withCaveated), "check hints with different results must produce different cache keys")
-		require.Equal(t, checkRequestToKey(withTwoHints), checkRequestToKey(withTwoHintsReversed), "the order of check hints must not influence the cache key")
+		require.NotEqual(
+			t,
+			checkRequestToKey(noHints),
+			checkRequestToKey(withMember),
+			"a hint-influenced check must not share a cache key with a hint-free check",
+		)
+		require.NotEqual(
+			t,
+			checkRequestToKey(withMember),
+			checkRequestToKey(withCaveated),
+			"check hints with different results must produce different cache keys",
+		)
+		require.Equal(
+			t,
+			checkRequestToKey(withTwoHints),
+			checkRequestToKey(withTwoHintsReversed),
+			"the order of check hints must not influence the cache key",
+		)
 	})
 
 	t.Run("canonical key", func(t *testing.T) {
@@ -829,4 +888,21 @@ func TestCheckRequestKeyIncludesCheckHints(t *testing.T) {
 		require.NotEqual(t, keyMember, keyCaveated, "check hints with different results must produce different canonical cache keys")
 		require.Equal(t, keyTwoHints, keyTwoHintsReversed, "the order of check hints must not influence the canonical cache key")
 	})
+}
+
+func TestPlanCheckCacheSeparatesRecursionBudgets(t *testing.T) {
+	request := &v1.DispatchQueryPlanRequest{
+		Resource: &core.ObjectAndRelation{Namespace: "document", ObjectId: "doc1"},
+		Subject:  ONR("user", "alice", "..."),
+		PlanContext: &v1.PlanContext{
+			Revision: "revision", InProgressKeys: []string{"document#view"}, MaxRecursionDepth: 50,
+		},
+	}
+	highBudget := planCheckRequestToKey(request)
+	request.PlanContext.MaxRecursionDepth = 1
+	lowBudget := planCheckRequestToKey(request)
+
+	// A successful deep check cannot answer a request whose smaller budget
+	// would stop traversal with an error before discovering the result.
+	require.NotEqual(t, highBudget, lowBudget)
 }

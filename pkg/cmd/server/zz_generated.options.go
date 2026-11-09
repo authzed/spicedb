@@ -5,10 +5,13 @@ import (
 	"fmt"
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
 	graph "github.com/authzed/spicedb/internal/dispatch/graph"
+	keys "github.com/authzed/spicedb/internal/dispatch/keys"
+	cache "github.com/authzed/spicedb/pkg/cache"
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
 	query "github.com/authzed/spicedb/pkg/query"
+	queryprofile "github.com/authzed/spicedb/pkg/query/queryprofile"
 	signals "github.com/authzed/spicedb/pkg/query/signals"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
@@ -78,6 +81,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchClusterMetricsEnabled = c.DispatchClusterMetricsEnabled
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
 		to.Dispatcher = c.Dispatcher
+		to.QueryProfile = c.QueryProfile
 		to.QuerySignals = c.QuerySignals
 		to.QueryPlanMetadata = c.QueryPlanMetadata
 		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
@@ -87,6 +91,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchSecondaryMaximumPrimaryHedgingDelays = c.DispatchSecondaryMaximumPrimaryHedgingDelays
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
+		to.DispatchCache = c.DispatchCache
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
@@ -741,6 +746,13 @@ func WithDispatcher(dispatcher dispatch.Dispatcher) ConfigOption {
 	}
 }
 
+// WithQueryProfile returns an option that can set QueryProfile on a Config
+func WithQueryProfile(queryProfile queryprofile.Profile) ConfigOption {
+	return func(c *Config) {
+		c.QueryProfile = queryProfile
+	}
+}
+
 // WithQuerySignals returns an option that can set QuerySignals on a Config
 func WithQuerySignals(querySignals *signals.Owner) ConfigOption {
 	return func(c *Config) {
@@ -822,6 +834,13 @@ func SetDispatchSecondaryMaximumPrimaryHedgingDelays(dispatchSecondaryMaximumPri
 func WithDispatchPrimaryDelayForTesting(dispatchPrimaryDelayForTesting time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.DispatchPrimaryDelayForTesting = dispatchPrimaryDelayForTesting
+	}
+}
+
+// WithDispatchCache returns an option that can set DispatchCache on a Config
+func WithDispatchCache(dispatchCache cache.Cache[keys.DispatchCacheKey, any]) ConfigOption {
+	return func(c *Config) {
+		c.DispatchCache = dispatchCache
 	}
 }
 

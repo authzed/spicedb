@@ -1,4 +1,4 @@
-// Package queryplan reuses immutable compiled Check plans owned by stored schemas.
+// Package queryplan prepares policy-configured plans and reuses immutable Check trees owned by stored schemas.
 package queryplan
 
 import (
@@ -85,7 +85,7 @@ func Load(
 	stored, ok := reader.(interface {
 		StoredSchema() *datastore.ReadOnlyStoredSchema
 	})
-	if !ok || stored.StoredSchema() == nil || key.Profile.Name() != queryprofile.NativeParityV1 || key.Operation != query.OperationCheck {
+	if !ok || stored.StoredSchema() == nil || !key.Profile.ReuseCompiledPlan(key.Operation) {
 		plan, err := compile(ctx, key, build, false)
 		if err != nil {
 			return nil, nil, err
