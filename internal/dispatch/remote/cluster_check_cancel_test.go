@@ -99,9 +99,12 @@ func TestHedgedCheckReturnsContextErrorWhenNoDispatcherAnswers(t *testing.T) {
 				require.NoError(t, err)
 				d, err := NewClusterDispatcher(primary, nil, ClusterDispatcherConfig{
 					DispatchOverallTimeout: dispatchTimeout,
-				}, map[string]SecondaryDispatch{
-					"secondary": {Name: "secondary", Client: secondary, MaximumPrimaryHedgingDelay: time.Hour},
-				}, map[string]*DispatchExpr{"check": expr}, time.Hour)
+					SecondaryDispatch: map[string]SecondaryDispatch{
+						"secondary": {Name: "secondary", Client: secondary, MaximumPrimaryHedgingDelay: time.Hour},
+					},
+					SecondaryDispatchExprs:      map[string]*DispatchExpr{"check": expr},
+					StartingPrimaryHedgingDelay: time.Hour,
+				})
 				require.NoError(t, err)
 
 				ctx, cancel := context.WithCancel(t.Context())

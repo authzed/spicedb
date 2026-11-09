@@ -5,20 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/caio/go-tdigest/v4"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/rs/zerolog"
-	"go.uber.org/atomic"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/consistent"
@@ -62,6 +57,20 @@ var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "indicates what was the outcome of a scheduled primary dispatch: dispatched, or cancelled",
 }, []string{"cancelled", "rpc"})
 
+var secondaryStrategyCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_secondary_strategy_total",
+	Help:      "number of dispatches with secondaries, by the strategy used to race them",
+}, []string{"rpc", "strategy"})
+
+var primaryReleaseCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_prefer_secondary_primary_release_total",
+	Help:      "number of prefer_secondary dispatches whose primary was started, by reason: deadline or secondaries_failed",
+}, []string{"rpc", "reason"})
+
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
 const defaultStartingPrimaryHedgingDelay = 1 * time.Millisecond
@@ -77,11 +86,50 @@ const defaultTDigestCompression = float64(1000)
 
 var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
 
+// The children of the per-request-kind metrics, resolved once. Looking a child up by label
+// values hashes the values and locks the vector; these are used on every dispatch with
+// secondaries, from goroutines whose stacks should stay shallow.
+var (
+	hedgeWaitByKey       = histogramsByRequestKey(hedgeWaitHistogram)
+	hedgeActualWaitByKey = histogramsByRequestKey(hedgeActualWaitHistogram)
+	primaryDispatchByKey = primaryDispatchCountersByRequestKey()
+)
+
+func histogramsByRequestKey(vec *prometheus.HistogramVec) map[string]prometheus.Observer {
+	observers := make(map[string]prometheus.Observer, len(supportsSecondaries))
+	for _, reqKey := range supportsSecondaries {
+		observers[reqKey] = vec.WithLabelValues(reqKey)
+	}
+	return observers
+}
+
+func histogramFor(observers map[string]prometheus.Observer, vec *prometheus.HistogramVec, reqKey string) prometheus.Observer {
+	if observer, ok := observers[reqKey]; ok {
+		return observer
+	}
+	return vec.WithLabelValues(reqKey)
+}
+
+// primaryDispatchCountersByRequestKey resolves primaryDispatch's children, indexed by request
+// key, then by whether the primary was canceled (1) or dispatched (0).
+func primaryDispatchCountersByRequestKey() map[string][2]prometheus.Counter {
+	counters := make(map[string][2]prometheus.Counter, len(supportsSecondaries))
+	for _, reqKey := range supportsSecondaries {
+		counters[reqKey] = [2]prometheus.Counter{
+			primaryDispatch.WithLabelValues("false", reqKey),
+			primaryDispatch.WithLabelValues("true", reqKey),
+		}
+	}
+	return counters
+}
+
 func init() {
 	prometheus.MustRegister(dispatchCounter)
 	prometheus.MustRegister(hedgeWaitHistogram)
 	prometheus.MustRegister(hedgeActualWaitHistogram)
 	prometheus.MustRegister(primaryDispatch)
+	prometheus.MustRegister(secondaryStrategyCounter)
+	prometheus.MustRegister(primaryReleaseCounter)
 }
 
 type ClusterClient interface {
@@ -100,6 +148,17 @@ type ClusterDispatcherConfig struct {
 	// DispatchOverallTimeout is the maximum duration of a dispatched request
 	// before it should timeout.
 	DispatchOverallTimeout time.Duration
+
+	// SecondaryDispatch holds the secondary dispatchers, by name.
+	SecondaryDispatch map[string]SecondaryDispatch
+
+	// SecondaryDispatchExprs holds, by request type, the expression that selects the
+	// secondary dispatchers (and the strategy used to race them) for a request.
+	SecondaryDispatchExprs map[string]*DispatchExpr
+
+	// StartingPrimaryHedgingDelay is the primary's hedging delay used until enough
+	// statistics are available. Defaults to defaultStartingPrimaryHedgingDelay.
+	StartingPrimaryHedgingDelay time.Duration
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -118,7 +177,7 @@ type SecondaryDispatch struct {
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr, startingPrimaryHedgingDelay time.Duration) (dispatch.Dispatcher, error) {
+func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig) (dispatch.Dispatcher, error) {
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
@@ -129,33 +188,24 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		dispatchOverallTimeout = 60 * time.Second
 	}
 
+	startingPrimaryHedgingDelay := config.StartingPrimaryHedgingDelay
 	if startingPrimaryHedgingDelay <= 0 {
 		startingPrimaryHedgingDelay = defaultStartingPrimaryHedgingDelay
 	}
 
-	secondaryInitialResponseDigests := make(map[string]*digestAndLock, len(supportsSecondaries))
-	for _, requestKey := range supportsSecondaries {
-		digest, err := tdigest.New(tdigest.Compression(defaultTDigestCompression))
-		if err != nil {
-			return nil, err
-		}
-
-		secondaryInitialResponseDigests[requestKey] = &digestAndLock{
-			digest:                      digest,
-			startingPrimaryHedgingDelay: startingPrimaryHedgingDelay,
-			lock:                        sync.RWMutex{},
-		}
+	stats, err := newRaceStats(startingPrimaryHedgingDelay)
+	if err != nil {
+		return nil, err
 	}
 
 	return &clusterDispatcher{
-		clusterClient:                   client,
-		conn:                            conn,
-		keyHandler:                      keyHandler,
-		dispatchOverallTimeout:          dispatchOverallTimeout,
-		secondaryDispatch:               secondaryDispatch,
-		secondaryDispatchExprs:          secondaryDispatchExprs,
-		secondaryInitialResponseDigests: secondaryInitialResponseDigests,
-		supportedResourceSubjectTracker: newSupportedResourceSubjectTracker(),
+		clusterClient:          client,
+		conn:                   conn,
+		keyHandler:             keyHandler,
+		dispatchOverallTimeout: dispatchOverallTimeout,
+		secondaryDispatch:      config.SecondaryDispatch,
+		secondaryDispatchExprs: config.SecondaryDispatchExprs,
+		stats:                  stats,
 	}, nil
 }
 
@@ -165,42 +215,60 @@ type clusterDispatcher struct {
 	keyHandler             keys.Handler
 	dispatchOverallTimeout time.Duration
 
-	secondaryDispatch               map[string]SecondaryDispatch
-	secondaryDispatchExprs          map[string]*DispatchExpr
-	secondaryInitialResponseDigests map[string]*digestAndLock
-	supportedResourceSubjectTracker *supportedResourceSubjectTracker
+	secondaryDispatch      map[string]SecondaryDispatch
+	secondaryDispatchExprs map[string]*DispatchExpr
+	stats                  *raceStats
 }
 
-// digestAndLock is a struct that holds a TDigest and a lock to protect it.
-type digestAndLock struct {
-	digest                      *tdigest.TDigest // GUARDED_BY(lock)
-	startingPrimaryHedgingDelay time.Duration
-	lock                        sync.RWMutex
-}
-
-// getWaitTime returns the configured percentile of the digest, or a default value if the digest is empty.
-func (dal *digestAndLock) getWaitTime(maximumHedgingDelay time.Duration) time.Duration {
-	dal.lock.RLock()
-	milliseconds := dal.digest.Quantile(defaultHedgerQuantile)
-	count := dal.digest.Count()
-	dal.lock.RUnlock()
-
-	if milliseconds <= 0 || count < minimumDigestCount {
-		return dal.startingPrimaryHedgingDelay
+// dispatchPlanFor evaluates the dispatch expression configured for reqKey. It returns false
+// when there is no expression for reqKey or its evaluation failed: the request then goes to
+// the primary only.
+func (cr *clusterDispatcher) dispatchPlanFor(ctx context.Context, reqKey string, req any) (dispatchPlan, bool) {
+	expr, ok := cr.secondaryDispatchExprs[reqKey]
+	if !ok {
+		return dispatchPlan{}, false
 	}
 
-	waitTime := min(time.Duration(milliseconds)*time.Millisecond, maximumHedgingDelay)
-	return waitTime
+	plan, err := runDispatchExpr(expr, req)
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
+		return dispatchPlan{}, false
+	}
+	return plan, true
 }
 
-func (dal *digestAndLock) addResultTime(ctx context.Context, duration time.Duration) {
-	if dal.lock.TryLock() {
-		err := dal.digest.Add(float64(duration.Milliseconds()))
-		dal.lock.Unlock()
-		if err != nil {
-			log.Ctx(ctx).Warn().Err(err).Msg("error when trying to add result time to digest")
+// resolveParticipants builds the participants of a race: the primary (when allowPrimary),
+// then each named secondary. Unknown and repeated names are dropped. It also returns the
+// number of secondaries.
+func (cr *clusterDispatcher) resolveParticipants(ctx context.Context, names []string, allowPrimary bool) ([]participant, int) {
+	participants := make([]participant, 0, len(names)+1)
+	if allowPrimary {
+		participants = append(participants, participant{
+			name:    primaryDispatcher,
+			primary: true,
+			client:  cr.clusterClient,
+		})
+	}
+
+	secondaries := 0
+	for _, name := range names {
+		secondary, ok := cr.secondaryDispatch[name]
+		if !ok {
+			log.Ctx(ctx).Warn().Str("secondary-dispatcher-name", name).Msg("received unknown secondary dispatcher")
+			continue
 		}
+		if slices.ContainsFunc(participants, func(p participant) bool { return p.name == secondary.Name }) {
+			continue
+		}
+
+		participants = append(participants, participant{
+			name:            secondary.Name,
+			client:          secondary.Client,
+			maxPrimaryDelay: secondary.MaximumPrimaryHedgingDelay,
+		})
+		secondaries++
 	}
+	return participants, secondaries
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -255,19 +323,9 @@ type streamingRequestMessage interface {
 	GetSubjectRelation() *corev1.RelationReference
 }
 
-type respTuple[S responseMessage] struct {
-	resp S
-	err  error
-}
-
-type secondaryRespTuple[S responseMessage] struct {
-	handlerName string
-	resp        S
-}
-
-// dispatchSyncRequest handles the dispatch of a unary request.
-// It first attempts to use the secondary dispatchers, if any are defined and match,
-// before falling back to the primary dispatcher.
+// dispatchSyncRequest handles the dispatch of a unary request. If the request's dispatch
+// expression selects secondaries, the primary and the secondaries are raced according to the
+// expression's strategy; otherwise the request goes to the primary only.
 func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	ctx context.Context,
 	cr *clusterDispatcher,
@@ -280,141 +338,36 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
+	// If no secondary dispatches are defined, just invoke directly.
 	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
 		return handler(withTimeout, cr.clusterClient)
 	}
 
-	// If no secondary dispatches are defined, just invoke directly.
-	expr, ok := cr.secondaryDispatchExprs[reqKey]
+	log.Ctx(ctx).Trace().Object("request", req).Msg("running dispatch expression")
+	plan, ok := cr.dispatchPlanFor(ctx, reqKey, req)
 	if !ok {
 		return handler(withTimeout, cr.clusterClient)
 	}
 
-	// Run the dispatch expression to find the name(s) of the secondary dispatchers to use, if any.
-	log.Ctx(ctx).Trace().Object("request", req).Msg("running dispatch expression")
-	secondaryDispatcherNames, err := RunDispatchExpr(expr, req)
-	if err != nil {
-		log.Ctx(ctx).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
-		return handler(withTimeout, cr.clusterClient)
-	}
-
-	if len(secondaryDispatcherNames) == 0 {
-		// If no secondary dispatches are defined, just invoke directly.
-		log.Ctx(ctx).Trace().Str("request-key", reqKey).Msg("no secondary dispatches defined, running primary dispatch")
+	participants, secondaries := cr.resolveParticipants(ctx, plan.secondaries, true)
+	if secondaries == 0 {
+		log.Ctx(ctx).Trace().Str("request-key", reqKey).Msg("no secondary dispatches selected, running primary dispatch")
 		primaryDispatch.WithLabelValues("false", reqKey).Inc()
 		return handler(withTimeout, cr.clusterClient)
 	}
 
-	var maximumHedgingDelay time.Duration
-	for _, secondaryDispatchName := range secondaryDispatcherNames {
-		secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
-		if !ok {
-			log.Ctx(ctx).Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
-			continue
-		}
-
-		maximumHedgingDelay = max(maximumHedgingDelay, secondary.MaximumPrimaryHedgingDelay)
-	}
-
-	// Otherwise invoke in parallel with any secondary matches.
-	primaryResultChan := make(chan respTuple[S], 1)
-	secondaryResultChan := make(chan secondaryRespTuple[S], len(cr.secondaryDispatch))
-
-	primarySleeper := cr.newPrimarySleeper(reqKey, resourceTypeAndRelation, subjectTypeAndRelation, maximumHedgingDelay)
-
-	// Run the main dispatch.
-	go func() {
-		// Have the main dispatch wait some time before returning, to allow the secondaries to
-		// potentially return first.
-		primarySleeper.sleep(withTimeout)
-
-		log.Ctx(ctx).Trace().Msg("running primary dispatch after wait")
-		select {
-		case <-withTimeout.Done():
-			log.Ctx(ctx).Trace().Str("request-key", reqKey).Msg("primary dispatch timed out or was canceled")
-			primaryDispatch.WithLabelValues("true", reqKey).Inc()
-			return
-
-		default:
-			resp, err := handler(withTimeout, cr.clusterClient)
-			log.Ctx(ctx).Trace().Str("request-key", reqKey).Msg("primary dispatch completed")
-			primaryResultChan <- respTuple[S]{resp, err}
-			primaryDispatch.WithLabelValues("false", reqKey).Inc()
-		}
-	}()
-
-	for _, secondaryDispatchName := range secondaryDispatcherNames {
-		secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
-		if !ok {
-			log.Ctx(ctx).Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
-			continue
-		}
-
-		go func() {
-			select {
-			case <-withTimeout.Done():
-				log.Ctx(ctx).Trace().Str("secondary", secondary.Name).Msg("secondary dispatch timed out or was canceled")
-				return
-
-			default:
-				log.Ctx(ctx).Trace().Str("secondary", secondary.Name).Msg("running secondary dispatch")
-				startTime := time.Now()
-				resp, err := handler(withTimeout, secondary.Client)
-				endTime := time.Now()
-
-				handlerDuration := endTime.Sub(startTime)
-				if err != nil {
-					// For secondary dispatches, ignore any errors, as only the primary will be handled in
-					// that scenario.
-					log.Ctx(ctx).Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
-					cr.supportedResourceSubjectTracker.updateForError(err)
-
-					// Cancel the primary's sleep if it is still sleeping, so it can immediately being its own work.
-					primarySleeper.cancelSleep()
-					return
-				}
-
-				log.Ctx(ctx).Trace().Stringer("duration", handlerDuration).Str("secondary", secondary.Name).Msg("secondary dispatch completed")
-				go cr.supportedResourceSubjectTracker.updateForSuccess(resourceTypeAndRelation, subjectTypeAndRelation)
-				cr.secondaryInitialResponseDigests[reqKey].addResultTime(ctx, handlerDuration)
-				secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
-			}
-		}()
-	}
-
-	var foundError error
-	select {
-	case <-withTimeout.Done():
-		return *new(S), withTimeout.Err()
-
-	case r := <-primaryResultChan:
-		if r.err == nil {
-			dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
-			return r.resp, nil
-		}
-
-		// Otherwise, if an error was found, log it and we'll return after *all* the secondaries have run.
-		// This allows an otherwise error-state to be handled by one of the secondaries.
-		foundError = r.err
-
-	case r := <-secondaryResultChan:
-		dispatchCounter.WithLabelValues(reqKey, r.handlerName).Add(1)
-		return r.resp, nil
-	}
-
-	dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
-	return *new(S), foundError
-}
-
-type receiver[S any] interface {
-	Recv() (S, error)
-	grpc.ClientStream
+	return runUnaryRace(withTimeout, raceRequest{
+		reqKey:       reqKey,
+		resource:     resourceTypeAndRelation,
+		subject:      subjectTypeAndRelation,
+		participants: participants,
+		stats:        cr.stats,
+	}, plan.strategy, handler)
 }
 
 const (
 	secondaryCursorPrefix = "$$secondary:"
 	primaryDispatcher     = "$primary"
-	noDispatcherResults   = "$$no_dispatcher_results"
 )
 
 func publishClient[R any](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
@@ -483,11 +436,12 @@ func stripCursorDispatcherTag(req any) (string, error) {
 }
 
 // tagCursorWithSecondary marks the result's cursors as produced by the named secondary dispatcher. Like
-// stripCursorDispatcherTag, it must handle every streaming response type.
+// stripCursorDispatcherTag, it must handle every streaming response type, plus the unary response types
+// that run on the race engine.
 func tagCursorWithSecondary(result any, secondaryDispatchName string) error {
-	tag := secondaryCursorPrefix + secondaryDispatchName
 	switch r := result.(type) {
 	case *v1.DispatchLookupResources3Response:
+		tag := secondaryCursorPrefix + secondaryDispatchName
 		for _, item := range r.Items {
 			if len(item.AfterResponseCursorSections) > 0 {
 				item.AfterResponseCursorSections = append(item.AfterResponseCursorSections, tag)
@@ -497,11 +451,11 @@ func tagCursorWithSecondary(result any, secondaryDispatchName string) error {
 
 	case *v1.DispatchLookupResources2Response:
 		if cursor := r.GetAfterResponseCursor(); cursor != nil {
-			cursor.Sections = append([]string{tag}, cursor.Sections...)
+			cursor.Sections = append([]string{secondaryCursorPrefix + secondaryDispatchName}, cursor.Sections...)
 		}
 		return nil
 
-	case *v1.DispatchLookupSubjectsResponse:
+	case *v1.DispatchLookupSubjectsResponse, *v1.DispatchCheckResponse:
 		return nil
 
 	default:
@@ -509,15 +463,10 @@ func tagCursorWithSecondary(result any, secondaryDispatchName string) error {
 	}
 }
 
-type ctxAndCancel struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-// dispatchStreamingRequest handles the dispatching of a streaming request to the primary and any
-// secondary dispatchers. Unlike dispatchSyncRequest, this will first attempt to dispatch
-// from the allowed secondary dispatchers before falling back to the primary, rather than running
-// them in parallel.
+// dispatchStreamingRequest handles the dispatching of a streaming request. If the request's
+// cursor was produced by a secondary, the request goes to that secondary only. Otherwise, if
+// the request's dispatch expression selects secondaries, the primary and the secondaries are
+// raced according to the expression's strategy; if not, the request goes to the primary only.
 func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	ctx context.Context,
 	cr *clusterDispatcher,
@@ -538,41 +487,35 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
-	// Find the set of valid secondary dispatchers, if any.
-	validSecondaryDispatchers := make([]SecondaryDispatch, 0, len(cr.secondaryDispatch))
-	allowPrimary := true
 	cursorLockedDispatcherName, err := stripCursorDispatcherTag(req)
 	if err != nil {
 		return err
 	}
+
+	var secondaryNames []string
+	var strategy secondaryStrategy = hedgedStrategy{}
+	allowPrimary := true
 	switch cursorLockedDispatcherName {
 	case primaryDispatcher:
 		// An untagged cursor was produced by the primary, so no secondary can resume it.
 
 	case "":
-		if expr, ok := cr.secondaryDispatchExprs[reqKey]; ok {
-			dispatcherNames, err := RunDispatchExpr(expr, req)
-			if err != nil {
-				log.Ctx(ctxWithTimeout).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
-			} else {
-				for _, secondaryDispatchName := range dispatcherNames {
-					if sd, ok := cr.secondaryDispatch[secondaryDispatchName]; ok {
-						validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
-					}
-				}
-			}
+		if plan, ok := cr.dispatchPlanFor(ctxWithTimeout, reqKey, req); ok {
+			secondaryNames = plan.secondaries
+			strategy = plan.strategy
 		}
 
 	default:
-		// If the cursor is locked to a known secondary, dispatch to it.
+		// The cursor is locked to the secondary that produced it. Only that secondary runs,
+		// so the strategy has no effect.
 		allowPrimary = false
-		if sd, ok := cr.secondaryDispatch[cursorLockedDispatcherName]; ok {
-			validSecondaryDispatchers = append(validSecondaryDispatchers, sd)
-		}
+		secondaryNames = []string{cursorLockedDispatcherName}
 	}
 
-	// If no secondary dispatches are defined, just invoke directly.
-	if len(validSecondaryDispatchers) == 0 {
+	participants, secondaries := cr.resolveParticipants(ctxWithTimeout, secondaryNames, allowPrimary)
+
+	// If no secondary dispatches are selected, just invoke directly.
+	if secondaries == 0 {
 		if !allowPrimary {
 			return errors.New("cursor locked to unknown secondary dispatcher")
 		}
@@ -584,224 +527,13 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
 	}
 
-	var maximumHedgingDelay time.Duration
-	for _, secondary := range validSecondaryDispatchers {
-		maximumHedgingDelay = max(maximumHedgingDelay, secondary.MaximumPrimaryHedgingDelay)
-	}
-
-	contexts := make(map[string]ctxAndCancel, len(validSecondaryDispatchers)+1)
-
-	primaryCtx, primaryCancelFn := context.WithCancel(ctxWithTimeout)
-	primaryDeadline, _ := primaryCtx.Deadline()
-	primaryCtx = log.Ctx(primaryCtx).With().Time("deadline", primaryDeadline).Logger().WithContext(primaryCtx)
-	contexts[primaryDispatcher] = ctxAndCancel{primaryCtx, primaryCancelFn}
-	for _, secondary := range validSecondaryDispatchers {
-		secondaryCtx, secondaryCancelFn := context.WithCancel(ctxWithTimeout)
-		secondaryDeadline, _ := secondaryCtx.Deadline()
-		secondaryCtx = log.Ctx(secondaryCtx).With().Time("deadline", secondaryDeadline).Logger().WithContext(secondaryCtx)
-		contexts[secondary.Name] = ctxAndCancel{secondaryCtx, secondaryCancelFn}
-	}
-
-	// For each secondary dispatch (as well as the primary), dispatch. Whichever one returns first,
-	// stream its results and cancel the remaining dispatches.
-	errorsByDispatcherName := xsync.NewMap[string, error]()
-
-	var wg sync.WaitGroup
-	if allowPrimary {
-		wg.Add(1)
-	}
-
-	wg.Add(len(validSecondaryDispatchers))
-
-	returnedResultsDispatcherName := atomic.NewString(noDispatcherResults)
-
-	primarySleeper := cr.newPrimarySleeper(reqKey,
-		tuple.FromCoreRelationReference(req.GetResourceRelation()),
-		tuple.FromCoreRelationReference(req.GetSubjectRelation()),
-		maximumHedgingDelay,
-	)
-
-	runHandler := func(handlerContext context.Context, name string, clusterClient ClusterClient) {
-		defer wg.Done()
-		if name == "" {
-			log.Ctx(handlerContext).Warn().Msg("attempting to run a dispatch handler with an empty name, skipping")
-			return
-		}
-
-		log.Ctx(handlerContext).Debug().Str("dispatcher", name).Msg("preparing to run streaming dispatcher")
-
-		var startTime time.Time
-		isPrimary := name == primaryDispatcher
-		if isPrimary {
-			// Have the primary wait a bit to ensure the secondaries have a chance to return first.
-			primarySleeper.sleep(handlerContext)
-		} else {
-			startTime = time.Now()
-		}
-
-		select {
-		case <-handlerContext.Done():
-			log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("dispatcher context canceled")
-			errorsByDispatcherName.Store(name, handlerContext.Err())
-			if isPrimary {
-				primaryDispatch.WithLabelValues("true", reqKey).Inc()
-			}
-			return
-
-		default:
-			// Do the rest of the work in a function
-		}
-
-		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("creating streaming dispatcher stream client")
-		client, err := handler(handlerContext, clusterClient)
-		log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("created streaming dispatcher stream client")
-		if isPrimary {
-			primaryDispatch.WithLabelValues("false", reqKey).Inc()
-		}
-		if err != nil {
-			if !isPrimary {
-				cr.supportedResourceSubjectTracker.updateForError(err)
-			}
-
-			log.Ctx(handlerContext).Warn().Err(err).Str("dispatcher", name).Msg("error when trying to run secondary dispatcher")
-			errorsByDispatcherName.Store(name, err)
-			return
-		}
-
-		var hasPublishedFirstResult bool
-		for {
-			select {
-			case <-handlerContext.Done():
-				log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("dispatcher context canceled, in results loop")
-				// The winning dispatcher may have published only a prefix of its results.
-				// Record cancellation so that prefix is not treated as a complete stream.
-				errorsByDispatcherName.Store(name, handlerContext.Err())
-				return
-
-			default:
-				result, err := client.Recv()
-				if err != nil {
-					log.Ctx(handlerContext).Trace().Str("dispatcher", name).Err(err).Msg("dispatcher recv error")
-				}
-
-				// isResult is true if the result is not an error or we received an EOF, which is considered
-				// a "result" (just the end of the stream).
-				isResult := err == nil || errors.Is(err, io.EOF)
-				if isResult && !hasPublishedFirstResult {
-					// If a valid result was returned by a secondary dispatcher, and it was the first
-					// result returned, record the time it took to get that result.
-					if !isPrimary {
-						finishTime := time.Now()
-						duration := finishTime.Sub(startTime)
-						cr.secondaryInitialResponseDigests[reqKey].addResultTime(handlerContext, duration)
-						go cr.supportedResourceSubjectTracker.updateForSuccess(
-							tuple.FromCoreRelationReference(req.GetResourceRelation()),
-							tuple.FromCoreRelationReference(req.GetSubjectRelation()),
-						)
-					}
-
-					// If a valid result, and we have not yet returned any results, try take a "lock" on
-					// returning results to ensure only a single dispatcher returns results.
-					swapped := returnedResultsDispatcherName.CompareAndSwap(noDispatcherResults, name)
-					if !swapped {
-						// Another dispatcher has started returning results, so terminate.
-						log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("another dispatcher has already returned results")
-						return
-					}
-
-					log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("this dispatcher is the first to return results, will publish them and cancel the others")
-					dispatchCounter.WithLabelValues(reqKey, name).Add(1)
-
-					// Cancel all other contexts to prevent them from running, or stop them
-					// from running if started.
-					log.Ctx(handlerContext).Trace().Str("dispatcher", name).Msg("canceling other dispatchers")
-					for key, otherCtx := range contexts {
-						if key != name {
-							log.Ctx(handlerContext).Trace().Str("canceling-dispatcher", key).Msg("canceling dispatcher context")
-							otherCtx.cancel()
-						}
-					}
-				}
-
-				// If the end of the results, nothing more to do.
-				if errors.Is(err, io.EOF) {
-					return
-				}
-
-				if err != nil {
-					if !isPrimary {
-						cr.supportedResourceSubjectTracker.updateForError(err)
-
-						// If this is a secondary dispatcher and we received an error, cancel the primary's sleep
-						// so it can begin execution immediately.
-						primarySleeper.cancelSleep()
-					}
-
-					errorsByDispatcherName.Store(name, err)
-					return
-				}
-
-				if !isPrimary {
-					if terr := tagCursorWithSecondary(result, name); terr != nil {
-						errorsByDispatcherName.Store(name, terr)
-						return
-					}
-				}
-				hasPublishedFirstResult = true
-				serr := stream.Publish(result)
-				if serr != nil {
-					errorsByDispatcherName.Store(name, serr)
-					return
-				}
-			}
-		}
-	}
-
-	// Run the primary.
-	if allowPrimary {
-		go runHandler(contexts[primaryDispatcher].ctx, primaryDispatcher, cr.clusterClient)
-	}
-
-	// Run each of the secondary dispatches.
-	for _, secondary := range validSecondaryDispatchers {
-		go runHandler(contexts[secondary.Name].ctx, secondary.Name, secondary.Client)
-	}
-
-	// Wait for all the handlers to finish.
-	wg.Wait()
-
-	// Check for the first dispatcher that returned results and return its error, if any.
-	resultHandlerName := returnedResultsDispatcherName.Load()
-	if resultHandlerName == "" {
-		log.Ctx(ctxWithTimeout).Error().Msg("got empty result handler name; this should never happen")
-		return spiceerrors.MustBugf("got empty result handler name")
-	}
-
-	if resultHandlerName != noDispatcherResults {
-		if err, ok := errorsByDispatcherName.Load(resultHandlerName); ok {
-			log.Ctx(ctxWithTimeout).Warn().Err(err).Str("dispatcher", resultHandlerName).Msg("dispatcher that returned results encountered an error during streaming")
-			return err
-		}
-		return nil
-	}
-
-	// If there is a primary dispatcher error, return it.
-	if primaryErr, ok := errorsByDispatcherName.Load(primaryDispatcher); ok {
-		allErrors := make([]error, 0, errorsByDispatcherName.Size())
-		errorsByDispatcherName.Range(func(key string, value error) bool {
-			allErrors = append(allErrors, value)
-			return true
-		})
-		log.Ctx(ctxWithTimeout).Warn().Err(primaryErr).Errs("all-errors", allErrors).Msg("returning primary dispatcher error as no dispatchers returned results")
-		return primaryErr
-	}
-
-	if err := ctxWithTimeout.Err(); err != nil {
-		return err
-	}
-
-	// Otherwise return a combined error.
-	return errors.New("no dispatcher returned results; please check the logs for more information")
+	return runRace(ctxWithTimeout, raceRequest{
+		reqKey:       reqKey,
+		resource:     tuple.FromCoreRelationReference(req.GetResourceRelation()),
+		subject:      tuple.FromCoreRelationReference(req.GetSubjectRelation()),
+		participants: participants,
+		stats:        cr.stats,
+	}, strategy, handler, stream)
 }
 
 func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {
@@ -986,131 +718,6 @@ func (cr *clusterDispatcher) ReadyState() dispatch.ReadyState {
 	}
 }
 
-// newPrimarySleeper creates a new primarySleeper instance that will wait for the
-// specified wait time before allowing the primary dispatch to run. The wait time is
-// determined based on the request key and the resource and subject types and relations.
-// If the resource or subject is unsupported, the wait time will be zero.
-//
-// The primarySleeper can be used to cancel the sleep if the delay is no longer needed,
-// such as when a secondary dispatcher returns results first.
-func (cr *clusterDispatcher) newPrimarySleeper(
-	reqKey string,
-	resourceTypeAndRelation tuple.RelationReference,
-	subjectTypeAndRelation tuple.RelationReference,
-	maximumHedgingDelay time.Duration,
-) *primarySleeper {
-	waitTime := cr.getPrimaryWaitTime(reqKey, resourceTypeAndRelation, subjectTypeAndRelation, maximumHedgingDelay)
-	return &primarySleeper{
-		reqKey:     reqKey,
-		waitTime:   waitTime,
-		cancelFunc: func() {}, // No-op by default, will be set when sleep is called.
-		lock:       sync.Mutex{},
-	}
-}
-
-// getPrimaryWaitTime returns the wait time for the primary dispatch, based on the request key and the
-// resource and subject types and relations. If the resource or subject is unsupported, the wait time
-// will be zero.
-func (cr *clusterDispatcher) getPrimaryWaitTime(
-	reqKey string,
-	resourceTypeAndRelation tuple.RelationReference,
-	subjectTypeAndRelation tuple.RelationReference,
-	maximumHedgingDelay time.Duration,
-) time.Duration {
-	// If the resource or subject is unsupported, return zero time.
-	if cr.supportedResourceSubjectTracker.isUnsupported(
-		resourceTypeAndRelation,
-		subjectTypeAndRelation,
-	) {
-		return 0
-	}
-
-	return cr.secondaryInitialResponseDigests[reqKey].getWaitTime(maximumHedgingDelay)
-}
-
-// supportedResourceSubjectTracker is a struct that tracks the resources and subjects that are
-// unsupported by the secondary dispatcher(s). If a resource or subject is unsupported, the primary
-// dispatcher will not wait for the secondary dispatchers to return results, as it is extremely
-// likely that hedging will not be beneficial.
-type supportedResourceSubjectTracker struct {
-	unsupportedResources sync.Map
-	unsupportedSubjects  sync.Map
-}
-
-func newSupportedResourceSubjectTracker() *supportedResourceSubjectTracker {
-	return &supportedResourceSubjectTracker{
-		unsupportedResources: sync.Map{},
-		unsupportedSubjects:  sync.Map{},
-	}
-}
-
-// isUnsupported returns whether the resource or subject is unsupported by the secondary dispatcher(s).
-func (srst *supportedResourceSubjectTracker) isUnsupported(
-	resourceTypeAndRelation tuple.RelationReference,
-	subjectTypeAndRelation tuple.RelationReference,
-) bool {
-	isUnsupportedResource, found := srst.unsupportedResources.Load(resourceTypeAndRelation)
-	if found && isUnsupportedResource.(bool) {
-		return true
-	}
-
-	isUnsupportedSubject, found := srst.unsupportedSubjects.Load(subjectTypeAndRelation)
-	return found && isUnsupportedSubject.(bool)
-}
-
-// updateForSuccess updates the tracker for a successful dispatch, removing the resource and subject
-// from the unsupported set.
-func (srst *supportedResourceSubjectTracker) updateForSuccess(
-	resourceTypeAndRelation tuple.RelationReference,
-	subjectTypeAndRelation tuple.RelationReference,
-) {
-	srst.unsupportedResources.CompareAndSwap(resourceTypeAndRelation, true, false)
-	srst.unsupportedSubjects.CompareAndSwap(subjectTypeAndRelation, true, false)
-}
-
-// updateForError updates the tracker for an error, adding the resource or subject to the unsupported set
-// if the error indicates that the resource or subject is unsupported.
-func (srst *supportedResourceSubjectTracker) updateForError(err error) {
-	// Check for a FAILED_PRECONDITION with error details that indicate an unsupported
-	// resource or subject.
-	st, ok := status.FromError(err)
-	if !ok {
-		return
-	}
-
-	if st.Code() != codes.FailedPrecondition {
-		return
-	}
-
-	for _, detail := range st.Details() {
-		errDetail, ok := detail.(*errdetails.ErrorInfo)
-		if !ok {
-			continue
-		}
-
-		// If the error is an unsupported resource or subject, add it to the tracker.
-		if errDetail.Reason == "UNSUPPORTED_RESOURCE_RELATION" {
-			definitionName := errDetail.Metadata["definition_name"]
-			relationName := errDetail.Metadata["relation_name"]
-			rr := tuple.RR(definitionName, relationName)
-			existing, loaded := srst.unsupportedResources.LoadOrStore(rr, true)
-			if !loaded || !existing.(bool) {
-				srst.unsupportedResources.Store(rr, true)
-			}
-		}
-
-		if errDetail.Reason == "UNSUPPORTED_SUBJECT_RELATION" {
-			definitionName := errDetail.Metadata["definition_name"]
-			relationName := errDetail.Metadata["relation_name"]
-			rr := tuple.RR(definitionName, relationName)
-			existing, loaded := srst.unsupportedSubjects.LoadOrStore(rr, true)
-			if !loaded || !existing.(bool) {
-				srst.unsupportedSubjects.Store(rr, true)
-			}
-		}
-	}
-}
-
 type primarySleeper struct {
 	reqKey     string
 	waitTime   time.Duration
@@ -1135,8 +742,7 @@ func (s *primarySleeper) sleep(parentCtx context.Context) {
 	}
 	s.lock.Unlock()
 
-	hedgeWaitHistogram.WithLabelValues(s.reqKey).Observe(s.waitTime.Seconds())
-	log.Ctx(parentCtx).Trace().Str("request-key", s.reqKey).Stringer("wait-time", s.waitTime).Msg("primary dispatch waiting before running")
+	s.traceWaiting(parentCtx)
 
 	startTime := time.Now()
 	timer := time.NewTimer(s.waitTime)
@@ -1144,19 +750,38 @@ func (s *primarySleeper) sleep(parentCtx context.Context) {
 
 	select {
 	case <-parentCtx.Done():
-		log.Ctx(parentCtx).Trace().Str("request-key", s.reqKey).Msg("primary dispatch canceled before waiting completed")
+		s.trace(parentCtx, "primary dispatch canceled before waiting completed")
 		return
 
 	case <-sleepCtx.Done():
-		log.Ctx(parentCtx).Trace().Str("request-key", s.reqKey).Msg("primary dispatch early terminated waiting")
-		hedgeActualWaitHistogram.WithLabelValues(s.reqKey).Observe(time.Since(startTime).Seconds())
+		s.trace(parentCtx, "primary dispatch early terminated waiting")
+		s.observeActualWait(time.Since(startTime))
 		return
 
 	case <-timer.C:
-		log.Ctx(parentCtx).Trace().Str("request-key", s.reqKey).Msg("primary dispatch finished waiting")
-		hedgeActualWaitHistogram.WithLabelValues(s.reqKey).Observe(s.waitTime.Seconds())
+		s.trace(parentCtx, "primary dispatch finished waiting")
+		s.observeActualWait(s.waitTime)
 		return
 	}
+}
+
+// The helpers below keep logging and metrics out of sleep's frame, which runs on a
+// participant goroutine's small stack (see traceDispatcher).
+
+//go:noinline
+func (s *primarySleeper) traceWaiting(ctx context.Context) {
+	histogramFor(hedgeWaitByKey, hedgeWaitHistogram, s.reqKey).Observe(s.waitTime.Seconds())
+	log.Ctx(ctx).Trace().Str("request-key", s.reqKey).Stringer("wait-time", s.waitTime).Msg("primary dispatch waiting before running")
+}
+
+//go:noinline
+func (s *primarySleeper) trace(ctx context.Context, msg string) {
+	log.Ctx(ctx).Trace().Str("request-key", s.reqKey).Msg(msg)
+}
+
+//go:noinline
+func (s *primarySleeper) observeActualWait(wait time.Duration) {
+	histogramFor(hedgeActualWaitByKey, hedgeActualWaitHistogram, s.reqKey).Observe(wait.Seconds())
 }
 
 func (s *primarySleeper) cancelSleep() {

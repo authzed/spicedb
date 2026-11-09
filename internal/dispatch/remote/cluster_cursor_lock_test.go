@@ -77,11 +77,13 @@ func newCursorEchoDispatcher(t *testing.T) (dispatch.Dispatcher, *cursorEchoDisp
 	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(primaryConn), primaryConn, ClusterDispatcherConfig{
 		KeyHandler:             &keys.DirectKeyHandler{},
 		DispatchOverallTimeout: 30 * time.Second,
-	}, map[string]SecondaryDispatch{
-		"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
-	}, map[string]*DispatchExpr{
-		"lookupresources": parsed,
-	}, 0*time.Second)
+		SecondaryDispatch: map[string]SecondaryDispatch{
+			"secondary": {Name: "secondary", Client: v1.NewDispatchServiceClient(secondaryConn), MaximumPrimaryHedgingDelay: 5 * time.Millisecond},
+		},
+		SecondaryDispatchExprs: map[string]*DispatchExpr{
+			"lookupresources": parsed,
+		},
+	})
 	require.NoError(t, err)
 
 	return dispatcher, primary, secondary
@@ -210,10 +212,12 @@ func TestCursorDispatcherTagHandlesEveryStreamingType(t *testing.T) {
 		&v1.DispatchLookupResources2Response{},
 		&v1.DispatchLookupResources3Response{},
 		&v1.DispatchLookupSubjectsResponse{},
+		// Check runs on the race engine too, but has no cursor.
+		&v1.DispatchCheckResponse{},
 	} {
 		require.NoError(t, tagCursorWithSecondary(resp, "secondary"), "%T", resp)
 	}
 
 	require.Panics(t, func() { _, _ = stripCursorDispatcherTag(&v1.DispatchCheckRequest{}) })
-	require.Panics(t, func() { _ = tagCursorWithSecondary(&v1.DispatchCheckResponse{}, "secondary") })
+	require.Panics(t, func() { _ = tagCursorWithSecondary(&v1.DispatchExpandResponse{}, "secondary") })
 }

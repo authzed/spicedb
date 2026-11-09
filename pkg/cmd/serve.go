@@ -197,7 +197,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	experimentalFlags.StringVar(&config.ExperimentalSchemaMode, "experimental-schema-mode", "read-legacy-write-legacy", "schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new")
 	// TODO: these two could reasonably be put in either the Dispatch group or the Experimental group. Is there a preference?
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
-	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request")
+	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request, either as a list or wrapped in a strategy: hedged([...]), hedged([...], duration('5ms')) or prefer_secondary([...], duration('50ms'))")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryMaximumPrimaryHedgingDelays, "experimental-dispatch-secondary-maximum-primary-hedging-delays", nil, "maximum number of hedging delays to use for each request type to delay the primary request. default is 5ms")
 
 	// Deprecated flags for experimental features
