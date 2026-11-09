@@ -328,6 +328,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestResume", runner(tester, ResumeTest))
 	t.Run("TestReverseQueryCursor", runner(tester, ReverseQueryCursorTest))
 	t.Run("TestReverseQueryFilteredCursor", runner(tester, ReverseQueryFilteredOverMultipleValuesCursorTest))
+	t.Run("TestFullyFilteredCursor", runner(tester, FullyFilteredCursorTest))
 
 	t.Run("TestRevisionQuantization", runner(tester, RevisionQuantizationTest))
 	t.Run("TestRevisionSerialization", runner(tester, RevisionSerializationTest))
