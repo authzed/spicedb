@@ -40,8 +40,7 @@ func NewDerivedCacheKey[T any]() DerivedCacheKey[T] {
 // reachability, ...) attach schema-version-scoped caches to the stored schema without
 // pkg/datastore depending on them.
 //
-// build is invoked at most once per (schema, key), on the goroutine that wins the race;
-// concurrent first accesses may each build, but only one result is retained. key's type parameter
+// Concurrent first accesses may each invoke build, but only one result is retained. key's type parameter
 // binds the stored value's type, so the returned error is a defensive guard that should never
 // fire in practice.
 func LoadOrStoreDerived[T any](r *ReadOnlyStoredSchema, key DerivedCacheKey[T], build func() T) (T, error) {
@@ -62,19 +61,42 @@ func LoadOrStoreDerived[T any](r *ReadOnlyStoredSchema, key DerivedCacheKey[T], 
 	return typed, nil
 }
 
+// CompiledQueryPlanCacheBudget reserves a bounded byte allowance for lazy,
+// schema-dependent compiled plans. Small schemas receive 512 KiB; larger schemas
+// scale with their stored size up to 4 MiB. The schema cache charges this allowance
+// before admission so later plan construction cannot expand its accounted budget.
+func (r *ReadOnlyStoredSchema) CompiledQueryPlanCacheBudget() int64 {
+	if r == nil {
+		return 0
+	}
+
+	return min(4<<20, max(512<<10, 16*r.schemaSize))
+}
+
 // EstimatedSize returns a rough byte size for this stored schema, used as the cost when caching
 // it so the cache's max-cost budget reflects memory rather than entry count. It is the schema's
-// own size plus a conservative allowance for the compiled-caveat cache the schema accretes when
-// checks run: per caveat, its serialized expression plus a fixed compiled-CEL overhead. The
-// estimate is deliberately rough and assumes every caveat will be compiled and cached.
+// own size plus conservative allowances for the converted query-planner schema and
+// compiled-caveat caches and bounded compiled plans the schema accretes when checks run. Compiled caveats
+// reserve their serialized expressions plus a fixed compiled-CEL overhead. The
+// estimate assumes the complete view and every compiled caveat will be retained.
 func (r *ReadOnlyStoredSchema) EstimatedSize() int64 {
 	if r == nil {
 		return 0
 	}
 
-	size := r.schemaSize
+	size := r.schemaSize + r.CompiledQueryPlanCacheBudget()
+
 	if v1 := r.schema.GetV1(); v1 != nil {
+		// Converted nodes include maps, parent pointers, and operation objects.
+		// Reserve their cost before lazy construction, without coupling datastore
+		// to the planner model. Four times the wire size plus 512 bytes per
+		// definition is a rough allowance, rather than measured heap accounting.
+		for _, namespace := range v1.GetNamespaceDefinitions() {
+			size += 4*spiceerrors.MustSafecast[int64](namespace.SizeVT()) + 512
+		}
+
 		for _, caveat := range v1.GetCaveatDefinitions() {
+			size += 4*spiceerrors.MustSafecast[int64](caveat.SizeVT()) + 512
 			size += spiceerrors.MustSafecast[int64](len(caveat.GetSerializedExpression())) + compiledCaveatOverheadBytes
 		}
 	}
