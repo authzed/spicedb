@@ -275,7 +275,10 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			Type: IntersectionIteratorType,
 			SubOutlines: []Outline{
 				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}}},
-				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}}},
+				{
+					Type: FixedIteratorType,
+					Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}},
+				},
 			},
 		}
 
@@ -300,8 +303,14 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 
 	t.Run("returns nil when order is already optimal", func(t *testing.T) {
 		// Union already in optimal order (high selectivity first)
-		child1 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}}}
-		child2 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}}}
+		child1 := Outline{
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}},
+		}
+		child2 := Outline{
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}},
+		}
 
 		unionOutline := Outline{
 			Type:        UnionIteratorType,
@@ -348,7 +357,10 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			SubOutlines: []Outline{
 				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}}},
 				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}}},
-				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}}},
+				{
+					Type: FixedIteratorType,
+					Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}},
+				},
 			},
 		}
 
@@ -475,7 +487,10 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("arrow rebalancing - no nested arrows", func(t *testing.T) {
-		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}}}
+		a := Outline{
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}},
+		}
 		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("folder:f1#viewer@user:bob")}}}
 
 		arrow := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{a, b}}

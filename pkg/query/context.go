@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 
 	"github.com/ccoveille/go-safecast/v2"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/query/planhint"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -18,13 +18,12 @@ import (
 //
 // Context is the concrete type that contains the overall handles, and uses the executor as a strategy for continuing execution.
 type Context struct {
-	executionObservers   []ExecutionObserver
-	executionSequence    atomic.Uint64
-	executionDescriptors sync.Map
-	executionInit        sync.Once
-	checkExecution       CheckExecutionOptions
-	targetedRecursions   map[string]*RecursiveIterator
-	targetedDepth        int
+	executionState     *executionObservationState
+	checkExecution     CheckExecutionOptions
+	checkConcurrency   uint16
+	hintLedger         *planhint.Ledger
+	targetedRecursions map[string]*RecursiveIterator
+	targetedDepth      int
 
 	context.Context
 
@@ -68,16 +67,8 @@ type Context struct {
 	// so RecursiveIterator.recursiveCheckIterSubjects saves and restores it
 	// around its own traversal.
 	//
-	// TODO: that save/restore is the one piece of scoped mutable state on this
-	// Context, and it is only sound because a Context is driven by a single
-	// goroutine. Making set operations or fan-outs concurrent would break it
-	// silently — a sibling branch would observe another branch's target and
-	// decide identity against the wrong subject, which is a wrong answer rather
-	// than a crash. The fix is to pass the target as a parameter alongside
-	// filterSubjectType through IterSubjectsImpl / IterSubjectsForResourcesImpl
-	// instead of hanging it off the Context. That is more churn (every iterator
-	// signature) which is why it is not done here, but it should be done before
-	// any concurrency is introduced, not after.
+	// Concurrent Check siblings receive separate Context instances so scoped
+	// save/restore operations cannot change another branch's target.
 	TargetSubjectType ObjectType
 
 	// BatchedArrows enables the batched arrow check path: arrows drain their
@@ -159,6 +150,13 @@ func WithCaveatRunner(runner *caveats.CaveatRunner) ContextOption {
 // WithCaveatContext sets the caveat context for the context.
 func WithCaveatContext(caveatCtx map[string]any) ContextOption {
 	return func(ctx *Context) { ctx.CaveatContext = caveatCtx }
+}
+
+// HasActiveTargetedRecursion reports whether a Check has entered a recursive
+// controller. Dispatchers must keep its descendants local until the controller
+// returns, because its depth budget and sentinel bindings belong to this context.
+func (ctx *Context) HasActiveTargetedRecursion() bool {
+	return ctx.targetedDepth > 0
 }
 
 // WithMaxRecursionDepth sets the maximum recursion depth for the context.
@@ -612,4 +610,24 @@ func (ctx *Context) IsCollectingFrontier(iteratorID uint64) bool {
 
 	_, exists := ctx.recursiveFrontierCollectors[iteratorID]
 	return exists
+}
+
+// WithCheckConcurrency sets the execution ceiling for set Check recommendations.
+func WithCheckConcurrency(limit uint16) ContextOption {
+	return func(ctx *Context) { ctx.checkConcurrency = limit }
+}
+
+// WithHintLedger supplies the request-local ledger used to account for execution hints.
+func WithHintLedger(ledger *planhint.Ledger) ContextOption {
+	return func(ctx *Context) { ctx.hintLedger = ledger }
+}
+
+// CheckConcurrencyLimit returns the configured ceiling for Check fanout. A
+// context without a configured limit keeps sequential execution.
+func (ctx *Context) CheckConcurrencyLimit() uint16 {
+	if ctx.checkConcurrency == 0 {
+		return 1
+	}
+
+	return ctx.checkConcurrency
 }

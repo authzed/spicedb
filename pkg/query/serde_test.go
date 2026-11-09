@@ -114,13 +114,19 @@ func TestSerde_UnionAndIntersection(t *testing.T) {
 
 	union := NewUnionIterator(a, b).(*UnionIterator)
 	union.canonicalKey = "union:doc"
+	union.independentCheckBranches = true
 	gotU, _ := roundTrip(t, union, nil)
 	assertStructurallyEqual(t, union, gotU)
+	require.True(t, gotU.(*UnionIterator).independentCheckBranches,
+		"permission operands must remain independent after transport")
 
 	inter := NewIntersectionIterator(a.Clone(), b.Clone()).(*IntersectionIterator)
 	inter.canonicalKey = "inter:doc"
+	inter.independentCheckBranches = true
 	gotI, _ := roundTrip(t, inter, nil)
 	assertStructurallyEqual(t, inter, gotI)
+	require.True(t, gotI.(*IntersectionIterator).independentCheckBranches,
+		"permission operands must remain independent after transport")
 }
 
 func TestSerde_Arrow(t *testing.T) {

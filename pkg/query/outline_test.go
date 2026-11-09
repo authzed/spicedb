@@ -10,6 +10,45 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func TestIndependentPermissionBranchesKeepLogicalIdentity(t *testing.T) {
+	for _, kind := range []IteratorType{UnionIteratorType, IntersectionIteratorType} {
+		serial := Outline{
+			Type: kind,
+			SubOutlines: []Outline{
+				{Type: SelfIteratorType, Args: &IteratorArgs{DefinitionName: "document", RelationName: "reader"}},
+				{Type: SelfIteratorType, Args: &IteratorArgs{DefinitionName: "document", RelationName: "writer"}},
+			},
+		}
+		parallel := serial
+		parallel.IndependentCheckBranches = true
+
+		require.Equal(t, serial.Serialize(), parallel.Serialize())
+		require.Zero(t, OutlineCompare(serial, parallel))
+		require.True(t, serial.Equals(parallel))
+
+		walked, err := WalkOutlineBottomUp(parallel, func(node Outline) (Outline, error) { return node, nil })
+		require.NoError(t, err)
+		require.True(t, walked.IndependentCheckBranches)
+
+		canonical, err := CanonicalizeOutline(parallel)
+		require.NoError(t, err)
+		require.True(t, canonical.Root.IndependentCheckBranches)
+
+		compiled, err := canonical.Compile()
+		require.NoError(t, err)
+		replaced, err := compiled.ReplaceSubiterators(compiled.Subiterators())
+		require.NoError(t, err)
+		received, _ := roundTrip(t, compiled, nil)
+
+		for _, copy := range []Iterator{compiled.Clone(), replaced, received} {
+			outline, err := Decompile(copy)
+			require.NoError(t, err)
+			require.True(t, outline.IndependentCheckBranches)
+			require.True(t, serial.Equals(outline))
+		}
+	}
+}
+
 func TestOutline_Compile(t *testing.T) {
 	t.Run("NullIteratorType", func(t *testing.T) {
 		require := require.New(t)

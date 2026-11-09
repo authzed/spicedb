@@ -88,9 +88,10 @@ func extractCaveats(outline Outline) (Outline, []*core.ContextualizedCaveat, err
 	}
 
 	return Outline{
-		Type:        outline.Type,
-		Args:        outline.Args,
-		SubOutlines: newSubs,
+		Type:                     outline.Type,
+		Args:                     outline.Args,
+		IndependentCheckBranches: outline.IndependentCheckBranches,
+		SubOutlines:              newSubs,
 	}, allCaveats, nil
 }
 
@@ -175,9 +176,10 @@ func propagateNull(outline Outline) Outline {
 		// If some children were null, return union of non-null children
 		if len(nonNullSubs) < len(outline.SubOutlines) {
 			return Outline{
-				Type:        UnionIteratorType,
-				Args:        outline.Args,
-				SubOutlines: nonNullSubs,
+				Type:                     UnionIteratorType,
+				Args:                     outline.Args,
+				IndependentCheckBranches: outline.IndependentCheckBranches,
+				SubOutlines:              nonNullSubs,
 			}
 		}
 	}
@@ -218,9 +220,10 @@ func flattenComposites(outline Outline) Outline {
 	}
 
 	return Outline{
-		Type:        outline.Type,
-		Args:        outline.Args,
-		SubOutlines: flattenedSubs,
+		Type:                     outline.Type,
+		Args:                     outline.Args,
+		IndependentCheckBranches: outline.IndependentCheckBranches,
+		SubOutlines:              flattenedSubs,
 	}
 }
 
@@ -234,9 +237,10 @@ func sortCompositeChildren(outline Outline) Outline {
 		slices.SortFunc(sortedSubs, OutlineCompare)
 
 		return Outline{
-			Type:        outline.Type,
-			Args:        outline.Args,
-			SubOutlines: sortedSubs,
+			Type:                     outline.Type,
+			Args:                     outline.Args,
+			IndependentCheckBranches: outline.IndependentCheckBranches,
+			SubOutlines:              sortedSubs,
 		}
 	}
 	return outline

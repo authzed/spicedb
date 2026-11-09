@@ -3,6 +3,8 @@ package taskrunner
 import (
 	"context"
 	"sync"
+
+	"github.com/authzed/spicedb/pkg/genutil/execscope"
 )
 
 // PreloadedTaskRunner is a task runner that invokes a series of preloaded tasks,
@@ -78,7 +80,11 @@ func (tr *PreloadedTaskRunner) spawnIfAvailable() {
 	// been canceled, in which case nothing needs to be done.
 	select {
 	case tr.sem <- struct{}{}:
-		go tr.runner()
+		finish := execscope.Begin(tr.ctx)
+		go func() {
+			defer finish()
+			tr.runner()
+		}()
 
 	case <-tr.ctx.Done():
 		// If the context was canceled, nothing more to do.

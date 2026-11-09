@@ -47,7 +47,7 @@ func NewPipeline(opts []Optimizer, catalogs ...*signals.Registry) (*Pipeline, er
 
 		for _, kind := range append(append(slices.Clone(o.RequiredHints), o.OptionalHints...), o.ProducesHints...) {
 			switch kind {
-			case planhint.ArrowDirectionKind, planhint.BranchOrderKind:
+			case planhint.ArrowDirectionKind, planhint.BranchOrderKind, planhint.CheckConcurrencyKind:
 			default:
 				return nil, fmt.Errorf("optimization %q declares unknown hint %q", o.Name, kind)
 			}

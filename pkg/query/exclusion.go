@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/pkg/query/planhint"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -27,13 +28,16 @@ func init() {
 // ExclusionIterator represents the set of relations that are in the mainSet but not in the excluded set.
 // This is equivalent to `permission foo = bar - baz`
 type ExclusionIterator struct {
-	mainSet      Iterator
-	excluded     Iterator
-	canonicalKey CanonicalKey
+	mainSet          Iterator
+	excluded         Iterator
+	canonicalKey     CanonicalKey
+	checkConcurrency uint16
+	concurrencyHint  planhint.ID
 }
 
 var _ Iterator = &ExclusionIterator{}
 
+// NewExclusionIterator subtracts excluded membership from the main set.
 func NewExclusionIterator(mainSet, excluded Iterator) *ExclusionIterator {
 	return &ExclusionIterator{
 		mainSet:  mainSet,
@@ -83,6 +87,34 @@ func combineExclusionCaveats(mainPath, excludedPath *Path) (*Path, bool) {
 }
 
 func (e *ExclusionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	limit, err := ctx.setCheckConcurrency(e.checkConcurrency, e.concurrencyHint)
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > 1 {
+		main, excluded, err := checkExclusionOperands(
+			ctx,
+			func(branch *Context) (*Path, error) { return branch.Check(e.mainSet, resource, subject) },
+			func(branch *Context) (*Path, error) { return branch.Check(e.excluded, resource, subject) },
+			func(path *Path) bool { return path == nil },
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if main == nil || excluded == nil {
+			return main, nil
+		}
+
+		result, keep := combineExclusionCaveats(main, excluded)
+		if !keep {
+			return nil, nil
+		}
+
+		return result, nil
+	}
+
 	if ctx.checkExecution.BaseFirstExclusion {
 		main, err := ctx.Check(e.mainSet, resource, subject)
 		if err != nil || main == nil {
@@ -393,9 +425,11 @@ func (e *ExclusionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 
 func (e *ExclusionIterator) Clone() Iterator {
 	return &ExclusionIterator{
-		canonicalKey: e.canonicalKey,
-		mainSet:      e.mainSet.Clone(),
-		excluded:     e.excluded.Clone(),
+		canonicalKey:     e.canonicalKey,
+		checkConcurrency: e.checkConcurrency,
+		concurrencyHint:  e.concurrencyHint,
+		mainSet:          e.mainSet.Clone(),
+		excluded:         e.excluded.Clone(),
 	}
 }
 
@@ -415,7 +449,13 @@ func (e *ExclusionIterator) Subiterators() []Iterator {
 }
 
 func (e *ExclusionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &ExclusionIterator{canonicalKey: e.canonicalKey, mainSet: newSubs[0], excluded: newSubs[1]}, nil
+	return &ExclusionIterator{
+		canonicalKey:     e.canonicalKey,
+		mainSet:          newSubs[0],
+		excluded:         newSubs[1],
+		checkConcurrency: e.checkConcurrency,
+		concurrencyHint:  e.concurrencyHint,
+	}, nil
 }
 
 func (e *ExclusionIterator) CanonicalKey() CanonicalKey {

@@ -7,6 +7,7 @@ implementation, tests and documentation:
 - [Set simplification](setsimplification/README.md), priority 10.
 - [Reachability pruning](reachabilitypruning/README.md), priority 0.
 - [Alias chain collapse](aliaschaincollapse/README.md), priority 0.
+- [Fixed Check concurrency](parallelcheck/README.md), selected explicitly by the caller.
 - [Dispatch wrapping](../../../internal/dispatch/queryopt/dispatchwrap/README.md), applied separately by dispatch.
 
 ## Defining a pass
