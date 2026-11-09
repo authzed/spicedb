@@ -716,6 +716,14 @@ func runQuantizedRevisionCase(t *testing.T, b testdatastore.RunningEngineForTest
 	require.NoError(err)
 	defer mgg.Close()
 
+	// Keep setup transactions outside the quantization window. Migrations can
+	// create a current transaction instead of the old bootstrap transaction.
+	seedSQL, seedArgs, err := sb.Update(mds.driver.RelationTupleTransaction()).
+		Set(colTimestamp, time.Unix(1, 0).UTC()).ToSql()
+	require.NoError(err)
+	_, err = mds.db.ExecContext(ctx, seedSQL, seedArgs...)
+	require.NoError(err)
+
 	dbNow := alignedDatabaseNow(ctx, t, mgg, tc.quantization, tc.followerReadDelay)
 
 	tx, err := mds.db.BeginTx(ctx, nil)
