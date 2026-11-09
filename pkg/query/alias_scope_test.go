@@ -12,6 +12,7 @@ func TestNamedAliasScopesItsDefinition(t *testing.T) {
 	// its body or reflexive identity would otherwise grant that object.
 	alias := NewAliasIterator("group", "access", NewEmptyFixedIterator())
 	ctx := NewTestContext(t)
+	WithCheckExecution(CheckExecutionOptions{BatchChecks: true})(ctx)
 	foreign := NewObject("team", "shared")
 	subject := foreign.WithRelation("access")
 

@@ -13,29 +13,25 @@ func (l LocalExecutor) Check(ctx *Context, it Iterator, resource Object, subject
 }
 
 // CheckManySubjects tests resource against each subject. Result is parallel to subjects.
-func (l LocalExecutor) CheckManySubjects(ctx *Context, it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error) {
-	out := make([]*Path, len(subjects))
-	for i, s := range subjects {
-		p, err := it.CheckImpl(ctx, resource, s)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = p
-	}
-	return out, nil
+func (l LocalExecutor) CheckManySubjects(
+	ctx *Context,
+	it Iterator,
+	resource Object,
+	subjects []ObjectAndRelation,
+	modes ...CheckResultMode,
+) ([]*Path, error) {
+	return CheckManySubjectsImpl(ctx, it, resource, subjects, modes...)
 }
 
 // CheckManyResources tests each resource against subject. Result is parallel to resources.
-func (l LocalExecutor) CheckManyResources(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error) {
-	out := make([]*Path, len(resources))
-	for i, r := range resources {
-		p, err := it.CheckImpl(ctx, r, subject)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = p
-	}
-	return out, nil
+func (l LocalExecutor) CheckManyResources(
+	ctx *Context,
+	it Iterator,
+	resources []Object,
+	subject ObjectAndRelation,
+	modes ...CheckResultMode,
+) ([]*Path, error) {
+	return CheckManyResourcesImpl(ctx, it, resources, subject, modes...)
 }
 
 // IterSubjects returns a sequence of all the paths in this set that match the given resource.

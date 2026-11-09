@@ -115,3 +115,24 @@ barriers for bounded admission, nested progress, conditional reduction,
 cancellation and errors. Race tests cover branch and observer ownership.
 Identity tests compare marked and unmarked outlines, and serialization tests
 preserve permission ownership on the wire.
+
+## Shared Check batches
+
+A batch retains a result slot for every input target, including duplicates.
+Independent permission branches can overlap under the same bounded policy, while
+relation forms keep direct-before-indirect order. Intersections and exclusions
+request complete child vectors: finding one grant cannot prove that a different
+child grants the same target. An existential union can stop at an unconditional
+grant; unvisited slots stay nil and must not be treated as proven denials.
+
+For recursive inherited access, an arrow may enter a shared Check batch. Keeping
+the permission-boundary marker on the compiled child permits the nested reducer
+to overlap its independent viewer and parent branches. Branch contexts isolate
+recursion bindings and caveat evaluation, and the request scope accounts for
+workers still unwinding after the decision.
+
+The property harness exercises both scalar and batched execution. Runtime tests
+cover complete and existential modes, duplicate targets, conditional results,
+partial stopping, bounded admission and cancellation. Typed-source tests verify
+that a direct grant avoids indirect work and that unresolved typed branches can
+share their source read before executing independently.

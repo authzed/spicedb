@@ -281,8 +281,13 @@ func (a *ArrowIterator) checkLeftToRightBatch(ctx *Context, resource Object, sub
 	}
 
 	var result *Path
-	concreteLeft := make([]*Path, 0, len(leftPaths))
+
+	// CollectAll owns this pointer vector. Compact concrete edges in place:
+	// writes only reach already visited slots, so wildcard edges can still be
+	// handled during the scan without allocating a second edge vector.
+	concreteLeft := leftPaths[:0]
 	concreteRes := make([]Object, 0, len(leftPaths))
+
 	for _, leftPath := range leftPaths {
 		// Wildcards: invert to IterResources, like the unbatched path.
 		if leftPath.Subject.ObjectID == tuple.PublicWildcard {
@@ -310,7 +315,13 @@ func (a *ArrowIterator) checkLeftToRightBatch(ctx *Context, resource Object, sub
 	}
 
 	if len(concreteRes) > 0 {
-		rightPaths, err := ctx.CheckManyResources(a.right, concreteRes, subject)
+		mode := AllCheckResults
+
+		if ctx.checkExecution.BatchChecks && pathsAreUnconditional(concreteLeft) {
+			mode = AllowSingleResult
+		}
+
+		rightPaths, err := ctx.CheckManyResources(a.right, concreteRes, subject, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -365,7 +376,13 @@ func (a *ArrowIterator) checkRightToLeftBatch(ctx *Context, resource Object, sub
 		}
 	}
 
-	leftPaths, err := ctx.CheckManySubjects(a.left, resource, intermediates)
+	mode := AllCheckResults
+
+	if ctx.checkExecution.BatchChecks && pathsAreUnconditional(rightPaths) {
+		mode = AllowSingleResult
+	}
+
+	leftPaths, err := ctx.CheckManySubjects(a.left, resource, intermediates, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +525,11 @@ func (a *ArrowIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 			// (The Check path handles this correctly via IterResources inversion.)
 			if leftPath.Subject.ObjectID == tuple.PublicWildcard {
 				if ctx.shouldTrace() {
-					ctx.TraceStep(a, "left returned wildcard %s:*, skipping (cannot follow arrow through wildcard)", leftPath.Subject.ObjectType)
+					ctx.TraceStep(
+						a,
+						"left returned wildcard %s:*, skipping (cannot follow arrow through wildcard)",
+						leftPath.Subject.ObjectType,
+					)
 				}
 				continue
 			}
@@ -516,7 +537,12 @@ func (a *ArrowIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 			// For each left subject, get subjects from right side
 			leftSubjectAsResource := GetObject(leftPath.Subject)
 			if ctx.shouldTrace() {
-				ctx.TraceStep(a, "iterating right side for left subject %s:%s", leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+				ctx.TraceStep(
+					a,
+					"iterating right side for left subject %s:%s",
+					leftSubjectAsResource.ObjectType,
+					leftSubjectAsResource.ObjectID,
+				)
 			}
 
 			rightSeq, err := ctx.IterSubjects(a.right, leftSubjectAsResource, filterSubjectType)
@@ -533,7 +559,13 @@ func (a *ArrowIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 			}
 
 			if ctx.shouldTrace() {
-				ctx.TraceStep(a, "right side returned %d paths for left subject %s:%s", count, leftSubjectAsResource.ObjectType, leftSubjectAsResource.ObjectID)
+				ctx.TraceStep(
+					a,
+					"right side returned %d paths for left subject %s:%s",
+					count,
+					leftSubjectAsResource.ObjectType,
+					leftSubjectAsResource.ObjectID,
+				)
 			}
 		}
 
@@ -623,7 +655,14 @@ func (a *ArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 				}
 
 				if ctx.shouldTrace() {
-					ctx.TraceStep(a, "left side returned %d paths for right subject %s:%s#%s (and ellipsis, schema arrow)", leftPathCount, rightResourceAsSubject.ObjectType, rightResourceAsSubject.ObjectID, rightResourceAsSubject.Relation)
+					ctx.TraceStep(
+						a,
+						"left side returned %d paths for right subject %s:%s#%s (and ellipsis, schema arrow)",
+						leftPathCount,
+						rightResourceAsSubject.ObjectType,
+						rightResourceAsSubject.ObjectID,
+						rightResourceAsSubject.Relation,
+					)
 				}
 			} else {
 				// Subrelation arrow: query with the left iterator's expected subrelation
@@ -662,7 +701,14 @@ func (a *ArrowIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 					}
 
 					if ctx.shouldTrace() {
-						ctx.TraceStep(a, "left side returned %d paths for right subject %s:%s#%s (subrelation arrow)", leftPathCount, expectedSubject.ObjectType, expectedSubject.ObjectID, expectedSubject.Relation)
+						ctx.TraceStep(
+							a,
+							"left side returned %d paths for right subject %s:%s#%s (subrelation arrow)",
+							leftPathCount,
+							expectedSubject.ObjectType,
+							expectedSubject.ObjectID,
+							expectedSubject.Relation,
+						)
 					}
 				}
 			}
