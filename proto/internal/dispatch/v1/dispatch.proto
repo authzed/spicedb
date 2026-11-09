@@ -293,6 +293,9 @@ message DispatchQueryPlanRequest {
   // deserializes the plan in that schema; it executes the deserialized
   // iterator directly.
   bytes plan = 7;
+  // Batch checks default to REQUIRE_ALL_RESULTS. ALLOW_SINGLE_RESULT permits
+  // returning after any unconditional grant; omitted targets are then unknown.
+  DispatchCheckRequest.ResultsSetting results_setting = 8;
 }
 
 message DispatchQueryPlanResponse {
