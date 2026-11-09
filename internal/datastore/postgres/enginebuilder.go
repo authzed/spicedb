@@ -125,7 +125,9 @@ func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config
 		WithWatchDisabled(opts.DisableWatchSupport),
 		MigrationPhase(opts.MigrationPhase),
 		AllowedMigrations(opts.AllowedMigrations),
-		WithRevisionHeartbeat(opts.EnableRevisionHeartbeat),
+		// The revision heartbeat INSERTs into the transaction table, so it must
+		// not run when the datastore is read-only.
+		WithRevisionHeartbeat(opts.EnableRevisionHeartbeat && !opts.ReadOnly),
 		WithRelaxedIsolationLevel(opts.RelaxedIsolationLevel),
 	}
 
