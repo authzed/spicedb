@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 
@@ -23,7 +22,6 @@ type Context struct {
 	executionSequence    atomic.Uint64
 	executionDescriptors sync.Map
 	executionInit        sync.Once
-	executionNow         func() time.Time
 	checkExecution       CheckExecutionOptions
 	targetedRecursions   map[string]*RecursiveIterator
 	targetedDepth        int

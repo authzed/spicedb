@@ -51,19 +51,6 @@ func WithExecutionObserver(o ExecutionObserver) ContextOption {
 	return func(c *Context) { c.executionObservers = append(c.executionObservers, o) }
 }
 
-// WithExecutionClock sets the clock used to timestamp invocation observations.
-func WithExecutionClock(now func() time.Time) ContextOption {
-	return func(c *Context) { c.executionNow = now }
-}
-
-func (c *Context) executionTime() time.Time {
-	if c.executionNow != nil {
-		return c.executionNow()
-	}
-
-	return time.Now()
-}
-
 func (c *Context) executionStart(it Iterator, op Operation, filter, mode string) *ExecutionObservation {
 	if len(c.executionObservers) == 0 {
 		return nil
@@ -99,7 +86,7 @@ func (c *Context) executionStart(it Iterator, op Operation, filter, mode string)
 			Role:         facts.Role,
 			Dependencies: signal.EncodeFootprint(facts.Footprint),
 		},
-		Started: c.executionTime(),
+		Started: time.Now(),
 	}
 }
 
@@ -116,7 +103,7 @@ func (c *Context) executionFinish(e *ExecutionObservation, err error) {
 		e.Status = signal.Canceled
 	}
 
-	e.Finished = c.executionTime()
+	e.Finished = time.Now()
 
 	for _, o := range c.executionObservers {
 		o.ObserveExecution(*e)
