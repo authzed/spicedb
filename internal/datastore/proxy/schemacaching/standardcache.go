@@ -8,12 +8,12 @@ import (
 	"unsafe"
 
 	"github.com/dustin/go-humanize"
-	"resenje.org/singleflight"
 
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/scopedflight"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -22,7 +22,7 @@ import (
 type definitionCachingProxy struct {
 	datastore.Datastore
 	c         cache.Cache[cache.StringKey, *cacheEntry]
-	readGroup singleflight.Group[string, *cacheEntry]
+	readGroup scopedflight.Group[string, *cacheEntry]
 }
 
 const (
@@ -174,7 +174,12 @@ func listAndCache[T schemaDefinition](
 
 			cacheRevisionKey := prefix + ":" + def.Definition.GetName() + "@" + r.rev.String()
 			estimatedDefinitionSize := estimator(def.Definition.SizeVT())
-			entry := &cacheEntry{def.Definition, def.LastWrittenRevision, estimatedDefinitionSize, err}
+			entry := &cacheEntry{
+				definition:              def.Definition,
+				updated:                 def.LastWrittenRevision,
+				estimatedDefinitionSize: estimatedDefinitionSize,
+				notFound:                err,
+			}
 			r.p.c.Set(cache.StringKey(cacheRevisionKey), entry, entry.Size())
 		}
 	}
@@ -205,7 +210,12 @@ func readAndCache[T schemaDefinition](
 			}
 
 			estimatedDefinitionSize := estimator(loaded.SizeVT())
-			entry := &cacheEntry{loaded, updatedRev, estimatedDefinitionSize, err}
+			entry := &cacheEntry{
+				definition:              loaded,
+				updated:                 updatedRev,
+				estimatedDefinitionSize: estimatedDefinitionSize,
+				notFound:                err,
+			}
 			r.p.c.Set(cache.StringKey(cacheRevisionKey), entry, entry.Size())
 
 			return entry, nil
@@ -238,7 +248,8 @@ func (rwt *definitionCachingRWT) LegacyReadNamespaceByName(
 	return readAndCacheInTransaction(
 		ctx, rwt, "namespace", nsName, func(ctx context.Context, name string) (*core.NamespaceDefinition, datastore.Revision, error) {
 			return rwt.ReadWriteTransaction.LegacyReadNamespaceByName(ctx, name)
-		})
+		},
+	)
 }
 
 func (rwt *definitionCachingRWT) LegacyReadCaveatByName(
@@ -248,7 +259,8 @@ func (rwt *definitionCachingRWT) LegacyReadCaveatByName(
 	return readAndCacheInTransaction(
 		ctx, rwt, "caveat", nsName, func(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 			return rwt.ReadWriteTransaction.LegacyReadCaveatByName(ctx, name)
-		})
+		},
+	)
 }
 
 func readAndCacheInTransaction[T schemaDefinition](
@@ -303,6 +315,7 @@ func (rwt *definitionCachingRWT) LegacyWriteCaveats(ctx context.Context, newConf
 }
 
 type cacheEntry struct {
+	definitions             any // revisioned listing slices; definition protos remain read-only
 	definition              schemaDefinition
 	updated                 datastore.Revision
 	estimatedDefinitionSize int64
