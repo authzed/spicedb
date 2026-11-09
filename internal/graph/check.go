@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+	"github.com/authzed/spicedb/pkg/genutil/execscope"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
@@ -96,7 +97,11 @@ type currentRequestContext struct {
 }
 
 // Check performs a check request with the provided request and context
-func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
+func (cc *ConcurrentChecker) Check(
+	ctx context.Context,
+	req ValidatedCheckRequest,
+	relation *core.Relation,
+) (*v1.DispatchCheckResponse, error) {
 	var startTime *time.Time
 	if req.Debug != v1.DispatchCheckRequest_NO_DEBUG {
 		now := time.Now()
@@ -199,14 +204,24 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		subject := tuple.FromCoreObjectAndRelation(req.Subject)
 		filteredResourcesIdsSet := mapz.NewSet(filteredResourcesIds...)
 		for _, checkHint := range req.CheckHints {
-			resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.ResourceRelation.Relation, subject)
+			resourceID, ok := hints.AsCheckHintForComputedUserset(
+				checkHint,
+				req.ResourceRelation.Namespace,
+				req.ResourceRelation.Relation,
+				subject,
+			)
 			if ok {
 				filteredResourcesIdsSet.Delete(resourceID)
 				continue
 			}
 
 			if req.OriginalRelationName != "" {
-				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.OriginalRelationName, subject)
+				resourceID, ok = hints.AsCheckHintForComputedUserset(
+					checkHint,
+					req.ResourceRelation.Namespace,
+					req.OriginalRelationName,
+					subject,
+				)
 				if ok {
 					filteredResourcesIdsSet.Delete(resourceID)
 				}
@@ -241,7 +256,10 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		return combineWithCheckHints(combineResultWithFoundResources(cc.checkDirect(ctx, crc, relation), membershipSet), req)
 	}
 
-	return combineWithCheckHints(combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet), req)
+	return combineWithCheckHints(
+		combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet),
+		req,
+	)
 }
 
 func combineWithComputedHints(result CheckResult, hints map[string]*v1.ResourceCheckResult) CheckResult {
@@ -273,10 +291,20 @@ func combineWithCheckHints(result CheckResult, req ValidatedCheckRequest) CheckR
 
 	subject := tuple.FromCoreObjectAndRelation(req.Subject)
 	for _, checkHint := range req.CheckHints {
-		resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.ResourceRelation.Relation, subject)
+		resourceID, ok := hints.AsCheckHintForComputedUserset(
+			checkHint,
+			req.ResourceRelation.Namespace,
+			req.ResourceRelation.Relation,
+			subject,
+		)
 		if !ok {
 			if req.OriginalRelationName != "" {
-				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.OriginalRelationName, subject)
+				resourceID, ok = hints.AsCheckHintForComputedUserset(
+					checkHint,
+					req.ResourceRelation.Namespace,
+					req.OriginalRelationName,
+					subject,
+				)
 			}
 
 			if !ok {
@@ -326,7 +354,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		}
 	}()
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(
+		crc.parentReq.Revision,
+		datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()),
+	)
 
 	directSubjectsAndWildcardsWithoutCaveats := 0
 	directSubjectsAndWildcardsWithoutExpiration := 0
@@ -566,7 +597,11 @@ func (cc *ConcurrentChecker) dispatch(ctx context.Context, _ currentRequestConte
 	return CheckResult{result, err}
 }
 
-func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentRequestContext, childOneof *core.SetOperation_Child) CheckResult {
+func (cc *ConcurrentChecker) runSetOperation(
+	ctx context.Context,
+	crc currentRequestContext,
+	childOneof *core.SetOperation_Child,
+) CheckResult {
 	switch child := childOneof.ChildType.(type) {
 	case *core.SetOperation_Child_XThis:
 		return checkResultError(spiceerrors.MustBugf("use of _this is unsupported; please rewrite your schema"), emptyMetadata)
@@ -585,7 +620,10 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 			return checkIntersectionTupleToUserset(ctx, cc, crc, child.FunctionedTupleToUserset)
 
 		default:
-			return checkResultError(spiceerrors.MustBugf("unknown userset function `%s`", child.FunctionedTupleToUserset.Function), emptyMetadata)
+			return checkResultError(
+				spiceerrors.MustBugf("unknown userset function `%s`", child.FunctionedTupleToUserset.Function),
+				emptyMetadata,
+			)
 		}
 
 	case *core.SetOperation_Child_XNil:
@@ -622,7 +660,13 @@ func (cc *ConcurrentChecker) checkSelf(ctx context.Context, crc currentRequestCo
 	return noMembers()
 }
 
-func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc currentRequestContext, cu *core.ComputedUserset, rr *tuple.RelationReference, resourceIds []string) CheckResult {
+func (cc *ConcurrentChecker) checkComputedUserset(
+	ctx context.Context,
+	crc currentRequestContext,
+	cu *core.ComputedUserset,
+	rr *tuple.RelationReference,
+	resourceIds []string,
+) CheckResult {
 	ctx, span := tracer.Start(ctx, cu.Relation)
 	defer span.End()
 
@@ -660,7 +704,10 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	// for TTU-based computed usersets, as directly computed ones reference relations within
 	// the same namespace as the caller, and thus must be fully typed checked.
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
-		dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
+		dl := datalayer.MustFromContext(ctx).SnapshotReader(
+			crc.parentReq.Revision,
+			datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()),
+		)
 		sr, err := dl.ReadSchema(ctx)
 		if err != nil {
 			return checkResultError(err, emptyMetadata)
@@ -698,7 +745,12 @@ type Traits struct {
 
 // TraitsForArrowRelation returns traits such as HasCaveats and HasExpiration if *any* of the subject
 // types of the given relation support caveats or expiration.
-func TraitsForArrowRelation(ctx context.Context, reader datalayer.RevisionedReader, namespaceName string, relationName string) (Traits, error) {
+func TraitsForArrowRelation(
+	ctx context.Context,
+	reader datalayer.RevisionedReader,
+	namespaceName string,
+	relationName string,
+) (Traits, error) {
 	// TODO(jschorr): Change to use the type system once we wire it through Check dispatch.
 	schemaReader, err := reader.ReadSchema(ctx)
 	if err != nil {
@@ -744,7 +796,12 @@ func TraitsForArrowRelation(ctx context.Context, reader datalayer.RevisionedRead
 	}, nil
 }
 
-func queryOptionsForArrowRelation(ctx context.Context, reader datalayer.RevisionedReader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
+func queryOptionsForArrowRelation(
+	ctx context.Context,
+	reader datalayer.RevisionedReader,
+	namespaceName string,
+	relationName string,
+) ([]options.QueryOptionsOption, error) {
 	opts := make([]options.QueryOptionsOption, 0, 3)
 	opts = append(opts, options.WithQueryShape(queryshape.AllSubjectsForResources))
 
@@ -764,7 +821,11 @@ func queryOptionsForArrowRelation(ctx context.Context, reader datalayer.Revision
 	return opts, nil
 }
 
-func filterForFoundMemberResource(resourceRelation *core.RelationReference, resourceIds []string, subject *core.ObjectAndRelation) (*MembershipSet, []string) {
+func filterForFoundMemberResource(
+	resourceRelation *core.RelationReference,
+	resourceIds []string,
+	subject *core.ObjectAndRelation,
+) (*MembershipSet, []string) {
 	if resourceRelation.Namespace != subject.Namespace || resourceRelation.Relation != subject.Relation {
 		return nil, resourceIds
 	}
@@ -813,7 +874,10 @@ func checkIntersectionTupleToUserset(
 
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(
+		crc.parentReq.Revision,
+		datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()),
+	)
 	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
@@ -979,7 +1043,10 @@ func checkTupleToUserset[T relation](
 	defer span.End()
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision, datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()))
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(
+		crc.parentReq.Revision,
+		datalayer.SchemaHash(crc.parentReq.Metadata.GetSchemaHash()),
+	)
 
 	queryOpts, err := queryOptionsForArrowRelation(ctx, dl, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
 	if err != nil {
@@ -1220,7 +1287,9 @@ func difference[T any](
 	baseChan := make(chan CheckResult, 1)
 	othersChan := make(chan CheckResult, len(children)-1)
 
+	finishBase := execscope.Begin(childCtx)
 	go func() {
+		defer finishBase()
 		result := handler(childCtx, currentRequestContext{
 			parentReq:           crc.parentReq,
 			filteredResourceIDs: crc.filteredResourceIDs,
