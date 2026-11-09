@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -133,65 +134,83 @@ func lr2Page(t *testing.T, dispatcher dispatch.Dispatcher, cursor []string) *v1.
 	return stream.Results()[0]
 }
 
+// The cursor-lock tests run in a synctest bubble so the primary's hedging delay is measured on the
+// fake clock: the secondary always answers before the delay elapses, so the primary never dispatches
+// the first page. With real time, a slow runner can let the primary's first-page request reach its
+// server after the test has reset the recorded cursors.
+
 func TestLR3CursorLockedToProducingDispatcher(t *testing.T) {
 	t.Parallel()
 
-	dispatcher, primary, secondary := newCursorEchoDispatcher(t)
+	synctest.Test(t, func(t *testing.T) {
+		dispatcher, primary, secondary := newCursorEchoDispatcher(t)
 
-	// Without a cursor, the secondary races the slower primary and wins; its cursor is tagged at the head.
-	first := lr3Page(t, dispatcher, nil)
-	require.Equal(t, "secondary", first.ResourceId)
-	require.Equal(t, []string{"secondary", secondaryCursorPrefix + "secondary"}, first.AfterResponseCursorSections)
+		// Without a cursor, the secondary races the slower primary and wins; its cursor is tagged at the head.
+		first := lr3Page(t, dispatcher, nil)
+		require.Equal(t, "secondary", first.ResourceId)
+		require.Equal(t, []string{"secondary", secondaryCursorPrefix + "secondary"}, first.AfterResponseCursorSections)
+		synctest.Wait()
+		require.Empty(t, primary.received())
 
-	// The next page goes only to the secondary, with the tag stripped.
-	primary.reset()
-	secondary.reset()
-	second := lr3Page(t, dispatcher, first.AfterResponseCursorSections)
-	require.Equal(t, "secondary", second.ResourceId)
-	require.Equal(t, [][]string{{"secondary"}}, secondary.received())
-	require.Empty(t, primary.received())
+		// The next page goes only to the secondary, with the tag stripped.
+		primary.reset()
+		secondary.reset()
+		second := lr3Page(t, dispatcher, first.AfterResponseCursorSections)
+		require.Equal(t, "secondary", second.ResourceId)
+		synctest.Wait()
+		require.Equal(t, [][]string{{"secondary"}}, secondary.received())
+		require.Empty(t, primary.received())
 
-	// An untagged cursor was produced by the primary and must never reach a secondary.
-	primary.reset()
-	secondary.reset()
-	fromPrimary := lr3Page(t, dispatcher, []string{"primary"})
-	require.Equal(t, "primary", fromPrimary.ResourceId)
-	require.Equal(t, []string{"primary", "primary"}, fromPrimary.AfterResponseCursorSections)
-	require.Equal(t, [][]string{{"primary"}}, primary.received())
-	require.Empty(t, secondary.received())
+		// An untagged cursor was produced by the primary and must never reach a secondary.
+		primary.reset()
+		secondary.reset()
+		fromPrimary := lr3Page(t, dispatcher, []string{"primary"})
+		require.Equal(t, "primary", fromPrimary.ResourceId)
+		require.Equal(t, []string{"primary", "primary"}, fromPrimary.AfterResponseCursorSections)
+		synctest.Wait()
+		require.Equal(t, [][]string{{"primary"}}, primary.received())
+		require.Empty(t, secondary.received())
 
-	// A secondary-produced sub-cursor nested below a primary head stays with the primary, untouched.
-	primary.reset()
-	secondary.reset()
-	nested := []string{"secondary", secondaryCursorPrefix + "secondary", "outer"}
-	lr3Page(t, dispatcher, nested)
-	require.Equal(t, [][]string{nested}, primary.received())
-	require.Empty(t, secondary.received())
+		// A secondary-produced sub-cursor nested below a primary head stays with the primary, untouched.
+		primary.reset()
+		secondary.reset()
+		nested := []string{"secondary", secondaryCursorPrefix + "secondary", "outer"}
+		lr3Page(t, dispatcher, nested)
+		synctest.Wait()
+		require.Equal(t, [][]string{nested}, primary.received())
+		require.Empty(t, secondary.received())
+	})
 }
 
 func TestLR2CursorLockedToProducingDispatcher(t *testing.T) {
 	t.Parallel()
 
-	dispatcher, primary, secondary := newCursorEchoDispatcher(t)
+	synctest.Test(t, func(t *testing.T) {
+		dispatcher, primary, secondary := newCursorEchoDispatcher(t)
 
-	first := lr2Page(t, dispatcher, nil)
-	require.Equal(t, "secondary", first.Resource.ResourceId)
-	require.Equal(t, []string{secondaryCursorPrefix + "secondary", "secondary"}, first.AfterResponseCursor.Sections)
+		first := lr2Page(t, dispatcher, nil)
+		require.Equal(t, "secondary", first.Resource.ResourceId)
+		require.Equal(t, []string{secondaryCursorPrefix + "secondary", "secondary"}, first.AfterResponseCursor.Sections)
+		synctest.Wait()
+		require.Empty(t, primary.received())
 
-	primary.reset()
-	secondary.reset()
-	second := lr2Page(t, dispatcher, first.AfterResponseCursor.Sections)
-	require.Equal(t, "secondary", second.Resource.ResourceId)
-	require.Equal(t, [][]string{{"secondary"}}, secondary.received())
-	require.Empty(t, primary.received())
+		primary.reset()
+		secondary.reset()
+		second := lr2Page(t, dispatcher, first.AfterResponseCursor.Sections)
+		require.Equal(t, "secondary", second.Resource.ResourceId)
+		synctest.Wait()
+		require.Equal(t, [][]string{{"secondary"}}, secondary.received())
+		require.Empty(t, primary.received())
 
-	primary.reset()
-	secondary.reset()
-	fromPrimary := lr2Page(t, dispatcher, []string{"primary"})
-	require.Equal(t, "primary", fromPrimary.Resource.ResourceId)
-	require.Equal(t, []string{"primary", "primary"}, fromPrimary.AfterResponseCursor.Sections)
-	require.Equal(t, [][]string{{"primary"}}, primary.received())
-	require.Empty(t, secondary.received())
+		primary.reset()
+		secondary.reset()
+		fromPrimary := lr2Page(t, dispatcher, []string{"primary"})
+		require.Equal(t, "primary", fromPrimary.Resource.ResourceId)
+		require.Equal(t, []string{"primary", "primary"}, fromPrimary.AfterResponseCursor.Sections)
+		synctest.Wait()
+		require.Equal(t, [][]string{{"primary"}}, primary.received())
+		require.Empty(t, secondary.received())
+	})
 }
 
 func TestCursorDispatcherTagHandlesEveryStreamingType(t *testing.T) {
