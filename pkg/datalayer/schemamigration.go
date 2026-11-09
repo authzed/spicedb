@@ -16,7 +16,7 @@ import (
 type schemaMigrationState struct {
 	reader   datastore.SchemaMigrationBoundaryReader
 	mu       sync.Mutex
-	boundary datastore.SchemaMigrationBoundary
+	boundary datastore.SchemaMigrationBoundary // GUARDED_BY(mu)
 }
 
 func (s *schemaMigrationState) useLegacy(ctx context.Context, rev datastore.Revision, hash SchemaHash) (bool, error) {

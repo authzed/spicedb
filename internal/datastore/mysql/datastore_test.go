@@ -457,11 +457,11 @@ func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 	defer mgg.Close()
 
-	now, err := mgg.Now(ctx)
+	// No transaction can precede the Unix epoch, even when migration jobs
+	// have already created transactions in an otherwise empty datastore.
+	watermark, err := mgg.TxIDBefore(ctx, time.Unix(0, 0))
 	req.NoError(err)
-
-	watermark, err := mgg.TxIDBefore(ctx, now.Add(-1*time.Minute))
-	req.NoError(err)
+	req.Equal(datastore.NoRevision, watermark)
 
 	collected, err := mgg.DeleteBeforeTx(ctx, watermark)
 	req.NoError(err)
