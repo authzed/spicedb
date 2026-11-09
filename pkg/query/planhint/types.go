@@ -21,6 +21,9 @@ const (
 	// ArrowDirectionKind identifies an arrow evaluation direction recommendation.
 	ArrowDirectionKind Kind = "arrow-direction"
 
+	// CheckConcurrencyKind identifies a fixed set Check concurrency recommendation.
+	CheckConcurrencyKind Kind = "check-concurrency"
+
 	// BranchOrderKind identifies a branch permutation recommendation.
 	BranchOrderKind Kind = "branch-order"
 )
@@ -163,6 +166,19 @@ type ReasonCode string
 
 const (
 
+	// UnsupportedObserver explains that legacy callbacks or tracing require serial execution.
+	UnsupportedObserver ReasonCode = "unsupported-observer"
+
+	// BatchChildOrder explains that a batched reducer retains child order while
+	// reducing the unresolved target vector instead of speculating scalar siblings.
+	BatchChildOrder ReasonCode = "batch-child-order"
+
+	// RelationChildOrder explains that direct relation forms must precede indirect forms.
+	RelationChildOrder ReasonCode = "relation-child-order"
+
+	// ActiveFrontier explains that BFS frontier collection requires serial execution.
+	ActiveFrontier ReasonCode = "active-frontier"
+
 	// UnsupportedOperation explains that the consumer cannot apply hints to this operation.
 	UnsupportedOperation ReasonCode = "unsupported-operation"
 
@@ -210,7 +226,27 @@ type Disposition struct {
 }
 
 // TraceSink receives hint dispositions for optional debug tracing.
+// A ledger serializes its notifications. A sink may inspect that ledger, but
+// must not synchronously issue hints or responses that produce notifications.
 type TraceSink interface {
 	// Record receives a hint disposition for debug tracing.
 	Record(Disposition)
+}
+
+// CheckConcurrency recommends a maximum worker count within each set reducer.
+type CheckConcurrency struct {
+	// Limit is the positive maximum number of active children.
+	Limit uint16
+}
+
+// Kind returns the recommendation kind of the payload.
+func (CheckConcurrency) Kind() Kind { return CheckConcurrencyKind }
+
+// Validate checks that the recommended concurrency is positive.
+func (c CheckConcurrency) Validate() error {
+	if c.Limit == 0 {
+		return errors.New("check concurrency must be positive")
+	}
+
+	return nil
 }

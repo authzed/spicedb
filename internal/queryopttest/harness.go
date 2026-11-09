@@ -35,6 +35,9 @@ import (
 // Config identifies one pass and its supported request domain. Cases supplement
 // the broad schema generator with shapes that specifically exercise the pass.
 type Config struct {
+	// ContextOptions configures optimized execution; the reference stays serial.
+	ContextOptions []query.ContextOption
+
 	// Optimizers lists the composed passes to verify; when empty, Optimizer is used.
 	Optimizers []optimization.Optimizer
 
@@ -297,7 +300,7 @@ func verifyCase(ctx context.Context, config Config, c Case) (bool, error) {
 				return false, fmt.Errorf("before execution %+v: %w", req, err)
 			}
 
-			right, err := execute(ctx, reader, after, req, caveatContext)
+			right, err := execute(ctx, reader, after, req, caveatContext, config.ContextOptions...)
 			if err != nil {
 				return false, fmt.Errorf("after execution %+v: %w", req, err)
 			}
@@ -333,18 +336,21 @@ func execute(
 	plan query.CanonicalOutline,
 	req Request,
 	caveatContext map[string]any,
+	options ...query.ContextOption,
 ) ([]*query.Path, error) {
 	it, err := plan.Compile()
 	if err != nil {
 		return nil, err
 	}
 
-	qctx := query.NewLocalContext(
-		ctx,
+	options = append(
+		slices.Clone(options),
 		query.WithRevisionedReader(reader),
 		query.WithCaveatRunner(caveats.NewCaveatRunner(types.Default.TypeSet)),
 		query.WithCaveatContext(caveatContext),
+		query.WithHintLedger(plan.HintLedger),
 	)
+	qctx := query.NewLocalContext(ctx, options...)
 
 	if req.Params.Operation == query.OperationCheck {
 		path, err := qctx.Check(it, req.Resource, req.Subject)

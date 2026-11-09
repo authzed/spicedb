@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/query/planhint"
 )
 
 func init() {
@@ -29,8 +30,11 @@ func init() {
 // UnionIterator the set of paths that are in any of underlying subiterators.
 // This is equivalent to `permission foo = bar | baz`
 type UnionIterator struct {
-	subIts       []Iterator
-	canonicalKey CanonicalKey
+	subIts                   []Iterator
+	canonicalKey             CanonicalKey
+	checkConcurrency         uint16
+	concurrencyHint          planhint.ID
+	independentCheckBranches bool
 }
 
 var _ Iterator = &UnionIterator{}
@@ -45,6 +49,19 @@ func NewUnionIterator(subiterators ...Iterator) Iterator {
 }
 
 func (u *UnionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	// Read the concurrency recommendation only for independent permission operands.
+	// Relation forms retain direct-before-indirect order so a direct grant can
+	// avoid indirect userset work. Observers/frontiers retain serial ownership too.
+	limit, err := ctx.independentCheckConcurrency(u.checkConcurrency, u.concurrencyHint,
+		u.independentCheckBranches || namedBatchBranches(u.subIts))
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > 1 {
+		return checkSetParallel(ctx, u.subIts, resource, subject, limit, setCheckUnion)
+	}
+
 	if ctx.shouldTrace() {
 		ctx.TraceStep(u, "processing %d sub-iterators for resource %s:%s", len(u.subIts), resource.ObjectType, resource.ObjectID)
 	}
@@ -130,7 +147,14 @@ func (u *UnionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSu
 
 func (u *UnionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
 	if ctx.shouldTrace() {
-		ctx.TraceStep(u, "processing %d sub-iterators for subject %s:%s#%s", len(u.subIts), subject.ObjectType, subject.ObjectID, subject.Relation)
+		ctx.TraceStep(
+			u,
+			"processing %d sub-iterators for subject %s:%s#%s",
+			len(u.subIts),
+			subject.ObjectType,
+			subject.ObjectID,
+			subject.Relation,
+		)
 	}
 
 	// Create a concatenated sequence from all sub-iterators
@@ -170,8 +194,11 @@ func (u *UnionIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 
 func (u *UnionIterator) Clone() Iterator {
 	cloned := &UnionIterator{
-		canonicalKey: u.canonicalKey,
-		subIts:       make([]Iterator, len(u.subIts)),
+		canonicalKey:             u.canonicalKey,
+		independentCheckBranches: u.independentCheckBranches,
+		checkConcurrency:         u.checkConcurrency,
+		concurrencyHint:          u.concurrencyHint,
+		subIts:                   make([]Iterator, len(u.subIts)),
 	}
 	for idx, subIt := range u.subIts {
 		cloned.subIts[idx] = subIt.Clone()
@@ -196,7 +223,13 @@ func (u *UnionIterator) Subiterators() []Iterator {
 }
 
 func (u *UnionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &UnionIterator{canonicalKey: u.canonicalKey, subIts: newSubs}, nil
+	return &UnionIterator{
+		canonicalKey:             u.canonicalKey,
+		independentCheckBranches: u.independentCheckBranches,
+		checkConcurrency:         u.checkConcurrency,
+		concurrencyHint:          u.concurrencyHint,
+		subIts:                   newSubs,
+	}, nil
 }
 
 func (u *UnionIterator) CanonicalKey() CanonicalKey {
@@ -228,7 +261,10 @@ func (u *UnionIterator) SubjectTypes() ([]ObjectType, error) {
 
 func (u *UnionIterator) Serialize(w io.Writer) error {
 	return SerializeWithHeader(w, UnionIteratorType, u.canonicalKey, func(buf io.Writer) error {
-		if err := writeUvarint(buf, 0); err != nil { // flags reserved
+		var flags uint64
+		setFlag(&flags, independentCheckBranchesFlag, u.independentCheckBranches)
+
+		if err := writeUvarint(buf, flags); err != nil {
 			return err
 		}
 		return writeSubs(buf, u.subIts)
@@ -237,7 +273,8 @@ func (u *UnionIterator) Serialize(w io.Writer) error {
 
 func deserializeUnion(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
 	br := asByteReader(body)
-	if _, err := readUvarint(br); err != nil {
+	flags, err := readUvarint(br)
+	if err != nil {
 		return nil, fmt.Errorf("union flags: %w", err)
 	}
 	subs, err := readSubs(br, dctx)
@@ -248,6 +285,7 @@ func deserializeUnion(body io.Reader, key CanonicalKey, dctx *DeserializeContext
 	switch v := it.(type) {
 	case *UnionIterator:
 		v.canonicalKey = key
+		v.independentCheckBranches = hasFlag(flags, independentCheckBranchesFlag)
 	case *FixedIterator:
 		v.canonicalKey = key
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/query/planhint"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -32,8 +33,11 @@ func init() {
 // IntersectionIterator the set of paths that are in all of underlying subiterators.
 // This is equivalent to `permission foo = bar & baz`
 type IntersectionIterator struct {
-	subIts       []Iterator
-	canonicalKey CanonicalKey
+	subIts                   []Iterator
+	canonicalKey             CanonicalKey
+	checkConcurrency         uint16
+	concurrencyHint          planhint.ID
+	independentCheckBranches bool
 }
 
 var _ Iterator = &IntersectionIterator{}
@@ -48,6 +52,19 @@ func NewIntersectionIterator(subiterators ...Iterator) Iterator {
 }
 
 func (i *IntersectionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	// Read the concurrency recommendation only for independent permission operands.
+	// Relation forms keep their required child order, while observers/frontiers
+	// retain serial ownership even for otherwise independent permission branches.
+	limit, err := ctx.independentCheckConcurrency(i.checkConcurrency, i.concurrencyHint,
+		i.independentCheckBranches || namedBatchBranches(i.subIts))
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > 1 {
+		return checkSetParallel(ctx, i.subIts, resource, subject, limit, setCheckIntersection)
+	}
+
 	if ctx.shouldTrace() {
 		ctx.TraceStep(i, "processing %d sub-iterators for resource %s:%s", len(i.subIts), resource.ObjectType, resource.ObjectID)
 	}
@@ -85,7 +102,13 @@ func (i *IntersectionIterator) CheckImpl(ctx *Context, resource Object, subject 
 
 func (i *IntersectionIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
 	if ctx.shouldTrace() {
-		ctx.TraceStep(i, "iterating subjects for resource %s:%s from %d sub-iterators", resource.ObjectType, resource.ObjectID, len(i.subIts))
+		ctx.TraceStep(
+			i,
+			"iterating subjects for resource %s:%s from %d sub-iterators",
+			resource.ObjectType,
+			resource.ObjectID,
+			len(i.subIts),
+		)
 	}
 
 	// Track concrete paths by subject key and a separate wildcard path.
@@ -420,8 +443,11 @@ func (i *IntersectionIterator) IterResourcesImpl(ctx *Context, subject ObjectAnd
 
 func (i *IntersectionIterator) Clone() Iterator {
 	cloned := &IntersectionIterator{
-		canonicalKey: i.canonicalKey,
-		subIts:       make([]Iterator, len(i.subIts)),
+		canonicalKey:             i.canonicalKey,
+		independentCheckBranches: i.independentCheckBranches,
+		checkConcurrency:         i.checkConcurrency,
+		concurrencyHint:          i.concurrencyHint,
+		subIts:                   make([]Iterator, len(i.subIts)),
 	}
 	for idx, subIt := range i.subIts {
 		cloned.subIts[idx] = subIt.Clone()
@@ -446,7 +472,13 @@ func (i *IntersectionIterator) Subiterators() []Iterator {
 }
 
 func (i *IntersectionIterator) ReplaceSubiterators(newSubs []Iterator) (Iterator, error) {
-	return &IntersectionIterator{canonicalKey: i.canonicalKey, subIts: newSubs}, nil
+	return &IntersectionIterator{
+		canonicalKey:             i.canonicalKey,
+		independentCheckBranches: i.independentCheckBranches,
+		checkConcurrency:         i.checkConcurrency,
+		concurrencyHint:          i.concurrencyHint,
+		subIts:                   newSubs,
+	}, nil
 }
 
 func (i *IntersectionIterator) CanonicalKey() CanonicalKey {
@@ -492,7 +524,10 @@ func (i *IntersectionIterator) SubjectTypes() ([]ObjectType, error) {
 
 func (i *IntersectionIterator) Serialize(w io.Writer) error {
 	return SerializeWithHeader(w, IntersectionIteratorType, i.canonicalKey, func(buf io.Writer) error {
-		if err := writeUvarint(buf, 0); err != nil {
+		var flags uint64
+		setFlag(&flags, independentCheckBranchesFlag, i.independentCheckBranches)
+
+		if err := writeUvarint(buf, flags); err != nil {
 			return err
 		}
 		return writeSubs(buf, i.subIts)
@@ -501,7 +536,8 @@ func (i *IntersectionIterator) Serialize(w io.Writer) error {
 
 func deserializeIntersection(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
 	br := asByteReader(body)
-	if _, err := readUvarint(br); err != nil {
+	flags, err := readUvarint(br)
+	if err != nil {
 		return nil, fmt.Errorf("intersection flags: %w", err)
 	}
 	subs, err := readSubs(br, dctx)
@@ -512,6 +548,7 @@ func deserializeIntersection(body io.Reader, key CanonicalKey, dctx *Deserialize
 	switch v := it.(type) {
 	case *IntersectionIterator:
 		v.canonicalKey = key
+		v.independentCheckBranches = hasFlag(flags, independentCheckBranchesFlag)
 	case *FixedIterator:
 		v.canonicalKey = key
 	}

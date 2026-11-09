@@ -84,9 +84,14 @@ func readHeader(r byteReader) (IteratorType, CanonicalKey, error) {
 // writeHeader emits [type][keyLen+key]. The type-specific body bytes are
 // written by the caller directly to w.
 func writeHeader(w io.Writer, t IteratorType, key CanonicalKey) error {
-	if _, err := w.Write([]byte{byte(t)}); err != nil {
+	if writer, ok := w.(io.ByteWriter); ok {
+		if err := writer.WriteByte(byte(t)); err != nil {
+			return err
+		}
+	} else if _, err := w.Write([]byte{byte(t)}); err != nil {
 		return err
 	}
+
 	return writeString(w, string(key))
 }
 
@@ -108,6 +113,21 @@ func SerializeWithHeader(w io.Writer, t IteratorType, key CanonicalKey, writeBod
 // ----- Primitives -----
 
 func writeUvarint(w io.Writer, v uint64) error {
+	// Dispatch builds plans in bytes.Buffer. Writing scalar bytes avoids the
+	// temporary array escaping through io.Writer once for every wire field.
+	// Keep the buffered fallback for writers that only implement io.Writer.
+	if writer, ok := w.(io.ByteWriter); ok {
+		for v >= 0x80 {
+			if err := writer.WriteByte(byte(v) | 0x80); err != nil {
+				return err
+			}
+
+			v >>= 7
+		}
+
+		return writer.WriteByte(byte(v))
+	}
+
 	var buf [binary.MaxVarintLen64]byte
 	n := binary.PutUvarint(buf[:], v)
 	_, err := w.Write(buf[:n])

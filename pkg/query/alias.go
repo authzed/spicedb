@@ -173,6 +173,13 @@ func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, sh
 }
 
 func (a *AliasIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	// Named branches belong to one schema definition. Heterogeneous arrows
+	// can visit this branch with another type, which must not acquire its body
+	// results or its synthetic self-edge.
+	if a.definitionName != "" && resource.ObjectType != a.definitionName {
+		return nil, nil
+	}
+
 	// Get path from sub-iterator
 	subPath, err := ctx.Check(a.subIt, resource, subject)
 	if err != nil {
@@ -210,6 +217,10 @@ func (a *AliasIterator) CheckImpl(ctx *Context, resource Object, subject ObjectA
 }
 
 func (a *AliasIterator) IterSubjectsImpl(ctx *Context, resource Object, filterSubjectType ObjectType) (PathSeq, error) {
+	if a.definitionName != "" && resource.ObjectType != a.definitionName {
+		return EmptyPathSeq(), nil
+	}
+
 	subSeq, err := ctx.IterSubjects(a.subIt, resource, filterSubjectType)
 	if err != nil {
 		return nil, err
@@ -271,6 +282,14 @@ func (a *AliasIterator) shouldIncludeSelfEdge(ctx *Context, resource Object) boo
 }
 
 func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+	if a.definitionName != "" {
+		if filterResourceType.Type != "" && filterResourceType.Type != a.definitionName {
+			return EmptyPathSeq(), nil
+		}
+
+		filterResourceType.Type = a.definitionName
+	}
+
 	subSeq, err := ctx.IterResources(a.subIt, subject, filterResourceType)
 	if err != nil {
 		return nil, err
@@ -280,7 +299,8 @@ func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 	// This matches LookupResources3's logic where subject type+relation must match resource type+relation.
 	// In a collapsed chain any name in the chain can match.
 	shouldAddSelfEdge := false
-	if a.matchesSelfEdgeRelation(subject.Relation) {
+
+	if (a.definitionName == "" || subject.ObjectType == a.definitionName) && a.matchesSelfEdgeRelation(subject.Relation) {
 		// Get the resource types from the iterator
 		resourceTypes, err := a.ResourceType()
 		if err != nil {
@@ -304,7 +324,7 @@ func (a *AliasIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRelatio
 		}
 	}
 
-	return a.maybePrependSelfEdge(GetObject(subject), subSeq, shouldAddSelfEdge), nil
+	return a.maybePrependSelfEdge(GetObject(subject), FilterResourcesByType(subSeq, filterResourceType), shouldAddSelfEdge), nil
 }
 
 func (a *AliasIterator) Clone() Iterator {
@@ -424,3 +444,7 @@ func deserializeAlias(body io.Reader, key CanonicalKey, dctx *DeserializeContext
 	al.canonicalKey = key
 	return al, nil
 }
+
+// IsNamedCheckBranch identifies this complete named relation as an independent
+// sibling branch for batch Check scheduling.
+func (*AliasIterator) IsNamedCheckBranch() bool { return true }
