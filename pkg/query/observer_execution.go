@@ -48,35 +48,35 @@ type ExecutionObserver interface {
 
 // WithExecutionObserver adds a receiver for terminal invocation observations.
 func WithExecutionObserver(o ExecutionObserver) ContextOption {
-	return func(c *Context) { c.executionObservers = append(c.executionObservers, o) }
+	return func(ctx *Context) { ctx.executionObservers = append(ctx.executionObservers, o) }
 }
 
-func (c *Context) executionStart(it Iterator, op Operation, filter, mode string) *ExecutionObservation {
-	if len(c.executionObservers) == 0 {
+func (ctx *Context) executionStart(it Iterator, op Operation, filter, mode string) *ExecutionObservation {
+	if len(ctx.executionObservers) == 0 {
 		return nil
 	}
 
-	c.executionInit.Do(func() {
+	ctx.executionInit.Do(func() {
 		descriptors, err := ExecutionDescriptors(it)
 		if err == nil {
 			for node, d := range descriptors {
-				c.executionDescriptors.Store(node, d)
+				ctx.executionDescriptors.Store(node, d)
 			}
 		}
 	})
-	d, _ := c.executionDescriptors.Load(it)
+	d, _ := ctx.executionDescriptors.Load(it)
 	facts, _ := d.(ExecutionDescriptor)
 	strategy := facts.Strategy
 	if strategy == "" {
 		strategy = "default"
 	}
 
-	if c.BatchedArrows {
+	if ctx.BatchedArrows {
 		strategy += "/batched"
 	}
 
 	return &ExecutionObservation{
-		Invocation: c.executionSequence.Add(1),
+		Invocation: ctx.executionSequence.Add(1),
 		Key: signal.ExecutionKey{
 			Identity:     facts.Identity,
 			Operation:    SignalOperation(op),
@@ -90,7 +90,7 @@ func (c *Context) executionStart(it Iterator, op Operation, filter, mode string)
 	}
 }
 
-func (c *Context) executionFinish(e *ExecutionObservation, err error) {
+func (ctx *Context) executionFinish(e *ExecutionObservation, err error) {
 	if e == nil {
 		return
 	}
@@ -99,18 +99,18 @@ func (c *Context) executionFinish(e *ExecutionObservation, err error) {
 		e.Status = signal.Errored
 	}
 
-	if c.Err() != nil {
+	if ctx.Err() != nil {
 		e.Status = signal.Canceled
 	}
 
 	e.Finished = time.Now()
 
-	for _, o := range c.executionObservers {
+	for _, o := range ctx.executionObservers {
 		o.ObserveExecution(*e)
 	}
 }
 
-func (c *Context) executionCheck(e *ExecutionObservation, p *Path, err error) {
+func (ctx *Context) executionCheck(e *ExecutionObservation, p *Path, err error) {
 	if e == nil {
 		return
 	}
@@ -130,19 +130,19 @@ func (c *Context) executionCheck(e *ExecutionObservation, p *Path, err error) {
 		}
 	}
 
-	c.executionFinish(e, err)
+	ctx.executionFinish(e, err)
 }
 
-func (c *Context) executionSequenceWrap(e *ExecutionObservation, seq PathSeq) PathSeq {
+func (ctx *Context) executionSequenceWrap(e *ExecutionObservation, seq PathSeq) PathSeq {
 	if e == nil {
 		return seq
 	}
 
 	return func(yield func(*Path, error) bool) {
 		event := *e
-		event.Invocation = c.executionSequence.Add(1)
+		event.Invocation = ctx.executionSequence.Add(1)
 		var terminalErr error
-		defer func() { c.executionFinish(&event, terminalErr) }()
+		defer func() { ctx.executionFinish(&event, terminalErr) }()
 
 		for p, err := range seq {
 			if err != nil {
@@ -164,39 +164,39 @@ func (c *Context) executionSequenceWrap(e *ExecutionObservation, seq PathSeq) Pa
 }
 
 // ObserveImplCheck wraps a receiver root without re-entering its dispatch executor.
-func (c *Context) ObserveImplCheck(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
-	return c.observeImplCheck(it, resource, subject, "single")
+func (ctx *Context) ObserveImplCheck(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
+	return ctx.observeImplCheck(it, resource, subject, "single")
 }
 
-func (c *Context) observeImplCheck(it Iterator, resource Object, subject ObjectAndRelation, mode string) (*Path, error) {
-	e := c.executionStart(it, OperationCheck, CheckFilter(resource, subject), mode)
-	p, err := it.CheckImpl(c, resource, subject)
-	c.executionCheck(e, p, err)
+func (ctx *Context) observeImplCheck(it Iterator, resource Object, subject ObjectAndRelation, mode string) (*Path, error) {
+	e := ctx.executionStart(it, OperationCheck, CheckFilter(resource, subject), mode)
+	p, err := it.CheckImpl(ctx, resource, subject)
+	ctx.executionCheck(e, p, err)
 	return p, err
 }
 
 // ObserveImplSubjects observes a receiver root's subject enumeration without re-entering dispatch.
-func (c *Context) ObserveImplSubjects(it Iterator, resource Object, filter ObjectType) (PathSeq, error) {
-	e := c.executionStart(it, OperationIterSubjects, filter.String(), "single")
-	seq, err := it.IterSubjectsImpl(c, resource, filter)
+func (ctx *Context) ObserveImplSubjects(it Iterator, resource Object, filter ObjectType) (PathSeq, error) {
+	e := ctx.executionStart(it, OperationIterSubjects, filter.String(), "single")
+	seq, err := it.IterSubjectsImpl(ctx, resource, filter)
 	if err != nil {
-		c.executionFinish(e, err)
+		ctx.executionFinish(e, err)
 		return nil, err
 	}
 
-	return c.executionSequenceWrap(e, seq), nil
+	return ctx.executionSequenceWrap(e, seq), nil
 }
 
 // ObserveImplResources observes a receiver root's resource enumeration without re-entering dispatch.
-func (c *Context) ObserveImplResources(it Iterator, subject ObjectAndRelation, filter ObjectType) (PathSeq, error) {
-	e := c.executionStart(it, OperationIterResources, ResourceFilter(subject, filter), "single")
-	seq, err := it.IterResourcesImpl(c, subject, filter)
+func (ctx *Context) ObserveImplResources(it Iterator, subject ObjectAndRelation, filter ObjectType) (PathSeq, error) {
+	e := ctx.executionStart(it, OperationIterResources, ResourceFilter(subject, filter), "single")
+	seq, err := it.IterResourcesImpl(ctx, subject, filter)
 	if err != nil {
-		c.executionFinish(e, err)
+		ctx.executionFinish(e, err)
 		return nil, err
 	}
 
-	return c.executionSequenceWrap(e, seq), nil
+	return ctx.executionSequenceWrap(e, seq), nil
 }
 
 // CheckFilter encodes resource and subject types and the subject relation for Check evidence.
@@ -209,7 +209,7 @@ func ResourceFilter(subject ObjectAndRelation, filter ObjectType) string {
 	return subject.ObjectType + "#" + subject.Relation + "|" + filter.String()
 }
 
-func (c *Context) executionBatch(e *ExecutionObservation, paths []*Path, err error) {
+func (ctx *Context) executionBatch(e *ExecutionObservation, paths []*Path, err error) {
 	if e == nil {
 		return
 	}
@@ -229,7 +229,7 @@ func (c *Context) executionBatch(e *ExecutionObservation, paths []*Path, err err
 		}
 	}
 
-	c.executionFinish(e, err)
+	ctx.executionFinish(e, err)
 }
 
 // SignalOperation maps supported execution operations without narrowing unchecked values.
@@ -247,11 +247,11 @@ func SignalOperation(op Operation) signal.Operation {
 }
 
 // ObserveImplCheckManyResources observes one attempted element inside a receiver batch.
-func (c *Context) ObserveImplCheckManyResources(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
-	return c.observeImplCheck(it, resource, subject, "many-resources")
+func (ctx *Context) ObserveImplCheckManyResources(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
+	return ctx.observeImplCheck(it, resource, subject, "many-resources")
 }
 
 // ObserveImplCheckManySubjects observes one attempted element inside a receiver batch.
-func (c *Context) ObserveImplCheckManySubjects(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
-	return c.observeImplCheck(it, resource, subject, "many-subjects")
+func (ctx *Context) ObserveImplCheckManySubjects(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
+	return ctx.observeImplCheck(it, resource, subject, "many-subjects")
 }
