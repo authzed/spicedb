@@ -258,6 +258,11 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
 				sg.emitAllowedRelation(allowedRelation)
 			}
 		}
+	} else if annotations := namespace.GetTypeAnnotations(relation); len(annotations) > 0 {
+		// Annotations are only kept when the typechecking flag is set.
+		sg.flags.Add("typechecking")
+		sg.append(": ")
+		sg.append(strings.Join(annotations, " | "))
 	}
 
 	if relation.UsersetRewrite != nil {
