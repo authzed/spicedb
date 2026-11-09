@@ -49,7 +49,11 @@ definition document {
 		{"unrelated relation", strings.Replace(original, "permission view", "relation editor: user\npermission view", 1), signal.Retain},
 		{"changed caveat", strings.Replace(original, "{ flag }", "{ !flag }", 1), signal.Reset},
 		{"removed caveat", withoutCaveat, signal.Reset},
-		{"definition comment", strings.Replace(original, "definition document", "/** Resources. */\ndefinition document", 1), signal.Retain},
+		{
+			"definition comment",
+			strings.Replace(original, "definition document", "/** Resources. */\ndefinition document", 1),
+			signal.Retain,
+		},
 		{"caveat comment", strings.Replace(original, "caveat gate", "/** Context gate. */\ncaveat gate", 1), signal.Retain},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
