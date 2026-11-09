@@ -1,11 +1,37 @@
-# Compiled Check plan reuse
+# Shared query planning
 
-This package removes repeated schema-to-outline construction, optimization,
-compilation, and receiver deserialization from checks that need the same plan.
-It caches completed, read-only iterator trees for `native-parity-v1` Checks.
-The cache belongs to the exact immutable single-store schema that owns the
-iterator's relation pointers. Legacy readers and other profiles build normally.
-No learned signals select this reuse policy.
+This package owns planning policies for public v1 requests and dispatch receivers.
+The API validates requests and evaluates the final caveat expression; it does not
+recognize profile names or choose a different planning implementation.
+
+`Planner.FromSchema` builds an outline, applies the profile's structural passes,
+establishes dispatch boundaries, runs eligible signal-driven decisions, and
+compiles it. `Planner.FromWire` decodes an already-optimized dispatch body and
+applies the receiver's local scheduling recommendations while preserving wire
+identities and execution order. Both return a `Prepared` plan with fresh execution
+options and hint accounting. Call `Flush` after execution to publish buffered
+observations, including on errors and partially consumed streams.
+
+`Planner.Check` also owns dispatch caveat-context policy and the early root result
+cache probe. Symbolic Check policies keep request values at the public evaluation
+boundary; request-independent policies can return a validated cache hit before
+schema conversion or compilation. Learned policies still prepare per request so
+context observations and recommendations remain current.
+
+Profiles configure these capabilities in `pkg/query/queryprofile`. Native parity
+currently applies only to Check; schema-built lookup plans retain the normal
+optimizer and signal pipeline. Receiver scheduling uses the receiving deployment's
+policy, independently of the sender. Reducing the supported profile set therefore
+does not require another API or receiver planning path.
+
+## Compiled Check plan reuse
+
+Request-independent policies remove repeated schema-to-outline construction,
+optimization, compilation, and receiver deserialization. Currently this retains
+completed, read-only iterator trees for `native-parity-v1` Checks. The cache belongs
+to the exact immutable single-store schema that owns the iterator's relation
+pointers. Legacy readers and learned policies build per request. No learned
+signals select this reuse policy.
 
 Service keys contain the full profile and limits, resource type, permission,
 normalized subject type/relation, and operation. Receiver keys contain the
@@ -68,7 +94,8 @@ Concurrent first requests share construction through scoped singleflight.
 Cancellation of one caller does not cancel live peers. Build failures are not
 retained. Caches never retain request contexts, paths, runners or executors.
 
-Package tests cover reuse, schema/policy/wire identity, request hint and path
-ownership, concurrent first loads, errors, cancellation, byte bounds and LRU
-behavior. The working-set test builds service and receiver plans for a mixed
-userset/exclusion schema and verifies that the bounded cache retains the root.
+Package tests cover early root hits, symbolic context isolation, operation-scoped
+policy, revision-scoped evidence, reuse, schema/policy/wire identity, request hint
+and path ownership, concurrent first loads, errors, cancellation, byte bounds and
+LRU behavior. Public and generated-schema tests verify execution semantics through
+the service and receiver integration.

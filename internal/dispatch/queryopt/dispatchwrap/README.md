@@ -1,4 +1,4 @@
-# Dispatch alias wrapping
+# Dispatch relation boundaries
 
 Registered name: `dispatch-wrap-alias`. Factory:
 `New(iteratorType query.IteratorType) optimization.Optimizer`.
@@ -8,6 +8,29 @@ The dispatch package supplies its real DispatchIteratorType and registers the pa
 
 `Alias(view)(child)` becomes `Dispatch(Alias(view)(child))` for eligible aliases.
 The wrapper is a local passthrough iterator marking a potential RPC boundary.
+Complete recursive controllers also get a wrapper:
+`Recursive(view)(template)` becomes `Dispatch(Recursive(view)(template))`.
+Shipping the controller with its template preserves sentinel bindings and lets
+the whole recursive Check result use the ordinary dispatch result cache.
+
+For example, consider this summarized schema:
+
+```zed
+definition user {}
+definition document {
+    relation reader: user
+    relation parent: document
+    permission view = reader + parent->view
+}
+```
+
+For `Check(document:root, view, user:alice)`, suppose `root` points at `middle`,
+which points at `leaf`, and Alice reads `leaf`. The complete `document#view`
+controller can be dispatched and its granting root result cached. A repeated
+Check at the same revision and caveat context reuses that result. A denied root
+result can be cached too. The alias inside the recursive template stays local
+because its sentinel depends on the surrounding controller. A controller that
+also depends on a different ancestor controller remains unwrapped.
 
 ## Inputs and signals
 

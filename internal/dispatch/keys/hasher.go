@@ -57,11 +57,11 @@ type hashableOnr struct {
 }
 
 func (hnr hashableOnr) AppendToHash(hasher hasherInterface) {
-	hasher.WriteString(hnr.Namespace)
+	hasher.WriteString(hnr.GetNamespace())
 	hasher.WriteString(":")
-	hasher.WriteString(hnr.ObjectId)
+	hasher.WriteString(hnr.GetObjectId())
 	hasher.WriteString("#")
-	hasher.WriteString(hnr.Relation)
+	hasher.WriteString(hnr.GetRelation())
 }
 
 type hashableString string

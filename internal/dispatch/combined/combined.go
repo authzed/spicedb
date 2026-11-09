@@ -21,6 +21,7 @@ import (
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryprofile"
 	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
@@ -46,7 +47,13 @@ type optionState struct {
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
 	querySignals                                 *signals.Owner
+	queryProfile                                 queryprofile.Profile
 	queryPlanMetadata                            *query.QueryPlanMetadata
+}
+
+// QueryProfile selects the local receiver execution policy.
+func QueryProfile(profile queryprofile.Profile) Option {
+	return func(state *optionState) { state.queryProfile = profile }
 }
 
 // QuerySignals shares the bounded signal owner with the permissions service.
@@ -249,6 +256,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			DispatchChunkSize:      chunkSize,
 			RelationshipChunkCache: relationshipChunkCache,
 			QuerySignals:           opts.querySignals,
+			QueryProfile:           opts.queryProfile,
 			QueryPlanMetadata:      opts.queryPlanMetadata,
 		}
 		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)

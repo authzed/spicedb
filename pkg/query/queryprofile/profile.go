@@ -118,3 +118,33 @@ func (p Profile) ContextOptions() []query.ContextOption {
 		}),
 	}
 }
+
+// ForOperation selects schema-planning policy. Native parity currently applies
+// only to Check; enumeration retains the normal optimizer and signal pipeline.
+func (p Profile) ForOperation(operation query.Operation) Profile {
+	if operation != query.OperationCheck {
+		return Profile{}
+	}
+
+	return p
+}
+
+// ReuseCompiledPlan reports whether this operation has request-independent planning.
+func (p Profile) ReuseCompiledPlan(operation query.Operation) bool {
+	return p.Name() == NativeParityV1 && operation == query.OperationCheck
+}
+
+// SymbolicCheckResults keeps request caveat values at the public evaluation boundary.
+func (p Profile) SymbolicCheckResults() bool {
+	return p.Name() == NativeParityV1
+}
+
+// ReceivedOptimizers selects local scheduling recommendations for an already
+// optimized wire plan. Learned transforms remain the sender's responsibility.
+func (p Profile) ReceivedOptimizers(params queryopt.RequestParams) []optimization.Optimizer {
+	if p.Name() == NativeParityV1 {
+		return p.StructuralOptimizers(params)
+	}
+
+	return nil
+}

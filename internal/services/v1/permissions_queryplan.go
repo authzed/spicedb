@@ -3,6 +3,7 @@ package v1
 import (
 	"cmp"
 	"context"
+	"slices"
 
 	"github.com/ccoveille/go-safecast/v2"
 
@@ -10,19 +11,21 @@ import (
 
 	caveatsimpl "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/querysignals"
+	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/queryplan"
 	"github.com/authzed/spicedb/pkg/datalayer"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt"
-	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // checkPermissionWithQueryPlan executes a permission check using the query plan API.
 // This builds an iterator tree from the schema and executes it against the datastore.
-func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
+func (ps *permissionServer) checkPermissionWithQueryPlan(
+	ctx context.Context,
+	req *v1.CheckPermissionRequest,
+) (*v1.CheckPermissionResponse, error) {
 	atRevision, schemaHash, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -31,53 +34,27 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	dl := datalayer.MustFromContext(ctx)
 	reader := dl.SnapshotReader(atRevision, schemaHash)
 
-	// Load all namespace and caveat definitions to build the schema
-	// TODO: Better schema caching
+	// Read the schema at the request revision; single-store readers own the
+	// converted view reused below.
 	sr, err := reader.ReadSchema(ctx)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	namespaces, err := sr.ListAllTypeDefinitions(ctx)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	caveats, err := sr.ListAllCaveatDefinitions(ctx)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	// Build schema from definitions
-	fullSchema, err := schema.BuildSchemaFromDefinitions(
-		datastore.DefinitionsOf(namespaces),
-		datastore.DefinitionsOf(caveats),
-	)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	// Build and optimize the outline, then compile to an iterator tree.
-	// TODO: Better outline caching
-	co, err := query.BuildOutlineFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	queryParams := queryopt.RequestParams{
-		Operation:       query.OperationCheck,
-		SubjectType:     req.Subject.Object.ObjectType,
-		SubjectRelation: normalizeSubjectRelation(req.Subject),
-	}
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	// Tag dispatch-eligible aliases by wrapping them in DispatchIterator, run
-	// after the standard optimizer set so the wrap sees the post-optimizer tree.
-	optimized, err = dispatch.ApplyDispatchWrap(optimized, queryParams)
-	if err != nil {
+	// Validate resource permission and subject relation through the same schema
+	// reader as native before planning, preserving public invalid-request errors.
+	if err := namespace.CheckNamespaceAndRelations(ctx, []namespace.TypeAndRelationToCheck{
+		{
+			NamespaceName: req.Resource.ObjectType,
+			RelationName:  req.Permission,
+			AllowEllipsis: false,
+		},
+		{
+			NamespaceName: req.Subject.Object.ObjectType,
+			RelationName:  normalizeSubjectRelation(req.Subject),
+			AllowEllipsis: true,
+		},
+	}, sr); err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
@@ -86,76 +63,88 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	signalView, err := querysignals.Bind(ps.querySignals, sr, atRevision, string(schemaHash))
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	fields := []string{}
-
-	for _, caveat := range caveats {
-		for field := range caveat.Definition.ParameterTypes {
-			fields = append(fields, field)
-		}
-	}
-
-	querysignals.ObserveRequestContext(signalView, caveatContext, querysignals.ContextOptions{Fields: fields})
-	collector := querysignals.NewCollector(signalView, querysignals.CollectorOptions{})
-	defer collector.Flush()
-	optimized, err = querysignals.Plan(optimized, queryParams, signalView, true)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	it, err := optimized.Compile()
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	// Create query context backed by a DispatchExecutor.
 	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, maximumAPIDepth, 0)
-	qctx := dispatch.NewQueryContext(
-		ctx,
-		ps.dispatch,
-		planContext,
-		query.NewQueryDatastoreReader(reader),
-		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
-		ps.config.DispatchChunkSize,
-		query.WithExecutionObserver(collector),
-	)
-
-	// Execute the check
-	resource := query.Object{
-		ObjectType: req.Resource.ObjectType,
-		ObjectID:   req.Resource.ObjectId,
-	}
-
-	subject := query.ObjectAndRelation{
-		ObjectType: req.Subject.Object.ObjectType,
-		ObjectID:   req.Subject.Object.ObjectId,
-		Relation:   normalizeSubjectRelation(req.Subject),
-	}
-
-	path, err := qctx.Check(it, resource, subject)
+	// Planning owns profile capabilities, root cache probes and execution setup.
+	// The API retains validation above and request-context caveat evaluation below.
+	planner := queryplan.Planner{Profile: ps.config.QueryProfile, Signals: ps.querySignals}
+	runner := caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet)
+	path, err := planner.Check(ctx, queryplan.CheckRequest{
+		Request: queryplan.Request{
+			Schema:        sr,
+			Revision:      atRevision,
+			SchemaHash:    schemaHash,
+			CaveatContext: caveatContext,
+		},
+		Permission: req.Permission,
+		Resource:   query.Object{ObjectType: req.Resource.ObjectType, ObjectID: req.Resource.ObjectId},
+		Subject: query.ObjectAndRelation{
+			ObjectType: req.Subject.Object.ObjectType,
+			ObjectID:   req.Subject.Object.ObjectId,
+			Relation:   normalizeSubjectRelation(req.Subject),
+		},
+		Dispatcher:        ps.dispatch,
+		Reader:            reader,
+		CaveatRunner:      runner,
+		MaximumDepth:      maximumAPIDepth,
+		DispatchChunkSize: ps.config.DispatchChunkSize,
+	})
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Convert result path to response
-	permissionship, partialCaveat := convertPathToPermissionship(path)
+	// Cached and executed paths remain expressions until evaluated with this
+	// request's context. Intermediate dispatch results retain conditional paths.
+	permissionship, partialCaveat, err := evaluateCheckPath(ctx, path, caveatContext, sr, runner)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
 
-	resp := &v1.CheckPermissionResponse{
+	return &v1.CheckPermissionResponse{
 		CheckedAt:         checkedAt,
 		Permissionship:    permissionship,
 		PartialCaveatInfo: partialCaveat,
+	}, nil
+}
+
+// evaluateCheckPath resolves the complete expression at the public boundary because
+// intermediate dispatch results must retain conditional paths for their parent reducers.
+func evaluateCheckPath(
+	ctx context.Context,
+	path *query.Path,
+	values map[string]any,
+	reader datalayer.SchemaReader,
+	runner *caveatsimpl.CaveatRunner,
+) (v1.CheckPermissionResponse_Permissionship, *v1.PartialCaveatInfo, error) {
+	if path == nil || path.Caveat == nil {
+		permission, partial := convertPathToPermissionship(path)
+		return permission, partial, nil
 	}
 
-	return resp, nil
+	result, err := runner.RunCaveatExpression(ctx, path.Caveat, values, reader, caveatsimpl.RunCaveatExpressionNoDebugging)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	if result.IsPartial() {
+		missing, err := result.MissingVarNames()
+		if err != nil {
+			return 0, nil, err
+		}
+
+		slices.Sort(missing)
+		return v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+			&v1.PartialCaveatInfo{MissingRequiredContext: missing}, nil
+	}
+
+	if result.Value() {
+		return v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, nil, nil
+	}
+
+	return v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, nil, nil
 }
 
 // convertPathToPermissionship converts a single check result path to a permissionship response.
@@ -177,7 +166,10 @@ func convertPathToPermissionship(path *query.Path) (v1.CheckPermissionResponse_P
 
 // lookupResourcesWithQueryPlan executes a LookupResources call using the query plan API.
 // It builds an iterator tree from the schema and calls IterResources to stream results.
-func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+func (ps *permissionServer) lookupResourcesWithQueryPlan(
+	req *v1.LookupResourcesRequest,
+	resp v1.PermissionsService_LookupResourcesServer,
+) error {
 	ctx := resp.Context()
 
 	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
@@ -194,45 +186,10 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	namespaces, err := sr.ListAllTypeDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	caveats, err := sr.ListAllCaveatDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	fullSchema, err := schema.BuildSchemaFromDefinitions(
-		datastore.DefinitionsOf(namespaces),
-		datastore.DefinitionsOf(caveats),
-	)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	// Build and compile the iterator tree for the requested resource type and permission
-	co, err := query.BuildOutlineFromSchema(fullSchema, req.ResourceObjectType, req.Permission)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
 	queryParams := queryopt.RequestParams{
 		Operation:       query.OperationIterResources,
 		SubjectType:     req.Subject.Object.ObjectType,
 		SubjectRelation: normalizeSubjectRelation(req.Subject),
-	}
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	// Tag dispatch-eligible aliases by wrapping them in DispatchIterator, run
-	// after the standard optimizer set so the wrap sees the post-optimizer tree.
-	optimized, err = dispatch.ApplyDispatchWrap(optimized, queryParams)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
 	}
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
@@ -240,31 +197,19 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	signalView, err := querysignals.Bind(ps.querySignals, sr, atRevision, string(schemaHash))
+	planner := queryplan.Planner{Profile: ps.config.QueryProfile, Signals: ps.querySignals}
+	plan, err := planner.FromSchema(ctx, queryplan.Request{
+		Schema:        sr,
+		Revision:      atRevision,
+		SchemaHash:    schemaHash,
+		Params:        queryParams,
+		CaveatContext: caveatContext,
+	}, req.ResourceObjectType, req.Permission)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	fields := []string{}
-
-	for _, caveat := range caveats {
-		for field := range caveat.Definition.ParameterTypes {
-			fields = append(fields, field)
-		}
-	}
-
-	querysignals.ObserveRequestContext(signalView, caveatContext, querysignals.ContextOptions{Fields: fields})
-	collector := querysignals.NewCollector(signalView, querysignals.CollectorOptions{})
-	defer collector.Flush()
-	optimized, err = querysignals.Plan(optimized, queryParams, signalView, true)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	it, err := optimized.Compile()
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
+	defer plan.Flush()
 
 	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
 	if err != nil {
@@ -279,7 +224,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
 		ps.config.DispatchChunkSize,
-		query.WithExecutionObserver(collector),
+		plan.Options...,
 	)
 
 	// Build the subject from the request
@@ -290,7 +235,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 	}
 
 	// Iterate over resources accessible from this subject
-	pathSeq, err := qctx.IterResources(it, subject, query.NoObjectFilter())
+	pathSeq, err := qctx.IterResources(plan.Iterator, subject, query.NoObjectFilter())
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -329,7 +274,10 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 
 // lookupSubjectsWithQueryPlan executes a LookupSubjects call using the query plan API.
 // It builds an iterator tree from the schema and calls IterSubjects to stream results.
-func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
+func (ps *permissionServer) lookupSubjectsWithQueryPlan(
+	req *v1.LookupSubjectsRequest,
+	resp v1.PermissionsService_LookupSubjectsServer,
+) error {
 	ctx := resp.Context()
 
 	atRevision, schemaHash, revisionReadAt, err := consistency.RevisionFromContext(ctx)
@@ -346,45 +294,10 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	namespaces, err := sr.ListAllTypeDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	caveats, err := sr.ListAllCaveatDefinitions(ctx)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	fullSchema, err := schema.BuildSchemaFromDefinitions(
-		datastore.DefinitionsOf(namespaces),
-		datastore.DefinitionsOf(caveats),
-	)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	// Build and compile the iterator tree for the resource type and permission
-	co, err := query.BuildOutlineFromSchema(fullSchema, req.Resource.ObjectType, req.Permission)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
 	queryParams := queryopt.RequestParams{
 		Operation:       query.OperationIterSubjects,
 		SubjectType:     req.SubjectObjectType,
 		SubjectRelation: cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
-	}
-	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	// Tag dispatch-eligible aliases by wrapping them in DispatchIterator, run
-	// after the standard optimizer set so the wrap sees the post-optimizer tree.
-	optimized, err = dispatch.ApplyDispatchWrap(optimized, queryParams)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
 	}
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
@@ -392,31 +305,19 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	signalView, err := querysignals.Bind(ps.querySignals, sr, atRevision, string(schemaHash))
+	planner := queryplan.Planner{Profile: ps.config.QueryProfile, Signals: ps.querySignals}
+	plan, err := planner.FromSchema(ctx, queryplan.Request{
+		Schema:        sr,
+		Revision:      atRevision,
+		SchemaHash:    schemaHash,
+		Params:        queryParams,
+		CaveatContext: caveatContext,
+	}, req.Resource.ObjectType, req.Permission)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	fields := []string{}
-
-	for _, caveat := range caveats {
-		for field := range caveat.Definition.ParameterTypes {
-			fields = append(fields, field)
-		}
-	}
-
-	querysignals.ObserveRequestContext(signalView, caveatContext, querysignals.ContextOptions{Fields: fields})
-	collector := querysignals.NewCollector(signalView, querysignals.CollectorOptions{})
-	defer collector.Flush()
-	optimized, err = querysignals.Plan(optimized, queryParams, signalView, true)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	it, err := optimized.Compile()
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
+	defer plan.Flush()
 
 	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
 	if err != nil {
@@ -431,7 +332,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
 		ps.config.DispatchChunkSize,
-		query.WithExecutionObserver(collector),
+		plan.Options...,
 	)
 
 	// Build the resource object from the request
@@ -447,7 +348,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 	}
 
 	// Iterate over subjects that have access to this resource
-	pathSeq, err := qctx.IterSubjects(it, resource, subjectFilter)
+	pathSeq, err := qctx.IterSubjects(plan.Iterator, resource, subjectFilter)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}

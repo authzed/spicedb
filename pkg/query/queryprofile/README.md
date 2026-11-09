@@ -29,3 +29,12 @@ Limits are resolved once from deployment settings. Both service and local dispat
 receivers use the same immutable profile. New registered passes cannot enter this
 profile implicitly. The fixed Check concurrency pass is explicitly enabled for
 union/intersection/exclusion reducers. Remaining native capability coverage is reported separately.
+
+The shared planner consumes profile capabilities; public API handlers and dispatch
+receivers do not branch on profile names. `ForOperation` confines schema-side
+native-parity behavior to Check, preserving the current lookup pipeline.
+`ReuseCompiledPlan` gates schema-owned plan caching, `SymbolicCheckResults` keeps
+request context out of symbolic result keys, and `ReceivedOptimizers` selects
+local recommendations for already-optimized wire bodies. Decision passes are
+passed explicitly to the signal planning phase. These choices remain in this
+package when profiles are consolidated or removed.

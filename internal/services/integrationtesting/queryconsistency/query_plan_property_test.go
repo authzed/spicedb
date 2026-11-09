@@ -20,6 +20,7 @@ import (
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt"
+	"github.com/authzed/spicedb/pkg/query/queryprofile"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	schematesting "github.com/authzed/spicedb/pkg/schema/v2/testing"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -29,12 +30,20 @@ import (
 // schema, relationships, revision, and check requests. Rapid reports a seed and
 // shrinks the generated case when a discrepancy is found.
 func TestQueryPlanCheckProperty(t *testing.T) {
+	parity, err := queryprofile.Resolve(queryprofile.NativeParityV1, queryprofile.Options{
+		CheckConcurrency:  3,
+		DispatchChunkSize: 2,
+	})
+	require.NoError(t, err)
+
 	for _, mode := range []struct {
 		name      string
 		optimized bool
+		profile   queryprofile.Profile
 	}{
-		{"plain", false},
-		{"optimized", true},
+		{"plain", false, queryprofile.Profile{}},
+		{"optimized", true, queryprofile.Profile{}},
+		{"native-parity", true, parity},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			schematesting.CheckWithSchema(t, func(t *rapid.T, generated *schema.Schema, relGenerator schematesting.RelationshipGenerator) {
@@ -73,6 +82,12 @@ func TestQueryPlanCheckProperty(t *testing.T) {
 				defer dispatcher.Close()
 				dispatchCtx := datalayer.ContextWithDataLayer(t.Context(), datalayer.NewDataLayer(ds))
 
+				reader := datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)
+				options := append(mode.profile.ContextOptions(),
+					query.WithRevisionedReader(reader),
+					query.WithBatchedArrows(mode.profile.Name() == queryprofile.NativeParityV1),
+				)
+
 				subjectTypes := make([]string, 0)
 				for name, def := range generated.Definitions() {
 					if len(def.Permissions()) == 0 {
@@ -87,13 +102,13 @@ func TestQueryPlanCheckProperty(t *testing.T) {
 					permissions := slices.Collect(maps.Keys(def.Permissions()))
 					slices.Sort(permissions)
 					for _, permission := range permissions {
-						outline, err := query.BuildOutlineFromSchema(generated, resourceType, permission)
+						outline, err := query.BuildOutlineFromSchema(generated, resourceType, permission, mode.profile.BuildOptions()...)
 						require.NoError(t, err)
 						for _, subjectType := range subjectTypes {
 							plan := outline
 							if mode.optimized {
 								params := queryopt.RequestParams{Operation: query.OperationCheck, SubjectType: subjectType, SubjectRelation: tuple.Ellipsis}
-								plan, err = queryopt.ApplyOptimizations(outline, queryopt.OptimizersForRequest(params), params)
+								plan, err = queryopt.ApplyOptimizations(outline, mode.profile.StructuralOptimizers(params), params)
 								require.NoError(t, err)
 							}
 							iterator, err := plan.Compile()
@@ -115,7 +130,8 @@ func TestQueryPlanCheckProperty(t *testing.T) {
 									})
 									require.NoError(t, err)
 									classic := response.ResultsByResourceId[resourceID] != nil && response.ResultsByResourceId[resourceID].Membership == dispatchv1.ResourceCheckResult_MEMBER
-									qctx := query.NewLocalContext(t.Context(), query.WithRevisionedReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)))
+
+									qctx := query.NewLocalContext(t.Context(), options...)
 									path, err := qctx.Check(iterator, query.NewObject(resourceType, resourceID), subject)
 									require.NoError(t, err)
 									require.Equal(t, classic, path != nil, "check mismatch: %s:%s#%s@%s (optimized=%t); relationships=%v",
