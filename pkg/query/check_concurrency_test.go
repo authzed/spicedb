@@ -111,3 +111,21 @@ func TestCompileCheckConcurrencyTargets(t *testing.T) {
 
 	require.Error(t, (planhint.CheckConcurrency{}).Validate())
 }
+
+func TestBatchReducerExplainsDecliningScalarConcurrency(t *testing.T) {
+	trace := &concurrencyTrace{}
+	ledger := planhint.NewLedger(trace)
+	id, err := ledger.Issue(
+		planhint.Hint{Producer: "fixed", Target: planhint.Target{Node: 1}, Payload: planhint.CheckConcurrency{Limit: 4}},
+	)
+	require.NoError(t, err)
+	union := NewUnionIterator(NewFixedIterator()).(*UnionIterator)
+	union.checkConcurrency = 4
+	union.concurrencyHint = id
+	ctx := NewLocalContext(t.Context(), WithHintLedger(ledger), WithCheckExecution(CheckExecutionOptions{BatchChecks: true}))
+	_, err = ctx.CheckManyResources(union, []Object{NewObject("document", "d")}, NewObject("user", "u").WithEllipses())
+	require.NoError(t, err)
+	require.Len(t, trace.responses, 1)
+	require.Equal(t, planhint.Declined, trace.responses[0].Outcome)
+	require.NotEmpty(t, trace.responses[0].Reason)
+}

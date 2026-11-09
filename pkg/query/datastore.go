@@ -81,12 +81,28 @@ func (r *DatastoreIterator) CheckImpl(ctx *Context, resource Object, subject Obj
 
 func (r *DatastoreIterator) checkNormalImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
 	if ctx.shouldTrace() {
-		ctx.TraceStep(r, "querying datastore for %s:%s with resource=%s:%s", r.base.Type(), r.base.RelationName(), resource.ObjectType, resource.ObjectID)
+		ctx.TraceStep(
+			r,
+			"querying datastore for %s:%s with resource=%s:%s",
+			r.base.Type(),
+			r.base.RelationName(),
+			resource.ObjectType,
+			resource.ObjectID,
+		)
 	}
 
 	if ctx.checkExecution.CoalesceDirectWildcards && subject.Relation == tuple.Ellipsis && r.hasPairedDirectForm(true) {
 		if reader, ok := ctx.Reader.(*datalayerQueryDatastoreReader); ok {
-			seq, err := reader.checkRelationships(ctx, ObjectType{Type: r.base.DefinitionName()}, resource.ObjectID, r.base.RelationName(), subject, r.relationHasCaveats(), r.relationHasExpiration(), true)
+			seq, err := reader.checkRelationships(
+				ctx,
+				ObjectType{Type: r.base.DefinitionName()},
+				resource.ObjectID,
+				r.base.RelationName(),
+				subject,
+				r.relationHasCaveats(),
+				r.relationHasExpiration(),
+				true,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -144,7 +160,12 @@ func (r *DatastoreIterator) checkWildcardImpl(ctx *Context, resource Object, sub
 	// invalid and cannot be written. Any caller passing a non-ellipsis relation here
 	// would cause us to query with the wrong relation filter and return a false negative.
 	if subject.Relation != tuple.Ellipsis {
-		return nil, spiceerrors.MustBugf("checkWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation", subject.Relation, subject.ObjectType, subject.ObjectID)
+		return nil, spiceerrors.MustBugf(
+			"checkWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation",
+			subject.Relation,
+			subject.ObjectType,
+			subject.ObjectID,
+		)
 	}
 
 	// Query the datastore for wildcard relationships (subject ObjectID = "*")
@@ -187,6 +208,17 @@ func (r *DatastoreIterator) IterSubjectsImpl(ctx *Context, resource Object, filt
 }
 
 func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object) (PathSeq, error) {
+	// Native enumerates all compatible source forms once before grouping them.
+	// Share that materialization across typed leaves of this relation, retaining
+	// each leaf's subject identity and caveat/expiration provenance.
+	if paths, handled, err := sharedTypedSubjects(ctx, r, []Object{resource}); handled {
+		if err != nil {
+			return nil, err
+		}
+
+		return PathSeqFromSlice(paths[0]), nil
+	}
+
 	subjectType := ObjectType{
 		Type:        r.base.Type(),
 		Subrelation: r.base.Subrelation(),
@@ -347,7 +379,11 @@ func (r *DatastoreIterator) IterResourcesImpl(ctx *Context, subject ObjectAndRel
 	// An empty Relation is always a bug in the caller: it must be either tuple.Ellipsis
 	// for direct membership or a specific subrelation string.
 	if subject.Relation == "" {
-		return nil, spiceerrors.MustBugf("IterResources called with empty subject.Relation for %s:%s; caller must use tuple.Ellipsis or a specific subrelation", subject.ObjectType, subject.ObjectID)
+		return nil, spiceerrors.MustBugf(
+			"IterResources called with empty subject.Relation for %s:%s; caller must use tuple.Ellipsis or a specific subrelation",
+			subject.ObjectType,
+			subject.ObjectID,
+		)
 	}
 
 	// Check if subject relation matches what this iterator expects.
@@ -430,7 +466,12 @@ func (r *DatastoreIterator) iterResourcesWildcardImpl(ctx *Context, subject Obje
 	// invalid and cannot be written. Any caller passing a non-ellipsis relation here
 	// would cause us to query with the wrong relation filter and return a false negative.
 	if subject.Relation != tuple.Ellipsis {
-		return nil, spiceerrors.MustBugf("iterResourcesWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation", subject.Relation, subject.ObjectType, subject.ObjectID)
+		return nil, spiceerrors.MustBugf(
+			"iterResourcesWildcardImpl called with non-ellipsis subject relation %q for subject %s:%s; wildcard subjects are always stored with ellipsis relation",
+			subject.Relation,
+			subject.ObjectType,
+			subject.ObjectID,
+		)
 	}
 
 	wildcardSubject := ObjectAndRelation{

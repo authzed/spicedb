@@ -22,6 +22,7 @@ func TestNamedAliasScopesItsDefinition(t *testing.T) {
 	// rule. Its own group:shared#access identity must still grant.
 	alias := NewAliasIterator("group", "access", NewEmptyFixedIterator())
 	ctx := NewTestContext(t)
+	WithCheckExecution(CheckExecutionOptions{BatchChecks: true})(ctx)
 	foreign := NewObject("team", "shared")
 	subject := foreign.WithRelation("access")
 
