@@ -333,6 +333,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	nonTerminalsWithoutCaveats := 0
 	nonTerminalsWithoutExpiration := 0
 
+	nonTerminalTypes := map[tuple.RelationReference]struct{}{}
+	nonTerminalSelectors := []datastore.SubjectsSelector{}
+
 	for _, allowedDirectRelation := range relation.GetTypeInformation().GetAllowedDirectRelations() {
 		// If the namespace of the allowed direct relation matches the subject type, there are two
 		// cases to optimize:
@@ -354,12 +357,21 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			}
 		}
 
-		// If the relation found is not an ellipsis, then this is a nested relation that
-		// might need to be followed, so indicate that such relationships should be returned
+		// A non-ellipsis relation is a nested userset that can need a dispatch. Select it
+		// by subject type and relation, so that the datastore can skip direct subjects.
+		// A wildcard has an empty relation, so it needs its own check.
 		//
 		// TODO(jschorr): Use type information to *further* optimize this query around which nested
 		// relations can reach the target subject type.
-		if allowedDirectRelation.GetRelation() != tuple.Ellipsis {
+		if allowedDirectRelation.GetPublicWildcard() == nil && allowedDirectRelation.GetRelation() != tuple.Ellipsis {
+			nonTerminal := tuple.RR(allowedDirectRelation.GetNamespace(), allowedDirectRelation.GetRelation())
+			if _, ok := nonTerminalTypes[nonTerminal]; !ok {
+				nonTerminalTypes[nonTerminal] = struct{}{}
+				nonTerminalSelectors = append(nonTerminalSelectors, datastore.SubjectsSelector{
+					OptionalSubjectType: nonTerminal.ObjectType,
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(nonTerminal.Relation),
+				})
+			}
 			totalNonTerminals++
 			if allowedDirectRelation.RequiredCaveat == nil {
 				nonTerminalsWithoutCaveats++
@@ -452,14 +464,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 	// Otherwise, for any remaining resource IDs, query for redispatch.
 	filter := datastore.RelationshipsFilter{
-		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
-		OptionalResourceIds:      furtherFilteredResourceIDs,
-		OptionalResourceRelation: crc.parentReq.ResourceRelation.Relation,
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-			{
-				RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
-			},
-		},
+		OptionalResourceType:      crc.parentReq.ResourceRelation.Namespace,
+		OptionalResourceIds:       furtherFilteredResourceIDs,
+		OptionalResourceRelation:  crc.parentReq.ResourceRelation.Relation,
+		OptionalSubjectsSelectors: nonTerminalSelectors,
 	}
 
 	it, err := dl.QueryRelationships(

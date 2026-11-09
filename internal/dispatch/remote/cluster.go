@@ -925,9 +925,10 @@ func (cr *clusterDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest,
 	switch req.Operation {
 	case v1.PlanOperation_PLAN_OPERATION_CHECK:
 		requestKey, err = cr.keyHandler.PlanCheckDispatchKey(stream.Context(), req)
-	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES:
+	// A CheckMany request fixes one side, so it routes like the lookup that fixes the same side.
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES:
 		requestKey, err = cr.keyHandler.PlanLookupResourcesDispatchKey(stream.Context(), req)
-	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS:
+	case v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS, v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS:
 		requestKey, err = cr.keyHandler.PlanLookupSubjectsDispatchKey(stream.Context(), req)
 	default:
 		return fmt.Errorf("unknown plan operation: %v", req.Operation)

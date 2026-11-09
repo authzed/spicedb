@@ -151,6 +151,41 @@ func (fds *fakeDispatchSvc) DispatchLookupResources3(_ *v1.DispatchLookupResourc
 	return nil
 }
 
+func (fds *fakeDispatchSvc) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, srv v1.DispatchService_DispatchQueryPlanServer) error {
+	return srv.Send(&v1.DispatchQueryPlanResponse{
+		Metadata: &v1.ResponseMeta{DispatchCount: fds.dispatchCount},
+	})
+}
+
+func TestDispatchQueryPlanAllOperations(t *testing.T) {
+	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1})
+	dispatcher, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+	}, nil, nil, 0*time.Second)
+	require.NoError(t, err)
+
+	for _, op := range []v1.PlanOperation{
+		v1.PlanOperation_PLAN_OPERATION_CHECK,
+		v1.PlanOperation_PLAN_OPERATION_LOOKUP_RESOURCES,
+		v1.PlanOperation_PLAN_OPERATION_LOOKUP_SUBJECTS,
+		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES,
+		v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS,
+	} {
+		t.Run(op.String(), func(t *testing.T) {
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
+			err := dispatcher.DispatchQueryPlan(&v1.DispatchQueryPlanRequest{
+				Operation:   op,
+				Resource:    tuple.CoreONR("document", "doc1", "view"),
+				Subject:     tuple.CoreONR("user", "tom", tuple.Ellipsis),
+				PlanContext: &v1.PlanContext{Revision: "1", InProgressKeys: []string{"document#view"}},
+			}, stream)
+			require.NoError(t, err)
+			require.Len(t, stream.Results(), 1)
+		})
+	}
+}
+
 func TestDispatchTimeout(t *testing.T) {
 	for _, tc := range []struct {
 		timeout   time.Duration

@@ -167,17 +167,15 @@ func TestValidateQueryShape(t *testing.T) {
 				OptionalResourceRelation: "viewer",
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 					{
-						RelationFilter: datastore.SubjectRelationFilter{
-							OnlyNonEllipsisRelations: true,
-							IncludeEllipsisRelation:  false,
-						},
+						OptionalSubjectType: "group",
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member"),
 					},
 				},
 			},
 			expectError: false,
 		},
 		{
-			name:  "CheckPermissionSelectIndirectSubjects - with subject type",
+			name:  "CheckPermissionSelectIndirectSubjects - valid with several subject types",
 			shape: queryshape.CheckPermissionSelectIndirectSubjects,
 			filter: datastore.RelationshipsFilter{
 				OptionalResourceType:     "document",
@@ -185,15 +183,60 @@ func TestValidateQueryShape(t *testing.T) {
 				OptionalResourceRelation: "viewer",
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 					{
-						OptionalSubjectType: "user",
-						RelationFilter: datastore.SubjectRelationFilter{
-							OnlyNonEllipsisRelations: true,
-						},
+						OptionalSubjectType: "group",
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member"),
+					},
+					{
+						OptionalSubjectType: "team",
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("admin"),
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:  "CheckPermissionSelectIndirectSubjects - no subject selectors",
+			shape: queryshape.CheckPermissionSelectIndirectSubjects,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceIds:      []string{"doc1"},
+				OptionalResourceRelation: "viewer",
+			},
+			expectError: true,
+			errorMsg:    "optional subjects selectors required",
+		},
+		{
+			name:  "CheckPermissionSelectIndirectSubjects - without subject type",
+			shape: queryshape.CheckPermissionSelectIndirectSubjects,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceIds:      []string{"doc1"},
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member"),
 					},
 				},
 			},
 			expectError: true,
-			errorMsg:    "no optional subject type allowed",
+			errorMsg:    "subject type required",
+		},
+		{
+			name:  "CheckPermissionSelectIndirectSubjects - any non-ellipsis relation",
+			shape: queryshape.CheckPermissionSelectIndirectSubjects,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceIds:      []string{"doc1"},
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "group",
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "only a non-ellipsis subject relation allowed",
 		},
 		{
 			name:  "CheckPermissionSelectIndirectSubjects - with subject ids",
@@ -204,10 +247,9 @@ func TestValidateQueryShape(t *testing.T) {
 				OptionalResourceRelation: "viewer",
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 					{
-						OptionalSubjectIds: []string{"user1"},
-						RelationFilter: datastore.SubjectRelationFilter{
-							OnlyNonEllipsisRelations: true,
-						},
+						OptionalSubjectType: "group",
+						OptionalSubjectIds:  []string{"eng"},
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("member"),
 					},
 				},
 			},
@@ -223,7 +265,8 @@ func TestValidateQueryShape(t *testing.T) {
 				OptionalResourceRelation: "viewer",
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 					{
-						RelationFilter: datastore.SubjectRelationFilter{},
+						OptionalSubjectType: "group",
+						RelationFilter:      datastore.SubjectRelationFilter{},
 					},
 				},
 			},
@@ -231,7 +274,7 @@ func TestValidateQueryShape(t *testing.T) {
 			errorMsg:    "relation filter required",
 		},
 		{
-			name:  "CheckPermissionSelectIndirectSubjects - ellipsis relations allowed",
+			name:  "CheckPermissionSelectIndirectSubjects - ellipsis relation",
 			shape: queryshape.CheckPermissionSelectIndirectSubjects,
 			filter: datastore.RelationshipsFilter{
 				OptionalResourceType:     "document",
@@ -239,15 +282,13 @@ func TestValidateQueryShape(t *testing.T) {
 				OptionalResourceRelation: "viewer",
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 					{
-						RelationFilter: datastore.SubjectRelationFilter{
-							OnlyNonEllipsisRelations: false,
-							IncludeEllipsisRelation:  true,
-						},
+						OptionalSubjectType: "group",
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
 					},
 				},
 			},
 			expectError: true,
-			errorMsg:    "only non-ellipsis relations allowed",
+			errorMsg:    "only a non-ellipsis subject relation allowed",
 		},
 		{
 			name:  "AllSubjectsForResources - valid",

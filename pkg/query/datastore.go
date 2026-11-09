@@ -195,13 +195,11 @@ func (r *DatastoreIterator) iterSubjectsNormalImpl(ctx *Context, resource Object
 	if ctx.checkExecution.BroadSingleUsersetReads && ctx.PaginationLimit == nil && resource.ObjectType != "" && resource.ObjectID != "" {
 		if eligible, caveats, expiration := r.singleUsersetForm(); eligible {
 			if reader, ok := ctx.Reader.(*datalayerQueryDatastoreReader); ok {
-				seq, err := reader.queryIndirectSubjects(ctx, resource, r.base.RelationName(), caveats, expiration)
+				seq, err := reader.queryIndirectSubjects(ctx, resource, r.base.RelationName(), subjectType, caveats, expiration)
 				if err != nil {
 					return nil, err
 				}
-				// Preserve this leaf's type/relation semantics even if stale relationships
-				// no longer conform to the current schema. The broad scan still consumes them.
-				paths, err := CollectAll(FilterSubjectsByType(seq, subjectType))
+				paths, err := CollectAll(seq)
 				if err != nil {
 					return nil, err
 				}

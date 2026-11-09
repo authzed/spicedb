@@ -280,10 +280,13 @@ func (r *datalayerQueryDatastoreReader) LookupCaveatDefinition(
 
 // queryIndirectSubjects matches classic Check's indirect-subject scan. Its caller
 // must establish a concrete resource, no pagination, and only one allowed indirect subject form.
-func (r *datalayerQueryDatastoreReader) queryIndirectSubjects(ctx context.Context, resource Object, relation string, withCaveats, withExpiration bool) (PathSeq, error) {
+func (r *datalayerQueryDatastoreReader) queryIndirectSubjects(ctx context.Context, resource Object, relation string, subjectType ObjectType, withCaveats, withExpiration bool) (PathSeq, error) {
 	filter := datastore.RelationshipsFilter{
 		OptionalResourceType: resource.ObjectType, OptionalResourceIds: []string{resource.ObjectID}, OptionalResourceRelation: relation,
-		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations()}},
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{{
+			OptionalSubjectType: subjectType.Type,
+			RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(subjectType.Subrelation),
+		}},
 	}
 	rels, err := r.inner.QueryRelationships(ctx, filter, options.WithSkipCaveats(!withCaveats), options.WithSkipExpiration(!withExpiration), options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects))
 	if err != nil {
