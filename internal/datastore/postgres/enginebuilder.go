@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore/dsconfig"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/migration"
@@ -108,6 +109,10 @@ func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config
 // primaryDatastoreOptionsFromConfig translates the CLI datastore config into
 // the options used to build the primary Postgres datastore.
 func primaryDatastoreOptionsFromConfig(opts datastorecfg.Config) ([]Option, error) {
+	if opts.ReadOnly && opts.EnableRevisionHeartbeat {
+		log.Info().Msg("revision heartbeat disabled because the datastore is read-only")
+	}
+
 	pgOpts := []Option{ //nolint: prealloc  // we're not worried about perf here
 		CredentialsProviderName(opts.CredentialsProviderName),
 		GCWindow(opts.GCWindow),

@@ -31,13 +31,16 @@ func TestRevisionHeartbeatDisabledWhenReadOnly(t *testing.T) {
 		t.Helper()
 
 		var conn *pgx.Conn
-		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		// The harness closes the datastore when the test ends.
+		b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			cfg := datastorecfg.DefaultDatastoreConfig()
 			cfg.Engine = Engine
 			cfg.URI = uri
 			cfg.ReadOnly = readOnly
 			cfg.EnableRevisionHeartbeat = true
 			cfg.RevisionQuantization = 100 * time.Millisecond
+			// Metrics register globally; keep this test free of that side effect.
+			cfg.EnableDatastoreMetrics = false
 
 			ds, err := newDatastoreFromConfig(t.Context(), *cfg)
 			require.NoError(t, err)
@@ -48,7 +51,6 @@ func TestRevisionHeartbeatDisabledWhenReadOnly(t *testing.T) {
 
 			return ds
 		})
-		t.Cleanup(func() { _ = ds.Close() })
 
 		return conn
 	}
