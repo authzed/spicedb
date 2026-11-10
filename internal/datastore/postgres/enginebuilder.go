@@ -98,6 +98,16 @@ func newReplicaDatastoreFromConfig(ctx context.Context, replicaIndex uint32, rep
 }
 
 func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {
+	pgOpts, err := primaryDatastoreOptionsFromConfig(opts)
+	if err != nil {
+		return nil, err
+	}
+	return NewPostgresDatastore(ctx, opts.URI, pgOpts...)
+}
+
+// primaryDatastoreOptionsFromConfig translates the CLI datastore config into
+// the options used to build the primary Postgres datastore.
+func primaryDatastoreOptionsFromConfig(opts datastorecfg.Config) ([]Option, error) {
 	pgOpts := []Option{ //nolint: prealloc  // we're not worried about perf here
 		CredentialsProviderName(opts.CredentialsProviderName),
 		GCWindow(opts.GCWindow),
@@ -135,6 +145,5 @@ func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config
 	if err != nil {
 		return nil, err
 	}
-	pgOpts = append(pgOpts, commonOptions...)
-	return NewPostgresDatastore(ctx, opts.URI, pgOpts...)
+	return append(pgOpts, commonOptions...), nil
 }
