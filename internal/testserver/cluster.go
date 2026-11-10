@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
@@ -51,6 +52,7 @@ func getPrefix(t testing.TB) string {
 	for {
 		prefix, err := secrets.TokenHex(8)
 		require.NoError(t, err)
+
 		if _, ok := usedPrefixes.Load(prefix); !ok {
 			usedPrefixes.Store(prefix, struct{}{})
 			return prefix
@@ -81,6 +83,7 @@ func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.Cl
 	if target.URL.Scheme != TestResolverScheme {
 		return nil, errors.New("test resolver builder only works with test:// addresses")
 	}
+
 	var addrs []resolver.Address
 	addrVal, ok := b.addrs.Load(target.URL.Hostname())
 	if !ok {
@@ -88,12 +91,14 @@ func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.Cl
 	} else {
 		addrs = addrVal.([]resolver.Address)
 	}
+
 	r := &SafeManualResolver{
 		prefix: target.URL.Hostname(),
 		cc:     cc,
 		opts:   opts,
 		addrs:  addrs,
 	}
+
 	// Push addresses immediately so the gRPC channel can proceed without
 	// requiring a separate ResolveNow call after the resolver is built.
 	r.ResolveNow(resolver.ResolveNowOptions{})
@@ -123,6 +128,7 @@ func (r *SafeManualResolver) ResolveNow(_ resolver.ResolveNowOptions) {
 	if r.cc == nil {
 		return
 	}
+
 	if err := r.cc.UpdateState(resolver.State{Addresses: r.addrs}); err != nil {
 		fmt.Println("ERROR UPDATING STATE", err) // shouldn't happen, log
 	}
@@ -140,23 +146,26 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 
 	// make placeholder resolved addresses, 1 per node
 	addresses := make([]resolver.Address, 0, size)
+
 	for i := range size {
 		addresses = append(addresses, resolver.Address{
 			Addr:       fmt.Sprintf("%s_%d", prefix, i),
 			ServerName: "",
 		})
 	}
+
 	testResolverBuilder.SetAddrs(prefix, addresses)
 
 	dialers := make([]dialerFunc, 0, size)
 	conns := make([]*grpc.ClientConn, 0, size)
 
 	for i := range size {
-		// One QueryPlanMetadata per node, shared between the node's dispatcher
+		// One signal owner per node, shared between the node's dispatcher
 		// (so receiver-side DispatchQueryPlan augments + advises off it) and the
 		// permissions service (so the sender's advisor and the receiver's are
 		// consulting the same store).
 		queryPlanMetadata := query.NewQueryPlanMetadata()
+		querySignals := signals.NewDefaultOwner()
 
 		dispatcherOptions := []combineddispatch.Option{
 			combineddispatch.UpstreamAddr("test://" + prefix),
@@ -164,6 +173,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 				PrometheusRegistry:  prometheus.NewRegistry(),
 				PrometheusSubsystem: fmt.Sprintf("%s_%d_client_dispatch", prefix, i),
 			}),
+			combineddispatch.QuerySignals(querySignals),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
@@ -179,6 +189,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 					if len(dialers) == 0 {
 						return nil, TempError{}
 					}
+
 					// "s" here will be the address from the manual resolver
 					// like `<prefix>_<node number>`
 					i, err := strconv.Atoi(strings.TrimPrefix(s, prefix+"_"))
@@ -197,6 +208,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 		serverOptions := []server.ConfigOption{ //nolint: prealloc  // we're not worried about perf here
 			server.WithDatastore(ds),
 			server.WithDispatcher(dispatcher),
+			server.WithQuerySignals(querySignals),
 			server.WithQueryPlanMetadata(queryPlanMetadata),
 			server.WithGRPCServer(util.GRPCServerConfig{
 				Network: util.BufferedNetwork,

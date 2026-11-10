@@ -45,6 +45,9 @@ func New() optimization.Optimizer {
 		Priority: 10,
 		NewTransform: func(_ optimization.RequestParams) optimization.OutlineTransform {
 			return func(outline query.Outline) query.Outline {
+				// Normalize before comparing siblings, remove proven redundancies, then
+				// propagate any empty results. Every rewrite follows a structural set law;
+				// no observed statistics are allowed to establish a semantic equivalence.
 				return query.MutateOutline(outline, []query.OutlineMutation{
 					flattenAssociativity,
 					unionIdempotency,
@@ -79,6 +82,7 @@ func flattenAssociativity(outline query.Outline) query.Outline {
 
 	var newChildren []query.Outline
 	changed := false
+
 	for _, child := range outline.SubOutlines {
 		if child.Type == outline.Type {
 			newChildren = append(newChildren, child.SubOutlines...)
@@ -129,11 +133,13 @@ func unionAbsorption(outline query.Outline) query.Outline {
 		if y.Type != query.IntersectionIteratorType {
 			return false
 		}
+
 		for _, factor := range intersectionFactors(x) {
 			if !slices.ContainsFunc(y.SubOutlines, factor.Equals) {
 				return false
 			}
 		}
+
 		return true
 	})
 }
@@ -196,11 +202,14 @@ func intersectionComplementAnnihilation(outline query.Outline) query.Outline {
 		if child.Type != query.ExclusionIteratorType || len(child.SubOutlines) != 2 {
 			continue
 		}
+
 		subtrahend := child.SubOutlines[1]
+
 		for j, sibling := range outline.SubOutlines {
 			if i == j {
 				continue
 			}
+
 			if isSubsumedBy(sibling, subtrahend) {
 				return query.Outline{Type: query.NullIteratorType}
 			}
@@ -221,9 +230,11 @@ func exclusionAnnihilation(outline query.Outline) query.Outline {
 	if outline.Type != query.ExclusionIteratorType || len(outline.SubOutlines) != 2 {
 		return outline
 	}
+
 	if isSubsumedBy(outline.SubOutlines[0], outline.SubOutlines[1]) {
 		return query.Outline{Type: query.NullIteratorType}
 	}
+
 	return outline
 }
 
@@ -245,6 +256,7 @@ func exclusionLeftPruning(outline query.Outline) query.Outline {
 	}
 
 	var survivors []query.Outline
+
 	for _, child := range left.SubOutlines {
 		if !isSubsumedBy(child, right) {
 			survivors = append(survivors, child)
@@ -256,6 +268,7 @@ func exclusionLeftPruning(outline query.Outline) query.Outline {
 	}
 
 	var newLeft query.Outline
+
 	switch len(survivors) {
 	case 0:
 		newLeft = query.Outline{Type: query.NullIteratorType}
@@ -283,9 +296,11 @@ func exclusionNullIdentity(outline query.Outline) query.Outline {
 	if outline.Type != query.ExclusionIteratorType || len(outline.SubOutlines) != 2 {
 		return outline
 	}
+
 	if outline.SubOutlines[1].Type == query.NullIteratorType {
 		return outline.SubOutlines[0]
 	}
+
 	return outline
 }
 
@@ -307,10 +322,13 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 	anyDropped := false
 
 	for i, y := range children {
+		// Only a sibling still marked for retention can justify dropping this child.
+		// This prevents mutually equivalent children from eliminating every copy.
 		for j, x := range children {
 			if i == j || !keep[j] {
 				continue
 			}
+
 			if shouldDrop(y, x) {
 				keep[i] = false
 				anyDropped = true
@@ -324,6 +342,9 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 	}
 
 	newSubs := make([]query.Outline, 0, len(children))
+
+	// Preserve the original order of survivors. Simplification removes redundant
+	// work without introducing an unrelated branch-order performance decision.
 	for i, child := range children {
 		if keep[i] {
 			newSubs = append(newSubs, child)
@@ -359,6 +380,8 @@ func eliminateRedundantChildren(outline query.Outline, nodeType query.IteratorTy
 //     and {X₁, …, Xₙ} are all factors of X, then satisfying Y requires satisfying
 //     each Xᵢ, so Y ⊆ X.
 func isSubsumedBy(y, x query.Outline) bool {
+	// Recognize only the structural patterns proved above. A failure to recognize
+	// containment leaves work in the plan; guessing could incorrectly remove access.
 	switch {
 	case x.Equals(y):
 		return true
@@ -375,6 +398,7 @@ func isSubsumedBy(y, x query.Outline) bool {
 				return false
 			}
 		}
+
 		return true
 
 	default:
@@ -392,5 +416,6 @@ func intersectionFactors(x query.Outline) []query.Outline {
 	if x.Type == query.IntersectionIteratorType {
 		return x.SubOutlines
 	}
+
 	return []query.Outline{x}
 }

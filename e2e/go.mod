@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb/e2e
 
-go 1.26.9
+go 1.26.10
 
 replace github.com/authzed/spicedb => ../
 
@@ -12,7 +12,7 @@ require (
 	github.com/ecordell/optgen v0.2.6
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/tools v0.50.0
+	golang.org/x/tools v0.51.0
 	google.golang.org/grpc v1.83.2
 	mvdan.cc/gofumpt v0.12.0
 )
@@ -76,10 +76,10 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260820142414-ca536658362e // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
 	google.golang.org/protobuf v1.36.12 // indirect

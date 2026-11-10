@@ -7,6 +7,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/query/planhint"
 	"github.com/authzed/spicedb/pkg/schema/v2"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -36,6 +37,7 @@ func (k CanonicalKey) Hash() uint64 {
 // PlanAdvisors receive this instead of the full CanonicalOutline to stay
 // decoupled from the outline structure.
 type CanonicalKeySource interface {
+	// GetCanonicalKey returns the canonical dispatch key for this outline node.
 	GetCanonicalKey(id OutlineNodeID) CanonicalKey
 }
 
@@ -46,10 +48,16 @@ type OutlineNodeID uint64
 
 // Outline is a single type representing the tree of yet-to-be-compiled Iterators.
 type Outline struct {
-	Type        IteratorType
-	Args        *IteratorArgs
+	// Type identifies the iterator implementation represented by this node.
+	Type IteratorType
+
+	// Args contains the iterator's construction arguments.
+	Args *IteratorArgs
+
+	// SubOutlines contains the node's ordered child outlines.
 	SubOutlines []Outline
-	ID          OutlineNodeID // Populated only inside a CanonicalOutline
+
+	ID OutlineNodeID // Populated only inside a CanonicalOutline
 }
 
 // WalkOutlineBottomUp performs a bottom-up traversal of an Outline tree,
@@ -60,13 +68,16 @@ type Outline struct {
 func WalkOutlineBottomUp(outline Outline, fn func(Outline) (Outline, error)) (Outline, error) {
 	if len(outline.SubOutlines) > 0 {
 		newSubs := make([]Outline, len(outline.SubOutlines))
+
 		for i, sub := range outline.SubOutlines {
 			processed, err := WalkOutlineBottomUp(sub, fn)
 			if err != nil {
 				return Outline{}, err
 			}
+
 			newSubs[i] = processed
 		}
+
 		outline = Outline{
 			Type:        outline.Type,
 			Args:        outline.Args,
@@ -74,6 +85,7 @@ func WalkOutlineBottomUp(outline Outline, fn func(Outline) (Outline, error)) (Ou
 			ID:          outline.ID,
 		}
 	}
+
 	return fn(outline)
 }
 
@@ -84,11 +96,13 @@ func WalkOutlinePreOrder(outline Outline, fn func(Outline) error) error {
 	if err := fn(outline); err != nil {
 		return err
 	}
+
 	for _, sub := range outline.SubOutlines {
 		if err := WalkOutlinePreOrder(sub, fn); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -97,9 +111,17 @@ func WalkOutlinePreOrder(outline Outline, fn func(Outline) error) error {
 // those IDs to their CanonicalKeys. Only CanonicalOutlines can be Compiled,
 // ensuring every iterator in the resulting tree receives its canonical key.
 type CanonicalOutline struct {
-	Root          Outline
+	// Root is the canonicalized root outline.
+	Root Outline
+
+	// CanonicalKeys maps outline node IDs to canonical dispatch keys.
 	CanonicalKeys map[OutlineNodeID]CanonicalKey
-	Hints         map[OutlineNodeID][]Hint
+
+	// Hints maps outline node IDs to pending typed recommendations.
+	Hints map[OutlineNodeID][]Hint
+
+	// HintLedger records recommendation provenance and consumer dispositions.
+	HintLedger *planhint.Ledger
 }
 
 // GetCanonicalKey implements CanonicalKeySource.
@@ -110,25 +132,37 @@ func (co CanonicalOutline) GetCanonicalKey(id OutlineNodeID) CanonicalKey {
 // Compile converts a CanonicalOutline into the actual Iterator representation.
 // All iterators in the resulting tree have their canonical keys set and hints applied.
 func (co CanonicalOutline) Compile() (Iterator, error) {
-	return compileOutline(co.Root, co.CanonicalKeys, co.Hints)
+	ledger := co.HintLedger
+	if ledger == nil {
+		ledger = planhint.NewLedger(nil)
+	}
+
+	it, err := compileOutline(co.Root, co.CanonicalKeys, co.Hints, ledger, DescribeOutline(co.Root))
+	if err == nil {
+		err = ledger.Finalize()
+	}
+
+	return it, err
 }
 
 // compileOutline recursively builds an Iterator tree from an Outline,
 // looking up each node's CanonicalKey from the provided map and applying hints.
 // The concrete iterator for each node comes from the registry — see
 // MustRegisterIterator and the init() in each iterator's file.
-func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints map[OutlineNodeID][]Hint) (Iterator, error) {
+func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints map[OutlineNodeID][]Hint, ledger *planhint.Ledger, facts map[OutlineNodeID]StatisticalFacts) (Iterator, error) {
 	key, ok := keys[outline.ID]
 	if !ok {
 		return nil, spiceerrors.MustBugf("outline node ID %d not found in CanonicalKeys map - outline must come from a CanonicalOutline", outline.ID)
 	}
 
 	compiledSubs := make([]Iterator, len(outline.SubOutlines))
+
 	for i, sub := range outline.SubOutlines {
-		compiled, err := compileOutline(sub, keys, hints)
+		compiled, err := compileOutline(sub, keys, hints, ledger, facts)
 		if err != nil {
 			return nil, err
 		}
+
 		compiledSubs[i] = compiled
 	}
 
@@ -139,8 +173,50 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 
 	if hints != nil {
 		for _, hint := range hints[outline.ID] {
-			if err := hint(it); err != nil {
+			if hint.ID == 0 {
+				hint.Target = planhint.Target{Node: uint64(outline.ID), Fingerprint: string(outline.Serialize())}
+
+				if hint.Producer == "" {
+					hint.Producer = "legacy-advisor"
+				}
+
+				id, err := ledger.Issue(hint)
+				if err != nil {
+					return nil, err
+				}
+
+				hint.ID = id
+			}
+
+			if hint.Target.Fingerprint != "" && hint.Target.Fingerprint != facts[outline.ID].Identity && hint.Target.Fingerprint != string(outline.Serialize()) {
+				if err := ledger.Respond(planhint.Disposition{HintID: hint.ID, Consumer: "iterator-compiler", Outcome: planhint.Invalidated, Reason: planhint.StaleTarget}); err != nil {
+					return nil, err
+				}
+
+				continue
+			}
+
+			direction, ok := hint.Payload.(planhint.ArrowDirection)
+			if !ok {
+				continue
+			}
+
+			outcome, reason := planhint.Accepted, planhint.ReasonCode("")
+
+			if outline.Type != ArrowIteratorType {
+				outcome, reason = planhint.Declined, planhint.UnsupportedTarget
+			} else if direction.Direction == planhint.RightToLeft && outline.SubOutlines[1].HasFreeRecursiveReferences() {
+				// Enumerating a free sentinel loses its enclosing controller's grants.
+				// Enforce this independently of the producer and its signal estimates.
+				outcome, reason = planhint.Declined, planhint.CorrectnessConstraint
+			} else if err := applyHint(it, hint); err != nil {
 				return nil, err
+			}
+
+			if !ledger.HasResponse(hint.ID, "iterator-compiler") {
+				if err := ledger.Respond(planhint.Disposition{HintID: hint.ID, Consumer: "iterator-compiler", Outcome: outcome, Reason: reason}); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -151,17 +227,27 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 // IteratorArgs represents all the possible arguments to the Iterator constructors.
 // It is used by the Outline to carry the context of an Iterator.
 type IteratorArgs struct {
-	Relation       *schema.BaseRelation
+	// Relation is the schema relation used to construct the iterator.
+	Relation *schema.BaseRelation
+
+	// DefinitionName is the schema definition containing the relation.
 	DefinitionName string
-	RelationName   string
+
+	// RelationName is the relation or permission being evaluated.
+	RelationName string
+
 	// AliasedAs, when non-empty on an AliasIteratorType outline, lists the names
 	// of additional outer aliases that were collapsed into this node, in
 	// inner-to-outer order. The outermost name (last entry) is what emitted paths
 	// are rewritten to; the self-edge fires for any subject relation in the chain
 	// (RelationName ∪ AliasedAs). RelationName remains the alias's underlying
 	// identity for caching. Set by the alias-chain-collapse optimizer.
-	AliasedAs  []string
-	Caveat     *core.ContextualizedCaveat
+	AliasedAs []string
+
+	// Caveat contains the caveat applied to this iterator.
+	Caveat *core.ContextualizedCaveat
+
+	// FixedPaths contains paths embedded in a fixed-result iterator.
 	FixedPaths []Path
 }
 
@@ -174,11 +260,13 @@ func Decompile(it Iterator) (Outline, error) {
 	// Recursively decompile subiterators
 	subs := it.Subiterators()
 	decompSubs := make([]Outline, len(subs))
+
 	for i, sub := range subs {
 		decomp, err := Decompile(sub)
 		if err != nil {
 			return Outline{}, err
 		}
+
 		decompSubs[i] = decomp
 	}
 
@@ -213,6 +301,7 @@ func Decompile(it Iterator) (Outline, error) {
 				SubOutlines: decompSubs,
 			}, nil
 		}
+
 		return Outline{
 			Type: FixedIteratorType,
 			Args: &IteratorArgs{
@@ -290,6 +379,12 @@ func Decompile(it Iterator) (Outline, error) {
 		}, nil
 
 	default:
+		if external, ok := it.(interface{ PlanningNode() Outline }); ok {
+			n := external.PlanningNode()
+			n.SubOutlines = decompSubs
+			return n, nil
+		}
+
 		return Outline{}, fmt.Errorf("unknown iterator type: %T", it)
 	}
 }
@@ -308,6 +403,7 @@ func OutlineCompare(a, b Outline) int {
 		if a.Type < b.Type {
 			return -1
 		}
+
 		return 1
 	}
 
@@ -322,6 +418,7 @@ func OutlineCompare(a, b Outline) int {
 		if len(a.SubOutlines) < len(b.SubOutlines) {
 			return -1
 		}
+
 		return 1
 	}
 
@@ -340,9 +437,11 @@ func argsCompare(a, b *IteratorArgs) int {
 	if a == nil && b == nil {
 		return 0
 	}
+
 	if a == nil {
 		return -1
 	}
+
 	if b == nil {
 		return 1
 	}
@@ -352,6 +451,7 @@ func argsCompare(a, b *IteratorArgs) int {
 		if a.DefinitionName < b.DefinitionName {
 			return -1
 		}
+
 		return 1
 	}
 
@@ -360,6 +460,7 @@ func argsCompare(a, b *IteratorArgs) int {
 		if a.RelationName < b.RelationName {
 			return -1
 		}
+
 		return 1
 	}
 
@@ -368,13 +469,16 @@ func argsCompare(a, b *IteratorArgs) int {
 		if len(a.AliasedAs) < len(b.AliasedAs) {
 			return -1
 		}
+
 		return 1
 	}
+
 	for i := range a.AliasedAs {
 		if a.AliasedAs[i] != b.AliasedAs[i] {
 			if a.AliasedAs[i] < b.AliasedAs[i] {
 				return -1
 			}
+
 			return 1
 		}
 	}
@@ -401,6 +505,7 @@ func argsCompare(a, b *IteratorArgs) int {
 		if len(a.FixedPaths) < len(b.FixedPaths) {
 			return -1
 		}
+
 		return 1
 	}
 
@@ -420,9 +525,11 @@ func caveatCompare(a, b *core.ContextualizedCaveat) int {
 	if a == nil && b == nil {
 		return 0
 	}
+
 	if a == nil {
 		return -1
 	}
+
 	if b == nil {
 		return 1
 	}
@@ -432,6 +539,7 @@ func caveatCompare(a, b *core.ContextualizedCaveat) int {
 		if a.CaveatName < b.CaveatName {
 			return -1
 		}
+
 		return 1
 	}
 
@@ -449,6 +557,7 @@ func caveatCompare(a, b *core.ContextualizedCaveat) int {
 		if aCtx < bCtx {
 			return -1
 		}
+
 		return 1
 	}
 
@@ -488,12 +597,15 @@ func (outline Outline) Serialize() CanonicalKey {
 	// Add subiterators if present
 	if len(outline.SubOutlines) > 0 {
 		result.WriteByte('[')
+
 		for i, sub := range outline.SubOutlines {
 			if i > 0 {
 				result.WriteString(",")
 			}
+
 			result.WriteString(sub.Serialize().String())
 		}
+
 		result.WriteByte(']')
 	}
 
@@ -521,6 +633,7 @@ func serializeArgs(args *IteratorArgs) string {
 		if sb.Len() > 0 {
 			sb.WriteByte(',')
 		}
+
 		sb.WriteString("rel:")
 		sb.WriteString(args.RelationName)
 	}
@@ -530,11 +643,14 @@ func serializeArgs(args *IteratorArgs) string {
 		if sb.Len() > 0 {
 			sb.WriteByte(',')
 		}
+
 		sb.WriteString("aas:")
+
 		for i, n := range args.AliasedAs {
 			if i > 0 {
 				sb.WriteByte('|')
 			}
+
 			sb.WriteString(n)
 		}
 	}
@@ -544,6 +660,7 @@ func serializeArgs(args *IteratorArgs) string {
 		if sb.Len() > 0 {
 			sb.WriteByte(',')
 		}
+
 		sb.WriteString("base:")
 		sb.WriteString(serializeRelation(args.Relation))
 	}
@@ -553,6 +670,7 @@ func serializeArgs(args *IteratorArgs) string {
 		if sb.Len() > 0 {
 			sb.WriteByte(',')
 		}
+
 		sb.WriteString("cav:")
 		sb.WriteString(serializeCaveat(args.Caveat))
 	}
@@ -562,6 +680,7 @@ func serializeArgs(args *IteratorArgs) string {
 		if sb.Len() > 0 {
 			sb.WriteByte(',')
 		}
+
 		sb.WriteString(serializePaths(args.FixedPaths))
 	}
 
@@ -588,9 +707,11 @@ func serializeRelation(rel *schema.BaseRelation) string {
 		sb.WriteString("/c:")
 		sb.WriteString(rel.Caveat())
 	}
+
 	if rel.Expiration() {
 		sb.WriteString("/e")
 	}
+
 	if rel.Wildcard() {
 		sb.WriteString("/w")
 	}
@@ -604,6 +725,7 @@ func serializeCaveat(caveat *core.ContextualizedCaveat) string {
 	if caveat == nil {
 		return ""
 	}
+
 	return caveat.CaveatName
 }
 

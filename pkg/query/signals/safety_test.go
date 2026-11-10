@@ -184,7 +184,10 @@ func TestSelectiveSchemaTransfer(t *testing.T) {
 				d := definition("sum")
 				d.Policy = signal.CrossRevision
 				d.Footprint = func(any) signal.Footprint {
-					return signal.Footprint{Elements: []signal.Element{{Namespace: "doc", Relation: "read"}, {Namespace: "doc", Relation: "viewer"}}}
+					return signal.Footprint{Elements: []signal.Element{
+						{Namespace: "doc", Relation: "read"},
+						{Namespace: "doc", Relation: "viewer"},
+					}}
 				}
 				d.Transfer = signal.Unchanged
 				o := querysignalstest.Owner(t, d)
