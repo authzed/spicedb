@@ -44,7 +44,7 @@ var (
 
 var (
 	resourceIDRegex = regexp.MustCompile(fmt.Sprintf("^%s$", resourceIDExpr))
-	subjectIDRegex  = regexp.MustCompile(fmt.Sprintf("^%s$", subjectIDExpr))
+	subjectIDRegex  = regexp.MustCompile(fmt.Sprintf("^(%s)$", subjectIDExpr))
 )
 
 var parserRegex = regexp.MustCompile(
