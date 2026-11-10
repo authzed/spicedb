@@ -1,0 +1,25 @@
+# The important part of this schema is the `viewer` relation:
+# combining an expiration with the same type but pointing at a non-terminal
+# subject is what triggered the original bug.
+---
+schema: >-
+  use expiration
+
+  definition user {
+    relation manager: user
+  }
+
+  definition document {
+    relation viewer: user with expiration | user#manager
+    permission view = viewer
+  }
+relationships: |
+  document:somedoc#viewer@user:alice[expiration:2020-01-01T00:00:00Z]
+  document:somedoc#viewer@user:bob[expiration:2999-01-01T00:00:00Z]
+assertions:
+  assertTrue:
+    # Bob should have access; his grant has not expired yet
+    - "document:somedoc#viewer@user:bob[expiration:2999-01-01T00:00:00Z]"
+  assertFalse:
+    # Alice should not have access as her grant has expired
+    - "document:somedoc#viewer@user:alice[expiration:2020-01-01T00:00:00Z]"

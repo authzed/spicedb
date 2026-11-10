@@ -339,18 +339,28 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// 1) Finding the target subject itself, as a direct lookup
 		// 2) Finding a wildcard for the subject type+relation
 		if allowedDirectRelation.GetNamespace() == crc.parentReq.Subject.Namespace {
+			// Only count caveat/expiration traits for allowed relations that are actually
+			// fetched by the direct-subject or wildcard query below.
 			if allowedDirectRelation.GetPublicWildcard() != nil {
 				totalWildcardSubjects++
+
+				if allowedDirectRelation.RequiredCaveat == nil {
+					directSubjectsAndWildcardsWithoutCaveats++
+				}
+
+				if allowedDirectRelation.RequiredExpiration == nil {
+					directSubjectsAndWildcardsWithoutExpiration++
+				}
 			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
 				totalDirectSubjects++
-			}
 
-			if allowedDirectRelation.RequiredCaveat == nil {
-				directSubjectsAndWildcardsWithoutCaveats++
-			}
+				if allowedDirectRelation.RequiredCaveat == nil {
+					directSubjectsAndWildcardsWithoutCaveats++
+				}
 
-			if allowedDirectRelation.RequiredExpiration == nil {
-				directSubjectsAndWildcardsWithoutExpiration++
+				if allowedDirectRelation.RequiredExpiration == nil {
+					directSubjectsAndWildcardsWithoutExpiration++
+				}
 			}
 		}
 
