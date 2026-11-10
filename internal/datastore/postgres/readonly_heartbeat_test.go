@@ -53,37 +53,40 @@ func TestRevisionHeartbeatDisabledWhenReadOnly(t *testing.T) {
 		return conn
 	}
 
-	// countTransactions is called from require.Eventually/Never condition
-	// goroutines, so it reports errors instead of failing the test directly.
-	countTransactions := func(ctx context.Context, conn *pgx.Conn) (int, error) {
+	countTransactions := func(t *testing.T, conn *pgx.Conn) int {
+		t.Helper()
 		var count int
-		err := conn.QueryRow(ctx, "SELECT COUNT(*) FROM "+schema.TableTransaction).Scan(&count)
-		return count, err
+		require.NoError(t, conn.QueryRow(t.Context(), "SELECT COUNT(*) FROM "+schema.TableTransaction).Scan(&count))
+		return count
 	}
 
-	// The heartbeat interval is max(1s, quantization), so a few seconds is
-	// enough for several heartbeat ticks.
-	const observeFor = 4 * time.Second
+	// waitForNewTransactions polls on the test goroutine (a pgx.Conn is not
+	// safe for concurrent use, so require.Eventually/Never would race with the
+	// connection being closed in cleanup). It reports whether the transaction
+	// count rose above initial within the observation window.
+	waitForNewTransactions := func(t *testing.T, conn *pgx.Conn, initial int) bool {
+		t.Helper()
+		// The heartbeat interval is max(1s, quantization), so a few seconds
+		// is enough for several heartbeat ticks.
+		deadline := time.Now().Add(4 * time.Second)
+		for time.Now().Before(deadline) {
+			if countTransactions(t, conn) > initial {
+				return true
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		return false
+	}
 
 	t.Run("read-write datastore writes heartbeat revisions", func(t *testing.T) {
 		conn := newHeartbeatDatastore(t, false)
-		initial, err := countTransactions(t.Context(), conn)
-		require.NoError(t, err)
-
-		require.Eventually(t, func() bool {
-			count, err := countTransactions(t.Context(), conn)
-			return err == nil && count > initial
-		}, observeFor, 100*time.Millisecond, "expected the revision heartbeat to insert transaction rows")
+		initial := countTransactions(t, conn)
+		require.True(t, waitForNewTransactions(t, conn, initial), "expected the revision heartbeat to insert transaction rows")
 	})
 
 	t.Run("read-only datastore does not write heartbeat revisions", func(t *testing.T) {
 		conn := newHeartbeatDatastore(t, true)
-		initial, err := countTransactions(t.Context(), conn)
-		require.NoError(t, err)
-
-		require.Never(t, func() bool {
-			count, err := countTransactions(t.Context(), conn)
-			return err != nil || count > initial
-		}, observeFor, 100*time.Millisecond, "read-only datastore must not run the revision heartbeat")
+		initial := countTransactions(t, conn)
+		require.False(t, waitForNewTransactions(t, conn, initial), "read-only datastore must not run the revision heartbeat")
 	})
 }
