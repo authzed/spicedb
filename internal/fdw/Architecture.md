@@ -254,8 +254,7 @@ The permissions table supports three distinct query patterns, each mapping to a 
    ```sql
    SELECT resource_id FROM permissions
    WHERE resource_type = 'doc' AND permission = 'view'
-     AND subject_type = 'user' AND subject_id = 'alice'
-     AND has_permission = true;
+     AND subject_type = 'user' AND subject_id = 'alice';
    ```
    → Calls `LookupResources(user:alice, view, doc)`
 
@@ -264,8 +263,7 @@ The permissions table supports three distinct query patterns, each mapping to a 
    SELECT subject_id FROM permissions
    WHERE resource_type = 'doc' AND resource_id = '1'
      AND permission = 'view'
-     AND subject_type = 'user'
-     AND has_permission = true;
+     AND subject_type = 'user';
    ```
    → Calls `LookupSubjects(doc:1, view, user)`
 
@@ -655,8 +653,7 @@ WHERE ... AND consistency = 'fully_consistent';
    DECLARE c CURSOR FOR
      SELECT resource_id FROM permissions
      WHERE resource_type = 'doc' AND permission = 'view'
-       AND subject_type = 'user' AND subject_id = 'alice'
-       AND has_permission = true;
+       AND subject_type = 'user' AND subject_id = 'alice';
 
 2. FDW Proxy:
    ┌──────────────────────────────────┐
