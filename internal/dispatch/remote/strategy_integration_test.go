@@ -13,9 +13,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	authzedv1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
@@ -600,4 +603,94 @@ func TestPreferSecondaryWithSeveralSecondaries(t *testing.T) {
 			require.Less(t, time.Since(start), 5*time.Second)
 		})
 	}
+}
+
+func TestIsRequestError(t *testing.T) {
+	maxDepth := func(code codes.Code) error {
+		st, err := status.New(code, "max depth exceeded").WithDetails(&errdetails.ErrorInfo{
+			Reason: authzedv1.ErrorReason_ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED.String(),
+		})
+		require.NoError(t, err)
+		return st.Err()
+	}
+
+	for _, tc := range []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"invalid argument", status.Error(codes.InvalidArgument, "bad request"), true},
+		{"failed precondition", status.Error(codes.FailedPrecondition, "unknown definition"), true},
+		{"out of range", status.Error(codes.OutOfRange, "revision out of range"), true},
+		{"dispatch max depth (failed precondition)", maxDepth(codes.FailedPrecondition), true},
+		{"services max depth (resource exhausted)", maxDepth(codes.ResourceExhausted), true},
+		{"memory pressure (resource exhausted)", status.Error(codes.ResourceExhausted, "memory usage is too high"), false},
+		{"unavailable", status.Error(codes.Unavailable, "primary down"), false},
+		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "too slow"), false},
+		{"canceled", status.Error(codes.Canceled, "canceled"), false},
+		{"internal", status.Error(codes.Internal, "bug"), false},
+		{"plain error", errors.New("primary failed"), false},
+		{"context error", context.Canceled, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, isRequestError(tc.err))
+		})
+	}
+}
+
+// newGatedCheckDispatcher creates a dispatcher whose primary and single secondary are the given
+// fake clients, with hedging delays far shorter than the test's timeouts.
+func newGatedCheckDispatcher(t *testing.T, primary, secondary *gatedCheckClient) dispatch.Dispatcher {
+	t.Helper()
+
+	expr, err := ParseDispatchExpression("check", "['secondary']")
+	require.NoError(t, err)
+	d, err := NewClusterDispatcher(primary, nil, ClusterDispatcherConfig{
+		DispatchOverallTimeout: time.Hour,
+		SecondaryDispatch: map[string]SecondaryDispatch{
+			"secondary": {Name: "secondary", Client: secondary, MaximumPrimaryHedgingDelay: time.Millisecond},
+		},
+		SecondaryDispatchExprs:      map[string]*DispatchExpr{"check": expr},
+		StartingPrimaryHedgingDelay: time.Millisecond,
+	})
+	require.NoError(t, err)
+	return d
+}
+
+func TestCheckPrimaryRequestErrorDoesNotWaitForSecondary(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The primary fails because of the request; the secondary would fail the same way, so
+		// the Check returns at once instead of waiting for it (here, forever).
+		never := make(chan struct{})
+		primary := &gatedCheckClient{err: status.Error(codes.FailedPrecondition, "object definition `unknown` not found")}
+		secondary := &gatedCheckClient{
+			resp:  &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: fromSecondary}},
+			after: never,
+		}
+		d := newGatedCheckDispatcher(t, primary, secondary)
+
+		start := time.Now()
+		_, err := d.DispatchCheck(t.Context(), testCheckRequest())
+		require.Equal(t, codes.FailedPrecondition, status.Code(err), "error: %v", err)
+		require.Less(t, time.Since(start), time.Second)
+		require.Equal(t, int32(1), secondary.calls.Load())
+	})
+}
+
+func TestCheckPrimaryTransientErrorWaitsForSecondary(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The primary is unavailable, which the secondary may not be: wait for its answer.
+		primaryCalled := make(chan struct{})
+		primary := &gatedCheckClient{err: status.Error(codes.Unavailable, "primary down"), called: primaryCalled}
+		secondary := &gatedCheckClient{
+			resp:  &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: fromSecondary}},
+			after: primaryCalled,
+		}
+		d := newGatedCheckDispatcher(t, primary, secondary)
+
+		resp, err := d.DispatchCheck(t.Context(), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromSecondary, resp.Metadata.DispatchCount)
+		require.Equal(t, int32(1), primary.calls.Load())
+	})
 }

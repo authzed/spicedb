@@ -9,6 +9,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	authzedv1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -139,7 +145,11 @@ func race[R any](
 
 	if winner := run.winner.Load(); winner != noWinner {
 		if err := run.slots[winner].err; err != nil {
-			log.Ctx(ctx).Warn().Err(err).Str("dispatcher", r.participants[winner].name).Msg("dispatcher that returned results encountered an error during streaming")
+			if mode == streamingRace {
+				log.Ctx(ctx).Warn().Err(err).Str("dispatcher", r.participants[winner].name).Msg("dispatcher that returned results encountered an error during streaming")
+			}
+			// In a unary race, a winner's error is a primary error caused by the request
+			// (see isRequestError), returned without waiting for the secondaries.
 			return err
 		}
 		return nil
@@ -301,6 +311,11 @@ func (rr *raceRun[R]) runParticipant(i int, p participant) error {
 			if !p.primary {
 				rr.request.stats.recordSecondaryError(err)
 			}
+			if rr.mode == unaryRace && p.primary && isRequestError(err) && rr.winner.CompareAndSwap(noWinner, int32(i)) { //nolint:gosec // i < number of participants
+				// The request itself is at fault, so the secondaries would fail the same way:
+				// end the race now, with the primary's error, instead of waiting for them.
+				traceDispatcherError(ctx, p.name, err, "primary failed because of the request; not waiting for secondaries")
+			}
 			return err
 		}
 
@@ -390,6 +405,37 @@ func traceDispatcherError(ctx context.Context, dispatcher string, err error, msg
 //go:noinline
 func warnDispatcher(ctx context.Context, dispatcher string, err error, msg string) {
 	log.Ctx(ctx).Warn().Err(err).Str("dispatcher", dispatcher).Msg(msg)
+}
+
+// isRequestError reports whether err, returned by a primary dispatch, is caused by the request
+// itself, so that a secondary would fail with it too: an invalid request, a failed
+// precondition such as an unknown definition, or the maximum dispatch depth being exceeded.
+// Errors that may be transient, such as the primary being unavailable or short of memory, are
+// not.
+//
+//go:noinline
+func isRequestError(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+
+	switch st.Code() {
+	case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange:
+		return true
+
+	case codes.ResourceExhausted:
+		// Also used for transient overload; only the maximum depth is caused by the request.
+		for _, detail := range st.Details() {
+			if info, ok := detail.(*errdetails.ErrorInfo); ok && info.Reason == authzedv1.ErrorReason_ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED.String() {
+				return true
+			}
+		}
+		return false
+
+	default:
+		return false
+	}
 }
 
 // unaryReceiver presents the result of a unary call as a stream of one message, so unary

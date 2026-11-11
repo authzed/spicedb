@@ -49,8 +49,11 @@ The duration means different things in each function. In `hedged` it is an upper
 adaptive delay, so the primary usually starts much earlier. In `prefer_secondary` it is a fixed
 **deadline**. When the deadline passes, the secondaries keep running and race the primary.
 
-With either strategy, a request fails only once every participant has failed, for Check as for
-the lookups: a failed primary still waits for the secondaries, which may answer.
+With either strategy, a request fails only once every participant has failed: a failed primary
+waits for the secondaries, which may answer. One exception, for Check only: when the primary
+fails because of the request itself (invalid argument, failed precondition such as an unknown
+definition, out of range, or the maximum dispatch depth exceeded), the secondaries would fail
+the same way, so the error is returned at once (`isRequestError` in [race.go](race.go)).
 
 ## Design
 
