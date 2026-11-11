@@ -555,6 +555,54 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 		telemetry.LogicalChecks.Add(float64(totalCountPublished))
 	}()
 
+	// When optional_response_batch_size > 0, results are packed into batched
+	// LookupResourcesResponse messages (up to batchSize each) instead of one
+	// message per result, cutting per-message overhead for high-cardinality
+	// lookups. batchSize == 0 preserves one-resource-per-message streaming.
+	batchSize := int(req.OptionalResponseBatchSize)
+	if maxBatch := int(ps.config.MaxLookupResourcesResponseBatchSize); maxBatch > 0 && batchSize > maxBatch {
+		// Clamp an over-large request to the server-side maximum rather than
+		// rejecting it (the API contract is "clamped, not rejected").
+		batchSize = maxBatch
+	}
+	var batch []*v1.LookupResourcesResult
+	// A batched response carries one cursor for the whole message
+	// (LookupResourcesBatch.after_cursor), not one per result. The stream is
+	// ordered and consumed message-by-message, so a client only ever resumes
+	// from the last message it fully received; a per-result cursor would add a
+	// ~200+ byte signed token (plus an HMAC) to every result, dwarfing the
+	// result data. We track the latest cursor position and encode it once, at
+	// the batch boundary.
+	var lastBatchCursorSections []string
+	flushBatch := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		var batchCursor *v1.Cursor
+		if len(lastBatchCursorSections) > 0 {
+			currentCursor = lastBatchCursorSections
+			ec, err := cursor.EncodeFromDispatchCursorSections(currentCursor, lrRequestHash, atRevision, schemaHash, map[string]string{
+				lrv3CursorFlag: "1",
+			})
+			if err != nil {
+				return err
+			}
+			batchCursor = ec
+		}
+		if err := resp.Send(&v1.LookupResourcesResponse{
+			LookedUpAt: revisionReadAt,
+			Batched: &v1.LookupResourcesBatch{
+				Results:     batch,
+				AfterCursor: batchCursor,
+			},
+		}); err != nil {
+			return err
+		}
+		batch = batch[:0]
+		lastBatchCursorSections = nil
+		return nil
+	}
+
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources3Response) error {
 		for _, item := range result.Items {
 			var partial *v1.PartialCaveatInfo
@@ -574,28 +622,46 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				alreadyPublishedPermissionedResourceIds[item.ResourceId] = struct{}{}
 			}
 
-			var encodedCursor *v1.Cursor
-			if len(item.AfterResponseCursorSections) > 0 {
-				currentCursor = item.AfterResponseCursorSections
-
-				ec, err := cursor.EncodeFromDispatchCursorSections(currentCursor, lrRequestHash, atRevision, schemaHash, map[string]string{
-					lrv3CursorFlag: "1",
+			if batchSize > 0 {
+				// Track the latest cursor position for this batch; the cursor is
+				// encoded once at flush time and stamped on the final result,
+				// instead of encoding and sending one per result.
+				lastBatchCursorSections = item.AfterResponseCursorSections
+				batch = append(batch, &v1.LookupResourcesResult{
+					ResourceObjectId:  item.ResourceId,
+					Permissionship:    permissionship,
+					PartialCaveatInfo: partial,
 				})
-				if err != nil {
-					return ps.rewriteError(ctx, err)
+				if len(batch) >= batchSize {
+					if err := flushBatch(); err != nil {
+						return err
+					}
 				}
-				encodedCursor = ec
-			}
+			} else {
+				// One result per message: this result is the last (only) one in
+				// its message, so it carries its own cursor.
+				var encodedCursor *v1.Cursor
+				if len(item.AfterResponseCursorSections) > 0 {
+					currentCursor = item.AfterResponseCursorSections
 
-			err = resp.Send(&v1.LookupResourcesResponse{
-				LookedUpAt:        revisionReadAt,
-				ResourceObjectId:  item.ResourceId,
-				Permissionship:    permissionship,
-				PartialCaveatInfo: partial,
-				AfterResultCursor: encodedCursor,
-			})
-			if err != nil {
-				return err
+					ec, err := cursor.EncodeFromDispatchCursorSections(currentCursor, lrRequestHash, atRevision, schemaHash, map[string]string{
+						lrv3CursorFlag: "1",
+					})
+					if err != nil {
+						return ps.rewriteError(ctx, err)
+					}
+					encodedCursor = ec
+				}
+
+				if err := resp.Send(&v1.LookupResourcesResponse{
+					LookedUpAt:        revisionReadAt,
+					ResourceObjectId:  item.ResourceId,
+					Permissionship:    permissionship,
+					PartialCaveatInfo: partial,
+					AfterResultCursor: encodedCursor,
+				}); err != nil {
+					return err
+				}
 			}
 
 			totalCountPublished++
@@ -648,6 +714,11 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 				}
 			}
 		}
+		return ps.rewriteError(ctx, err)
+	}
+
+	// Flush any results buffered in the final (partial) batch.
+	if err := flushBatch(); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
