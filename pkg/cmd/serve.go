@@ -185,7 +185,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
 	// Flags for experimental features
 	experimentalFlags.StringSliceVar(&config.ExperimentalQueryPlan, "experimental-query-plan", nil, "comma-separated list of operations to route through the experimental query plan engine; valid values are `check`, `lr` (LookupResources), and `ls` (LookupSubjects)")
-	experimentalFlags.StringVar(&config.ExperimentalLookupResourcesVersion, "experimental-lookup-resources-version", "", "if non-empty, the version of the experimental lookup resources API to use: `lr3` or empty")
+	experimentalFlags.StringVar(&config.ExperimentalLookupResourcesVersion, "experimental-lookup-resources-version", "lr3", "the version of the lookup resources API to use: `lr3` (default) or empty to disable")
 	experimentalFlags.BoolVar(&config.EnableRelationshipExpiration, "enable-experimental-relationship-expiration", true, "enables experimental support for relationship expiration")
 	if err := experimentalFlags.MarkHidden("enable-experimental-relationship-expiration"); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)

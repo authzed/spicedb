@@ -153,7 +153,7 @@ type Config struct {
 	MaxLookupResourcesResponseBatchSize uint32        `debugmap:"visible" default:"1000"`
 	MaxBulkExportRelationshipsLimit     uint32        `debugmap:"visible" default:"10000"`
 	EnableExperimentalLookupResources   bool          `debugmap:"visible"`
-	ExperimentalLookupResourcesVersion  string        `debugmap:"visible"`
+	ExperimentalLookupResourcesVersion  string        `debugmap:"visible" default:"lr3"`
 	ExperimentalQueryPlan               []string      `debugmap:"visible"`
 	EnableRelationshipExpiration        bool          `debugmap:"visible" default:"true"`
 	EnableRevisionHeartbeat             bool          `debugmap:"visible" default:"true"`
