@@ -7,10 +7,8 @@ import (
 	"io"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -27,110 +25,12 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_handler_total",
-	Help:      "which dispatcher handled a request",
-}, []string{"request_kind", "handler_name"})
-
-var hedgeWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_hedge_wait_duration_seconds",
-	Help:      "distribution in seconds of calculated wait time for hedging requests to the primary dispatcher when a secondary is active.",
-	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
-}, []string{"rpc"})
-
-var hedgeActualWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_hedge_actual_wait_duration_seconds",
-	Help:      "distribution in seconds of actual wait time for hedging requests to the primary dispatcher when a secondary is active.",
-	Buckets:   []float64{0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
-}, []string{"rpc"})
-
-var primaryDispatch = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_primary_total",
-	Help:      "indicates what was the outcome of a scheduled primary dispatch: dispatched, or cancelled",
-}, []string{"cancelled", "rpc"})
-
-var secondaryStrategyCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_secondary_strategy_total",
-	Help:      "number of dispatches with secondaries, by the strategy used to race them",
-}, []string{"rpc", "strategy"})
-
-var primaryReleaseCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_prefer_secondary_primary_release_total",
-	Help:      "number of prefer_secondary dispatches whose primary was started, by reason: deadline or secondaries_failed",
-}, []string{"rpc", "reason"})
-
 // defaultStartingPrimaryHedgingDelay is the delay used by default for primary calls (when secondaries are available),
 // before statistics are available to determine the actual delay.
 const defaultStartingPrimaryHedgingDelay = 1 * time.Millisecond
 
-// defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
-const defaultHedgerQuantile = 0.9
-
-// minimumDigestCount is the minimum number of samples required in the digest before it can be used
-// to determine the configured percentile.
-const minimumDigestCount = 10
-
-const defaultTDigestCompression = float64(1000)
-
+// supportsSecondaries lists the request kinds that may be dispatched to secondaries.
 var supportsSecondaries = []string{"check", "lookupresources", "lookupsubjects"}
-
-// The children of the per-request-kind metrics, resolved once. Looking a child up by label
-// values hashes the values and locks the vector; these are used on every dispatch with
-// secondaries, from goroutines whose stacks should stay shallow.
-var (
-	hedgeWaitByKey       = histogramsByRequestKey(hedgeWaitHistogram)
-	hedgeActualWaitByKey = histogramsByRequestKey(hedgeActualWaitHistogram)
-	primaryDispatchByKey = primaryDispatchCountersByRequestKey()
-)
-
-func histogramsByRequestKey(vec *prometheus.HistogramVec) map[string]prometheus.Observer {
-	observers := make(map[string]prometheus.Observer, len(supportsSecondaries))
-	for _, reqKey := range supportsSecondaries {
-		observers[reqKey] = vec.WithLabelValues(reqKey)
-	}
-	return observers
-}
-
-func histogramFor(observers map[string]prometheus.Observer, vec *prometheus.HistogramVec, reqKey string) prometheus.Observer {
-	if observer, ok := observers[reqKey]; ok {
-		return observer
-	}
-	return vec.WithLabelValues(reqKey)
-}
-
-// primaryDispatchCountersByRequestKey resolves primaryDispatch's children, indexed by request
-// key, then by whether the primary was canceled (1) or dispatched (0).
-func primaryDispatchCountersByRequestKey() map[string][2]prometheus.Counter {
-	counters := make(map[string][2]prometheus.Counter, len(supportsSecondaries))
-	for _, reqKey := range supportsSecondaries {
-		counters[reqKey] = [2]prometheus.Counter{
-			primaryDispatch.WithLabelValues("false", reqKey),
-			primaryDispatch.WithLabelValues("true", reqKey),
-		}
-	}
-	return counters
-}
-
-func init() {
-	prometheus.MustRegister(dispatchCounter)
-	prometheus.MustRegister(hedgeWaitHistogram)
-	prometheus.MustRegister(hedgeActualWaitHistogram)
-	prometheus.MustRegister(primaryDispatch)
-	prometheus.MustRegister(secondaryStrategyCounter)
-	prometheus.MustRegister(primaryReleaseCounter)
-}
 
 type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
@@ -231,6 +131,7 @@ func (cr *clusterDispatcher) dispatchPlanFor(ctx context.Context, reqKey string,
 
 	plan, err := runDispatchExpr(expr, req)
 	if err != nil {
+		metricsFor(reqKey).expressionEvalFailures.Inc()
 		log.Ctx(ctx).Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
 		return dispatchPlan{}, false
 	}
@@ -352,7 +253,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	participants, secondaries := cr.resolveParticipants(ctx, plan.secondaries, true)
 	if secondaries == 0 {
 		log.Ctx(ctx).Trace().Str("request-key", reqKey).Msg("no secondary dispatches selected, running primary dispatch")
-		primaryDispatch.WithLabelValues("false", reqKey).Inc()
+		countPrimaryDispatch(reqKey, false)
 		return handler(withTimeout, cr.clusterClient)
 	}
 
@@ -370,7 +271,8 @@ const (
 	primaryDispatcher     = "$primary"
 )
 
-func publishClient[R any](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R], secondaryDispatchName string) error {
+// publishPrimary publishes the results of a primary dispatch that runs without secondaries.
+func publishPrimary[R any](ctx context.Context, client receiver[R], reqKey string, stream dispatch.Stream[R]) error {
 	isFirstResult := true
 	for {
 		if ctx.Err() != nil {
@@ -380,7 +282,7 @@ func publishClient[R any](ctx context.Context, client receiver[R], reqKey string
 		result, err := client.Recv()
 		if errors.Is(err, io.EOF) {
 			if isFirstResult {
-				dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+				dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 			}
 			return nil
 		} else if err != nil {
@@ -388,7 +290,7 @@ func publishClient[R any](ctx context.Context, client receiver[R], reqKey string
 		}
 
 		if isFirstResult {
-			dispatchCounter.WithLabelValues(reqKey, secondaryDispatchName).Add(1)
+			dispatchCounter.WithLabelValues(reqKey, primaryDispatcher).Add(1)
 		}
 		isFirstResult = false
 
@@ -484,7 +386,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		if err != nil {
 			return err
 		}
-		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
+		return publishPrimary(ctxWithTimeout, client, reqKey, stream)
 	}
 
 	cursorLockedDispatcherName, err := stripCursorDispatcherTag(req)
@@ -507,9 +409,10 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 
 	default:
 		// The cursor is locked to the secondary that produced it. Only that secondary runs,
-		// so the strategy has no effect.
+		// so the request's strategy has no effect.
 		allowPrimary = false
 		secondaryNames = []string{cursorLockedDispatcherName}
+		strategy = cursorLockedStrategy{}
 	}
 
 	participants, secondaries := cr.resolveParticipants(ctxWithTimeout, secondaryNames, allowPrimary)
@@ -524,7 +427,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		if err != nil {
 			return err
 		}
-		return publishClient(ctxWithTimeout, client, reqKey, stream, primaryDispatcher)
+		return publishPrimary(ctxWithTimeout, client, reqKey, stream)
 	}
 
 	return runRace(ctxWithTimeout, raceRequest{
@@ -716,79 +619,6 @@ func (cr *clusterDispatcher) ReadyState() dispatch.ReadyState {
 		IsReady: state == connectivity.Ready || state == connectivity.Idle || state == connectivity.Connecting,
 		Message: fmt.Sprintf("found expected state when trying to connect to cluster: %v", state),
 	}
-}
-
-type primarySleeper struct {
-	reqKey     string
-	waitTime   time.Duration
-	cancelFunc context.CancelFunc // GUARDED_BY(lock)
-	canceled   bool               // GUARDED_BY(lock)
-	lock       sync.Mutex
-}
-
-// sleep sets the value of cancelFunc, and sleeps for the configured wait time or exits early if the context is cancelled.
-func (s *primarySleeper) sleep(parentCtx context.Context) {
-	if s.waitTime <= 0 {
-		return
-	}
-
-	sleepCtx, cf := context.WithCancel(context.Background())
-
-	s.lock.Lock()
-	s.cancelFunc = cf
-	if s.canceled {
-		// cancelSleep ran before sleep did, so don't wait at all.
-		cf()
-	}
-	s.lock.Unlock()
-
-	s.traceWaiting(parentCtx)
-
-	startTime := time.Now()
-	timer := time.NewTimer(s.waitTime)
-	defer timer.Stop()
-
-	select {
-	case <-parentCtx.Done():
-		s.trace(parentCtx, "primary dispatch canceled before waiting completed")
-		return
-
-	case <-sleepCtx.Done():
-		s.trace(parentCtx, "primary dispatch early terminated waiting")
-		s.observeActualWait(time.Since(startTime))
-		return
-
-	case <-timer.C:
-		s.trace(parentCtx, "primary dispatch finished waiting")
-		s.observeActualWait(s.waitTime)
-		return
-	}
-}
-
-// The helpers below keep logging and metrics out of sleep's frame, which runs on a
-// participant goroutine's small stack (see traceDispatcher).
-
-//go:noinline
-func (s *primarySleeper) traceWaiting(ctx context.Context) {
-	histogramFor(hedgeWaitByKey, hedgeWaitHistogram, s.reqKey).Observe(s.waitTime.Seconds())
-	log.Ctx(ctx).Trace().Str("request-key", s.reqKey).Stringer("wait-time", s.waitTime).Msg("primary dispatch waiting before running")
-}
-
-//go:noinline
-func (s *primarySleeper) trace(ctx context.Context, msg string) {
-	log.Ctx(ctx).Trace().Str("request-key", s.reqKey).Msg(msg)
-}
-
-//go:noinline
-func (s *primarySleeper) observeActualWait(wait time.Duration) {
-	histogramFor(hedgeActualWaitByKey, hedgeActualWaitHistogram, s.reqKey).Observe(wait.Seconds())
-}
-
-func (s *primarySleeper) cancelSleep() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.canceled = true
-	s.cancelFunc()
 }
 
 // Always verify that we implement the interface

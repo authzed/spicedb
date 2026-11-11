@@ -16,17 +16,19 @@ hedged(['tiger'], duration('5ms'))             // hedged, with this query's dela
 prefer_secondary(['tiger'], duration('50ms'))  // the primary waits for failure or the deadline
 hedged([])                                     // primary only
 
-// CEL requires both branches of a ternary to have the same type: once one branch calls a
+// CEL requires both branches of a conditional to have the same type: once one branch calls a
 // strategy function, the other must too.
 request.resource_relation.namespace == 'document'
   ? prefer_secondary(['tiger'], duration('50ms'))
   : hedged(['tiger'], duration('2ms'))
 ```
 
-Unknown functions and wrong argument types fail when the expression is parsed, at startup.
-Durations of zero or less fail when the expression is evaluated: the request then logs a
-warning and goes to the primary only. A cursor produced by a secondary locks its continuations
-to that secondary, and the expression is not evaluated for them.
+Unknown functions, wrong argument types, and literal durations of zero or less (or malformed)
+are rejected when the expression is parsed, at startup. A duration computed from the request is
+checked when the expression is evaluated: if it is invalid, the request goes to the primary
+only, a warning is logged, and `remote_dispatch_expr_eval_errors_total` is incremented. A cursor
+produced by a secondary locks its continuations to that secondary, and the expression is not
+evaluated for them.
 
 ## Strategies
 
@@ -40,42 +42,33 @@ to that secondary, and the expression is not evaluated for them.
 
 For `hedged`, `cap` is `maxDelay` if given, otherwise the largest
 `--experimental-dispatch-secondary-maximum-primary-hedging-delays` value among the selected
-secondaries. Until 10 samples exist, the primary waits the starting delay (1ms by default). For
-relations a secondary reported as unsupported, it doesn't wait at all.
+secondaries. Until 10 samples exist, the primary waits a fixed starting delay of 1ms, whatever
+the cap. For relations a secondary reported as unsupported, it doesn't wait at all.
 
 The duration means different things in each function. In `hedged` it is an upper **cap** on an
 adaptive delay, so the primary usually starts much earlier. In `prefer_secondary` it is a fixed
 **deadline**. When the deadline passes, the secondaries keep running and race the primary.
 
+With either strategy, a request fails only once every participant has failed, for Check as for
+the lookups: a failed primary still waits for the secondaries, which may answer.
+
 ## Design
 
 A race is split into mechanism and policy:
 
-- **Engine** (`runRace`, [race.go](race.go)): goroutines, per-participant contexts, streams,
-  buffering, choosing a single winner, publishing, cursor tagging, cancellation and error
-  selection. Every request type uses it; Check goes through a one-message adapter
-  (`unaryReceiver`).
-- **Policy** (`racePolicy`, [strategy.go](strategy.go)): every decision the engine takes. It is
-  created per request by a `secondaryStrategy`, the value a CEL strategy function returns.
-
-The engine asks the policy at each decision point of a participant's lifecycle:
-
-| Method | Asked |
-|---|---|
-| `start(ctx, p) bool` | before the participant runs; blocks until it may, `false` means never |
-| `readyToClaim(p, received, complete) bool` | after every result (and at the end of the stream): may it try to win now? Results before that are buffered, up to `maxBufferedResults` |
-| `firstResult(p, latency)` | when the first result arrives; latency excludes time spent in `start` |
-| `done(p, err)` | exactly once per participant, on every path |
-| `noWinnerError(errs) error` | when nobody won |
-
-`basePolicy` holds the defaults: start immediately, claim at the first result, return the
-primary's error. Strategies embed it and override only what they change.
+- **Engine** (`runRace` and `runUnaryRace`, [race.go](race.go)): goroutines, contexts, streams,
+  buffering, choosing a single winner, publishing, cursor tagging and cancellation. Every
+  request type uses it; Check goes through a one-message adapter (`unaryReceiver`).
+- **Policy** (`racePolicy`, [strategy.go](strategy.go)): the decisions at each point of a
+  participant's lifecycle: when it may start, when it may claim the win, and which error to
+  return when nobody won. It is created per request by a `secondaryStrategy`, the value a CEL
+  strategy function returns. `basePolicy` holds the defaults; strategies embed it and override
+  only what they change.
 
 What races learn lives in `raceStats` ([stats.go](stats.go)): the secondaries' first-result
 latency digest and the relations they reported as unsupported. The engine records into it for
-every strategy, so all traffic trains the statistics `hedged` reads. Successes are recorded in
-a goroutine of their own, off the dispatch's critical path; like the digest's `TryLock`, this is
-best-effort.
+every strategy, so all traffic trains the statistics `hedged` reads. Successes are recorded in a
+goroutine of their own, off the dispatch's critical path.
 
 A race ends in one of two ways:
 
@@ -87,17 +80,13 @@ A race ends in one of two ways:
   participants share the caller's context, the race returns as soon as the winner has exited,
   and the losers stop when the caller cancels that context, exiting in the background.
 
-Check with secondaries is on the hot path, and the engine keeps it at the cost of the code it
-replaced (see `BenchmarkSecondaryDispatching`, compared at a fixed `-benchtime`: the digest
-grows with the iteration count). Three details matter, and are commented in the code:
+Check with secondaries is on the hot path; `BenchmarkSecondaryDispatching` guards it. Compare
+runs at a fixed `-benchtime`, because the latency digest's cost grows with the iteration count.
+Three details matter, each commented where it is implemented:
 
-- the participant goroutines' stacks stay shallow (deep calls such as metrics are made from
-  `runAndReport` or kept out of line), since a stack that outgrows its initial size is copied
-  on every dispatch;
-- the winner signals the caller as its very last action, so the caller runs next on the same
-  thread instead of waking another one;
-- per-request-kind metric children are resolved once, not looked up by label on every
-  dispatch.
+- participant goroutines keep a shallow stack (the stack rule above `traceDispatcher`);
+- the winner signals the caller as its very last action (`runAndReport`);
+- per-request-kind metric children are resolved once ([metrics.go](metrics.go)).
 
 ## Adding a strategy
 
@@ -108,30 +97,26 @@ grows with the iteration count). Three details matter, and are commented in the 
    time-based, and add a case per request kind to
    [strategy_integration_test.go](strategy_integration_test.go).
 
-Nothing else changes. Some strategies need engine work first: shadow mode (let losers finish
-without publishing), comparing participants' results, primary-latency feedback, or composing a
-start rule from one strategy with a claim rule from another.
-
 ## Metrics
 
-- `spicedb_dispatch_remote_dispatch_handler_total{request_kind, handler_name}`: which
-  participant won.
-- `spicedb_dispatch_remote_dispatch_secondary_strategy_total{rpc, strategy}`: dispatches that
-  had secondaries, by strategy.
-- `spicedb_dispatch_remote_dispatch_prefer_secondary_primary_release_total{rpc, reason}`: why a
-  `prefer_secondary` primary started (`deadline` or `secondaries_failed`). Use it to tune the
-  deadline.
-- `spicedb_dispatch_remote_dispatch_primary_total{cancelled, rpc}`: whether a scheduled primary
-  ran.
-- `spicedb_dispatch_remote_dispatch_hedge_wait_duration_seconds` and
-  `..._hedge_actual_wait_duration_seconds`: computed and actual primary wait, `hedged` only.
+All are prefixed with `spicedb_dispatch_`:
 
-## Tests
+- `remote_dispatch_handler_total{request_kind, handler_name}`: which participant won.
+- `remote_dispatch_secondary_strategy_total{rpc, strategy}`: dispatches that had secondaries, by
+  strategy (`hedged`, `prefer_secondary`, or `cursor_locked` for continuations pinned to a
+  secondary).
+- `remote_dispatch_prefer_secondary_primary_release_total{rpc, reason}`: why a
+  `prefer_secondary` primary started (`deadline` or `secondaries_failed`).
+- `remote_dispatch_primary_total{cancelled, rpc}`: whether a scheduled primary ran.
+- `remote_dispatch_expr_eval_errors_total{rpc}`: dispatches whose expression failed to evaluate
+  and went to the primary only.
+- `remote_dispatch_hedge_wait_duration_seconds` and `..._hedge_actual_wait_duration_seconds`:
+  computed and actual primary wait, `hedged` only.
 
-- [race_test.go](race_test.go): the engine with scripted receivers, no gRPC. Covers `done` on
-  every exit path, buffered claims, the buffer cap, error selection, and latency measurement.
-- [strategy_test.go](strategy_test.go): each policy in a `synctest` bubble.
-- [strategy_integration_test.go](strategy_integration_test.go): strategies end to end for
-  Check, LookupSubjects and LookupResources over bufconn.
-- [expr_test.go](expr_test.go): parsing, evaluation, and the expression cost limit.
-- The `cluster_*_test.go` files: hedging, cancellation and cursor locking.
+For example:
+
+- share of dispatches answered by each participant:
+  `sum by (handler_name) (rate(spicedb_dispatch_remote_dispatch_handler_total[5m]))`
+- how often `prefer_secondary`'s deadline fires:
+  `rate(spicedb_dispatch_remote_dispatch_prefer_secondary_primary_release_total{reason="deadline"}[5m])
+  / rate(spicedb_dispatch_remote_dispatch_secondary_strategy_total{strategy="prefer_secondary"}[5m])`

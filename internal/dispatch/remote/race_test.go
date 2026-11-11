@@ -545,7 +545,7 @@ func TestUnaryRaceReturnsWithoutWaitingForLosers(t *testing.T) {
 			client := c.(*unaryClient)
 			if client.resp == nil {
 				<-ctx.Done() // the primary hangs until the caller cancels
-				return nil, ctx.Err()
+				return &v1.DispatchCheckResponse{}, ctx.Err()
 			}
 			return client.resp, nil
 		})
@@ -580,12 +580,54 @@ func TestUnaryRaceWaitsForEveryoneWithoutWinner(t *testing.T) {
 			stats: stats,
 		}, testStrategy{&testPolicy{}}, func(_ context.Context, c ClusterClient) (*v1.DispatchCheckResponse, error) {
 			if c.(raceClient).name == primaryDispatcher {
-				return nil, primaryErr
+				return &v1.DispatchCheckResponse{}, primaryErr
 			}
 			// The secondary fails later; the race must wait for it before choosing the error.
 			time.Sleep(time.Second)
-			return nil, errors.New("secondary failed")
+			return &v1.DispatchCheckResponse{}, errors.New("secondary failed")
 		})
 		require.ErrorIs(t, err, primaryErr)
 	})
+}
+
+func TestRaceEmptySecondaryStreamReportsFirstResult(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// A secondary whose stream ends without results has still answered: its time to the end
+		// of the stream is its first-result latency.
+		stats, err := newRaceStats(time.Millisecond)
+		require.NoError(t, err)
+		policy := &testPolicy{}
+
+		stream := dispatch.NewCollectingDispatchStream[lsResponse](t.Context())
+		err = runRace(t.Context(), raceRequest{
+			reqKey: "lookupsubjects",
+			participants: []participant{
+				{name: primaryDispatcher, primary: true, client: raceClient{name: primaryDispatcher}},
+				{name: "secondary", client: raceClient{name: "secondary"}},
+			},
+			stats: stats,
+		}, testStrategy{policy}, func(ctx context.Context, c ClusterClient) (receiver[lsResponse], error) {
+			if c.(raceClient).name == primaryDispatcher {
+				return &scriptedReceiver{ctx: ctx, block: true}, nil
+			}
+			time.Sleep(2 * time.Millisecond)
+			return &scriptedReceiver{ctx: ctx}, nil
+		}, stream)
+		require.NoError(t, err)
+		require.Empty(t, stream.Results())
+
+		synctest.Wait() // stats are recorded asynchronously
+		require.Equal(t, []time.Duration{2 * time.Millisecond}, policy.latencies["secondary"])
+		require.Equal(t, uint64(1), stats.secondaryDigests["lookupsubjects"].digest.Count())
+	})
+}
+
+func TestRaceSingleFailedParticipantErrorIsReturned(t *testing.T) {
+	// Without a primary error, the error of the only failed participant is returned, so its
+	// status reaches the caller.
+	secondaryErr := errors.New("secondary failed")
+	_, err := runTestRace(t.Context(), &testPolicy{}, []string{"secondary"}, map[string]script{
+		"secondary": {end: secondaryErr},
+	})
+	require.ErrorIs(t, err, secondaryErr)
 }

@@ -78,7 +78,8 @@ type racePolicy interface {
 
 	// noWinnerError picks the error to return when no participant won. errs holds the error
 	// of every participant that stopped with one. Returning nil lets the engine fall back to
-	// the context's error, then to a generic error.
+	// the context's error, then to the error of the only participant that failed (such as the
+	// secondary a cursor is locked to), then to a generic error.
 	noWinnerError(errs map[string]error) error
 }
 
@@ -106,3 +107,11 @@ func (basePolicy) done(participant, error) {}
 func (basePolicy) noWinnerError(errs map[string]error) error {
 	return errs[primaryDispatcher]
 }
+
+// cursorLockedStrategy races a continuation pinned to the secondary that produced its cursor.
+// The secondary is the only participant, so the request's strategy plays no part.
+type cursorLockedStrategy struct{}
+
+func (cursorLockedStrategy) name() string { return cursorLockedStrategyName }
+
+func (cursorLockedStrategy) newPolicy(raceRequest) racePolicy { return basePolicy{} }

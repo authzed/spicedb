@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -13,12 +14,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // The fake services mark their responses with their dispatchCount, so tests can tell which
@@ -200,16 +204,117 @@ func newMultiSecondaryTestDispatcher(t *testing.T, primary *fakeDispatchSvc, sec
 	return d
 }
 
-func TestCheckPrimaryErrorWaitsForSecondary(t *testing.T) {
-	primary := &fakeDispatchSvc{dispatchCount: fromPrimary, errorOnCheck: errors.New("primary failed")}
-	secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, sleepTime: 20 * time.Millisecond}
-	d := newStrategyTestDispatcher(t, primary, secondary, "check", "['secondary']", time.Millisecond, 5*time.Millisecond)
+// gatedCheckClient answers DispatchCheck with resp or err. It closes called on its first call
+// and, if after is set, answers only once after is closed.
+type gatedCheckClient struct {
+	ClusterClient
+	resp   *v1.DispatchCheckResponse
+	err    error
+	called chan struct{}
+	after  <-chan struct{}
+	calls  atomic.Int32
+}
 
-	// The primary fails long before the secondary answers; the secondary's answer is returned.
+func (c *gatedCheckClient) DispatchCheck(ctx context.Context, _ *v1.DispatchCheckRequest, _ ...grpc.CallOption) (*v1.DispatchCheckResponse, error) {
+	if c.calls.Add(1) == 1 && c.called != nil {
+		close(c.called)
+	}
+	if c.after != nil {
+		select {
+		case <-c.after:
+		case <-ctx.Done():
+			return &v1.DispatchCheckResponse{}, ctx.Err()
+		}
+	}
+	if c.err != nil {
+		return &v1.DispatchCheckResponse{}, c.err
+	}
+	return c.resp, nil
+}
+
+func TestCheckPrimaryErrorWaitsForSecondary(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The secondary answers only after the primary has failed, whatever the scheduling.
+		primaryCalled := make(chan struct{})
+		primary := &gatedCheckClient{err: errors.New("primary failed"), called: primaryCalled}
+		secondary := &gatedCheckClient{
+			resp:  &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: fromSecondary}},
+			after: primaryCalled,
+		}
+
+		expr, err := ParseDispatchExpression("check", "['secondary']")
+		require.NoError(t, err)
+		d, err := NewClusterDispatcher(primary, nil, ClusterDispatcherConfig{
+			DispatchOverallTimeout: time.Hour,
+			SecondaryDispatch: map[string]SecondaryDispatch{
+				"secondary": {Name: "secondary", Client: secondary, MaximumPrimaryHedgingDelay: time.Millisecond},
+			},
+			SecondaryDispatchExprs:      map[string]*DispatchExpr{"check": expr},
+			StartingPrimaryHedgingDelay: time.Millisecond,
+		})
+		require.NoError(t, err)
+
+		resp, err := d.DispatchCheck(t.Context(), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromSecondary, resp.Metadata.DispatchCount)
+		require.Equal(t, int32(1), primary.calls.Load())
+	})
+}
+
+func TestCursorLockedSecondaryErrorStatusIsReturned(t *testing.T) {
+	// A continuation whose cursor is locked to a secondary runs on that secondary only. When it
+	// fails, its status must reach the caller rather than a generic error.
+	primary := &fakeDispatchSvc{dispatchCount: fromPrimary}
+	secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, errorOnLR2: status.Error(codes.ResourceExhausted, "secondary overloaded")}
+	d := newStrategyTestDispatcher(t, primary, secondary, "lookupresources", "prefer_secondary(['secondary'], duration('10s'))", time.Millisecond, 5*time.Millisecond)
+
+	cursorLocked := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("lookupresources", cursorLockedStrategyName))
+
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](t.Context())
+	err := d.DispatchLookupResources2(testLR2Request([]string{secondaryCursorPrefix + "secondary", "rest"}), stream)
+	require.Equal(t, codes.ResourceExhausted, status.Code(err), "error: %v", err)
+	require.Equal(t, uint32(0), primary.calls.Load())
+
+	// Counted as cursor_locked, not as the expression's strategy.
+	require.InDelta(t, cursorLocked+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("lookupresources", cursorLockedStrategyName)), 0)
+}
+
+func TestRepeatedSecondaryNameDispatchesOnce(t *testing.T) {
+	primary := &fakeDispatchSvc{dispatchCount: fromPrimary, sleepTime: time.Second}
+	secondary := &fakeDispatchSvc{dispatchCount: fromSecondary}
+	d := newStrategyTestDispatcher(t, primary, secondary, "check", "['secondary', 'secondary']", time.Hour, time.Hour)
+
 	resp, err := d.DispatchCheck(t.Context(), testCheckRequest())
 	require.NoError(t, err)
 	require.Equal(t, fromSecondary, resp.Metadata.DispatchCount)
-	require.Equal(t, uint32(1), primary.calls.Load())
+	require.Equal(t, uint32(1), secondary.calls.Load())
+}
+
+func TestSecondaryOpenErrorIsRecorded(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// A secondary that cannot even open its stream reports the relation as unsupported.
+		primary := &lsStreamClient{results: []*v1.DispatchLookupSubjectsResponse{
+			{Metadata: &v1.ResponseMeta{DispatchCount: fromPrimary}},
+		}}
+		secondary := &lsStreamClient{openErr: testResourceRelationError{errors.New("unsupported"), "somenamespace", "somerelation"}}
+
+		expr, err := ParseDispatchExpression("lookupsubjects", "['secondary']")
+		require.NoError(t, err)
+		d, err := NewClusterDispatcher(primary, nil, ClusterDispatcherConfig{
+			DispatchOverallTimeout: time.Hour,
+			SecondaryDispatch: map[string]SecondaryDispatch{
+				"secondary": {Name: "secondary", Client: secondary, MaximumPrimaryHedgingDelay: time.Hour},
+			},
+			SecondaryDispatchExprs: map[string]*DispatchExpr{"lookupsubjects": expr},
+		})
+		require.NoError(t, err)
+
+		stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](t.Context())
+		require.NoError(t, d.DispatchLookupSubjects(testLSRequest(), stream))
+
+		stats := d.(*clusterDispatcher).stats
+		require.True(t, stats.unsupported.isUnsupported(tuple.RR("somenamespace", "somerelation"), tuple.RR("other", "...")))
+	})
 }
 
 func TestCheckPrimaryErrorReturnedWhenAllSecondariesFail(t *testing.T) {
@@ -430,10 +535,12 @@ func TestStrategyChosenPerRequest(t *testing.T) {
 }
 
 func TestInvalidStrategyArgumentFallsBackToPrimary(t *testing.T) {
+	// Literal durations of zero or less are rejected at parse time, so these are computed.
 	for _, expr := range []string{
-		"prefer_secondary(['secondary'], duration('0s'))",
-		"prefer_secondary(['secondary'], duration('-1s'))",
-		"hedged(['secondary'], duration('0s'))",
+		"prefer_secondary(['secondary'], duration('1s') - duration('1s'))",
+		"prefer_secondary(['secondary'], duration('0s') - duration('1s'))",
+		"hedged(['secondary'], duration('1s') - duration('1s'))",
+		"hedged(['secondary'], duration('0s') - duration('1s'))",
 	} {
 		for _, kind := range requestKinds {
 			t.Run(expr+"/"+kind.label(), func(t *testing.T) {
@@ -443,10 +550,13 @@ func TestInvalidStrategyArgumentFallsBackToPrimary(t *testing.T) {
 				secondary := &fakeDispatchSvc{dispatchCount: fromSecondary}
 				d := newStrategyTestDispatcher(t, primary, secondary, kind.method, expr, time.Hour, time.Hour)
 
+				evalFailures := testutil.ToFloat64(exprEvalErrorsCounter.WithLabelValues(kind.method))
+
 				source, err := kind.run(t, d)
 				require.NoError(t, err)
 				require.Equal(t, fromPrimary, source)
 				require.Equal(t, uint32(0), secondary.calls.Load())
+				require.InDelta(t, evalFailures+1, testutil.ToFloat64(exprEvalErrorsCounter.WithLabelValues(kind.method)), 0)
 			})
 		}
 	}

@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
+	"time"
 
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common"
+	celast "github.com/authzed/cel-go/common/ast"
 	"github.com/authzed/cel-go/common/types"
 	"github.com/authzed/cel-go/common/types/ref"
 	"github.com/authzed/cel-go/common/types/traits"
@@ -37,9 +40,72 @@ var dispatchRequestTypes = []any{
 // strategyDescriptor declares the CEL function of a secondary strategy. Each overload's binding
 // must return a dispatchPlanVal.
 type strategyDescriptor struct {
-	function  string
+	function string
+
+	// durationArgument names the strategy's duration argument (its second), which must be
+	// positive, or is empty if it takes none. Literal durations are checked when the expression
+	// is parsed; computed ones, when it is evaluated.
+	durationArgument string
+
 	overloads []cel.FunctionOpt
 }
+
+// checkStrategyDuration reports whether d is a valid duration argument of a strategy.
+func checkStrategyDuration(function, argument string, d time.Duration) error {
+	if d <= 0 {
+		return fmt.Errorf("%s: %s must be positive, got %s", function, argument, d)
+	}
+	return nil
+}
+
+// checkLiteralStrategyDurations rejects strategy calls whose duration argument is a literal,
+// such as duration('0s'), that would fail every evaluation. Without this check, the expression
+// would parse, and every dispatch would quietly go to the primary only.
+func checkLiteralStrategyDurations(ast *cel.Ast) error {
+	root := celast.NavigateAST(ast.NativeRep())
+	for _, strategy := range registeredStrategies {
+		if strategy.durationArgument == "" {
+			continue
+		}
+
+		for _, call := range celast.MatchDescendants(root, celast.FunctionMatcher(strategy.function)) {
+			args := call.AsCall().Args()
+			if len(args) != 2 {
+				continue
+			}
+			literal, ok := durationLiteral(args[1])
+			if !ok {
+				continue
+			}
+
+			converted := types.String(literal).ConvertToType(types.DurationType)
+			d, ok := converted.(types.Duration)
+			if !ok {
+				return fmt.Errorf("%s: invalid %s duration('%s')", strategy.function, strategy.durationArgument, literal)
+			}
+			if err := checkStrategyDuration(strategy.function, strategy.durationArgument, d.Duration); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// durationLiteral returns s if expr is duration('<s>').
+func durationLiteral(expr celast.Expr) (string, bool) {
+	if expr.Kind() != celast.CallKind {
+		return "", false
+	}
+	call := expr.AsCall()
+	if call.FunctionName() != "duration" || len(call.Args()) != 1 || call.Args()[0].Kind() != celast.LiteralKind {
+		return "", false
+	}
+	literal, ok := call.Args()[0].AsLiteral().(types.String)
+	return string(literal), ok
+}
+
+// strategyTypeHint explains the type errors operators are most likely to hit.
+const strategyTypeHint = "hint: both branches of a conditional must have the same type; wrap plain lists in hedged([...]), and use hedged([]) to dispatch to the primary only"
 
 // registeredStrategies lists the strategies available to dispatch expressions. Adding a
 // strategy means adding its descriptor here.
@@ -143,12 +209,19 @@ func ParseDispatchExpression(methodName string, exprString string) (*DispatchExp
 
 	ast, issues := celEnv.CompileSource(common.NewStringSource(exprString, methodName))
 	if issues != nil && issues.Err() != nil {
+		if strings.Contains(issues.Err().Error(), dispatchPlanCelType.String()) {
+			return nil, fmt.Errorf("%w\n%s", issues.Err(), strategyTypeHint)
+		}
 		return nil, issues.Err()
 	}
 
 	outputType := ast.OutputType()
 	if !outputType.IsEquivalentType(cel.ListType(cel.StringType)) && !outputType.IsEquivalentType(dispatchPlanCelType) {
-		return nil, fmt.Errorf("dispatch expression must result in a list[string] value or a strategy such as hedged([...]): found `%s`", outputType.String())
+		return nil, fmt.Errorf("dispatch expression must result in a list[string] value or a strategy such as hedged([...]): found `%s`; %s", outputType.String(), strategyTypeHint)
+	}
+
+	if err := checkLiteralStrategyDurations(ast); err != nil {
+		return nil, err
 	}
 
 	runDispatchOps := make([]cel.ProgramOption, 0, 3)

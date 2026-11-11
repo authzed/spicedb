@@ -2,9 +2,8 @@ package remote
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
-
-	"go.uber.org/atomic"
 
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common/types"
@@ -20,7 +19,7 @@ type preferSecondaryStrategy struct {
 	deadline time.Duration
 }
 
-func (preferSecondaryStrategy) name() string { return "prefer_secondary" }
+func (preferSecondaryStrategy) name() string { return preferSecondaryFunction }
 
 func (s preferSecondaryStrategy) newPolicy(r raceRequest) racePolicy {
 	var secondaries int64
@@ -58,9 +57,9 @@ func (p *preferSecondaryPolicy) start(ctx context.Context, pt participant) bool 
 	select {
 	case <-ctx.Done():
 	case <-p.released:
-		primaryReleaseCounter.WithLabelValues(p.reqKey, "secondaries_failed").Inc()
+		metricsFor(p.reqKey).releasedOnAllFailures.Inc()
 	case <-timer.C:
-		primaryReleaseCounter.WithLabelValues(p.reqKey, "deadline").Inc()
+		metricsFor(p.reqKey).releasedAtDeadline.Inc()
 	}
 	return true
 }
@@ -68,27 +67,33 @@ func (p *preferSecondaryPolicy) start(ctx context.Context, pt participant) bool 
 // done counts only failures: a successful secondary ends the race anyway, because the winner
 // cancels the other participants.
 func (p *preferSecondaryPolicy) done(pt participant, err error) {
-	if !pt.primary && err != nil && p.failed.Inc() == p.secondaries {
+	if !pt.primary && err != nil && p.failed.Add(1) == p.secondaries {
 		close(p.released)
 	}
 }
 
+const (
+	preferSecondaryFunction         = "prefer_secondary"
+	preferSecondaryDurationArgument = "deadline"
+)
+
 var preferSecondaryDescriptor = strategyDescriptor{
-	function: "prefer_secondary",
+	function:         preferSecondaryFunction,
+	durationArgument: preferSecondaryDurationArgument,
 	overloads: []cel.FunctionOpt{
 		cel.Overload("prefer_secondary_list_string_duration",
 			[]*cel.Type{cel.ListType(cel.StringType), cel.DurationType}, dispatchPlanCelType,
 			cel.BinaryBinding(func(list, deadline ref.Val) ref.Val {
 				names, err := toStringSlice(list)
 				if err != nil {
-					return types.NewErr("prefer_secondary: %s", err)
+					return types.NewErr("%s: %s", preferSecondaryFunction, err)
 				}
 				d, ok := deadline.(types.Duration)
 				if !ok {
 					return types.MaybeNoSuchOverloadErr(deadline)
 				}
-				if d.Duration <= 0 {
-					return types.NewErr("prefer_secondary: deadline must be positive, got %s", d.Duration)
+				if err := checkStrategyDuration(preferSecondaryFunction, preferSecondaryDurationArgument, d.Duration); err != nil {
+					return types.NewErr("%s", err)
 				}
 				return dispatchPlanVal{dispatchPlan{secondaries: names, strategy: preferSecondaryStrategy{deadline: d.Duration}}}
 			})),

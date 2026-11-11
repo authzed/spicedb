@@ -14,6 +14,15 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// defaultHedgerQuantile is the default quantile used to determine the hedging delay for primary calls.
+const defaultHedgerQuantile = 0.9
+
+// minimumDigestCount is the minimum number of samples required in the digest before it can be used
+// to determine the configured percentile.
+const minimumDigestCount = 10
+
+const defaultTDigestCompression = float64(1000)
+
 // raceStats holds what races learn about the secondaries. It outlives single requests and is
 // shared by every strategy, so traffic routed with any strategy trains the same statistics.
 // The race engine records into it; policies read from it.
@@ -49,7 +58,7 @@ func newRaceStats(startingPrimaryHedgingDelay time.Duration) (*raceStats, error)
 // recordSecondaryFirstResult records the time a secondary took to produce its first result,
 // and marks the request's relations as supported. The update runs in its own goroutine, off
 // the dispatch's critical path: the digest update is comparatively slow, and both only inform
-// future dispatches. Like the digest's TryLock, recording is best-effort.
+// future dispatches.
 func (s *raceStats) recordSecondaryFirstResult(
 	ctx context.Context,
 	reqKey string,
@@ -57,10 +66,11 @@ func (s *raceStats) recordSecondaryFirstResult(
 	subject tuple.RelationReference,
 	latency time.Duration,
 ) {
-	go s.recordSecondarySuccess(ctx, reqKey, resource, subject, latency)
+	go s.applySecondaryFirstResult(ctx, reqKey, resource, subject, latency)
 }
 
-func (s *raceStats) recordSecondarySuccess(
+// applySecondaryFirstResult is recordSecondaryFirstResult's synchronous body.
+func (s *raceStats) applySecondaryFirstResult(
 	ctx context.Context,
 	reqKey string,
 	resource tuple.RelationReference,
@@ -121,13 +131,14 @@ func (dal *digestAndLock) getWaitTime(maximumHedgingDelay time.Duration) time.Du
 	return waitTime
 }
 
+// addResultTime adds a sample to the digest. It runs off the dispatch's critical path (see
+// recordSecondaryFirstResult), so it waits for the lock rather than dropping the sample.
 func (dal *digestAndLock) addResultTime(ctx context.Context, duration time.Duration) {
-	if dal.lock.TryLock() {
-		err := dal.digest.Add(float64(duration.Milliseconds()))
-		dal.lock.Unlock()
-		if err != nil {
-			log.Ctx(ctx).Warn().Err(err).Msg("error when trying to add result time to digest")
-		}
+	dal.lock.Lock()
+	err := dal.digest.Add(float64(duration.Milliseconds()))
+	dal.lock.Unlock()
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Msg("error when trying to add result time to digest")
 	}
 }
 

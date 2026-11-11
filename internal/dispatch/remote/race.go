@@ -6,12 +6,8 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -56,8 +52,9 @@ const (
 // once every participant has exited, so no participant outlives the stream.
 //
 // If there is a winner, runRace returns the error the winner stopped with, if any (the winner
-// may have published only part of its results). Otherwise it returns the policy's choice of
-// error, then the context's error, then a generic error.
+// may have published only part of its results). Otherwise it returns the first of: the
+// policy's choice of error, the context's error, the error of the only participant that
+// failed, or a generic error.
 func runRace[R any](
 	ctx context.Context,
 	r raceRequest,
@@ -101,7 +98,7 @@ func race[R any](
 	stream dispatch.Stream[R],
 	mode raceMode,
 ) error {
-	countStrategy(r.reqKey, strategy.name())
+	metricsFor(r.reqKey).strategy(strategy.name()).Inc()
 
 	n := len(r.participants)
 	run := &raceRun[R]{
@@ -156,12 +153,25 @@ func race[R any](
 	}
 
 	if err := run.policy.noWinnerError(errs); err != nil {
-		log.Ctx(ctx).Warn().Err(err).Errs("all-errors", slices.Collect(maps.Values(errs))).Msg("returning error as no dispatcher returned results")
+		event := log.Ctx(ctx).Warn()
+		if ctx.Err() != nil {
+			// The caller canceled or timed out: not worth a warning.
+			event = log.Ctx(ctx).Debug()
+		}
+		event.Err(err).Errs("all-errors", slices.Collect(maps.Values(errs))).Msg("returning primary dispatcher error as no dispatchers returned results")
 		return err
 	}
 
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	// A single failed participant, such as the secondary a cursor is locked to: return its error
+	// so its status reaches the caller.
+	if len(errs) == 1 {
+		for _, err := range errs {
+			return err
+		}
 	}
 
 	return errors.New("no dispatcher returned results; please check the logs for more information")
@@ -208,9 +218,8 @@ func (rr *raceRun[R]) cancelAllExcept(keep int) {
 
 // runAndReport runs participant i, records how it stopped, and signals its exit.
 //
-// Calls that reach deep into other packages (the policy's start, metrics) are made here,
-// rather than from runParticipant, to keep the participant goroutine's stack shallow: a stack
-// that outgrows its initial size is copied, on every dispatch.
+// The policy's start and the metrics are called from here rather than from runParticipant,
+// following the stack rule above traceDispatcher.
 func (rr *raceRun[R]) runAndReport(i int, p participant) {
 	ctx := rr.slots[i].ctx
 	reqKey := rr.request.reqKey
@@ -270,7 +279,7 @@ func (rr *raceRun[R]) runParticipant(i int, p participant) error {
 		if !p.primary {
 			rr.request.stats.recordSecondaryError(err)
 		}
-		warnDispatcher(ctx, p.name, err, "error when trying to run dispatcher")
+		warnDispatcher(ctx, p.name, err, "error when trying to run secondary dispatcher")
 		return err
 	}
 
@@ -362,10 +371,11 @@ func (rr *raceRun[R]) runParticipant(i int, p participant) error {
 	}
 }
 
-// The helpers below keep logging and metrics out of line. Inlined, each zerolog chain or
-// variadic WithLabelValues call reserves its own temporaries in the caller's frame; a
-// participant's goroutine starts with a small stack and would have to grow (and copy) it on
-// every dispatch.
+// Stack rule: participant goroutines start with a small stack, and one that outgrows it is
+// copied on every dispatch. So keep zerolog chains, WithLabelValues calls and other deep calls
+// out of runParticipant's frame: make them through these out-of-line helpers, or from
+// runAndReport. Check BenchmarkSecondaryDispatching, at a fixed -benchtime, before changing
+// this; the same rule applies to primarySleeper.
 
 //go:noinline
 func traceDispatcher(ctx context.Context, dispatcher string, msg string) {
@@ -380,38 +390,6 @@ func traceDispatcherError(ctx context.Context, dispatcher string, err error, msg
 //go:noinline
 func warnDispatcher(ctx context.Context, dispatcher string, err error, msg string) {
 	log.Ctx(ctx).Warn().Err(err).Str("dispatcher", dispatcher).Msg(msg)
-}
-
-//go:noinline
-func countPrimaryDispatch(reqKey string, canceled bool) {
-	counters, ok := primaryDispatchByKey[reqKey]
-	if !ok {
-		primaryDispatch.WithLabelValues(strconv.FormatBool(canceled), reqKey).Inc()
-		return
-	}
-	if canceled {
-		counters[1].Inc()
-	} else {
-		counters[0].Inc()
-	}
-}
-
-// strategyCounters caches secondaryStrategyCounter's children by request key and strategy
-// name, both of which come from small fixed sets.
-var strategyCounters sync.Map // [2]string{reqKey, strategy} -> prometheus.Counter
-
-func countStrategy(reqKey string, strategy string) {
-	key := [2]string{reqKey, strategy}
-	counter, ok := strategyCounters.Load(key)
-	if !ok {
-		counter, _ = strategyCounters.LoadOrStore(key, secondaryStrategyCounter.WithLabelValues(reqKey, strategy))
-	}
-	counter.(prometheus.Counter).Inc()
-}
-
-//go:noinline
-func countWinner(reqKey string, dispatcher string) {
-	dispatchCounter.WithLabelValues(reqKey, dispatcher).Add(1)
 }
 
 // unaryReceiver presents the result of a unary call as a stream of one message, so unary

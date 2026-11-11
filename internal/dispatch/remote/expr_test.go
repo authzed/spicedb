@@ -91,6 +91,46 @@ func TestParseDispatchExpression(t *testing.T) {
 			"prefer_secondary(['prewarm'])",
 			"no matching overload",
 		},
+		{
+			"mismatched branches get a hint",
+			"request.resource_relation.namespace == 'foo' ? hedged(['prewarm']) : ['prewarm']",
+			"hint: both branches of a conditional must have the same type",
+		},
+		{
+			"bare empty list gets a hint",
+			"[]",
+			"use hedged([]) to dispatch to the primary only",
+		},
+		{
+			"literal zero hedged delay",
+			"hedged(['prewarm'], duration('0s'))",
+			"hedged: maximum delay must be positive, got 0s",
+		},
+		{
+			"literal negative hedged delay",
+			"hedged(['prewarm'], duration('-1s'))",
+			"hedged: maximum delay must be positive, got -1s",
+		},
+		{
+			"literal zero deadline",
+			"prefer_secondary(['prewarm'], duration('0s'))",
+			"prefer_secondary: deadline must be positive, got 0s",
+		},
+		{
+			"literal negative deadline inside a conditional",
+			"request.resource_relation.namespace == 'foo' ? prefer_secondary(['prewarm'], duration('-1ms')) : hedged(['prewarm'])",
+			"prefer_secondary: deadline must be positive, got -1ms",
+		},
+		{
+			"malformed literal deadline",
+			"prefer_secondary(['prewarm'], duration('5'))",
+			"prefer_secondary: invalid deadline duration('5')",
+		},
+		{
+			"computed durations are only checked at evaluation",
+			"prefer_secondary(['prewarm'], duration('1s') - duration('1s'))",
+			"",
+		},
 	}
 
 	for _, tc := range tcs {
@@ -250,9 +290,20 @@ func TestRunDispatchExprStrategies(t *testing.T) {
 			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: hedgedStrategy{maxDelay: 5 * time.Millisecond}},
 		},
 		{
-			name:          "hedged with zero delay",
-			expr:          "hedged(['tiger'], duration('0s'))",
-			expectedError: "maximum delay must be positive",
+			// Literal durations are checked at parse time; computed ones only here.
+			name:          "hedged with computed zero delay",
+			expr:          "hedged(['tiger'], duration('1s') - duration('1s'))",
+			expectedError: "hedged: maximum delay must be positive, got 0s",
+		},
+		{
+			name:          "hedged with computed negative delay",
+			expr:          "hedged(['tiger'], duration('0s') - duration('1s'))",
+			expectedError: "hedged: maximum delay must be positive, got -1s",
+		},
+		{
+			name:          "hedged with a non-string element",
+			expr:          "hedged(dyn(['tiger', 1]))",
+			expectedError: "expected a list of strings",
 		},
 		{
 			name:     "prefer_secondary",
@@ -260,14 +311,14 @@ func TestRunDispatchExprStrategies(t *testing.T) {
 			expected: dispatchPlan{secondaries: []string{"tiger", "lion"}, strategy: preferSecondaryStrategy{deadline: 50 * time.Millisecond}},
 		},
 		{
-			name:          "prefer_secondary with zero deadline",
-			expr:          "prefer_secondary(['tiger'], duration('0s'))",
-			expectedError: "deadline must be positive",
+			name:          "prefer_secondary with computed zero deadline",
+			expr:          "prefer_secondary(['tiger'], duration('1s') - duration('1s'))",
+			expectedError: "prefer_secondary: deadline must be positive, got 0s",
 		},
 		{
-			name:          "prefer_secondary with negative deadline",
-			expr:          "prefer_secondary(['tiger'], duration('-1s'))",
-			expectedError: "deadline must be positive",
+			name:          "prefer_secondary with computed negative deadline",
+			expr:          "prefer_secondary(['tiger'], duration('0s') - duration('1s'))",
+			expectedError: "prefer_secondary: deadline must be positive, got -1s",
 		},
 		{
 			name:     "strategy chosen by request, first branch",
