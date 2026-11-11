@@ -14,7 +14,6 @@ tool (
 	golang.org/x/vuln/cmd/govulncheck
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc
 	google.golang.org/protobuf/cmd/protoc-gen-go
-	mvdan.cc/gofumpt
 )
 
 require (

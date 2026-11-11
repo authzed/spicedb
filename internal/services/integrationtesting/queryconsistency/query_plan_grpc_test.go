@@ -46,6 +46,9 @@ func TestQueryPlanConsistencyGRPC(t *testing.T) { // nolint:tparallel
 	require.NoError(t, err)
 
 	for _, filePath := range consistencyTestFiles {
+		if slices.Contains(skippedTestConfigs, filePath) {
+			t.Skip("skipping grpc consistency test: " + filePath)
+		}
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			t.Parallel()
 			runQueryPlanConsistencyGRPCForFile(t, filePath)

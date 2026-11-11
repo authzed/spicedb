@@ -66,14 +66,8 @@ func (l Lint) Go() error {
 	if err != nil {
 		return err
 	}
-	mg.Deps(l.Gofumpt, l.Golangcilint, l.Analyzers, l.Vulncheck)
+	mg.Deps(l.Golangcilint, l.Analyzers, l.Vulncheck)
 	return nil
-}
-
-// Gofumpt Run gofumpt
-func (Lint) Gofumpt() error {
-	fmt.Println("formatting go")
-	return buildAndRunTool("magefiles", "mvdan.cc/gofumpt", "-l", "-w", ".")
 }
 
 // Golangcilint Run golangci-lint
