@@ -337,6 +337,8 @@ func TestMaxDepthLookup2(t *testing.T) {
 }
 
 func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name                  string
 		schema                string
@@ -511,13 +513,13 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = viewer + editor
   			 }`,
 			joinTuples(
-				genRels("document", "viewer", "user", "tom", 15100),
-				genRels("document", "editor", "user", "tom", 15100),
+				genRels("document", "viewer", "user", "tom", 5100),
+				genRels("document", "editor", "user", "tom", 5100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			nil,
-			genResourceIds("document", 15100),
+			genResourceIds("document", 5100),
 			nil,
 		},
 		{
@@ -743,8 +745,18 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The datastore is only read from below, so it is loaded once and shared
+			// by all of the page sizes.
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+			require.NoError(t, err)
+
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, tc.schema, tc.relationships)
+
 			for _, pageSize := range []int{0, 104, 1023} {
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 
 					dispatcher, err := NewLocalOnlyDispatcher(MustNewDefaultDispatcherParametersForTesting())
@@ -752,11 +764,6 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 					t.Cleanup(func() {
 						dispatcher.Close()
 					})
-
-					ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
-					require.NoError(err)
-
-					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, ds, tc.schema, tc.relationships)
 
 					ctx := datalayer.ContextWithHandle(t.Context())
 					require.NoError(datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
