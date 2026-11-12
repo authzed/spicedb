@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/querysignals"
 	"github.com/authzed/spicedb/internal/querysignalstest"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/query/signals/historicalresultsize"
@@ -48,11 +49,19 @@ func TestBoundRevisionAndHistoricalReuse(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), same.Value.Samples)
 
-		// Unsupported schema readers get isolated request-local evidence without any reads.
-		local, err := querysignals.Bind(owner, struct{}{}, rev, "a")
+		// Legacy schema readers are not supported.
+		_, err = querysignals.Bind(owner, struct{}{}, rev, "a")
+		require.ErrorIs(t, err, querysignals.ErrLegacySchemaUnsupported)
+
+		// A sentinel hash, such as one from a legacy ZedToken, binds to the loaded schema's hash.
+		legacy, err := querysignals.Bind(owner, schema, rev, string(datalayer.NoSchemaHashInLegacyZedToken))
 		require.NoError(t, err)
-		empty, err := signal.Lookup(local, resultsize.Ref, k)
+		shared, err := signal.Lookup(legacy, resultsize.Ref, k)
 		require.NoError(t, err)
-		require.Equal(t, signal.Missing, empty.Availability)
+		require.Equal(t, uint64(1), shared.Value.Samples)
+
+		// A real hash that does not match the loaded schema is still rejected.
+		_, err = querysignals.Bind(owner, schema, rev, "b")
+		require.Error(t, err)
 	})
 }
