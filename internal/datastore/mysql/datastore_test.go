@@ -457,11 +457,11 @@ func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 	defer mgg.Close()
 
-	now, err := mgg.Now(ctx)
+	// No transaction can precede the Unix epoch, even when migration jobs
+	// have already created transactions in an otherwise empty datastore.
+	watermark, err := mgg.TxIDBefore(ctx, time.Unix(0, 0))
 	req.NoError(err)
-
-	watermark, err := mgg.TxIDBefore(ctx, now.Add(-1*time.Minute))
-	req.NoError(err)
+	req.Equal(datastore.NoRevision, watermark)
 
 	collected, err := mgg.DeleteBeforeTx(ctx, watermark)
 	req.NoError(err)
@@ -715,6 +715,14 @@ func runQuantizedRevisionCase(t *testing.T, b testdatastore.RunningEngineForTest
 	mgg, err := mds.BuildGarbageCollector(ctx)
 	require.NoError(err)
 	defer mgg.Close()
+
+	// Keep setup transactions outside the quantization window. Migrations can
+	// create a current transaction instead of the old bootstrap transaction.
+	seedSQL, seedArgs, err := sb.Update(mds.driver.RelationTupleTransaction()).
+		Set(colTimestamp, time.Unix(1, 0).UTC()).ToSql()
+	require.NoError(err)
+	_, err = mds.db.ExecContext(ctx, seedSQL, seedArgs...)
+	require.NoError(err)
 
 	dbNow := alignedDatabaseNow(ctx, t, mgg, tc.quantization, tc.followerReadDelay)
 

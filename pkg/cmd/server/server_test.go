@@ -34,6 +34,8 @@ import (
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datalayer"
+	datastorepkg "github.com/authzed/spicedb/pkg/datastore"
 	dsmocks "github.com/authzed/spicedb/pkg/datastore/mocks"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -80,6 +82,129 @@ func TestServerGracefulTermination(t *testing.T) {
 	<-ch
 }
 
+func TestServerRejectsInvalidSchemaModeBeforeBootstrap(t *testing.T) {
+	c := NewConfigWithOptionsAndDefaults(
+		WithPresharedSecureKey("psk"),
+		WithExperimentalSchemaMode("invalid"),
+	)
+	// Bootstrap would fail to parse this input if datastore creation ran first.
+	c.DatastoreConfig.BootstrapFileContents = map[string][]byte{
+		"invalid": []byte("not valid bootstrap data"),
+	}
+
+	_, err := c.Complete(t.Context())
+	require.ErrorContains(t, err, `invalid schema mode "invalid"`)
+}
+
+func TestServerBootstrapSchemaMode(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	for _, tc := range []struct {
+		name       string
+		mode       string
+		wantLegacy bool
+		wantStored bool
+		phase      string
+	}{
+		{"default", NewConfigWithOptionsAndDefaults().ExperimentalSchemaMode, true, true, ""},
+		{"empty", "", true, true, ""},
+		{"legacy fallback", "read-legacy-write-both", true, true, ""},
+		{"legacy only", "read-legacy-write-legacy", true, false, ""},
+		{"unified only", "read-new-write-new", false, true, ""},
+		{"prepare", "read-new-write-both", true, true, "schema-write-both-read-old"},
+		{"promote", "read-new-write-both", true, true, "schema-write-both-read-new"},
+		{"prepare unified only", "read-new-write-new", false, true, "schema-write-both-read-old"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dsConfig := datastore.DefaultDatastoreConfig()
+			dsConfig.MigrationPhase = tc.phase
+			dsConfig.BootstrapFileContents = map[string][]byte{
+				"test": []byte("schema: definition user {}"),
+			}
+			c := ConfigWithOptions(&Config{},
+				WithPresharedSecureKey("psk"),
+				WithDatastoreConfig(*dsConfig),
+				WithExperimentalSchemaMode(tc.mode),
+				WithNamespaceCacheConfig(CacheConfig{Name: "namespace", Enabled: true, MaxCost: "1MiB"}),
+				WithGRPCServer(util.GRPCServerConfig{Network: util.BufferedNetwork, Enabled: true}),
+				WithEnableMemoryProtectionMiddleware(false),
+			)
+			completed, err := c.complete(t.Context())
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, completed.closeFunc()) })
+
+			revision, err := completed.ds.HeadRevision(t.Context())
+			require.NoError(t, err)
+			reader := completed.ds.SnapshotReader(revision.Revision)
+			namespaces, err := reader.LegacyListAllNamespaces(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, tc.wantLegacy, len(namespaces) == 1)
+
+			stored, err := reader.ReadStoredSchema(t.Context())
+			if tc.wantStored {
+				require.NoError(t, err)
+				ns := stored.Get().GetV1().GetNamespaceDefinitions()["user"]
+				require.NotNil(t, ns)
+				require.Equal(t, "user", ns.Name)
+			} else {
+				require.ErrorIs(t, err, datastorepkg.ErrSchemaNotFound)
+			}
+
+			mode := datalayer.SchemaModeReadNewWriteBoth
+			if tc.mode != "" {
+				mode, err = datalayer.ParseSchemaMode(tc.mode)
+				require.NoError(t, err)
+			}
+			dl := datalayer.NewDataLayer(completed.ds, datalayer.WithSchemaMode(mode))
+			rev, hash, err := dl.HeadRevision(t.Context())
+			require.NoError(t, err)
+			schema, err := dl.SnapshotReader(rev, hash).ReadSchema(t.Context())
+			require.NoError(t, err)
+			_, found, err := schema.LookupTypeDefByName(t.Context(), "user")
+			require.NoError(t, err)
+			require.True(t, found)
+		})
+	}
+}
+
+func TestServerSchemaPreparationReadsLegacy(t *testing.T) {
+	for _, mode := range []string{"", "read-new-write-new"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			ds, err := datastore.NewDatastore(ctx,
+				datastore.WithEngine(datastore.MemoryEngine),
+				datastore.SetBootstrapFileContents(map[string][]byte{"test": []byte("schema: definition legacy {}")}),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ds.Close()) })
+			cfg := *datastore.DefaultDatastoreConfig()
+			cfg.MigrationPhase = "schema-write-both-read-old"
+			c := ConfigWithOptions(&Config{}, WithDatastore(ds), WithDatastoreConfig(cfg),
+				WithPresharedSecureKey("psk"), WithExperimentalSchemaMode(mode),
+				WithGRPCServer(util.GRPCServerConfig{Network: util.BufferedNetwork, Enabled: true}),
+				WithEnableMemoryProtectionMiddleware(false),
+			)
+			completed, err := c.complete(ctx)
+			require.NoError(t, err)
+			done := make(chan error, 1)
+			go func() { done <- completed.Run(ctx) }()
+			t.Cleanup(func() { cancel(); require.NoError(t, <-done) })
+			conn, err := completed.NewClient(grpcutil.WithInsecureBearerToken("psk"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, conn.Close()) })
+			response, err := v1.NewSchemaServiceClient(conn).ReadSchema(ctx, &v1.ReadSchemaRequest{}, grpc.WaitForReady(true))
+			if mode == "read-new-write-new" {
+				require.ErrorContains(t, err, "schema not found")
+			} else {
+				require.NoError(t, err)
+				require.Contains(t, response.SchemaText, "definition legacy")
+			}
+		})
+	}
+}
+
 func TestServerDefaultOptions(t *testing.T) {
 	cfg := NewConfigWithOptionsAndDefaults()
 
@@ -87,7 +212,7 @@ func TestServerDefaultOptions(t *testing.T) {
 	require.Equal(t, 4096, cfg.MaxCaveatContextSize)
 	require.Equal(t, 25_000, cfg.MaxRelationshipContextSize)
 	require.Equal(t, time.Second, cfg.SchemaWatchHeartbeat)
-	require.Equal(t, "read-legacy-write-legacy", cfg.ExperimentalSchemaMode)
+	require.Equal(t, "read-new-write-both", cfg.ExperimentalSchemaMode)
 
 	require.Equal(t, uint32(50), cfg.DispatchMaxDepth)
 	require.Equal(t, uint16(50), cfg.GlobalDispatchConcurrencyLimit)

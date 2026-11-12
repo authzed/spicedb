@@ -71,7 +71,7 @@ func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string) {
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(t, err)
 
-	populated, _, err := validationfile.PopulateFromFS(t.Context(), datalayer.NewDataLayer(ds), types.Default.TypeSet, testconfigs.FS, filePath)
+	populated, _, err := validationfile.PopulateFromFS(t.Context(), datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth)), types.Default.TypeSet, testconfigs.FS, filePath)
 	require.NoError(t, err)
 
 	connections := testserver.TestClusterWithDispatch(t, 1, ds, options...)
