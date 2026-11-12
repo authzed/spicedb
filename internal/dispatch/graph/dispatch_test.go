@@ -1,8 +1,8 @@
 package graph
 
 import (
-	"fmt"
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,6 +17,8 @@ import (
 const veryLargeLimit = 1000000000
 
 func TestDispatchChunking(t *testing.T) {
+	t.Parallel()
+
 	schema := `
 		definition user {
 			relation its_a_me: user
@@ -29,9 +31,22 @@ func TestDispatchChunking(t *testing.T) {
 
 	resources := make([]tuple.Relationship, 0, math.MaxUint16+1)
 	enabled := make([]tuple.Relationship, 0, math.MaxUint16+1)
+	// The relationships are built directly, rather than via tuple.MustParse, as
+	// parsing this many relationship strings takes far longer than the test itself.
 	for i := range math.MaxUint16 + 1 {
-		resources = append(resources, tuple.MustParse(fmt.Sprintf("res:res1#owner@user:user%d", i)))
-		enabled = append(enabled, tuple.MustParse(fmt.Sprintf("user:user%d#its_a_me@user:user%d", i, i)))
+		userID := "user" + strconv.Itoa(i)
+		resources = append(resources, tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: ONR("res", "res1", "owner"),
+				Subject:  ONR("user", userID, graph.Ellipsis),
+			},
+		})
+		enabled = append(enabled, tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: ONR("user", userID, "its_a_me"),
+				Subject:  ONR("user", userID, graph.Ellipsis),
+			},
+		})
 	}
 
 	ctx, dispatcher, revision := newLocalDispatcherWithSchemaAndRels(t, schema, append(enabled, resources...))

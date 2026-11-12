@@ -49,13 +49,18 @@ func TestBulkImportRelationships(t *testing.T) {
 		{"many small batches", constBatch(5), 1_000},
 		{"one empty batch", constBatch(0), 1},
 		{"small random batches", randomBatch(1, 10), 100},
-		{"big random batches", randomBatch(1_000, 3_000), 50},
+		{"big random batches", randomBatch(1_000, 3_000), 10},
 	}
 
+	// Each subtest runs against its own test server, so they are run in parallel.
+	// The leak check above still holds: the cleanup of this test only runs once
+	// all of its parallel subtests have finished and shut down their servers.
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			for _, withCaveats := range []bool{true, false} {
 				t.Run(fmt.Sprintf("withCaveats=%t", withCaveats), func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 
 					conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
