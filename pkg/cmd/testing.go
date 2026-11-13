@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/authzed/spicedb/internal/testingserver"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
@@ -23,14 +24,14 @@ func RegisterTestingFlags(cmd *cobra.Command, config *testserver.Config) {
 	cmd.Flags().StringSliceVar(&config.LoadConfigs, "load-configs", []string{}, "configuration yaml files to load")
 
 	// Flags for API behavior
-	cmd.Flags().Uint16Var(&config.MaximumUpdatesPerWrite, "write-relationships-max-updates-per-call", 1000, "maximum number of updates allowed for WriteRelationships calls")
-	cmd.Flags().Uint16Var(&config.MaximumPreconditionCount, "update-relationships-max-preconditions-per-call", 1000, "maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls")
-	cmd.Flags().IntVar(&config.MaxCaveatContextSize, "max-caveat-context-size", 4096, "maximum allowed size of request caveat context in bytes. A value of zero or less means no limit")
-	cmd.Flags().IntVar(&config.MaxRelationshipContextSize, "max-relationship-context-size", 25000, "maximum allowed size of the context to be stored in a relationship")
-	cmd.Flags().Uint32Var(&config.MaxReadRelationshipsLimit, "max-read-relationships-limit", 1000, "maximum number of relationships that can be read in a single request")
-	cmd.Flags().Uint32Var(&config.MaxDeleteRelationshipsLimit, "max-delete-relationships-limit", 1000, "maximum number of relationships that can be deleted in a single request")
-	cmd.Flags().Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
-	cmd.Flags().Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
+	cmd.Flags().Uint16Var(&config.MaximumUpdatesPerWrite, "write-relationships-max-updates-per-call", testingserver.DefaultMaximumUpdatesPerWrite, "maximum number of updates allowed for WriteRelationships calls")
+	cmd.Flags().Uint16Var(&config.MaximumPreconditionCount, "update-relationships-max-preconditions-per-call", testingserver.DefaultMaximumPreconditionCount, "maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls")
+	cmd.Flags().IntVar(&config.MaxCaveatContextSize, "max-caveat-context-size", testingserver.DefaultMaxCaveatContextSize, "maximum allowed size of request caveat context in bytes. A value of zero or less means no limit")
+	cmd.Flags().IntVar(&config.MaxRelationshipContextSize, "max-relationship-context-size", testingserver.DefaultMaxRelationshipContextSize, "maximum allowed size of the context to be stored in a relationship")
+	cmd.Flags().Uint32Var(&config.MaxReadRelationshipsLimit, "max-read-relationships-limit", testingserver.DefaultMaxReadRelationshipsLimit, "maximum number of relationships that can be read in a single request")
+	cmd.Flags().Uint32Var(&config.MaxDeleteRelationshipsLimit, "max-delete-relationships-limit", testingserver.DefaultMaxDeleteRelationshipsLimit, "maximum number of relationships that can be deleted in a single request")
+	cmd.Flags().Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", testingserver.DefaultMaxLookupResourcesLimit, "maximum number of resources that can be looked up in a single request")
+	cmd.Flags().Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", testingserver.DefaultMaxBulkExportRelationshipsLimit, "maximum number of relationships that can be exported in a single request")
 	cmd.Flags().DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 5*time.Second, "time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit")
 	util.RegisterCommonFlags(cmd)
 }
