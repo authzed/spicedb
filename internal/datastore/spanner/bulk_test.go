@@ -45,7 +45,12 @@ func TestSpannerBulkLoad(t *testing.T) {
 		{"Atomicity", bulkLoadAtomicityTest},
 		{"MixedWrites", bulkLoadMixedWritesTest},
 		{"SnapshotsAndWatch", bulkLoadSnapshotsAndWatchTest},
-		{"DisabledRetries", bulkLoadDisabledRetriesTest},
+		{"RetriesEnabled", func(t *testing.T, ds datastore.Datastore) {
+			bulkLoadRetryBehaviorTest(t, ds, false)
+		}},
+		{"DisabledRetries", func(t *testing.T, ds datastore.Datastore) {
+			bulkLoadRetryBehaviorTest(t, ds, true)
+		}},
 	} {
 		t.Run(tc.name, createDatastoreTest(b, func(t *testing.T, ds datastore.Datastore) {
 			ds, _ = testfixtures.StandardDatastoreWithSchema(t, ds)
@@ -274,8 +279,12 @@ func bulkLoadSnapshotsAndWatchTest(t *testing.T, ds datastore.Datastore) {
 	}
 }
 
-func bulkLoadDisabledRetriesTest(t *testing.T, ds datastore.Datastore) {
-	for _, phase := range []string{"INSERT", "Commit"} {
+func bulkLoadRetryBehaviorTest(t *testing.T, ds datastore.Datastore, disableRetries bool) {
+	phases := []string{"INSERT", "Commit"}
+	if !disableRetries {
+		phases = []string{"Commit"}
+	}
+	for _, phase := range phases {
 		t.Run(phase, func(t *testing.T) {
 			sd := datastore.UnwrapAs[*spannerDatastore](ds)
 			original := sd.client
@@ -311,13 +320,25 @@ func bulkLoadDisabledRetriesTest(t *testing.T, ds datastore.Datastore) {
 			calls := 0
 			_, err = ds.ReadWriteTx(t.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				calls++
-				_, err := rwt.BulkLoad(ctx, source)
+				if !disableRetries {
+					source = bulkRelationshipsForTest(t, tuple.MustParse("document:no-retry#viewer@user:tom"))
+				}
+				loaded, err := rwt.BulkLoad(ctx, source)
+				if err == nil {
+					require.Equal(t, uint64(1), loaded)
+				}
 				return err
-			}, options.WithDisableRetries(true))
-			require.Error(t, err)
+			}, options.WithDisableRetries(disableRetries))
 			require.True(t, injected.Load())
-			require.Equal(t, 1, calls)
-			require.Empty(t, readBulkRelationships(t, ds))
+			if disableRetries {
+				require.Error(t, err)
+				require.Equal(t, 1, calls)
+				require.Empty(t, readBulkRelationships(t, ds))
+			} else {
+				require.NoError(t, err)
+				require.GreaterOrEqual(t, calls, 2)
+				require.Len(t, readBulkRelationships(t, ds), 1)
+			}
 		})
 	}
 }
