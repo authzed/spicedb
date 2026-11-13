@@ -48,11 +48,21 @@ func (d *DispatchIterator) CheckImpl(ctx *query.Context, resource query.Object, 
 	return ctx.Check(d.subIt, resource, subject)
 }
 
-func (d *DispatchIterator) IterSubjectsImpl(ctx *query.Context, resource query.Object, filterSubjectType query.ObjectType) (query.PathSeq, error) {
+// IterSubjectsImpl delegates subject enumeration to the wrapped iterator.
+func (d *DispatchIterator) IterSubjectsImpl(
+	ctx *query.Context,
+	resource query.Object,
+	filterSubjectType query.ObjectType,
+) (query.PathSeq, error) {
 	return ctx.IterSubjects(d.subIt, resource, filterSubjectType)
 }
 
-func (d *DispatchIterator) IterResourcesImpl(ctx *query.Context, subject query.ObjectAndRelation, filterResourceType query.ObjectType) (query.PathSeq, error) {
+// IterResourcesImpl delegates resource enumeration to the wrapped iterator.
+func (d *DispatchIterator) IterResourcesImpl(
+	ctx *query.Context,
+	subject query.ObjectAndRelation,
+	filterResourceType query.ObjectType,
+) (query.PathSeq, error) {
 	return ctx.IterResources(d.subIt, subject, filterResourceType)
 }
 
@@ -122,3 +132,10 @@ func (d *DispatchIterator) PlanningNode() query.Outline {
 
 // ObservationRole identifies the dispatch sender wrapper's observation population.
 func (d *DispatchIterator) ObservationRole() string { return "dispatch-wrapper" }
+
+// IsNamedCheckBranch preserves its child's independent named-branch capability
+// through the dispatch marker, including on deserialized receiver plans.
+func (d *DispatchIterator) IsNamedCheckBranch() bool {
+	branch, ok := d.subIt.(query.NamedCheckBranch)
+	return ok && branch.IsNamedCheckBranch()
+}
