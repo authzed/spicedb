@@ -19,10 +19,15 @@ func TestRevisionEvictionPreservesPlanningSnapshots(t *testing.T) {
 		r, err := signals.NewRegistry(definition("sum"))
 
 		require.NoError(rt, err)
-		o, err := signals.NewOwner(r, signals.Options{MaxRevisions: 1, MaxBytes: 4096})
+
+		// Include the schema's reserved derived-cache cost. The remaining budget
+		// bounds observations without rejecting the schema before eviction runs.
+		schema := stored("schema")
+		budget := schema.EstimatedSize() + 4096
+		o, err := signals.NewOwner(r, signals.Options{MaxRevisions: 1, MaxBytes: budget})
 
 		require.NoError(rt, err)
-		a, err := o.Bind(stored("schema"), signal.Scope{
+		a, err := o.Bind(schema, signal.Scope{
 			SchemaHash: "schema",
 			Revision:   revisions.NewForTransactionID(revision),
 		})
@@ -55,6 +60,6 @@ func TestRevisionEvictionPreservesPlanningSnapshots(t *testing.T) {
 
 		require.NoError(rt, err)
 		require.False(rt, evicted.IsAvailable())
-		require.LessOrEqual(rt, o.ResidentBytes(), int64(4096))
+		require.LessOrEqual(rt, o.ResidentBytes(), budget)
 	})
 }
