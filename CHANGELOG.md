@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Added
 - Tracing: `--otel-ignore-remote-sampling` makes SpiceDB apply `--otel-sample-ratio` to every request, ignoring the sampling decision callers send in their trace headers. Without it, a caller that marks most requests as sampled makes SpiceDB trace most requests, whatever the ratio. The caller's trace ID is still kept, and spans created inside SpiceDB still follow their parent, so traces stay whole. Off by default. (https://github.com/authzed/spicedb/pull/3452)
+- Datastore: `datastore.IdempotentBulkLoadDatastore`, an optional interface. A datastore implements it to declare that `BulkLoad` overwrites a relationship that already exists, instead of returning `AlreadyExists`. The shared datastore tests check the declared behavior. No built-in datastore changes its default behavior. (https://github.com/authzed/spicedb/pull/3414)
 
 ### Changed
 - Postgres: the minimum supported version is now 15. PostgreSQL 14 reached end of life on November 12, 2026 and is no longer tested. (https://github.com/authzed/spicedb/pull/3486)

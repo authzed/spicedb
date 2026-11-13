@@ -20,7 +20,8 @@ import (
 
 type memdbReadWriteTx struct {
 	memdbReader
-	newRevision datastore.Revision
+	newRevision        datastore.Revision
+	idempotentBulkLoad bool
 }
 
 func (rwt *memdbReadWriteTx) WriteRelationships(_ context.Context, mutations []tuple.RelationshipUpdate) error {
@@ -365,8 +366,13 @@ func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWr
 	var next *tuple.Relationship
 	var err error
 
+	operation := tuple.UpdateOperationCreate
+	if rwt.idempotentBulkLoad {
+		operation = tuple.UpdateOperationTouch
+	}
+
 	updates := []tuple.RelationshipUpdate{{
-		Operation: tuple.UpdateOperationCreate,
+		Operation: operation,
 	}}
 
 	for next, err = iter.Next(ctx); next != nil && err == nil; next, err = iter.Next(ctx) {
