@@ -41,12 +41,21 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func (ps *permissionServer) rewriteError(ctx context.Context, err error) error {
+	// Exhausted QP recursion is unknown membership, just as native dispatch depth
+	// exhaustion is. Preserve native's public status instead of returning Unknown.
+	var depthError query.MaxRecursionDepthError
+
+	if errors.As(err, &depthError) {
+		err = dispatchpkg.NewMaxDepthExceededError(nil)
+	}
+
 	return shared.RewriteError(ctx, err, &shared.ConfigForErrors{
 		MaximumAPIDepth: ps.config.MaximumAPIDepth,
 	})
@@ -121,7 +130,8 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		debugOption = computed.BasicDebuggingEnabled
 	}
 
-	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
+	cr, metadata, err := computed.ComputeCheck(
+		ctx, ps.dispatch,
 		ps.config.CaveatTypeSet,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
@@ -191,7 +201,11 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 	return permissionship, partialCaveat
 }
 
-func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
+// CheckBulkPermissions checks each requested permission and returns its membership result.
+func (ps *permissionServer) CheckBulkPermissions(
+	ctx context.Context,
+	req *v1.CheckBulkPermissionsRequest,
+) (*v1.CheckBulkPermissionsResponse, error) {
 	// NOTE: perfinsights are added for the individual check results as well, so there is no shape here.
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
@@ -203,7 +217,11 @@ func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.Ch
 	return res, nil
 }
 
-func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult, debugTrace *v1.DebugInformation, metrics *Metrics) *v1.CheckBulkPermissionsPair_Item {
+func pairItemFromCheckResult(
+	checkResult *dispatch.ResourceCheckResult,
+	debugTrace *v1.DebugInformation,
+	metrics *Metrics,
+) *v1.CheckBulkPermissionsPair_Item {
 	permissionship, partialCaveat := checkResultToAPITypes(checkResult)
 	metrics.RecordCheckResult("CheckBulkPermissions", permissionship)
 	return &v1.CheckBulkPermissionsPair_Item{
@@ -215,7 +233,10 @@ func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult, debugTra
 	}
 }
 
-func requestItemFromResourceAndParameters(params *computed.CheckParameters, resourceID string) (*v1.CheckBulkPermissionsRequestItem, error) {
+func requestItemFromResourceAndParameters(
+	params *computed.CheckParameters,
+	resourceID string,
+) (*v1.CheckBulkPermissionsRequestItem, error) {
 	item := &v1.CheckBulkPermissionsRequestItem{
 		Resource: &v1.ObjectReference{
 			ObjectType: params.ResourceType.ObjectType,
@@ -240,7 +261,11 @@ func requestItemFromResourceAndParameters(params *computed.CheckParameters, reso
 	return item, nil
 }
 
-func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
+// ExpandPermissionTree returns the permission membership expansion for a resource.
+func (ps *permissionServer) ExpandPermissionTree(
+	ctx context.Context,
+	req *v1.ExpandPermissionTreeRequest,
+) (*v1.ExpandPermissionTreeResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return perfinsights.APIShapeLabels{
 			perfinsights.ResourceTypeLabel:     req.Resource.ObjectType,
@@ -493,7 +518,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 
 func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
-		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
+		return ps.rewriteError(
+			resp.Context(),
+			NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)),
+		)
 	}
 
 	ctx := resp.Context()
@@ -636,14 +664,17 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 			OptionalLimit:    req.OptionalLimit,
 			EnableDebugTrace: req.WithDebug,
 		},
-		stream)
+		stream,
+	)
 	if err != nil {
 		if req.WithDebug && dispatchpkg.IsMaxDepthExceeded(err) {
 			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
 				// We'll only attach debug info if cyclemembers is non-empty. Otherwise we're
 				// in a normal recursion-too-deep scenario and the debuginfo doesn't help.
 				if len(debugInfo.CycleMembers) > 0 {
-					logging.Warn().Strs("cycle-members", debugInfo.CycleMembers).Msg("The following resource/relation pairs were found in a cycle in LookupResources:")
+					logging.Warn().Strs("cycle-members", debugInfo.CycleMembers).Msg(
+						"The following resource/relation pairs were found in a cycle in LookupResources:",
+					)
 					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, debugInfo.String())
 				}
 			}
@@ -656,7 +687,10 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 
 func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
-		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
+		return ps.rewriteError(
+			resp.Context(),
+			NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)),
+		)
 	}
 
 	ctx := resp.Context()
@@ -795,14 +829,17 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 			OptionalLimit:    req.OptionalLimit,
 			EnableDebugTrace: req.WithDebug,
 		},
-		stream)
+		stream,
+	)
 	if err != nil {
 		if req.WithDebug && dispatchpkg.IsMaxDepthExceeded(err) {
 			if debugInfo := dispatchpkg.ExtractTraversalTrace(err); debugInfo != nil {
 				// We'll only attach debug info if cyclemembers is non-empty. Otherwise we're
 				// in a normal recursion-too-deep scenario and the debuginfo doesn't help.
 				if len(debugInfo.CycleMembers) > 0 {
-					logging.Warn().Strs("cycle-members", debugInfo.CycleMembers).Msg("The following resource/relation pairs were found in a cycle in LookupResources:")
+					logging.Warn().Strs("cycle-members", debugInfo.CycleMembers).Msg(
+						"The following resource/relation pairs were found in a cycle in LookupResources:",
+					)
 					err = spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, debugInfo.String())
 				}
 			}
@@ -893,7 +930,13 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
 			for _, excludedSubject := range foundSubject.ExcludedSubjects {
-				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, sr, ps.config.CaveatTypeSet)
+				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(
+					ctx,
+					excludedSubject,
+					caveatContext,
+					sr,
+					ps.config.CaveatTypeSet,
+				)
 				if err != nil {
 					return err
 				}
@@ -955,7 +998,8 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				Relation:  cmp.Or(req.OptionalSubjectRelation, tuple.Ellipsis),
 			},
 		},
-		stream)
+		stream,
+	)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -963,13 +1007,26 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	return nil
 }
 
-func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, sr datalayer.SchemaReader, caveatTypeSet *caveattypes.TypeSet) (*v1.ResolvedSubject, error) {
+func foundSubjectToResolvedSubject(
+	ctx context.Context,
+	foundSubject *dispatch.FoundSubject,
+	caveatContext map[string]any,
+	sr datalayer.SchemaReader,
+	caveatTypeSet *caveattypes.TypeSet,
+) (*v1.ResolvedSubject, error) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 	if foundSubject.GetCaveatExpression() != nil {
 		permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 
-		cr, err := cexpr.RunSingleCaveatExpression(ctx, caveatTypeSet, foundSubject.GetCaveatExpression(), caveatContext, sr, cexpr.RunCaveatExpressionNoDebugging)
+		cr, err := cexpr.RunSingleCaveatExpression(
+			ctx,
+			caveatTypeSet,
+			foundSubject.GetCaveatExpression(),
+			caveatContext,
+			sr,
+			cexpr.RunCaveatExpressionNoDebugging,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -1110,7 +1167,10 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	return &a.current, nil
 }
 
-func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]) error {
+// ImportBulkRelationships imports streamed relationship batches into the datastore.
+func (ps *permissionServer) ImportBulkRelationships(
+	stream grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse],
+) error {
 	perfinsights.SetInContext(stream.Context(), perfinsights.NoLabels)
 
 	dl := datalayer.MustFromContext(stream.Context())
@@ -1200,13 +1260,29 @@ func (ps *permissionServer) ExportBulkRelationships(
 		return shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	return ExportBulk(ctx, datalayer.MustFromContext(ctx), uint64(ps.config.MaxBulkExportRelationshipsLimit), req, atRevision, schemaHash, resp.Send)
+	return ExportBulk(
+		ctx,
+		datalayer.MustFromContext(ctx),
+		uint64(ps.config.MaxBulkExportRelationshipsLimit),
+		req,
+		atRevision,
+		schemaHash,
+		resp.Send,
+	)
 }
 
 // ExportBulk implements the ExportBulkRelationships API functionality. Given a datalayer.DataLayer, it will
 // export stream via the sender all relationships matched by the incoming request.
 // If no cursor is provided, it will fallback to the provided revision.
-func ExportBulk(ctx context.Context, dl datalayer.DataLayer, batchSize uint64, req *v1.ExportBulkRelationshipsRequest, fallbackRevision datastore.Revision, fallbackSchemaHash datalayer.SchemaHash, sender func(response *v1.ExportBulkRelationshipsResponse) error) error {
+func ExportBulk(
+	ctx context.Context,
+	dl datalayer.DataLayer,
+	batchSize uint64,
+	req *v1.ExportBulkRelationshipsRequest,
+	fallbackRevision datastore.Revision,
+	fallbackSchemaHash datalayer.SchemaHash,
+	sender func(response *v1.ExportBulkRelationshipsResponse) error,
+) error {
 	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
 		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
 	}

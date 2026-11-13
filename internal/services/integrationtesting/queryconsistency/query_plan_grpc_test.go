@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/query/queryprofile"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
@@ -56,17 +57,40 @@ func TestQueryPlanConsistencyGRPC(t *testing.T) { // nolint:tparallel
 	}
 }
 
+// TestQueryPlanNativeParityConsistencyGRPC exercises the fixed Check policy
+// through public handlers, including caveats and nested dispatch. Enumeration
+// must retain the current policy when the same server selects native-parity Check.
+func TestQueryPlanNativeParityConsistencyGRPC(t *testing.T) {
+	profile, err := queryprofile.Resolve(queryprofile.NativeParityV1, queryprofile.Options{
+		CheckConcurrency:  3,
+		DispatchChunkSize: 2,
+	})
+	require.NoError(t, err)
+	files, err := testconfigs.List()
+	require.NoError(t, err)
+
+	for _, filePath := range files {
+		t.Run(path.Base(filePath), func(t *testing.T) {
+			t.Parallel()
+			runQueryPlanConsistencyGRPCForFile(t, filePath, server.WithQueryProfile(profile))
+		})
+	}
+}
+
 // runQueryPlanConsistencyGRPCForFile spins up a full gRPC server with both the
 // "lr" and "ls" experimental query plan flags enabled, then validates that
 // LookupResources and LookupSubjects return the correct set of IDs for every
 // resource-type × subject combination in the validation file.
-func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string) {
-	options := []server.ConfigOption{
+func runQueryPlanConsistencyGRPCForFile(t *testing.T, filePath string, extraOptions ...server.ConfigOption) {
+	options := make([]server.ConfigOption, 0, 4+len(extraOptions))
+	options = append(options,
 		server.WithDispatchChunkSize(10),
 		server.WithExperimentalQueryPlan("check"),
 		server.WithExperimentalQueryPlan("lr"),
 		server.WithExperimentalQueryPlan("ls"),
-	}
+	)
+
+	options = append(options, extraOptions...)
 
 	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, testTimedelta, memdb.DisableGC)
 	require.NoError(t, err)

@@ -79,7 +79,12 @@ type SafeManualResolverBuilder struct {
 	addrs sync.Map
 }
 
-func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
+// Build starts the configured test cluster and registers its cleanup.
+func (b *SafeManualResolverBuilder) Build(
+	target resolver.Target,
+	cc resolver.ClientConn,
+	opts resolver.BuildOptions,
+) (resolver.Resolver, error) {
 	if target.URL.Scheme != TestResolverScheme {
 		return nil, errors.New("test resolver builder only works with test:// addresses")
 	}
@@ -140,7 +145,12 @@ func (r *SafeManualResolver) Close() {}
 // TestClusterWithDispatch creates a cluster with `size` nodes.
 // The cluster has a real dispatch stack that uses bufconn grpc connections.
 // All Caching is turned off.
-func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) []*grpc.ClientConn {
+func TestClusterWithDispatch(
+	t testing.TB,
+	size uint,
+	ds datastore.Datastore,
+	additionalServerOptions ...server.ConfigOption,
+) []*grpc.ClientConn {
 	// each cluster gets a unique prefix since grpc resolution is process-global
 	prefix := getPrefix(t)
 
@@ -181,7 +191,8 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore, ad
 					(&consistent.BalancerConfig{
 						ReplicationFactor: 1500,
 						Spread:            1,
-					}).MustServiceConfigJSON()),
+					}).MustServiceConfigJSON(),
+				),
 				grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 					// it's possible grpc tries to dial before we have set the
 					// buffconn dialers, we have to return a "TempError" so that

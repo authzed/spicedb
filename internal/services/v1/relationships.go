@@ -41,6 +41,7 @@ import (
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryprofile"
 	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -122,6 +123,9 @@ type PermissionsServerConfig struct {
 	// unregistered (and therefore unexported) instance is used.
 	Metrics *Metrics
 
+	// QueryProfile selects the query execution policy at the public boundary.
+	QueryProfile queryprofile.Profile
+
 	// QuerySignals shares revision-scoped evidence with the co-located dispatcher.
 	QuerySignals      *signals.Owner
 	QueryPlanMetadata *query.QueryPlanMetadata
@@ -167,6 +171,7 @@ func NewPermissionsServer(
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 		Metrics:                            config.Metrics,
 		QuerySignals:                       config.QuerySignals,
+		QueryProfile:                       config.QueryProfile,
 		QueryPlanMetadata:                  config.QueryPlanMetadata,
 	}
 	if configWithDefaults.QuerySignals == nil {
@@ -232,7 +237,10 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	})
 
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxReadRelationshipsLimit {
-		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxReadRelationshipsLimit)))
+		return ps.rewriteError(
+			resp.Context(),
+			NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxReadRelationshipsLimit)),
+		)
 	}
 
 	ctx := resp.Context()
@@ -368,7 +376,11 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	return nil
 }
 
-func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
+// WriteRelationships applies validated updates and transaction preconditions.
+func (ps *permissionServer) WriteRelationships(
+	ctx context.Context,
+	req *v1.WriteRelationshipsRequest,
+) (*v1.WriteRelationshipsResponse, error) {
 	perfinsights.SetInContext(ctx, perfinsights.NoLabels)
 
 	if err := ps.validateTransactionMetadata(req.OptionalTransactionMetadata); err != nil {
@@ -518,7 +530,11 @@ func (ps *permissionServer) validateTransactionMetadata(metadata *structpb.Struc
 	return nil
 }
 
-func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
+// DeleteRelationships deletes matching relationships subject to the requested limits and preconditions.
+func (ps *permissionServer) DeleteRelationships(
+	ctx context.Context,
+	req *v1.DeleteRelationshipsRequest,
+) (*v1.DeleteRelationshipsResponse, error) {
 	perfinsights.SetInContext(ctx, func() perfinsights.APIShapeLabels {
 		return labelsForFilter(req.RelationshipFilter)
 	})
@@ -535,7 +551,10 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	}
 
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxDeleteRelationshipsLimit {
-		return nil, ps.rewriteError(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxDeleteRelationshipsLimit)))
+		return nil, ps.rewriteError(
+			ctx,
+			NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxDeleteRelationshipsLimit)),
+		)
 	}
 
 	// A cursor enables resumable, cursored deletion. It is only meaningful in the
@@ -555,7 +574,10 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		}
 
 		if !req.OptionalAllowPartialDeletions {
-			return nil, ps.rewriteError(ctx, status.Errorf(codes.InvalidArgument, "optional_cursor requires optional_allow_partial_deletions to be true"))
+			return nil, ps.rewriteError(
+				ctx,
+				status.Errorf(codes.InvalidArgument, "optional_cursor requires optional_allow_partial_deletions to be true"),
+			)
 		}
 
 		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, drRequestHash)
@@ -718,7 +740,13 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			Sections:        []string{tuple.StringWithoutCaveatOrExpiration(*options.ToRelationship(afterDeleteCursor))},
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, drRequestHash, revision, datalayer.NoSchemaHashInTransaction, nil)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(
+			dispatchCursor,
+			drRequestHash,
+			revision,
+			datalayer.NoSchemaHashInTransaction,
+			nil,
+		)
 		if err != nil {
 			return nil, ps.rewriteError(ctx, err)
 		}

@@ -49,6 +49,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryprofile"
 	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -117,6 +118,9 @@ type Config struct {
 	DispatchClusterMetricsPrefix   string                  `debugmap:"visible"`
 	Dispatcher                     dispatch.Dispatcher     `debugmap:"visible"`
 
+	// QueryProfile selects the immutable query execution policy.
+	QueryProfile queryprofile.Profile `debugmap:"hidden"`
+
 	// QuerySignals supplies the server's shared planning signal owner.
 	QuerySignals *signals.Owner `debugmap:"hidden"`
 
@@ -130,9 +134,11 @@ type Config struct {
 	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
 	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
 
-	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
-	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
-	LR3ResourceChunkCacheConfig CacheConfig `debugmap:"visible"`
+	// DispatchCache optionally supplies an externally constructed dispatch cache.
+	DispatchCache               cache.Cache[keys.DispatchCacheKey, any] `debugmap:"hidden"`
+	DispatchCacheConfig         CacheConfig                             `debugmap:"visible"`
+	ClusterDispatchCacheConfig  CacheConfig                             `debugmap:"visible"`
+	LR3ResourceChunkCacheConfig CacheConfig                             `debugmap:"visible"`
 
 	// API Behavior
 	DisableV1SchemaAPI                 bool          `debugmap:"visible"`
@@ -284,7 +290,8 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	if ds == nil {
 		var err error
 		c.supportOldAndNewReadReplicaConnectionPoolFlags()
-		ds, err = datastorecfg.NewDatastore(ctx, c.DatastoreConfig.ToOption(),
+		ds, err = datastorecfg.NewDatastore(
+			ctx, c.DatastoreConfig.ToOption(),
 
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
@@ -308,7 +315,10 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
-	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](c.OTel.PrometheusRegistry, &c.StoredSchemaCacheConfig)
+	storedSchemaCache, err := CompleteCache[datalayer.SchemaCacheKey, *datastore.ReadOnlyStoredSchema](
+		c.OTel.PrometheusRegistry,
+		&c.StoredSchemaCacheConfig,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stored schema cache: %w", err)
 	}
@@ -377,13 +387,16 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.OTel.PrometheusRegistry, c.DispatchCacheConfig.WithRevisionParameters(
-			c.DatastoreConfig.RevisionQuantization,
-			c.DatastoreConfig.FollowerReadDelay,
-			c.DatastoreConfig.MaxRevisionStalenessPercent,
-		))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+		cc := c.DispatchCache
+		if cc == nil {
+			cc, err = CompleteCache[keys.DispatchCacheKey, any](c.OTel.PrometheusRegistry, c.DispatchCacheConfig.WithRevisionParameters(
+				c.DatastoreConfig.RevisionQuantization,
+				c.DatastoreConfig.FollowerReadDelay,
+				c.DatastoreConfig.MaxRevisionStalenessPercent,
+			))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+			}
 		}
 
 		closeables.AddWithoutError(cc.Close)
@@ -428,20 +441,25 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 					requestid.StreamClientInterceptor(),
 				),
 			),
-			combineddispatch.Metrics(dispatch.MetricsOptions{PrometheusSubsystem: c.DispatchClientMetricsPrefix, PrometheusRegistry: prometheusRegistry}),
+			combineddispatch.Metrics(
+				dispatch.MetricsOptions{PrometheusSubsystem: c.DispatchClientMetricsPrefix, PrometheusRegistry: prometheusRegistry},
+			),
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
 			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
 			combineddispatch.RelationshipChunkCache(lr3ChunkCache),
 			combineddispatch.StartingPrimaryHedgingDelay(c.DispatchPrimaryDelayForTesting),
 			combineddispatch.QuerySignals(querySignals),
+			combineddispatch.QueryProfile(c.QueryProfile),
 			combineddispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
 
-		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).RawJSON("balancerconfig", []byte(hashringConfigJSON)).Msg("configured dispatcher")
+		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).RawJSON("balancerconfig", []byte(hashringConfigJSON)).Msg(
+			"configured dispatcher",
+		)
 	}
 
 	closeables.AddWithError(dispatcher.Close)
@@ -469,13 +487,16 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
 			dispatcher,
-			clusterdispatch.Metrics(dispatch.MetricsOptions{PrometheusSubsystem: c.DispatchClusterMetricsPrefix, PrometheusRegistry: prometheusRegistry}),
+			clusterdispatch.Metrics(
+				dispatch.MetricsOptions{PrometheusSubsystem: c.DispatchClusterMetricsPrefix, PrometheusRegistry: prometheusRegistry},
+			),
 			clusterdispatch.Cache(cdcc),
 			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
 			clusterdispatch.RelationshipChunkCache(lr3ChunkCache),
 			clusterdispatch.QuerySignals(querySignals),
+			clusterdispatch.QueryProfile(c.QueryProfile),
 			clusterdispatch.QueryPlanMetadata(queryPlanMetadata),
 		)
 		if err != nil {
@@ -501,7 +522,9 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	watchServiceOption := services.WatchServiceEnabled
 
 	if datastoreFeatures.Watch.Status != datastore.FeatureSupported {
-		log.Ctx(ctx).Warn().Str("reason", datastoreFeatures.Watch.Reason).Msg("watch api disabled; underlying datastore does not support it")
+		log.Ctx(ctx).Warn().Str("reason", datastoreFeatures.Watch.Reason).Msg(
+			"watch api disabled; underlying datastore does not support it",
+		)
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
@@ -542,7 +565,12 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		return nil, err
 	}
 
-	closeables.AddCloserWithGracePeriod("dispatch server", c.ShutdownGracePeriod, dispatchGrpcServer.GracefulStop, dispatchGrpcServer.ForceStop)
+	closeables.AddCloserWithGracePeriod(
+		"dispatch server",
+		c.ShutdownGracePeriod,
+		dispatchGrpcServer.GracefulStop,
+		dispatchGrpcServer.ForceStop,
+	)
 
 	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
 	if err != nil {
@@ -556,7 +584,8 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 
 	sameMiddlewares := defaultUnaryMiddlewareChain.Names().Equal(defaultStreamingMiddlewareChain.Names())
 	if !sameMiddlewares {
-		return nil, fmt.Errorf("unary and streaming middlewares differ: %v / %v",
+		return nil, fmt.Errorf(
+			"unary and streaming middlewares differ: %v / %v",
 			defaultUnaryMiddlewareChain.Names().AsSlice(),
 			defaultStreamingMiddlewareChain.Names().AsSlice(),
 		)
@@ -604,11 +633,13 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		},
 		Metrics:           v1svc.NewMetrics(c.OTel.PrometheusRegistry),
 		QuerySignals:      querySignals,
+		QueryProfile:      c.QueryProfile,
 		QueryPlanMetadata: queryPlanMetadata,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)
-	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
+	grpcServer, err := c.GRPCServer.Complete(
+		zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
@@ -773,16 +804,25 @@ func (c *Config) BuildMemoryUsageProvider() memoryprotection.MemoryUsageProvider
 	return &memoryprotection.HarcodedMemoryUsageProvider{AcceptAllRequests: true}
 }
 
-func (c *Config) buildDispatchServer(memoryUsageProvider memoryprotection.MemoryUsageProvider, ds datastore.Datastore, cachingClusterDispatch dispatch.Dispatcher, otelOpts []otelgrpc.Option, dlOpts []datalayer.DataLayerOption) (util.RunnableGRPCServer, error) {
+func (c *Config) buildDispatchServer(
+	memoryUsageProvider memoryprotection.MemoryUsageProvider,
+	ds datastore.Datastore,
+	cachingClusterDispatch dispatch.Dispatcher,
+	otelOpts []otelgrpc.Option,
+	dlOpts []datalayer.DataLayerOption,
+) (util.RunnableGRPCServer, error) {
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(
+				c.PresharedSecureKey,
+			), ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		} else {
 			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram, memoryUsageProvider, dlOpts...)
 		}
 	}
 
-	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
+	dispatchGrpcServer, err := c.DispatchServer.Complete(
+		zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
 		},
@@ -848,7 +888,9 @@ func (c *Config) supportOldAndNewReadReplicaConnectionPoolFlags() {
 	}
 }
 
-func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.UnaryServerInterceptor]) ([]grpc.UnaryServerInterceptor, error) {
+func (c *Config) buildUnaryMiddleware(
+	defaultMiddleware *MiddlewareChain[grpc.UnaryServerInterceptor],
+) ([]grpc.UnaryServerInterceptor, error) {
 	chain := MiddlewareChain[grpc.UnaryServerInterceptor]{}
 
 	if defaultMiddleware != nil {
@@ -862,7 +904,9 @@ func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.Un
 	return chain.ToGRPCInterceptors(), nil
 }
 
-func (c *Config) buildStreamingMiddleware(defaultMiddleware *MiddlewareChain[grpc.StreamServerInterceptor]) ([]grpc.StreamServerInterceptor, error) {
+func (c *Config) buildStreamingMiddleware(
+	defaultMiddleware *MiddlewareChain[grpc.StreamServerInterceptor],
+) ([]grpc.StreamServerInterceptor, error) {
 	chain := MiddlewareChain[grpc.StreamServerInterceptor]{}
 
 	if defaultMiddleware != nil {

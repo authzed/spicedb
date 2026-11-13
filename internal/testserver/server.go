@@ -45,14 +45,28 @@ var DefaultTestServerConfig = ServerConfig{
 type DatastoreInitFunc func(testing.TB, datastore.Datastore) (datastore.Datastore, datastore.Revision)
 
 // NewTestServerWithConfig creates as new test server with the specified config.
-func NewTestServerWithConfig(t testing.TB, revisionQuantization time.Duration, gcWindow time.Duration, schemaPrefixRequired bool, config ServerConfig, dsInitFunc DatastoreInitFunc) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
+func NewTestServerWithConfig(
+	t testing.TB,
+	revisionQuantization time.Duration,
+	gcWindow time.Duration,
+	schemaPrefixRequired bool,
+	config ServerConfig,
+	dsInitFunc DatastoreInitFunc,
+) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(t, err)
 
 	return NewTestServerWithConfigAndDatastore(t, schemaPrefixRequired, config, emptyDS, dsInitFunc)
 }
 
-func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool, config ServerConfig, emptyDS datastore.Datastore, dsInitFunc DatastoreInitFunc) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
+// NewTestServerWithConfigAndDatastore starts a test service using the supplied configuration and datastore.
+func NewTestServerWithConfigAndDatastore(
+	t testing.TB,
+	schemaPrefixRequired bool,
+	config ServerConfig,
+	emptyDS datastore.Datastore,
+	dsInitFunc DatastoreInitFunc,
+) (*grpc.ClientConn, datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(t, emptyDS)
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 

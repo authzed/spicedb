@@ -233,11 +233,22 @@ func TestConcurrentDebugInfoAccess(t *testing.T) {
 // the caching layer's cache-write path is exercised.
 type planDispatchMock struct {
 	delegateDispatchMock
-	calls atomic.Uint64
+	calls     atomic.Uint64
+	deny      bool
+	planError error
 }
 
 func (p *planDispatchMock) DispatchQueryPlan(_ *v1.DispatchQueryPlanRequest, stream dispatch.PlanStream) error {
 	p.calls.Add(1)
+
+	if p.planError != nil {
+		return p.planError
+	}
+
+	if p.deny {
+		return nil
+	}
+
 	return stream.Publish(&v1.DispatchQueryPlanResponse{
 		Metadata: &v1.ResponseMeta{DispatchCount: 1},
 		Paths: []*v1.ResultPath{{
@@ -296,7 +307,11 @@ func TestDispatchQueryPlanRecordsCachingMetrics(t *testing.T) {
 	subsystem := fmt.Sprintf("test_caching_%d", time.Now().UnixNano())
 	reg := prometheus.NewRegistry()
 
-	dispatcher, err := NewCachingDispatcher(DispatchTestCache(t), dispatch.MetricsOptions{PrometheusSubsystem: subsystem, PrometheusRegistry: reg}, nil)
+	dispatcher, err := NewCachingDispatcher(
+		DispatchTestCache(t),
+		dispatch.MetricsOptions{PrometheusSubsystem: subsystem, PrometheusRegistry: reg},
+		nil,
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
@@ -383,3 +398,81 @@ func (ddm delegateDispatchMock) ReadyState() dispatch.ReadyState {
 }
 
 var _ dispatch.Dispatcher = &delegateDispatchMock{}
+
+func TestPlanCheckCachesCompletedDenialsOnly(t *testing.T) {
+	failure := fmt.Errorf("plan execution failed")
+
+	for _, tc := range []struct {
+		name     string
+		canceled bool
+		failure  error
+	}{{name: "denial"}, {name: "cancellation", canceled: true}, {name: "error", failure: failure}} {
+		t.Run(tc.name, func(t *testing.T) {
+			dispatcher, err := NewCachingDispatcher(
+				DispatchTestCache(t),
+				dispatch.MetricsOptions{PrometheusSubsystem: fmt.Sprintf("denial_%d", time.Now().UnixNano()), PrometheusRegistry: prometheus.NewRegistry()},
+				nil,
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = dispatcher.Close() })
+			delegate := &planDispatchMock{deny: true, planError: tc.failure}
+			dispatcher.SetDelegate(delegate)
+			req := &v1.DispatchQueryPlanRequest{
+				Operation:   v1.PlanOperation_PLAN_OPERATION_CHECK,
+				Resource:    tuple.ONRStringToCore("document", "doc1", "viewer"),
+				Subject:     tuple.ONRStringToCore("user", "alice", "..."),
+				PlanContext: &v1.PlanContext{Revision: "1", InProgressKeys: []string{"document#viewer"}},
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			if tc.canceled {
+				cancel()
+			}
+
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](ctx)
+			err = dispatcher.DispatchQueryPlan(req, stream)
+
+			switch {
+			case tc.canceled:
+				require.ErrorIs(t, err, context.Canceled)
+			case tc.failure != nil:
+				require.ErrorIs(t, err, tc.failure)
+			default:
+				require.NoError(t, err)
+			}
+
+			require.Empty(t, stream.Results())
+			lookup := dispatch.PlanCheckLookup{
+				CanonicalKey: "document#viewer",
+				Resource:     req.Resource,
+				Subject:      req.Subject,
+				PlanContext:  req.PlanContext,
+			}
+
+			if tc.canceled || tc.failure != nil {
+				_, found, err := dispatcher.LookupPlanCheck(t.Context(), lookup)
+				require.NoError(t, err)
+				require.False(t, found, "a canceled empty response is not a denial")
+				return
+			}
+
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				path, found, err := dispatcher.LookupPlanCheck(t.Context(), lookup)
+				require.NoError(c, err)
+				require.True(c, found)
+				require.Nil(c, path, "a cached denial must not become an empty granting path")
+			}, time.Second, time.Millisecond)
+			again := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](t.Context())
+			require.NoError(t, dispatcher.DispatchQueryPlan(req, again))
+			require.Empty(t, again.Results())
+			require.EqualValues(t, 1, delegate.calls.Load())
+			other := lookup
+			other.PlanContext = req.PlanContext.CloneVT()
+			other.PlanContext.Revision = "2"
+			_, found, err := dispatcher.LookupPlanCheck(t.Context(), other)
+			require.NoError(t, err)
+			require.False(t, found, "a denial cannot cross revisions")
+		})
+	}
+}
