@@ -132,7 +132,10 @@ const (
 	// moves when SpiceDB commits, not when any other database on the instance does.
 	//
 	// The two lookups are kept as separate index-only probes on the primary key; combined
-	// with OR, the planner answers them with a bitmap heap scan instead.
+	// with OR, the planner answers them with a bitmap heap scan instead. The past-xmax
+	// lookup is bounded above by the head xid: with a one-sided range the planner
+	// estimates it at a third of the table, which on large tables pushes the query cost
+	// past jit_above_cost and makes every call pay for JIT compilation.
 	//
 	//   %[1] Name of xid column
 	//   %[2] Relationship tuple transaction table
@@ -151,7 +154,7 @@ const (
 	),
 	ARRAY(
 		SELECT rtt.%[1]s FROM %[2]s rtt
-		WHERE rtt.%[1]s >= pg_snapshot_xmax(selected.snapshot) AND rtt.%[1]s <> selected.xid
+		WHERE rtt.%[1]s >= pg_snapshot_xmax(selected.snapshot) AND rtt.%[1]s < selected.xid
 	),
 	` + schemaHashForSelectedXID + `
 	FROM selected;`
