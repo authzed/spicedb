@@ -94,6 +94,20 @@ func TestConversion(t *testing.T) {
 			expectedErr:   "",
 		},
 		{
+			name:          "string to uint above int64 max",
+			vtype:         Default.UIntType,
+			inputValue:    "10000000000000000000",
+			expectedValue: uint64(10000000000000000000),
+			expectedErr:   "",
+		},
+		{
+			name:          "string to uint at uint64 max",
+			vtype:         Default.UIntType,
+			inputValue:    "18446744073709551615",
+			expectedValue: uint64(18446744073709551615),
+			expectedErr:   "",
+		},
+		{
 			name:          "invalid float to int",
 			vtype:         Default.IntType,
 			inputValue:    42.1,
