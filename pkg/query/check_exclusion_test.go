@@ -57,3 +57,24 @@ func TestSerialExclusionDoesNotStartExcludedAfterBaseDenial(t *testing.T) {
 	require.Nil(t, path)
 	scope.Wait()
 }
+
+func TestParallelBatchExclusionRetainsSurvivingLaterTarget(t *testing.T) {
+	ctx, scope := parallelTestContext(t)
+	WithCheckConcurrency(2)(ctx)
+	WithCheckExecution(CheckExecutionOptions{BatchChecks: true, BaseFirstExclusion: true})(ctx)
+	it := NewExclusionIterator(
+		NewFixedIterator(*MustPathFromString("document:d0#viewer@user:u"), *MustPathFromString("document:d1#viewer@user:u")),
+		NewFixedIterator(*MustPathFromString("document:d0#banned@user:u")),
+	)
+	it.checkConcurrency = 2
+	paths, err := ctx.CheckManyResources(
+		it,
+		[]Object{NewObject("document", "d0"), NewObject("document", "d1")},
+		NewObject("user", "u").WithEllipses(),
+		AllowSingleResult,
+	)
+	require.NoError(t, err)
+	require.Nil(t, paths[0])
+	require.NotNil(t, paths[1])
+	scope.Wait()
+}

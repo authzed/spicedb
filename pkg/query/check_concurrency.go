@@ -54,6 +54,13 @@ func (ctx *Context) setCheckConcurrency(requested uint16, hint planhint.ID) (uin
 	return effective, nil
 }
 
+// Batch reducers retain child order to reduce unresolved target vectors. The
+// scalar sibling scheduler does not implement that vector reduction, so account
+// for its recommendation explicitly rather than silently ignoring the hint.
+func (ctx *Context) accountBatchConcurrency(requested uint16, hint planhint.ID) error {
+	return ctx.accountOrderedCheckConcurrency(requested, hint, "batch", planhint.BatchChildOrder)
+}
+
 // independentCheckConcurrency distinguishes permission operands from the direct
 // and indirect forms of a relation. A direct grant must avoid indirect work in
 // scalar Checks just as it does in a shared batch.

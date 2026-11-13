@@ -24,6 +24,7 @@ type Context struct {
 	hintLedger         *planhint.Ledger
 	targetedRecursions map[string]*RecursiveIterator
 	targetedDepth      int
+	typedScans         map[typedScanKey][]*Path
 
 	context.Context
 
@@ -352,8 +353,14 @@ func (ctx *Context) MarkAsOperation(it Iterator, op Operation) (isTopLevel bool)
 }
 
 // CheckManySubjects tests resource against each subject in subjects. Returns a
-// parallel slice of paths (result[i] matches subjects[i], nil if no match).
-func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error) {
+// parallel slice of paths. With the default AllCheckResults mode, nil is a
+// denial. With AllowSingleResult and a grant, nil slots may be unvisited.
+func (ctx *Context) CheckManySubjects(
+	it Iterator,
+	resource Object,
+	subjects []ObjectAndRelation,
+	modes ...CheckResultMode,
+) ([]*Path, error) {
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
@@ -362,18 +369,19 @@ func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []O
 		return nil, nil
 	}
 
+	mode := ctx.checkBatchMode(modes)
 	ctx.MarkAsOperation(it, OperationCheck)
 
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationCheck, key)
 
-	event := ctx.executionStart(it, OperationCheck, CheckFilter(resource, subjects[0]), "many-subjects")
+	event := ctx.executionStart(it, OperationCheck, CheckFilter(resource, subjects[0]), batchObservationMode("many-subjects", mode))
 	if event != nil {
 		event.BatchSize = safecast.MustConvert[uint64](len(subjects))
 	}
 
-	paths, err := ctx.Executor.CheckManySubjects(ctx, it, resource, subjects)
-	ctx.executionBatch(event, paths, err)
+	paths, err := ctx.Executor.CheckManySubjects(ctx, it, resource, subjects, mode)
+	ctx.executionCheckBatch(event, paths, err, mode)
 
 	if err != nil {
 		return nil, err
@@ -387,8 +395,14 @@ func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []O
 }
 
 // CheckManyResources tests each resource in resources against subject. Returns a
-// parallel slice of paths (result[i] matches resources[i], nil if no match).
-func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error) {
+// parallel slice of paths. With the default AllCheckResults mode, nil is a
+// denial. With AllowSingleResult and a grant, nil slots may be unvisited.
+func (ctx *Context) CheckManyResources(
+	it Iterator,
+	resources []Object,
+	subject ObjectAndRelation,
+	modes ...CheckResultMode,
+) ([]*Path, error) {
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
@@ -397,18 +411,19 @@ func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject 
 		return nil, nil
 	}
 
+	mode := ctx.checkBatchMode(modes)
 	ctx.MarkAsOperation(it, OperationCheck)
 
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationCheck, key)
 
-	event := ctx.executionStart(it, OperationCheck, CheckFilter(resources[0], subject), "many-resources")
+	event := ctx.executionStart(it, OperationCheck, CheckFilter(resources[0], subject), batchObservationMode("many-resources", mode))
 	if event != nil {
 		event.BatchSize = safecast.MustConvert[uint64](len(resources))
 	}
 
-	paths, err := ctx.Executor.CheckManyResources(ctx, it, resources, subject)
-	ctx.executionBatch(event, paths, err)
+	paths, err := ctx.Executor.CheckManyResources(ctx, it, resources, subject, mode)
+	ctx.executionCheckBatch(event, paths, err, mode)
 
 	if err != nil {
 		return nil, err
@@ -550,13 +565,15 @@ type Executor interface {
 
 	// CheckManySubjects tests resource against each subject in the slice.
 	// Returns a parallel slice of paths: result[i] is the matching Path for
-	// subjects[i], or nil if subjects[i] does not match.
-	CheckManySubjects(ctx *Context, it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error)
+	// subjects[i]. The optional mode defaults to AllCheckResults; with
+	// AllowSingleResult and a grant, nil slots can be unvisited.
+	CheckManySubjects(ctx *Context, it Iterator, resource Object, subjects []ObjectAndRelation, modes ...CheckResultMode) ([]*Path, error)
 
 	// CheckManyResources tests each resource in the slice against subject.
 	// Returns a parallel slice of paths: result[i] is the matching Path for
-	// resources[i], or nil if resources[i] does not match.
-	CheckManyResources(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error)
+	// resources[i]. The optional mode defaults to AllCheckResults; with
+	// AllowSingleResult and a grant, nil slots can be unvisited.
+	CheckManyResources(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation, modes ...CheckResultMode) ([]*Path, error)
 
 	// IterSubjects returns a sequence of all the relations in this set that match the given resource.
 	// The filterSubjectType parameter filters results to only include subjects matching the

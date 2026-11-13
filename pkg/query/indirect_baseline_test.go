@@ -26,7 +26,11 @@ type indirectRecordingReader struct {
 	rels   []tuple.Relationship
 }
 
-func (r *indirectRecordingReader) QueryRelationships(_ context.Context, f datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+func (r *indirectRecordingReader) QueryRelationships(
+	_ context.Context,
+	f datastore.RelationshipsFilter,
+	opts ...options.QueryOptionsOption,
+) (datastore.RelationshipIterator, error) {
 	r.filter = f
 	r.opts = options.NewQueryOptionsWithOptions(opts...)
 	return func(yield func(tuple.Relationship, error) bool) {
@@ -47,25 +51,43 @@ func TestBroadSingleUsersetReadGuards(t *testing.T) {
 	}{
 		{"single", "user | group#member", true, false, true, false, false},
 		{"default unchanged", "user | group#member", false, false, false, false, false},
-		{"multiple types", "group#member | other#member", true, false, false, false, false},
-		{"multiple relations", "group#member | group#admin", true, false, false, false, false},
+		{"multiple types", "group#member | other#member", true, false, true, false, false},
+		{"multiple relations", "group#member | group#admin", true, false, true, false, false},
 		{"empty resource ID", "group#member", true, false, false, false, false},
 		{"empty resource type", "group#member", true, false, false, false, false},
 		{"custom reader", "group#member", true, false, false, false, false},
 		{"pagination", "group#member", true, true, false, false, false},
-		{"mixed indirect traits", "user | group#member | group#member with condition | group#member with expiration", true, false, true, true, true},
+		{
+			"mixed indirect traits",
+			"user | group#member | group#member with condition | group#member with expiration",
+			true,
+			false,
+			true,
+			true,
+			true,
+		},
 		{"direct traits excluded", "user with condition and expiration | user:* | group#member", true, false, true, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			text := fmt.Sprintf("use expiration\ncaveat condition(ok bool) { ok }\ndefinition user {}\ndefinition group { relation member: user\nrelation admin: user\n}\ndefinition other { relation member: user\n}\ndefinition document { relation viewer: %s\n}", tc.allowed)
-			compiled, err := compiler.Compile(compiler.InputSchema{Source: input.Source("test"), SchemaString: text}, compiler.AllowUnprefixedObjectType())
+			text := fmt.Sprintf(
+				"use expiration\ncaveat condition(ok bool) { ok }\ndefinition user {}\ndefinition group { relation member: user\nrelation admin: user\n}\ndefinition other { relation member: user\n}\ndefinition document { relation viewer: %s\n}",
+				tc.allowed,
+			)
+			compiled, err := compiler.Compile(
+				compiler.InputSchema{Source: input.Source("test"), SchemaString: text},
+				compiler.AllowUnprefixedObjectType(),
+			)
 			require.NoError(t, err)
 			s, err := schema.BuildSchemaFromDefinitions(compiled.ObjectDefinitions, compiled.CaveatDefinitions)
 			require.NoError(t, err)
 			base, err := s.ResolveBaseRelation("document", "viewer", "group", "member", "", false, false)
 			require.NoError(t, err)
 			reader := &indirectRecordingReader{}
-			ctx := NewLocalContext(t.Context(), WithRevisionedReader(reader), WithCheckExecution(CheckExecutionOptions{BroadSingleUsersetReads: tc.enabled}))
+			ctx := NewLocalContext(
+				t.Context(),
+				WithRevisionedReader(reader),
+				WithCheckExecution(CheckExecutionOptions{BroadSingleUsersetReads: tc.enabled}),
+			)
 			resource := NewObject("document", "doc")
 			switch tc.name {
 			case "empty resource ID":
@@ -95,7 +117,11 @@ func TestBroadSingleUsersetReadGuards(t *testing.T) {
 				require.Equal(t, !tc.expiration, reader.opts.SkipExpiration)
 				// Broader datastore selection must not leak stale nonconforming subjects
 				// into this leaf's semantic result.
-				reader.rels = []tuple.Relationship{tuple.MustParse("document:doc#viewer@other:stale#member"), tuple.MustParse("document:doc#viewer@group:valid#member")}
+				reader.rels = []tuple.Relationship{
+					tuple.MustParse("document:doc#viewer@other:stale#member"),
+					tuple.MustParse("document:doc#viewer@group:valid#member"),
+				}
+
 				if tc.caveats {
 					reader.rels[1].OptionalCaveat = &core.ContextualizedCaveat{CaveatName: "condition"}
 				}
@@ -103,6 +129,14 @@ func TestBroadSingleUsersetReadGuards(t *testing.T) {
 					expires := time.Now().Add(time.Hour)
 					reader.rels[1].OptionalExpiration = &expires
 				}
+
+				// Changed fake rows represent another request/revision, so use a fresh
+				// execution rather than mutating data beneath a completed shared scan.
+				ctx = NewLocalContext(
+					t.Context(),
+					WithRevisionedReader(reader),
+					WithCheckExecution(CheckExecutionOptions{BroadSingleUsersetReads: tc.enabled}),
+				)
 				seq, err = NewDatastoreIterator(base).IterSubjectsImpl(ctx, resource, ObjectType{})
 				require.NoError(t, err)
 				paths, err := CollectAll(seq)

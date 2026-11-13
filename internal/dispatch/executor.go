@@ -150,7 +150,13 @@ func (e *DispatchExecutor) Check(ctx *query.Context, it query.Iterator, resource
 	return it.CheckImpl(ctx, resource, subject)
 }
 
-func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterator, resource query.Object, subjects []query.ObjectAndRelation) ([]*query.Path, error) {
+func (e *DispatchExecutor) CheckManySubjects(
+	ctx *query.Context,
+	it query.Iterator,
+	resource query.Object,
+	subjects []query.ObjectAndRelation,
+	_ ...query.CheckResultMode,
+) ([]*query.Path, error) {
 	if _, ok := e.shouldDispatch(it); !ok {
 		out := make([]*query.Path, len(subjects))
 		for i, s := range subjects {
@@ -165,7 +171,13 @@ func (e *DispatchExecutor) CheckManySubjects(ctx *query.Context, it query.Iterat
 	return e.dispatchCheckManySubjects(ctx, it, resource, subjects)
 }
 
-func (e *DispatchExecutor) CheckManyResources(ctx *query.Context, it query.Iterator, resources []query.Object, subject query.ObjectAndRelation) ([]*query.Path, error) {
+func (e *DispatchExecutor) CheckManyResources(
+	ctx *query.Context,
+	it query.Iterator,
+	resources []query.Object,
+	subject query.ObjectAndRelation,
+	_ ...query.CheckResultMode,
+) ([]*query.Path, error) {
 	if _, ok := e.shouldDispatch(it); !ok {
 		out := make([]*query.Path, len(resources))
 		for i, r := range resources {
