@@ -80,6 +80,12 @@ func NewCaveatRunner(ts *caveattypes.TypeSet) *CaveatRunner {
 	}
 }
 
+// Fork creates a runner with the same immutable type set and fresh evaluation maps.
+// Schema-owned compiled caveats remain shared through the branch's schema reader.
+func (cr *CaveatRunner) Fork() *CaveatRunner {
+	return NewCaveatRunner(cr.caveatTypeSet)
+}
+
 // RunCaveatExpression runs a caveat expression over the given context and returns the result.
 func (cr *CaveatRunner) RunCaveatExpression(
 	ctx context.Context,
@@ -101,7 +107,11 @@ func (cr *CaveatRunner) RunCaveatExpression(
 
 // PopulateCaveatDefinitionsForExpr populates the CaveatRunner's cache with the definitions
 // referenced in the given caveat expression.
-func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader CaveatDefinitionLookup) error {
+func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(
+	ctx context.Context,
+	expr *core.CaveatExpression,
+	reader CaveatDefinitionLookup,
+) error {
 	ctx, span := tracer.Start(ctx, "PopulateCaveatDefinitions")
 	defer span.End()
 

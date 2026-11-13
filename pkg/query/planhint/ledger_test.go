@@ -1,6 +1,9 @@
 package planhint_test
 
 import (
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -171,4 +174,92 @@ func TestHintEvidenceIsRetainedOnlyForTracing(t *testing.T) {
 		}))
 		require.Len(t, ledger.Decisions(), 1)
 	}
+}
+
+func TestExecutionResponsesMayRepeat(t *testing.T) {
+	ledger := planhint.NewLedger(nil)
+	id, err := ledger.Issue(planhint.Hint{
+		Producer: "fixed", Target: planhint.Target{Node: 1}, Payload: planhint.CheckConcurrency{Limit: 2},
+	})
+	require.NoError(t, err)
+	response := planhint.Disposition{HintID: id, Consumer: "query-executor", Outcome: planhint.Accepted}
+	require.NoError(t, ledger.RespondExecution(response))
+	require.NoError(t, ledger.RespondExecution(response))
+	require.Error(t, ledger.Respond(response))
+	response.Outcome = planhint.Declined
+	require.Error(t, ledger.RespondExecution(response))
+	response.Reason = planhint.UnsupportedObserver
+	require.NoError(t, ledger.RespondExecution(response))
+}
+
+// inspectingConcurrentSink checks callback ownership while exercising the supported
+// contract that a sink may inspect its ledger during notification.
+type inspectingConcurrentSink struct {
+	ledger *planhint.Ledger
+	active atomic.Int32
+	peak   atomic.Int32
+}
+
+func (s *inspectingConcurrentSink) Record(planhint.Disposition) {
+	active := s.active.Add(1)
+	defer s.active.Add(-1)
+
+	for old := s.peak.Load(); active > old && !s.peak.CompareAndSwap(old, active); old = s.peak.Load() {
+	}
+
+	_ = s.ledger.Decisions()
+	runtime.Gosched()
+}
+
+func TestConcurrentExecutionResponsesSerializeTraceCallbacks(t *testing.T) {
+	sink := &inspectingConcurrentSink{}
+	ledger := planhint.NewLedger(sink)
+	sink.ledger = ledger
+	id, err := ledger.Issue(arrow("a", planhint.LeftToRight))
+	require.NoError(t, err)
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+
+	for range 32 {
+		workers.Go(func() {
+			<-start
+
+			for range 32 {
+				require.NoError(t, ledger.RespondExecution(planhint.Disposition{
+					HintID: id, Consumer: "query-executor", Outcome: planhint.Accepted,
+				}))
+			}
+		})
+	}
+
+	close(start)
+	workers.Wait()
+	require.EqualValues(t, 1, sink.peak.Load())
+	require.Len(t, ledger.Decisions(), 1)
+}
+
+func TestClonedLedgerKeepsRequestDispositionsIndependent(t *testing.T) {
+	template := planhint.NewLedger(nil)
+	id, err := template.Issue(planhint.Hint{
+		Producer: "fixed-check-concurrency",
+		Target:   planhint.Target{Node: 1},
+		Payload:  planhint.CheckConcurrency{Limit: 2},
+	})
+	require.NoError(t, err)
+	require.NoError(t, template.Respond(planhint.Disposition{HintID: id, Consumer: "iterator-compiler", Outcome: planhint.Accepted}))
+
+	first := template.Clone()
+	second := template.Clone()
+	require.NoError(t, first.Respond(planhint.Disposition{
+		HintID: id, Consumer: "check-parallelism", Outcome: planhint.Declined, Reason: planhint.BatchChildOrder,
+	}))
+	require.Len(t, template.Decisions(), 1)
+	require.Len(t, second.Decisions(), 1)
+	require.NoError(t, second.Respond(planhint.Disposition{HintID: id, Consumer: "check-parallelism", Outcome: planhint.Accepted}))
+	require.Len(t, first.Decisions(), 2)
+	require.Len(t, second.Decisions(), 2)
+	require.Equal(t, planhint.Declined, first.Decisions()[0].Outcome)
+	require.Equal(t, planhint.Accepted, second.Decisions()[0].Outcome)
+	require.Equal(t, template.Hints(), first.Hints())
+	require.Equal(t, template.Hints(), second.Hints())
 }
