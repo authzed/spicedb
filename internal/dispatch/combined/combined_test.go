@@ -219,8 +219,8 @@ func TestNewDispatcher_SecondaryStrategyExprs(t *testing.T) {
 		SecondaryUpstreamAddrs(map[string]string{"sec": "localhost:1"}),
 		SecondaryUpstreamExprs(map[string]string{
 			"check":           "request.resource_relation.namespace == 'document' ? prefer_secondary(['sec'], duration('50ms')) : hedged(['sec'], duration('2ms'))",
-			"lookupresources": "hedged(['sec'])",
-			"lookupsubjects":  "['sec']",
+			"lookupresources": "request.resource_relation.namespace == 'document' ? hedged(['sec']) : prefer_primary()",
+			"lookupsubjects":  "true ? ['sec'] : []",
 		}),
 	)
 	require.NoError(t, err)

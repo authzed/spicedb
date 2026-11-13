@@ -14,13 +14,13 @@ An expression evaluates to a list of secondary names, or to a strategy function 
 hedged(['tiger'])                              // the same, explicitly
 hedged(['tiger'], duration('5ms'))             // hedged, with this query's delay capped at 5ms
 prefer_secondary(['tiger'], duration('50ms'))  // the primary waits for failure or the deadline
-hedged([])                                     // primary only
+prefer_primary()                               // primary only: the same as hedged([])
 
 // CEL requires both branches of a conditional to have the same type: once one branch calls a
 // strategy function, the other must too.
 request.resource_relation.namespace == 'document'
   ? prefer_secondary(['tiger'], duration('50ms'))
-  : hedged(['tiger'], duration('2ms'))
+  : prefer_primary()
 ```
 
 Unknown functions, wrong argument types, and literal durations of zero or less (or malformed)
@@ -44,6 +44,10 @@ For `hedged`, `cap` is `maxDelay` if given, otherwise the largest
 `--experimental-dispatch-secondary-maximum-primary-hedging-delays` value among the selected
 secondaries. Until 10 samples exist, the primary waits a fixed starting delay of 1ms, whatever
 the cap. For relations a secondary reported as unsupported, it doesn't wait at all.
+
+`prefer_primary()` takes no arguments and sends the request to the primary only, exactly like
+`hedged([])`. There is no race, so it has no options and is not counted in
+`remote_dispatch_secondary_strategy_total`.
 
 The duration means different things in each function. In `hedged` it is an upper **cap** on an
 adaptive delay, so the primary usually starts much earlier. In `prefer_secondary` it is a fixed

@@ -99,7 +99,7 @@ func TestParseDispatchExpression(t *testing.T) {
 		{
 			"bare empty list gets a hint",
 			"[]",
-			"use hedged([]) to dispatch to the primary only",
+			"use prefer_primary() to dispatch to the primary only",
 		},
 		{
 			"literal zero hedged delay",
@@ -125,6 +125,21 @@ func TestParseDispatchExpression(t *testing.T) {
 			"malformed literal deadline",
 			"prefer_secondary(['prewarm'], duration('5'))",
 			"prefer_secondary: invalid deadline duration('5')",
+		},
+		{
+			"prefer_primary",
+			"prefer_primary()",
+			"",
+		},
+		{
+			"prefer_primary alongside prefer_secondary",
+			"request.resource_relation.namespace == 'foo' ? prefer_secondary(['prewarm'], duration('50ms')) : prefer_primary()",
+			"",
+		},
+		{
+			"prefer_primary takes no secondaries",
+			"prefer_primary(['prewarm'])",
+			"no matching overload",
 		},
 		{
 			"computed durations are only checked at evaluation",
@@ -311,6 +326,11 @@ func TestRunDispatchExprStrategies(t *testing.T) {
 			expected: dispatchPlan{secondaries: []string{"tiger", "lion"}, strategy: preferSecondaryStrategy{deadline: 50 * time.Millisecond}},
 		},
 		{
+			name:     "prefer_primary is hedged([])",
+			expr:     "prefer_primary()",
+			expected: dispatchPlan{secondaries: []string{}, strategy: hedgedStrategy{}},
+		},
+		{
 			name:          "prefer_secondary with computed zero deadline",
 			expr:          "prefer_secondary(['tiger'], duration('1s') - duration('1s'))",
 			expectedError: "prefer_secondary: deadline must be positive, got 0s",
@@ -380,4 +400,16 @@ func BenchmarkRunDispatchExpression(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestPreferPrimaryEqualsHedgedEmpty(t *testing.T) {
+	plans := make([]dispatchPlan, 0, 2)
+	for _, expr := range []string{"prefer_primary()", "hedged([])"} {
+		parsed, err := ParseDispatchExpression("check", expr)
+		require.NoError(t, err)
+		plan, err := runDispatchExpr(parsed, &dispatchv1.DispatchCheckRequest{})
+		require.NoError(t, err)
+		plans = append(plans, plan)
+	}
+	require.Equal(t, plans[1], plans[0])
 }

@@ -47,6 +47,9 @@ type strategyDescriptor struct {
 	// is parsed; computed ones, when it is evaluated.
 	durationArgument string
 
+	// primaryOnly is set for strategies whose plans have no secondaries, and so never race.
+	primaryOnly bool
+
 	overloads []cel.FunctionOpt
 }
 
@@ -105,13 +108,14 @@ func durationLiteral(expr celast.Expr) (string, bool) {
 }
 
 // strategyTypeHint explains the type errors operators are most likely to hit.
-const strategyTypeHint = "hint: both branches of a conditional must have the same type; wrap plain lists in hedged([...]), and use hedged([]) to dispatch to the primary only"
+const strategyTypeHint = "hint: both branches of a conditional must have the same type; wrap plain lists in hedged([...]), and use prefer_primary() to dispatch to the primary only"
 
 // registeredStrategies lists the strategies available to dispatch expressions. Adding a
 // strategy means adding its descriptor here.
 var registeredStrategies = []strategyDescriptor{
 	hedgedDescriptor,
 	preferSecondaryDescriptor,
+	preferPrimaryDescriptor,
 }
 
 // dispatchPlanCelType is the CEL type returned by strategy functions.

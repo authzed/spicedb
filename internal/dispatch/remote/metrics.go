@@ -105,6 +105,9 @@ var metricsByRequestKind = func() map[string]*requestKindMetrics {
 func newRequestKindMetrics(reqKey string) *requestKindMetrics {
 	strategies := make(map[string]prometheus.Counter, len(registeredStrategies)+1)
 	for _, strategy := range registeredStrategies {
+		if strategy.primaryOnly {
+			continue // never races, so never counted
+		}
 		strategies[strategy.function] = secondaryStrategyCounter.WithLabelValues(reqKey, strategy.function)
 	}
 	strategies[cursorLockedStrategyName] = secondaryStrategyCounter.WithLabelValues(reqKey, cursorLockedStrategyName)

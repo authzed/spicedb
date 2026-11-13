@@ -694,3 +694,25 @@ func TestCheckPrimaryTransientErrorWaitsForSecondary(t *testing.T) {
 		require.Equal(t, int32(1), primary.calls.Load())
 	})
 }
+
+func TestPreferPrimaryDispatchesToPrimaryOnly(t *testing.T) {
+	for _, kind := range requestKinds {
+		t.Run(kind.label(), func(t *testing.T) {
+			primary := &fakeDispatchSvc{dispatchCount: fromPrimary}
+			secondary := &fakeDispatchSvc{dispatchCount: fromSecondary}
+			expr := "request.resource_relation.namespace == 'offloaded' ? prefer_secondary(['secondary'], duration('10s')) : prefer_primary()"
+			d := newStrategyTestDispatcher(t, primary, secondary, kind.method, expr, time.Hour, time.Hour)
+
+			hedgedRaces := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues(kind.method, hedgedFunction))
+
+			// The test requests' namespaces are not "offloaded", so prefer_primary() applies.
+			source, err := kind.run(t, d)
+			require.NoError(t, err)
+			require.Equal(t, fromPrimary, source)
+			require.Equal(t, uint32(0), secondary.calls.Load())
+
+			// There was no race, so none is counted.
+			require.InDelta(t, hedgedRaces, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues(kind.method, hedgedFunction)), 0)
+		})
+	}
+}
