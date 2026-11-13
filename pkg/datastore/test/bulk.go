@@ -32,16 +32,16 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			ds, _ := testfixtures.StandardDatastoreWithSchema(t, rawDS)
-			bulkSource := testfixtures.NewBulkRelationshipGenerator(
-				testfixtures.DocumentNS.Name,
-				"viewer",
-				testfixtures.UserNS.Name,
-				tc,
-				t,
-			)
-
 			uintTc := safecast.RequireConvert[uint64](t, tc)
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				// A retried transaction needs a fresh one-shot source.
+				bulkSource := testfixtures.NewBulkRelationshipGenerator(
+					testfixtures.DocumentNS.Name,
+					"viewer",
+					testfixtures.UserNS.Name,
+					tc,
+					t,
+				)
 				loaded, err := rwt.BulkLoad(ctx, bulkSource)
 				require.NoError(err)
 				require.Equal(uintTc, loaded)
