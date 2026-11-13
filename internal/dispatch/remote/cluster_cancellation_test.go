@@ -60,9 +60,12 @@ func TestLookupResources3CancellationDoesNotCachePartialResults(t *testing.T) {
 					require.NoError(t, err)
 					remote, err := NewClusterDispatcher(primary, nil, ClusterDispatcherConfig{
 						DispatchOverallTimeout: time.Second,
-					}, map[string]SecondaryDispatch{
-						"secondary": {Name: "secondary", Client: secondary},
-					}, map[string]*DispatchExpr{"lookupresources": expr}, time.Millisecond)
+						SecondaryDispatch: map[string]SecondaryDispatch{
+							"secondary": {Name: "secondary", Client: secondary},
+						},
+						SecondaryDispatchExprs:      map[string]*DispatchExpr{"lookupresources": expr},
+						StartingPrimaryHedgingDelay: time.Millisecond,
+					})
 					require.NoError(t, err)
 					cache := caching.DispatchTestCache(t)
 					defer cache.Close()

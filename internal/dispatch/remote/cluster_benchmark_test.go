@@ -61,7 +61,10 @@ func BenchmarkSecondaryDispatching(b *testing.B) {
 		"check": parsed,
 	}
 
-	dispatcher, err := NewClusterDispatcher(client, nil, config, secondaryDispatch, secondaryDispatchExprs, 0*time.Second)
+	config.SecondaryDispatch = secondaryDispatch
+	config.SecondaryDispatchExprs = secondaryDispatchExprs
+
+	dispatcher, err := NewClusterDispatcher(client, nil, config)
 	require.NoError(b, err)
 
 	b.ResetTimer()

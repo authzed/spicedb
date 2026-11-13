@@ -209,3 +209,42 @@ func TestNewDispatcher_InvalidSecondaryDispatchExpr(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "error parsing secondary dispatch expr")
 }
+
+// TestNewDispatcher_SecondaryStrategyExprs checks that dispatch expressions using strategy
+// functions are accepted at startup, as they would be from the flag.
+func TestNewDispatcher_SecondaryStrategyExprs(t *testing.T) {
+	dispatcher, err := NewDispatcher(
+		UpstreamAddr("localhost:0"),
+		GrpcPresharedKey("test-key"),
+		SecondaryUpstreamAddrs(map[string]string{"sec": "localhost:1"}),
+		SecondaryUpstreamExprs(map[string]string{
+			"check":           "request.resource_relation.namespace == 'document' ? prefer_secondary(['sec'], duration('50ms')) : hedged(['sec'], duration('2ms'))",
+			"lookupresources": "request.resource_relation.namespace == 'document' ? hedged(['sec']) : prefer_primary()",
+			"lookupsubjects":  "true ? ['sec'] : []",
+		}),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, dispatcher)
+	t.Cleanup(func() { _ = dispatcher.Close() })
+}
+
+// TestNewDispatcher_InvalidSecondaryStrategyExpr checks that strategy mistakes are reported at
+// startup, naming the request type.
+func TestNewDispatcher_InvalidSecondaryStrategyExpr(t *testing.T) {
+	for _, expr := range []string{
+		"prefer_secondary(['sec'])",        // missing deadline
+		"hedgd(['sec'])",                   // unknown strategy
+		"hedged(['sec'], 5)",               // not a duration
+		"true ? hedged(['sec']) : ['sec']", // branches of different types
+	} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := NewDispatcher(
+				UpstreamAddr("localhost:0"),
+				GrpcPresharedKey("test-key"),
+				SecondaryUpstreamExprs(map[string]string{"check": expr}),
+			)
+			require.ErrorContains(t, err, "error parsing secondary dispatch expr")
+			require.ErrorContains(t, err, "for method `check`")
+		})
+	}
+}

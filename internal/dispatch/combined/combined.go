@@ -325,9 +325,12 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		}
 
 		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
-			KeyHandler:             &keys.CanonicalKeyHandler{},
-			DispatchOverallTimeout: opts.remoteDispatchTimeout,
-		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
+			KeyHandler:                  &keys.CanonicalKeyHandler{},
+			DispatchOverallTimeout:      opts.remoteDispatchTimeout,
+			SecondaryDispatch:           secondaryClients,
+			SecondaryDispatchExprs:      secondaryExprs,
+			StartingPrimaryHedgingDelay: opts.startingPrimaryHedgingDelay,
+		})
 		if err != nil {
 			return nil, err
 		}
