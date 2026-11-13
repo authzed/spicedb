@@ -39,6 +39,7 @@ func TestStableHeadRevision(t *testing.T) {
 	t.Run("LaterXIDCommitsFirst", createDatastoreTest(b, TxnHeadLaterXIDCommitsFirstTest(false), txnHeadOptions...))
 	t.Run("LaterXIDCommitsFirstInProgressList", createDatastoreTest(b, TxnHeadLaterXIDCommitsFirstTest(true), txnHeadOptions...))
 	t.Run("TwoEarlierXIDsCommitLast", createDatastoreTest(b, TxnHeadTwoEarlierXIDsCommitLastTest, txnHeadOptions...))
+	t.Run("EmptyTableFallsBack", createDatastoreTest(b, TxnHeadEmptyTableFallsBackTest, txnHeadOptions...))
 }
 
 // holdWrite starts a ReadWriteTx that writes one relationship and then blocks until released,
@@ -81,6 +82,26 @@ func TxnHeadMatchesWrittenRevisionTest(t *testing.T, ds datastore.Datastore) {
 	head, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 	require.True(t, head.Revision.Equal(written), "head %s, written %s", head.Revision, written)
+}
+
+func TxnHeadEmptyTableFallsBackTest(t *testing.T, ds datastore.Datastore) {
+	ctx := t.Context()
+	pds := ds.(*pgDatastore)
+	writeTestNamespaces(t, ds)
+
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("resource:1#reader@user:1")),
+		})
+	})
+	require.NoError(t, err)
+
+	_, err = pds.readPool.Exec(ctx, `DELETE FROM relation_tuple_transaction`)
+	require.NoError(t, err)
+
+	head, err := ds.HeadRevision(ctx)
+	require.NoError(t, err)
+	require.Len(t, readResource(t, ds, head.Revision, "1"), 1)
 }
 
 func TxnHeadIgnoresForeignTransactionsTest(t *testing.T, ds datastore.Datastore) {
