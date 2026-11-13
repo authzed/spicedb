@@ -33,6 +33,7 @@ type postgresOptions struct {
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 	revisionHeartbeatEnabled       bool
+	stableHeadRevision             bool
 	relaxedIsolationLevel          bool
 
 	migrationPhase    string
@@ -78,6 +79,7 @@ const (
 	// no follower delay by default, it should only be set if using read replicas
 	defaultFollowerReadDelay     = 0
 	defaultRevisionHeartbeat     = true
+	defaultStableHeadRevision    = false
 	defaultRelaxedIsolationLevel = false
 )
 
@@ -105,6 +107,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		watchDisabled:                  defaultWatchDisabled,
 		followerReadDelay:              defaultFollowerReadDelay,
 		revisionHeartbeatEnabled:       defaultRevisionHeartbeat,
+		stableHeadRevision:             defaultStableHeadRevision,
 		relaxedIsolationLevel:          defaultRelaxedIsolationLevel,
 	}
 
@@ -439,6 +442,14 @@ func WithColumnOptimization(isEnabled bool) Option {
 // WithRevisionHeartbeat enables the revision heartbeat.
 func WithRevisionHeartbeat(isEnabled bool) Option {
 	return func(po *postgresOptions) { po.revisionHeartbeatEnabled = isEnabled }
+}
+
+// WithStableHeadRevision derives the head revision used by fully consistent
+// reads from the transaction table, so that it only advances when SpiceDB commits.
+// With it disabled, the head revision is the current Postgres snapshot, which advances
+// with every transaction on the instance, including those of other databases.
+func WithStableHeadRevision(isEnabled bool) Option {
+	return func(po *postgresOptions) { po.stableHeadRevision = isEnabled }
 }
 
 // WithWatchDisabled disables the watch functionality.

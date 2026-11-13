@@ -143,6 +143,7 @@ func primaryDatastoreOptionsFromConfig(opts datastorecfg.Config) ([]Option, erro
 		// The revision heartbeat INSERTs into the transaction table, so it must
 		// not run when the datastore is read-only.
 		WithRevisionHeartbeat(opts.EnableRevisionHeartbeat && !opts.ReadOnly),
+		WithStableHeadRevision(opts.ExperimentalStableHeadRevision),
 		WithRelaxedIsolationLevel(opts.RelaxedIsolationLevel),
 	}
 

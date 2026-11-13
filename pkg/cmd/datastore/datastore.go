@@ -212,6 +212,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	}
 
 	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), true, "enable experimental column optimization")
+	flagSet.BoolVar(&opts.ExperimentalStableHeadRevision, flagName("datastore-experimental-stable-head-revision"), false, "fully_consistent requests use a revision that only advances when SpiceDB writes, so they keep hitting caches when other databases share the Postgres instance (Postgres driver only)")
 
 	return nil
 }
