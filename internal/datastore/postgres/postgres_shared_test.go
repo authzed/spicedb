@@ -756,6 +756,44 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.NoRelationshipExists(ctx, rel, relDeletedAt)
 }
 
+// GarbageCollectionWithoutStaleTransactionsTest covers a GC window raised after earlier runs trimmed the
+// transaction table, which leaves no transaction older than the window.
+func GarbageCollectionWithoutStaleTransactionsTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+	ctx := t.Context()
+
+	pds := ds.(*pgDatastore)
+	ds, _ = testfixtures.StandardDatastoreWithData(t, ds)
+
+	time.Sleep(1 * time.Millisecond)
+	require.NoError(datastore.RunGarbageCollection(ctx, pds, time.Millisecond))
+
+	expired := tuple.MustParse("document:foo#expiring_viewer@user:tom[expiration:2000-01-01T00:00:00Z]")
+	_, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, expired)
+	require.NoError(err)
+
+	pgg, err := pds.BuildGarbageCollector(ctx)
+	require.NoError(err)
+	defer pgg.Close()
+
+	now, err := pgg.Now(ctx)
+	require.NoError(err)
+
+	watermark, err := pgg.TxIDBefore(ctx, now.Add(-1*time.Hour))
+	require.NoError(err)
+	require.Equal(datastore.NoRevision, watermark)
+
+	removed, err := pgg.DeleteBeforeTx(ctx, watermark)
+	require.NoError(err)
+	require.Zero(removed)
+
+	require.NoError(datastore.RunGarbageCollection(ctx, pds, time.Hour))
+
+	expiredLeft, err := pgg.DeleteExpiredRels(ctx)
+	require.NoError(err)
+	require.Zero(expiredLeft)
+}
+
 const chunkRelationshipCount = 2000
 
 func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
