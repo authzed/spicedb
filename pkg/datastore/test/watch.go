@@ -24,8 +24,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// Spanner emulator heartbeats can arrive in ~20s batches; allow scheduling headroom.
-const waitForChangesTimeout = 30 * time.Second
+// Spanner emulator partition progress can arrive ~40s after a change; allow scheduling headroom.
+const waitForChangesTimeout = time.Minute
 
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
