@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Postgres: `--datastore-experimental-stable-head-revision` derives the revision used by `fully_consistent` requests from SpiceDB's own transaction table instead of `pg_current_snapshot()`. The Postgres snapshot advances with every transaction on the instance, including those of other databases sharing it, so on a shared instance each `fully_consistent` request got a new revision and missed the dispatch and schema caches. With the flag, the revision only advances when SpiceDB commits. Off by default. (https://github.com/authzed/spicedb/issues/3484)
 - Tracing: `--otel-ignore-remote-sampling` makes SpiceDB apply `--otel-sample-ratio` to every request, ignoring the sampling decision callers send in their trace headers. Without it, a caller that marks most requests as sampled makes SpiceDB trace most requests, whatever the ratio. The caller's trace ID is still kept, and spans created inside SpiceDB still follow their parent, so traces stay whole. Off by default. (https://github.com/authzed/spicedb/pull/3452)
 
 ### Changed

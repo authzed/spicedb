@@ -168,6 +168,7 @@ type Config struct {
 
 	// Experimental
 	ExperimentalColumnOptimization bool `debugmap:"visible" default:"true"`
+	ExperimentalStableHeadRevision bool `debugmap:"visible"`
 	EnableRevisionHeartbeat        bool `debugmap:"visible"`
 }
 

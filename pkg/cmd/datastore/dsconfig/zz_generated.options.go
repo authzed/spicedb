@@ -89,6 +89,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MigrationPhase = c.MigrationPhase
 		to.AllowedMigrations = c.AllowedMigrations
 		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
+		to.ExperimentalStableHeadRevision = c.ExperimentalStableHeadRevision
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 	}
 }
@@ -322,6 +323,7 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["AllowedMigrations"] = fmt.Sprintf("(slice of size %d)", len(c.AllowedMigrations))
 	}
 	debugMap["ExperimentalColumnOptimization"] = c.ExperimentalColumnOptimization
+	debugMap["ExperimentalStableHeadRevision"] = c.ExperimentalStableHeadRevision
 	debugMap["EnableRevisionHeartbeat"] = c.EnableRevisionHeartbeat
 	return debugMap
 }
@@ -794,6 +796,13 @@ func SetAllowedMigrations(allowedMigrations []string) ConfigOption {
 func WithExperimentalColumnOptimization(experimentalColumnOptimization bool) ConfigOption {
 	return func(c *Config) {
 		c.ExperimentalColumnOptimization = experimentalColumnOptimization
+	}
+}
+
+// WithExperimentalStableHeadRevision returns an option that can set ExperimentalStableHeadRevision on a Config
+func WithExperimentalStableHeadRevision(experimentalStableHeadRevision bool) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalStableHeadRevision = experimentalStableHeadRevision
 	}
 }
 
