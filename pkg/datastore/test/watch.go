@@ -24,7 +24,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const waitForChangesTimeout = 20 * time.Second // FIXME, for reasons unknown, tests against Spanner emulator time out if this is lower
+// Spanner emulator heartbeats can arrive in ~20s batches; allow scheduling headroom.
+const waitForChangesTimeout = 30 * time.Second
 
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
@@ -141,6 +142,10 @@ func VerifyUpdates(
 	expectDisconnect bool,
 ) {
 	t.Helper()
+	if expectDisconnect {
+		// Wait for backpressure before consuming; catch-up throughput varies by datastore.
+		require.Eventually(func() bool { return len(errchan) > 0 }, waitForChangesTimeout, time.Millisecond)
+	}
 	for _, expected := range testUpdates {
 		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {

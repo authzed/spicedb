@@ -3,7 +3,9 @@ package spanner
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
@@ -24,7 +26,9 @@ import (
 
 type spannerReadWriteTXN struct {
 	spannerReader
-	spannerRWT *spanner.ReadWriteTransaction
+	spannerRWT        *spanner.ReadWriteTransaction
+	bulkRelationships []tuple.Relationship
+	bulkMutationMode  bool
 }
 
 const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
@@ -107,7 +111,12 @@ func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name strin
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
+func (rwt *spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
+	if len(mutations) > 0 {
+		if err := rwt.bufferBulkMutations(ctx); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+	}
 	var rowCountChange int64
 	for _, mutation := range mutations {
 		txnMut, countChange, err := spannerMutation(ctx, mutation.Operation, mutation.Relationship)
@@ -148,7 +157,11 @@ func spannerMutation(
 	return txnMut, countChange, err
 }
 
-func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
+func (rwt *spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (datastore.DeleteRelationshipsResult, error) {
+	if err := rwt.bufferBulkMutations(ctx); err != nil {
+		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
+	}
+
 	numDeleted, limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, opts...)
 	if err != nil {
 		return datastore.DeleteRelationshipsResult{}, fmt.Errorf(errUnableToDeleteRelationships, err)
@@ -426,27 +439,128 @@ func (rwt spannerReadWriteTXN) LegacyDeleteNamespaces(ctx context.Context, nsNam
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+func (rwt *spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var numLoaded uint64
-	var rel *tuple.Relationship
-	var err error
-	for rel, err = iter.Next(ctx); err == nil && rel != nil; rel, err = iter.Next(ctx) {
-		txnMut, _, err := spannerMutation(ctx, tuple.UpdateOperationCreate, *rel)
+	for rel, err := iter.Next(ctx); ; rel, err = iter.Next(ctx) {
 		if err != nil {
 			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
 		}
-		numLoaded++
-
-		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
-			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+		if rel == nil {
+			return numLoaded, nil
 		}
+		if rwt.bulkMutationMode {
+			txnMut, _, err := spannerMutation(ctx, tuple.UpdateOperationCreate, *rel)
+			if err != nil {
+				return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+			}
+			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
+				return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+			}
+		} else {
+			// Sources may reuse both the relationship and its nested optional values.
+			snapshot := *rel
+			snapshot.OptionalCaveat = rel.OptionalCaveat.CloneVT()
+			if rel.OptionalExpiration != nil {
+				expiration := *rel.OptionalExpiration
+				snapshot.OptionalExpiration = &expiration
+			}
+			rwt.bulkRelationships = append(rwt.bulkRelationships, snapshot)
+		}
+		numLoaded++
+	}
+}
+
+func (rwt *spannerReadWriteTXN) bufferBulkMutations(ctx context.Context) error {
+	// Mixed writes retain their original Mutation API order and quota behavior.
+	rwt.bulkMutationMode = true
+	for len(rwt.bulkRelationships) > 0 {
+		mutation, _, err := spannerMutation(ctx, tuple.UpdateOperationCreate, rwt.bulkRelationships[0])
+		if err != nil {
+			return err
+		}
+		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {
+			return err
+		}
+		rwt.bulkRelationships = rwt.bulkRelationships[1:]
+	}
+	return nil
+}
+
+func (rwt *spannerReadWriteTXN) flushBulkLoad(ctx context.Context) error {
+	if len(rwt.bulkRelationships) == 0 {
+		return nil
+	}
+	const maxMutationCells = 80_000
+	if len(rwt.bulkRelationships) > maxMutationCells/(len(keyFromRelationship(rwt.bulkRelationships[0]))+1) {
+		return rwt.bufferBulkMutations(ctx)
 	}
 
-	if err != nil {
-		return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+	// Leave headroom under the 950-parameter and 10 MiB SQL request limits.
+	const maxParameters = 950
+	const batchBytes = 1 << 20
+	const maxRowBytes = 8 << 20
+	rows := make([][]any, 0, len(rwt.bulkRelationships))
+	sizes := make([]int, 0, len(rwt.bulkRelationships))
+	for _, rel := range rwt.bulkRelationships {
+		values := upsertVals(rel)
+		for i, column := range allRelationshipCols {
+			switch column {
+			case colTimestamp:
+				values[i] = time.Unix(0, 0).UTC()
+			case colCaveatContext:
+				if values[i] == nil {
+					values[i] = spanner.NullJSON{}
+				}
+			case colExpiration:
+				if values[i] == nil {
+					values[i] = spanner.NullTime{}
+				}
+			}
+		}
+		encoded, err := json.Marshal(values)
+		if err != nil {
+			return fmt.Errorf(errUnableToBulkLoadRelationships, err)
+		}
+		if len(encoded) > maxRowBytes {
+			// A large cell may fit the Mutation API's larger commit request.
+			return rwt.bufferBulkMutations(ctx)
+		}
+		rows = append(rows, values)
+		sizes = append(sizes, len(encoded))
 	}
 
-	return numLoaded, nil
+	for start := 0; start < len(rows); {
+		query := sql.Insert(tableRelationship).Columns(allRelationshipCols...)
+		end, size := start, 0
+		for end < len(rows) && end-start < maxParameters/len(allRelationshipCols) {
+			if end > start && size+sizes[end] > batchBytes {
+				break
+			}
+			query = query.Values(rows[end]...)
+			size += sizes[end]
+			end++
+		}
+		text, args, err := query.ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToBulkLoadRelationships, err)
+		}
+		if _, err := rwt.spannerRWT.Update(ctx, statementFromSQL(text, args)); err != nil {
+			return fmt.Errorf(errUnableToBulkLoadRelationships, err)
+		}
+		start = end
+	}
+
+	// Commit stamps only six key cells plus timestamp per row; timestamp is not indexed.
+	columns := allRelationshipCols[:len(keyFromRelationship(rwt.bulkRelationships[0]))+1]
+	mutations := make([]*spanner.Mutation, 0, len(rwt.bulkRelationships))
+	for _, rel := range rwt.bulkRelationships {
+		values := append(keyFromRelationship(rel), spanner.CommitTimestamp)
+		mutations = append(mutations, spanner.Update(tableRelationship, columns, values))
+	}
+	if err := rwt.spannerRWT.BufferWrite(mutations); err != nil {
+		return fmt.Errorf(errUnableToBulkLoadRelationships, err)
+	}
+	return nil
 }
 
 var _ datastore.ReadWriteTransaction = (*spannerReadWriteTXN)(nil)

@@ -25,6 +25,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
@@ -390,7 +391,19 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 	transactionTag = transactionTag[:36] // there is a column constraint on the length
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	txOptions := spanner.TransactionOptions{TransactionTag: transactionTag}
+	if config.DisableRetries {
+		// Inline begin can mask the first statement's error as a retryable begin failure.
+		txOptions.BeginTransactionOption = spanner.ExplicitBeginTransaction
+	}
+	attempted := false
 	rs, err := sd.client.ReadWriteTransactionWithOptions(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
+		if config.DisableRetries && attempted {
+			cancel()
+			return status.Error(codes.Aborted, "transaction aborted with retries disabled")
+		}
+		attempted = true
 		txSource := func() readTX {
 			return &traceableRTX{delegate: spannerRWT}
 		}
@@ -412,8 +425,8 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 		executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
 		rwt := &spannerReadWriteTXN{
-			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
-			spannerRWT,
+			spannerReader: spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
+			spannerRWT:    spannerRWT,
 		}
 
 		if config.SchemaHashPrecondition != "" {
@@ -428,15 +441,18 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 			return fn(innerCtx, rwt)
 		}()
+		if err == nil {
+			err = rwt.flushBulkLoad(ctx)
+		}
 		if err != nil {
-			if config.DisableRetries {
+			if config.DisableRetries && spanner.ErrCode(err) == codes.Aborted {
 				defer cancel()
 			}
 			return err
 		}
 
 		return nil
-	}, spanner.TransactionOptions{TransactionTag: transactionTag})
+	}, txOptions)
 	if err != nil {
 		if cerr := convertToWriteConstraintError(err); cerr != nil {
 			return datastore.NoRevision, cerr
