@@ -16,6 +16,13 @@ type readonlyDataLayer struct {
 	delegate DataLayer
 }
 
+func (r *readonlyDataLayer) LatestObservedRevision() (datastore.Revision, SchemaHash, bool) {
+	if p, ok := r.delegate.(LatestRevisionProvider); ok {
+		return p.LatestObservedRevision()
+	}
+	return datastore.NoRevision, "", false
+}
+
 func (r *readonlyDataLayer) SnapshotReader(rev datastore.Revision, schemaHash SchemaHash) RevisionedReader {
 	return r.delegate.SnapshotReader(rev, schemaHash)
 }

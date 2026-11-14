@@ -2642,3 +2642,79 @@ func TestDeleteRelationshipsCursorRequiresLimitAndPartial(t *testing.T) {
 	})
 	require.Equal(codes.InvalidArgument, status.Code(err), "cursor without partial deletions must be rejected: %v", err)
 }
+
+func TestWriteAndDeleteRelationshipsZedTokensCarrySchemaHash(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
+	for _, tc := range []struct {
+		name       string
+		mode       datalayer.SchemaMode
+		expectHash bool
+	}{
+		{"read-new-write-both", datalayer.SchemaModeReadNewWriteBoth, true},
+		{"read-new-write-new", datalayer.SchemaModeReadNewWriteNew, true},
+		{"read-legacy-write-both", datalayer.SchemaModeReadLegacyWriteBoth, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := testserver.DefaultTestServerConfig
+			config.DataLayerOpts = []datalayer.DataLayerOption{datalayer.WithSchemaMode(tc.mode)}
+			conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true, config, tf.EmptyDatastore)
+			schemaClient := v1.NewSchemaServiceClient(conn)
+			client := v1.NewPermissionsServiceClient(conn)
+
+			_, err := schemaClient.WriteSchema(t.Context(), &v1.WriteSchemaRequest{
+				Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+	permission view = viewer
+}`,
+			})
+			require.NoError(t, err)
+
+			readResp, err := schemaClient.ReadSchema(t.Context(), &v1.ReadSchemaRequest{})
+			require.NoError(t, err)
+			readDecoded, err := zedtoken.Decode(readResp.ReadAt)
+			require.NoError(t, err)
+			schemaHash := readDecoded.GetV1().GetSchemaHash()
+
+			writeResp, err := client.WriteRelationships(t.Context(), &v1.WriteRelationshipsRequest{
+				Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
+					tuple.MustParse("document:doc1#viewer@user:tom"),
+				))},
+			})
+			require.NoError(t, err)
+			writeDecoded, err := zedtoken.Decode(writeResp.WrittenAt)
+			require.NoError(t, err)
+
+			deleteResp, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{ResourceType: "document", OptionalResourceId: "doc1"},
+			})
+			require.NoError(t, err)
+			deleteDecoded, err := zedtoken.Decode(deleteResp.DeletedAt)
+			require.NoError(t, err)
+
+			if !tc.expectHash {
+				require.Empty(t, writeDecoded.GetV1().GetSchemaHash())
+				require.Empty(t, deleteDecoded.GetV1().GetSchemaHash())
+				return
+			}
+			require.Len(t, schemaHash, 64)
+			require.Equal(t, schemaHash, writeDecoded.GetV1().GetSchemaHash())
+			require.Equal(t, schemaHash, deleteDecoded.GetV1().GetSchemaHash())
+
+			// The delete token works as at_least_as_fresh.
+			_, err = client.CheckPermission(t.Context(), &v1.CheckPermissionRequest{
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: deleteResp.DeletedAt},
+				},
+				Resource:   &v1.ObjectReference{ObjectType: "document", ObjectId: "doc1"},
+				Permission: "view",
+				Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "tom"}},
+			})
+			require.NoError(t, err)
+		})
+	}
+}

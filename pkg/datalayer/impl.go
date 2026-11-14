@@ -76,6 +76,45 @@ type defaultDataLayer struct {
 	schemaMode     SchemaMode
 	cache          storedSchemaCache
 	lastSchemaHash atomic.Pointer[string] // most recently observed non-bypass schema hash
+	latestPair     atomic.Pointer[revisionAndHash]
+}
+
+type revisionAndHash struct {
+	rev  datastore.Revision
+	hash SchemaHash
+}
+
+// LatestRevisionProvider gives the newest revision that a DataLayer observed, with the schema
+// hash at that revision.
+type LatestRevisionProvider interface {
+	// LatestObservedRevision returns the newest observed revision and the schema hash at it.
+	// It returns false if there is no observed revision. The legacy schema modes observe none.
+	LatestObservedRevision() (datastore.Revision, SchemaHash, bool)
+}
+
+// observeRevision records rev and its schema hash if rev is newer than the recorded revision.
+// A concurrent revision (Postgres) does not replace the recorded revision.
+func (d *defaultDataLayer) observeRevision(rev datastore.Revision, h SchemaHash) {
+	if !d.schemaMode.ReadsFromNew() || h == "" || h.IsBypassSentinel() || rev == nil || rev == datastore.NoRevision {
+		return
+	}
+	next := &revisionAndHash{rev: rev, hash: h}
+	for {
+		cur := d.latestPair.Load()
+		if cur != nil && !rev.GreaterThan(cur.rev) {
+			return
+		}
+		if d.latestPair.CompareAndSwap(cur, next) {
+			return
+		}
+	}
+}
+
+func (d *defaultDataLayer) LatestObservedRevision() (datastore.Revision, SchemaHash, bool) {
+	if p := d.latestPair.Load(); p != nil {
+		return p.rev, p.hash, true
+	}
+	return datastore.NoRevision, "", false
 }
 
 // observeSchemaHash stores h as the most recently observed schema hash.
@@ -154,6 +193,11 @@ func (d *defaultDataLayer) ReadWriteTx(ctx context.Context, fn TxUserFunc, opts 
 			if pendingHash != "" {
 				_ = d.cache.Set(pendingHash, pendingSchema)
 				d.observeSchemaHash(pendingHash)
+				d.observeRevision(rev, pendingHash)
+			} else {
+				// The datastore holds the precondition until commit, so the schema at rev has
+				// preconditionHash.
+				d.observeRevision(rev, preconditionHash)
 			}
 			return rev, nil
 		}
@@ -189,6 +233,7 @@ func (d *defaultDataLayer) OptimizedRevision(ctx context.Context) (datastore.Rev
 	if d.schemaMode.ReadsFromNew() && result.SchemaHash != "" {
 		hash := SchemaHash(result.SchemaHash)
 		d.observeSchemaHash(hash)
+		d.observeRevision(result.Revision, hash)
 		return result.Revision, hash, nil
 	}
 
@@ -204,6 +249,7 @@ func (d *defaultDataLayer) HeadRevision(ctx context.Context) (datastore.Revision
 	if d.schemaMode.ReadsFromNew() && result.SchemaHash != "" {
 		hash := SchemaHash(result.SchemaHash)
 		d.observeSchemaHash(hash)
+		d.observeRevision(result.Revision, hash)
 		return result.Revision, hash, nil
 	}
 
@@ -310,6 +356,22 @@ type readWriteTransaction struct {
 	// preconditionHash, when non-empty, is the hash the datastore asserted at tx open time
 	// (via WithSchemaHashPrecondition). ReadSchema uses it directly for cache lookup.
 	preconditionHash SchemaHash
+
+	// writtenHash is the hash from WriteSchema in this transaction, if any.
+	writtenHash SchemaHash
+}
+
+func (t *readWriteTransaction) SchemaHash() SchemaHash {
+	if !t.schemaMode.ReadsFromNew() {
+		return NoSchemaHashInLegacyMode
+	}
+	if t.writtenHash != "" {
+		return t.writtenHash
+	}
+	if t.preconditionHash != "" {
+		return t.preconditionHash
+	}
+	return NoSchemaHashInTransaction
 }
 
 func (t *readWriteTransaction) ReadSchema(ctx context.Context) (SchemaReader, error) {
@@ -365,6 +427,7 @@ func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []da
 		if err != nil {
 			return "", err
 		}
+		t.writtenHash = schemaHash
 		if t.onSchemaWritten != nil {
 			t.onSchemaWritten(schemaHash, schema)
 		}
