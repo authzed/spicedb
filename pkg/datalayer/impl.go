@@ -356,6 +356,22 @@ type readWriteTransaction struct {
 	// preconditionHash, when non-empty, is the hash the datastore asserted at tx open time
 	// (via WithSchemaHashPrecondition). ReadSchema uses it directly for cache lookup.
 	preconditionHash SchemaHash
+
+	// writtenHash is the hash from WriteSchema in this transaction, if any.
+	writtenHash SchemaHash
+}
+
+func (t *readWriteTransaction) SchemaHash() SchemaHash {
+	if !t.schemaMode.ReadsFromNew() {
+		return NoSchemaHashInLegacyMode
+	}
+	if t.writtenHash != "" {
+		return t.writtenHash
+	}
+	if t.preconditionHash != "" {
+		return t.preconditionHash
+	}
+	return NoSchemaHashInTransaction
 }
 
 func (t *readWriteTransaction) ReadSchema(ctx context.Context) (SchemaReader, error) {
@@ -411,6 +427,7 @@ func (t *readWriteTransaction) WriteSchema(ctx context.Context, definitions []da
 		if err != nil {
 			return "", err
 		}
+		t.writtenHash = schemaHash
 		if t.onSchemaWritten != nil {
 			t.onSchemaWritten(schemaHash, schema)
 		}
