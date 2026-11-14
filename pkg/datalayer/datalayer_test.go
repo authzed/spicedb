@@ -2322,3 +2322,57 @@ func TestObserveRevisionConcurrent(t *testing.T) {
 	require.True(t, found)
 	require.True(t, revisions.NewForTransactionID(100).Equal(rev))
 }
+
+func TestReadWriteTransactionSchemaHash(t *testing.T) {
+	ctx := t.Context()
+	dl := NewDataLayer(newTestDatastore(t), WithSchemaMode(SchemaModeReadNewWriteNew))
+
+	// Before any schema exists there is no precondition, so the hash is unknown.
+	defs, schemaText := testSchemaDefinitions(t)
+	var beforeWrite, afterWrite, written SchemaHash
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		beforeWrite = rwt.SchemaHash()
+		var err error
+		written, err = rwt.WriteSchema(ctx, defs, schemaText, nil)
+		afterWrite = rwt.SchemaHash()
+		return err
+	})
+	require.NoError(t, err)
+	require.Equal(t, NoSchemaHashInTransaction, beforeWrite)
+	require.Equal(t, written, afterWrite)
+	require.Equal(t, SchemaHash(computeHash(t, defs)), written)
+
+	// A relationship write runs under the precondition of the current schema.
+	var relHash SchemaHash
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		relHash = rwt.SchemaHash()
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom")),
+		})
+	})
+	require.NoError(t, err)
+	require.Equal(t, written, relHash)
+}
+
+func TestReadWriteTransactionSchemaHashLegacyMode(t *testing.T) {
+	ctx := t.Context()
+	dl := NewDataLayer(newTestDatastore(t), WithSchemaMode(SchemaModeReadLegacyWriteBoth))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	var afterWrite SchemaHash
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		afterWrite = rwt.SchemaHash()
+		return err
+	})
+	require.NoError(t, err)
+	require.Equal(t, NoSchemaHashInLegacyMode, afterWrite)
+
+	var relHash SchemaHash
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		relHash = rwt.SchemaHash()
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, NoSchemaHashInLegacyMode, relHash)
+}

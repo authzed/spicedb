@@ -788,6 +788,20 @@ func (mr *MockReadWriteTransactionMockRecorder) ReverseQueryRelationships(ctx, s
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReverseQueryRelationships", reflect.TypeOf((*MockReadWriteTransaction)(nil).ReverseQueryRelationships), varargs...)
 }
 
+// SchemaHash mocks base method.
+func (m *MockReadWriteTransaction) SchemaHash() datalayer.SchemaHash {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaHash")
+	ret0, _ := ret[0].(datalayer.SchemaHash)
+	return ret0
+}
+
+// SchemaHash indicates an expected call of SchemaHash.
+func (mr *MockReadWriteTransactionMockRecorder) SchemaHash() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaHash", reflect.TypeOf((*MockReadWriteTransaction)(nil).SchemaHash))
+}
+
 // StoreCounterValue mocks base method.
 func (m *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	m.ctrl.T.Helper()

@@ -134,6 +134,12 @@ type ReadWriteTransaction interface {
 	// when the DataLayer does not write to unified schema storage.
 	WriteSchema(ctx context.Context, definitions []datastore.SchemaDefinition, schemaString string, caveatTypeSet *caveattypes.TypeSet) (SchemaHash, error)
 
+	// SchemaHash returns the schema hash at the commit revision of this transaction. This is the
+	// hash from WriteSchema in this transaction, or else the schema-hash precondition, which the
+	// datastore holds until commit. It returns a sentinel if the hash is unknown and in the legacy
+	// read modes.
+	SchemaHash() SchemaHash
+
 	// LegacySchemaWriter returns a legacy schema writer for backwards-compatible
 	// additive-only schema operations.
 	//
