@@ -324,10 +324,35 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, dl datalayer.
 			return databaseRev, hash, false, nil
 		}
 
+		// A token without a schema hash makes every reader in the dispatch tree read the whole
+		// stored schema. Use a revision that is at least as fresh and has a known schema hash.
+		if decoded.SchemaHash.IsBypassSentinel() {
+			if p, ok := dl.(datalayer.LatestRevisionProvider); ok {
+				if rev, h, found := p.LatestObservedRevision(); found {
+					if atLeast(rev, decoded.Revision) {
+						return rev, h, true, nil
+					}
+					headRev, headHash, err := dl.HeadRevision(ctx)
+					if err != nil {
+						return datastore.NoRevision, "", false, err
+					}
+					if !headHash.IsBypassSentinel() && atLeast(headRev, decoded.Revision) {
+						return headRev, headHash, true, nil
+					}
+				}
+			}
+		}
+
 		return decoded.Revision, decoded.SchemaHash, true, nil
 	}
 
 	return databaseRev, hash, false, nil
+}
+
+// atLeast reports whether rev includes all changes at want. Postgres revisions are partially
+// ordered, so !want.GreaterThan(rev) is not sufficient.
+func atLeast(rev, want datastore.Revision) bool {
+	return rev.Equal(want) || rev.GreaterThan(want)
 }
 
 func rewriteDatastoreError(err error) error {

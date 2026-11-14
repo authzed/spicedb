@@ -13,6 +13,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -2202,4 +2203,122 @@ func TestOptimizedRevisionErrorReturnsNoHash(t *testing.T) {
 	_, hash, err := dl.OptimizedRevision(ctx)
 	require.ErrorIs(t, err, sentinelErr)
 	require.Equal(t, NoSchemaHashInLegacyMode, hash)
+}
+
+func TestLatestObservedRevisionFromWrites(t *testing.T) {
+	ctx := t.Context()
+	dl := NewDataLayer(newTestDatastore(t), WithSchemaMode(SchemaModeReadNewWriteNew))
+	provider := dl.(LatestRevisionProvider)
+
+	_, _, found := provider.LatestObservedRevision()
+	require.False(t, found)
+
+	defs, schemaText := testSchemaDefinitions(t)
+	schemaRev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+
+	expectedHash := SchemaHash(computeHash(t, defs))
+	rev, hash, found := provider.LatestObservedRevision()
+	require.True(t, found)
+	require.True(t, schemaRev.Equal(rev))
+	require.Equal(t, expectedHash, hash)
+
+	// A relationship write commits under the schema-hash precondition. The data layer observes
+	// its revision with that hash.
+	relRev, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom")),
+		})
+	})
+	require.NoError(t, err)
+	require.True(t, relRev.GreaterThan(schemaRev))
+
+	rev, hash, found = provider.LatestObservedRevision()
+	require.True(t, found)
+	require.True(t, relRev.Equal(rev))
+	require.Equal(t, expectedHash, hash)
+
+	// An older revision from OptimizedRevision does not replace the newest one.
+	_, _, err = dl.OptimizedRevision(ctx)
+	require.NoError(t, err)
+	rev, _, _ = provider.LatestObservedRevision()
+	require.True(t, relRev.Equal(rev) || rev.GreaterThan(relRev))
+
+	headRev, headHash, err := dl.HeadRevision(ctx)
+	require.NoError(t, err)
+	rev, hash, found = provider.LatestObservedRevision()
+	require.True(t, found)
+	require.True(t, headRev.Equal(rev))
+	require.Equal(t, headHash, hash)
+
+	roRev, roHash, roFound := NewReadonlyDataLayer(dl).(LatestRevisionProvider).LatestObservedRevision()
+	require.True(t, roFound)
+	require.True(t, rev.Equal(roRev))
+	require.Equal(t, hash, roHash)
+}
+
+func TestLatestObservedRevisionNotRecordedInLegacyMode(t *testing.T) {
+	ctx := t.Context()
+	dl := NewDataLayer(newTestDatastore(t), WithSchemaMode(SchemaModeReadLegacyWriteBoth))
+
+	defs, schemaText := testSchemaDefinitions(t)
+	_, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+	require.NoError(t, err)
+	_, err = dl.ReadWriteTx(ctx, func(ctx context.Context, rwt ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom")),
+		})
+	})
+	require.NoError(t, err)
+	_, _, err = dl.OptimizedRevision(ctx)
+	require.NoError(t, err)
+	_, _, err = dl.HeadRevision(ctx)
+	require.NoError(t, err)
+
+	_, _, found := dl.(LatestRevisionProvider).LatestObservedRevision()
+	require.False(t, found)
+}
+
+func TestObserveRevisionKeepsNewest(t *testing.T) {
+	d := &defaultDataLayer{schemaMode: SchemaModeReadNewWriteNew}
+
+	d.observeRevision(revisions.NewForTransactionID(5), "a")
+	d.observeRevision(revisions.NewForTransactionID(3), "b")
+	d.observeRevision(revisions.NewForTransactionID(9), NoSchemaHashInLegacyZedToken)
+	d.observeRevision(revisions.NewForTransactionID(9), "")
+	d.observeRevision(datastore.NoRevision, "c")
+
+	rev, hash, found := d.LatestObservedRevision()
+	require.True(t, found)
+	require.True(t, revisions.NewForTransactionID(5).Equal(rev))
+	require.Equal(t, SchemaHash("a"), hash)
+
+	d.observeRevision(revisions.NewForTransactionID(7), "d")
+	rev, hash, _ = d.LatestObservedRevision()
+	require.True(t, revisions.NewForTransactionID(7).Equal(rev))
+	require.Equal(t, SchemaHash("d"), hash)
+}
+
+func TestObserveRevisionConcurrent(t *testing.T) {
+	d := &defaultDataLayer{schemaMode: SchemaModeReadNewWriteNew}
+
+	var wg sync.WaitGroup
+	for i := range uint64(100) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			d.observeRevision(revisions.NewForTransactionID(i+1), "h")
+		}()
+	}
+	wg.Wait()
+
+	rev, _, found := d.LatestObservedRevision()
+	require.True(t, found)
+	require.True(t, revisions.NewForTransactionID(100).Equal(rev))
 }

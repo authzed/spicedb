@@ -3,6 +3,7 @@ package consistency
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -589,5 +590,133 @@ func TestAddRevisionToContextAtLeastAsFreshMatchingIDs(t *testing.T) {
 	require.NoError(err)
 
 	require.True(exact.Equal(rev))
+	ds.AssertExpectations(t)
+}
+
+func addAtLeastAsFresh(t *testing.T, dl datalayer.DataLayer, token *v1.ZedToken) (datastore.Revision, datalayer.SchemaHash) {
+	t.Helper()
+	updated := ContextWithHandle(t.Context())
+	updated = datalayer.ContextWithDataLayer(updated, dl)
+
+	err := AddRevisionToContext(updated, &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: token},
+		},
+	}, dl, "somelabel", TreatMismatchingTokensAsError)
+	require.NoError(t, err)
+
+	rev, hash, _, err := RevisionFromContext(updated)
+	require.NoError(t, err)
+	return rev, hash
+}
+
+func TestAtLeastAsFreshHashlessTokenUsesObservedRevision(t *testing.T) {
+	ds := &proxy_test.MockDatastore{}
+	ds.On("HeadRevision").Return(headWithHash, nil).Once()
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: optimizedWithHash.Revision, SchemaHash: optimizedWithHash.SchemaHash}, nil).Once()
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteNew))
+
+	// Observe head (145) and its hash.
+	_, _, err := dl.HeadRevision(t.Context())
+	require.NoError(t, err)
+
+	// The token (123) is newer than the optimized revision (100) and has no schema hash. The
+	// observed pair (145) is at least as fresh, so the middleware uses it and does not call
+	// HeadRevision again.
+	rev, hash := addAtLeastAsFresh(t, dl, zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken))
+	require.True(t, head.Equal(rev))
+	require.Equal(t, datalayer.SchemaHash("testhash"), hash)
+	ds.AssertExpectations(t)
+}
+
+func TestAtLeastAsFreshHashlessTokenNewerThanObservedUsesHead(t *testing.T) {
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: optimizedWithHash.Revision, SchemaHash: optimizedWithHash.SchemaHash}, nil).Once()
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	ds.On("HeadRevision").Return(headWithHash, nil).Once()
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteNew))
+
+	rev, hash := addAtLeastAsFresh(t, dl, zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken))
+	require.True(t, head.Equal(rev))
+	require.Equal(t, datalayer.SchemaHash("testhash"), hash)
+	ds.AssertExpectations(t)
+}
+
+func TestAtLeastAsFreshHashlessTokenNewerThanHeadUsesToken(t *testing.T) {
+	behind := revisions.NewForTransactionID(110)
+
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: optimizedWithHash.Revision, SchemaHash: optimizedWithHash.SchemaHash}, nil).Once()
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	ds.On("HeadRevision").Return(datastore.RevisionWithSchemaHash{Revision: behind, SchemaHash: "testhash"}, nil).Once()
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteNew))
+
+	rev, hash := addAtLeastAsFresh(t, dl, zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken))
+	require.True(t, exact.Equal(rev))
+	require.Equal(t, datalayer.NoSchemaHashInLegacyZedToken, hash)
+	ds.AssertExpectations(t)
+}
+
+func TestAtLeastAsFreshHashlessTokenLegacyModeSkipsHeadRevision(t *testing.T) {
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: optimizedWithHash.Revision, SchemaHash: optimizedWithHash.SchemaHash}, nil).Once()
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadLegacyWriteLegacy))
+
+	rev, hash := addAtLeastAsFresh(t, dl, zedtoken.MustNewFromRevisionForTesting(exact, datalayer.NoSchemaHashInLegacyZedToken))
+	require.True(t, exact.Equal(rev))
+	require.Equal(t, datalayer.NoSchemaHashInLegacyZedToken, hash)
+	ds.AssertExpectations(t)
+}
+
+// partialRevision is a partially ordered revision, like a Postgres snapshot. A revision is
+// greater than only the revisions named in above.
+type partialRevision struct {
+	name  string
+	above []string
+}
+
+func (r partialRevision) String() string     { return r.name }
+func (r partialRevision) ByteSortable() bool { return false }
+func (r partialRevision) Equal(rhs datastore.Revision) bool {
+	o, ok := rhs.(partialRevision)
+	return ok && o.name == r.name
+}
+
+func (r partialRevision) GreaterThan(rhs datastore.Revision) bool {
+	if rhs == datastore.NoRevision {
+		return true
+	}
+	o, ok := rhs.(partialRevision)
+	return ok && slices.Contains(r.above, o.name)
+}
+
+func (r partialRevision) LessThan(rhs datastore.Revision) bool {
+	o, ok := rhs.(partialRevision)
+	return ok && o.GreaterThan(r)
+}
+
+func TestAtLeastAsFreshHashlessTokenConcurrentWithObservedUsesHead(t *testing.T) {
+	opt := partialRevision{name: "opt"}
+	observed := partialRevision{name: "observed", above: []string{"opt"}}
+	token := partialRevision{name: "token", above: []string{"opt"}}
+	headRev := partialRevision{name: "head", above: []string{"opt", "observed", "token"}}
+
+	ds := &proxy_test.MockDatastore{}
+	ds.On("HeadRevision").Return(datastore.RevisionWithSchemaHash{Revision: observed, SchemaHash: "observedhash"}, nil).Once()
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: opt, SchemaHash: "testhash"}, nil).Once()
+	ds.On("RevisionFromString", token.String()).Return(token, nil).Once()
+	ds.On("HeadRevision").Return(datastore.RevisionWithSchemaHash{Revision: headRev, SchemaHash: "headhash"}, nil).Once()
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteNew))
+
+	_, _, err := dl.HeadRevision(t.Context())
+	require.NoError(t, err)
+
+	// The observed revision is concurrent with the token and may not include the token's write.
+	// The middleware must use head instead.
+	rev, hash := addAtLeastAsFresh(t, dl, zedtoken.MustNewFromRevisionForTesting(token, datalayer.NoSchemaHashInLegacyZedToken))
+	require.True(t, headRev.Equal(rev))
+	require.Equal(t, datalayer.SchemaHash("headhash"), hash)
 	ds.AssertExpectations(t)
 }
