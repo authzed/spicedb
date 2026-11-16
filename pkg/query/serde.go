@@ -83,6 +83,11 @@ func readHeader(r byteReader) (IteratorType, CanonicalKey, error) {
 
 // writeHeader emits [type][keyLen+key]. The type-specific body bytes are
 // written by the caller directly to w.
+//
+// Dispatch writes plans into bytes.Buffer, which supports WriteByte. Passing the
+// type byte by value avoids a temporary slice whose backing array can escape to
+// the heap through io.Writer.Write. Other writers retain the same wire encoding
+// through the fallback below.
 func writeHeader(w io.Writer, t IteratorType, key CanonicalKey) error {
 	if writer, ok := w.(io.ByteWriter); ok {
 		if err := writer.WriteByte(byte(t)); err != nil {
@@ -287,13 +292,11 @@ const maxSubCount = 1 << 20
 
 // ----- Flag-bitset helpers -----
 //
-// Each iterator body begins with a uvarint flags bitset. Only bits set imply
-// their corresponding field follows in the body. Empty strings, false bools,
-// nil pointers, and zero-length slices are signaled by their bit being clear
-// and emit nothing. New fields append at higher bit positions; old readers
-// observing a high bit they don't recognize will (combined with the body
-// length prefix at the header) simply read fewer bytes than the body contains
-// and the remainder is discarded.
+// Iterator bodies begin with a uvarint flags bitset. A bit can encode a boolean
+// directly or indicate an optional field that follows. Bit assignments are part
+// of the wire format. There is no body-length prefix, so readers cannot skip
+// unknown payload-bearing fields automatically; those changes need a compatible
+// decoding strategy or a new iterator type.
 
 func setFlag(flags *uint64, bit uint, on bool) {
 	if on {

@@ -261,10 +261,9 @@ func (u *UnionIterator) SubjectTypes() ([]ObjectType, error) {
 
 func (u *UnionIterator) Serialize(w io.Writer) error {
 	return SerializeWithHeader(w, UnionIteratorType, u.canonicalKey, func(buf io.Writer) error {
-		var flags uint64
-		setFlag(&flags, independentCheckBranchesFlag, u.independentCheckBranches)
+		flags := setOperationFlags{independentCheckBranches: u.independentCheckBranches}
 
-		if err := writeUvarint(buf, flags); err != nil {
+		if err := flags.write(buf); err != nil {
 			return err
 		}
 		return writeSubs(buf, u.subIts)
@@ -273,7 +272,7 @@ func (u *UnionIterator) Serialize(w io.Writer) error {
 
 func deserializeUnion(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
 	br := asByteReader(body)
-	flags, err := readUvarint(br)
+	flags, err := readSetOperationFlags(br)
 	if err != nil {
 		return nil, fmt.Errorf("union flags: %w", err)
 	}
@@ -285,7 +284,7 @@ func deserializeUnion(body io.Reader, key CanonicalKey, dctx *DeserializeContext
 	switch v := it.(type) {
 	case *UnionIterator:
 		v.canonicalKey = key
-		v.independentCheckBranches = hasFlag(flags, independentCheckBranchesFlag)
+		v.independentCheckBranches = flags.independentCheckBranches
 	case *FixedIterator:
 		v.canonicalKey = key
 	}

@@ -524,10 +524,9 @@ func (i *IntersectionIterator) SubjectTypes() ([]ObjectType, error) {
 
 func (i *IntersectionIterator) Serialize(w io.Writer) error {
 	return SerializeWithHeader(w, IntersectionIteratorType, i.canonicalKey, func(buf io.Writer) error {
-		var flags uint64
-		setFlag(&flags, independentCheckBranchesFlag, i.independentCheckBranches)
+		flags := setOperationFlags{independentCheckBranches: i.independentCheckBranches}
 
-		if err := writeUvarint(buf, flags); err != nil {
+		if err := flags.write(buf); err != nil {
 			return err
 		}
 		return writeSubs(buf, i.subIts)
@@ -536,7 +535,7 @@ func (i *IntersectionIterator) Serialize(w io.Writer) error {
 
 func deserializeIntersection(body io.Reader, key CanonicalKey, dctx *DeserializeContext) (Iterator, error) {
 	br := asByteReader(body)
-	flags, err := readUvarint(br)
+	flags, err := readSetOperationFlags(br)
 	if err != nil {
 		return nil, fmt.Errorf("intersection flags: %w", err)
 	}
@@ -548,7 +547,7 @@ func deserializeIntersection(body io.Reader, key CanonicalKey, dctx *Deserialize
 	switch v := it.(type) {
 	case *IntersectionIterator:
 		v.canonicalKey = key
-		v.independentCheckBranches = hasFlag(flags, independentCheckBranchesFlag)
+		v.independentCheckBranches = flags.independentCheckBranches
 	case *FixedIterator:
 		v.canonicalKey = key
 	}
