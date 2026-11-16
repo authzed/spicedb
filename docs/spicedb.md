@@ -596,6 +596,7 @@ spicedb serve [flags]
       --dispatch-cluster-cache-metrics                                                  enable metrics for the cache for dispatch calls this server receives from other servers (default true)
       --dispatch-cluster-enabled                                                        enable dispatch gRPC server
       --dispatch-cluster-max-conn-age duration                                          how long a connection serving dispatch should be able to live (default 30s)
+      --dispatch-cluster-max-conn-age-grace duration                                    how long a connection serving dispatch stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --dispatch-cluster-max-workers uint32                                             set the number of workers for this server (0 value means 1 worker per request)
       --dispatch-cluster-network string                                                 network type to serve dispatch ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --dispatch-cluster-tls-cert-path string                                           local path to the TLS certificate used to serve dispatch
@@ -631,6 +632,7 @@ spicedb serve [flags]
       --grpc-log-requests-enabled                                                       enable logging of API request payloads
       --grpc-log-responses-enabled                                                      enable logging of API response payloads
       --grpc-max-conn-age duration                                                      how long a connection serving gRPC should be able to live (default 30s)
+      --grpc-max-conn-age-grace duration                                                how long a connection serving gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --grpc-max-workers uint32                                                         set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                                             network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-preshared-key strings                                                      (required) preshared key(s) that must be provided by clients to authenticate requests
@@ -708,6 +710,7 @@ spicedb serve-testing [flags]
       --grpc-addr string                                         address to listen on to serve gRPC (default ":50051")
       --grpc-enabled                                             enable gRPC gRPC server (default true)
       --grpc-max-conn-age duration                               how long a connection serving gRPC should be able to live (default 30s)
+      --grpc-max-conn-age-grace duration                         how long a connection serving gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --grpc-max-workers uint32                                  set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                      network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-shutdown-grace-period duration                      time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit (default 5s)
@@ -729,6 +732,7 @@ spicedb serve-testing [flags]
       --readonly-grpc-addr string                                address to listen on to serve read-only gRPC (default ":50052")
       --readonly-grpc-enabled                                    enable read-only gRPC gRPC server (default true)
       --readonly-grpc-max-conn-age duration                      how long a connection serving read-only gRPC should be able to live (default 30s)
+      --readonly-grpc-max-conn-age-grace duration                how long a connection serving read-only gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --readonly-grpc-max-workers uint32                         set the number of workers for this server (0 value means 1 worker per request)
       --readonly-grpc-network string                             network type to serve read-only gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --readonly-grpc-tls-cert-path string                       local path to the TLS certificate used to serve read-only gRPC
