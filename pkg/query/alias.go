@@ -173,9 +173,10 @@ func (a *AliasIterator) maybePrependSelfEdge(resource Object, subSeq PathSeq, sh
 }
 
 func (a *AliasIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
-	// Named branches belong to one schema definition. Heterogeneous arrows
-	// can visit this branch with another type, which must not acquire its body
-	// results or its synthetic self-edge.
+	// For "relation parent: group | team" and "permission view = parent.all(access)",
+	// the shared right side contains both group#access and team#access branches.
+	// A team:x target must not enter the group branch: its body could read group:x,
+	// or its reflexive identity rule could synthesize a self-edge for the wrong type.
 	if a.definitionName != "" && resource.ObjectType != a.definitionName {
 		return nil, nil
 	}
