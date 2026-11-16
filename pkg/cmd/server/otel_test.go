@@ -4,12 +4,17 @@ package server
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -129,6 +134,63 @@ func TestInitOTelProvider_OtlpHttp_ValidEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, shutdown)
 	t.Cleanup(func() { _ = shutdown() })
+}
+
+// TestInitOTelProvider_SetsServiceName verifies that spans carry the configured
+// service name in the standard service.name resource attribute, which tracing
+// backends use to name the service, and that OTEL_SERVICE_NAME still takes
+// precedence over it.
+func TestInitOTelProvider_SetsServiceName(t *testing.T) {
+	tests := []struct {
+		name                string
+		envServiceName      string
+		expectedServiceName string
+	}{
+		{"service name from config", "", "spicedb-test"},
+		{"OTEL_SERVICE_NAME overrides config", "spicedb-from-env", "spicedb-from-env"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// OTEL_RESOURCE_ATTRIBUTES can also set service.name, so clear it.
+			t.Setenv("OTEL_SERVICE_NAME", tc.envServiceName)
+			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "")
+
+			// Accept every export, so that the export of the span at shutdown succeeds.
+			collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(collector.Close)
+
+			defaultProvider := otel.GetTracerProvider()
+			t.Cleanup(func() { otel.SetTracerProvider(defaultProvider) })
+
+			shutdown, err := InitOTelProvider(t.Context(), OTelConfig{
+				Provider:        "otlphttp",
+				Endpoint:        collector.Listener.Addr().String(),
+				ServiceName:     "spicedb-test",
+				TracePropagator: "w3c",
+				UsePlaintext:    true,
+				SampleRatio:     1,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, shutdown()) })
+
+			provider, ok := otel.GetTracerProvider().(*sdktrace.TracerProvider)
+			require.True(t, ok)
+			recorder := tracetest.NewSpanRecorder()
+			provider.RegisterSpanProcessor(recorder)
+
+			_, span := provider.Tracer("test").Start(t.Context(), "test")
+			span.End()
+
+			spans := recorder.Ended()
+			require.Len(t, spans, 1)
+			serviceName, ok := spans[0].Resource().Set().Value(semconv.ServiceNameKey)
+			require.True(t, ok, "resource has no %s attribute: %v", semconv.ServiceNameKey, spans[0].Resource())
+			require.Equal(t, tc.expectedServiceName, serviceName.AsString())
+		})
+	}
 }
 
 // TestShutdownOTelProvider_NilProvider_NoError verifies nil provider is safe.
