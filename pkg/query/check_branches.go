@@ -3,6 +3,10 @@ package query
 // NamedCheckBranch identifies an independent relation or permission branch.
 // A set of these branches can run concurrently without changing the ordering
 // between the direct and indirect forms inside each individual relation.
+// For "relation viewer: user | group#member", the direct form checks the user
+// tuple first. The indirect form finds related groups and checks membership;
+// an unconditional direct grant skips those extra reads. Separate permission
+// operands can still run concurrently without speculating on a relation's forms.
 type NamedCheckBranch interface {
 	// IsNamedCheckBranch reports whether the iterator preserves a named boundary.
 	IsNamedCheckBranch() bool
@@ -18,7 +22,3 @@ func namedBatchBranches(children []Iterator) bool {
 
 	return true
 }
-
-// Set iterator wire flags retain branch ownership across dispatch. Scheduler
-// limits remain receiver policy and are never serialized with this marker.
-const independentCheckBranchesFlag uint = 0
