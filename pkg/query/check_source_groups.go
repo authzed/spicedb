@@ -270,8 +270,13 @@ func checkSourceGroups(ctx *Context, union *UnionIterator, batch checkBatch) ([]
 	}
 
 	// Retain conditional direct paths while OR-ing each pending target's grouped
-	// result. A concrete grant elsewhere in an exhaustive batch remains intact.
+	// result. A missing grouped result leaves the direct path unchanged. A concrete
+	// grant elsewhere in an exhaustive batch remains intact.
 	for i, original := range pending {
+		if results[i] == nil {
+			continue
+		}
+
 		paths[original], err = paths[original].MergeOr(results[i])
 		if err != nil {
 			return nil, true, err

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
+	"github.com/authzed/spicedb/pkg/genutil/execscope"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -80,7 +81,7 @@ definition document {
 			require.NoError(rt, err)
 			it, err := outline.Compile()
 			require.NoError(rt, err)
-			_, err = Walk(it, func(node Iterator) (Iterator, error) {
+			it, err = Walk(it, func(node Iterator) (Iterator, error) {
 				if union, ok := node.(*UnionIterator); ok {
 					union.checkConcurrency = 3
 				}
@@ -149,6 +150,7 @@ definition document {
  permission view = viewer
 }`, []tuple.Relationship{
 		tuple.MustParse("document:partial#viewer@user:u[enabled]"),
+		tuple.MustParse("document:direct-only#viewer@user:u[enabled]"),
 		tuple.MustParse("document:partial#viewer@group:g#member"),
 		tuple.MustParse("document:grant#viewer@user:u[enabled]"),
 		tuple.MustParse("document:grant#viewer@team:t#member"),
@@ -158,7 +160,7 @@ definition document {
 	require.NoError(t, err)
 	it, err := outline.Compile()
 	require.NoError(t, err)
-	_, err = Walk(it, func(node Iterator) (Iterator, error) {
+	it, err = Walk(it, func(node Iterator) (Iterator, error) {
 		if union, ok := node.(*UnionIterator); ok {
 			union.checkConcurrency = 3
 		}
@@ -166,23 +168,81 @@ definition document {
 		return node, nil
 	})
 	require.NoError(t, err)
-	ctx := NewLocalContext(t.Context(), WithRevisionedReader(
-		reader.RevisionedReader,
-	), WithBatchedArrows(
-		true,
-	), WithCheckConcurrency(
-		3,
-	), WithCheckExecution(CheckExecutionOptions{
-		BatchChecks: true, StrictSubjectMatching: true, BroadSingleUsersetReads: true,
-	}))
-	paths, err := ctx.CheckManyResources(
-		it,
-		[]Object{NewObject("document", "partial"), NewObject("document", "grant")},
-		NewObject("user", "u").WithEllipses(),
-	)
-	require.NoError(t, err)
-	require.NotNil(t, paths[0])
-	require.NotNil(t, paths[0].Caveat, "an unresolved direct caveat remains conditional after indirect denial")
-	require.NotNil(t, paths[1])
-	require.Nil(t, paths[1].Caveat, "an indirect concrete grant supersedes conditional direct membership")
+	for _, tc := range []struct {
+		resourceID  string
+		granted     bool
+		conditional bool
+	}{
+		{resourceID: "partial", granted: true, conditional: true},
+		{resourceID: "direct-only", granted: true, conditional: true},
+		{resourceID: "grant", granted: true},
+		{resourceID: "denied"},
+	} {
+		t.Run(tc.resourceID, func(t *testing.T) {
+			for _, mode := range []string{"scalar", "resources", "subjects"} {
+				t.Run(mode, func(t *testing.T) {
+					scope := execscope.New()
+					ctx := NewLocalContext(scope.Context(t.Context()),
+						WithRevisionedReader(reader.RevisionedReader),
+						WithBatchedArrows(true),
+						WithCheckConcurrency(3),
+						WithCheckExecution(CheckExecutionOptions{
+							BatchChecks:             true,
+							StrictSubjectMatching:   true,
+							BroadSingleUsersetReads: true,
+						}),
+					)
+					resource := NewObject("document", tc.resourceID)
+					subject := NewObject("user", "u").WithEllipses()
+					var paths []*Path
+
+					// Keep duplicate slots and unrelated outcomes in each batch: a granted
+					// resource or denied subject must not change this target's result.
+					switch mode {
+					case "scalar":
+						path, err := ctx.Check(it, resource, subject)
+						require.NoError(t, err)
+						paths = []*Path{path}
+					case "resources":
+						grant := NewObject("document", "grant")
+						actual, err := ctx.CheckManyResources(it, []Object{resource, grant, resource}, subject)
+						require.NoError(t, err)
+						require.Len(t, actual, 3)
+						require.NotNil(t, actual[1])
+						require.Nil(t, actual[1].Caveat)
+						paths = []*Path{actual[0], actual[2]}
+					case "subjects":
+						missing := NewObject("user", "missing").WithEllipses()
+						actual, err := ctx.CheckManySubjects(it, resource, []ObjectAndRelation{subject, missing, subject})
+						require.NoError(t, err)
+						require.Len(t, actual, 3)
+						require.Nil(t, actual[1])
+						paths = []*Path{actual[0], actual[2]}
+					}
+
+					scope.Wait()
+
+					// A lost Walk result would keep the union's limit at zero and
+					// skip grouped execution, making these assertions miss the bug.
+					require.EqualValues(t, 3, scope.Statistics().MaxEffectiveWidth)
+
+					for _, path := range paths {
+						if !tc.granted {
+							require.Nil(t, path)
+							continue
+						}
+
+						require.NotNil(t, path)
+
+						if tc.conditional {
+							require.NotNil(t, path.Caveat, "indirect denial must retain conditional direct membership")
+							require.Equal(t, "enabled", path.Caveat.GetCaveat().GetCaveatName())
+						} else {
+							require.Nil(t, path.Caveat, "an indirect grant must supersede conditional direct membership")
+						}
+					}
+				})
+			}
+		})
+	}
 }
