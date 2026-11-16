@@ -14,8 +14,14 @@ import (
 
 // hedgedStrategy starts the secondaries immediately and delays the primary by an adaptive
 // amount: the configured quantile of the secondaries' first-result latency, capped at a
-// maximum delay. Any secondary error releases the primary early. This is the default strategy,
-// used when a dispatch expression returns a plain list.
+// maximum delay. This is the default strategy, used when a dispatch expression returns a plain
+// list.
+//
+// The first secondary to fail releases the primary early, even while other secondaries are
+// still running. Hedging optimizes for latency: a failure suggests the secondaries may not
+// answer quickly, and waiting out the delay could then only add to the request's latency.
+// prefer_secondary, which optimizes for primary offload, instead waits for every secondary to
+// fail.
 //
 // In CEL: hedged(['secondary']) or hedged(['secondary'], duration('5ms')).
 type hedgedStrategy struct {
@@ -147,7 +153,10 @@ func (s *primarySleeper) sleep(parentCtx context.Context) {
 	}
 }
 
-// These helpers keep logging and metrics out of sleep's frame, per the stack rule above
+// These helpers are //go:noinline on purpose. sleep runs on a participant goroutine, which
+// starts with a small stack. Inlined, their zerolog and Prometheus calls would enlarge sleep's
+// frame so that, on every hedged dispatch, the stack would outgrow its initial size and have to
+// be copied: part of a 20% regression of BenchmarkSecondaryDispatching. See the stack rule above
 // traceDispatcher in race.go.
 
 //go:noinline

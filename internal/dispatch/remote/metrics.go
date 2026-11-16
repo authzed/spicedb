@@ -11,6 +11,11 @@ import (
 // check BenchmarkSecondaryDispatching, at a fixed -benchtime, when changing them.
 //
 // The one exception is dispatchCounter, whose handler_name label is the secondary's name.
+//
+// Label cardinality is bounded and independent of request contents: rpc is one of the request
+// kinds in supportsSecondaries, strategy one of the registered strategy names or cursor_locked,
+// reason one of two fixed values, and handler_name one of the configured secondary names or
+// $primary.
 
 var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",

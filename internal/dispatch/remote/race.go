@@ -387,10 +387,13 @@ func (rr *raceRun[R]) runParticipant(i int, p participant) error {
 }
 
 // Stack rule: participant goroutines start with a small stack, and one that outgrows it is
-// copied on every dispatch. So keep zerolog chains, WithLabelValues calls and other deep calls
-// out of runParticipant's frame: make them through these out-of-line helpers, or from
-// runAndReport. Check BenchmarkSecondaryDispatching, at a fixed -benchtime, before changing
-// this; the same rule applies to primarySleeper.
+// copied, on every dispatch. Inlined into runParticipant, each zerolog chain or variadic
+// WithLabelValues call reserves its own temporaries in runParticipant's frame, and its deep call
+// chain then runs on top of that frame; together they made the stack grow on every Check with
+// secondaries (about a 20% regression of BenchmarkSecondaryDispatching, found by profiling).
+// So keep such calls out of runParticipant's frame: make them through these //go:noinline
+// helpers, or from runAndReport. Check BenchmarkSecondaryDispatching, at a fixed -benchtime,
+// before changing this; the same rule applies to primarySleeper.
 
 //go:noinline
 func traceDispatcher(ctx context.Context, dispatcher string, msg string) {

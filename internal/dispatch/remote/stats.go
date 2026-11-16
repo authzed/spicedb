@@ -142,6 +142,13 @@ func (dal *digestAndLock) addResultTime(ctx context.Context, duration time.Durat
 	}
 }
 
+// The ErrorInfo reasons with which a secondary reports, in a FailedPrecondition error, a resource
+// or subject relation it does not support.
+const (
+	unsupportedResourceRelationReason = "UNSUPPORTED_RESOURCE_RELATION"
+	unsupportedSubjectRelationReason  = "UNSUPPORTED_SUBJECT_RELATION"
+)
+
 // supportedResourceSubjectTracker is a struct that tracks the resources and subjects that are
 // unsupported by the secondary dispatcher(s). If a resource or subject is unsupported, the primary
 // dispatcher will not wait for the secondary dispatchers to return results, as it is extremely
@@ -203,7 +210,7 @@ func (srst *supportedResourceSubjectTracker) updateForError(err error) {
 		}
 
 		// If the error is an unsupported resource or subject, add it to the tracker.
-		if errDetail.Reason == "UNSUPPORTED_RESOURCE_RELATION" {
+		if errDetail.Reason == unsupportedResourceRelationReason {
 			definitionName := errDetail.Metadata["definition_name"]
 			relationName := errDetail.Metadata["relation_name"]
 			rr := tuple.RR(definitionName, relationName)
@@ -213,7 +220,7 @@ func (srst *supportedResourceSubjectTracker) updateForError(err error) {
 			}
 		}
 
-		if errDetail.Reason == "UNSUPPORTED_SUBJECT_RELATION" {
+		if errDetail.Reason == unsupportedSubjectRelationReason {
 			definitionName := errDetail.Metadata["definition_name"]
 			relationName := errDetail.Metadata["relation_name"]
 			rr := tuple.RR(definitionName, relationName)

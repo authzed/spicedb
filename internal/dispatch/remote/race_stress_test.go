@@ -4,20 +4,20 @@ import (
 	"context"
 	"errors"
 	"io"
-	"math/rand/v2"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"pgregory.net/rapid"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// The stress tests race a primary and two secondaries with random delays and failures under
+// The stress tests race a primary and two secondaries with generated delays and failures under
 // the real strategies, and check the engine's invariants whatever the interleaving: done is
 // called exactly once per participant, results all come from a single participant, and an
 // error is returned only when every participant failed.
@@ -103,6 +103,34 @@ func stressParticipants() []participant {
 	return participants
 }
 
+// streamingBehavior is how one participant behaves in a streaming stress race.
+type streamingBehavior struct {
+	results int
+	delays  []time.Duration // before each Recv
+	end     error           // after the results; io.EOF if nil
+	openErr error
+}
+
+func drawStreamingBehavior(t *rapid.T, name string) streamingBehavior {
+	results := rapid.IntRange(0, 3).Draw(t, name+" results")
+	delays := rapid.SliceOfN(rapid.IntRange(0, 500), results+1, results+1).Draw(t, name+" delays (µs)")
+	b := streamingBehavior{results: results, delays: make([]time.Duration, 0, len(delays))}
+	for _, d := range delays {
+		b.delays = append(b.delays, time.Duration(d)*time.Microsecond)
+	}
+	switch rapid.SampledFrom([]string{"succeeds", "fails while streaming", "fails to open"}).Draw(t, name+" outcome") {
+	case "fails while streaming":
+		b.end = errors.New(name + " failed")
+	case "fails to open":
+		b.openErr = errors.New(name + " failed to open")
+	}
+	return b
+}
+
+// The stress tests run under real time: they check invariants under real interleavings of
+// the participants' goroutines, which a synctest bubble's fake clock would narrow down.
+// rapid generates the races and shrinks a failing one to a minimal case.
+
 func TestRaceStressStreaming(t *testing.T) {
 	strategies := []secondaryStrategy{
 		hedgedStrategy{},
@@ -110,40 +138,23 @@ func TestRaceStressStreaming(t *testing.T) {
 		preferSecondaryStrategy{deadline: time.Millisecond},
 	}
 
-	type behavior struct {
-		results int
-		delays  []time.Duration
-		end     error
-		openErr error
-	}
-
-	for iter := range 300 {
-		rng := rand.New(rand.NewPCG(uint64(iter), 1)) //nolint:gosec // test randomness
-
-		behaviors := make(map[string]behavior, len(stressParticipantNames))
+	rapid.Check(t, func(t *rapid.T) {
+		behaviors := make(map[string]streamingBehavior, len(stressParticipantNames))
 		for _, name := range stressParticipantNames {
-			results := rng.IntN(4)
-			delays := make([]time.Duration, results+1)
-			for i := range delays {
-				delays[i] = time.Duration(rng.IntN(500)) * time.Microsecond
-			}
-			b := behavior{results: results, delays: delays}
-			switch rng.IntN(5) {
-			case 0:
-				b.end = errors.New(name + " failed")
-			case 1:
-				b.openErr = errors.New(name + " failed to open")
-			}
-			behaviors[name] = b
+			behaviors[name] = drawStreamingBehavior(t, name)
 		}
 
 		stats, err := newRaceStats(time.Millisecond)
 		require.NoError(t, err)
 
 		var policy *doneCountingPolicy
-		strategy := doneCountingStrategy{secondaryStrategy: strategies[iter%len(strategies)], policy: &policy}
+		strategy := doneCountingStrategy{
+			secondaryStrategy: rapid.SampledFrom(strategies).Draw(t, "strategy"),
+			policy:            &policy,
+		}
 
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		stream := dispatch.NewCollectingDispatchStream[lsResponse](ctx)
 		err = runRace(ctx, raceRequest{
 			reqKey:       "lookupsubjects",
@@ -159,15 +170,14 @@ func TestRaceStressStreaming(t *testing.T) {
 			}
 			return &delayedReceiver{ctx: ctx, results: lsResults(name, b.results), delays: append([]time.Duration(nil), b.delays...), end: b.end}, nil
 		}, stream)
-		cancel()
 
 		// A streaming race returns once every participant has exited.
 		for _, name := range stressParticipantNames {
-			require.Equal(t, 1, policy.doneCounts()[name], "iteration %d: done calls for %s", iter, name)
+			require.Equal(t, 1, policy.doneCounts()[name], "done calls for %s", name)
 		}
 
 		if err != nil {
-			continue
+			return
 		}
 
 		// Without an error, the results are all of a single participant's results, in order.
@@ -179,8 +189,8 @@ func TestRaceStressStreaming(t *testing.T) {
 				matched = true
 			}
 		}
-		require.True(t, matched, "iteration %d: results %v come from no single participant", iter, got)
-	}
+		require.True(t, matched, "results %v come from no single participant", got)
+	})
 }
 
 func TestRaceStressUnary(t *testing.T) {
@@ -189,15 +199,13 @@ func TestRaceStressUnary(t *testing.T) {
 		preferSecondaryStrategy{deadline: time.Millisecond},
 	}
 
-	for iter := range 500 {
-		rng := rand.New(rand.NewPCG(uint64(iter), 2)) //nolint:gosec // test randomness
-
+	rapid.Check(t, func(t *rapid.T) {
 		delays := make(map[string]time.Duration, len(stressParticipantNames))
 		fails := make(map[string]bool, len(stressParticipantNames))
 		allFail := true
 		for _, name := range stressParticipantNames {
-			delays[name] = time.Duration(rng.IntN(300)) * time.Microsecond
-			fails[name] = rng.IntN(3) == 0
+			delays[name] = time.Duration(rapid.IntRange(0, 300).Draw(t, name+" delay (µs)")) * time.Microsecond
+			fails[name] = rapid.Bool().Draw(t, name+" fails")
 			allFail = allFail && fails[name]
 		}
 
@@ -205,9 +213,13 @@ func TestRaceStressUnary(t *testing.T) {
 		require.NoError(t, err)
 
 		var policy *doneCountingPolicy
-		strategy := doneCountingStrategy{secondaryStrategy: strategies[iter%len(strategies)], policy: &policy}
+		strategy := doneCountingStrategy{
+			secondaryStrategy: rapid.SampledFrom(strategies).Draw(t, "strategy"),
+			policy:            &policy,
+		}
 
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		resp, err := runUnaryRace(ctx, raceRequest{
 			reqKey:       "check",
 			participants: stressParticipants(),
@@ -226,9 +238,9 @@ func TestRaceStressUnary(t *testing.T) {
 		})
 
 		if allFail {
-			require.Error(t, err, "iteration %d", iter)
+			require.Error(t, err)
 		} else {
-			require.NoError(t, err, "iteration %d", iter)
+			require.NoError(t, err)
 			require.Equal(t, uint32(1), resp.Metadata.DispatchCount)
 		}
 
@@ -237,8 +249,8 @@ func TestRaceStressUnary(t *testing.T) {
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			counts := policy.doneCounts()
 			for _, name := range stressParticipantNames {
-				assert.Equal(c, 1, counts[name], "iteration %d: done calls for %s", iter, name)
+				assert.Equal(c, 1, counts[name], "done calls for %s", name)
 			}
 		}, 5*time.Second, time.Millisecond)
-	}
+	})
 }
