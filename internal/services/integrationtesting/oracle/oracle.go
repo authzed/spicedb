@@ -221,7 +221,13 @@ func BuildProgram(populated *validationfile.PopulatedValidationFile, now time.Ti
 	var program strings.Builder
 	program.WriteString("%%% Rules: generic rules, then one set per relation and permission of the schema.\n")
 	program.WriteString(schemaRules)
-	program.WriteString("\n%%% Facts: the objects answers cover, and the concrete objects wildcards expand to.\n")
+	program.WriteString("\n%%% Facts.\n" +
+		"% concrete/1: the objects written in relationships, with their real types. Wildcards\n" +
+		"%   expand to these.\n" +
+		"% queried/1: every definition paired with every object ID, whether or not that object\n" +
+		"%   appears in any relationship. These are the resources the oracle answers for, as the\n" +
+		"%   accessibility set covers them; e.g. queried(object(\"document\",\"fred\")) asks about a\n" +
+		"%   document named after a user, which should only contain its own usersets.\n")
 	program.WriteString(translateFacts(objects, concrete.AsSlice()))
 	for index, world := range env.worlds {
 		var live []tuple.Relationship
@@ -315,7 +321,7 @@ func (c Clingo) solve(ctx context.Context, program string) ([]membership, []byte
 	return model, stdout.Bytes(), nil
 }
 
-// parseArgs parses the string arguments of an atom such as out("0","a","b").
+// parseArgs parses the string arguments of an atom such as answer("0","a","b").
 func parseArgs(atom string) ([]string, error) {
 	start := strings.IndexByte(atom, '(')
 	if start < 0 || !strings.HasSuffix(atom, ")") {
