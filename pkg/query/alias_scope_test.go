@@ -7,9 +7,19 @@ import (
 )
 
 func TestNamedAliasScopesItsDefinition(t *testing.T) {
-	// The right side of a heterogeneous arrow contains named branches for each
-	// possible intermediate type. A branch must reject another type even when
-	// its body or reflexive identity would otherwise grant that object.
+	// Example schema:
+	//   definition user {}
+	//   definition group { relation access: user }
+	//   definition team { relation access: user }
+	//   definition document {
+	//     relation parent: group | team
+	//     permission view = parent.all(access)
+	//   }
+	//
+	// The arrow's shared right side contains group#access and team#access branches.
+	// Here we isolate group#access with an empty body. It must reject team:shared,
+	// even when team:shared#access would otherwise trigger its reflexive identity
+	// rule. Its own group:shared#access identity must still grant.
 	alias := NewAliasIterator("group", "access", NewEmptyFixedIterator())
 	ctx := NewTestContext(t)
 	foreign := NewObject("team", "shared")

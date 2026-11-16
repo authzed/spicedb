@@ -20,8 +20,11 @@ type setCheckResult struct {
 
 // checkSetParallel limits workers within this reducer. Nested reducers own
 // independent runners, so a parent waiting for children cannot exhaust their
-// capacity. The foreground returns on a decision; the request scope tracks
-// cancellation cleanup separately from permission-check latency.
+// capacity. This is a per-reducer limit: nesting can create more goroutines
+// overall, just as in native Check. A shared request-wide limit would also need
+// to let children make progress while their parents wait.
+// The foreground returns on a decision; the request scope tracks cancellation
+// cleanup separately from permission-check latency.
 func checkSetParallel(
 	ctx *Context,
 	children []Iterator,

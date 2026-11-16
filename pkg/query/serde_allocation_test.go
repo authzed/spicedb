@@ -13,6 +13,9 @@ import (
 
 func TestVarintBufferWritingAvoidsScratchAllocations(t *testing.T) {
 	var output bytes.Buffer
+
+	// Reserve output storage before measuring, then reuse it with Reset between
+	// runs. This isolates writeUvarint's scratch allocations from buffer growth.
 	output.Grow(binary.MaxVarintLen64)
 	var lastError error
 	allocations := testing.AllocsPerRun(1000, func() {

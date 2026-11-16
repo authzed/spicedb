@@ -13,6 +13,15 @@ has its own worker limit, so nested sets cannot deadlock waiting for slots held
 by their parents. Child tasks are admitted in schema order; completion order
 and the decisive winner may vary.
 
+The limit applies to each reducer, so nesting can create more goroutines overall.
+Native Check uses the same per-reducer runner model. A shared request-wide limit
+is follow-up work and must avoid deadlocks between waiting parents and children.
+
+This aligns Check reducers with native's parallel execution. A QP Check can still
+enumerate subjects or resources while traversing an arrow; this pass adds no
+parallelism to those enumerations. Parallelizing lookups is a separate future
+optimization.
+
 ## Expensive union
 
 Summarized schema:

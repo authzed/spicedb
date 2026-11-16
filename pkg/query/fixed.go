@@ -119,6 +119,8 @@ func (f *FixedIterator) CheckImpl(ctx *Context, resource Object, subject ObjectA
 				ctx.TraceStep(f, "found matching path")
 			}
 
+			// The range variable is only a shallow copy: reducers can still mutate
+			// shared metadata and other nested values. Give this execution owned state.
 			return ownedPath(&path), nil
 		}
 	}
