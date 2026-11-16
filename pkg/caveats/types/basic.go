@@ -246,11 +246,11 @@ func convertNumericType[T int64 | uint64 | float64](value any) (any, error) {
 			return nil, fmt.Errorf("a uint value is required, but found numeric value `%s`", bigFloat.String())
 		}
 
-		numericValue, _ := bigFloat.Int64()
-		if numericValue < 0 {
+		if bigFloat.Sign() < 0 {
 			return nil, fmt.Errorf("a uint value is required, but found int64 value `%s`", bigFloat.String())
 		}
-		return uint64(numericValue), nil
+		numericValue, _ := bigFloat.Uint64()
+		return numericValue, nil
 
 	case float64:
 		numericValue, _ := bigFloat.Float64()
