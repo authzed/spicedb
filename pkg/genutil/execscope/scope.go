@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
+
+	"github.com/authzed/ctxkey"
 )
 
-type contextKey struct{}
+var scopeKey = ctxkey.New[*Scope]()
 
 // Scope tracks workers registered before launch, including nested workers.
 // A caller must retain a root registration until it has finished launching work.
@@ -61,7 +63,7 @@ func (s *Scope) ResetStatistics() {
 
 // RecordConcurrency records a set policy only when measurement tracking is enabled.
 func RecordConcurrency(ctx context.Context, requested, effective uint16, fallback bool) {
-	scope, _ := ctx.Value(contextKey{}).(*Scope)
+	scope, _ := scopeKey.Value(ctx)
 	if scope == nil || requested == 0 {
 		return
 	}
@@ -83,7 +85,7 @@ func New() *Scope { return &Scope{} }
 
 // Context attaches the scope without changing cancellation or scheduling policy.
 func (s *Scope) Context(ctx context.Context) context.Context {
-	return context.WithValue(ctx, contextKey{}, s)
+	return scopeKey.Set(ctx, s)
 }
 
 // Wait waits for registered work to finish outside the request latency boundary.
@@ -99,7 +101,7 @@ func untracked() {}
 // Begin registers work before launch and returns its completion function.
 // Contexts without a scope incur no synchronization or scheduling change.
 func Begin(ctx context.Context) func() {
-	scope, _ := ctx.Value(contextKey{}).(*Scope)
+	scope, _ := scopeKey.Value(ctx)
 	if scope == nil {
 		return untracked
 	}
