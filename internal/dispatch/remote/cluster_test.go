@@ -48,7 +48,13 @@ type fakeDispatchSvc struct {
 
 func (fds *fakeDispatchSvc) DispatchCheck(ctx context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	fds.calls.Add(1)
-	time.Sleep(fds.sleepTime)
+
+	// Stop sleeping once the caller cancels, so a dispatcher that lost a race does not keep
+	// running in the background.
+	select {
+	case <-time.After(fds.sleepTime):
+	case <-ctx.Done():
+	}
 
 	select {
 	case <-ctx.Done():
@@ -1008,7 +1014,10 @@ func TestGetPrimaryWaitTime(t *testing.T) {
 
 func TestCheckUsesMaximumDelayByDefaultForPrimary(t *testing.T) {
 	conn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 1, sleepTime: 0 * time.Millisecond})
-	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 20 * time.Millisecond})
+	// The primary starts immediately, so only the secondary's sleep keeps it from winning. Make
+	// it long enough that a slow primary on a loaded CI runner still wins; the secondary stops
+	// sleeping as soon as the race is over.
+	secondaryConn := connectionForDispatching(t, &fakeDispatchSvc{dispatchCount: 2, sleepTime: 5 * time.Second})
 
 	parsed, err := ParseDispatchExpression("check", "['secondary']")
 	require.NoError(t, err)
