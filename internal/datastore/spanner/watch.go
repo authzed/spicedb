@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -175,27 +176,25 @@ func (sd *spannerDatastore) watch(
 		return tracked.AddRevisionMetadata(ctx, revision, transactionMetadata)
 	}
 
-	// This is a concurrent-safe map for incomplete transactions (transactions where IsLastRecordInTransactionInPartition=false).
-	// For example if you send a write with both DELETEs and TOUCHEs, we get *two* separate DataChangeRecords for them,
-	// but we only want to send them as *one* group.
-	txnBuffer := xsync.NewMap[string, *common.Changes[revisions.TimestampRevision, int64]]()
-
 	watchBufferSize := opts.MaximumBufferedChangesByteSize
 	if watchBufferSize == 0 {
 		watchBufferSize = sd.watchChangeBufferMaximumSize
 	}
 
+	tracked := common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, watchBufferSize)
+	partitions := watchPartitions{start: afterRevision.Time(), timestamps: map[string]time.Time{"": afterRevision.Time()}}
+	var flushMu sync.Mutex
+	var flushErr error
+	flushedBefore := afterRevision.Time()
+
 	// NOTE: the callback below might be called concurrently across partitions.
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
+		var err error
 		// See: https://cloud.google.com/spanner/docs/change-streams/details
 		for _, record := range result.ChangeRecords {
 			for _, dcr := range record.DataChangeRecords {
-				txnID := dcr.ServerTransactionID
 				changeRevision := revisions.NewForTime(dcr.CommitTimestamp)
 				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
-
-				// Get or create tracked changes for this transaction.
-				tracked, _ := txnBuffer.LoadOrStore(txnID, common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, watchBufferSize))
 
 				// See: https://cloud.google.com/spanner/docs/ttl
 				// > TTL supports auditing its deletions through change streams. Change
@@ -363,39 +362,38 @@ func (sd *spannerDatastore) watch(
 						return spiceerrors.MustBugf("unknown modtype in spanner change stream record")
 					}
 				}
-
-				// Only send changes when we've received the last record for this transaction in this partition.
-				if dcr.IsLastRecordInTransactionInPartition {
-					// Remove from buffer since we have all the records for this transaction.
-					txnBuffer.Delete(txnID)
-
-					if !tracked.IsEmpty() {
-						changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
-						for revChange, err := range changes {
-							if err != nil {
-								return err
-							}
-
-							if !sendChange(revChange) {
-								return datastore.NewWatchDisconnectedErr()
-							}
-						}
-					}
-				}
-
-				// When there are data changes written to the partition,
-				// data_change_record.commit_timestamp can be used instead of heartbeat_record.timestamp to tell
-				// that the reader is making forward progress in reading the partition.
-				if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
-					if !sendChange(datastore.RevisionChanges{
-						Revision:     revisions.NewForTime(dcr.CommitTimestamp),
-						IsCheckpoint: true,
-					}) {
-						return datastore.NewWatchDisconnectedErr()
-					}
-				}
 			}
 		}
+
+		// A partition-local last-record flag cannot establish a global checkpoint.
+		flushMu.Lock()
+		defer flushMu.Unlock()
+		if flushErr != nil {
+			return flushErr
+		}
+		bound := partitions.advance(result)
+		if bound.IsZero() || !bound.After(flushedBefore) {
+			return nil
+		}
+		for change, err := range tracked.FilterAndRemoveRevisionChanges(revisions.TimestampIDKeyLessThanFunc, revisions.NewForTime(bound)) {
+			if err != nil {
+				flushErr = err
+				return err
+			}
+			if !sendChange(change) {
+				flushErr = datastore.NewWatchDisconnectedErr()
+				return flushErr
+			}
+		}
+		flushedBefore = bound
+		checkpoint := bound.Add(-time.Nanosecond)
+		if opts.Content&datastore.WatchCheckpoints != 0 && checkpoint.After(afterRevision.Time()) && !sendChange(datastore.RevisionChanges{
+			Revision: revisions.NewForTime(checkpoint), IsCheckpoint: true,
+		}) {
+			flushErr = datastore.NewWatchDisconnectedErr()
+			return flushErr
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -459,4 +457,77 @@ func contextualizedCaveatFromValues(values map[string]any) (*core.Contextualized
 		return common.ContextualizedCaveatFrom(name, context)
 	}
 	return nil, nil
+}
+
+// watchPartitions tracks the earliest timestamp that every active partition has reached.
+// Callers serialize advance and emission; record ingestion may run concurrently.
+type watchPartitions struct {
+	start      time.Time
+	timestamps map[string]time.Time
+	retired    map[string]struct{}
+}
+
+func (p *watchPartitions) advance(result *changestreams.ReadResult) time.Time {
+	start := func(token string, timestamp time.Time) {
+		if _, retired := p.retired[token]; retired {
+			return
+		}
+		if _, exists := p.timestamps[token]; !exists {
+			if timestamp.IsZero() {
+				timestamp = p.start
+			}
+			p.timestamps[token] = timestamp
+		}
+	}
+	advance := func(timestamp time.Time) {
+		if previous, active := p.timestamps[result.PartitionToken]; active && timestamp.After(previous) {
+			p.timestamps[result.PartitionToken] = timestamp
+		}
+	}
+	retire := func(token string) {
+		delete(p.timestamps, token)
+		if p.retired == nil {
+			p.retired = make(map[string]struct{})
+		}
+		p.retired[token] = struct{}{}
+	}
+	start(result.PartitionToken, p.start)
+	for _, record := range result.ChangeRecords {
+		for _, data := range record.DataChangeRecords {
+			advance(data.CommitTimestamp)
+		}
+		for _, heartbeat := range record.HeartbeatRecords {
+			advance(heartbeat.Timestamp)
+		}
+		for _, children := range record.ChildPartitionsRecords {
+			for _, child := range children.ChildPartitions {
+				start(child.Token, children.StartTimestamp)
+			}
+			retire(result.PartitionToken)
+		}
+		for _, partitions := range record.PartitionStartRecords {
+			for _, token := range partitions.PartitionTokens {
+				start(token, partitions.StartTimestamp)
+			}
+			if result.PartitionToken == "" {
+				retire("")
+			}
+		}
+		for _, event := range record.PartitionEventRecords {
+			advance(event.CommitTimestamp)
+			for _, move := range event.MoveOutEvents {
+				start(move.DestinationPartitionToken, event.CommitTimestamp)
+			}
+		}
+		for _, end := range record.PartitionEndRecords {
+			retire(end.PartitionToken)
+		}
+	}
+	var bound time.Time
+	for _, timestamp := range p.timestamps {
+		if bound.IsZero() || timestamp.Before(bound) {
+			bound = timestamp
+		}
+	}
+	return bound
 }
