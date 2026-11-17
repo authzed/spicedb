@@ -107,6 +107,13 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 	case tuple.UpdateOperationDelete:
 		_, alreadyTouched := record.relTouches[key]
 		if !alreadyTouched {
+			// If the same tuple was already deleted at this revision, the new delete replaces it.
+			if existing, ok := record.relDeletes[key]; ok {
+				if err := ch.adjustByteSize(existing, -1); err != nil {
+					return err
+				}
+			}
+
 			record.relDeletes[key] = rel
 			if err := ch.adjustByteSize(rel, 1); err != nil {
 				return err

@@ -926,6 +926,20 @@ func TestMaximumSizeTouchReplacement(t *testing.T) {
 	require.Equal(t, bufferedByteSize(ch), ch.currentByteSize)
 }
 
+func TestMaximumSizeDeleteReplacement(t *testing.T) {
+	ctx := t.Context()
+	rel := tuple.MustParse("document:foo#viewer@user:tom")
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships, 1<<20)
+
+	rev, err := revisions.HLCRevisionFromString("1")
+	require.NoError(t, err)
+
+	require.NoError(t, ch.AddRelationshipChange(ctx, rev, rel, tuple.UpdateOperationDelete))
+	require.NoError(t, ch.AddRelationshipChange(ctx, rev, rel, tuple.UpdateOperationDelete))
+	require.Equal(t, int64(rel.SizeVT()), ch.currentByteSize)
+	require.Equal(t, bufferedByteSize(ch), ch.currentByteSize)
+}
+
 func TestMaximumSizeCaveatReplacement(t *testing.T) {
 	ctx := t.Context()
 
