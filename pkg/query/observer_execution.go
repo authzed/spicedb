@@ -48,23 +48,29 @@ type ExecutionObserver interface {
 
 // WithExecutionObserver adds a receiver for terminal invocation observations.
 func WithExecutionObserver(o ExecutionObserver) ContextOption {
-	return func(ctx *Context) { ctx.executionObservers = append(ctx.executionObservers, o) }
+	return func(ctx *Context) {
+		if ctx.executionState == nil {
+			ctx.executionState = &executionObservationState{}
+		}
+
+		ctx.executionState.observers = append(ctx.executionState.observers, o)
+	}
 }
 
 func (ctx *Context) executionStart(it Iterator, op Operation, filter, mode string) *ExecutionObservation {
-	if len(ctx.executionObservers) == 0 {
+	if ctx.executionState == nil || len(ctx.executionState.observers) == 0 {
 		return nil
 	}
 
-	ctx.executionInit.Do(func() {
+	ctx.executionState.initialize.Do(func() {
 		descriptors, err := ExecutionDescriptors(it)
 		if err == nil {
 			for node, d := range descriptors {
-				ctx.executionDescriptors.Store(node, d)
+				ctx.executionState.descriptors.Store(node, d)
 			}
 		}
 	})
-	d, _ := ctx.executionDescriptors.Load(it)
+	d, _ := ctx.executionState.descriptors.Load(it)
 	facts, _ := d.(ExecutionDescriptor)
 	strategy := facts.Strategy
 	if strategy == "" {
@@ -76,7 +82,7 @@ func (ctx *Context) executionStart(it Iterator, op Operation, filter, mode strin
 	}
 
 	return &ExecutionObservation{
-		Invocation: ctx.executionSequence.Add(1),
+		Invocation: ctx.executionState.sequence.Add(1),
 		Key: signal.ExecutionKey{
 			Identity:     facts.Identity,
 			Operation:    SignalOperation(op),
@@ -105,7 +111,10 @@ func (ctx *Context) executionFinish(e *ExecutionObservation, err error) {
 
 	e.Finished = time.Now()
 
-	for _, o := range ctx.executionObservers {
+	ctx.executionState.callbacks.Lock()
+	defer ctx.executionState.callbacks.Unlock()
+
+	for _, o := range ctx.executionState.observers {
 		o.ObserveExecution(*e)
 	}
 }
@@ -140,7 +149,7 @@ func (ctx *Context) executionSequenceWrap(e *ExecutionObservation, seq PathSeq) 
 
 	return func(yield func(*Path, error) bool) {
 		event := *e
-		event.Invocation = ctx.executionSequence.Add(1)
+		event.Invocation = ctx.executionState.sequence.Add(1)
 		var terminalErr error
 		defer func() { ctx.executionFinish(&event, terminalErr) }()
 

@@ -48,6 +48,11 @@ type OutlineNodeID uint64
 
 // Outline is a single type representing the tree of yet-to-be-compiled Iterators.
 type Outline struct {
+	// IndependentCheckBranches marks permission set operands that can execute
+	// in parallel. Relation-form scans keep their direct-before-indirect order.
+	// This execution property is excluded from logical canonical identities.
+	IndependentCheckBranches bool
+
 	// Type identifies the iterator implementation represented by this node.
 	Type IteratorType
 
@@ -79,10 +84,11 @@ func WalkOutlineBottomUp(outline Outline, fn func(Outline) (Outline, error)) (Ou
 		}
 
 		outline = Outline{
-			Type:        outline.Type,
-			Args:        outline.Args,
-			SubOutlines: newSubs,
-			ID:          outline.ID,
+			Type:                     outline.Type,
+			Args:                     outline.Args,
+			IndependentCheckBranches: outline.IndependentCheckBranches,
+			SubOutlines:              newSubs,
+			ID:                       outline.ID,
 		}
 	}
 
@@ -149,10 +155,19 @@ func (co CanonicalOutline) Compile() (Iterator, error) {
 // looking up each node's CanonicalKey from the provided map and applying hints.
 // The concrete iterator for each node comes from the registry — see
 // MustRegisterIterator and the init() in each iterator's file.
-func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints map[OutlineNodeID][]Hint, ledger *planhint.Ledger, facts map[OutlineNodeID]StatisticalFacts) (Iterator, error) {
+func compileOutline(
+	outline Outline,
+	keys map[OutlineNodeID]CanonicalKey,
+	hints map[OutlineNodeID][]Hint,
+	ledger *planhint.Ledger,
+	facts map[OutlineNodeID]StatisticalFacts,
+) (Iterator, error) {
 	key, ok := keys[outline.ID]
 	if !ok {
-		return nil, spiceerrors.MustBugf("outline node ID %d not found in CanonicalKeys map - outline must come from a CanonicalOutline", outline.ID)
+		return nil, spiceerrors.MustBugf(
+			"outline node ID %d not found in CanonicalKeys map - outline must come from a CanonicalOutline",
+			outline.ID,
+		)
 	}
 
 	compiledSubs := make([]Iterator, len(outline.SubOutlines))
@@ -169,6 +184,15 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 	it, err := MakeIterator(outline.Type, outline.Args, compiledSubs, key)
 	if err != nil {
 		return nil, err
+	}
+
+	// Ownership comes from schema construction, while concurrency comes from
+	// optimizer hints. Keep both separate from logical dispatch/cache identity.
+	switch set := it.(type) {
+	case *UnionIterator:
+		set.independentCheckBranches = outline.IndependentCheckBranches
+	case *IntersectionIterator:
+		set.independentCheckBranches = outline.IndependentCheckBranches
 	}
 
 	if hints != nil {
@@ -188,9 +212,38 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 				hint.ID = id
 			}
 
-			if hint.Target.Fingerprint != "" && hint.Target.Fingerprint != facts[outline.ID].Identity && hint.Target.Fingerprint != string(outline.Serialize()) {
-				if err := ledger.Respond(planhint.Disposition{HintID: hint.ID, Consumer: "iterator-compiler", Outcome: planhint.Invalidated, Reason: planhint.StaleTarget}); err != nil {
+			if hint.Target.Fingerprint != "" && hint.Target.Fingerprint != facts[outline.ID].Identity && hint.Target.Fingerprint != string(
+				outline.Serialize(),
+			) {
+				if err := ledger.Respond(
+					planhint.Disposition{HintID: hint.ID, Consumer: "iterator-compiler", Outcome: planhint.Invalidated, Reason: planhint.StaleTarget},
+				); err != nil {
 					return nil, err
+				}
+
+				continue
+			}
+
+			if policy, ok := hint.Payload.(planhint.CheckConcurrency); ok {
+				outcome, reason := planhint.Accepted, planhint.ReasonCode("")
+
+				switch set := it.(type) {
+				case *UnionIterator:
+					set.checkConcurrency, set.concurrencyHint = policy.Limit, hint.ID
+				case *IntersectionIterator:
+					set.checkConcurrency, set.concurrencyHint = policy.Limit, hint.ID
+				case *ExclusionIterator:
+					set.checkConcurrency, set.concurrencyHint = policy.Limit, hint.ID
+				default:
+					outcome, reason = planhint.Declined, planhint.UnsupportedTarget
+				}
+
+				if !ledger.HasResponse(hint.ID, "iterator-compiler") {
+					if err := ledger.Respond(
+						planhint.Disposition{HintID: hint.ID, Consumer: "iterator-compiler", Outcome: outcome, Reason: reason},
+					); err != nil {
+						return nil, err
+					}
 				}
 
 				continue
@@ -214,7 +267,9 @@ func compileOutline(outline Outline, keys map[OutlineNodeID]CanonicalKey, hints 
 			}
 
 			if !ledger.HasResponse(hint.ID, "iterator-compiler") {
-				if err := ledger.Respond(planhint.Disposition{HintID: hint.ID, Consumer: "iterator-compiler", Outcome: outcome, Reason: reason}); err != nil {
+				if err := ledger.Respond(
+					planhint.Disposition{HintID: hint.ID, Consumer: "iterator-compiler", Outcome: outcome, Reason: reason},
+				); err != nil {
 					return nil, err
 				}
 			}
@@ -283,14 +338,16 @@ func Decompile(it Iterator) (Outline, error) {
 
 	case *UnionIterator:
 		return Outline{
-			Type:        UnionIteratorType,
-			SubOutlines: decompSubs,
+			Type:                     UnionIteratorType,
+			IndependentCheckBranches: typed.independentCheckBranches,
+			SubOutlines:              decompSubs,
 		}, nil
 
 	case *IntersectionIterator:
 		return Outline{
-			Type:        IntersectionIteratorType,
-			SubOutlines: decompSubs,
+			Type:                     IntersectionIteratorType,
+			IndependentCheckBranches: typed.independentCheckBranches,
+			SubOutlines:              decompSubs,
 		}, nil
 
 	case *FixedIterator:
