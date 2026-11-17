@@ -35,6 +35,7 @@ func (g *GRPCServerConfig) ToOption() GRPCServerConfigOption {
 		to.TLSCertPath = g.TLSCertPath
 		to.TLSKeyPath = g.TLSKeyPath
 		to.MaxConnAge = g.MaxConnAge
+		to.MaxConnAgeGrace = g.MaxConnAgeGrace
 		to.Enabled = g.Enabled
 		to.BufferSize = g.BufferSize
 		to.ClientCAPath = g.ClientCAPath
@@ -71,6 +72,13 @@ func (g *GRPCServerConfig) DebugMap() map[string]any {
 		debugMap["MaxConnAge"] = dm.DebugMap()
 	} else {
 		debugMap["MaxConnAge"] = g.MaxConnAge
+	}
+	if dm, ok := any(&g.MaxConnAgeGrace).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["MaxConnAgeGrace"] = dm.DebugMap()
+	} else {
+		debugMap["MaxConnAgeGrace"] = g.MaxConnAgeGrace
 	}
 	debugMap["Enabled"] = g.Enabled
 	debugMap["BufferSize"] = g.BufferSize
@@ -152,6 +160,13 @@ func WithTLSKeyPath(tLSKeyPath string) GRPCServerConfigOption {
 func WithMaxConnAge(maxConnAge time.Duration) GRPCServerConfigOption {
 	return func(g *GRPCServerConfig) {
 		g.MaxConnAge = maxConnAge
+	}
+}
+
+// WithMaxConnAgeGrace returns an option that can set MaxConnAgeGrace on a GRPCServerConfig
+func WithMaxConnAgeGrace(maxConnAgeGrace time.Duration) GRPCServerConfigOption {
+	return func(g *GRPCServerConfig) {
+		g.MaxConnAgeGrace = maxConnAgeGrace
 	}
 }
 

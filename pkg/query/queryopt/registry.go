@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/query/queryopt/arrowdirection"
 	"github.com/authzed/spicedb/pkg/query/queryopt/caveatpushdown"
 	"github.com/authzed/spicedb/pkg/query/queryopt/optimization"
+	"github.com/authzed/spicedb/pkg/query/queryopt/parallelcheck"
 	"github.com/authzed/spicedb/pkg/query/queryopt/reachabilitypruning"
 	"github.com/authzed/spicedb/pkg/query/queryopt/setsimplification"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -21,6 +22,9 @@ func init() {
 	MustRegisterOptimization(aliaschaincollapse.New())
 	MustRegisterOptimization(arrowdirection.New())
 	MustRegisterOptimization(applybranchorder.New())
+	// Registry lookup has no deployment limits. Its safe width-one descriptor is
+	// inspectable; profiles construct the configured producer explicitly.
+	MustRegisterOptimization(parallelcheck.MustNew(1))
 }
 
 var optimizationRegistry = make(map[string]Optimizer)
