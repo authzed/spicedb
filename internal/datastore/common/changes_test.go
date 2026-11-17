@@ -828,6 +828,126 @@ func TestMaximumSizeReplacement(t *testing.T) {
 	require.Equal(t, int64(243), ch.currentByteSize)
 }
 
+// bufferedByteSize returns the size of everything currently buffered, which currentByteSize
+// is expected to match whenever a maximum size is set.
+func bufferedByteSize[R datastore.Revision, K comparable](ch *Changes[R, K]) int64 {
+	ch.recordsMutex.RLock()
+	defer ch.recordsMutex.RUnlock()
+
+	var size int64
+	for _, cr := range ch.records {
+		for _, rel := range cr.relTouches {
+			size += int64(rel.SizeVT())
+		}
+		for _, rel := range cr.relDeletes {
+			size += int64(rel.SizeVT())
+		}
+		for _, def := range cr.definitionsChanged {
+			size += int64(def.SizeVT())
+		}
+	}
+	return size
+}
+
+func TestMaximumSizeReleasedOnRemove(t *testing.T) {
+	ctx := t.Context()
+	rel := tuple.MustParse("document:foo#viewer@user:tom")
+
+	// The bound fits two changes at once, so a long-lived stream that releases each change
+	// before adding the next must never exceed it, however many changes it carries.
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships, uint64(rel.SizeVT()*2))
+
+	for i := 1; i <= 100; i++ {
+		rev, err := revisions.HLCRevisionFromString(strconv.Itoa(i))
+		require.NoError(t, err)
+		nextRev, err := revisions.HLCRevisionFromString(strconv.Itoa(i + 1))
+		require.NoError(t, err)
+
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev, rel, tuple.UpdateOperationTouch), "iteration %d", i)
+
+		results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, nextRev))
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		require.True(t, ch.IsEmpty())
+		require.Equal(t, int64(0), ch.currentByteSize, "iteration %d", i)
+	}
+}
+
+func TestMaximumSizePartialRemove(t *testing.T) {
+	ctx := t.Context()
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 1<<20)
+
+	revs := make([]revisions.HLCRevision, 4)
+	for i := range revs {
+		rev, err := revisions.HLCRevisionFromString(strconv.Itoa(i + 1))
+		require.NoError(t, err)
+		revs[i] = rev
+	}
+
+	// Fill the first two revisions with every kind of change that is counted.
+	for _, rev := range revs[:2] {
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev, tuple.MustParse("document:foo#viewer@user:tom"), tuple.UpdateOperationTouch))
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev, tuple.MustParse("document:bar#viewer@user:sarah"), tuple.UpdateOperationDelete))
+		require.NoError(t, ch.AddChangedDefinition(ctx, rev, &core.NamespaceDefinition{Name: "document"}))
+		require.NoError(t, ch.AddChangedDefinition(ctx, rev, &core.CaveatDefinition{Name: "somecaveat", SerializedExpression: []byte("abc")}))
+	}
+	require.NoError(t, ch.AddRelationshipChange(ctx, revs[2], tuple.MustParse("document:baz#viewer@user:fred"), tuple.UpdateOperationTouch))
+
+	sizeBefore := ch.currentByteSize
+	require.Equal(t, bufferedByteSize(ch), sizeBefore)
+
+	// Release the first two revisions; only the third remains counted.
+	results, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, revs[2]))
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	require.Equal(t, int64(tuple.MustParse("document:baz#viewer@user:fred").SizeVT()), ch.currentByteSize)
+	require.Equal(t, bufferedByteSize(ch), ch.currentByteSize)
+
+	results, err = collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, revs[3]))
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, int64(0), ch.currentByteSize)
+}
+
+func TestMaximumSizeTouchReplacement(t *testing.T) {
+	ctx := t.Context()
+	rel := tuple.MustParse("document:foo#viewer@user:tom")
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships, 1<<20)
+
+	rev, err := revisions.HLCRevisionFromString("1")
+	require.NoError(t, err)
+
+	require.NoError(t, ch.AddRelationshipChange(ctx, rev, rel, tuple.UpdateOperationTouch))
+	require.NoError(t, ch.AddRelationshipChange(ctx, rev, rel, tuple.UpdateOperationTouch))
+	require.Equal(t, int64(rel.SizeVT()), ch.currentByteSize)
+	require.Equal(t, bufferedByteSize(ch), ch.currentByteSize)
+}
+
+func TestMaximumSizeCaveatReplacement(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("same caveat twice", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchSchema, 1<<20)
+		caveat := &core.CaveatDefinition{Name: "somecaveat", SerializedExpression: []byte("abc")}
+
+		require.NoError(t, ch.AddChangedDefinition(ctx, rev1, caveat))
+		require.NoError(t, ch.AddChangedDefinition(ctx, rev1, caveat))
+		require.Equal(t, int64(caveat.SizeVT()), ch.currentByteSize)
+		require.Equal(t, bufferedByteSize(ch), ch.currentByteSize)
+	})
+
+	t.Run("namespace and caveat with the same name", func(t *testing.T) {
+		ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchSchema, 1<<20)
+		ns := &core.NamespaceDefinition{Name: "shared"}
+		caveat := &core.CaveatDefinition{Name: "shared", SerializedExpression: []byte("abc")}
+
+		require.NoError(t, ch.AddChangedDefinition(ctx, rev1, ns))
+		require.NoError(t, ch.AddChangedDefinition(ctx, rev1, caveat))
+		require.Equal(t, int64(ns.SizeVT()+caveat.SizeVT()), ch.currentByteSize)
+		require.Equal(t, bufferedByteSize(ch), ch.currentByteSize)
+	})
+}
+
 func TestCanonicalize(t *testing.T) {
 	testCases := []struct {
 		name            string

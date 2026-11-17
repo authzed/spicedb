@@ -92,6 +92,13 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 			}
 		}
 
+		// If the same tuple was already touched at this revision, the new touch replaces it.
+		if existing, ok := record.relTouches[key]; ok {
+			if err := ch.adjustByteSize(existing, -1); err != nil {
+				return err
+			}
+		}
+
 		record.relTouches[key] = rel
 		if err := ch.adjustByteSize(rel, 1); err != nil {
 			return err
@@ -270,7 +277,7 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 	case *core.CaveatDefinition:
 		delete(record.caveatsDeleted, t.Name)
 
-		if existing, ok := record.definitionsChanged[nsPrefix+t.Name]; ok {
+		if existing, ok := record.definitionsChanged[caveatPrefix+t.Name]; ok {
 			if err := ch.adjustByteSize(existing, -1); err != nil {
 				return err
 			}
@@ -299,13 +306,17 @@ func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) i
 // and returning the filtered changes.
 func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) iter.Seq2[datastore.RevisionChanges, error] {
 	return func(yield func(datastore.RevisionChanges, error) bool) {
+		stopped := false
 		for change, err := range ch.revisionChanges(lessThanFunc, boundRev, true) {
 			if !yield(change, err) {
+				stopped = true
 				break
 			}
 		}
 
-		ch.removeAllChangesBefore(boundRev)
+		if err := ch.removeAllChangesBefore(boundRev); err != nil && !stopped {
+			yield(datastore.RevisionChanges{}, err)
+		}
 	}
 }
 
@@ -367,13 +378,43 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 	}
 }
 
-func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) {
+// removeAllChangesBefore removes the records before the bound revision and releases their
+// size from the buffered byte count, so the maximum size bounds what is currently buffered
+// rather than everything the Changes has ever held.
+func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) error {
 	ch.recordsMutex.Lock()
 	defer ch.recordsMutex.Unlock()
 
 	for rk, cr := range ch.records {
 		if boundRev.GreaterThan(cr.rev) {
+			if err := ch.releaseRecordByteSize(cr); err != nil {
+				return err
+			}
 			delete(ch.records, rk)
 		}
 	}
+
+	return nil
+}
+
+// releaseRecordByteSize subtracts the size of everything the record holds that was counted
+// when it was added: relationship touches and deletes, and changed definitions.
+// NOTE assumes that the mutex has been acquired.
+func (ch *Changes[R, K]) releaseRecordByteSize(cr changeRecord[R]) error {
+	for _, rel := range cr.relTouches {
+		if err := ch.adjustByteSize(rel, -1); err != nil {
+			return err
+		}
+	}
+	for _, rel := range cr.relDeletes {
+		if err := ch.adjustByteSize(rel, -1); err != nil {
+			return err
+		}
+	}
+	for _, def := range cr.definitionsChanged {
+		if err := ch.adjustByteSize(def, -1); err != nil {
+			return err
+		}
+	}
+	return nil
 }
