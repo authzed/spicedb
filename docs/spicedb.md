@@ -600,6 +600,7 @@ spicedb serve [flags]
       --dispatch-cluster-cache-metrics                                                  enable metrics for the cache for dispatch calls this server receives from other servers (default true)
       --dispatch-cluster-enabled                                                        enable dispatch gRPC server
       --dispatch-cluster-max-conn-age duration                                          how long a connection serving dispatch should be able to live (default 30s)
+      --dispatch-cluster-max-conn-age-grace duration                                    how long a connection serving dispatch stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --dispatch-cluster-max-workers uint32                                             set the number of workers for this server (0 value means 1 worker per request)
       --dispatch-cluster-network string                                                 network type to serve dispatch ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --dispatch-cluster-tls-cert-path string                                           local path to the TLS certificate used to serve dispatch
@@ -618,9 +619,9 @@ spicedb serve [flags]
       --enable-memory-protection-middleware                                             enables middleware that does a best effort at preventing OOM (Out of Memory) if the server's memory usage is too high by returning ResourceExhausted on incoming requests (default true)
       --enable-performance-insight-metrics                                              enables performance insight metrics, which are used to track the latency of API calls by shape
       --enable-revision-heartbeat                                                       enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (Postgres driver only; always off when --datastore-readonly is set) (default true)
-      --experimental-dispatch-secondary-maximum-primary-hedging-delays stringToString   maximum number of hedging delays to use for each request type to delay the primary request. default is 5ms (default [])
+      --experimental-dispatch-secondary-maximum-primary-hedging-delays stringToString   map from secondary upstream name to the maximum delay of the primary dispatch when hedging with that secondary (default 5ms); a duration passed to hedged([...], duration) in an expression takes precedence (default [])
       --experimental-dispatch-secondary-upstream-addrs stringToString                   secondary upstream addresses for dispatches, each with a name (default [])
-      --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type to its associated CEL expression, which returns the secondary upstream(s) to be used for the request (default [])
+      --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type (check, lookupresources, lookupsubjects) to a CEL expression selecting secondary upstreams: a list of names (hedged), hedged([...]), hedged([...], duration('5ms')) to cap the adaptive primary delay, prefer_secondary([...], duration('50ms')) to start the primary only after that deadline or once all secondaries fail, or prefer_primary() to dispatch to the primary only. Both branches of a conditional must return the same kind of value (default [])
       --experimental-full-relation-cache string                                         full relation cache mode: disabled or enabled. When enabled, the server caches the complete set of relationships of a hot object#relation and serves reads — including negative answers — from memory. The --experimental-full-relation-cache-* flags only tune it; with --experimental-full-relation-cache-enabled=false or a zero max cost it stays inactive. When enabling, consider lowering --dispatch-cluster-cache-max-cost (e.g. 70% -> 40%) to fund --experimental-full-relation-cache-max-cost (default "disabled")
       --experimental-full-relation-cache-enabled                                        enable caching of full relations (has no effect unless --experimental-full-relation-cache=enabled) (default true)
       --experimental-full-relation-cache-materialize-threshold uint                     accesses to an object#relation at one revision, within the estimator window, before its complete set at that revision is materialized (default 3)
@@ -635,6 +636,7 @@ spicedb serve [flags]
       --grpc-log-requests-enabled                                                       enable logging of API request payloads
       --grpc-log-responses-enabled                                                      enable logging of API response payloads
       --grpc-max-conn-age duration                                                      how long a connection serving gRPC should be able to live (default 30s)
+      --grpc-max-conn-age-grace duration                                                how long a connection serving gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --grpc-max-workers uint32                                                         set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                                             network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-preshared-key strings                                                      (required) preshared key(s) that must be provided by clients to authenticate requests
@@ -712,6 +714,7 @@ spicedb serve-testing [flags]
       --grpc-addr string                                         address to listen on to serve gRPC (default ":50051")
       --grpc-enabled                                             enable gRPC gRPC server (default true)
       --grpc-max-conn-age duration                               how long a connection serving gRPC should be able to live (default 30s)
+      --grpc-max-conn-age-grace duration                         how long a connection serving gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --grpc-max-workers uint32                                  set the number of workers for this server (0 value means 1 worker per request)
       --grpc-network string                                      network type to serve gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --grpc-shutdown-grace-period duration                      time limit given to the server to shutdown gracefully after it receives SIGINT or SIGTERM. A value of zero means no limit (default 5s)
@@ -733,6 +736,7 @@ spicedb serve-testing [flags]
       --readonly-grpc-addr string                                address to listen on to serve read-only gRPC (default ":50052")
       --readonly-grpc-enabled                                    enable read-only gRPC gRPC server (default true)
       --readonly-grpc-max-conn-age duration                      how long a connection serving read-only gRPC should be able to live (default 30s)
+      --readonly-grpc-max-conn-age-grace duration                how long a connection serving read-only gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --readonly-grpc-max-workers uint32                         set the number of workers for this server (0 value means 1 worker per request)
       --readonly-grpc-network string                             network type to serve read-only gRPC ("tcp", "tcp4", "tcp6", "unix", "unixpacket") (default "tcp")
       --readonly-grpc-tls-cert-path string                       local path to the TLS certificate used to serve read-only gRPC

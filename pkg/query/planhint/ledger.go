@@ -12,12 +12,13 @@ import (
 // Ledger validates hint accounting even without a debug trace sink.
 type Ledger struct {
 	mu         sync.Mutex
-	next       ID // GUARDED_BY(mu)
+	callbackMu sync.Mutex // serializes sink calls independently of ledger inspection
+	next       ID         // GUARDED_BY(mu)
 	hints      map[ID]Hint
 	responses  map[ID]map[string]Disposition
 	active     map[targetKey]ID
 	precedence map[Kind][]string
-	sink       TraceSink
+	sink       TraceSink // Callback invocation state GUARDED_BY(callbackMu); the handle is immutable.
 }
 
 type targetKey struct {
@@ -35,6 +36,37 @@ func NewLedger(sink TraceSink) *Ledger {
 		precedence: map[Kind][]string{},
 		sink:       sink,
 	}
+}
+
+// Clone returns an independent, untraced snapshot for executing a compiled plan.
+// Hint IDs and compiler dispositions are preserved; evidence and trace sinks
+// belong to the original execution and are not retained in the copy.
+func (l *Ledger) Clone() *Ledger {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	cloned := NewLedger(nil)
+	cloned.next = l.next
+	cloned.active = maps.Clone(l.active)
+
+	for id, hint := range l.hints {
+		hint.Evidence = nil
+		cloned.hints[id] = cloneHint(hint)
+	}
+
+	for id, responses := range l.responses {
+		cloned.responses[id] = map[string]Disposition{}
+
+		for consumer, response := range responses {
+			cloned.responses[id][consumer] = cloneResponse(response)
+		}
+	}
+
+	for kind, producers := range l.precedence {
+		cloned.precedence[kind] = slices.Clone(producers)
+	}
+
+	return cloned
 }
 
 // CollectsEvidence reports whether a trace sink enables retention of hint evidence.
@@ -74,7 +106,7 @@ func (l *Ledger) Issue(h Hint) (ID, error) {
 	}
 
 	switch h.Payload.(type) {
-	case ArrowDirection, BranchOrder:
+	case ArrowDirection, BranchOrder, CheckConcurrency:
 	default:
 		return 0, fmt.Errorf("unknown hint payload kind %q", h.Payload.Kind())
 	}
@@ -92,7 +124,7 @@ func (l *Ledger) Issue(h Hint) (ID, error) {
 		l.mu.Unlock()
 
 		if notification != nil && l.sink != nil {
-			l.sink.Record(cloneResponse(*notification))
+			l.notify(*notification)
 		}
 	}()
 	key := targetKey{h.Payload.Kind(), h.Target}
@@ -162,13 +194,23 @@ func (l *Ledger) Issue(h Hint) (ID, error) {
 
 // Respond validates and records a consumer's response, notifying the optional trace sink.
 func (l *Ledger) Respond(d Disposition) error {
+	return l.respond(d, false)
+}
+
+// RespondExecution records a repeatable execution response. Each invocation is
+// traced; inspection retains the latest response for that hint and consumer.
+func (l *Ledger) RespondExecution(d Disposition) error {
+	return l.respond(d, true)
+}
+
+func (l *Ledger) respond(d Disposition, repeatable bool) error {
 	l.mu.Lock()
 	notify := false
 	defer func() {
 		l.mu.Unlock()
 
 		if notify && l.sink != nil {
-			l.sink.Record(cloneResponse(d))
+			l.notify(d)
 		}
 	}()
 
@@ -194,7 +236,7 @@ func (l *Ledger) Respond(d Disposition) error {
 		}
 	}
 
-	if prior, ok := l.responses[d.HintID][d.Consumer]; ok && prior.Outcome == d.Outcome {
+	if prior, ok := l.responses[d.HintID][d.Consumer]; ok && prior.Outcome == d.Outcome && !repeatable {
 		return errors.New("duplicate hint disposition")
 	}
 
@@ -285,7 +327,7 @@ func (l *Ledger) Finalize() error {
 
 		if l.sink != nil {
 			for _, d := range notifications {
-				l.sink.Record(cloneResponse(d))
+				l.notify(d)
 			}
 		}
 	}()
@@ -316,6 +358,7 @@ func (l *Ledger) Remap(id ID, target Target) error {
 	}
 
 	next := targetKey{h.Payload.Kind(), target}
+
 	if other := l.active[next]; other != 0 && other != id {
 		return fmt.Errorf("remap would conflict with hint %d", other)
 	}
@@ -325,4 +368,12 @@ func (l *Ledger) Remap(id ID, target Target) error {
 	l.hints[id] = h
 	l.active[next] = id
 	return nil
+}
+
+// notify keeps ordinary sinks safe when forked branches respond concurrently.
+// It runs after releasing mu, so a sink can inspect hints and dispositions.
+func (l *Ledger) notify(d Disposition) {
+	l.callbackMu.Lock()
+	defer l.callbackMu.Unlock()
+	l.sink.Record(cloneResponse(d))
 }
