@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ccoveille/go-safecast/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -855,7 +856,9 @@ func TestMaximumSizeReleasedOnRemove(t *testing.T) {
 
 	// The bound fits two changes at once, so a long-lived stream that releases each change
 	// before adding the next must never exceed it, however many changes it carries.
-	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships, uint64(rel.SizeVT()*2))
+	maxSize, err := safecast.Convert[uint64](rel.SizeVT() * 2)
+	require.NoError(t, err)
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships, maxSize)
 
 	for i := 1; i <= 100; i++ {
 		rev, err := revisions.HLCRevisionFromString(strconv.Itoa(i))
