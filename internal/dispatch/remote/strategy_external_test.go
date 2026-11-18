@@ -191,6 +191,16 @@ func TestExternalStrategiesDoNotModifyBuiltIns(t *testing.T) {
 	require.Len(t, registeredStrategies, before)
 }
 
+func TestExternalStrategyObservesOnlyWhenImplemented(t *testing.T) {
+	r := newTestRaceRequest(t, time.Millisecond, testPrimary, testSecondary)
+
+	_, ok := externalStrategy{function: "observing", strategy: &primaryOnlyWins{}}.newPolicy(r).(resultObserver)
+	require.True(t, ok)
+
+	_, ok = externalStrategy{function: "plain", strategy: basePolicyStrategy{}}.newPolicy(r).(resultObserver)
+	require.False(t, ok, "a policy that does not observe results must not be given them")
+}
+
 func TestExternalStrategyRejectsNonStringNames(t *testing.T) {
 	// A list whose elements are only known at evaluation passes type checking, so the binding
 	// must reject non-string names itself.

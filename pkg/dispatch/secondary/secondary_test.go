@@ -13,7 +13,6 @@ func TestBasePolicyDefaults(t *testing.T) {
 	other := Participant{Name: "secondary"}
 
 	require.True(t, p.Start(t.Context(), other))
-	p.ObserveResult(other, "ignored")
 	p.Done(other, nil)
 
 	require.False(t, p.ReadyToClaim(t.Context(), primary, 0, false))

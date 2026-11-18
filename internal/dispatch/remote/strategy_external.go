@@ -25,6 +25,8 @@ func externalDescriptor(fn secondary.Function) strategyDescriptor {
 		function: fn.Name,
 		methods:  fn.Methods,
 		overloads: []cel.FunctionOpt{
+			// CEL needs a unique ID per overload; <function>_<argument types> is the convention
+			// the built-in strategies follow (hedged_list_string).
 			cel.Overload(fn.Name+"_list_string",
 				[]*cel.Type{cel.ListType(cel.StringType)}, dispatchPlanCelType,
 				cel.UnaryBinding(func(list ref.Val) ref.Val {
@@ -61,18 +63,24 @@ func (s externalStrategy) newPolicy(r raceRequest) (policy racePolicy) {
 		participants[i] = publicParticipant(p)
 	}
 
-	return externalPolicy{function: s.function, policy: s.strategy.NewPolicy(secondary.Race{
+	adapted := externalPolicy{function: s.function, policy: s.strategy.NewPolicy(secondary.Race{
 		Method:       r.reqKey,
 		Request:      r.request,
 		Participants: participants,
 	})}
+	if observer, ok := adapted.policy.(secondary.ResultObserver); ok {
+		// Only policies that observe results are given them: the engine checks for observers
+		// once per race, so the others pay nothing per result.
+		return observingExternalPolicy{externalPolicy: adapted, observer: observer}
+	}
+	return adapted
 }
 
 func publicParticipant(p participant) secondary.Participant {
 	return secondary.Participant{Name: p.name, Primary: p.primary}
 }
 
-// externalPolicy adapts a secondary.Policy to the engine's racePolicy and resultObserver.
+// externalPolicy adapts a secondary.Policy to the engine's racePolicy.
 //
 // The policy is code of the program that embeds SpiceDB, called from participant goroutines that
 // nothing else recovers. So that a bug in it fails a dispatch instead of the process, every call
@@ -87,11 +95,6 @@ type externalPolicy struct {
 func (e externalPolicy) start(ctx context.Context, p participant) bool {
 	defer e.recoverCallback("Start")
 	return e.policy.Start(ctx, publicParticipant(p))
-}
-
-func (e externalPolicy) observe(p participant, result any) {
-	defer e.recoverCallback("ObserveResult")
-	e.policy.ObserveResult(publicParticipant(p), result)
 }
 
 func (e externalPolicy) readyToClaim(ctx context.Context, p participant, received int, complete bool) bool {
@@ -109,6 +112,17 @@ func (e externalPolicy) done(p participant, err error) {
 func (e externalPolicy) noWinnerError(errs map[string]error) error {
 	defer e.recoverCallback("NoWinnerError")
 	return e.policy.NoWinnerError(errs)
+}
+
+// observingExternalPolicy adapts a secondary.Policy that also implements secondary.ResultObserver.
+type observingExternalPolicy struct {
+	externalPolicy
+	observer secondary.ResultObserver
+}
+
+func (o observingExternalPolicy) observe(p participant, result any) {
+	defer o.recoverCallback("ObserveResult")
+	o.observer.ObserveResult(publicParticipant(p), result)
 }
 
 // recoverCallback recovers from a panic in a policy callback, which then returns its results'

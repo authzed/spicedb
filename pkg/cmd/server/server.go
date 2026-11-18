@@ -133,7 +133,7 @@ type Config struct {
 
 	// DispatchSecondaryStrategies adds strategy functions that the secondary dispatch
 	// expressions (DispatchSecondaryUpstreamExprs) may call, for programs that embed SpiceDB.
-	DispatchSecondaryStrategies []secondary.Function `debugmap:"hidden"`
+	DispatchSecondaryStrategies []secondary.Function `debugmap:"visible"`
 
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`

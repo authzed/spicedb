@@ -324,6 +324,11 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryMaximumPrimaryHedgingDelays))
 	}
+	if c.DispatchSecondaryStrategies == nil {
+		debugMap["DispatchSecondaryStrategies"] = "nil"
+	} else {
+		debugMap["DispatchSecondaryStrategies"] = fmt.Sprintf("(slice of size %d)", len(c.DispatchSecondaryStrategies))
+	}
 	if dm, ok := any(&c.DispatchCacheConfig).(interface {
 		DebugMap() map[string]any
 	}); ok {

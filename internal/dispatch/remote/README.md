@@ -112,8 +112,9 @@ Programs that embed SpiceDB add strategies without changing this package, throug
 [`pkg/dispatch/secondary`](../../../pkg/dispatch/secondary) package:
 
 1. Implement `secondary.Strategy`, whose `NewPolicy` returns a `secondary.Policy` per race.
-   Embed `secondary.BasePolicy` to keep the default decisions, including ignoring results
-   (`ObserveResult`).
+   Embed `secondary.BasePolicy` to keep the default decisions, and implement
+   `secondary.ResultObserver` only if the policy needs the participants' results: policies that
+   don't are never given them.
 2. Declare a `secondary.Function`: its CEL name, the request kinds it supports (`Methods`, nil for
    all), and the `Strategy`. Expressions call it as `name(['secondary', ...])`.
 3. Add it to `server.Config.DispatchSecondaryStrategies` before the server starts.

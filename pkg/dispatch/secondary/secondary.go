@@ -82,12 +82,6 @@ type Policy interface {
 	// means p never runs.
 	Start(ctx context.Context, p Participant) bool
 
-	// ObserveResult is called with every result p receives, from p's goroutine, before
-	// ReadyToClaim. The result, such as a *dispatchv1.DispatchCheckResponse, must not be
-	// modified, and must not be retained past the race: the winner's results are published to
-	// the caller.
-	ObserveResult(p Participant, result any)
-
 	// ReadyToClaim is called after every result p receives (complete=false), and once more when
 	// p's stream ends successfully (complete=true). received counts the results so far. Once it
 	// returns true, p tries to become the winner; results received before that are buffered by
@@ -107,15 +101,23 @@ type Policy interface {
 	NoWinnerError(errs map[string]error) error
 }
 
+// ResultObserver may be implemented by a Policy that needs the participants' results, for example
+// to compare them. Only policies that implement it are given results.
+type ResultObserver interface {
+	// ObserveResult is called with every result p receives, from p's goroutine, before
+	// ReadyToClaim. It runs on the request's path, so it must be quick: copy what it needs and do
+	// any further work elsewhere. The result, such as a *dispatchv1.DispatchCheckResponse, must
+	// not be modified, and must not be retained past the race: the winner's results are
+	// published to the caller.
+	ObserveResult(p Participant, result any)
+}
+
 // BasePolicy implements the default decisions. Policies embed it and override only the
 // decisions they change.
 type BasePolicy struct{}
 
 // Start lets every participant start immediately.
 func (BasePolicy) Start(context.Context, Participant) bool { return true }
-
-// ObserveResult ignores the result.
-func (BasePolicy) ObserveResult(Participant, any) {}
 
 // ReadyToClaim lets a participant claim the win at its first result (or at the end of an empty
 // stream), so results are published as soon as they arrive.
