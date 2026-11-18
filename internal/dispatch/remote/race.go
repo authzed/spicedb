@@ -120,6 +120,7 @@ func race[R any](
 	} else {
 		run.slots = make([]raceSlot, n)
 	}
+	run.observer, _ = run.policy.(resultObserver)
 	run.winner.Store(noWinner)
 	run.running.Store(int32(n)) //nolint:gosec // a handful of participants
 
@@ -192,12 +193,14 @@ func race[R any](
 type raceRun[R any] struct {
 	request raceRequest
 	policy  racePolicy
-	open    func(context.Context, ClusterClient) (receiver[R], error)
-	stream  dispatch.Stream[R]
-	mode    raceMode
-	slots   []raceSlot   // one per participant
-	winner  atomic.Int32 // index of the winning participant, or noWinner
-	running atomic.Int32 // participants that have not exited yet
+	// observer is the policy, if it observes results; nil otherwise.
+	observer resultObserver
+	open     func(context.Context, ClusterClient) (receiver[R], error)
+	stream   dispatch.Stream[R]
+	mode     raceMode
+	slots    []raceSlot   // one per participant
+	winner   atomic.Int32 // index of the winning participant, or noWinner
+	running  atomic.Int32 // participants that have not exited yet
 
 	// exits receives a signal when the last participant exits and, in a unary race, when the
 	// winner exits (once if the winner is also the last). At most two signals are sent, so the
@@ -326,6 +329,9 @@ func (rr *raceRun[R]) runParticipant(i int, p participant) error {
 				}
 			}
 			received++
+			if rr.observer != nil {
+				observeResult(rr.observer, p, result)
+			}
 		}
 
 		if (!complete && received == 1) || (complete && received == 0) {
@@ -346,7 +352,7 @@ func (rr *raceRun[R]) runParticipant(i int, p participant) error {
 			continue
 		}
 
-		if !rr.policy.readyToClaim(p, received, complete) {
+		if !rr.policy.readyToClaim(ctx, p, received, complete) {
 			if complete {
 				// The stream ended, but the policy never let this participant claim the race.
 				return nil
@@ -394,6 +400,11 @@ func (rr *raceRun[R]) runParticipant(i int, p participant) error {
 // So keep such calls out of runParticipant's frame: make them through these //go:noinline
 // helpers, or from runAndReport. Check BenchmarkSecondaryDispatching, at a fixed -benchtime,
 // before changing this; the same rule applies to primarySleeper.
+
+//go:noinline
+func observeResult(observer resultObserver, p participant, result any) {
+	observer.observe(p, result)
+}
 
 //go:noinline
 func traceDispatcher(ctx context.Context, dispatcher string, msg string) {

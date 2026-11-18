@@ -67,10 +67,12 @@ A race is split into mechanism and policy:
   buffering, choosing a single winner, publishing, cursor tagging and cancellation. Every
   request type uses it; Check goes through a one-message adapter (`unaryReceiver`).
 - **Policy** (`racePolicy`, [strategy.go](strategy.go)): the decisions at each point of a
-  participant's lifecycle: when it may start, when it may claim the win, and which error to
-  return when nobody won. It is created per request by a `secondaryStrategy`, the value a CEL
-  strategy function returns. `basePolicy` holds the defaults; strategies embed it and override
-  only what they change.
+  participant's lifecycle: when it may start, when it may claim the win (`readyToClaim`, which
+  may block until the participant's context is done), and which error to return when nobody
+  won. It is created per request by a `secondaryStrategy`, the value a CEL strategy function
+  returns. `basePolicy` holds the defaults; strategies embed it and override only what they
+  change. A policy that needs the results themselves also implements `resultObserver`; the
+  engine checks for it once per race, so the others pay nothing per result.
 
 What races learn lives in `raceStats` ([stats.go](stats.go)): the secondaries' first-result
 latency digest and the relations they reported as unsupported. The engine records into it for
@@ -104,6 +106,29 @@ Three details matter, each commented where it is implemented:
    time-based, and add a case per request kind to
    [strategy_integration_test.go](strategy_integration_test.go).
 
+## External strategies
+
+Programs that embed SpiceDB add strategies without changing this package, through the public
+[`pkg/dispatch/secondary`](../../../pkg/dispatch/secondary) package:
+
+1. Implement `secondary.Strategy`, whose `NewPolicy` returns a `secondary.Policy` per race.
+   Embed `secondary.BasePolicy` to keep the default decisions, and implement
+   `secondary.ResultObserver` only if the policy needs the participants' results: policies that
+   don't are never given them.
+2. Declare a `secondary.Function`: its CEL name, the request kinds it supports (`Methods`, nil for
+   all), and the `Strategy`. Expressions call it as `name(['secondary', ...])`.
+3. Add it to `server.Config.DispatchSecondaryStrategies` before the server starts.
+
+Registration is checked at startup: a function without a `Strategy`, a name that is not callable
+from CEL (not an identifier, or a reserved word), a name that already names a function (a
+built-in strategy, a CEL function such as `duration`, or another registered one), and a call from
+a request kind not in `Methods` all fail startup. A panic in the strategy's code is recovered,
+logged and counted in `remote_dispatch_external_strategy_panics_total`; it fails that participant
+or race, not the process. External strategies run on the same engine as the
+built-in ones, through an adapter ([strategy_external.go](strategy_external.go)) that the
+built-in strategies don't go through. Their races are counted in
+`remote_dispatch_secondary_strategy_total` under the function's name.
+
 ## Metrics
 
 All are prefixed with `spicedb_dispatch_`:
@@ -119,6 +144,8 @@ All are prefixed with `spicedb_dispatch_`:
   and went to the primary only.
 - `remote_dispatch_hedge_wait_duration_seconds` and `..._hedge_actual_wait_duration_seconds`:
   computed and actual primary wait, `hedged` only.
+- `remote_dispatch_external_strategy_panics_total{strategy}`: panics recovered from external
+  strategies (see [External strategies](#external-strategies)).
 
 For example:
 

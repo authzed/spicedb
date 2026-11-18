@@ -2,9 +2,9 @@ package remote
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -25,6 +25,9 @@ type raceRequest struct {
 	reqKey   string
 	resource tuple.RelationReference
 	subject  tuple.RelationReference
+
+	// request is the dispatch request being raced, such as a *v1.DispatchCheckRequest.
+	request any
 
 	// participants holds the primary (when allowed) first, then the resolved secondaries.
 	participants []participant
@@ -64,8 +67,10 @@ type racePolicy interface {
 	// readyToClaim is called after every result p receives (complete=false), and once more
 	// when p's stream ends successfully (complete=true). received counts the results so far.
 	// Once it returns true, p tries to become the winner; results received before that are
-	// buffered by the engine and published, in order, if p wins.
-	readyToClaim(p participant, received int, complete bool) bool
+	// buffered by the engine and published, in order, if p wins. It may block, for example
+	// until other participants have finished, but must return promptly once ctx (p's context)
+	// is done.
+	readyToClaim(ctx context.Context, p participant, received int, complete bool) bool
 
 	// firstResult reports the time from p's start to its first result, or to the end of its
 	// stream if the stream was empty.
@@ -83,8 +88,18 @@ type racePolicy interface {
 	noWinnerError(errs map[string]error) error
 }
 
+// resultObserver is implemented by policies that need the participants' results. The engine
+// checks for it once per race, so strategies that only time their participants pay nothing per
+// result.
+type resultObserver interface {
+	// observe is called with every result p receives, before readyToClaim, from p's goroutine.
+	// The result must not be modified, and must not be retained past the race: a winner's
+	// results are published to the caller.
+	observe(p participant, result any)
+}
+
 // errNotStarted is reported to racePolicy.done for a participant the policy never started.
-var errNotStarted = errors.New("participant not started by race policy")
+var errNotStarted = secondary.ErrNotStarted
 
 // basePolicy implements the default decisions. Policies embed it and override only the
 // decisions they change.
@@ -95,7 +110,7 @@ func (basePolicy) start(context.Context, participant) bool { return true }
 
 // readyToClaim lets a participant claim the win at its first result (or at the end of an
 // empty stream), so results are published as soon as they arrive.
-func (basePolicy) readyToClaim(_ participant, received int, complete bool) bool {
+func (basePolicy) readyToClaim(_ context.Context, _ participant, received int, complete bool) bool {
 	return received >= 1 || complete
 }
 
