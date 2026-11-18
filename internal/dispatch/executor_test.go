@@ -2,17 +2,50 @@ package dispatch
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/genutil/execscope"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
 )
+
+func TestConcurrentChildPlanContextsPreserveParent(t *testing.T) {
+	parent := NewPlanContext("revision", datalayer.SchemaHash("schema"), nil, 50, 0)
+	parent.InProgressKeys = []string{"ancestor"}
+	parent.TargetSubjectRelation = &core.RelationReference{Namespace: "user", Relation: "..."}
+	expected := parent.CloneVT()
+	children := make([]*v1.PlanContext, 32)
+	var workers sync.WaitGroup
+
+	for index := range children {
+		workers.Go(func() {
+			children[index] = planContextForDispatch(parent, fmt.Sprintf("child%d", index), query.OperationCheck,
+				query.ObjectType{Type: "group", Subrelation: "member"})
+			children[index].InProgressKeys[0] = "changed"
+		})
+	}
+
+	workers.Wait()
+	require.True(t, expected.EqualVT(parent))
+
+	for _, child := range children {
+		require.Equal(t, "user", child.TargetSubjectRelation.Namespace)
+		require.Len(t, child.InProgressKeys, 2)
+	}
+}
 
 // testDispatcher is a minimal dispatcher that records DispatchQueryPlan calls
 // and writes configurable responses to the stream.
@@ -88,7 +121,12 @@ func TestDispatchExecutor_Check_AliasDispatches(t *testing.T) {
 	inner := query.NewFixedIterator()
 	alias := query.NewAliasIterator("", "viewer", inner)
 
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	path, err := sender.Check(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, path)
 	require.Equal(t, "document", path.Resource.ObjectType)
@@ -114,7 +152,12 @@ func TestDispatchExecutor_Check_NonAliasLocal(t *testing.T) {
 		Subject:  query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
 	})
 
-	path, err := sender.Check(ctx, fixed, query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	path, err := sender.Check(
+		ctx,
+		fixed,
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, path)
 	require.Equal(t, "alice", path.Subject.ObjectID)
@@ -135,7 +178,12 @@ func TestDispatchExecutor_Check_AliasNoResult(t *testing.T) {
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	path, err := sender.Check(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.Nil(t, path)
 	require.Len(t, receiver.planCalls, 1)
@@ -145,8 +193,22 @@ func TestDispatchExecutor_IterSubjects_AliasDispatches(t *testing.T) {
 	receiver := &testDispatcher{
 		planResponses: []*v1.DispatchQueryPlanResponse{{
 			Paths: []*v1.ResultPath{
-				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
-				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "bob", SubjectRelation: "..."},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc1",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc1",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "bob",
+					SubjectRelation: "...",
+				},
 			},
 		}},
 	}
@@ -156,7 +218,12 @@ func TestDispatchExecutor_IterSubjects_AliasDispatches(t *testing.T) {
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
-	pathSeq, err := sender.IterSubjects(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
+	pathSeq, err := sender.IterSubjects(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -201,8 +268,22 @@ func TestDispatchExecutor_IterResources_AliasDispatches(t *testing.T) {
 	receiver := &testDispatcher{
 		planResponses: []*v1.DispatchQueryPlanResponse{{
 			Paths: []*v1.ResultPath{
-				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
-				{ResourceType: "document", ResourceId: "doc2", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc1",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc2",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
 			},
 		}},
 	}
@@ -212,7 +293,12 @@ func TestDispatchExecutor_IterResources_AliasDispatches(t *testing.T) {
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
-	pathSeq, err := sender.IterResources(ctx, NewDispatchIterator(alias), query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
+	pathSeq, err := sender.IterResources(
+		ctx,
+		NewDispatchIterator(alias),
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -239,7 +325,12 @@ func TestDispatchExecutor_IterResources_NonAliasLocal(t *testing.T) {
 		},
 	)
 
-	pathSeq, err := sender.IterResources(ctx, fixed, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
+	pathSeq, err := sender.IterResources(
+		ctx,
+		fixed,
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -258,7 +349,12 @@ func TestDispatchExecutor_Check_AliasWithRecursiveSentinelDoesNotDispatch(t *tes
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	alias := query.NewAliasIterator("", "viewer", sentinel)
 
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	path, err := sender.Check(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	// RecursiveSentinel.CheckImpl returns nil
 	require.Nil(t, path)
@@ -276,7 +372,12 @@ func TestDispatchExecutor_IterSubjects_AliasWithRecursiveSentinelDoesNotDispatch
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	alias := query.NewAliasIterator("", "viewer", sentinel)
 
-	pathSeq, err := sender.IterSubjects(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
+	pathSeq, err := sender.IterSubjects(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -294,7 +395,12 @@ func TestDispatchExecutor_IterResources_AliasWithRecursiveSentinelDoesNotDispatc
 	sentinel := query.NewRecursiveSentinelIterator("document", "viewer", false)
 	alias := query.NewAliasIterator("", "viewer", sentinel)
 
-	pathSeq, err := sender.IterResources(ctx, NewDispatchIterator(alias), query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
+	pathSeq, err := sender.IterResources(
+		ctx,
+		NewDispatchIterator(alias),
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -326,7 +432,12 @@ func TestDispatchExecutor_Check_AliasWithSentinelInsideRecursiveDispatches(t *te
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
 	alias := query.NewAliasIterator("", "viewer", recursive)
 
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	path, err := sender.Check(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, path)
 	require.Equal(t, "alice", path.Subject.ObjectID)
@@ -356,7 +467,12 @@ func TestDispatchExecutor_IterSubjects_AliasWithSentinelInsideRecursiveDispatche
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
 	alias := query.NewAliasIterator("", "viewer", recursive)
 
-	pathSeq, err := sender.IterSubjects(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.NoObjectFilter())
+	pathSeq, err := sender.IterSubjects(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -388,7 +504,12 @@ func TestDispatchExecutor_IterResources_AliasWithSentinelInsideRecursiveDispatch
 	recursive := query.NewRecursiveIterator(sentinel, "document", "viewer")
 	alias := query.NewAliasIterator("", "viewer", recursive)
 
-	pathSeq, err := sender.IterResources(ctx, NewDispatchIterator(alias), query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
+	pathSeq, err := sender.IterResources(
+		ctx,
+		NewDispatchIterator(alias),
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -413,7 +534,12 @@ func TestDispatchExecutor_Check_DoubleRecursionUnmatchedSentinelDoesNotDispatch(
 	folderRecursive := query.NewRecursiveIterator(documentSentinel, "folder", "viewer")
 	alias := query.NewAliasIterator("", "viewer", folderRecursive)
 
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	path, err := sender.Check(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "folder", ObjectID: "f1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.Nil(t, path)
 
@@ -447,7 +573,12 @@ func TestDispatchExecutor_Check_DoubleRecursionBothMatchedDispatches(t *testing.
 	folderRecursive := query.NewRecursiveIterator(documentRecursive, "folder", "viewer")
 	alias := query.NewAliasIterator("", "viewer", folderRecursive)
 
-	path, err := sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "folder", ObjectID: "f1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	path, err := sender.Check(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "folder", ObjectID: "f1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, path)
 	require.Equal(t, "alice", path.Subject.ObjectID)
@@ -461,11 +592,32 @@ func TestDispatchExecutor_StreamBatching(t *testing.T) {
 	receiver := &testDispatcher{
 		planResponses: []*v1.DispatchQueryPlanResponse{
 			{Paths: []*v1.ResultPath{
-				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc1",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
 			}},
 			{Paths: []*v1.ResultPath{
-				{ResourceType: "document", ResourceId: "doc2", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
-				{ResourceType: "document", ResourceId: "doc3", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc2",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc3",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
 			}},
 		},
 	}
@@ -475,7 +627,12 @@ func TestDispatchExecutor_StreamBatching(t *testing.T) {
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
 
-	pathSeq, err := sender.IterResources(ctx, NewDispatchIterator(alias), query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}, query.NoObjectFilter())
+	pathSeq, err := sender.IterResources(
+		ctx,
+		NewDispatchIterator(alias),
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+		query.NoObjectFilter(),
+	)
 	require.NoError(t, err)
 
 	paths, err := query.CollectAll(pathSeq)
@@ -500,7 +657,12 @@ func TestDispatchExecutor_PlanContextForwarded(t *testing.T) {
 	ctx := newTestContext()
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
-	_, _ = sender.Check(ctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	_, _ = sender.Check(
+		ctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 
 	require.Len(t, receiver.planCalls, 1)
 	require.Equal(t, "rev42", receiver.planCalls[0].PlanContext.Revision)
@@ -617,7 +779,12 @@ func TestDispatchExecutor_ContextCancellation(t *testing.T) {
 	qctx := query.NewLocalContext(ctx)
 
 	alias := query.NewAliasIterator("", "viewer", query.NewFixedIterator())
-	_, err := sender.Check(qctx, NewDispatchIterator(alias), query.Object{ObjectType: "document", ObjectID: "doc1"}, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	_, err := sender.Check(
+		qctx,
+		NewDispatchIterator(alias),
+		query.Object{ObjectType: "document", ObjectID: "doc1"},
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 
 	// The dispatch itself succeeds (our test dispatcher doesn't check context),
 	// but the subcontext created inside dispatchCheck is derived from the cancelled parent.
@@ -754,7 +921,12 @@ func TestDispatchExecutor_CheckManyResources_NonAliasLocal(t *testing.T) {
 		{ObjectType: "document", ObjectID: "doc1"},
 		{ObjectType: "document", ObjectID: "missing"},
 	}
-	out, err := sender.CheckManyResources(ctx, fixed, resources, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	out, err := sender.CheckManyResources(
+		ctx,
+		fixed,
+		resources,
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.Len(t, out, len(resources))
 	require.NotNil(t, out[0])
@@ -768,8 +940,22 @@ func TestDispatchExecutor_CheckManyResources_AliasDispatchesAndPairsByONR(t *tes
 	receiver := &testDispatcher{
 		planResponses: []*v1.DispatchQueryPlanResponse{{
 			Paths: []*v1.ResultPath{
-				{ResourceType: "document", ResourceId: "doc3", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
-				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc3",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc1",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "alice",
+					SubjectRelation: "...",
+				},
 			},
 		}},
 	}
@@ -782,7 +968,12 @@ func TestDispatchExecutor_CheckManyResources_AliasDispatchesAndPairsByONR(t *tes
 		{ObjectType: "document", ObjectID: "doc2"},
 		{ObjectType: "document", ObjectID: "doc3"},
 	}
-	out, err := sender.CheckManyResources(ctx, NewDispatchIterator(alias), resources, query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."})
+	out, err := sender.CheckManyResources(
+		ctx,
+		NewDispatchIterator(alias),
+		resources,
+		query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."},
+	)
 	require.NoError(t, err)
 	require.Len(t, out, len(resources))
 	require.NotNil(t, out[0])
@@ -803,7 +994,14 @@ func TestDispatchExecutor_CheckManySubjects_AliasDispatches(t *testing.T) {
 	receiver := &testDispatcher{
 		planResponses: []*v1.DispatchQueryPlanResponse{{
 			Paths: []*v1.ResultPath{
-				{ResourceType: "document", ResourceId: "doc1", Relation: "viewer", SubjectType: "user", SubjectId: "bob", SubjectRelation: "..."},
+				{
+					ResourceType:    "document",
+					ResourceId:      "doc1",
+					Relation:        "viewer",
+					SubjectType:     "user",
+					SubjectId:       "bob",
+					SubjectRelation: "...",
+				},
 			},
 		}},
 	}
@@ -963,4 +1161,396 @@ func TestDispatchExecutor_CheckManySubjects_ChunksByDispatchChunkSize(t *testing
 	require.Len(t, receiver.planCalls[0].Many, 4)
 	require.Len(t, receiver.planCalls[1].Many, 4)
 	require.Len(t, receiver.planCalls[2].Many, 1)
+}
+
+func TestDispatchBatchDuplicateTargetsOwnTheirPaths(t *testing.T) {
+	receiver := &testDispatcher{planResponses: []*v1.DispatchQueryPlanResponse{{Paths: []*v1.ResultPath{
+		{ResourceType: "document", ResourceId: "doc", Relation: "viewer", SubjectType: "user", SubjectId: "alice", SubjectRelation: "..."},
+	}}}}
+	executor := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev"}, 100)
+	iterator := NewDispatchIterator(query.NewAliasIterator("document", "viewer", query.NewFixedIterator()))
+	resource := query.NewObject("document", "doc")
+	subject := query.NewObject("user", "alice").WithEllipses()
+
+	resources, err := executor.CheckManyResources(newTestContext(), iterator, []query.Object{resource, resource}, subject)
+	require.NoError(t, err)
+	require.NotSame(t, resources[0], resources[1])
+	resources[0].Relation = "changed"
+	require.Equal(t, "viewer", resources[1].Relation)
+
+	subjects, err := executor.CheckManySubjects(newTestContext(), iterator, resource, []query.ObjectAndRelation{subject, subject})
+	require.NoError(t, err)
+	require.NotSame(t, subjects[0], subjects[1])
+}
+
+type blockingBatchDispatcher struct {
+	grantAfterCancel   bool
+	caveat             *core.CaveatExpression
+	cancelError        error
+	finishCancellation <-chan struct{}
+	Dispatcher
+	started chan *v1.DispatchQueryPlanRequest
+	release chan struct{}
+}
+
+func (d *blockingBatchDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanRequest, stream PlanStream) error {
+	d.started <- req
+
+	select {
+	case <-stream.Context().Done():
+		if d.finishCancellation != nil {
+			<-d.finishCancellation
+		}
+
+		if d.cancelError != nil {
+			return d.cancelError
+		}
+
+		if !d.grantAfterCancel {
+			return stream.Context().Err()
+		}
+	case <-d.release:
+	}
+
+	paths := make([]*v1.ResultPath, len(req.Many))
+
+	for i, target := range req.Many {
+		resource, subject := req.Resource, req.Subject
+
+		if req.Operation == v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES {
+			resource = target
+		} else {
+			subject = target
+		}
+
+		paths[i] = &v1.ResultPath{
+			ResourceType:    resource.Namespace,
+			ResourceId:      resource.ObjectId,
+			Relation:        "viewer",
+			SubjectType:     subject.Namespace,
+			SubjectId:       subject.ObjectId,
+			SubjectRelation: subject.Relation,
+			Caveat:          d.caveat,
+		}
+	}
+
+	return stream.Publish(&v1.DispatchQueryPlanResponse{Paths: paths})
+}
+
+func TestDispatchBatchChunksUseBoundedConcurrency(t *testing.T) {
+	for _, resourcesVary := range []bool{true, false} {
+		t.Run(fmt.Sprint(resourcesVary), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				receiver := &blockingBatchDispatcher{started: make(chan *v1.DispatchQueryPlanRequest, 3), release: make(chan struct{})}
+				defer close(receiver.release)
+				executor := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev"}, 1)
+				iterator := NewDispatchIterator(query.NewAliasIterator("document", "viewer", query.NewFixedIterator()))
+				ctx := query.NewLocalContext(t.Context(), query.WithCheckConcurrency(2))
+				done := make(chan error, 1)
+				var paths []*query.Path
+				go func() {
+					var err error
+
+					if resourcesVary {
+						paths, err = executor.CheckManyResources(
+							ctx,
+							iterator,
+							[]query.Object{query.NewObject("document", "a"), query.NewObject("document", "b"), query.NewObject("document", "c")},
+							query.NewObject("user", "alice").WithEllipses(),
+						)
+					} else {
+						paths, err = executor.CheckManySubjects(
+							ctx,
+							iterator,
+							query.NewObject("document", "a"),
+							[]query.ObjectAndRelation{
+								query.NewObject("user", "alice").WithEllipses(),
+								query.NewObject("user", "bob").WithEllipses(),
+								query.NewObject("user", "carol").WithEllipses(),
+							},
+						)
+					}
+
+					done <- err
+				}()
+
+				for range 2 {
+					select {
+					case <-receiver.started:
+					case <-time.After(time.Second):
+						t.Fatal("second chunk did not start while first chunk was blocked")
+					}
+				}
+
+				synctest.Wait()
+				require.Empty(t, receiver.started, "the third chunk must wait for capacity")
+				receiver.release <- struct{}{}
+				receiver.release <- struct{}{}
+				<-receiver.started
+				receiver.release <- struct{}{}
+				require.NoError(t, <-done)
+				require.Len(t, paths, 3)
+
+				if resourcesVary {
+					require.Equal(t, "c", paths[2].Resource.ObjectID)
+				} else {
+					require.Equal(t, "carol", paths[2].Subject.ObjectID)
+				}
+			})
+		})
+	}
+}
+
+func TestDispatchBatchCancellationStopsQueuedChunks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		receiver := &blockingBatchDispatcher{started: make(chan *v1.DispatchQueryPlanRequest, 3), release: make(chan struct{})}
+		defer close(receiver.release)
+		executor := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev"}, 1)
+		iterator := NewDispatchIterator(query.NewAliasIterator("document", "viewer", query.NewFixedIterator()))
+		parent, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		ctx := query.NewLocalContext(parent, query.WithCheckConcurrency(2))
+		done := make(chan error, 1)
+		go func() {
+			_, err := executor.CheckManyResources(
+				ctx,
+				iterator,
+				[]query.Object{query.NewObject("document", "a"), query.NewObject("document", "b"), query.NewObject("document", "c")},
+				query.NewObject("user", "alice").WithEllipses(),
+			)
+			done <- err
+		}()
+		<-receiver.started
+		<-receiver.started
+		cancel()
+		require.ErrorIs(t, <-done, context.Canceled)
+		require.Empty(t, receiver.started, "canceled queued work must not dispatch")
+	})
+}
+
+func TestDispatchBatchGrantStopsSiblingAndQueuedChunks(t *testing.T) {
+	for _, resourcesVary := range []bool{true, false} {
+		t.Run(fmt.Sprint(resourcesVary), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				finishCancellation := make(chan struct{})
+				receiver := &blockingBatchDispatcher{
+					started:            make(chan *v1.DispatchQueryPlanRequest, 3),
+					release:            make(chan struct{}),
+					finishCancellation: finishCancellation,
+					grantAfterCancel:   true,
+				}
+				defer close(receiver.release)
+				executor := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev"}, 1)
+				iterator := NewDispatchIterator(query.NewAliasIterator("document", "viewer", query.NewFixedIterator()))
+				scope := execscope.New()
+				ctx := query.NewLocalContext(scope.Context(t.Context()), query.WithCheckConcurrency(2))
+				cleanup := sync.OnceFunc(func() { close(finishCancellation); scope.Wait() })
+				defer cleanup()
+				done := make(chan error, 1)
+				var paths []*query.Path
+
+				go func() {
+					var err error
+
+					if resourcesVary {
+						paths, err = executor.CheckManyResources(
+							ctx,
+							iterator,
+							[]query.Object{query.NewObject("document", "a"), query.NewObject("document", "b"), query.NewObject("document", "c")},
+							query.NewObject("user", "alice").WithEllipses(),
+							query.AllowSingleResult,
+						)
+					} else {
+						paths, err = executor.CheckManySubjects(
+							ctx,
+							iterator,
+							query.NewObject("document", "a"),
+							[]query.ObjectAndRelation{
+								query.NewObject("user", "alice").WithEllipses(),
+								query.NewObject("user", "bob").WithEllipses(),
+								query.NewObject("user", "carol").WithEllipses(),
+							},
+							query.AllowSingleResult,
+						)
+					}
+
+					done <- err
+				}()
+
+				for range 2 {
+					req := <-receiver.started
+					require.Equal(t, v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT, req.ResultsSetting)
+				}
+
+				// Only one active receiver completes. Its grant must cancel the other
+				// receiver and the queued chunk without leaking cancellation as failure.
+				receiver.release <- struct{}{}
+				synctest.Wait()
+
+				select {
+				case err := <-done:
+					require.NoError(t, err)
+				default:
+					t.Fatal("grant waited for sibling cancellation cleanup")
+				}
+
+				before := slices.Clone(paths)
+				cleanup()
+				require.Equal(t, before, paths, "late sibling output must not mutate the returned vector")
+				require.Len(t, paths, 3)
+				require.Nil(t, paths[2], "the queued target was never checked")
+				require.True(t, paths[0] != nil || paths[1] != nil)
+				require.Empty(t, receiver.started)
+			})
+		})
+	}
+}
+
+// TestDispatchBatchCaveatedResultsWait verifies that conditional grants do not stop checks early.
+func TestDispatchBatchCaveatedResultsWait(t *testing.T) {
+	for _, mode := range []query.CheckResultMode{query.AllowSingleResult, query.AllCheckResults} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				receiver := &blockingBatchDispatcher{
+					started: make(chan *v1.DispatchQueryPlanRequest, 2),
+					release: make(chan struct{}),
+					caveat: &core.CaveatExpression{OperationOrCaveat: &core.CaveatExpression_Caveat{
+						Caveat: &core.ContextualizedCaveat{CaveatName: "condition"},
+					}},
+				}
+				defer close(receiver.release)
+				executor := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev"}, 1)
+				iterator := NewDispatchIterator(query.NewAliasIterator("document", "viewer", query.NewFixedIterator()))
+				ctx := query.NewLocalContext(t.Context(), query.WithCheckConcurrency(2))
+				done := make(chan error, 1)
+				go func() {
+					_, err := executor.CheckManyResources(ctx, iterator,
+						[]query.Object{query.NewObject("document", "a"), query.NewObject("document", "b")},
+						query.NewObject("user", "alice").WithEllipses(), mode)
+					done <- err
+				}()
+				<-receiver.started
+				<-receiver.started
+				receiver.release <- struct{}{}
+				synctest.Wait()
+				require.Empty(t, done, "a conditional result must wait for the remaining chunk")
+				receiver.release <- struct{}{}
+				require.NoError(t, <-done)
+			})
+		})
+	}
+}
+
+func TestDispatchBatchGrantReturnsBeforeSiblingCleanup(t *testing.T) {
+	genuine := errors.New("relationship read failed")
+
+	for _, tc := range []struct {
+		name         string
+		siblingError error
+	}{
+		{name: "raw cancellation", siblingError: context.Canceled},
+		{name: "grpc cancellation", siblingError: status.Error(codes.Canceled, "RPC canceled")},
+		{name: "genuine error", siblingError: genuine},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				finishCancellation := make(chan struct{})
+				receiver := &blockingBatchDispatcher{
+					started:            make(chan *v1.DispatchQueryPlanRequest, 3),
+					release:            make(chan struct{}),
+					cancelError:        tc.siblingError,
+					finishCancellation: finishCancellation,
+				}
+				defer close(receiver.release)
+				executor := NewDispatchExecutor(receiver, &v1.PlanContext{Revision: "rev"}, 1)
+				iterator := NewDispatchIterator(query.NewAliasIterator("document", "viewer", query.NewFixedIterator()))
+				scope := execscope.New()
+				ctx := query.NewLocalContext(scope.Context(t.Context()), query.WithCheckConcurrency(2))
+				done := make(chan error, 1)
+				go func() {
+					_, err := executor.CheckManyResources(
+						ctx,
+						iterator,
+						[]query.Object{query.NewObject("document", "a"), query.NewObject("document", "b"), query.NewObject("document", "c")},
+						query.NewObject("user", "alice").WithEllipses(),
+						query.AllowSingleResult,
+					)
+					done <- err
+				}()
+				<-receiver.started
+				<-receiver.started
+				receiver.release <- struct{}{}
+				// A decisive grant must return while sibling cancellation cleanup is
+				// blocked. Outcomes from that cleanup cannot retract the grant.
+				synctest.Wait()
+
+				select {
+				case err := <-done:
+					require.NoError(t, err)
+				default:
+					close(finishCancellation)
+					scope.Wait()
+					t.Fatal("grant waited for sibling cancellation cleanup")
+				}
+
+				close(finishCancellation)
+				scope.Wait()
+				require.Empty(t, receiver.started)
+			})
+		})
+	}
+}
+
+func TestDispatchExecutorPreservesNestedTargetedRecursionBudget(t *testing.T) {
+	resource := query.Object{ObjectType: "document", ObjectID: "doc1"}
+	subject := query.ObjectAndRelation{ObjectType: "user", ObjectID: "alice", Relation: "..."}
+
+	for _, mode := range []string{"scalar", "resources", "subjects"} {
+		for _, depth := range []int32{1, 2} {
+			t.Run(fmt.Sprintf("%s/depth%d", mode, depth), func(t *testing.T) {
+				// The complete inner controller has a different relation identity.
+				// Dispatching it must not reset the depth consumed by its parent.
+				receiver := &testDispatcher{planResponses: []*v1.DispatchQueryPlanResponse{{
+					Paths: []*v1.ResultPath{{
+						ResourceType: resource.ObjectType, ResourceId: resource.ObjectID,
+						SubjectType: subject.ObjectType, SubjectId: subject.ObjectID, SubjectRelation: subject.Relation,
+					}},
+				}}}
+				inner := query.NewRecursiveIterator(query.NewFixedIterator(query.Path{
+					Resource: resource, Subject: subject,
+				}), "document", "inner")
+				outer := query.NewRecursiveIterator(NewDispatchIterator(inner), "document", "outer")
+				ctx := query.NewLocalContext(
+					t.Context(),
+					query.WithMaxRecursionDepth(int(depth)),
+					query.WithCheckExecution(query.CheckExecutionOptions{TargetedRecursion: true, BatchChecks: true}),
+				)
+				ctx.Executor = NewDispatchExecutor(receiver, &v1.PlanContext{MaxRecursionDepth: depth}, 100)
+
+				var paths []*query.Path
+				var err error
+
+				switch mode {
+				case "scalar":
+					var path *query.Path
+					path, err = ctx.Check(outer, resource, subject)
+					paths = []*query.Path{path}
+				case "resources":
+					paths, err = ctx.CheckManyResources(outer, []query.Object{resource}, subject)
+				case "subjects":
+					paths, err = ctx.CheckManySubjects(outer, resource, []query.ObjectAndRelation{subject})
+				}
+
+				if depth == 1 {
+					require.ErrorAs(t, err, &query.MaxRecursionDepthError{})
+				} else {
+					require.NoError(t, err)
+					require.Len(t, paths, 1)
+					require.NotNil(t, paths[0])
+				}
+
+				require.Empty(t, receiver.planCalls)
+			})
+		}
+	}
 }
