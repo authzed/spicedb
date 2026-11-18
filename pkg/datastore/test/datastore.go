@@ -424,6 +424,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	}
 	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
 	t.Run("TestOptimizedRevisionSchemaHash", runner(tester, OptimizedRevisionSchemaHashTest))
+	t.Run("TestOptimizedRevisionSchemaHashAfterRevert", runner(tester, OptimizedRevisionSchemaHashAfterRevertTest))
 
 	if !except.Migration() {
 		t.Run("TestMigration", runner(tester, MigrationTest))

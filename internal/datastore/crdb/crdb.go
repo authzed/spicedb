@@ -285,7 +285,7 @@ func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revi
 	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
-	nowRev, schemaHash, err := cds.headRevisionInternal(ctx)
+	nowRev, err := cds.headRevisionInternalNoHash(ctx)
 	if err != nil {
 		return datastore.RevisionWithSchemaHashAndValidity{}, err
 	}
@@ -300,8 +300,45 @@ func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revi
 	}
 
 	rev, validFor := revisions.Quantize(nowTS, cds.followerReadDelay, cds.revisionQuantization)
+
+	// Read the hash at the quantized revision, not at now. A schema written between the two
+	// would otherwise pair this revision with a schema that was not in effect at it.
+	schemaHash, err := cds.schemaHashAtRevision(ctx, rev)
+	if err != nil {
+		return datastore.RevisionWithSchemaHashAndValidity{}, err
+	}
 	return datastore.RevisionWithSchemaHashAndValidity{Revision: rev, ValidFor: validFor, SchemaHash: schemaHash}, nil
 }
+
+// schemaHashAtRevision returns the stored schema hash as of rev. It returns an empty hash if
+// no schema was stored at rev, including when rev precedes the creation of the database or
+// of the schema_revision table (shortly after a fresh migration). A database that does not
+// exist at all fails when connecting, before this query runs.
+func (cds *crdbDatastore) schemaHashAtRevision(ctx context.Context, rev datastore.Revision) (string, error) {
+	ctx, span := tracer.Start(ctx, "schemaHashAtRevision")
+	defer span.End()
+
+	query := "SELECT hash FROM schema_revision AS OF SYSTEM TIME " + rev.String() + " WHERE name = 'current' LIMIT 1"
+
+	var schemaHash []byte
+	err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&schemaHash)
+	}, query)
+	if err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); errors.Is(err, pgx.ErrNoRows) || (ok && (pgErr.Code == pgerrcodeUndefinedTable || pgErr.Code == pgerrcodeInvalidCatalogName)) {
+			return "", nil
+		}
+		return "", fmt.Errorf(errRevision, err)
+	}
+	return string(schemaHash), nil
+}
+
+const (
+	// pgerrcodeUndefinedTable is the SQLSTATE for a table that does not exist.
+	pgerrcodeUndefinedTable = "42P01"
+	// pgerrcodeInvalidCatalogName is the SQLSTATE for a database that does not exist.
+	pgerrcodeInvalidCatalogName = "3D000"
+)
 
 // CheckRevision verifies the given revision is within the software GC window. It
 // lives on the datastore (not the caching layer) because it is not a caching
@@ -586,10 +623,6 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.RevisionW
 	}
 
 	return datastore.RevisionWithSchemaHash{Revision: rev, SchemaHash: schemaHash}, nil
-}
-
-func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, string, error) {
-	return cds.headRevisionWithSchemaHash(ctx)
 }
 
 func (cds *crdbDatastore) headRevisionInternalNoHash(ctx context.Context) (datastore.Revision, error) {
