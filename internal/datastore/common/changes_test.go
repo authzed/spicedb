@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"math"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -938,6 +940,97 @@ func TestMaximumSizeDeleteReplacement(t *testing.T) {
 	require.NoError(t, ch.AddRelationshipChange(ctx, rev, rel, tuple.UpdateOperationDelete))
 	require.Equal(t, int64(rel.SizeVT()), ch.currentByteSize)
 	require.Equal(t, bufferedByteSize(ch), ch.currentByteSize)
+}
+
+// simulateProduction strips the -test.* flags from os.Args for the rest of the test, so that
+// spiceerrors.MustBugf returns an error instead of panicking. Tests that use it must not run
+// in parallel.
+func simulateProduction(t *testing.T) {
+	t.Helper()
+
+	originalArgs := os.Args
+	t.Cleanup(func() { os.Args = originalArgs })
+
+	nonTestArgs := make([]string, 0, len(os.Args))
+	for _, arg := range os.Args {
+		if !strings.HasPrefix(arg, "-test.") {
+			nonTestArgs = append(nonTestArgs, arg)
+		}
+	}
+	os.Args = nonTestArgs
+	require.False(t, spiceerrors.IsInTests())
+}
+
+func TestMaximumSizeUnderflowReturnsError(t *testing.T) {
+	ctx := t.Context()
+	rel := tuple.MustParse("document:foo#viewer@user:tom")
+
+	rev1, err := revisions.HLCRevisionFromString("1")
+	require.NoError(t, err)
+	rev2, err := revisions.HLCRevisionFromString("2")
+	require.NoError(t, err)
+
+	newChanges := func() *Changes[revisions.HLCRevision, revisions.HLCRevision] {
+		return NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships, 1<<20)
+	}
+
+	// Each case buffers a change, then zeroes the count so that the next subtraction
+	// underflows, which can only happen if the accounting has a bug.
+	t.Run("in tests, underflow panics", func(t *testing.T) {
+		ch := newChanges()
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationTouch))
+		ch.currentByteSize = 0
+
+		require.Panics(t, func() {
+			_ = ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationTouch)
+		})
+	})
+
+	t.Run("replacing a touch", func(t *testing.T) {
+		simulateProduction(t)
+		ch := newChanges()
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationTouch))
+		ch.currentByteSize = 0
+
+		err := ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationTouch)
+		require.ErrorContains(t, err, "byte size underflow")
+	})
+
+	t.Run("replacing a delete", func(t *testing.T) {
+		simulateProduction(t)
+		ch := newChanges()
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationDelete))
+		ch.currentByteSize = 0
+
+		err := ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationDelete)
+		require.ErrorContains(t, err, "byte size underflow")
+	})
+
+	t.Run("releasing sent changes", func(t *testing.T) {
+		simulateProduction(t)
+		ch := newChanges()
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationTouch))
+		ch.currentByteSize = 0
+
+		_, err := collectChanges(ch.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev2))
+		require.ErrorContains(t, err, "byte size underflow")
+	})
+
+	t.Run("releasing after the consumer stops", func(t *testing.T) {
+		simulateProduction(t)
+		ch := newChanges()
+		require.NoError(t, ch.AddRelationshipChange(ctx, rev1, rel, tuple.UpdateOperationTouch))
+		ch.currentByteSize = 0
+
+		// The error must not be yielded once the consumer has stopped: yielding after
+		// the range loop exits would panic.
+		require.NotPanics(t, func() {
+			for _, err := range ch.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev2) {
+				require.NoError(t, err)
+				break
+			}
+		})
+	})
 }
 
 func TestMaximumSizeCaveatReplacement(t *testing.T) {

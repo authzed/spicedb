@@ -132,12 +132,18 @@ type sized interface {
 }
 
 func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
+	return ch.addByteSize(int64(item.SizeVT() * delta))
+}
+
+// addByteSize adds size (which may be negative) to the buffered byte count and checks it
+// against the maximum.
+// NOTE assumes that the mutex has been acquired.
+func (ch *Changes[R, K]) addByteSize(size int64) error {
 	if ch.maxByteSize == 0 {
 		return nil
 	}
 
-	size := item.SizeVT() * delta
-	ch.currentByteSize += int64(size)
+	ch.currentByteSize += size
 	if ch.currentByteSize < 0 {
 		return spiceerrors.MustBugf("byte size underflow")
 	}
@@ -394,7 +400,7 @@ func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) error {
 
 	for rk, cr := range ch.records {
 		if boundRev.GreaterThan(cr.rev) {
-			if err := ch.releaseRecordByteSize(cr); err != nil {
+			if err := ch.releaseRecordByteSizeLocked(cr); err != nil {
 				return err
 			}
 			delete(ch.records, rk)
@@ -404,24 +410,19 @@ func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) error {
 	return nil
 }
 
-// releaseRecordByteSize subtracts the size of everything the record holds that was counted
-// when it was added: relationship touches and deletes, and changed definitions.
+// releaseRecordByteSizeLocked subtracts the size of everything the record holds that was
+// counted when it was added: relationship touches and deletes, and changed definitions.
 // NOTE assumes that the mutex has been acquired.
-func (ch *Changes[R, K]) releaseRecordByteSize(cr changeRecord[R]) error {
+func (ch *Changes[R, K]) releaseRecordByteSizeLocked(cr changeRecord[R]) error {
+	var size int64
 	for _, rel := range cr.relTouches {
-		if err := ch.adjustByteSize(rel, -1); err != nil {
-			return err
-		}
+		size += int64(rel.SizeVT())
 	}
 	for _, rel := range cr.relDeletes {
-		if err := ch.adjustByteSize(rel, -1); err != nil {
-			return err
-		}
+		size += int64(rel.SizeVT())
 	}
 	for _, def := range cr.definitionsChanged {
-		if err := ch.adjustByteSize(def, -1); err != nil {
-			return err
-		}
+		size += int64(def.SizeVT())
 	}
-	return nil
+	return ch.addByteSize(-size)
 }
