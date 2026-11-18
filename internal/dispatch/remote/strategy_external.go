@@ -2,14 +2,12 @@ package remote
 
 import (
 	"context"
-	"runtime/debug"
 	"time"
 
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common/types"
 	"github.com/authzed/cel-go/common/types/ref"
 
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 )
 
@@ -48,22 +46,13 @@ type externalStrategy struct {
 
 func (s externalStrategy) name() string { return s.function }
 
-// newPolicy creates the external policy for a race. If the strategy panics, the race runs the
-// primary only.
-func (s externalStrategy) newPolicy(r raceRequest) (policy racePolicy) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			reportExternalPanic(s.function, "NewPolicy", recovered)
-			policy = primaryOnlyPolicy{}
-		}
-	}()
-
+func (s externalStrategy) newPolicy(r raceRequest) racePolicy {
 	participants := make([]secondary.Participant, len(r.participants))
 	for i, p := range r.participants {
 		participants[i] = publicParticipant(p)
 	}
 
-	adapted := externalPolicy{function: s.function, policy: s.strategy.NewPolicy(secondary.Race{
+	adapted := externalPolicy{policy: s.strategy.NewPolicy(secondary.Race{
 		Method:       r.reqKey,
 		Request:      r.request,
 		Participants: participants,
@@ -81,36 +70,25 @@ func publicParticipant(p participant) secondary.Participant {
 }
 
 // externalPolicy adapts a secondary.Policy to the engine's racePolicy.
-//
-// The policy is code of the program that embeds SpiceDB, called from participant goroutines that
-// nothing else recovers. So that a bug in it fails a dispatch instead of the process, every call
-// recovers from a panic: it is logged and counted, and the call is taken as the safest answer
-// (the participant does not start, does not claim the race, or the engine's default error is
-// returned).
 type externalPolicy struct {
-	function string
-	policy   secondary.Policy
+	policy secondary.Policy
 }
 
 func (e externalPolicy) start(ctx context.Context, p participant) bool {
-	defer e.recoverCallback("Start")
 	return e.policy.Start(ctx, publicParticipant(p))
 }
 
 func (e externalPolicy) readyToClaim(ctx context.Context, p participant, received int, complete bool) bool {
-	defer e.recoverCallback("ReadyToClaim")
 	return e.policy.ReadyToClaim(ctx, publicParticipant(p), received, complete)
 }
 
 func (externalPolicy) firstResult(participant, time.Duration) {}
 
 func (e externalPolicy) done(p participant, err error) {
-	defer e.recoverCallback("Done")
 	e.policy.Done(publicParticipant(p), err)
 }
 
 func (e externalPolicy) noWinnerError(errs map[string]error) error {
-	defer e.recoverCallback("NoWinnerError")
 	return e.policy.NoWinnerError(errs)
 }
 
@@ -121,31 +99,5 @@ type observingExternalPolicy struct {
 }
 
 func (o observingExternalPolicy) observe(p participant, result any) {
-	defer o.recoverCallback("ObserveResult")
 	o.observer.ObserveResult(publicParticipant(p), result)
 }
-
-// recoverCallback recovers from a panic in a policy callback, which then returns its results'
-// zero values. It must be deferred directly.
-func (e externalPolicy) recoverCallback(callback string) {
-	if recovered := recover(); recovered != nil {
-		reportExternalPanic(e.function, callback, recovered)
-	}
-}
-
-func reportExternalPanic(function, callback string, recovered any) {
-	externalStrategyPanicsCounter.WithLabelValues(function).Inc()
-	log.Error().
-		Str("strategy", function).
-		Str("callback", callback).
-		Interface("panic", recovered).
-		Bytes("stack", debug.Stack()).
-		Msg("secondary dispatch strategy panicked; failing the participant instead of the process")
-}
-
-// primaryOnlyPolicy runs the primary only: it replaces a policy the strategy failed to create.
-type primaryOnlyPolicy struct {
-	basePolicy
-}
-
-func (primaryOnlyPolicy) start(_ context.Context, p participant) bool { return p.primary }
