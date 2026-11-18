@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -261,6 +262,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 		reqKey:       reqKey,
 		resource:     resourceTypeAndRelation,
 		subject:      subjectTypeAndRelation,
+		request:      req,
 		participants: participants,
 		stats:        cr.stats,
 	}, plan.strategy, handler)
@@ -268,7 +270,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 
 const (
 	secondaryCursorPrefix = "$$secondary:"
-	primaryDispatcher     = "$primary"
+	primaryDispatcher     = secondary.PrimaryName
 )
 
 // publishPrimary publishes the results of a primary dispatch that runs without secondaries.
@@ -434,6 +436,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		reqKey:       reqKey,
 		resource:     tuple.FromCoreRelationReference(req.GetResourceRelation()),
 		subject:      tuple.FromCoreRelationReference(req.GetSubjectRelation()),
+		request:      req,
 		participants: participants,
 		stats:        cr.stats,
 	}, strategy, handler, stream)

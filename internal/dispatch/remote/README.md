@@ -67,10 +67,12 @@ A race is split into mechanism and policy:
   buffering, choosing a single winner, publishing, cursor tagging and cancellation. Every
   request type uses it; Check goes through a one-message adapter (`unaryReceiver`).
 - **Policy** (`racePolicy`, [strategy.go](strategy.go)): the decisions at each point of a
-  participant's lifecycle: when it may start, when it may claim the win, and which error to
-  return when nobody won. It is created per request by a `secondaryStrategy`, the value a CEL
-  strategy function returns. `basePolicy` holds the defaults; strategies embed it and override
-  only what they change.
+  participant's lifecycle: when it may start, when it may claim the win (`readyToClaim`, which
+  may block until the participant's context is done), and which error to return when nobody
+  won. It is created per request by a `secondaryStrategy`, the value a CEL strategy function
+  returns. `basePolicy` holds the defaults; strategies embed it and override only what they
+  change. A policy that needs the results themselves also implements `resultObserver`; the
+  engine checks for it once per race, so the others pay nothing per result.
 
 What races learn lives in `raceStats` ([stats.go](stats.go)): the secondaries' first-result
 latency digest and the relations they reported as unsupported. The engine records into it for
@@ -103,6 +105,29 @@ Three details matter, each commented where it is implemented:
 3. Test the policy by calling its methods directly, with `testing/synctest` for anything
    time-based, and add a case per request kind to
    [strategy_integration_test.go](strategy_integration_test.go).
+
+## External strategies
+
+Programs that embed SpiceDB add strategies without changing this package, through the public
+[`pkg/dispatch/secondary`](../../../pkg/dispatch/secondary) package:
+
+1. Implement `secondary.Strategy`, whose `NewPolicy` returns a `secondary.Policy` per race.
+   Embed `secondary.BasePolicy` to keep the default decisions, and implement
+   `secondary.ResultObserver` if the policy needs the participants' results.
+2. Declare a `secondary.Function`: its CEL name, the request kinds it supports (`Methods`, nil for
+   all), and constructors for `name([...])` (`New`) and `name([...], duration('...'))`
+   (`NewWithDuration`).
+3. Add it to `server.Config.DispatchSecondaryStrategies` before the server starts. Expressions
+   can then call it like a built-in strategy.
+
+The function's name must be a valid CEL identifier, unlike any built-in or other registered
+function. Calls are checked when the expressions are parsed, at startup: a call from a request
+kind not in `Methods`, or a literal duration of zero or less, fails startup. A constructor that
+returns an error fails the expression's evaluation, which sends the request to the primary only
+and increments `remote_dispatch_expr_eval_errors_total`. External strategies run on the same
+engine as the built-in ones, through an adapter ([strategy_external.go](strategy_external.go))
+that the built-in strategies don't go through. Their races are counted in
+`remote_dispatch_secondary_strategy_total` under the function's name.
 
 ## Metrics
 

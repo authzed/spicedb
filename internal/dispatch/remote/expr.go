@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/authzed/cel-go/common/types/ref"
 	"github.com/authzed/cel-go/common/types/traits"
 
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -50,6 +52,11 @@ type strategyDescriptor struct {
 	// primaryOnly is set for strategies whose plans have no secondaries, and so never race.
 	primaryOnly bool
 
+	// methods lists the request kinds (the keys of the expressions flag, such as "check") whose
+	// expressions may call the strategy, or is nil if all may. Calls from any other kind's
+	// expression are rejected when it is parsed.
+	methods []string
+
 	overloads []cel.FunctionOpt
 }
 
@@ -64,9 +71,9 @@ func checkStrategyDuration(function, argument string, d time.Duration) error {
 // checkLiteralStrategyDurations rejects strategy calls whose duration argument is a literal,
 // such as duration('0s'), that would fail every evaluation. Without this check, the expression
 // would parse, and every dispatch would quietly go to the primary only.
-func checkLiteralStrategyDurations(ast *cel.Ast) error {
+func checkLiteralStrategyDurations(ast *cel.Ast, strategies []strategyDescriptor) error {
 	root := celast.NavigateAST(ast.NativeRep())
-	for _, strategy := range registeredStrategies {
+	for _, strategy := range strategies {
 		if strategy.durationArgument == "" {
 			continue
 		}
@@ -94,6 +101,20 @@ func checkLiteralStrategyDurations(ast *cel.Ast) error {
 	return nil
 }
 
+// checkStrategyMethods rejects calls to strategies that do not support methodName.
+func checkStrategyMethods(ast *cel.Ast, methodName string, strategies []strategyDescriptor) error {
+	root := celast.NavigateAST(ast.NativeRep())
+	for _, strategy := range strategies {
+		if strategy.methods == nil || slices.Contains(strategy.methods, methodName) {
+			continue
+		}
+		if len(celast.MatchDescendants(root, celast.FunctionMatcher(strategy.function))) > 0 {
+			return fmt.Errorf("%s: not supported in `%s` expressions; supported in: %s", strategy.function, methodName, strings.Join(strategy.methods, ", "))
+		}
+	}
+	return nil
+}
+
 // durationLiteral returns s if expr is duration('<s>').
 func durationLiteral(expr celast.Expr) (string, bool) {
 	if expr.Kind() != celast.CallKind {
@@ -110,8 +131,9 @@ func durationLiteral(expr celast.Expr) (string, bool) {
 // strategyTypeHint explains the type errors operators are most likely to hit.
 const strategyTypeHint = "hint: both branches of a conditional must have the same type; wrap plain lists in hedged([...]), and use prefer_primary() to dispatch to the primary only"
 
-// registeredStrategies lists the strategies available to dispatch expressions. Adding a
-// strategy means adding its descriptor here.
+// registeredStrategies lists the built-in strategies available to dispatch expressions. Adding a
+// built-in strategy means adding its descriptor here; programs that embed SpiceDB add theirs
+// through secondary.Function instead (see withExternalStrategies).
 var registeredStrategies = []strategyDescriptor{
 	hedgedDescriptor,
 	preferSecondaryDescriptor,
@@ -190,19 +212,46 @@ func toStringSlice(v ref.Val) ([]string, error) {
 	return names, nil
 }
 
-// ParseDispatchExpression parses a dispatch expression via CEL.
-func ParseDispatchExpression(methodName string, exprString string) (*DispatchExpr, error) {
+// withExternalStrategies returns the built-in strategies followed by the descriptors of the given
+// strategy functions, rejecting invalid functions and names used twice.
+func withExternalStrategies(functions []secondary.Function) ([]strategyDescriptor, error) {
+	if len(functions) == 0 {
+		return registeredStrategies, nil
+	}
+
+	strategies := slices.Clip(registeredStrategies)
+	for _, fn := range functions {
+		if slices.ContainsFunc(strategies, func(s strategyDescriptor) bool { return s.function == fn.Name }) {
+			return nil, fmt.Errorf("secondary dispatch strategy function %q is already defined", fn.Name)
+		}
+		descriptor, err := externalDescriptor(fn)
+		if err != nil {
+			return nil, err
+		}
+		strategies = append(strategies, descriptor)
+	}
+	return strategies, nil
+}
+
+// ParseDispatchExpression parses a dispatch expression via CEL. functions adds strategy functions
+// registered by a program that embeds SpiceDB to the built-in ones.
+func ParseDispatchExpression(methodName string, exprString string, functions ...secondary.Function) (*DispatchExpr, error) {
 	registry, err := types.NewRegistry(dispatchRequestTypes...)
 	if err != nil {
 		return nil, errors.New("unable to initialize dispatch expression type registry")
 	}
 
-	opts := make([]cel.EnvOption, 0, 2+len(registeredStrategies))
+	strategies, err := withExternalStrategies(functions)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := make([]cel.EnvOption, 0, 2+len(strategies))
 	opts = append(opts,
 		cel.OptionalTypes(cel.OptionalTypesVersion(0)),
 		cel.Variable("request", cel.DynType),
 	)
-	for _, strategy := range registeredStrategies {
+	for _, strategy := range strategies {
 		opts = append(opts, cel.Function(strategy.function, strategy.overloads...))
 	}
 
@@ -224,7 +273,11 @@ func ParseDispatchExpression(methodName string, exprString string) (*DispatchExp
 		return nil, fmt.Errorf("dispatch expression must result in a list[string] value or a strategy such as hedged([...]): found `%s`; %s", outputType.String(), strategyTypeHint)
 	}
 
-	if err := checkLiteralStrategyDurations(ast); err != nil {
+	if err := checkLiteralStrategyDurations(ast, strategies); err != nil {
+		return nil, err
+	}
+
+	if err := checkStrategyMethods(ast, methodName, strategies); err != nil {
 		return nil, err
 	}
 

@@ -117,7 +117,7 @@ func (tp *testPolicy) start(ctx context.Context, p participant) bool {
 	return true
 }
 
-func (tp *testPolicy) readyToClaim(p participant, received int, complete bool) bool {
+func (tp *testPolicy) readyToClaim(ctx context.Context, p participant, received int, complete bool) bool {
 	if tp.claimHook != nil {
 		tp.claimHook(p)
 	}
@@ -125,7 +125,7 @@ func (tp *testPolicy) readyToClaim(p participant, received int, complete bool) b
 	case tp.claimAt < 0:
 		return false
 	case tp.claimAt == 0:
-		return tp.basePolicy.readyToClaim(p, received, complete)
+		return tp.basePolicy.readyToClaim(ctx, p, received, complete)
 	default:
 		return complete || received >= tp.claimAt
 	}

@@ -8,6 +8,7 @@ import (
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
+	secondary "github.com/authzed/spicedb/pkg/dispatch/secondary"
 	query "github.com/authzed/spicedb/pkg/query"
 	signals "github.com/authzed/spicedb/pkg/query/signals"
 	defaults "github.com/creasty/defaults"
@@ -87,6 +88,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchSecondaryMaximumPrimaryHedgingDelays = c.DispatchSecondaryMaximumPrimaryHedgingDelays
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
+		to.DispatchSecondaryStrategies = c.DispatchSecondaryStrategies
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
@@ -822,6 +824,20 @@ func SetDispatchSecondaryMaximumPrimaryHedgingDelays(dispatchSecondaryMaximumPri
 func WithDispatchPrimaryDelayForTesting(dispatchPrimaryDelayForTesting time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.DispatchPrimaryDelayForTesting = dispatchPrimaryDelayForTesting
+	}
+}
+
+// WithDispatchSecondaryStrategies returns an option that can append DispatchSecondaryStrategiess to Config.DispatchSecondaryStrategies
+func WithDispatchSecondaryStrategies(dispatchSecondaryStrategies secondary.Function) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryStrategies = append(c.DispatchSecondaryStrategies, dispatchSecondaryStrategies)
+	}
+}
+
+// SetDispatchSecondaryStrategies returns an option that can set DispatchSecondaryStrategies on a Config
+func SetDispatchSecondaryStrategies(dispatchSecondaryStrategies []secondary.Function) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryStrategies = dispatchSecondaryStrategies
 	}
 }
 
