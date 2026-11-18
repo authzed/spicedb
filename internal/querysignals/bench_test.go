@@ -83,7 +83,7 @@ func BenchmarkPlanningSignals(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				if _, err := querysignals.Plan(co, queryopt.RequestParams{}, v, false); err != nil {
+				if _, err := querysignals.Plan(co, queryopt.RequestParams{}, v, false, queryopt.DecisionOptimizers()); err != nil {
 					b.Fatal(err)
 				}
 			}

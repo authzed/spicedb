@@ -58,7 +58,11 @@ func runDispatchWrap(t *testing.T, outline query.Outline) query.Outline {
 	t.Helper()
 	co, err := query.CanonicalizeOutline(outline)
 	require.NoError(t, err)
-	res, err := queryopt.ApplyOptimizations(co, []queryopt.Optimizer{dispatchwrap.New(dispatch.DispatchIteratorType)}, queryopt.RequestParams{})
+	res, err := queryopt.ApplyOptimizations(
+		co,
+		[]queryopt.Optimizer{dispatchwrap.New(dispatch.DispatchIteratorType)},
+		queryopt.RequestParams{},
+	)
 	require.NoError(t, err)
 	return res.Root
 }
@@ -113,7 +117,8 @@ func TestDispatchWrapOptimizer(t *testing.T) {
 		// Alias("view")(Recursive("folder","viewer")(Sentinel("folder","viewer")))
 		// The recursive iterator inside the alias matches the sentinel's key, so
 		// the dispatch boundary is safe.
-		input := aliasOutline("document", "view",
+		input := aliasOutline(
+			"document", "view",
 			recursiveOutline("folder", "viewer", sentinelOutline("folder", "viewer")),
 		)
 		got := runDispatchWrap(t, input)
@@ -125,7 +130,8 @@ func TestDispatchWrapOptimizer(t *testing.T) {
 		// No RecursiveIterator with key folder#viewer exists in the alias's
 		// subtree, so dispatching the alias would sever the sentinel from its
 		// collection context.
-		input := aliasOutline("document", "view",
+		input := aliasOutline(
+			"document", "view",
 			query.Outline{
 				Type: query.UnionIteratorType,
 				SubOutlines: []query.Outline{
@@ -143,7 +149,11 @@ func TestDispatchWrapOptimizer(t *testing.T) {
 		input := aliasOutline("document", "viewer", dsOutline())
 		co, err := query.CanonicalizeOutline(input)
 		require.NoError(t, err)
-		res, err := queryopt.ApplyOptimizations(co, []queryopt.Optimizer{dispatchwrap.New(dispatch.DispatchIteratorType)}, queryopt.RequestParams{})
+		res, err := queryopt.ApplyOptimizations(
+			co,
+			[]queryopt.Optimizer{dispatchwrap.New(dispatch.DispatchIteratorType)},
+			queryopt.RequestParams{},
+		)
 		require.NoError(t, err)
 
 		require.NotZero(t, res.Root.ID, "Dispatch root must have an ID assigned by FillMissingNodeIDs")
@@ -156,7 +166,11 @@ func TestDispatchWrapOptimizer(t *testing.T) {
 		input := aliasOutline("document", "viewer", dsOutline())
 		co, err := query.CanonicalizeOutline(input)
 		require.NoError(t, err)
-		res, err := queryopt.ApplyOptimizations(co, []queryopt.Optimizer{dispatchwrap.New(dispatch.DispatchIteratorType)}, queryopt.RequestParams{})
+		res, err := queryopt.ApplyOptimizations(
+			co,
+			[]queryopt.Optimizer{dispatchwrap.New(dispatch.DispatchIteratorType)},
+			queryopt.RequestParams{},
+		)
 		require.NoError(t, err)
 
 		it, err := res.Compile()
@@ -169,4 +183,17 @@ func TestDispatchWrapOptimizer(t *testing.T) {
 		_, ok = subs[0].(*query.AliasIterator)
 		require.True(t, ok, "expected DispatchIterator child to be *query.AliasIterator, got %T", subs[0])
 	})
+}
+
+func TestDispatchWrapIncludesCompleteRecursiveController(t *testing.T) {
+	template := aliasOutline("document", "nested", sentinelOutline("document", "nested"))
+	got := runDispatchWrap(t, recursiveOutline("document", "nested", template))
+	require.Equal(t, dispatch.DispatchIteratorType, got.Type)
+	require.Equal(t, query.RecursiveIteratorType, got.SubOutlines[0].Type)
+	require.Equal(t, query.AliasIteratorType, got.SubOutlines[0].SubOutlines[0].Type, "template alias must stay with its controller")
+	// A controller that still depends on an ancestor's different recursion key
+	// cannot be shipped independently, even though it manages its own key.
+	unmatched := recursiveOutline("document", "nested", sentinelOutline("folder", "view"))
+	got = runDispatchWrap(t, unmatched)
+	require.Equal(t, query.RecursiveIteratorType, got.Type)
 }

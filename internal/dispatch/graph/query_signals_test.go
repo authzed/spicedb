@@ -15,6 +15,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/queryprofile"
 	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/query/signals/branchoutcome"
 	"github.com/authzed/spicedb/pkg/query/signals/contextfield"
@@ -79,7 +80,13 @@ func TestQuerySignalsReceiverReusesLoadedSchema(t *testing.T) {
 	it := query.NewFixedIterator()
 	var plan bytes.Buffer
 	require.NoError(t, it.Serialize(&plan))
-	request := &v1.DispatchQueryPlanRequest{Plan: plan.Bytes(), PlanContext: dispatch.NewPlanContext(revision.String(), datalayer.SchemaHash("a"), map[string]any{"field": true}, 50, 0), Operation: v1.PlanOperation_PLAN_OPERATION_CHECK, Resource: &core.ObjectAndRelation{Namespace: "doc", ObjectId: "d"}, Subject: &core.ObjectAndRelation{Namespace: "user", ObjectId: "u", Relation: "..."}}
+	request := &v1.DispatchQueryPlanRequest{
+		Plan:        plan.Bytes(),
+		PlanContext: dispatch.NewPlanContext(revision.String(), datalayer.SchemaHash("a"), map[string]any{"field": true}, 50, 0),
+		Operation:   v1.PlanOperation_PLAN_OPERATION_CHECK,
+		Resource:    &core.ObjectAndRelation{Namespace: "doc", ObjectId: "d"},
+		Subject:     &core.ObjectAndRelation{Namespace: "user", ObjectId: "u", Relation: "..."},
+	}
 
 	for range 2 {
 		stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](ctx)
@@ -93,7 +100,15 @@ func TestQuerySignalsReceiverReusesLoadedSchema(t *testing.T) {
 	descriptors, err := query.ExecutionDescriptors(it)
 	require.NoError(t, err)
 	d := descriptors[it]
-	k := signal.ExecutionKey{Identity: d.Identity, Operation: signal.Check, Filter: "doc|user#...", Mode: "single", Strategy: "default/batched", Role: "body", Dependencies: signal.EncodeFootprint(d.Footprint)}
+	k := signal.ExecutionKey{
+		Identity:     d.Identity,
+		Operation:    signal.Check,
+		Filter:       "doc|user#...",
+		Mode:         "single",
+		Strategy:     "default/batched",
+		Role:         "body",
+		Dependencies: signal.EncodeFootprint(d.Footprint),
+	}
 	e, err := signal.Lookup(v, branchoutcome.Ref, k)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), e.Value.Denied)
@@ -107,7 +122,10 @@ func TestQuerySignalsReceiverKeepsBatchMode(t *testing.T) {
 		operation           v1.PlanOperation
 		mode                string
 		namespace, relation string
-	}{{v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, "many-resources", "doc", ""}, {v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, "many-subjects", "user", "..."}} {
+	}{
+		{v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_RESOURCES, "many-resources", "doc", ""},
+		{v1.PlanOperation_PLAN_OPERATION_CHECK_MANY_SUBJECTS, "many-subjects", "user", "..."},
+	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			owner := signals.NewDefaultOwner()
 			params := MustNewDefaultDispatcherParametersForTesting()
@@ -121,14 +139,32 @@ func TestQuerySignalsReceiverKeepsBatchMode(t *testing.T) {
 			it := query.NewFixedIterator()
 			var plan bytes.Buffer
 			require.NoError(t, it.Serialize(&plan))
-			req := &v1.DispatchQueryPlanRequest{Plan: plan.Bytes(), PlanContext: dispatch.NewPlanContext(revision.String(), "a", nil, 50, 0), Operation: tc.operation, Resource: &core.ObjectAndRelation{Namespace: "doc", ObjectId: "d"}, Subject: &core.ObjectAndRelation{Namespace: "user", ObjectId: "u", Relation: "..."}, Many: []*core.ObjectAndRelation{{Namespace: tc.namespace, ObjectId: "one", Relation: tc.relation}, {Namespace: tc.namespace, ObjectId: "two", Relation: tc.relation}}}
+			req := &v1.DispatchQueryPlanRequest{
+				Plan:        plan.Bytes(),
+				PlanContext: dispatch.NewPlanContext(revision.String(), "a", nil, 50, 0),
+				Operation:   tc.operation,
+				Resource:    &core.ObjectAndRelation{Namespace: "doc", ObjectId: "d"},
+				Subject:     &core.ObjectAndRelation{Namespace: "user", ObjectId: "u", Relation: "..."},
+				Many: []*core.ObjectAndRelation{
+					{Namespace: tc.namespace, ObjectId: "one", Relation: tc.relation},
+					{Namespace: tc.namespace, ObjectId: "two", Relation: tc.relation},
+				},
+			}
 			require.NoError(t, dispatcher.DispatchQueryPlan(req, dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](ctx)))
 			v, err := owner.Bind(reader.schema.stored, signal.Scope{SchemaHash: "a", Revision: revision})
 			require.NoError(t, err)
 			descriptors, err := query.ExecutionDescriptors(it)
 			require.NoError(t, err)
 			d := descriptors[it]
-			k := signal.ExecutionKey{Identity: d.Identity, Operation: signal.Check, Filter: "doc|user#...", Mode: tc.mode, Strategy: "default/batched", Role: "body", Dependencies: signal.EncodeFootprint(d.Footprint)}
+			k := signal.ExecutionKey{
+				Identity:     d.Identity,
+				Operation:    signal.Check,
+				Filter:       "doc|user#...",
+				Mode:         tc.mode,
+				Strategy:     "default/batched",
+				Role:         "body",
+				Dependencies: signal.EncodeFootprint(d.Footprint),
+			}
 			e, err := signal.Lookup(v, branchoutcome.Ref, k)
 			require.NoError(t, err)
 			require.Equal(t, uint64(2), e.Value.Denied)
@@ -138,4 +174,61 @@ func TestQuerySignalsReceiverKeepsBatchMode(t *testing.T) {
 			require.Equal(t, signal.Missing, single.Availability)
 		})
 	}
+}
+
+func TestNativeProfileReceiverDoesNotCollectSignals(t *testing.T) {
+	owner := signals.NewDefaultOwner()
+	params := MustNewDefaultDispatcherParametersForTesting()
+	var err error
+	params.QuerySignals = owner
+	params.QueryProfile, err = queryprofile.Resolve(
+		queryprofile.NativeParityV1,
+		queryprofile.Options{CheckConcurrency: 2, DispatchChunkSize: 10},
+	)
+	require.NoError(t, err)
+	dispatcher, err := NewLocalOnlyDispatcher(params)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, dispatcher.Close()) })
+	reader := &signalReader{schema: &signalSchema{stored: querysignalstest.Stored("a")}}
+	revision := revisions.NewForTransactionID(7)
+	dl := &signalDataLayer{revision: revision, reader: reader, t: t}
+	ctx := datalayer.ContextWithDataLayer(t.Context(), dl)
+	it := query.NewFixedIterator()
+	var plan bytes.Buffer
+	require.NoError(t, it.Serialize(&plan))
+	request := &v1.DispatchQueryPlanRequest{
+		Plan:        plan.Bytes(),
+		PlanContext: dispatch.NewPlanContext(revision.String(), datalayer.SchemaHash("a"), map[string]any{"field": true}, 50, 0),
+		Operation:   v1.PlanOperation_PLAN_OPERATION_CHECK,
+		Resource:    &core.ObjectAndRelation{Namespace: "doc", ObjectId: "d"},
+		Subject:     &core.ObjectAndRelation{Namespace: "user", ObjectId: "u", Relation: "..."},
+	}
+
+	for range 2 {
+		stream := dispatch.NewCollectingDispatchStream[*v1.DispatchQueryPlanResponse](ctx)
+		require.NoError(t, dispatcher.DispatchQueryPlan(request, stream))
+		require.Empty(t, stream.Results())
+	}
+
+	require.Equal(t, 2, reader.reads) // One schema read per receiver invocation, no extra signal acquisition read.
+	v, err := owner.Bind(reader.schema.stored, signal.Scope{SchemaHash: "a", Revision: revision})
+	require.NoError(t, err)
+	descriptors, err := query.ExecutionDescriptors(it)
+	require.NoError(t, err)
+	d := descriptors[it]
+	k := signal.ExecutionKey{
+		Identity:     d.Identity,
+		Operation:    signal.Check,
+		Filter:       "doc|user#...",
+		Mode:         "single",
+		Strategy:     "default/batched",
+		Role:         "body",
+		Dependencies: signal.EncodeFootprint(d.Footprint),
+	}
+	e, err := signal.Lookup(v, branchoutcome.Ref, k)
+	require.NoError(t, err)
+	require.False(t, e.IsAvailable())
+	field, err := signal.Lookup(v, contextfield.Ref, "field")
+	require.NoError(t, err)
+	require.Equal(t, signal.Missing, field.Availability)
 }
