@@ -95,7 +95,14 @@ type LatestRevisionProvider interface {
 // observeRevision records rev and its schema hash if rev is newer than the recorded revision.
 // A concurrent revision (Postgres) does not replace the recorded revision.
 func (d *defaultDataLayer) observeRevision(rev datastore.Revision, h SchemaHash) {
-	if !d.schemaMode.ReadsFromNew() || h == "" || h.IsBypassSentinel() || rev == nil || rev == datastore.NoRevision {
+	// If we're not reading from the new schema store, we go through the normal channels.
+	if !d.schemaMode.ReadsFromNew() ||
+		// If the schema hash is empty, we don't want to swap it in
+		h == "" ||
+		// Same if it's a sentinel value that should explicitly bypass
+		h.IsBypassSentinel() ||
+		// If the revision is empty or no revision, we also don't want to swap it in
+		rev == nil || rev == datastore.NoRevision {
 		return
 	}
 	next := &revisionAndHash{rev: rev, hash: h}

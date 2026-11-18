@@ -720,3 +720,63 @@ func TestAtLeastAsFreshHashlessTokenConcurrentWithObservedUsesHead(t *testing.T)
 	require.Equal(t, datalayer.SchemaHash("headhash"), hash)
 	ds.AssertExpectations(t)
 }
+
+// TestAtLeastAsFreshHashlessTokenSchemaRevertedWithinQuantizationWindow covers a schema that is
+// written and then reverted inside one quantization window.
+//
+// CRDB and Spanner read the schema hash at "now", then quantize the revision down. So
+// OptimizedRevision can pair a revision with a hash that was not the schema at that revision.
+// With the history below, a quantized revision of 125 comes back with hashA, but the schema at
+// 125 is B. The hash is content-addressed, so hashA still resolves to schema A: the pair is
+// wrong, not the cache entry.
+//
+// The middleware must never serve a (revision, hash) pair where the hash is not the schema at
+// that revision. Otherwise relationships at 125 are evaluated against schema A, a state that
+// never existed at 125.
+func TestAtLeastAsFreshHashlessTokenSchemaRevertedWithinQuantizationWindow(t *testing.T) {
+	const (
+		hashA = datalayer.SchemaHash("hashA")
+		hashB = datalayer.SchemaHash("hashB")
+	)
+
+	// Schema history: A, then B written at 120, then A again (revert) at 130.
+	schemaAt := func(rev datastore.Revision) datalayer.SchemaHash {
+		switch {
+		case rev.LessThan(revisions.NewForTransactionID(120)):
+			return hashA
+		case rev.LessThan(revisions.NewForTransactionID(130)):
+			return hashB
+		default:
+			return hashA
+		}
+	}
+
+	quantized := revisions.NewForTransactionID(125)
+	olderCandidate := revisions.NewForTransactionID(110)
+	token := revisions.NewForTransactionID(123)
+
+	ds := &proxy_test.MockDatastore{}
+	// The first call computes the optimized revision after the revert: the quantized revision
+	// is 125, but the hash is read at "now" (head), so it is hashA.
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: quantized, SchemaHash: string(hashA)}, nil).Once()
+	// The optimized revision proxy can return an older candidate that is still valid (staleness
+	// jitter), so a later request can see an optimized revision behind the token.
+	ds.On("OptimizedRevision").Return(datastore.RevisionWithSchemaHashAndValidity{Revision: olderCandidate, SchemaHash: string(hashA)}, nil).Once()
+	ds.On("RevisionFromString", token.String()).Return(token, nil).Once()
+	// HeadRevision reads the revision and hash in one statement, so its pair is consistent.
+	ds.On("HeadRevision").Return(datastore.RevisionWithSchemaHash{Revision: head, SchemaHash: string(schemaAt(head))}, nil).Maybe()
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteNew))
+
+	// A minimize_latency request observes the optimized revision (125, hashA).
+	_, _, err := dl.OptimizedRevision(t.Context())
+	require.NoError(t, err)
+
+	// A hashless at_least_as_fresh token at 123 (for example, from a relationship write made by an
+	// older SpiceDB) must not be served at (125, hashA).
+	rev, hash := addAtLeastAsFresh(t, dl, zedtoken.MustNewFromRevisionForTesting(token, datalayer.NoSchemaHashInLegacyZedToken))
+	require.True(t, rev.Equal(token) || rev.GreaterThan(token), "revision %s is older than token %s", rev, token)
+	if !hash.IsBypassSentinel() {
+		require.Equal(t, schemaAt(rev), hash, "hash %q is not the schema at revision %s", hash, rev)
+	}
+	ds.AssertExpectations(t)
+}

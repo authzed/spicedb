@@ -129,6 +129,15 @@ func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 		GCWindow(retainAllRevisions),
 		WithAcquireTimeout(5*time.Second),
 	))
+
+	t.Run("TestOptimizedRevisionSchemaHashAfterRevert", createDatastoreTest(
+		b,
+		test.OptimizedRevisionSchemaHashAfterRevertTest(2*time.Second),
+		RevisionQuantization(2*time.Second),
+		FollowerReadDelay(0),
+		GCWindow(retainAllRevisions),
+		WithAcquireTimeout(5*time.Second),
+	))
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)

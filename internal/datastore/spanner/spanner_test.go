@@ -70,6 +70,13 @@ func TestSpannerDatastore(t *testing.T) {
 		OptimizedRevisionAfterFreshMigrationTest,
 		FollowerReadDelay(4800*time.Millisecond),
 	))
+
+	t.Run("TestOptimizedRevisionSchemaHashAfterRevert", createDatastoreTest(
+		b,
+		test.OptimizedRevisionSchemaHashAfterRevertTest(2*time.Second),
+		RevisionQuantization(2*time.Second),
+		FollowerReadDelay(0),
+	))
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
