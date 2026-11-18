@@ -43,3 +43,67 @@ func checkExclusionOperands[T any](ctx *Context, main, excluded func(*Context) (
 		return base, result.value, result.err
 	}
 }
+
+// checkExclusionBatch retains all candidates in both operands: the first base
+// grant can be excluded, so AllowSingleResult cannot be propagated to either
+// operand. Native also checks the full vector in each concurrent operand.
+func (e *ExclusionIterator) checkExclusionBatch(ctx *Context, batch checkBatch) ([]*Path, error) {
+	limit, err := ctx.setCheckConcurrency(e.checkConcurrency, e.concurrencyHint)
+	if err != nil {
+		return nil, err
+	}
+
+	childBatch := batch
+	childBatch.mode = AllCheckResults
+	empty := func(paths []*Path) bool {
+		for _, path := range paths {
+			if path != nil {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	var main, excluded []*Path
+
+	switch {
+	case limit > 1:
+		childBatch = childBatch.cloneTargets()
+		main, excluded, err = checkExclusionOperands(
+			ctx,
+			func(branch *Context) ([]*Path, error) { return childBatch.child(branch, e.mainSet) },
+			func(branch *Context) ([]*Path, error) { return childBatch.child(branch, e.excluded) },
+			empty,
+		)
+	case ctx.checkExecution.BaseFirstExclusion:
+		main, err = childBatch.child(ctx, e.mainSet)
+		if err == nil && !empty(main) {
+			excluded, err = childBatch.child(ctx, e.excluded)
+		}
+	default:
+		excluded, err = childBatch.child(ctx, e.excluded)
+		if err == nil {
+			main, err = childBatch.child(ctx, e.mainSet)
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for index, path := range main {
+		if path == nil || excluded[index] == nil {
+			continue
+		}
+
+		result, keep := combineExclusionCaveats(path, excluded[index])
+		main[index] = nil
+
+		if keep {
+			main[index] = result
+		}
+	}
+
+	return main, nil
+}

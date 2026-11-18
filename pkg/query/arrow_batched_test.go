@@ -14,7 +14,15 @@ import (
 // BatchedArrows = false and BatchedArrows = true. The two modes must produce
 // equivalent results for any input — that is the contract that lets the
 // dispatch executor enable batching unconditionally.
-func runArrowCheckInBothModes(t *testing.T, name string, arrowFactory func() *ArrowIterator, resource Object, subject ObjectAndRelation, expectMatch bool, expectedSubjectID string) {
+func runArrowCheckInBothModes(
+	t *testing.T,
+	name string,
+	arrowFactory func() *ArrowIterator,
+	resource Object,
+	subject ObjectAndRelation,
+	expectMatch bool,
+	expectedSubjectID string,
+) {
 	t.Helper()
 	for _, batched := range []bool{false, true} {
 		mode := "unbatched"
@@ -105,16 +113,28 @@ func (c *countingExecutor) Check(ctx *Context, it Iterator, resource Object, sub
 	return c.LocalExecutor.Check(ctx, it, resource, subject)
 }
 
-func (c *countingExecutor) CheckManySubjects(ctx *Context, it Iterator, resource Object, subjects []ObjectAndRelation) ([]*Path, error) {
+func (c *countingExecutor) CheckManySubjects(
+	ctx *Context,
+	it Iterator,
+	resource Object,
+	subjects []ObjectAndRelation,
+	modes ...CheckResultMode,
+) ([]*Path, error) {
 	c.checkManyCalls++
 	c.checkManyTotalLen += len(subjects)
-	return c.LocalExecutor.CheckManySubjects(ctx, it, resource, subjects)
+	return c.LocalExecutor.CheckManySubjects(ctx, it, resource, subjects, modes...)
 }
 
-func (c *countingExecutor) CheckManyResources(ctx *Context, it Iterator, resources []Object, subject ObjectAndRelation) ([]*Path, error) {
+func (c *countingExecutor) CheckManyResources(
+	ctx *Context,
+	it Iterator,
+	resources []Object,
+	subject ObjectAndRelation,
+	modes ...CheckResultMode,
+) ([]*Path, error) {
 	c.checkManyCalls++
 	c.checkManyTotalLen += len(resources)
-	return c.LocalExecutor.CheckManyResources(ctx, it, resources, subject)
+	return c.LocalExecutor.CheckManyResources(ctx, it, resources, subject, modes...)
 }
 
 func TestArrow_BatchedDispatchesOneCheckMany_LTR(t *testing.T) {
@@ -260,7 +280,11 @@ func rightPathForWildcard(wildcardSubjectType, wildcardSubjectID, relation strin
 }
 
 // rightPathForWildcardWithCaveat is like rightPathForWildcard but with a caveat.
-func rightPathForWildcardWithCaveat(wildcardSubjectType, wildcardSubjectID, relation string, subject ObjectAndRelation, caveatName string) *Path {
+func rightPathForWildcardWithCaveat(
+	wildcardSubjectType, wildcardSubjectID, relation string,
+	subject ObjectAndRelation,
+	caveatName string,
+) *Path {
 	p := rightPathForWildcard(wildcardSubjectType, wildcardSubjectID, relation, subject)
 	p.Caveat = &core.CaveatExpression{
 		OperationOrCaveat: &core.CaveatExpression_Caveat{

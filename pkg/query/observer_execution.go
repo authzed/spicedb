@@ -264,3 +264,109 @@ func (ctx *Context) ObserveImplCheckManyResources(it Iterator, resource Object, 
 func (ctx *Context) ObserveImplCheckManySubjects(it Iterator, resource Object, subject ObjectAndRelation) (*Path, error) {
 	return ctx.observeImplCheck(it, resource, subject, "many-subjects")
 }
+
+// ObserveImplCheckResourceBatch observes a receiver's resource batch without
+// crossing the same dispatch boundary again. The mode defaults to AllCheckResults.
+func (ctx *Context) ObserveImplCheckResourceBatch(
+	it Iterator, resources []Object, subject ObjectAndRelation, modes ...CheckResultMode,
+) ([]*Path, error) {
+	if len(resources) == 0 {
+		return nil, nil
+	}
+
+	if !ctx.checkExecution.BatchChecks && ctx.checkBatchMode(modes) == AllCheckResults {
+		paths := make([]*Path, len(resources))
+
+		for i, resource := range resources {
+			path, err := ctx.ObserveImplCheckManyResources(it, resource, subject)
+			if err != nil {
+				return nil, err
+			}
+
+			paths[i] = path
+		}
+
+		return paths, nil
+	}
+
+	mode := batchObservationMode("many-resources", ctx.checkBatchMode(modes))
+	event := ctx.executionStart(it, OperationCheck, CheckFilter(resources[0], subject), mode)
+	if event != nil {
+		event.BatchSize = uint64(len(resources))
+	}
+
+	paths, err := CheckManyResourcesImpl(ctx, it, resources, subject, modes...)
+	ctx.executionCheckBatch(event, paths, err, ctx.checkBatchMode(modes))
+	return paths, err
+}
+
+// ObserveImplCheckSubjectBatch observes a receiver's subject batch without
+// crossing the same dispatch boundary again. The mode defaults to AllCheckResults.
+func (ctx *Context) ObserveImplCheckSubjectBatch(
+	it Iterator, resource Object, subjects []ObjectAndRelation, modes ...CheckResultMode,
+) ([]*Path, error) {
+	if len(subjects) == 0 {
+		return nil, nil
+	}
+
+	if !ctx.checkExecution.BatchChecks && ctx.checkBatchMode(modes) == AllCheckResults {
+		paths := make([]*Path, len(subjects))
+
+		for i, subject := range subjects {
+			path, err := ctx.ObserveImplCheckManySubjects(it, resource, subject)
+			if err != nil {
+				return nil, err
+			}
+
+			paths[i] = path
+		}
+
+		return paths, nil
+	}
+
+	mode := batchObservationMode("many-subjects", ctx.checkBatchMode(modes))
+	event := ctx.executionStart(it, OperationCheck, CheckFilter(resource, subjects[0]), mode)
+	if event != nil {
+		event.BatchSize = uint64(len(subjects))
+	}
+
+	paths, err := CheckManySubjectsImpl(ctx, it, resource, subjects, modes...)
+	ctx.executionCheckBatch(event, paths, err, ctx.checkBatchMode(modes))
+	return paths, err
+}
+
+// executionCheckBatch keeps an early grant from manufacturing denials for skipped
+// targets. A separate mode and incomplete terminal prevent complete-only signals
+// from treating this partial population as an exhaustive batch observation.
+func (ctx *Context) executionCheckBatch(e *ExecutionObservation, paths []*Path, err error, mode CheckResultMode) {
+	if e != nil && err == nil && mode == AllowSingleResult && hasUnconditionalGrant(paths) {
+		e.Status = signal.ConsumerStopped
+
+		for _, path := range paths {
+			if path == nil {
+				continue
+			}
+
+			e.Count++
+
+			if path.Caveat == nil {
+				e.Granted++
+			} else {
+				e.Conditional++
+			}
+		}
+
+		ctx.executionFinish(e, err)
+		return
+	}
+
+	ctx.executionBatch(e, paths, err)
+}
+
+func batchObservationMode(dimension string, mode CheckResultMode) string {
+	if mode == AllowSingleResult {
+		return dimension + "/any"
+	}
+
+	return dimension
+}
