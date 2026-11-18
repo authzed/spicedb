@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Dispatch and telemetry: CA bundles read from disk via `--dispatch-upstream-ca-path` and the telemetry client's CA path are now re-read on every outbound TLS handshake, so a rotated certificate authority is picked up without a process restart. Previously the CA pool was set once at startup and stayed fixed for the life of the process, causing handshakes to fail with "certificate signed by unknown authority" after the old CA was retired. (https://github.com/authzed/spicedb/pull/3296)
 - Dispatch: LookupResources cursors are now locked to the dispatcher that produced them when secondary dispatchers are configured. Previously a cursor returned by a secondary was never tagged, and LookupResources3 cursors were never checked at all, so every page raced the primary against the secondaries and a cursor produced by one could be sent to the other, failing the request with an invalid cursor error. A cursor without a secondary tag is now resumed by the primary only.
 - Dispatch: when a LookupResources continuation locked to a secondary dispatcher fails, the secondary's error is now returned with its gRPC status, instead of a generic "no dispatcher returned results" error with code Unknown. (https://github.com/authzed/spicedb/pull/3468)
+- LookupResources v3: fixed an issue with concurrent map writes in the caveat runner by giving each producer its own caveat runner. (https://github.com/authzed/spicedb/pull/3509)
 
 ## [1.57.1] - 2026-11-10
 ### Fixed
