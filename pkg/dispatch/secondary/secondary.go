@@ -74,9 +74,8 @@ type Participant struct {
 // participants' goroutines, so implementations must be safe for concurrent use. Embed BasePolicy
 // to keep the default decisions.
 //
-// A panic in NewPolicy or in a Policy method is recovered, logged and counted in
-// remote_dispatch_external_strategy_panics_total: the race then runs the primary only, or the
-// participant does not start or claim the race, or the engine's default error is returned.
+// As elsewhere in SpiceDB, a panic in a Strategy or Policy is not recovered: it crashes the
+// process.
 type Policy interface {
 	// Start blocks until p may start, and must return promptly once ctx is done. Returning false
 	// means p never runs.

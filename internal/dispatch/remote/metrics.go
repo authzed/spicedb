@@ -68,17 +68,7 @@ var exprEvalErrorsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "number of dispatches whose secondary dispatch expression failed to evaluate; they are sent to the primary only",
 }, []string{"rpc"})
 
-// externalStrategyPanicsCounter counts panics recovered from strategies registered by a program
-// that embeds SpiceDB, by the strategy function's name, which comes from configuration.
-var externalStrategyPanicsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "remote_dispatch_external_strategy_panics_total",
-	Help:      "number of panics recovered from secondary dispatch strategies registered by a program that embeds SpiceDB; each failed one participant or race instead of the process",
-}, []string{"strategy"})
-
 func init() {
-	prometheus.MustRegister(externalStrategyPanicsCounter)
 	prometheus.MustRegister(dispatchCounter)
 	prometheus.MustRegister(hedgeWaitHistogram)
 	prometheus.MustRegister(hedgeActualWaitHistogram)

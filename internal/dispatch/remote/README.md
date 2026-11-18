@@ -122,9 +122,7 @@ Programs that embed SpiceDB add strategies without changing this package, throug
 Registration is checked at startup: a function without a `Strategy`, a name that is not callable
 from CEL (not an identifier, or a reserved word), a name that already names a function (a
 built-in strategy, a CEL function such as `duration`, or another registered one), and a call from
-a request kind not in `Methods` all fail startup. A panic in the strategy's code is recovered,
-logged and counted in `remote_dispatch_external_strategy_panics_total`; it fails that participant
-or race, not the process. External strategies run on the same engine as the
+a request kind not in `Methods` all fail startup. External strategies run on the same engine as the
 built-in ones, through an adapter ([strategy_external.go](strategy_external.go)) that the
 built-in strategies don't go through. Their races are counted in
 `remote_dispatch_secondary_strategy_total` under the function's name.
@@ -144,8 +142,6 @@ All are prefixed with `spicedb_dispatch_`:
   and went to the primary only.
 - `remote_dispatch_hedge_wait_duration_seconds` and `..._hedge_actual_wait_duration_seconds`:
   computed and actual primary wait, `hedged` only.
-- `remote_dispatch_external_strategy_panics_total{strategy}`: panics recovered from external
-  strategies (see [External strategies](#external-strategies)).
 
 For example:
 
