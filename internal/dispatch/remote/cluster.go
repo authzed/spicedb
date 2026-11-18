@@ -261,6 +261,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 		reqKey:       reqKey,
 		resource:     resourceTypeAndRelation,
 		subject:      subjectTypeAndRelation,
+		request:      req,
 		participants: participants,
 		stats:        cr.stats,
 	}, plan.strategy, handler)
@@ -434,6 +435,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		reqKey:       reqKey,
 		resource:     tuple.FromCoreRelationReference(req.GetResourceRelation()),
 		subject:      tuple.FromCoreRelationReference(req.GetSubjectRelation()),
+		request:      req,
 		participants: participants,
 		stats:        cr.stats,
 	}, strategy, handler, stream)

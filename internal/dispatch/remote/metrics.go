@@ -14,8 +14,8 @@ import (
 //
 // Label cardinality is bounded and independent of request contents: rpc is one of the request
 // kinds in supportsSecondaries, strategy one of the registered strategy names or cursor_locked,
-// reason one of two fixed values, and handler_name one of the configured secondary names or
-// $primary.
+// reason one of two fixed values, handler_name and secondary one of the configured secondary
+// names (or $primary), outcome one of the compare outcomes, and code a gRPC code name.
 
 var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
@@ -68,7 +68,28 @@ var exprEvalErrorsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help:      "number of dispatches whose secondary dispatch expression failed to evaluate; they are sent to the primary only",
 }, []string{"rpc"})
 
+// compareCounter counts, per secondary, the outcome of comparing its result with the
+// primary's under the compare strategy. Like dispatchCounter, it is labelled by secondary name,
+// so its children are looked up per dispatch; compare is not meant for latency-sensitive
+// traffic. code is the gRPC code of the failed participant's error, or empty.
+var compareCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_compare_total",
+	Help:      "number of secondary results compared with the primary's by the compare strategy, by outcome: match, mismatch, unavailable, secondary_error or primary_error",
+}, []string{"rpc", "secondary", "outcome", "code"})
+
+var compareWaitHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_compare_wait_duration_seconds",
+	Help:      "distribution in seconds of how long a compare dispatch waited for its secondaries after the primary had its result: the latency compare adds.",
+	Buckets:   []float64{0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 0.5, 1, 10},
+}, []string{"rpc"})
+
 func init() {
+	prometheus.MustRegister(compareCounter)
+	prometheus.MustRegister(compareWaitHistogram)
 	prometheus.MustRegister(dispatchCounter)
 	prometheus.MustRegister(hedgeWaitHistogram)
 	prometheus.MustRegister(hedgeActualWaitHistogram)

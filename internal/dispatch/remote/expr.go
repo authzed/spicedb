@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -50,6 +51,11 @@ type strategyDescriptor struct {
 	// primaryOnly is set for strategies whose plans have no secondaries, and so never race.
 	primaryOnly bool
 
+	// methods lists the dispatch methods (the keys of the expressions flag, such as "check")
+	// whose expressions may call the strategy, or is nil if all may. Calls from any other
+	// method's expression are rejected when it is parsed.
+	methods []string
+
 	overloads []cel.FunctionOpt
 }
 
@@ -94,6 +100,20 @@ func checkLiteralStrategyDurations(ast *cel.Ast) error {
 	return nil
 }
 
+// checkStrategyMethods rejects calls to strategies that do not support methodName.
+func checkStrategyMethods(ast *cel.Ast, methodName string) error {
+	root := celast.NavigateAST(ast.NativeRep())
+	for _, strategy := range registeredStrategies {
+		if strategy.methods == nil || slices.Contains(strategy.methods, methodName) {
+			continue
+		}
+		if len(celast.MatchDescendants(root, celast.FunctionMatcher(strategy.function))) > 0 {
+			return fmt.Errorf("%s: not supported for method `%s`; supported methods: %s", strategy.function, methodName, strings.Join(strategy.methods, ", "))
+		}
+	}
+	return nil
+}
+
 // durationLiteral returns s if expr is duration('<s>').
 func durationLiteral(expr celast.Expr) (string, bool) {
 	if expr.Kind() != celast.CallKind {
@@ -116,6 +136,7 @@ var registeredStrategies = []strategyDescriptor{
 	hedgedDescriptor,
 	preferSecondaryDescriptor,
 	preferPrimaryDescriptor,
+	compareDescriptor,
 }
 
 // dispatchPlanCelType is the CEL type returned by strategy functions.
@@ -225,6 +246,10 @@ func ParseDispatchExpression(methodName string, exprString string) (*DispatchExp
 	}
 
 	if err := checkLiteralStrategyDurations(ast); err != nil {
+		return nil, err
+	}
+
+	if err := checkStrategyMethods(ast, methodName); err != nil {
 		return nil, err
 	}
 

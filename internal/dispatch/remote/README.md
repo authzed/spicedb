@@ -15,6 +15,7 @@ hedged(['tiger'])                              // the same, explicitly
 hedged(['tiger'], duration('5ms'))             // hedged, with this query's delay capped at 5ms
 prefer_secondary(['tiger'], duration('50ms'))  // the primary waits for failure or the deadline
 prefer_primary()                               // primary only: the same as hedged([])
+compare(['tiger-a', 'tiger-b'])                // check only: run all, compare, return the primary's
 
 // CEL requires both branches of a conditional to have the same type: once one branch calls a
 // strategy function, the other must too.
@@ -53,6 +54,39 @@ The duration means different things in each function. In `hedged` it is an upper
 adaptive delay, so the primary usually starts much earlier. In `prefer_secondary` it is a fixed
 **deadline**. When the deadline passes, the secondaries keep running and race the primary.
 
+### compare
+
+`compare(list)` validates secondaries against the primary; it is not meant for production
+traffic. It is accepted in Check expressions only: elsewhere, the expression is rejected at
+startup.
+
+- The primary and every listed secondary start at once.
+- The secondaries never win: their results are only compared.
+- The primary claims the win once it has its result **and every secondary has exited** (or the
+  dispatch timeout has passed), so each Check takes as long as its slowest participant
+  (`remote_dispatch_compare_wait_duration_seconds`).
+- The caller always gets the primary's answer, or its error. Unlike the other strategies, a
+  failed primary is never replaced by a secondary's answer.
+
+Every dispatch carries its revision, so all participants answer at the same one. A secondary
+that hasn't reached it answers Unavailable, which is counted as `unavailable`, not as a
+mismatch. Each secondary's result is counted in `remote_dispatch_compare_total` by outcome:
+
+| Outcome | When |
+|---|---|
+| `match` | same membership for every requested resource |
+| `mismatch` | some membership differs; the differing resources are logged at warn level |
+| `unavailable` | the secondary answered Unavailable |
+| `secondary_error` | the secondary failed otherwise, or had not answered by the timeout (`code` label) |
+| `primary_error` | the primary failed: nothing to compare against |
+
+Only memberships are compared, not caveat expressions, whose structure may legitimately
+differ; a resource missing from a result is not a member. With `ALLOW_SINGLE_RESULT`, a
+participant may stop at the first member it finds, so two results that both have a member
+match even if they have different ones.
+
+### All strategies
+
 With either strategy, a request fails only once every participant has failed: a failed primary
 waits for the secondaries, which may answer. One exception, for Check only: when the primary
 fails because of the request itself (invalid argument, failed precondition such as an unknown
@@ -67,10 +101,12 @@ A race is split into mechanism and policy:
   buffering, choosing a single winner, publishing, cursor tagging and cancellation. Every
   request type uses it; Check goes through a one-message adapter (`unaryReceiver`).
 - **Policy** (`racePolicy`, [strategy.go](strategy.go)): the decisions at each point of a
-  participant's lifecycle: when it may start, when it may claim the win, and which error to
-  return when nobody won. It is created per request by a `secondaryStrategy`, the value a CEL
-  strategy function returns. `basePolicy` holds the defaults; strategies embed it and override
-  only what they change.
+  participant's lifecycle: when it may start, when it may claim the win (`readyToClaim`, which
+  may block until the participant's context is done), and which error to return when nobody
+  won. It is created per request by a `secondaryStrategy`, the value a CEL strategy function
+  returns. `basePolicy` holds the defaults; strategies embed it and override only what they
+  change. A policy that needs the results themselves, like `compare`, also implements
+  `resultObserver`; the engine checks for it once per race, so the others pay nothing per result.
 
 What races learn lives in `raceStats` ([stats.go](stats.go)): the secondaries' first-result
 latency digest and the relations they reported as unsupported. The engine records into it for
@@ -119,6 +155,10 @@ All are prefixed with `spicedb_dispatch_`:
   and went to the primary only.
 - `remote_dispatch_hedge_wait_duration_seconds` and `..._hedge_actual_wait_duration_seconds`:
   computed and actual primary wait, `hedged` only.
+- `remote_dispatch_compare_total{rpc, secondary, outcome, code}`: each secondary result
+  `compare` checked, by outcome (see [compare](#compare)).
+- `remote_dispatch_compare_wait_duration_seconds{rpc}`: how long `compare` waited for the
+  secondaries after the primary had its result.
 
 For example:
 
@@ -127,3 +167,6 @@ For example:
 - how often `prefer_secondary`'s deadline fires:
   `rate(spicedb_dispatch_remote_dispatch_prefer_secondary_primary_release_total{reason="deadline"}[5m])
   / rate(spicedb_dispatch_remote_dispatch_secondary_strategy_total{strategy="prefer_secondary"}[5m])`
+- mismatch rate per secondary under `compare`:
+  `sum by (secondary) (rate(spicedb_dispatch_remote_dispatch_compare_total{outcome="mismatch"}[5m]))
+  / sum by (secondary) (rate(spicedb_dispatch_remote_dispatch_compare_total{outcome=~"match|mismatch"}[5m]))`
