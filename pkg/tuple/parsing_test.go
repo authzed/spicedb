@@ -678,3 +678,27 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSubjectID(t *testing.T) {
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{"simple", "alice", false},
+		{"allowed symbols", "a/b_c|d-e=f+g", false},
+		{"public wildcard", "*", false},
+		{"contains a space", "al ice", true},
+		{"empty", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateSubjectID(tt.id)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
