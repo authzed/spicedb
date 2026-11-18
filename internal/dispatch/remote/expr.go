@@ -213,24 +213,17 @@ func toStringSlice(v ref.Val) ([]string, error) {
 }
 
 // withExternalStrategies returns the built-in strategies followed by the descriptors of the given
-// strategy functions, rejecting invalid functions and names used twice.
+// strategy functions, rejecting names used twice.
 func withExternalStrategies(functions []secondary.Function) ([]strategyDescriptor, error) {
-	if len(functions) == 0 {
-		return registeredStrategies, nil
-	}
-
-	strategies := slices.Clip(registeredStrategies)
+	external := make([]strategyDescriptor, 0, len(functions))
 	for _, fn := range functions {
-		if slices.ContainsFunc(strategies, func(s strategyDescriptor) bool { return s.function == fn.Name }) {
+		defined := func(s strategyDescriptor) bool { return s.function == fn.Name }
+		if slices.ContainsFunc(registeredStrategies, defined) || slices.ContainsFunc(external, defined) {
 			return nil, fmt.Errorf("secondary dispatch strategy function %q is already defined", fn.Name)
 		}
-		descriptor, err := externalDescriptor(fn)
-		if err != nil {
-			return nil, err
-		}
-		strategies = append(strategies, descriptor)
+		external = append(external, externalDescriptor(fn))
 	}
-	return strategies, nil
+	return slices.Concat(registeredStrategies, external), nil
 }
 
 // ParseDispatchExpression parses a dispatch expression via CEL. functions adds strategy functions

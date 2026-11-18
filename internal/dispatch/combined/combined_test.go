@@ -268,8 +268,8 @@ func TestNewDispatcher_SecondaryStrategies(t *testing.T) {
 	require.ErrorContains(t, err, "error parsing secondary dispatch expr", "the function is not registered")
 
 	registered := secondary.Function{
-		Name: "registered",
-		New:  func() (secondary.Strategy, error) { return testStrategy{}, nil },
+		Name:     "registered",
+		Strategy: testStrategy{},
 	}
 	dispatcher, err := NewDispatcher(append(options, SecondaryStrategies([]secondary.Function{registered}))...)
 	require.NoError(t, err)

@@ -11,9 +11,6 @@ package secondary
 import (
 	"context"
 	"errors"
-	"time"
-
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // PrimaryName is the name of the primary dispatcher, in Participant.Name and in the errors passed
@@ -23,9 +20,8 @@ const PrimaryName = "$primary"
 // ErrNotStarted is passed to Policy.Done for a participant whose Policy.Start returned false.
 var ErrNotStarted = errors.New("participant not started by race policy")
 
-// Function declares a strategy function for secondary dispatch expressions. Calls are checked
-// when the expression is parsed, at startup, and the strategy is built each time the expression
-// is evaluated.
+// Function declares a strategy function, called as name(['secondary', ...]) in secondary dispatch
+// expressions. Calls are checked when the expressions are parsed, at startup.
 type Function struct {
 	// Name is the CEL function name, such as "compare". It must not be the name of a built-in
 	// strategy function or of another registered Function.
@@ -36,18 +32,12 @@ type Function struct {
 	// all may. A call from any other kind's expression is rejected when it is parsed.
 	Methods []string
 
-	// New, if set, builds the strategy for a call with a list of secondary names, such as
-	// compare(['a', 'b']).
-	New func() (Strategy, error)
-
-	// NewWithDuration, if set, builds the strategy for a call with a list of secondary names and
-	// a duration, such as compare(['a'], duration('5s')). The duration must be positive: literal
-	// durations are checked when the expression is parsed, computed ones before this is called.
-	NewWithDuration func(time.Duration) (Strategy, error)
+	// Strategy runs the races of the requests whose expression calls the function.
+	Strategy Strategy
 }
 
-// Strategy creates a Policy for each race. Values are built when an expression is evaluated, and
-// must be immutable.
+// Strategy creates a Policy for each race. It is shared by every race, so it must be safe for
+// concurrent use.
 type Strategy interface {
 	NewPolicy(race Race) Policy
 }
@@ -56,10 +46,6 @@ type Strategy interface {
 type Race struct {
 	// Method is the request kind: "check", "lookupresources" or "lookupsubjects".
 	Method string
-
-	// Resource and Subject are the request's resource and subject relations.
-	Resource tuple.RelationReference
-	Subject  tuple.RelationReference
 
 	// Request is the dispatch request, such as a *dispatchv1.DispatchCheckRequest. It must not
 	// be modified.
@@ -90,16 +76,18 @@ type Policy interface {
 	// means p never runs.
 	Start(ctx context.Context, p Participant) bool
 
+	// ObserveResult is called with every result p receives, from p's goroutine, before
+	// ReadyToClaim. The result, such as a *dispatchv1.DispatchCheckResponse, must not be
+	// modified, and must not be retained past the race: the winner's results are published to
+	// the caller.
+	ObserveResult(p Participant, result any)
+
 	// ReadyToClaim is called after every result p receives (complete=false), and once more when
 	// p's stream ends successfully (complete=true). received counts the results so far. Once it
 	// returns true, p tries to become the winner; results received before that are buffered by
 	// the engine, up to 1000, and published, in order, if p wins. It may block, but must return
 	// promptly once ctx (p's context) is done.
 	ReadyToClaim(ctx context.Context, p Participant, received int, complete bool) bool
-
-	// FirstResult reports the time from p's start to its first result, or to the end of its
-	// stream if the stream was empty.
-	FirstResult(p Participant, latency time.Duration)
 
 	// Done is called exactly once for every participant, on every path. err is nil if p
 	// finished, lost the race, or was the winner and finished; ErrNotStarted if Start returned
@@ -113,15 +101,6 @@ type Policy interface {
 	NoWinnerError(errs map[string]error) error
 }
 
-// ResultObserver may be implemented by a Policy that needs the participants' results, for example
-// to compare them. ObserveResult is called with every result p receives, from p's goroutine,
-// before ReadyToClaim. The result, such as a *dispatchv1.DispatchCheckResponse, must not be
-// modified, and must not be retained past the race: the winner's results are published to the
-// caller.
-type ResultObserver interface {
-	ObserveResult(p Participant, result any)
-}
-
 // BasePolicy implements the default decisions. Policies embed it and override only the
 // decisions they change.
 type BasePolicy struct{}
@@ -129,14 +108,14 @@ type BasePolicy struct{}
 // Start lets every participant start immediately.
 func (BasePolicy) Start(context.Context, Participant) bool { return true }
 
+// ObserveResult ignores the result.
+func (BasePolicy) ObserveResult(Participant, any) {}
+
 // ReadyToClaim lets a participant claim the win at its first result (or at the end of an empty
 // stream), so results are published as soon as they arrive.
 func (BasePolicy) ReadyToClaim(_ context.Context, _ Participant, received int, complete bool) bool {
 	return received >= 1 || complete
 }
-
-// FirstResult ignores the latency.
-func (BasePolicy) FirstResult(Participant, time.Duration) {}
 
 // Done ignores the participant's exit.
 func (BasePolicy) Done(Participant, error) {}

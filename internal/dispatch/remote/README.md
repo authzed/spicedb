@@ -112,21 +112,16 @@ Programs that embed SpiceDB add strategies without changing this package, throug
 [`pkg/dispatch/secondary`](../../../pkg/dispatch/secondary) package:
 
 1. Implement `secondary.Strategy`, whose `NewPolicy` returns a `secondary.Policy` per race.
-   Embed `secondary.BasePolicy` to keep the default decisions, and implement
-   `secondary.ResultObserver` if the policy needs the participants' results.
+   Embed `secondary.BasePolicy` to keep the default decisions, including ignoring results
+   (`ObserveResult`).
 2. Declare a `secondary.Function`: its CEL name, the request kinds it supports (`Methods`, nil for
-   all), and constructors for `name([...])` (`New`) and `name([...], duration('...'))`
-   (`NewWithDuration`).
-3. Add it to `server.Config.DispatchSecondaryStrategies` before the server starts. Expressions
-   can then call it like a built-in strategy.
+   all), and the `Strategy`. Expressions call it as `name(['secondary', ...])`.
+3. Add it to `server.Config.DispatchSecondaryStrategies` before the server starts.
 
-The function's name must be a valid CEL identifier, unlike any built-in or other registered
-function. Calls are checked when the expressions are parsed, at startup: a call from a request
-kind not in `Methods`, or a literal duration of zero or less, fails startup. A constructor that
-returns an error fails the expression's evaluation, which sends the request to the primary only
-and increments `remote_dispatch_expr_eval_errors_total`. External strategies run on the same
-engine as the built-in ones, through an adapter ([strategy_external.go](strategy_external.go))
-that the built-in strategies don't go through. Their races are counted in
+The name must differ from every built-in and other registered function, and a call from a
+request kind not in `Methods` fails startup. External strategies run on the same engine as the
+built-in ones, through an adapter ([strategy_external.go](strategy_external.go)) that the
+built-in strategies don't go through. Their races are counted in
 `remote_dispatch_secondary_strategy_total` under the function's name.
 
 ## Metrics
