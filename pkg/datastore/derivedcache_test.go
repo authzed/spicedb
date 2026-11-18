@@ -57,11 +57,11 @@ func TestLoadOrStoreDerivedDistinctKeysDoNotCollide(t *testing.T) {
 }
 
 func TestEstimatedSizeIncludesSchemaAndCaveatOverhead(t *testing.T) {
-	// With no caveats, the estimated size is just the schema byte size.
+	// An empty stored schema needs no converted definitions or compiled caveats.
 	s := datastore.NewReadOnlyStoredSchemaWithSize(&core.StoredSchema{}, 1000)
-	require.Equal(t, int64(1000), s.EstimatedSize())
+	require.Equal(t, int64(1000)+s.CompiledQueryPlanCacheBudget(), s.EstimatedSize())
 
-	// Each caveat adds its serialized expression length plus the fixed compiled-CEL overhead.
+	// Each caveat reserves both its converted view and compiled-CEL overhead.
 	withCaveats := datastore.NewReadOnlyStoredSchemaWithSize(&core.StoredSchema{
 		VersionOneof: &core.StoredSchema_V1{
 			V1: &core.StoredSchema_V1StoredSchema{
@@ -74,6 +74,33 @@ func TestEstimatedSizeIncludesSchemaAndCaveatOverhead(t *testing.T) {
 	}, 1000)
 
 	const compiledCaveatOverheadBytes = 8 * 1024
-	want := int64(1000) + int64(len("abc")+len("de")) + 2*compiledCaveatOverheadBytes
+	want := int64(1000) + withCaveats.CompiledQueryPlanCacheBudget() + int64(
+		len("abc")+len("de"),
+	) + 2*compiledCaveatOverheadBytes + 4*(8+7) + 2*512
 	require.Equal(t, want, withCaveats.EstimatedSize())
+}
+
+func TestEstimatedSizeReservesConvertedSchemaView(t *testing.T) {
+	stored := datastore.NewReadOnlyStoredSchemaWithSize(&core.StoredSchema{
+		VersionOneof: &core.StoredSchema_V1{V1: &core.StoredSchema_V1StoredSchema{
+			NamespaceDefinitions: map[string]*core.NamespaceDefinition{"user": {Name: "user"}},
+		}},
+	}, 1000)
+
+	// Budget the lazy view before insertion: growing the cost after a cache entry
+	// is already admitted would let concurrent planning exceed the schema budget.
+	require.Greater(t, stored.EstimatedSize(), int64(1000))
+}
+
+func TestCompiledPlanBudgetIsReservedBeforeConstruction(t *testing.T) {
+	var missing *datastore.ReadOnlyStoredSchema
+	require.Zero(t, missing.CompiledQueryPlanCacheBudget())
+
+	for _, size := range []int{1, 32 << 10, 1 << 20} {
+		stored := datastore.NewReadOnlyStoredSchemaWithSize(&core.StoredSchema{}, size)
+		budget := stored.CompiledQueryPlanCacheBudget()
+		require.GreaterOrEqual(t, budget, int64(512<<10))
+		require.LessOrEqual(t, budget, int64(4<<20))
+		require.GreaterOrEqual(t, stored.EstimatedSize(), int64(size)+budget)
+	}
 }
