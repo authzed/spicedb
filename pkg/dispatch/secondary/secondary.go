@@ -23,8 +23,9 @@ var ErrNotStarted = errors.New("participant not started by race policy")
 // Function declares a strategy function, called as name(['secondary', ...]) in secondary dispatch
 // expressions. Calls are checked when the expressions are parsed, at startup.
 type Function struct {
-	// Name is the CEL function name, such as "compare". It must not be the name of a built-in
-	// strategy function or of another registered Function.
+	// Name is the CEL function name, such as "compare". It must be callable from CEL (an
+	// identifier, not a reserved word), and must not already name a function: a built-in
+	// strategy, a CEL function such as duration, or another registered Function.
 	Name string
 
 	// Methods lists the request kinds (the keys of the expressions flag: "check",
@@ -32,7 +33,8 @@ type Function struct {
 	// all may. A call from any other kind's expression is rejected when it is parsed.
 	Methods []string
 
-	// Strategy runs the races of the requests whose expression calls the function.
+	// Strategy runs the races of the requests whose expression calls the function. It is
+	// required.
 	Strategy Strategy
 }
 
@@ -71,6 +73,10 @@ type Participant struct {
 // A new Policy is created for each race. Its methods are called concurrently from the
 // participants' goroutines, so implementations must be safe for concurrent use. Embed BasePolicy
 // to keep the default decisions.
+//
+// A panic in NewPolicy or in a Policy method is recovered, logged and counted in
+// remote_dispatch_external_strategy_panics_total: the race then runs the primary only, or the
+// participant does not start or claim the race, or the engine's default error is returned.
 type Policy interface {
 	// Start blocks until p may start, and must return promptly once ctx is done. Returning false
 	// means p never runs.

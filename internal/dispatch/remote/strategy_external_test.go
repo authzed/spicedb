@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -127,6 +128,41 @@ func TestExternalStrategyRegistration(t *testing.T) {
 			wantErr:   `"mine" is already defined`,
 		},
 		{
+			name:      "no strategy",
+			method:    "check",
+			expr:      "['secondary']",
+			functions: []secondary.Function{{Name: "mine"}},
+			wantErr:   `"mine" has no Strategy`,
+		},
+		{
+			name:      "CEL function name",
+			method:    "check",
+			expr:      "['secondary']",
+			functions: []secondary.Function{{Name: "duration", Strategy: basePolicyStrategy{}}},
+			wantErr:   `"duration" is already defined`,
+		},
+		{
+			name:      "CEL standard library name",
+			method:    "check",
+			expr:      "['secondary']",
+			functions: []secondary.Function{{Name: "size", Strategy: basePolicyStrategy{}}},
+			wantErr:   `"size" is already defined`,
+		},
+		{
+			name:      "not an identifier",
+			method:    "check",
+			expr:      "['secondary']",
+			functions: []secondary.Function{{Name: "my-strategy", Strategy: basePolicyStrategy{}}},
+			wantErr:   `"my-strategy" cannot be called by that name`,
+		},
+		{
+			name:      "reserved word",
+			method:    "check",
+			expr:      "['secondary']",
+			functions: []secondary.Function{{Name: "while", Strategy: basePolicyStrategy{}}},
+			wantErr:   `"while" cannot be called by that name`,
+		},
+		{
 			name:      "unsupported method",
 			method:    "lookupresources",
 			expr:      "request.resource_relation.namespace == 'document' ? mine(['secondary']) : prefer_primary()",
@@ -149,7 +185,110 @@ func TestExternalStrategyRegistration(t *testing.T) {
 
 func TestExternalStrategiesDoNotModifyBuiltIns(t *testing.T) {
 	before := len(registeredStrategies)
-	_, err := withExternalStrategies([]secondary.Function{{Name: "mine", Strategy: basePolicyStrategy{}}})
+	_, strategies, err := newDispatchEnv([]secondary.Function{{Name: "mine", Strategy: basePolicyStrategy{}}})
 	require.NoError(t, err)
+	require.Len(t, strategies, before+1)
 	require.Len(t, registeredStrategies, before)
+}
+
+func TestExternalStrategyRejectsNonStringNames(t *testing.T) {
+	// A list whose elements are only known at evaluation passes type checking, so the binding
+	// must reject non-string names itself.
+	parsed, err := ParseDispatchExpression("check", "mine(['secondary', dyn(1)])",
+		secondary.Function{Name: "mine", Strategy: basePolicyStrategy{}})
+	require.NoError(t, err)
+
+	_, err = runDispatchExpr(parsed, testCheckRequest())
+	require.ErrorContains(t, err, "mine: expected a list of strings")
+}
+
+// failingPolicy reports its own error when nobody won.
+type failingPolicy struct {
+	secondary.BasePolicy
+	err error
+}
+
+func (p failingPolicy) NoWinnerError(map[string]error) error { return p.err }
+
+func TestExternalPolicyDelegatesNoWinnerError(t *testing.T) {
+	want := errors.New("chosen by the external policy")
+	adapted := externalPolicy{policy: failingPolicy{err: want}}
+
+	adapted.firstResult(testSecondary, time.Millisecond) // external policies are not told latencies
+	require.ErrorIs(t, adapted.noWinnerError(map[string]error{primaryDispatcher: errors.New("primary failed")}), want)
+}
+
+// panickingStrategy panics in the callbacks it is told to.
+type panickingStrategy struct {
+	inNewPolicy, inObserve, inPrimaryClaim bool
+}
+
+func (s panickingStrategy) NewPolicy(secondary.Race) secondary.Policy {
+	if s.inNewPolicy {
+		panic("NewPolicy failed")
+	}
+	return panickingPolicy{strategy: s}
+}
+
+type panickingPolicy struct {
+	secondary.BasePolicy
+	strategy panickingStrategy
+}
+
+func (p panickingPolicy) ObserveResult(secondary.Participant, any) {
+	if p.strategy.inObserve {
+		panic("ObserveResult failed")
+	}
+}
+
+func (p panickingPolicy) ReadyToClaim(ctx context.Context, pt secondary.Participant, received int, complete bool) bool {
+	if pt.Primary && p.strategy.inPrimaryClaim {
+		panic("ReadyToClaim failed")
+	}
+	// Only the primary may win, so the outcome does not depend on scheduling.
+	return pt.Primary && p.BasePolicy.ReadyToClaim(ctx, pt, received, complete)
+}
+
+func TestExternalStrategyPanicsAreContained(t *testing.T) {
+	tests := []struct {
+		name     string
+		strategy panickingStrategy
+		wantErr  bool
+	}{
+		{name: "NewPolicy: the race runs the primary only", strategy: panickingStrategy{inNewPolicy: true}},
+		{name: "ObserveResult: the result is still used", strategy: panickingStrategy{inObserve: true}},
+		{name: "ReadyToClaim: the participant does not win", strategy: panickingStrategy{inPrimaryClaim: true}, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				primary := &gatedCheckClient{resp: &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: fromPrimary}}}
+				secondaryClient := &gatedCheckClient{resp: &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: fromSecondary}}}
+				parsed, err := ParseDispatchExpression("check", "panicking(['secondary'])",
+					secondary.Function{Name: "panicking", Strategy: tc.strategy})
+				require.NoError(t, err)
+				d, err := NewClusterDispatcher(primary, nil, ClusterDispatcherConfig{
+					DispatchOverallTimeout: time.Hour,
+					SecondaryDispatch: map[string]SecondaryDispatch{
+						"secondary": {Name: "secondary", Client: secondaryClient, MaximumPrimaryHedgingDelay: time.Millisecond},
+					},
+					SecondaryDispatchExprs:      map[string]*DispatchExpr{"check": parsed},
+					StartingPrimaryHedgingDelay: time.Millisecond,
+				})
+				require.NoError(t, err)
+				panics := testutil.ToFloat64(externalStrategyPanicsCounter.WithLabelValues("panicking"))
+
+				resp, err := d.DispatchCheck(t.Context(), testCheckRequest())
+				synctest.Wait() // a losing participant's callbacks may still be running
+				if tc.wantErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, fromPrimary, resp.Metadata.DispatchCount)
+				}
+				require.Greater(t, testutil.ToFloat64(externalStrategyPanicsCounter.WithLabelValues("panicking")), panics)
+			})
+		})
+	}
 }

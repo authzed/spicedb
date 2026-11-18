@@ -212,18 +212,50 @@ func toStringSlice(v ref.Val) ([]string, error) {
 	return names, nil
 }
 
-// withExternalStrategies returns the built-in strategies followed by the descriptors of the given
-// strategy functions, rejecting names used twice.
-func withExternalStrategies(functions []secondary.Function) ([]strategyDescriptor, error) {
+// newDispatchEnv returns the CEL environment of dispatch expressions, with the built-in strategy
+// functions and the given registered ones, and the descriptors of all of them. A registered
+// function is rejected unless it has a Strategy, its name is not already a function (a built-in
+// strategy, a CEL function such as duration, or another registered one), and it can be called
+// by that name: CEL reserved words and names that are not identifiers cannot be.
+func newDispatchEnv(functions []secondary.Function) (*cel.Env, []strategyDescriptor, error) {
+	env, err := cel.NewEnv(append(strategyFunctions(registeredStrategies),
+		cel.OptionalTypes(cel.OptionalTypesVersion(0)),
+		cel.Variable("request", cel.DynType),
+	)...)
+	if err != nil || len(functions) == 0 {
+		return env, registeredStrategies, err
+	}
+
 	external := make([]strategyDescriptor, 0, len(functions))
 	for _, fn := range functions {
-		defined := func(s strategyDescriptor) bool { return s.function == fn.Name }
-		if slices.ContainsFunc(registeredStrategies, defined) || slices.ContainsFunc(external, defined) {
-			return nil, fmt.Errorf("secondary dispatch strategy function %q is already defined", fn.Name)
+		switch {
+		case fn.Strategy == nil:
+			return nil, nil, fmt.Errorf("secondary dispatch strategy function %q has no Strategy", fn.Name)
+		case env.HasFunction(fn.Name) || slices.ContainsFunc(external, func(s strategyDescriptor) bool { return s.function == fn.Name }):
+			return nil, nil, fmt.Errorf("secondary dispatch strategy function %q is already defined", fn.Name)
 		}
 		external = append(external, externalDescriptor(fn))
 	}
-	return slices.Concat(registeredStrategies, external), nil
+
+	env, err = env.Extend(strategyFunctions(external)...)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, strategy := range external {
+		if _, issues := env.Compile(strategy.function + "([])"); issues.Err() != nil {
+			return nil, nil, fmt.Errorf("secondary dispatch strategy function %q cannot be called by that name: %w", strategy.function, issues.Err())
+		}
+	}
+	return env, slices.Concat(registeredStrategies, external), nil
+}
+
+// strategyFunctions declares the CEL functions of the given strategies.
+func strategyFunctions(strategies []strategyDescriptor) []cel.EnvOption {
+	opts := make([]cel.EnvOption, 0, len(strategies)+2)
+	for _, strategy := range strategies {
+		opts = append(opts, cel.Function(strategy.function, strategy.overloads...))
+	}
+	return opts
 }
 
 // ParseDispatchExpression parses a dispatch expression via CEL. functions adds strategy functions
@@ -234,21 +266,7 @@ func ParseDispatchExpression(methodName string, exprString string, functions ...
 		return nil, errors.New("unable to initialize dispatch expression type registry")
 	}
 
-	strategies, err := withExternalStrategies(functions)
-	if err != nil {
-		return nil, err
-	}
-
-	opts := make([]cel.EnvOption, 0, 2+len(strategies))
-	opts = append(opts,
-		cel.OptionalTypes(cel.OptionalTypesVersion(0)),
-		cel.Variable("request", cel.DynType),
-	)
-	for _, strategy := range strategies {
-		opts = append(opts, cel.Function(strategy.function, strategy.overloads...))
-	}
-
-	celEnv, err := cel.NewEnv(opts...)
+	celEnv, strategies, err := newDispatchEnv(functions)
 	if err != nil {
 		return nil, err
 	}
