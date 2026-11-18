@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func validateCaveatFilter(filter datastore.RelationshipsFilter, queryShape queryshape.Shape) error {
@@ -106,6 +107,27 @@ func validateSubjectIDs(subjectIds []string, queryShape queryshape.Shape, requir
 	}
 	if !required && len(subjectIds) != 0 {
 		return fmt.Errorf("no optional subject ids allowed for %s", queryShape)
+	}
+	return nil
+}
+
+// validateWildcardOnlySubjectIDs checks that a selector names subject IDs only to pick out the
+// wildcard: either OptionalSubjectIds is exactly `*` (a wildcard allowed type), or
+// OptionalExcludedSubjectIds is exactly `*` (a concrete allowed type), or neither is set.
+func validateWildcardOnlySubjectIDs(selector datastore.SubjectsSelector, queryShape queryshape.Shape) error {
+	isWildcardOnly := func(ids []string) bool {
+		return len(ids) == 1 && ids[0] == tuple.PublicWildcard
+	}
+
+	hasIDs := len(selector.OptionalSubjectIds) > 0
+	hasExcluded := len(selector.OptionalExcludedSubjectIds) > 0
+	switch {
+	case hasIDs && hasExcluded:
+		return fmt.Errorf("subject ids and excluded subject ids cannot both be set for %s", queryShape)
+	case hasIDs && !isWildcardOnly(selector.OptionalSubjectIds):
+		return fmt.Errorf("only the wildcard subject id is allowed for %s", queryShape)
+	case hasExcluded && !isWildcardOnly(selector.OptionalExcludedSubjectIds):
+		return fmt.Errorf("only the wildcard excluded subject id is allowed for %s", queryShape)
 	}
 	return nil
 }
@@ -283,6 +305,9 @@ func validateQueryShape(queryShape queryshape.Shape, filter datastore.Relationsh
 			return err
 		}
 		if err := validateSubjectRelation(filter.OptionalSubjectsSelectors[0].RelationFilter, queryShape, true); err != nil {
+			return err
+		}
+		if err := validateWildcardOnlySubjectIDs(filter.OptionalSubjectsSelectors[0], queryShape); err != nil {
 			return err
 		}
 		return nil

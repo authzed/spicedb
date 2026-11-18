@@ -679,6 +679,18 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 			selectorClause = append(selectorClause, sq.Expr(builder.String(), args...))
 		}
 
+		if len(selector.OptionalExcludedSubjectIds) > 0 {
+			for _, subjectID := range selector.OptionalExcludedSubjectIds {
+				if len(subjectID) == 0 {
+					return sqf, spiceerrors.MustBugf("got empty excluded subject ID")
+				}
+			}
+
+			// An exclusion leaves the column's value unknown, so it is not recorded with
+			// recordColumnValue; any value recorded by OptionalSubjectIds above still holds.
+			selectorClause = append(selectorClause, sq.NotEq{sqf.schema.ColUsersetObjectID: selector.OptionalExcludedSubjectIds})
+		}
+
 		if !selector.RelationFilter.IsEmpty() {
 			if selector.RelationFilter.OnlyNonEllipsisRelations {
 				selectorClause = append(selectorClause, sq.NotEq{sqf.schema.ColUsersetRelation: datastore.Ellipsis})

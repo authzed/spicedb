@@ -739,6 +739,90 @@ func TestValidateQueryShape(t *testing.T) {
 			errorMsg:    "subject relation required",
 		},
 		{
+			name:  "FindResourceRelationForSubjectRelation - valid, wildcard type",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"*"},
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - valid, concrete type excluding wildcard",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType:        "user",
+						OptionalExcludedSubjectIds: []string{"*"},
+						RelationFilter:             datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - non-wildcard subject id",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"tom"},
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "only the wildcard subject id is allowed",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - non-wildcard excluded subject id",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType:        "user",
+						OptionalExcludedSubjectIds: []string{"tom"},
+						RelationFilter:             datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "only the wildcard excluded subject id is allowed",
+		},
+		{
+			name:  "FindResourceRelationForSubjectRelation - both subject ids and excluded subject ids",
+			shape: queryshape.FindResourceRelationForSubjectRelation,
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalResourceRelation: "viewer",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType:        "user",
+						OptionalSubjectIds:         []string{"*"},
+						OptionalExcludedSubjectIds: []string{"*"},
+						RelationFilter:             datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "cannot both be set",
+		},
+		{
 			// The exact filter pkg/query/reader.go QueryResources builds for a
 			// forward MatchingResourcesForSubject query, with an ellipsis subject.
 			name:  "MatchingResourcesForSubject - valid, ellipsis subject",

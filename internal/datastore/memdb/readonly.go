@@ -438,6 +438,8 @@ func filterFuncForFilters(
 				return false
 			case len(selector.OptionalSubjectIds) > 0 && !slices.Contains(selector.OptionalSubjectIds, tuple.subjectObjectID):
 				return false
+			case slices.Contains(selector.OptionalExcludedSubjectIds, tuple.subjectObjectID):
+				return false
 			}
 
 			if selector.RelationFilter.OnlyNonEllipsisRelations {

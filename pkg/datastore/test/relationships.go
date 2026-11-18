@@ -1658,6 +1658,46 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			},
 		},
 		{
+			name: "excluded subject ids",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType:        "user",
+						OptionalExcludedSubjectIds: []string{"*"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:*",
+				"folder:secondfolder#viewer@anotheruser:fred",
+				"folder:someotherfolder#viewer@user:fred",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:fred",
+			},
+		},
+		{
+			name: "subject ids with excluded subject ids",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectIds:         []string{"tom", "fred"},
+						OptionalExcludedSubjectIds: []string{"fred"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred",
+				"folder:someotherfolder#viewer@user:sarah",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+			},
+		},
+		{
 			name: "non ellipsis subject relation",
 			filter: datastore.RelationshipsFilter{
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
