@@ -44,7 +44,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Logarithmic scale",
       "fieldConfig": {
@@ -124,10 +124,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(grpc_server_started_total{job=\"spicedb\"}[$__rate_interval])) by (grpc_service, grpc_method)\n",
+          "expr": "sum(rate(grpc_server_started_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (grpc_service, grpc_method)\n",
           "legendFormat": "{{grpc_service}}/{{grpc_method}}",
           "range": true,
           "refId": "A"
@@ -139,7 +139,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Logarithmic scale",
       "fieldConfig": {
@@ -219,10 +219,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by(le, grpc_method, grpc_service) (rate(grpc_server_handling_seconds_bucket{job=\"spicedb\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by(le, grpc_method, grpc_service) (rate(grpc_server_handling_seconds_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])))",
           "key": "Q-52ee0e33-980f-4a19-9821-39530de9f304-0",
           "legendFormat": "{{grpc_service}}/{{grpc_method}}",
           "range": true,
@@ -235,7 +235,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Client-side gRPC error codes (NotFound, InvalidArgument, AlreadyExists, PermissionDenied, OutOfRange, Unimplemented, Unauthenticated, FailedPrecondition, Canceled).",
       "fieldConfig": {
@@ -315,10 +315,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by(grpc_service, grpc_method, grpc_code) (increase(grpc_server_handled_total{grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\",grpc_code=~\"NotFound|InvalidArgument|AlreadyExists|PermissionDenied|OutOfRange|Unimplemented|Unauthenticated|FailedPrecondition|Canceled\"}[$__rate_interval]))",
+          "expr": "sum by(grpc_service, grpc_method, grpc_code) (increase(grpc_server_handled_total{job=\"$job\",instance=~\"$instance\",grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\",grpc_code=~\"NotFound|InvalidArgument|AlreadyExists|PermissionDenied|OutOfRange|Unimplemented|Unauthenticated|FailedPrecondition|Canceled\"}[$__rate_interval]))",
           "legendFormat": "{{grpc_service}}/{{grpc_method}} ({{grpc_code}})",
           "range": true,
           "refId": "A"
@@ -330,7 +330,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Server-side gRPC error codes (Unknown, Unavailable, DeadlineExceeded, ResourceExhausted, Aborted, Internal).",
       "fieldConfig": {
@@ -409,10 +409,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by(grpc_service, grpc_method, grpc_code) (increase(grpc_server_handled_total{grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\",grpc_code=~\"Unknown|Unavailable|DeadlineExceeded|ResourceExhausted|Aborted|Internal\"}[$__rate_interval]))",
+          "expr": "sum by(grpc_service, grpc_method, grpc_code) (increase(grpc_server_handled_total{job=\"$job\",instance=~\"$instance\",grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\",grpc_code=~\"Unknown|Unavailable|DeadlineExceeded|ResourceExhausted|Aborted|Internal\"}[$__rate_interval]))",
           "legendFormat": "{{grpc_service}}/{{grpc_method}} ({{grpc_code}})",
           "range": true,
           "refId": "A"
@@ -424,9 +424,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
-      "description": "p99 latency of API calls broken down by permission shape (resource type/relation, subject type/relation). Identifies which specific permission checks are slowest.",
+      "description": "Requires --enable-performance-insight-metrics and native histogram ingestion.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -509,10 +509,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(spicedb_perf_insights_api_shape_latency_seconds{job=\"spicedb\",instance=~\"$instance\",resource_type!=\"\"}[$__rate_interval])) by (api_kind, resource_type, resource_relation, subject_type, subject_relation))",
+          "expr": "histogram_quantile(0.99, sum(rate(spicedb_perf_insights_api_shape_latency_seconds{job=\"$job\",instance=~\"$instance\",resource_type!=\"\"}[$__rate_interval])) by (api_kind, resource_type, resource_relation, subject_type, subject_relation))",
           "legendFormat": "{{api_kind}} {{resource_type}}:{{resource_relation}} \u2192 {{subject_type}}#{{subject_relation}}",
           "range": true,
           "refId": "A"
@@ -524,9 +524,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
-      "description": "Average logical checks per second across all APIs. Counts each item within a CheckBulk and each result returned from LookupResources/LookupSubjects separately. This measures workload intensity independently of gRPC RPS \u2014 a single LookupResources call can account for hundreds of logical checks.",
+      "description": "Logical checks across all APIs, from spicedb_services_logical_checks_total. Each item in a CheckBulkPermissions call and each result returned from LookupResources/LookupSubjects counts as one check. Use the total when sizing SpiceDB compute.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -599,21 +599,33 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "avg(rate(spicedb_services_logical_checks_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "avg(rate(spicedb_services_logical_checks_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "legendFormat": "avg per instance"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(spicedb_services_logical_checks_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
+          "range": true,
+          "refId": "B",
+          "legendFormat": "total"
         }
       ],
-      "title": "Avg Logical Checks per Second",
+      "title": "Logical Checks per Second",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Rate of requests per consistency mode (minimize_latency, at_least_as_fresh, fully_consistent, at_exact_snapshot). A high share of fully_consistent requests increases database load; minimize_latency requests can be served from cache.",
       "fieldConfig": {
@@ -688,10 +700,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "avg(rate(spicedb_middleware_consistency_assigned_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])) by (method)",
+          "expr": "avg(rate(spicedb_middleware_consistency_assigned_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (method)",
           "legendFormat": "{{method}}",
           "range": true,
           "refId": "A"
@@ -703,7 +715,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Percentage of check results (CheckPermission and CheckBulkPermissions, each bulk item counted individually) that return HAS_PERMISSION, aggregated across all instances. CONDITIONAL_PERMISSION and NO_PERMISSION results count toward the denominator. Only successful checks are counted; errored checks are excluded.",
       "fieldConfig": {
@@ -783,10 +795,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "100 *\nsum by(method) (rate(spicedb_v1_check_permissionship_total{job=\"spicedb\",permissionship=\"HAS_PERMISSION\"}[$__rate_interval]))\n/\n(sum by(method) (rate(spicedb_v1_check_permissionship_total{job=\"spicedb\"}[$__rate_interval])) > 0)",
+          "expr": "100 *\nsum by(method) (rate(spicedb_v1_check_permissionship_total{job=\"$job\",instance=~\"$instance\",permissionship=\"HAS_PERMISSION\"}[$__rate_interval]))\n/\n(sum by(method) (rate(spicedb_v1_check_permissionship_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0)",
           "legendFormat": "HAS_PERMISSION % ({{method}})",
           "range": true,
           "refId": "A"
@@ -798,7 +810,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Distribution of request rate across instances. If one instance receives significantly more traffic than others, there may be a load balancing issue in front of the instances.",
       "fieldConfig": {
@@ -876,10 +888,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by(instance) (rate(grpc_server_handled_total{job=\"spicedb\",grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\"}[$__rate_interval]))",
+          "expr": "sum by(instance) (rate(grpc_server_handled_total{job=\"$job\",instance=~\"$instance\",grpc_service=~\".*PermissionsService|.*SchemaService|.*ExperimentalService|.*WatchService\"}[$__rate_interval]))",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
@@ -891,7 +903,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "description": "Distribution of dispatch request rate across instances. If one instance receives significantly more dispatch traffic than others, it may suggest a problem with dispatching or recursive permission check distribution.",
       "fieldConfig": {
@@ -969,10 +981,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by(instance) (rate(grpc_server_handled_total{job=\"spicedb\",grpc_service=~\"dispatch.v1.DispatchService\"}[$__rate_interval]))",
+          "expr": "sum by(instance) (rate(grpc_server_handled_total{job=\"$job\",instance=~\"$instance\",grpc_service=~\"dispatch.v1.DispatchService\"}[$__rate_interval]))",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
@@ -994,7 +1006,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Cache hit ratio for each dispatch operation type, split by dispatcher layer. High ratios (>80%) for check operations are expected under steady workloads. Low ratios indicate cache churn, highly diverse queries, or an undersized cache. Per-instance variance is expected and normal: the dispatch cache is local in-process (not shared across instances), and every cache key is scoped to a specific revision \u2014 so any write that advances the revision causes all instances to miss on subsequent requests until they re-warm at the new revision. Instances that recently restarted or received the first requests after a revision bump will show lower ratios than instances with a warm cache at a stable revision.",
           "fieldConfig": {
@@ -1073,10 +1085,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_dispatch_check_from_cache_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_check_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
+              "expr": "rate(spicedb_dispatch_check_from_cache_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_check_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
               "legendFormat": "check (inbound) - {{instance}}",
               "range": true,
               "refId": "A"
@@ -1084,10 +1096,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_dispatch_client_check_from_cache_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_client_check_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
+              "expr": "rate(spicedb_dispatch_client_check_from_cache_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_client_check_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
               "legendFormat": "check (outbound) - {{instance}}",
               "range": true,
               "refId": "D"
@@ -1095,10 +1107,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_dispatch_lookup_resources_from_cache_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_lookup_resources_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
+              "expr": "rate(spicedb_dispatch_lookup_resources_from_cache_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_lookup_resources_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
               "legendFormat": "lookup_resources (inbound) - {{instance}}",
               "range": true,
               "refId": "B"
@@ -1106,10 +1118,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_dispatch_client_lookup_resources_from_cache_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_client_lookup_resources_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
+              "expr": "rate(spicedb_dispatch_client_lookup_resources_from_cache_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_client_lookup_resources_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
               "legendFormat": "lookup_resources (outbound) - {{instance}}",
               "range": true,
               "refId": "E"
@@ -1117,10 +1129,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_dispatch_lookup_subjects_from_cache_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_lookup_subjects_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
+              "expr": "rate(spicedb_dispatch_lookup_subjects_from_cache_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_lookup_subjects_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
               "legendFormat": "lookup_subjects (inbound) - {{instance}}",
               "range": true,
               "refId": "C"
@@ -1128,10 +1140,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_dispatch_client_lookup_subjects_from_cache_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_client_lookup_subjects_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
+              "expr": "rate(spicedb_dispatch_client_lookup_subjects_from_cache_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])\n/\n(rate(spicedb_dispatch_client_lookup_subjects_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
               "legendFormat": "lookup_subjects (outbound) - {{instance}}",
               "range": true,
               "refId": "F"
@@ -1143,7 +1155,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "p99 of the number of chunks dispatched per Check request. Each chunk holds up to dispatch-chunk-size subjects (default: 100) and is processed in parallel. A value of N means the check fanned out to N\u00d7chunk-size subjects of the same type. Consistently high values indicate broad permission checks with large subject fan-out.",
           "fieldConfig": {
@@ -1228,16 +1240,117 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, rate(spicedb_check_dispatch_chunk_count_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "histogram_quantile(0.99, rate(spicedb_check_dispatch_chunk_count_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "{{instance}}",
               "range": true,
               "refId": "A"
             }
           ],
           "title": "p99 Check Dispatch Chunk Count",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Of the dispatches that went through single-flight, the fraction that received the result of an identical in-flight dispatch (shared=\"true\"), from spicedb_dispatch_single_flight_total. The caller that started the shared dispatch is counted as shared too. Dispatches that bypass single-flight (missing key, loop, debug, passthrough) are excluded.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 15
+          },
+          "id": 82,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "(\n  sum(rate(spicedb_dispatch_single_flight_total{job=\"$job\",instance=~\"$instance\",shared=\"true\"}[$__rate_interval])) by (method)\n  or\n  0 * sum(rate(spicedb_dispatch_single_flight_total{job=\"$job\",instance=~\"$instance\",shared=\"false\"}[$__rate_interval])) by (method)\n)\n/\n(sum(rate(spicedb_dispatch_single_flight_total{job=\"$job\",instance=~\"$instance\",shared=~\"true|false\"}[$__rate_interval])) by (method) > 0)",
+              "legendFormat": "{{ method }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Single-flight Shared Dispatch Ratio by Method",
           "type": "timeseries"
         }
       ],
@@ -1257,7 +1370,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Hit ratio per cache, from spicedb_cache_hits_total and spicedb_cache_misses_total. Three caches emit metrics:\n\n\u2022 namespace (32MiB): caches parsed namespace and caveat definitions. Should be near 100% \u2014 schemas change infrequently. A sustained drop means schema writes are frequent or the cache is undersized.\n\n\u2022 dispatch (default: 30% of free memory): caches sub-problem results for dispatches this node sends out (outbound). Revision-scoped \u2014 every write that advances the revision invalidates prior entries.\n\n\u2022 cluster_dispatch (default: 70% of free memory): caches sub-problem results for dispatches this node receives from other nodes (inbound). Also revision-scoped. Larger by default because in a multi-node cluster this node handles a proportionally larger share of inbound sub-problems.",
           "fieldConfig": {
@@ -1367,17 +1480,130 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum(increase(spicedb_cache_hits_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])) by (cache)\n/\n(\n  sum(increase(spicedb_cache_hits_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])) by (cache)\n  +\n  sum(increase(spicedb_cache_misses_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])) by (cache) > 0\n)",
+              "expr": "sum(increase(spicedb_cache_hits_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (cache)\n/\n(\n  sum(increase(spicedb_cache_hits_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (cache)\n  +\n  sum(increase(spicedb_cache_misses_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (cache) > 0\n)",
               "legendFormat": "{{ cache }}",
               "range": true,
               "refId": "A"
             }
           ],
           "title": "Cache Hit Ratio - $instance",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Bytes of entries added to and evicted from each cache, from spicedb_cache_cost_added_bytes and spicedb_cache_cost_evicted_bytes. Evictions include TTL expirations, so evictions tracking additions does not by itself mean the cache is full.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 14
+          },
+          "id": 83,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(rate(spicedb_cache_cost_added_bytes{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (cache)",
+              "legendFormat": "{{ cache }} added",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(rate(spicedb_cache_cost_evicted_bytes{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (cache)",
+              "legendFormat": "{{ cache }} evicted",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Cache Cost Added / Evicted - $instance",
           "type": "timeseries"
         }
       ],
@@ -1397,7 +1623,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Logarithmic scale",
           "fieldConfig": {
@@ -1476,10 +1702,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by(operation) (rate(spicedb_datastore_query_latency_count[$__rate_interval]))",
+              "expr": "sum by(operation) (rate(spicedb_datastore_query_latency_count{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "range": true,
               "refId": "A"
             }
@@ -1490,7 +1716,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Logarithmic scale",
           "fieldConfig": {
@@ -1569,10 +1795,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum by(le, operation) (rate(spicedb_datastore_query_latency_bucket[$__rate_interval])))",
+              "expr": "histogram_quantile(0.99, sum by(le, operation) (rate(spicedb_datastore_query_latency_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])))",
               "range": true,
               "refId": "A"
             }
@@ -1583,7 +1809,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "p99 of the number of relationships loaded per datastore query. High values may indicate inefficient queries or broad permission checks that load many relationships.",
           "fieldConfig": {
@@ -1661,10 +1887,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum by(le) (rate(spicedb_datastore_loaded_relationships_count_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])))",
+              "expr": "histogram_quantile(0.99, sum by(le) (rate(spicedb_datastore_loaded_relationships_count_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])))",
               "legendFormat": "relationships loaded",
               "range": true,
               "refId": "A"
@@ -1676,7 +1902,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "p99 of the number of relationship updates per write call, split by update kind (CREATE, TOUCH, DELETE). Includes WriteRelationships calls and bulk imports (ImportBulkRelationships and the deprecated BulkImportRelationships), whose imported relationships are counted as CREATE. Large batches (>1000) can cause write amplification and lock contention in the datastore. Uses the metric's native histogram representation, which has no bucket cap, so large bulk imports report accurate percentiles.",
           "fieldConfig": {
@@ -1750,10 +1976,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, rate(spicedb_v1_write_relationships_updates{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "histogram_quantile(0.99, rate(spicedb_v1_write_relationships_updates{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "{{kind}} ({{instance}})",
               "range": true,
               "refId": "A"
@@ -1779,7 +2005,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Current number of healthy CockroachDB nodes as detected by SpiceDB. A value below the expected cluster size indicates a node is down or unreachable. Any value of 0 is critical.",
           "fieldConfig": {
@@ -1829,10 +2055,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "crdb_healthy_nodes{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "crdb_healthy_nodes{job=\"$job\",instance=~\"$instance\"}",
               "instant": true,
               "legendFormat": "healthy nodes ({{instance}})",
               "range": false,
@@ -1845,7 +2071,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Number of active connections SpiceDB holds to each CockroachDB node, split by pool (read/write). Significant imbalance across node_id values indicates the connection balancer is not redistributing connections evenly.",
           "fieldConfig": {
@@ -1919,10 +2145,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "crdb_connections_per_node{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "crdb_connections_per_node{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "{{pool}} \u2192 node {{node_id}} ({{instance}})",
               "range": true,
               "refId": "A"
@@ -1934,7 +2160,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Rate of client-side transaction restarts per second (left axis) and p99 number of restarts per transaction attempt (right axis). Restarts occur when CockroachDB returns a serialization failure (40001) and the client retries from scratch. A rising rate indicates transaction contention on the cluster.",
           "fieldConfig": {
@@ -2025,10 +2251,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(crdb_client_resets_sum{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(crdb_client_resets_sum{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "resets/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2036,10 +2262,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, rate(crdb_client_resets_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "histogram_quantile(0.99, rate(crdb_client_resets_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "p99 resets per tx ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2051,7 +2277,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "p99 and p50 duration in milliseconds of one iteration of the CockroachDB connection balancer pruning excess connections from over-represented nodes. Elevated values (>10ms) indicate the balancer is struggling to redistribute connections.",
           "fieldConfig": {
@@ -2129,10 +2355,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, rate(crdb_pruning_duration_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "histogram_quantile(0.99, rate(crdb_pruning_duration_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "p99 {{pool}} ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2140,10 +2366,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.50, rate(crdb_pruning_duration_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "histogram_quantile(0.50, rate(crdb_pruning_duration_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "p50 {{pool}} ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2169,7 +2395,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Shows the distribution of connections in the pool. High acquired conns may indicate active load. Low idle conns suggest the pool is under pressure and may need tuning. Constructing conns indicate new connections being established.",
           "fieldConfig": {
@@ -2249,10 +2475,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_idle_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+              "expr": "pgxpool_idle_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}",
               "legendFormat": "idle ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2260,10 +2486,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_acquired_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+              "expr": "pgxpool_acquired_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}",
               "legendFormat": "acquired ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2271,10 +2497,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_constructing_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+              "expr": "pgxpool_constructing_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}",
               "legendFormat": "constructing ({{instance}})",
               "range": true,
               "refId": "C"
@@ -2282,10 +2508,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_max_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}",
+              "expr": "pgxpool_max_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}",
               "legendFormat": "max ({{instance}})",
               "range": true,
               "refId": "D"
@@ -2297,7 +2523,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Shows the distribution of connections in the pool. High acquired conns may indicate active load. Low idle conns suggest the pool is under pressure and may need tuning. Constructing conns indicate new connections being established.",
           "fieldConfig": {
@@ -2377,10 +2603,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_idle_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+              "expr": "pgxpool_idle_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}",
               "legendFormat": "idle ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2388,10 +2614,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_acquired_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+              "expr": "pgxpool_acquired_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}",
               "legendFormat": "acquired ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2399,10 +2625,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_constructing_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+              "expr": "pgxpool_constructing_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}",
               "legendFormat": "constructing ({{instance}})",
               "range": true,
               "refId": "C"
@@ -2410,10 +2636,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "pgxpool_max_conns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}",
+              "expr": "pgxpool_max_conns{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}",
               "legendFormat": "max ({{instance}})",
               "range": true,
               "refId": "D"
@@ -2425,7 +2651,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Tracks connection acquisition patterns. High acquire count with low canceled/empty indicates healthy pool usage. High canceled acquires may indicate timeout issues or request cancellation. High empty acquires suggest the pool is frequently exhausted and requests are waiting.",
           "fieldConfig": {
@@ -2500,10 +2726,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_acquire_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
               "legendFormat": "acquires/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2511,10 +2737,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_canceled_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_canceled_acquire_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
               "legendFormat": "canceled/sec ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2522,10 +2748,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_empty_acquire{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_empty_acquire{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
               "legendFormat": "empty acquires/sec ({{instance}})",
               "range": true,
               "refId": "C"
@@ -2537,7 +2763,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Tracks connection acquisition patterns. High acquire count with low canceled/empty indicates healthy pool usage. High canceled acquires may indicate timeout issues or request cancellation. High empty acquires suggest the pool is frequently exhausted and requests are waiting.",
           "fieldConfig": {
@@ -2612,10 +2838,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_acquire_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
               "legendFormat": "acquires/sec  ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2623,10 +2849,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_canceled_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_canceled_acquire_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
               "legendFormat": "canceled/sec ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2634,10 +2860,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_empty_acquire{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_empty_acquire{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
               "legendFormat": "empty acquires/sec ({{instance}})",
               "range": true,
               "refId": "C"
@@ -2649,7 +2875,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Monitors connection creation and destruction. High new conn count indicates connections are being created. High destroy counts suggest connections are being cycled frequently, which may indicate configuration issues with MaxConnIdleTime or MaxConnLifetime.",
           "fieldConfig": {
@@ -2724,10 +2950,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_new_conns_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_new_conns_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
               "legendFormat": "new conns/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2735,10 +2961,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_max_idle_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_max_idle_destroy_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
               "legendFormat": "idle timeout destroys/sec ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2746,10 +2972,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_max_lifetime_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_max_lifetime_destroy_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
               "legendFormat": "lifetime destroys/sec ({{instance}})",
               "range": true,
               "refId": "C"
@@ -2761,7 +2987,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Monitors connection creation and destruction. High new conn count indicates connections are being created. High destroy counts suggest connections are being cycled frequently, which may indicate configuration issues with MaxConnIdleTime or MaxConnLifetime.",
           "fieldConfig": {
@@ -2836,10 +3062,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_new_conns_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_new_conns_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
               "legendFormat": "new conns/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2847,10 +3073,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_max_idle_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_max_idle_destroy_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
               "legendFormat": "idle timeout destroys/sec ({{instance}})",
               "range": true,
               "refId": "B"
@@ -2858,10 +3084,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_max_lifetime_destroy_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_max_lifetime_destroy_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
               "legendFormat": "lifetime destroys/sec ({{instance}})",
               "range": true,
               "refId": "C"
@@ -2873,7 +3099,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Average time spent waiting to acquire a connection from the read pool (nanoseconds). Elevated values mean requests are blocking on pool exhaustion. Consider increasing MaxConns or investigating connection leaks if this rises consistently.",
           "fieldConfig": {
@@ -2957,10 +3183,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_acquire_duration_ns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval]) / rate(pgxpool_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_acquire_duration_ns{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval]) / rate(pgxpool_acquire_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"read\"}[$__rate_interval])",
               "legendFormat": "avg ({{instance}})",
               "range": true,
               "refId": "A"
@@ -2972,7 +3198,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Average time spent waiting to acquire a connection from the write pool (nanoseconds). Elevated values mean requests are blocking on pool exhaustion. Consider increasing MaxConns or investigating connection leaks if this rises consistently.",
           "fieldConfig": {
@@ -3056,10 +3282,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(pgxpool_acquire_duration_ns{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval]) / rate(pgxpool_acquire_count{job=\"spicedb\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
+              "expr": "rate(pgxpool_acquire_duration_ns{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval]) / rate(pgxpool_acquire_count{job=\"$job\",instance=~\"$instance\",pool_usage=\"write\"}[$__rate_interval])",
               "legendFormat": "avg ({{instance}})",
               "range": true,
               "refId": "A"
@@ -3085,7 +3311,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Current state of the sql.DB connection pool: open connections (in-use + idle), in-use connections, idle connections, and the configured maximum. A pool consistently at max_open_connections may indicate saturation.",
           "fieldConfig": {
@@ -3161,10 +3387,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "go_sql_open_connections{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_sql_open_connections{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "open ({{instance}})",
               "range": true,
               "refId": "A"
@@ -3172,10 +3398,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "go_sql_in_use_connections{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_sql_in_use_connections{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "in use ({{instance}})",
               "range": true,
               "refId": "B"
@@ -3183,10 +3409,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "go_sql_idle_connections{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_sql_idle_connections{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "idle ({{instance}})",
               "range": true,
               "refId": "C"
@@ -3194,10 +3420,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "go_sql_max_open_connections{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_sql_max_open_connections{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "max open ({{instance}})",
               "range": true,
               "refId": "D"
@@ -3209,7 +3435,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Rates of connection wait events and connection closures. High wait_count indicates goroutines are blocked acquiring connections. Closures due to max_idle, max_idle_time, or max_lifetime suggest aggressive pool recycling.",
           "fieldConfig": {
@@ -3285,10 +3511,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(go_sql_wait_count_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(go_sql_wait_count_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "waits/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -3296,10 +3522,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(go_sql_wait_duration_seconds_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(go_sql_wait_duration_seconds_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "wait duration/sec ({{instance}})",
               "range": true,
               "refId": "B"
@@ -3307,10 +3533,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(go_sql_max_idle_closed_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(go_sql_max_idle_closed_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "closed: max idle/sec ({{instance}})",
               "range": true,
               "refId": "C"
@@ -3318,10 +3544,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(go_sql_max_idle_time_closed_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(go_sql_max_idle_time_closed_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "closed: idle timeout/sec ({{instance}})",
               "range": true,
               "refId": "D"
@@ -3329,10 +3555,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(go_sql_max_lifetime_closed_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(go_sql_max_lifetime_closed_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "closed: lifetime/sec ({{instance}})",
               "range": true,
               "refId": "E"
@@ -3358,7 +3584,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Ratios (0\u20131) reflecting Spanner session pool health. max_allowed_sessions_ratio approaching 1 means the pool is near its configured limit. max_in_use_sessions_ratio shows peak concurrent session usage. num_sessions_in_pool_ratio and open_session_count_ratio show current utilization.",
           "fieldConfig": {
@@ -3434,10 +3660,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "spanner_max_allowed_sessions_ratio{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "spanner_max_allowed_sessions_ratio{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "max allowed ({{instance}})",
               "range": true,
               "refId": "A"
@@ -3445,10 +3671,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "spanner_max_in_use_sessions_ratio{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "spanner_max_in_use_sessions_ratio{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "max in-use ({{instance}})",
               "range": true,
               "refId": "B"
@@ -3456,10 +3682,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "spanner_num_sessions_in_pool_ratio{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "spanner_num_sessions_in_pool_ratio{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "in pool ({{instance}})",
               "range": true,
               "refId": "C"
@@ -3467,10 +3693,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "spanner_open_session_count_ratio{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "spanner_open_session_count_ratio{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "open ({{instance}})",
               "range": true,
               "refId": "D"
@@ -3482,7 +3708,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Rate of Spanner sessions acquired and released from the pool, plus the rate of GFE (Google Front End) responses missing the server-timing header \u2014 a non-zero gfe_header_missing_count may indicate requests bypassing the GFE or connectivity issues.",
           "fieldConfig": {
@@ -3558,10 +3784,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spanner_num_acquired_sessions_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(spanner_num_acquired_sessions_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "sessions acquired/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -3569,10 +3795,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spanner_num_released_sessions_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(spanner_num_released_sessions_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "sessions released/sec ({{instance}})",
               "range": true,
               "refId": "B"
@@ -3580,10 +3806,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spanner_gfe_header_missing_count_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(spanner_gfe_header_missing_count_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "GFE header missing/sec ({{instance}})",
               "range": true,
               "refId": "C"
@@ -3609,7 +3835,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Rate of datastore GC run failures per second. Any non-zero value means the background garbage collection job is failing. Sustained failures cause unbounded table growth in CRDB/PostgreSQL/MySQL and will eventually impact query performance.",
           "fieldConfig": {
@@ -3684,10 +3910,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_datastore_gc_failure_total{job=\"spicedb\"}[$__rate_interval])",
+              "expr": "rate(spicedb_datastore_gc_failure_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "{{instance}}",
               "range": true,
               "refId": "A"
@@ -3699,7 +3925,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "p99 duration of a single datastore garbage collection run. GC runs compete with normal query traffic. Runs regularly exceeding 10 seconds should be investigated; runs above 60 seconds may be impacting query latency.",
           "fieldConfig": {
@@ -3784,10 +4010,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, rate(spicedb_datastore_gc_duration_seconds_bucket{job=\"spicedb\"}[$__rate_interval]))",
+              "expr": "histogram_quantile(0.99, rate(spicedb_datastore_gc_duration_seconds_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "{{instance}}",
               "range": true,
               "refId": "A"
@@ -3799,7 +4025,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Rate of objects deleted by the background garbage collection job. Stale relationships and transactions are normal artefacts of MVCC-based datastores (CRDB, PostgreSQL, MySQL). Expired relationships are those with an explicit expiry time set at write time. A sudden spike typically follows a large write burst.",
           "fieldConfig": {
@@ -3876,10 +4102,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_datastore_gc_relationships_total{job=\"spicedb\"}[$__rate_interval])",
+              "expr": "rate(spicedb_datastore_gc_relationships_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "gc stale relationships/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -3887,10 +4113,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_datastore_gc_expired_relationships_total{job=\"spicedb\"}[$__rate_interval])",
+              "expr": "rate(spicedb_datastore_gc_expired_relationships_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "gc expired relationships/sec ({{instance}})",
               "range": true,
               "refId": "B"
@@ -3898,10 +4124,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_datastore_gc_transactions_total{job=\"spicedb\"}[$__rate_interval])",
+              "expr": "rate(spicedb_datastore_gc_transactions_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "gc transactions ({{instance}})",
               "range": true,
               "refId": "C"
@@ -3909,10 +4135,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_datastore_gc_namespaces_total{job=\"spicedb\"}[$__rate_interval])",
+              "expr": "rate(spicedb_datastore_gc_namespaces_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "gc namespaces/sec ({{instance}})",
               "range": true,
               "refId": "D"
@@ -3933,12 +4159,442 @@
         "x": 0,
         "y": 71
       },
+      "id": 88,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Fraction of schema definition reads served by the watching schema cache, from spicedb_datastore_watching_schema_cache_definitions_read_cached_total and _read_total.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 2
+          },
+          "id": 84,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "(\n  sum(rate(spicedb_datastore_watching_schema_cache_definitions_read_cached_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (definition_kind)\n  or\n  0 * sum(rate(spicedb_datastore_watching_schema_cache_definitions_read_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (definition_kind)\n)\n/\n(sum(rate(spicedb_datastore_watching_schema_cache_definitions_read_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (definition_kind) > 0)",
+              "legendFormat": "{{ definition_kind }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Schema Watch Cache Hit Ratio by Kind",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "1 means the schema watch is unavailable and definitions are read through a standard caching proxy instead of the watch-backed cache. Also reads 0 when the watching schema cache is disabled.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 2
+          },
+          "id": 85,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "max(spicedb_datastore_watching_schema_cache_namespaces_fallback_mode{job=\"$job\",instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "namespaces {{ instance }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "max(spicedb_datastore_watching_schema_cache_caveats_fallback_mode{job=\"$job\",instance=~\"$instance\"}) by (instance)",
+              "legendFormat": "caveats {{ instance }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Schema Watch Cache Fallback Mode",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Seconds since the last event was consumed from the schema watch, from spicedb_datastore_watching_schema_cache_last_event_timestamp_seconds. No series until the first event is consumed, or when the watching schema cache is disabled.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 10
+          },
+          "id": 86,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "time() - (spicedb_datastore_watching_schema_cache_last_event_timestamp_seconds{job=\"$job\",instance=~\"$instance\"} > 0)",
+              "legendFormat": "{{ instance }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Time Since Last Schema Watch Event",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Rate of watch cycle restarts, from spicedb_datastore_watching_schema_cache_cycle_restarts_total. A high or growing rate indicates a flapping watch. Also reads 0 when the watching schema cache is disabled.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 10
+          },
+          "id": 87,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(rate(spicedb_datastore_watching_schema_cache_cycle_restarts_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (instance)",
+              "legendFormat": "{{ instance }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Schema Watch Cycle Restarts",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Schema Watch Cache (--enable-experimental-watchable-schema-cache)",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
       "id": 4,
       "panels": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "CPU time consumed by the process, measured in CPU cores. A value of 1.0 means one full core is in use. Compare against GOMAXPROCS to assess CPU saturation.",
           "fieldConfig": {
@@ -4022,10 +4678,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(process_cpu_seconds_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(process_cpu_seconds_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "CPU Cores Used",
               "range": true,
               "refId": "A"
@@ -4037,7 +4693,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "The number of goroutines reported by the Go runtime.",
           "fieldConfig": {
@@ -4108,7 +4764,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 7
+            "y": 8
           },
           "id": 2,
           "options": {
@@ -4134,10 +4790,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "builder",
-              "expr": "go_goroutines{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_goroutines{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "Goroutines",
               "range": true,
               "refId": "A"
@@ -4149,7 +4805,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Garbage collection pause duration (p99) and total GC cycle count. High pause durations or frequent GC cycles may indicate memory pressure.",
           "fieldConfig": {
@@ -4225,7 +4881,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 15
+            "y": 16
           },
           "id": 6,
           "options": {
@@ -4246,10 +4902,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum by(le) (rate(go_sched_pauses_total_gc_seconds_bucket{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])))",
+              "expr": "histogram_quantile(0.99, sum by(le) (rate(go_sched_pauses_total_gc_seconds_bucket{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])))",
               "legendFormat": "p99 of duration",
               "range": true,
               "refId": "A"
@@ -4257,10 +4913,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "go_gc_cycles_total_gc_cycles_total{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_gc_cycles_total_gc_cycles_total{job=\"$job\",instance=~\"$instance\"}",
               "hide": false,
               "legendFormat": "count",
               "range": true,
@@ -4273,7 +4929,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Heap memory in use versus the GOMEMLIMIT cap, and memory usage percentage as reported by the memory middleware. Sustained usage near the limit may trigger throttling.",
           "fieldConfig": {
@@ -4332,7 +4988,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 23
+            "y": 24
           },
           "id": 12,
           "options": {
@@ -4353,10 +5009,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "builder",
-              "expr": "go_memstats_heap_inuse_bytes{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_memstats_heap_inuse_bytes{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "Heap In Use",
               "range": true,
               "refId": "A"
@@ -4364,10 +5020,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "builder",
-              "expr": "go_gc_gomemlimit_bytes{job=\"spicedb\",instance=~\"$instance\"}",
+              "expr": "go_gc_gomemlimit_bytes{job=\"$job\",instance=~\"$instance\"}",
               "legendFormat": "GOMEMLIMIT",
               "range": true,
               "refId": "B"
@@ -4379,7 +5035,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "The number of heap allocations (mallocs) as a rate (malloc/sec).",
           "fieldConfig": {
@@ -4435,7 +5091,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 31
+            "y": 32
           },
           "id": 16,
           "options": {
@@ -4454,10 +5110,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "builder",
-              "expr": "rate(go_memstats_mallocs_total{job=\"spicedb\"}[$__rate_interval])",
+              "expr": "rate(go_memstats_mallocs_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
@@ -4469,7 +5125,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Shows the number of heap allocations (as a byte/sec rate).",
           "fieldConfig": {
@@ -4528,7 +5184,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 31
+            "y": 32
           },
           "id": 14,
           "options": {
@@ -4547,10 +5203,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "builder",
-              "expr": "rate(go_memstats_alloc_bytes_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(go_memstats_alloc_bytes_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "bytes/sec ({{instance}})",
               "range": true,
               "refId": "A"
@@ -4562,7 +5218,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Time goroutines spend blocked waiting to acquire mutexes (as a rate). Elevated values indicate lock contention.",
           "fieldConfig": {
@@ -4621,7 +5277,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 31
+            "y": 32
           },
           "id": 35,
           "options": {
@@ -4640,10 +5296,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "builder",
-              "expr": "rate(go_sync_mutex_wait_total_seconds_total{job=\"spicedb\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(go_sync_mutex_wait_total_seconds_total{job=\"$job\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "{{instance}}",
               "range": true,
               "refId": "A"
@@ -4655,7 +5311,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "description": "Rate of requests rejected by the memory protection middleware. Any rejected requests mean SpiceDB returned ResourceExhausted to callers due to memory pressure.",
           "fieldConfig": {
@@ -4726,7 +5382,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 39
+            "y": 40
           },
           "id": 64,
           "options": {
@@ -4745,10 +5401,10 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "rate(spicedb_memory_middleware_requests_processed_total{job=\"spicedb\",accepted=\"false\",instance=~\"$instance\"}[$__rate_interval])",
+              "expr": "rate(spicedb_memory_middleware_requests_processed_total{job=\"$job\",accepted=\"false\",instance=~\"$instance\"}[$__rate_interval])",
               "legendFormat": "rejected {{endpoint}} ({{instance}})",
               "range": true,
               "refId": "B"
@@ -4769,6 +5425,43 @@
   "templating": {
     "list": [
       {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values({__name__=~\"spicedb_environment_info|spicedb_services_logical_checks_total|spicedb_datastore_query_latency_count|spicedb_datastore_query_latency\"}, job)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Job",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": {
+          "query": "label_values({__name__=~\"spicedb_environment_info|spicedb_services_logical_checks_total|spicedb_datastore_query_latency_count|spicedb_datastore_query_latency\"}, job)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
         "allValue": ".*",
         "current": {
           "selected": true,
@@ -4781,9 +5474,9 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "prometheus"
+          "uid": "${datasource}"
         },
-        "definition": "label_values(go_goroutines{job=\"spicedb\"}, instance)",
+        "definition": "label_values({__name__=~\"spicedb_environment_info|spicedb_services_logical_checks_total|spicedb_datastore_query_latency_count|spicedb_datastore_query_latency\",job=\"$job\"}, instance)",
         "hide": 0,
         "includeAll": true,
         "label": "Instance",
@@ -4791,40 +5484,13 @@
         "name": "instance",
         "options": [],
         "query": {
-          "query": "label_values(go_goroutines{job=\"spicedb\"}, instance)",
+          "query": "label_values({__name__=~\"spicedb_environment_info|spicedb_services_logical_checks_total|spicedb_datastore_query_latency_count|spicedb_datastore_query_latency\",job=\"$job\"}, instance)",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
-        "type": "query"
-      },
-      {
-        "current": {
-          "selected": false,
-          "text": "postgres",
-          "value": "postgres"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "definition": "label_values(spicedb_environment_info{job=\"spicedb\"}, ds_engine)",
-        "hide": 0,
-        "includeAll": false,
-        "label": "Datastore",
-        "multi": false,
-        "name": "ds_engine",
-        "options": [],
-        "query": {
-          "query": "label_values(spicedb_environment_info{job=\"spicedb\"}, ds_engine)",
-          "refId": "StandardVariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
         "type": "query"
       }
     ]
@@ -4838,5 +5504,6 @@
   "title": "SpiceDB Dashboard",
   "uid": "qvsJJ_6Hk",
   "version": 57,
-  "weekStart": ""
+  "weekStart": "",
+  "description": "SpiceDB metrics scraped from SpiceDB's /metrics endpoint. Select a job that contains only SpiceDB targets. Latency panels use classic histograms (_bucket series); if Prometheus scrapes native histograms, also scrape classic ones (always_scrape_classic_histograms). The write batch size and API shape panels use native histograms, and the API shape panel also requires --enable-performance-insight-metrics. Panels for metrics added in recent SpiceDB releases stay empty on older versions."
 }
