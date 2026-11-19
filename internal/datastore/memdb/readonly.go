@@ -27,6 +27,18 @@ type memdbReader struct {
 	now      time.Time
 }
 
+// newErrorReader returns a reader on which every operation fails with err.
+// Its txSource returns err and it uses a no-op locker, so a method that skips
+// its initErr check still returns err instead of panicking on a nil locker.
+func newErrorReader(err error) *memdbReader {
+	return &memdbReader{
+		TryLocker: noopTryLocker{},
+		txSource:  func() (*memdb.Txn, error) { return nil, err },
+		initErr:   err,
+		now:       time.Now(),
+	}
+}
+
 func (r *memdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	counters, err := r.LookupCounters(ctx)
 	if err != nil {

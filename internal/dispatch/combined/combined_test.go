@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -247,4 +248,31 @@ func TestNewDispatcher_InvalidSecondaryStrategyExpr(t *testing.T) {
 			require.ErrorContains(t, err, "for method `check`")
 		})
 	}
+}
+
+type testStrategy struct{}
+
+func (testStrategy) NewPolicy(secondary.Race) secondary.Policy { return secondary.BasePolicy{} }
+
+// TestNewDispatcher_SecondaryStrategies checks that strategy functions registered through
+// SecondaryStrategies can be called from dispatch expressions, and only then.
+func TestNewDispatcher_SecondaryStrategies(t *testing.T) {
+	options := []Option{
+		UpstreamAddr("localhost:0"),
+		GrpcPresharedKey("test-key"),
+		SecondaryUpstreamAddrs(map[string]string{"sec": "localhost:1"}),
+		SecondaryUpstreamExprs(map[string]string{"check": "registered(['sec'])"}),
+	}
+
+	_, err := NewDispatcher(options...)
+	require.ErrorContains(t, err, "error parsing secondary dispatch expr", "the function is not registered")
+
+	registered := secondary.Function{
+		Name:     "registered",
+		Strategy: testStrategy{},
+	}
+	dispatcher, err := NewDispatcher(append(options, SecondaryStrategies([]secondary.Function{registered}))...)
+	require.NoError(t, err)
+	require.NotNil(t, dispatcher)
+	t.Cleanup(func() { _ = dispatcher.Close() })
 }

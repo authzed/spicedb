@@ -19,6 +19,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/signals"
@@ -40,6 +41,7 @@ type optionState struct {
 	secondaryUpstreamAddrs                       map[string]string
 	secondaryUpstreamExprs                       map[string]string
 	secondaryUpstreamMaximumPrimaryHedgingDelays map[string]string
+	secondaryStrategies                          []secondary.Function
 	dispatchChunkSize                            uint16
 	startingPrimaryHedgingDelay                  time.Duration
 	caveatTypeSet                                *caveattypes.TypeSet
@@ -97,6 +99,14 @@ func SecondaryUpstreamAddrs(addrs map[string]string) Option {
 func SecondaryUpstreamExprs(addrs map[string]string) Option {
 	return func(state *optionState) {
 		state.secondaryUpstreamExprs = addrs
+	}
+}
+
+// SecondaryStrategies adds strategy functions, registered by a program that embeds SpiceDB, to
+// those the secondary dispatch expressions may call.
+func SecondaryStrategies(functions []secondary.Function) Option {
+	return func(state *optionState) {
+		state.secondaryStrategies = functions
 	}
 }
 
@@ -316,7 +326,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		secondaryExprs := make(map[string]*remote.DispatchExpr, len(opts.secondaryUpstreamExprs))
 
 		for name, exprString := range opts.secondaryUpstreamExprs {
-			parsed, err := remote.ParseDispatchExpression(name, exprString)
+			parsed, err := remote.ParseDispatchExpression(name, exprString, opts.secondaryStrategies...)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing secondary dispatch expr `%s` for method `%s`: %w", exprString, name, err)
 			}

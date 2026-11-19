@@ -134,15 +134,15 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 	defer mdb.RUnlock()
 
 	if err := mdb.checkNotClosed(); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return newErrorReader(err)
 	}
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now()}
+		return newErrorReader(errors.New("memdb datastore is not ready"))
 	}
 
 	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return newErrorReader(err)
 	}
 
 	// sort.Search finds the first snapshot newer than the requested revision,
@@ -160,7 +160,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now()}
+		return newErrorReader(errors.New("memdb datastore is already closed"))
 	}
 
 	roTxn := rev.db.Txn(false)

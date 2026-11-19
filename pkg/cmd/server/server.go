@@ -46,6 +46,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/query"
@@ -129,6 +130,10 @@ type Config struct {
 	DispatchSecondaryUpstreamExprs               map[string]string `debugmap:"visible"`
 	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
 	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
+
+	// DispatchSecondaryStrategies adds strategy functions that the secondary dispatch
+	// expressions (DispatchSecondaryUpstreamExprs) may call, for programs that embed SpiceDB.
+	DispatchSecondaryStrategies []secondary.Function `debugmap:"visible"`
 
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
@@ -417,6 +422,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.SecondaryMaximumPrimaryHedgingDelays(c.DispatchSecondaryMaximumPrimaryHedgingDelays),
+			combineddispatch.SecondaryStrategies(c.DispatchSecondaryStrategies),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
