@@ -42,6 +42,10 @@ type changeRecord[R datastore.Revision] struct {
 	namespacesDeleted  map[string]struct{}
 	caveatsDeleted     map[string]struct{}
 	metadatas          []TransactionMetadata
+
+	// storedSchemaChanged is a pointer so that it can be set through the copies of the
+	// record handed out by recordForRevision, as with the maps above.
+	storedSchemaChanged *bool
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
@@ -190,6 +194,7 @@ func (ch *Changes[R, K]) recordForRevision(rev R) changeRecord[R] {
 			make(map[string]struct{}),
 			make(map[string]struct{}),
 			make([]TransactionMetadata, 0),
+			new(bool),
 		}
 		ch.records[k] = revisionChanges
 	}
@@ -303,6 +308,20 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 	return nil
 }
 
+// AddStoredSchemaChange adds a change indicating that the unified stored schema was written.
+func (ch *Changes[R, K]) AddStoredSchemaChange(_ context.Context, rev R) error {
+	if ch.content&datastore.WatchStoredSchema != datastore.WatchStoredSchema {
+		return nil
+	}
+
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
+	record := ch.recordForRevision(rev)
+	*record.storedSchemaChanged = true
+	return nil
+}
+
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
 func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) iter.Seq2[datastore.RevisionChanges, error] {
@@ -368,6 +387,7 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 			change.ChangedDefinitions = slices.Collect(maps.Values(revisionChangeRecord.definitionsChanged))
 			change.DeletedNamespaces = slices.Collect(maps.Keys(revisionChangeRecord.namespacesDeleted))
 			change.DeletedCaveats = slices.Collect(maps.Keys(revisionChangeRecord.caveatsDeleted))
+			change.StoredSchemaChanged = *revisionChangeRecord.storedSchemaChanged
 
 			if len(revisionChangeRecord.metadatas) > 0 {
 				metadatas := make([]*structpb.Struct, 0, len(revisionChangeRecord.metadatas))

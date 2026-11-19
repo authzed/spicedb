@@ -377,6 +377,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	if !except.Watch() && !except.WatchSchema() {
 		t.Run("TestWatchSchema", runner(tester, WatchSchemaTest))
 		t.Run("TestWatchRelationshipsAndSchemaChanges", runner(tester, WatchRelationshipsAndSchemaChangesTest))
+		t.Run("TestWatchSchemaViaDataLayer", runner(tester, WatchSchemaViaDataLayerTest))
 	}
 
 	if !except.Watch() && !except.WatchCheckpoints() {
@@ -386,6 +387,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 
 	if !except.Watch() && !except.WatchCheckpoints() && !except.WatchSchema() {
 		t.Run("TestWatchRelationshipsAndSchemaAndCheckpoints", runner(tester, WatchRelationshipsAndSchemaAndCheckpointsTest))
+		t.Run("TestWatchSchemaEmissionStrategyViaDataLayer", runner(tester, WatchSchemaEmissionStrategyViaDataLayerTest))
 	}
 
 	if !except.Transaction() {
