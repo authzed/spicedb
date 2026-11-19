@@ -464,3 +464,35 @@ func TestEvalWithNesting(t *testing.T) {
 	require.False(t, result.Value())
 	require.False(t, result.IsPartial())
 }
+
+// TestEvaluateIsSubtreeOfWithListValues proves that map.isSubtreeOf no longer
+// fails with an internal error when the map holds list values. Comparing slices
+// with `!=` used to panic inside the subtree helper; CEL recovered it into an
+// "internal error" and the caveat could not be evaluated.
+func TestEvaluateIsSubtreeOfWithListValues(t *testing.T) {
+	mapType := types.Default.MustMapType(types.Default.AnyType)
+	env := MustEnvForVariablesWithDefaultTypeSet(map[string]types.VariableType{
+		"a": mapType,
+		"b": mapType,
+	})
+
+	compiled, err := CompileCaveatWithName(env, "a.isSubtreeOf(b)", "c")
+	require.NoError(t, err)
+
+	cases := []struct {
+		name string
+		a, b map[string]any
+		want bool
+	}{
+		{"subset list matches", map[string]any{"ips": []any{"10.0.0.1"}}, map[string]any{"ips": []any{"10.0.0.1"}, "extra": "x"}, true},
+		{"different list does not match", map[string]any{"ips": []any{"10.0.0.1"}}, map[string]any{"ips": []any{"10.0.0.2"}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := EvaluateCaveat(compiled, map[string]any{"a": tc.a, "b": tc.b})
+			require.NoError(t, err)
+			require.False(t, res.IsPartial())
+			require.Equal(t, tc.want, res.Value())
+		})
+	}
+}
