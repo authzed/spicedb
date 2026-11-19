@@ -59,9 +59,9 @@ func startAsync(ctx context.Context, policy racePolicy, p participant) (<-chan t
 func TestBasePolicyDefaults(t *testing.T) {
 	var p basePolicy
 	require.True(t, p.start(t.Context(), testPrimary))
-	require.False(t, p.readyToClaim(testSecondary, 0, false))
-	require.True(t, p.readyToClaim(testSecondary, 1, false))
-	require.True(t, p.readyToClaim(testSecondary, 0, true))
+	require.False(t, p.readyToClaim(t.Context(), testSecondary, 0, false))
+	require.True(t, p.readyToClaim(t.Context(), testSecondary, 1, false))
+	require.True(t, p.readyToClaim(t.Context(), testSecondary, 0, true))
 
 	primaryErr := errors.New("primary failed")
 	require.ErrorIs(t, p.noWinnerError(map[string]error{primaryDispatcher: primaryErr, "secondary": errSecondary}), primaryErr)

@@ -427,6 +427,39 @@ func TestLookupResources3OverSchemaWithCursors(t *testing.T) {
 			[]string{"somecondition"},
 		},
 		{
+			"caveats evaluated by concurrent producers",
+			`definition user {}
+
+			 caveat firstcaveat(first int) {
+				first == 1
+			 }
+
+			 caveat secondcaveat(second int) {
+				second == 2
+			 }
+
+			 caveat thirdcaveat(third int) {
+				third == 3
+			 }
+
+			 definition document {
+				relation viewer: user with firstcaveat
+				relation editor: user with secondcaveat
+				relation owner: user with thirdcaveat
+				permission view = viewer + editor + owner
+			 }`,
+			joinTuples(
+				genRelsWithCaveat("document", "viewer", "user", "tom", "firstcaveat", map[string]any{"first": 1}, 0, 500),
+				genRelsWithCaveat("document", "editor", "user", "tom", "secondcaveat", map[string]any{"second": 2}, 500, 500),
+				genRelsWithCaveat("document", "owner", "user", "tom", "thirdcaveat", map[string]any{"third": 3}, 1000, 500),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			nil,
+			genResourceIds("document", 1500),
+			nil,
+		},
+		{
 			"larger arrow dispatch",
 			`definition user {}
 	

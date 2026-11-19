@@ -144,7 +144,72 @@ func TestAnythingAfterCloseDoesNotPanic(t *testing.T) {
 	_, err = ds.OptimizedRevision(t.Context())
 	require.ErrorIs(err, ErrMemDBIsClosed)
 
-	reader := ds.SnapshotReader(datastore.NoRevision)
-	_, err = reader.CountRelationships(t.Context(), "blah")
-	require.ErrorIs(err, ErrMemDBIsClosed)
+	requireAllReaderMethodsFail(t, ds.SnapshotReader(datastore.NoRevision), ErrMemDBIsClosed)
+}
+
+// TestErrorReaderDoesNotPanic covers the readers SnapshotReader returns when it
+// cannot read the requested revision. Each method must return the error instead
+// of panicking.
+func TestErrorReaderDoesNotPanic(t *testing.T) {
+	sentinel := errors.New("sentinel")
+	requireAllReaderMethodsFail(t, newErrorReader(sentinel), sentinel)
+}
+
+func requireAllReaderMethodsFail(t *testing.T, reader datastore.Reader, expected error) {
+	t.Helper()
+
+	calls := map[string]func(ctx context.Context) error{
+		"CountRelationships": func(ctx context.Context) error {
+			_, err := reader.CountRelationships(ctx, "blah")
+			return err
+		},
+		"LookupCounters": func(ctx context.Context) error {
+			_, err := reader.LookupCounters(ctx)
+			return err
+		},
+		"ReadStoredSchema": func(ctx context.Context) error {
+			_, err := reader.ReadStoredSchema(ctx)
+			return err
+		},
+		"QueryRelationships": func(ctx context.Context) error {
+			_, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: "document"})
+			return err
+		},
+		"ReverseQueryRelationships": func(ctx context.Context) error {
+			_, err := reader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{SubjectType: "user"})
+			return err
+		},
+		"LegacyReadNamespaceByName": func(ctx context.Context) error {
+			_, _, err := reader.LegacyReadNamespaceByName(ctx, "document")
+			return err
+		},
+		"LegacyListAllNamespaces": func(ctx context.Context) error {
+			_, err := reader.LegacyListAllNamespaces(ctx)
+			return err
+		},
+		"LegacyLookupNamespacesWithNames": func(ctx context.Context) error {
+			_, err := reader.LegacyLookupNamespacesWithNames(ctx, []string{"document"})
+			return err
+		},
+		"LegacyReadCaveatByName": func(ctx context.Context) error {
+			_, _, err := reader.LegacyReadCaveatByName(ctx, "somecaveat")
+			return err
+		},
+		"LegacyListAllCaveats": func(ctx context.Context) error {
+			_, err := reader.LegacyListAllCaveats(ctx)
+			return err
+		},
+		"LegacyLookupCaveatsWithNames": func(ctx context.Context) error {
+			_, err := reader.LegacyLookupCaveatsWithNames(ctx, []string{"somecaveat"})
+			return err
+		},
+	}
+
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			var err error
+			require.NotPanics(t, func() { err = call(t.Context()) })
+			require.ErrorIs(t, err, expected)
+		})
+	}
 }
