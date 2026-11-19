@@ -259,7 +259,12 @@ type revisionedReader struct {
 	cache      storedSchemaCache
 }
 
+// The reads below assert, in CI builds, that the calling goroutine is not iterating over a
+// relationships query: SQL datastores hold a pooled connection for the duration of an iteration,
+// so a read issued during one needs a second connection and can deadlock the pool (#3433).
+
 func (r *revisionedReader) ReadSchema(ctx context.Context) (SchemaReader, error) {
+	assertNoHeldIterator("ReadSchema")
 	if r.schemaMode.ReadsFromNew() {
 		return newStoredSchemaReaderAdapter(ctx, r.reader, r.schemaHash, r.rev, r.cache)
 	}
@@ -267,18 +272,28 @@ func (r *revisionedReader) ReadSchema(ctx context.Context) (SchemaReader, error)
 }
 
 func (r *revisionedReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return r.reader.QueryRelationships(ctx, filter, opts...)
+	it, err := r.reader.QueryRelationships(ctx, filter, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return trackHeldIterator("QueryRelationships", it), nil
 }
 
 func (r *revisionedReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return r.reader.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
+	it, err := r.reader.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return trackHeldIterator("ReverseQueryRelationships", it), nil
 }
 
 func (r *revisionedReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	assertNoHeldIterator("CountRelationships")
 	return r.reader.CountRelationships(ctx, name)
 }
 
 func (r *revisionedReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	assertNoHeldIterator("LookupCounters")
 	return r.reader.LookupCounters(ctx)
 }
 

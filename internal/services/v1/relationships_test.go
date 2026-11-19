@@ -52,16 +52,16 @@ func TestReadRelationships(t *testing.T) {
 			&v1.RelationshipFilter{ResourceType: tf.DocumentNS.Name},
 			codes.OK,
 			map[string]struct{}{
-				"document:ownerplan#viewer@user:owner":                       {},
-				"document:companyplan#parent@folder:company":                 {},
-				"document:masterplan#parent@folder:strategy":                 {},
-				"document:masterplan#owner@user:product_manager":             {},
-				"document:masterplan#viewer@user:eng_lead":                   {},
-				"document:masterplan#parent@folder:plans":                    {},
-				"document:healthplan#parent@folder:plans":                    {},
-				"document:specialplan#editor@user:multiroleguy":              {},
-				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
-				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+				"document:ownerplan#viewer@user:owner":                                                                              {},
+				"document:companyplan#parent@folder:company":                                                                        {},
+				"document:masterplan#parent@folder:strategy":                                                                        {},
+				"document:masterplan#owner@user:product_manager":                                                                    {},
+				"document:masterplan#viewer@user:eng_lead":                                                                          {},
+				"document:masterplan#parent@folder:plans":                                                                           {},
+				"document:healthplan#parent@folder:plans":                                                                           {},
+				"document:specialplan#editor@user:multiroleguy":                                                                     {},
+				"document:specialplan#viewer_and_editor@user:multiroleguy":                                                          {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal":                                                        {},
 				"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
 				"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
 			},
@@ -367,6 +367,61 @@ func TestReadRelationships(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestReadRelationshipsOnPermission ensures that attempting to read relationships using a
+// filter whose relation is a permission returns a clear error explaining that relationships
+// cannot be read on a permission, rather than an opaque "does not have type information" error.
+func TestReadRelationshipsOnPermission(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	require := require.New(t)
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+
+	stream, err := client.ReadRelationships(t.Context(), &v1.ReadRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType:     "document",
+			OptionalRelation: "view", // `view` is a permission, not a relation.
+		},
+	})
+	require.NoError(err)
+
+	_, err = stream.Recv()
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.ErrorContains(err, "permission")
+	require.ErrorContains(err, "view")
+	require.NotContains(err.Error(), "type information",
+		"expected a clear permission error, got the opaque type information error: %v", err)
+}
+
+// TestDeleteRelationshipsOnPermission ensures that attempting to delete relationships using a
+// filter whose relation is a permission returns a clear error rather than an opaque one.
+func TestDeleteRelationshipsOnPermission(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+	require := require.New(t)
+
+	conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,
+		testserver.DefaultTestServerConfig,
+		tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+
+	_, err := client.DeleteRelationships(t.Context(), &v1.DeleteRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType:     "document",
+			OptionalRelation: "view", // `view` is a permission, not a relation.
+		},
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.ErrorContains(err, "permission")
+	require.NotContains(err.Error(), "type information",
+		"expected a clear permission error, got the opaque type information error: %v", err)
 }
 
 func TestWriteRelationships(t *testing.T) {
@@ -1056,16 +1111,16 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			deleted: map[string]struct{}{
-				"document:ownerplan#viewer@user:owner":                       {},
-				"document:companyplan#parent@folder:company":                 {},
-				"document:masterplan#parent@folder:strategy":                 {},
-				"document:masterplan#owner@user:product_manager":             {},
-				"document:masterplan#viewer@user:eng_lead":                   {},
-				"document:masterplan#parent@folder:plans":                    {},
-				"document:healthplan#parent@folder:plans":                    {},
-				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
-				"document:specialplan#editor@user:multiroleguy":              {},
-				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+				"document:ownerplan#viewer@user:owner":                                                                              {},
+				"document:companyplan#parent@folder:company":                                                                        {},
+				"document:masterplan#parent@folder:strategy":                                                                        {},
+				"document:masterplan#owner@user:product_manager":                                                                    {},
+				"document:masterplan#viewer@user:eng_lead":                                                                          {},
+				"document:masterplan#parent@folder:plans":                                                                           {},
+				"document:healthplan#parent@folder:plans":                                                                           {},
+				"document:specialplan#viewer_and_editor@user:multiroleguy":                                                          {},
+				"document:specialplan#editor@user:multiroleguy":                                                                     {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal":                                                        {},
 				"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
 				"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
 			},
@@ -1444,16 +1499,16 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
 	})
 	expected := map[string]struct{}{
-		"document:ownerplan#viewer@user:owner":                       {},
-		"document:companyplan#parent@folder:company":                 {},
-		"document:masterplan#parent@folder:strategy":                 {},
-		"document:masterplan#owner@user:product_manager":             {},
-		"document:masterplan#viewer@user:eng_lead":                   {},
-		"document:masterplan#parent@folder:plans":                    {},
-		"document:healthplan#parent@folder:plans":                    {},
-		"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
-		"document:specialplan#editor@user:multiroleguy":              {},
-		"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+		"document:ownerplan#viewer@user:owner":                                                                              {},
+		"document:companyplan#parent@folder:company":                                                                        {},
+		"document:masterplan#parent@folder:strategy":                                                                        {},
+		"document:masterplan#owner@user:product_manager":                                                                    {},
+		"document:masterplan#viewer@user:eng_lead":                                                                          {},
+		"document:masterplan#parent@folder:plans":                                                                           {},
+		"document:healthplan#parent@folder:plans":                                                                           {},
+		"document:specialplan#viewer_and_editor@user:multiroleguy":                                                          {},
+		"document:specialplan#editor@user:multiroleguy":                                                                     {},
+		"document:specialplan#viewer_and_editor@user:missingrolegal":                                                        {},
 		"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
 		"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
 	}
@@ -2392,6 +2447,42 @@ func TestReadRelationshipsWithTraitsAndFilters(t *testing.T) {
 				"document:doc1#viewer@user:alice",
 				"document:doc1#editor@user:bob",
 				"document:doc1#owner@user:charlie",
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			// A subject whose relation is a permission is a legal and valid relationship, so a
+			// subject filter referencing that permission must be accepted and must return the
+			// matching relationships, not be rejected as "filtering on a permission".
+			name: "subject filter relation is a permission",
+			schema: `definition user {}
+
+				definition group {
+					relation direct_member: user
+					relation intern: user
+					permission intern_member = direct_member & intern
+				}
+
+				definition document {
+					relation viewer: user | group#intern_member
+					permission view = viewer
+				}
+			`,
+			setupRelationships: []string{
+				"document:firstdoc#viewer@user:tom",
+				"document:firstdoc#viewer@group:engineering#intern_member",
+			},
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType: "group",
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: "intern_member", // a permission on `group`
+					},
+				},
+			},
+			expectedRelationships: []string{
+				"document:firstdoc#viewer@group:engineering#intern_member",
 			},
 			expectedCode: codes.OK,
 		},

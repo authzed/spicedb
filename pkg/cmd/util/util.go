@@ -32,15 +32,18 @@ import (
 const BufferedNetwork string = "buffnet"
 
 type GRPCServerConfig struct {
-	Address      string        `debugmap:"visible"`
-	Network      string        `debugmap:"visible" default:"tcp"`
-	TLSCertPath  string        `debugmap:"visible"`
-	TLSKeyPath   string        `debugmap:"visible"`
-	MaxConnAge   time.Duration `debugmap:"visible" default:"30s"`
-	Enabled      bool          `debugmap:"visible"`
-	BufferSize   int           `debugmap:"visible"`
-	ClientCAPath string        `debugmap:"visible"`
-	MaxWorkers   uint32        `debugmap:"visible"`
+	Address     string        `debugmap:"visible"`
+	Network     string        `debugmap:"visible" default:"tcp"`
+	TLSCertPath string        `debugmap:"visible"`
+	TLSKeyPath  string        `debugmap:"visible"`
+	MaxConnAge  time.Duration `debugmap:"visible" default:"30s"`
+	// MaxConnAgeGrace is how long a connection past MaxConnAge stays open for the RPCs it carries.
+	// 0 waits for them forever.
+	MaxConnAgeGrace time.Duration `debugmap:"visible"`
+	Enabled         bool          `debugmap:"visible"`
+	BufferSize      int           `debugmap:"visible"`
+	ClientCAPath    string        `debugmap:"visible"`
+	MaxWorkers      uint32        `debugmap:"visible"`
 
 	flagPrefix string
 }
@@ -51,6 +54,7 @@ type GRPCServerConfig struct {
 // - "$PREFIX-tls-cert-path"
 // - "$PREFIX-tls-key-path"
 // - "$PREFIX-max-conn-age"
+// - "$PREFIX-max-conn-age-grace"
 func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, flagPrefix, serviceName, defaultAddr string, defaultEnabled bool) {
 	flagPrefix = cmp.Or(flagPrefix, "grpc")
 	serviceName = cmp.Or(serviceName, "grpc")
@@ -62,6 +66,7 @@ func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, fla
 	flags.StringVar(&config.TLSCertPath, flagPrefix+"-tls-cert-path", "", "local path to the TLS certificate used to serve "+serviceName)
 	flags.StringVar(&config.TLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
 	flags.DurationVar(&config.MaxConnAge, flagPrefix+"-max-conn-age", 30*time.Second, "how long a connection serving "+serviceName+" should be able to live")
+	flags.DurationVar(&config.MaxConnAgeGrace, flagPrefix+"-max-conn-age-grace", 0, "how long a connection serving "+serviceName+" stays open after its max age for the in-flight requests it carries. 0 waits for them forever")
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" gRPC server")
 	flags.Uint32Var(&config.MaxWorkers, flagPrefix+"-max-workers", 0, "set the number of workers for this server (0 value means 1 worker per request)")
 }
@@ -74,9 +79,11 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	if c.BufferSize == 0 {
 		c.BufferSize = 1024 * 1024
 	}
-	opts = append(opts, grpc.KeepaliveParams(keepalive.ServerParameters{
-		MaxConnectionAge: c.MaxConnAge,
-	}), grpc.NumStreamWorkers(c.MaxWorkers))
+	keepaliveParams := keepalive.ServerParameters{MaxConnectionAge: c.MaxConnAge}
+	if c.MaxConnAgeGrace > 0 {
+		keepaliveParams.MaxConnectionAgeGrace = c.MaxConnAgeGrace
+	}
+	opts = append(opts, grpc.KeepaliveParams(keepaliveParams), grpc.NumStreamWorkers(c.MaxWorkers))
 
 	tlsOpts, certWatcher, err := c.tlsOpts()
 	if err != nil {
@@ -161,15 +168,19 @@ func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, erro
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		return insecure.NewCredentials(), nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		var err error
 		var pool *x509.CertPool
 		if c.ClientCAPath != "" {
-			pool, err = x509util.CustomCertPool(c.ClientCAPath)
+			caPool, err := x509util.NewCAPool(c.ClientCAPath)
+			if err != nil {
+				return nil, err
+			}
+			pool = caPool.CertPool()
 		} else {
+			var err error
 			pool, err = x509.SystemCertPool()
-		}
-		if err != nil {
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return credentials.NewTLS(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}), nil

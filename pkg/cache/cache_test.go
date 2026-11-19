@@ -205,3 +205,92 @@ func TestCacheWithMetrics(t *testing.T) {
 		})
 	})
 }
+
+func TestTTLExpiration(t *testing.T) {
+	const ttl = 1 * time.Minute
+
+	newCache := func(t *testing.T, refreshOnAccess bool) Cache[StringKey, string] {
+		c, err := NewOtterCache[StringKey, string]("test-otter", &Config{
+			MaxCost:            1000,
+			DefaultTTL:         ttl,
+			RefreshTTLOnAccess: refreshOnAccess,
+		})
+		//nolint:testifylint  // we're in a goroutine
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		t.Cleanup(c.Close)
+		return c
+	}
+
+	t.Run("expires after the TTL", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			c := newCache(t, false)
+			assert.True(t, c.Set(StringKey("key"), "value", 10))
+
+			time.Sleep(ttl - time.Second)
+			_, found := c.Get(StringKey("key"))
+			assert.True(t, found, "expected key to be present before the TTL elapsed")
+
+			time.Sleep(2 * time.Second)
+			_, found = c.Get(StringKey("key"))
+			assert.False(t, found, "expected key to have expired after the TTL")
+		})
+	})
+
+	t.Run("reads do not extend the TTL", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			c := newCache(t, false)
+			assert.True(t, c.Set(StringKey("key"), "value", 10))
+
+			// Read the key every 10 seconds, so a sliding TTL would never lapse.
+			// A key read steadily must still expire one TTL after it was set.
+			for elapsed := 10 * time.Second; elapsed < ttl; elapsed += 10 * time.Second {
+				time.Sleep(10 * time.Second)
+				_, found := c.Get(StringKey("key"))
+				assert.True(t, found, "expected key to be present %s after it was set", elapsed)
+			}
+
+			time.Sleep(10 * time.Second)
+			_, found := c.Get(StringKey("key"))
+			assert.False(t, found, "expected key to have expired despite being read")
+		})
+	})
+
+	t.Run("setting a key restarts its TTL", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			c := newCache(t, false)
+			assert.True(t, c.Set(StringKey("key"), "first", 10))
+
+			time.Sleep(ttl / 2)
+			assert.True(t, c.Set(StringKey("key"), "second", 10))
+
+			time.Sleep(ttl/2 + time.Second)
+			value, found := c.Get(StringKey("key"))
+			assert.True(t, found, "expected key to be present one TTL after its first set")
+			assert.Equal(t, "second", value)
+
+			time.Sleep(ttl / 2)
+			_, found = c.Get(StringKey("key"))
+			assert.False(t, found, "expected key to have expired one TTL after its last set")
+		})
+	})
+
+	t.Run("RefreshTTLOnAccess extends the TTL on reads", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			c := newCache(t, true)
+			assert.True(t, c.Set(StringKey("key"), "value", 10))
+
+			for range 5 {
+				time.Sleep(ttl / 2)
+				_, found := c.Get(StringKey("key"))
+				assert.True(t, found, "expected a read to keep the key alive")
+			}
+
+			// Once the reads stop, the key expires one TTL after the last one.
+			time.Sleep(ttl + time.Second)
+			_, found := c.Get(StringKey("key"))
+			assert.False(t, found, "expected key to have expired once reads stopped")
+		})
+	})
+}

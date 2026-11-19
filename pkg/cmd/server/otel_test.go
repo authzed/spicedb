@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // mockShutdowner is a test double that records calls to Shutdown/ForceFlush.
@@ -163,4 +165,67 @@ func TestShutdownOTelProvider_ForceFlushErrorContinuesToShutdown(t *testing.T) {
 	mock := &mockShutdowner{forceFlushErr: fmt.Errorf("flush failed")}
 	_ = ShutdownOTelProvider(t.Context(), mock)
 	assert.True(t, mock.shutdownCalled, "Shutdown must be called even when ForceFlush errors")
+}
+
+// TestRegisterOTelFlags_IgnoreRemoteSamplingDefault verifies callers' sampling
+// decisions are followed by default, so existing deployments keep today's behaviour.
+func TestRegisterOTelFlags_IgnoreRemoteSamplingDefault(t *testing.T) {
+	cmd := makeTestCmd()
+	cfg := &OTelConfig{}
+	RegisterOTelFlags(cmd, cfg)
+	assert.False(t, cfg.IgnoreRemoteSampling)
+	assert.NotNil(t, cmd.Flags().Lookup("otel-ignore-remote-sampling"))
+}
+
+// TestBuildSampler verifies how each sampler handles local and remote parents.
+func TestBuildSampler(t *testing.T) {
+	// A trace ID whose lower 63 bits are all zero is always kept by a ratio
+	// sampler with ratio > 0; one whose lower 63 bits are all one is always dropped
+	// by any ratio < 1.
+	keptID := trace.TraceID{0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
+	droppedID := trace.TraceID{0x01, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+
+	parent := func(id trace.TraceID, sampled, remote bool) context.Context {
+		flags := trace.TraceFlags(0)
+		if sampled {
+			flags = trace.FlagsSampled
+		}
+		sc := trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID:    id,
+			SpanID:     trace.SpanID{0x01},
+			TraceFlags: flags,
+			Remote:     remote,
+		})
+		return trace.ContextWithSpanContext(t.Context(), sc)
+	}
+
+	tests := []struct {
+		name          string
+		ignoreRemote  bool
+		ctx           context.Context
+		traceID       trace.TraceID
+		expectSampled bool
+	}{
+		{"default: remote sampled is kept even when the ratio would drop it", false, parent(droppedID, true, true), droppedID, true},
+		{"default: remote not-sampled is dropped even when the ratio would keep it", false, parent(keptID, false, true), keptID, false},
+		{"ignore: remote sampled is dropped when the ratio drops it", true, parent(droppedID, true, true), droppedID, false},
+		{"ignore: remote sampled is kept when the ratio keeps it", true, parent(keptID, true, true), keptID, true},
+		{"ignore: remote not-sampled is kept when the ratio keeps it", true, parent(keptID, false, true), keptID, true},
+		{"ignore: local sampled parent is still followed", true, parent(droppedID, true, false), droppedID, true},
+		{"ignore: local not-sampled parent is still followed", true, parent(keptID, false, false), keptID, false},
+		{"ignore: root span uses the ratio", true, t.Context(), keptID, true},
+		{"ignore: root span uses the ratio (dropped)", true, t.Context(), droppedID, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sampler := buildSampler(0.01, tc.ignoreRemote)
+			res := sampler.ShouldSample(sdktrace.SamplingParameters{
+				ParentContext: tc.ctx,
+				TraceID:       tc.traceID,
+				Name:          "test",
+			})
+			assert.Equal(t, tc.expectSampled, res.Decision == sdktrace.RecordAndSample)
+		})
+	}
 }

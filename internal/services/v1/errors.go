@@ -467,6 +467,43 @@ func (err NotAPermissionError) GRPCStatus() *status.Status {
 	)
 }
 
+// CannotFilterOnPermissionError indicates that a relationship filter referenced a permission.
+// Relationships only ever exist on relations, so a filter referencing a permission is invalid.
+type CannotFilterOnPermissionError struct {
+	error
+	definitionName string
+	permissionName string
+}
+
+// NewCannotFilterOnPermissionErr constructs a new error for a relationship filter that
+// references a permission rather than a relation.
+func NewCannotFilterOnPermissionErr(definitionName, permissionName string) CannotFilterOnPermissionError {
+	return CannotFilterOnPermissionError{
+		error: fmt.Errorf(
+			"the relationship filter provided is not valid: cannot filter relationships by permission `%s` under definition `%s`; relationships exist only on relations, not permissions",
+			permissionName,
+			definitionName,
+		),
+		definitionName: definitionName,
+		permissionName: permissionName,
+	}
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err CannotFilterOnPermissionError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_INVALID_FILTER,
+			map[string]string{
+				"definition_name": err.definitionName,
+				"permission_name": err.permissionName,
+			},
+		),
+	)
+}
+
 func defaultIfZero[T comparable](value T, defaultValue T) T {
 	var zero T
 	if value == zero {

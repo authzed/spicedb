@@ -1,0 +1,14 @@
+definition user {}
+
+definition group {
+	relation member: user | group#member
+}
+
+definition document {
+	relation viewer: {{.Viewer}}
+	relation other: user
+	relation banned: user
+	relation parent: document
+	relation group: group
+	permission view = {{.View}}
+}

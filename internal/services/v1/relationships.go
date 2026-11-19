@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -38,8 +37,11 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
 	"github.com/authzed/spicedb/pkg/schema"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -120,11 +122,8 @@ type PermissionsServerConfig struct {
 	// unregistered (and therefore unexported) instance is used.
 	Metrics *Metrics
 
-	// QueryPlanMetadata is the shared per-server stats store that drives the
-	// count-based plan advisor. When nil, NewPermissionsServer allocates a fresh
-	// instance. To share stats with a co-located dispatcher (so receiver-side
-	// dispatch can consult and update the same store), construct one externally
-	// and pass it both here and via graph.DispatcherParameters.
+	// QuerySignals shares revision-scoped evidence with the co-located dispatcher.
+	QuerySignals      *signals.Owner
 	QueryPlanMetadata *query.QueryPlanMetadata
 }
 
@@ -133,8 +132,10 @@ type PermissionsServerConfig struct {
 type ExperimentalQueryPlanConfig struct {
 	// Check enables the query plan for CheckPermission calls.
 	Check bool
+
 	// LookupResources enables the query plan for LookupResources calls.
 	LookupResources bool
+
 	// LookupSubjects enables the query plan for LookupSubjects calls.
 	LookupSubjects bool
 }
@@ -165,14 +166,21 @@ func NewPermissionsServer(
 		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
 		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
 		Metrics:                            config.Metrics,
+		QuerySignals:                       config.QuerySignals,
 		QueryPlanMetadata:                  config.QueryPlanMetadata,
 	}
+	if configWithDefaults.QuerySignals == nil {
+		configWithDefaults.QuerySignals = signals.NewDefaultOwner()
+	}
+
 	if configWithDefaults.QueryPlanMetadata == nil {
 		configWithDefaults.QueryPlanMetadata = query.NewQueryPlanMetadata()
 	}
+
 	if configWithDefaults.Metrics == nil {
 		configWithDefaults.Metrics = NewMetrics(nil)
 	}
+
 	return &permissionServer{
 		dispatch: dispatch,
 		config:   configWithDefaults,
@@ -199,6 +207,7 @@ func NewPermissionsServer(
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 			caveatTypeSet:        configWithDefaults.CaveatTypeSet,
 		},
+		querySignals:      configWithDefaults.QuerySignals,
 		queryPlanMetadata: configWithDefaults.QueryPlanMetadata,
 		metrics:           configWithDefaults.Metrics,
 	}
@@ -212,6 +221,7 @@ type permissionServer struct {
 	config   PermissionsServerConfig
 
 	bulkChecker       *bulkChecker
+	querySignals      *signals.Owner
 	queryPlanMetadata *query.QueryPlanMetadata
 	metrics           *Metrics
 }
@@ -236,6 +246,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
+
 	if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, sr); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -245,6 +256,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	if err != nil {
 		return ps.rewriteError(ctx, fmt.Errorf("error filtering: %w", err))
 	}
+
 	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
 
 	// Determine the traits for the upcoming QueryRelationships call; this also checks
@@ -285,6 +297,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	pageSize := ps.config.MaxDatastoreReadPageSize
+
 	if req.OptionalLimit > 0 {
 		limit = uint64(req.OptionalLimit)
 		if limit < pageSize {
@@ -323,6 +336,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	var returnedCount uint64
+
 	for rel, err := range it {
 		if err != nil {
 			return ps.rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", err))
@@ -341,6 +355,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		if err != nil {
 			return ps.rewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
 		}
+
 		returnedCount++
 
 		// Check and break on returnedCount before restarting the loop
@@ -349,6 +364,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 			break
 		}
 	}
+
 	return nil
 }
 
@@ -362,6 +378,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	dl := datalayer.MustFromContext(ctx)
 
 	span := trace.SpanFromContext(ctx)
+
 	// Ensure that the updates and preconditions are not over the configured limits.
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
 		return nil, ps.rewriteError(
@@ -379,6 +396,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := mapz.NewSet[string]()
+
 	for _, update := range req.Updates {
 		// TODO(jschorr): Change to struct-based keys.
 		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship)
@@ -388,6 +406,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				NewDuplicateRelationshipErr(update),
 			)
 		}
+
 		if proto.Size(update.Relationship.OptionalCaveat) > ps.config.MaxRelationshipContextSize {
 			return nil, ps.rewriteError(
 				ctx,
@@ -402,6 +421,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			)
 		}
 	}
+
 	span.AddEvent(otelconv.EventRelationshipsMutationsValidated)
 
 	// Execute the write operation(s).
@@ -423,6 +443,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				return err
 			}
 		}
+
 		span.AddEvent(otelconv.EventRelationshipsPreconditionsValidated)
 
 		// Validate the updates.
@@ -430,6 +451,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
+
 		span.AddEvent(otelconv.EventRelationshipsUpdatesValidated)
 
 		dispatchCount, err := genutil.EnsureUInt32(len(req.OptionalPreconditions) + 1)
@@ -443,6 +465,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		})
 
 		span.AddEvent(otelconv.EventRelationshipsPreconditionsValidated)
+
 		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
 			return err
 		}
@@ -452,12 +475,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return errWrite
 	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	span.AddEvent(otelconv.EventRelationshipsReadWriteExecuted)
+
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
 
 	// Log a metric of the counts of the different kinds of update operations.
 	updateCountByOperation := make(map[v1.RelationshipUpdate_Operation]int, 0)
+
 	for _, update := range req.Updates {
 		updateCountByOperation[update.Operation]++
 	}
@@ -523,10 +548,12 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	}
 
 	var startCursor options.Cursor
+
 	if req.OptionalCursor != nil {
 		if req.OptionalLimit == 0 {
 			return nil, ps.rewriteError(ctx, status.Errorf(codes.InvalidArgument, "optional_cursor requires optional_limit to be set"))
 		}
+
 		if !req.OptionalAllowPartialDeletions {
 			return nil, ps.rewriteError(ctx, status.Errorf(codes.InvalidArgument, "optional_cursor requires optional_allow_partial_deletions to be true"))
 		}
@@ -600,6 +627,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			}
 
 			counter := uint64(0)
+
 			for _, err := range it {
 				if err != nil {
 					return ps.rewriteError(ctx, err)
@@ -624,6 +652,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			useCursor := req.OptionalAllowPartialDeletions
 			if useCursor {
 				delOpts = append(delOpts, options.WithCursoredDelete(true))
+
 				if startCursor != nil {
 					delOpts = append(delOpts, options.WithDeleteAfter(startCursor))
 				}
@@ -642,6 +671,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 					// delete, preserving behavior on datastores without support.
 					result, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
 				}
+
 				if err != nil {
 					return err
 				}
@@ -661,6 +691,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		if err != nil {
 			return err
 		}
+
 		deletedRelationshipCount = result.NumDeleted
 		return nil
 	}, options.WithMetadata(req.OptionalTransactionMetadata))
@@ -708,31 +739,53 @@ func validatePrecondition(ctx context.Context, precond *v1.Precondition, sr data
 	return validateRelationshipsFilter(ctx, precond.Filter, sr)
 }
 
-func checkFilterComponent(ctx context.Context, objectType, optionalRelation string, sr datalayer.SchemaReader) error {
+// checkFilterComponent validates the definition+relation of one side of a relationship filter.
+// When rejectPermission is true, the relation must be an actual relation and not a permission;
+// this applies to a filter's *resource* relation, since a relationship can never be written to a
+// permission and so reading or deleting one on a permission is always a mistake. It must be false
+// for the *subject* relation, which legally may be a permission (e.g. `group#some_permission`).
+func checkFilterComponent(ctx context.Context, objectType, optionalRelation string, rejectPermission bool, sr datalayer.SchemaReader) error {
 	if objectType == "" {
 		return nil
 	}
 
-	relationToTest := cmp.Or(optionalRelation, datastore.Ellipsis)
-	allowEllipsis := optionalRelation == ""
-	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, sr)
+	// When no relation is specified, the ellipsis is used, which is always valid; just
+	// ensure the referenced definition exists.
+	if optionalRelation == "" {
+		return namespace.CheckNamespaceAndRelation(ctx, objectType, datastore.Ellipsis, true, sr)
+	}
+
+	// Ensure the definition and relation exist.
+	_, relation, err := namespace.ReadNamespaceAndRelation(ctx, objectType, optionalRelation, sr)
+	if err != nil {
+		return err
+	}
+
+	if rejectPermission && nspkg.GetRelationKind(relation) == iv1.RelationMetadata_PERMISSION {
+		return NewCannotFilterOnPermissionErr(objectType, optionalRelation)
+	}
+
+	return nil
 }
 
 func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFilter, sr datalayer.SchemaReader) error {
-	// ResourceType is optional, so only check the relation if it is specified.
+	// ResourceType is optional, so only check the relation if it is specified. The resource
+	// relation must not be a permission: relationships only ever exist on relations.
 	if filter.ResourceType != "" {
-		if err := checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, sr); err != nil {
+		if err := checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, true, sr); err != nil {
 			return err
 		}
 	}
 
-	// SubjectFilter is optional, so only check if it is specified.
+	// SubjectFilter is optional, so only check if it is specified. The subject relation may
+	// legally be a permission (e.g. `group#some_permission`), so permissions are not rejected here.
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 		subjectRelation := ""
+
 		if subjectFilter.OptionalRelation != nil {
 			subjectRelation = subjectFilter.OptionalRelation.Relation
 		}
-		if err := checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, sr); err != nil {
+		if err := checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, false, sr); err != nil {
 			return err
 		}
 	}

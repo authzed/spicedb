@@ -979,3 +979,94 @@ func caveatedRelationTuple(relationTuple string, caveatName string, context map[
 	}
 	return c
 }
+
+// TestExpiredDirectSubjectNotSkippedWhenSiblingNonTerminalType reproduces an
+// authorization-decision bug in checkDirect: the counters used to decide whether
+// the direct/wildcard datastore query may skip expiration filtering are
+// incremented for *every* allowed direct relation in the subject's namespace,
+// including non-terminal subrelations (e.g. `user#manager`). They are then
+// compared only against the number of direct+wildcard subjects. A same-namespace
+// non-terminal type without expiration inflates the "without expiration" count so
+// it equals the direct/wildcard count, which makes checkDirect skip expiration
+// filtering even though the direct subject type requires expiration. An expired
+// relationship is then returned and the subject is incorrectly ALLOWED.
+func TestExpiredDirectSubjectNotSkippedWhenSiblingNonTerminalType(t *testing.T) {
+	// `user#manager` is a same-namespace non-terminal type on `viewer`, alongside
+	// the direct `user with expiration`. Its presence triggers the miscount.
+	schema := `
+	use expiration
+
+	definition user {
+		relation manager: user
+	}
+
+	definition document {
+		relation viewer: user with expiration | user#manager
+		permission view = viewer
+	}
+	`
+
+	rels := []string{
+		// Expired grant for alice: should NOT grant access.
+		"document:somedoc#viewer@user:alice[expiration:2020-01-01T00:00:00Z]",
+		// Non-expired grant for bob: should grant access (sanity).
+		"document:somedoc#viewer@user:bob[expiration:2999-01-01T00:00:00Z]",
+	}
+
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	dispatch, err := graph.NewLocalOnlyDispatcher(graph.MustNewDefaultDispatcherParametersForTesting())
+	require.NoError(t, err)
+	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
+	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       "schema",
+		SchemaString: schema,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(t, err)
+
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		if err := rwt.LegacyWriteNamespaces(ctx, compiled.ObjectDefinitions...); err != nil {
+			return err
+		}
+		var updates []tuple.RelationshipUpdate
+		for _, r := range rels {
+			updates = append(updates, tuple.RelationshipUpdate{
+				Operation:    tuple.UpdateOperationCreate,
+				Relationship: tuple.MustParse(r),
+			})
+		}
+		return rwt.WriteRelationships(ctx, updates)
+	})
+	require.NoError(t, err)
+
+	check := func(subjectID string) v1.ResourceCheckResult_Membership {
+		result, _, err := computed.ComputeCheck(ctx, dispatch,
+			caveattypes.Default.TypeSet,
+			computed.CheckParameters{
+				ResourceType:  tuple.RR("document", "view"),
+				Subject:       tuple.ONR("user", subjectID, "..."),
+				CaveatContext: nil,
+				AtRevision:    revision,
+				MaximumDepth:  50,
+				DebugOption:   computed.NoDebugging,
+				SchemaHash:    datalayer.NoSchemaHashForTesting,
+			},
+			"somedoc",
+			100,
+		)
+		require.NoError(t, err)
+		return result.Membership
+	}
+
+	// Sanity: the non-expired grant must allow.
+	require.Equal(t, v1.ResourceCheckResult_MEMBER, check("bob"),
+		"non-expired relationship should grant access")
+
+	// The expired grant must NOT allow. Before the fix this returns MEMBER
+	// because expiration filtering was incorrectly skipped.
+	require.Equal(t, v1.ResourceCheckResult_NOT_MEMBER, check("alice"),
+		"expired relationship must not grant access")
+}

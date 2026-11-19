@@ -4,8 +4,11 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ccoveille/go-safecast/v2"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/query/planhint"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -15,11 +18,26 @@ import (
 //
 // Context is the concrete type that contains the overall handles, and uses the executor as a strategy for continuing execution.
 type Context struct {
+	executionState     *executionObservationState
+	checkExecution     CheckExecutionOptions
+	checkConcurrency   uint16
+	hintLedger         *planhint.Ledger
+	targetedRecursions map[string]*RecursiveIterator
+	targetedDepth      int
+
 	context.Context
-	Executor          Executor
-	Reader            QueryDatastoreReader // Datastore reader for this query at a specific revision
-	CaveatContext     map[string]any
-	CaveatRunner      *caveats.CaveatRunner
+
+	// Executor dispatches iterator operations during execution.
+	Executor Executor
+
+	Reader QueryDatastoreReader // Datastore reader for this query at a specific revision
+
+	// CaveatContext contains caveat values supplied by the request.
+	CaveatContext map[string]any
+
+	// CaveatRunner evaluates caveat expressions using the request context.
+	CaveatRunner *caveats.CaveatRunner
+
 	TraceLogger       *TraceLogger // For debugging iterator execution (used by TraceStep calls inside iterators)
 	MaxRecursionDepth int          // Maximum depth for recursive iterators (0 = use default of 10)
 
@@ -49,16 +67,8 @@ type Context struct {
 	// so RecursiveIterator.recursiveCheckIterSubjects saves and restores it
 	// around its own traversal.
 	//
-	// TODO: that save/restore is the one piece of scoped mutable state on this
-	// Context, and it is only sound because a Context is driven by a single
-	// goroutine. Making set operations or fan-outs concurrent would break it
-	// silently — a sibling branch would observe another branch's target and
-	// decide identity against the wrong subject, which is a wrong answer rather
-	// than a crash. The fix is to pass the target as a parameter alongside
-	// filterSubjectType through IterSubjectsImpl / IterSubjectsForResourcesImpl
-	// instead of hanging it off the Context. That is more churn (every iterator
-	// signature) which is why it is not done here, but it should be done before
-	// any concurrency is introduced, not after.
+	// Concurrent Check siblings receive separate Context instances so scoped
+	// save/restore operations cannot change another branch's target.
 	TargetSubjectType ObjectType
 
 	// BatchedArrows enables the batched arrow check path: arrows drain their
@@ -94,9 +104,11 @@ func NewQueryContext(stdContext context.Context, executor Executor, opts ...Cont
 		Context:  stdContext,
 		Executor: executor,
 	}
+
 	for _, opt := range opts {
 		opt(ctx)
 	}
+
 	return ctx
 }
 
@@ -140,6 +152,13 @@ func WithCaveatContext(caveatCtx map[string]any) ContextOption {
 	return func(ctx *Context) { ctx.CaveatContext = caveatCtx }
 }
 
+// HasActiveTargetedRecursion reports whether a Check has entered a recursive
+// controller. Dispatchers must keep its descendants local until the controller
+// returns, because its depth budget and sentinel bindings belong to this context.
+func (ctx *Context) HasActiveTargetedRecursion() bool {
+	return ctx.targetedDepth > 0
+}
+
 // WithMaxRecursionDepth sets the maximum recursion depth for the context.
 func WithMaxRecursionDepth(depth int) ContextOption {
 	return func(ctx *Context) { ctx.MaxRecursionDepth = depth }
@@ -160,6 +179,7 @@ func (ctx *Context) GetPaginationCursor(iteratorID string) *tuple.Relationship {
 	if ctx.PaginationCursors == nil {
 		return nil
 	}
+
 	return ctx.PaginationCursors[iteratorID]
 }
 
@@ -168,21 +188,25 @@ func (ctx *Context) SetPaginationCursor(iteratorID string, cursor *tuple.Relatio
 	if ctx.PaginationCursors == nil {
 		ctx.PaginationCursors = make(map[string]*tuple.Relationship)
 	}
+
 	ctx.PaginationCursors[iteratorID] = cursor
 }
 
+// TraceStep notifies the trace logger of a named step and its values.
 func (ctx *Context) TraceStep(it Iterator, step string, data ...any) {
 	if ctx.TraceLogger != nil {
 		ctx.TraceLogger.LogStep(it, step, data...)
 	}
 }
 
+// TraceEnter notifies the trace logger that iterator execution has started.
 func (ctx *Context) TraceEnter(it Iterator, traceString string) {
 	if ctx.TraceLogger != nil {
 		ctx.TraceLogger.EnterIterator(it, traceString)
 	}
 }
 
+// TraceExit notifies the trace logger that iterator execution has finished.
 func (ctx *Context) TraceExit(it Iterator, paths []*Path) {
 	if ctx.TraceLogger != nil {
 		ctx.TraceLogger.ExitIterator(it, paths)
@@ -198,6 +222,7 @@ func (ctx *Context) traceEnterIfEnabled(it Iterator, traceString string) Iterato
 	if !ctx.shouldTrace() {
 		return nil
 	}
+
 	ctx.TraceEnter(it, traceString)
 	return it
 }
@@ -213,10 +238,13 @@ func (ctx *Context) traceCheckResult(it Iterator, path *Path) {
 	if !ctx.shouldTrace() || it == nil {
 		return
 	}
+
 	var paths []*Path
+
 	if path != nil {
 		paths = []*Path{path}
 	}
+
 	ctx.traceExitIfEnabled(it, paths)
 }
 
@@ -243,18 +271,21 @@ func (ctx *Context) wrapPathSeqWithObservers(op Operation, key CanonicalKey, pat
 	if len(ctx.observers) == 0 {
 		return pathSeq
 	}
+
 	return func(yield func(*Path, error) bool) {
 		defer func() {
 			for _, obs := range ctx.observers {
 				obs.ObserveReturnIterator(op, key)
 			}
 		}()
+
 		for path, err := range pathSeq {
 			if err == nil {
 				for _, obs := range ctx.observers {
 					obs.ObservePath(op, key, path)
 				}
 			}
+
 			if !yield(path, err) {
 				return
 			}
@@ -272,13 +303,18 @@ func (ctx *Context) Check(it Iterator, resource Object, subject ObjectAndRelatio
 	ctx.MarkAsOperation(it, OperationCheck)
 
 	var tracedIterator Iterator
+
 	if ctx.shouldTrace() {
 		tracedIterator = ctx.traceEnterIfEnabled(it, checkTraceString(resource, subject))
 	}
+
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationCheck, key)
 
+	event := ctx.executionStart(it, OperationCheck, CheckFilter(resource, subject), "single")
 	path, err := ctx.Executor.Check(ctx, it, resource, subject)
+	ctx.executionCheck(event, path, err)
+
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +357,7 @@ func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []O
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
+
 	if len(subjects) == 0 {
 		return nil, nil
 	}
@@ -330,7 +367,14 @@ func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []O
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationCheck, key)
 
+	event := ctx.executionStart(it, OperationCheck, CheckFilter(resource, subjects[0]), "many-subjects")
+	if event != nil {
+		event.BatchSize = safecast.MustConvert[uint64](len(subjects))
+	}
+
 	paths, err := ctx.Executor.CheckManySubjects(ctx, it, resource, subjects)
+	ctx.executionBatch(event, paths, err)
+
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +382,7 @@ func (ctx *Context) CheckManySubjects(it Iterator, resource Object, subjects []O
 	for _, p := range paths {
 		ctx.notifyCheckResult(key, p)
 	}
+
 	return paths, nil
 }
 
@@ -347,6 +392,7 @@ func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject 
 	if ctx.Executor == nil {
 		return nil, spiceerrors.MustBugf("no executor has been set")
 	}
+
 	if len(resources) == 0 {
 		return nil, nil
 	}
@@ -356,7 +402,14 @@ func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject 
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationCheck, key)
 
+	event := ctx.executionStart(it, OperationCheck, CheckFilter(resources[0], subject), "many-resources")
+	if event != nil {
+		event.BatchSize = safecast.MustConvert[uint64](len(resources))
+	}
+
 	paths, err := ctx.Executor.CheckManyResources(ctx, it, resources, subject)
+	ctx.executionBatch(event, paths, err)
+
 	if err != nil {
 		return nil, err
 	}
@@ -364,6 +417,7 @@ func (ctx *Context) CheckManyResources(it Iterator, resources []Object, subject 
 	for _, p := range paths {
 		ctx.notifyCheckResult(key, p)
 	}
+
 	return paths, nil
 }
 
@@ -385,10 +439,12 @@ func (ctx *Context) wrapPathSeqForTracing(it Iterator, pathSeq PathSeq) PathSeq 
 				if !yield(path, err) {
 					return
 				}
+
 				continue
 			}
 
 			resultPaths = append(resultPaths, path)
+
 			if !yield(path, nil) {
 				return
 			}
@@ -412,13 +468,22 @@ func (ctx *Context) IterSubjects(it Iterator, resource Object, filterSubjectType
 	}
 
 	var tracedIterator Iterator
+
 	if ctx.shouldTrace() {
 		tracedIterator = ctx.traceEnterIfEnabled(it, iterSubjectsTraceString(resource, filterSubjectType))
 	}
+
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationIterSubjects, key)
 
+	event := ctx.executionStart(it, OperationIterSubjects, filterSubjectType.String(), "single")
 	pathSeq, err := ctx.Executor.IterSubjects(ctx, it, resource, filterSubjectType)
+	if err != nil {
+		ctx.executionFinish(event, err)
+	} else {
+		pathSeq = ctx.executionSequenceWrap(event, pathSeq)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -446,13 +511,22 @@ func (ctx *Context) IterResources(it Iterator, subject ObjectAndRelation, filter
 	isTopLevel := ctx.MarkAsOperation(it, OperationIterResources)
 
 	var tracedIterator Iterator
+
 	if ctx.shouldTrace() {
 		tracedIterator = ctx.traceEnterIfEnabled(it, iterResourcesTraceString(subject, filterResourceType))
 	}
+
 	key := it.CanonicalKey()
 	ctx.notifyEnterIterator(OperationIterResources, key)
 
+	event := ctx.executionStart(it, OperationIterResources, ResourceFilter(subject, filterResourceType), "single")
 	pathSeq, err := ctx.Executor.IterResources(ctx, it, subject, filterResourceType)
+	if err != nil {
+		ctx.executionFinish(event, err)
+	} else {
+		pathSeq = ctx.executionSequenceWrap(event, pathSeq)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -501,6 +575,7 @@ func (ctx *Context) EnableFrontierCollection(iteratorID uint64) {
 	if ctx.recursiveFrontierCollectors == nil {
 		ctx.recursiveFrontierCollectors = make(map[uint64][]Object)
 	}
+
 	ctx.recursiveFrontierCollectors[iteratorID] = []Object{}
 }
 
@@ -510,6 +585,7 @@ func (ctx *Context) CollectFrontierObject(iteratorID uint64, obj Object) {
 	if ctx.recursiveFrontierCollectors == nil {
 		return
 	}
+
 	if collection, exists := ctx.recursiveFrontierCollectors[iteratorID]; exists {
 		ctx.recursiveFrontierCollectors[iteratorID] = append(collection, obj)
 	}
@@ -520,6 +596,7 @@ func (ctx *Context) ExtractFrontierCollection(iteratorID uint64) []Object {
 	if ctx.recursiveFrontierCollectors == nil {
 		return nil
 	}
+
 	collection := ctx.recursiveFrontierCollectors[iteratorID]
 	delete(ctx.recursiveFrontierCollectors, iteratorID)
 	return collection
@@ -530,6 +607,27 @@ func (ctx *Context) IsCollectingFrontier(iteratorID uint64) bool {
 	if ctx.recursiveFrontierCollectors == nil {
 		return false
 	}
+
 	_, exists := ctx.recursiveFrontierCollectors[iteratorID]
 	return exists
+}
+
+// WithCheckConcurrency sets the execution ceiling for set Check recommendations.
+func WithCheckConcurrency(limit uint16) ContextOption {
+	return func(ctx *Context) { ctx.checkConcurrency = limit }
+}
+
+// WithHintLedger supplies the request-local ledger used to account for execution hints.
+func WithHintLedger(ledger *planhint.Ledger) ContextOption {
+	return func(ctx *Context) { ctx.hintLedger = ledger }
+}
+
+// CheckConcurrencyLimit returns the configured ceiling for Check fanout. A
+// context without a configured limit keeps sequential execution.
+func (ctx *Context) CheckConcurrencyLimit() uint16 {
+	if ctx.checkConcurrency == 0 {
+		return 1
+	}
+
+	return ctx.checkConcurrency
 }

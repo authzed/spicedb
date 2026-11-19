@@ -146,6 +146,7 @@ func TestServerDefaultOptions(t *testing.T) {
 	require.Equal(t, "spicedb", cfg.OTel.ServiceName)
 	require.Equal(t, "w3c", cfg.OTel.TracePropagator)
 	require.InEpsilon(t, 0.01, cfg.OTel.SampleRatio, 1e-9)
+	require.False(t, cfg.OTel.IgnoreRemoteSampling)
 
 	// Datastore: every non-zero field from DefaultDatastoreConfig is now
 	// reachable via struct tags so library users get the same defaults as

@@ -52,7 +52,7 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 			NewFixedIterator(*MustPathFromString("folder:folder1#viewer@user:alice")),
 		)
 
-		err = hints[0](arrow)
+		err = applyHint(arrow, hints[0])
 		require.NoError(t, err)
 		require.Equal(t, rightToLeft, arrow.direction)
 	})
@@ -96,7 +96,7 @@ func TestStaticAdvisor_GetHints_ArrowDirection(t *testing.T) {
 			NewFixedIterator(*MustPathFromString("folder:folder1#viewer@user:alice")),
 		)
 
-		err = hints[0](arrow)
+		err = applyHint(arrow, hints[0])
 		require.NoError(t, err)
 		require.Equal(t, leftToRight, arrow.direction)
 	})
@@ -275,7 +275,10 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			Type: IntersectionIteratorType,
 			SubOutlines: []Outline{
 				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}}},
-				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}}},
+				{
+					Type: FixedIteratorType,
+					Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}},
+				},
 			},
 		}
 
@@ -300,8 +303,14 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 
 	t.Run("returns nil when order is already optimal", func(t *testing.T) {
 		// Union already in optimal order (high selectivity first)
-		child1 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}}}
-		child2 := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}}}
+		child1 := Outline{
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}},
+		}
+		child2 := Outline{
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}},
+		}
 
 		unionOutline := Outline{
 			Type:        UnionIteratorType,
@@ -348,7 +357,10 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			SubOutlines: []Outline{
 				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}}},
 				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc2#viewer@user:bob")}}},
-				{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}}},
+				{
+					Type: FixedIteratorType,
+					Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc3#viewer@user:charlie")}},
+				},
 			},
 		}
 
@@ -394,9 +406,11 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 
 		// A has 10 paths (high cardinality)
 		aPaths := make([]Path, 10)
+
 		for i := 0; i < 10; i++ {
 			aPaths[i] = *MustPathFromString("document:doc" + string(rune('0'+i)) + "#viewer@user:alice")
 		}
+
 		a := Outline{
 			Type: FixedIteratorType,
 			Args: &IteratorArgs{FixedPaths: aPaths},
@@ -431,6 +445,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 			// If rotated, structure should be A->(B->C)
 			// First child is A
 			require.Equal(t, FixedIteratorType, result.SubOutlines[0].Type)
+
 			// Second child is B->C
 			require.Equal(t, ArrowIteratorType, result.SubOutlines[1].Type)
 		}
@@ -455,6 +470,7 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 
 		// Build B->C
 		bc := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{b, c}}
+
 		// Build A->(B->C)
 		aThenBC := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{a, bc}}
 
@@ -471,7 +487,10 @@ func TestStaticAdvisor_GetMutations(t *testing.T) {
 	})
 
 	t.Run("arrow rebalancing - no nested arrows", func(t *testing.T) {
-		a := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}}}
+		a := Outline{
+			Type: FixedIteratorType,
+			Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("document:doc1#viewer@user:alice")}},
+		}
 		b := Outline{Type: FixedIteratorType, Args: &IteratorArgs{FixedPaths: []Path{*MustPathFromString("folder:f1#viewer@user:bob")}}}
 
 		arrow := Outline{Type: ArrowIteratorType, SubOutlines: []Outline{a, b}}

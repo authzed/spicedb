@@ -1027,3 +1027,117 @@ func TestVersionReading(t *testing.T) {
 	require.Equal(expectedMinor, version.Minor)
 	require.Equal(expectedPatch, version.Patch)
 }
+
+func TestEffectiveGCWindowFromZoneConfig(t *testing.T) {
+	t.Parallel()
+
+	// Owns its container, so changing RANGE default cannot affect other tests.
+	b := testdatastore.RunCRDBForTesting(t, crdbTestVersion())
+
+	const (
+		dbZone24h    = "ALTER DATABASE %[1]s CONFIGURE ZONE USING gc.ttlseconds = 86400"
+		dbZone4h     = "ALTER DATABASE %[1]s CONFIGURE ZONE USING gc.ttlseconds = 14400"
+		tableZone24h = "ALTER TABLE %[1]s.relation_tuple CONFIGURE ZONE USING gc.ttlseconds = 86400"
+		tableZone6h  = "ALTER TABLE %[1]s.relation_tuple CONFIGURE ZONE USING gc.ttlseconds = 21600"
+		tableZone4h  = "ALTER TABLE %[1]s.relation_tuple CONFIGURE ZONE USING gc.ttlseconds = 14400"
+	)
+
+	type zoneCase struct {
+		name           string
+		zoneStatements []string
+		skipMigrations bool
+		expectedWindow time.Duration
+	}
+
+	groups := []struct {
+		rangeDefaultSeconds int
+		cases               []zoneCase
+	}{
+		{
+			rangeDefaultSeconds: 14400,
+			cases: []zoneCase{
+				{name: "database 24h", zoneStatements: []string{dbZone24h}, expectedWindow: 24 * time.Hour},
+				{name: "database 24h, table 6h", zoneStatements: []string{dbZone24h, tableZone6h}, expectedWindow: 6 * time.Hour},
+				{name: "no zones", expectedWindow: 4 * time.Hour},
+				{name: "database 4h, table 24h", zoneStatements: []string{dbZone4h, tableZone24h}, expectedWindow: 24 * time.Hour},
+				{name: "table missing falls back to range default", zoneStatements: []string{dbZone24h}, skipMigrations: true, expectedWindow: 4 * time.Hour},
+			},
+		},
+		{
+			rangeDefaultSeconds: 86400,
+			cases: []zoneCase{
+				{name: "database 4h", zoneStatements: []string{dbZone4h}, expectedWindow: 4 * time.Hour},
+				{name: "table 4h", zoneStatements: []string{tableZone4h}, expectedWindow: 4 * time.Hour},
+				{name: "no zones", expectedWindow: 24 * time.Hour},
+			},
+		},
+	}
+
+	applyZones := func(t *testing.T, uri string, statements []string) {
+		ctx := t.Context()
+		conn, err := pgx.Connect(ctx, uri)
+		require.NoError(t, err)
+		defer conn.Close(ctx)
+
+		var dbName string
+		require.NoError(t, conn.QueryRow(ctx, "SELECT current_database()").Scan(&dbName))
+		for _, stmt := range statements {
+			_, err := conn.Exec(ctx, fmt.Sprintf(stmt, dbName))
+			require.NoError(t, err)
+		}
+	}
+
+	newDatastore := func(t *testing.T, uri string) *crdbDatastore {
+		ds, err := newCRDBDatastore(t.Context(), uri, GCWindow(24*time.Hour), WithAcquireTimeout(5*time.Second))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = ds.Close()
+		})
+		cds, ok := ds.(*crdbDatastore)
+		require.True(t, ok)
+		return cds
+	}
+
+	// Groups run sequentially: RANGE default is cluster-wide.
+	for _, group := range groups {
+		t.Run(fmt.Sprintf("range default %ds", group.rangeDefaultSeconds), func(t *testing.T) {
+			conn, err := pgx.Connect(t.Context(), b.NewDatabase(t))
+			require.NoError(t, err)
+			_, err = conn.Exec(t.Context(), fmt.Sprintf("ALTER RANGE default CONFIGURE ZONE USING gc.ttlseconds = %d", group.rangeDefaultSeconds))
+			require.NoError(t, err)
+			require.NoError(t, conn.Close(t.Context()))
+
+			for _, tc := range group.cases {
+				t.Run(tc.name, func(t *testing.T) {
+					var cds *crdbDatastore
+					if tc.skipMigrations {
+						uri := b.NewDatabase(t)
+						applyZones(t, uri, tc.zoneStatements)
+						cds = newDatastore(t, uri)
+					} else {
+						b.NewDatastore(t, func(_, uri string) datastore.Datastore {
+							applyZones(t, uri, tc.zoneStatements)
+							cds = newDatastore(t, uri)
+							return cds
+						})
+					}
+
+					require.Equal(t, tc.expectedWindow, cds.gcWindow)
+
+					ctx := t.Context()
+					justInside := revisions.NewHLCForTime(time.Now().Add(-tc.expectedWindow + 10*time.Minute))
+					require.NoError(t, cds.CheckRevision(ctx, justInside))
+					justOutside := revisions.NewHLCForTime(time.Now().Add(-tc.expectedWindow - 10*time.Minute))
+					requireStale(t, cds.CheckRevision(ctx, justOutside))
+				})
+			}
+		})
+	}
+}
+
+func requireStale(t *testing.T, err error) {
+	t.Helper()
+	var irErr datastore.InvalidRevisionError
+	require.ErrorAs(t, err, &irErr)
+	require.Equal(t, datastore.RevisionStale, irErr.Reason())
+}

@@ -40,15 +40,23 @@ type Config struct {
 	MaxCost int64
 
 	// DefaultTTL configures a default deadline on the lifetime of any keys set
-	// to the cache.
+	// to the cache. The deadline is measured from when the key was last set;
+	// reads do not extend it unless RefreshTTLOnAccess is true.
 	DefaultTTL time.Duration
+
+	// RefreshTTLOnAccess, if true, extends a key's deadline by DefaultTTL on
+	// every read as well as on every set, so a key that is read more often than
+	// DefaultTTL never expires. Only enable it for caches whose values cannot
+	// become stale while their key is unchanged.
+	RefreshTTLOnAccess bool
 }
 
 func (c *Config) MarshalZerologObject(e *zerolog.Event) {
 	maxCost := spiceerrors.MustSafecast[uint64](c.MaxCost)
 	e.
 		Str("maxCost", humanize.IBytes(maxCost)).
-		Dur("defaultTTL", c.DefaultTTL)
+		Dur("defaultTTL", c.DefaultTTL).
+		Bool("refreshTTLOnAccess", c.RefreshTTLOnAccess)
 }
 
 // Cache defines an interface for a generic cache. Method semantics follow

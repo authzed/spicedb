@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
 )
 
 // ServerConfig is configuration for the test server.
@@ -56,6 +57,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool
 	cts := caveattypes.TypeSetOrDefault(config.CaveatTypeSet)
 
 	lrver := ""
+
 	if config.EnableExperimentalLookupResources3 {
 		lrver = "lr3"
 	}
@@ -65,6 +67,8 @@ func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool
 
 	params.TypeSet = cts
 	queryPlanMetadata := query.NewQueryPlanMetadata()
+	querySignals := signals.NewDefaultOwner()
+	params.QuerySignals = querySignals
 	params.QueryPlanMetadata = queryPlanMetadata
 
 	dispatcher, err := graph.NewLocalOnlyDispatcher(params)
@@ -83,6 +87,7 @@ func NewTestServerWithConfigAndDatastore(t testing.TB, schemaPrefixRequired bool
 		)),
 		server.WithTelemetryEndpoint(""),
 		server.WithSilentlyDisableTelemetry(true),
+		server.WithQuerySignals(querySignals),
 		server.WithQueryPlanMetadata(queryPlanMetadata),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),

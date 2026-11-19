@@ -187,7 +187,11 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req Valida
 		case *core.SetOperation_Child_XThis:
 			return expandError(errors.New("use of _this is unsupported; please rewrite your schema"))
 		case *core.SetOperation_Child_ComputedUserset:
-			requests = append(requests, ce.expandComputedUserset(ctx, req, child.ComputedUserset, nil))
+			sr, err := readSchemaForExpand(ctx, req)
+			if err != nil {
+				return expandError(err)
+			}
+			requests = append(requests, ce.expandComputedUserset(ctx, req, child.ComputedUserset, nil, sr))
 		case *core.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, ce.expandUsersetRewrite(ctx, req, child.UsersetRewrite))
 		case *core.SetOperation_Child_TupleToUserset:
@@ -224,7 +228,15 @@ func (ce *ConcurrentExpander) dispatch(req ValidatedExpandRequest) ReduceableExp
 	}
 }
 
-func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req ValidatedExpandRequest, cu *core.ComputedUserset, rel *tuple.Relationship) ReduceableExpandFunc {
+func readSchemaForExpand(ctx context.Context, req ValidatedExpandRequest) (datalayer.SchemaReader, error) {
+	dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+	return dl.ReadSchema(ctx)
+}
+
+// expandComputedUserset takes the schema reader rather than reading the schema itself, as it is
+// called while iterating over relationships, where a schema read would need a second datastore
+// connection while the iterator holds the first.
+func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req ValidatedExpandRequest, cu *core.ComputedUserset, rel *tuple.Relationship, sr datalayer.SchemaReader) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Str("relation", cu.Relation).Msg("computed userset")
 	var start tuple.ObjectAndRelation
 	switch cu.Object {
@@ -243,12 +255,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
-	sr, err := dl.ReadSchema(ctx)
-	if err != nil {
-		return expandError(err)
-	}
-	err = namespace.CheckNamespaceAndRelation(ctx, start.ObjectType, cu.Relation, true, sr)
+	err := namespace.CheckNamespaceAndRelation(ctx, start.ObjectType, cu.Relation, true, sr)
 	if err != nil {
 		if errors.As(err, &namespace.RelationNotFoundError{}) {
 			return emptyExpansion(req.ResourceAndRelation)
@@ -282,6 +289,15 @@ func expandTupleToUserset[T relation](
 ) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		dl := datalayer.MustFromContext(ctx).SnapshotReader(req.Revision, datalayer.SchemaHash(req.Metadata.GetSchemaHash()))
+
+		// Read the schema before iterating, so that no schema read occurs while the iterator
+		// holds a datastore connection.
+		sr, err := dl.ReadSchema(ctx)
+		if err != nil {
+			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
+			return
+		}
+
 		it, err := dl.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
@@ -299,7 +315,7 @@ func expandTupleToUserset[T relation](
 				return
 			}
 
-			toDispatch := ce.expandComputedUserset(ctx, req, ttu.GetComputedUserset(), &rel)
+			toDispatch := ce.expandComputedUserset(ctx, req, ttu.GetComputedUserset(), &rel, sr)
 			requestsToDispatch = append(requestsToDispatch, decorateWithCaveatIfNecessary(toDispatch, caveats.CaveatAsExpr(rel.OptionalCaveat)))
 		}
 

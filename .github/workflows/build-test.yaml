@@ -221,7 +221,7 @@ jobs:
       fail-fast: false
       matrix:
         datastore: ["postgres", "pgbouncer"]
-        pgversion: ["14", "15", "16", "17", "18"]
+        pgversion: ["15", "16", "17", "18"]
     steps:
       - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
@@ -256,7 +256,7 @@ jobs:
       fail-fast: false
       matrix:
         datastore: ["postgres"]
-        pgversion: ["14", "15", "16", "17", "18"]
+        pgversion: ["15", "16", "17", "18"]
     steps:
       - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |

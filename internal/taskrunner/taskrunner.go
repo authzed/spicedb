@@ -3,6 +3,8 @@ package taskrunner
 import (
 	"context"
 	"sync"
+
+	"github.com/authzed/spicedb/pkg/genutil/execscope"
 )
 
 // TaskRunner is a helper which runs a series of scheduled tasks against a defined
@@ -64,7 +66,11 @@ func (tr *TaskRunner) spawnIfAvailable() {
 	// been canceled, in which case nothing needs to be done.
 	select {
 	case tr.sem <- struct{}{}:
-		go tr.runner()
+		finish := execscope.Begin(tr.ctx)
+		go func() {
+			defer finish()
+			tr.runner()
+		}()
 
 	case <-tr.ctx.Done():
 		return

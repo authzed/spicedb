@@ -273,13 +273,10 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 		return err
 	}
 	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
-	caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
-
 	refs := lr3refs{
 		req:              req,
 		reader:           reader,
 		ts:               ts,
-		caveatRunner:     caveatRunner,
 		concurrencyLimit: crr.concurrencyLimit,
 	}
 
@@ -361,9 +358,6 @@ type lr3refs struct {
 
 	// ts is the type system used to resolve types and relations for the lookup resources operation.
 	ts *schema.TypeSystem
-
-	// caveatRunner is the caveat runner used to run caveats for the lookup resources operation.
-	caveatRunner *caveats.CaveatRunner
 
 	// concurrencyLimit is the maximum number of concurrent operations that can be performed.
 	concurrencyLimit uint16
@@ -710,6 +704,15 @@ type relationshipsIterConfig struct {
 
 type coh = cter.ChunkOrHold[*relationshipsChunk, datastoreIndex]
 
+// datastorePageSizeInChunks is the number of dispatch chunks' worth of relationships that
+// relationshipsIter reads per datastore query, for requests with a limit.
+const datastorePageSizeInChunks = 10
+
+// readAheadMaxBufferedRelationships bounds the relationships relationshipsIter buffers per query
+// for requests without a limit. Beyond it, the query is closed and later resumed with a new query,
+// which re-sorts the remaining relationships, so it is set well above typical fanouts.
+const readAheadMaxBufferedRelationships = 100_000
+
 // relationshipsIter is an iterator that fetches relationships for the given subjects and processes them
 // by further dispatching the found resources as the next step's subjects.
 func (crr *CursoredLookupResources3) relationshipsIter(
@@ -792,23 +795,76 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 					skipCaveats := !possibleTraits.AllowsCaveats
 					skipExpiration := !possibleTraits.AllowsExpiration
 
-					// Continue by querying for relationships from the datastore, after the optional cursor.
-					it, err := refs.reader.ReverseQueryRelationships(
-						ctx,
-						config.subjectsFilter,
-						options.WithResRelation(&options.ResourceRelation{
-							Namespace: config.sourceResourceType.Namespace,
-							Relation:  config.sourceResourceType.Relation,
-						}),
-						options.WithSortForReverse(options.BySubject),
-						options.WithAfterForReverse(dbCursor),
-						options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
-						options.WithSkipCaveatsForReverse(skipCaveats),
-						options.WithSkipExpirationForReverse(skipExpiration),
-					)
-					if err != nil {
-						yieldError(err)
-						return
+					// Query for relationships from the datastore, after the optional cursor.
+					//
+					// A query holds its datastore connection until its results are fully read, while processing
+					// them below dispatches, and dispatched work needs connections of its own. Reading results only
+					// as fast as they are processed could therefore exhaust the connection pool with callers that
+					// each hold a connection while waiting for another (#3433), so results are always read
+					// independently of their processing:
+					//
+					// - Without a limit, every relationship is needed: a single query is read ahead on a separate
+					//   goroutine while results are processed here, buffering up to readAheadMaxBufferedRelationships
+					//   before pausing. (Paging is avoided here, as the reverse index does not cover the sort order,
+					//   so each page would re-sort all remaining relationships.)
+					// - With a limit, relationships are read in pages, each in full before being processed, so the
+					//   request can stop early without reading relationships it does not need.
+					queryRelationships := func(after options.Cursor, limit *uint64) (datastore.RelationshipIterator, error) {
+						return refs.reader.ReverseQueryRelationships(
+							ctx,
+							config.subjectsFilter,
+							options.WithResRelation(&options.ResourceRelation{
+								Namespace: config.sourceResourceType.Namespace,
+								Relation:  config.sourceResourceType.Relation,
+							}),
+							options.WithSortForReverse(options.BySubject),
+							options.WithAfterForReverse(after),
+							options.WithLimitForReverse(limit),
+							options.WithQueryShapeForReverse(queryshape.MatchingResourcesForSubject),
+							options.WithSkipCaveatsForReverse(skipCaveats),
+							options.WithSkipExpirationForReverse(skipExpiration),
+						)
+					}
+
+					relationships := func(yield func(tuple.Relationship, error) bool) {
+						if refs.req.OptionalLimit == 0 {
+							readAhead := readAheadRelationships(dbCursor, readAheadMaxBufferedRelationships,
+								func(after options.Cursor) (datastore.RelationshipIterator, error) {
+									return queryRelationships(after, nil)
+								})
+							for rel, err := range readAhead {
+								if !yield(rel, err) {
+									return
+								}
+							}
+							return
+						}
+
+						pageSize := uint64(crr.dispatchChunkSize) * datastorePageSizeInChunks
+						for pageCursor := dbCursor; ; {
+							it, err := queryRelationships(pageCursor, &pageSize)
+							if err != nil {
+								yield(tuple.Relationship{}, err)
+								return
+							}
+
+							page, err := datastore.IteratorToSlice(it)
+							if err != nil {
+								yield(tuple.Relationship{}, err)
+								return
+							}
+
+							for _, rel := range page {
+								if !yield(rel, nil) {
+									return
+								}
+							}
+
+							if uint64(len(page)) < pageSize {
+								return
+							}
+							pageCursor = options.ToCursor(page[len(page)-1])
+						}
 					}
 
 					// Start the new relationships chunk that we will fill as we iterate over the results.
@@ -819,8 +875,13 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						return
 					}
 
+					// Producers run concurrently and CaveatRunner is not safe for concurrent use,
+					// so each producer gets its own runner. Compiled caveats are still shared via
+					// the schema-tied compiled caveat cache.
+					caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
+
 					rm := newRelationshipsChunk(int(crr.dispatchChunkSize), dbCursor)
-					for rel, err := range it {
+					for rel, err := range relationships {
 						if err != nil {
 							yieldError(err)
 							return
@@ -830,7 +891,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						var missingContextParameters []string
 						if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
 							caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-							runResult, err := refs.caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), caveatSR, caveats.RunCaveatExpressionNoDebugging)
+							runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), caveatSR, caveats.RunCaveatExpressionNoDebugging)
 							if err != nil {
 								yieldError(err)
 								return

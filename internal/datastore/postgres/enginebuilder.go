@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore/dsconfig"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/migration"
@@ -98,6 +99,20 @@ func newReplicaDatastoreFromConfig(ctx context.Context, replicaIndex uint32, rep
 }
 
 func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (datastore.Datastore, error) {
+	pgOpts, err := primaryDatastoreOptionsFromConfig(opts)
+	if err != nil {
+		return nil, err
+	}
+	return NewPostgresDatastore(ctx, opts.URI, pgOpts...)
+}
+
+// primaryDatastoreOptionsFromConfig translates the CLI datastore config into
+// the options used to build the primary Postgres datastore.
+func primaryDatastoreOptionsFromConfig(opts datastorecfg.Config) ([]Option, error) {
+	if opts.ReadOnly && opts.EnableRevisionHeartbeat {
+		log.Info().Msg("revision heartbeat disabled because the datastore is read-only")
+	}
+
 	pgOpts := []Option{ //nolint: prealloc  // we're not worried about perf here
 		CredentialsProviderName(opts.CredentialsProviderName),
 		GCWindow(opts.GCWindow),
@@ -125,7 +140,9 @@ func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config
 		WithWatchDisabled(opts.DisableWatchSupport),
 		MigrationPhase(opts.MigrationPhase),
 		AllowedMigrations(opts.AllowedMigrations),
-		WithRevisionHeartbeat(opts.EnableRevisionHeartbeat),
+		// The revision heartbeat INSERTs into the transaction table, so it must
+		// not run when the datastore is read-only.
+		WithRevisionHeartbeat(opts.EnableRevisionHeartbeat && !opts.ReadOnly),
 		WithRelaxedIsolationLevel(opts.RelaxedIsolationLevel),
 	}
 
@@ -133,6 +150,5 @@ func newPrimaryDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config
 	if err != nil {
 		return nil, err
 	}
-	pgOpts = append(pgOpts, commonOptions...)
-	return NewPostgresDatastore(ctx, opts.URI, pgOpts...)
+	return append(pgOpts, commonOptions...), nil
 }

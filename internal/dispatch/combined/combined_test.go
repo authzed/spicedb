@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -162,7 +163,7 @@ func TestNewDispatcher_WithUpstream(t *testing.T) {
 }
 
 // TestNewDispatcher_UpstreamCAPathMissing exercises the TLS branch by pointing
-// UpstreamCAPath at a non-existent file; grpcutil.WithCustomCerts will error.
+// UpstreamCAPath at a non-existent file, which fails when the CA is read.
 func TestNewDispatcher_UpstreamCAPathMissing(t *testing.T) {
 	_, err := NewDispatcher(
 		UpstreamAddr("localhost:0"),
@@ -208,4 +209,70 @@ func TestNewDispatcher_InvalidSecondaryDispatchExpr(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "error parsing secondary dispatch expr")
+}
+
+// TestNewDispatcher_SecondaryStrategyExprs checks that dispatch expressions using strategy
+// functions are accepted at startup, as they would be from the flag.
+func TestNewDispatcher_SecondaryStrategyExprs(t *testing.T) {
+	dispatcher, err := NewDispatcher(
+		UpstreamAddr("localhost:0"),
+		GrpcPresharedKey("test-key"),
+		SecondaryUpstreamAddrs(map[string]string{"sec": "localhost:1"}),
+		SecondaryUpstreamExprs(map[string]string{
+			"check":           "request.resource_relation.namespace == 'document' ? prefer_secondary(['sec'], duration('50ms')) : hedged(['sec'], duration('2ms'))",
+			"lookupresources": "request.resource_relation.namespace == 'document' ? hedged(['sec']) : prefer_primary()",
+			"lookupsubjects":  "true ? ['sec'] : []",
+		}),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, dispatcher)
+	t.Cleanup(func() { _ = dispatcher.Close() })
+}
+
+// TestNewDispatcher_InvalidSecondaryStrategyExpr checks that strategy mistakes are reported at
+// startup, naming the request type.
+func TestNewDispatcher_InvalidSecondaryStrategyExpr(t *testing.T) {
+	for _, expr := range []string{
+		"prefer_secondary(['sec'])",        // missing deadline
+		"hedgd(['sec'])",                   // unknown strategy
+		"hedged(['sec'], 5)",               // not a duration
+		"true ? hedged(['sec']) : ['sec']", // branches of different types
+	} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := NewDispatcher(
+				UpstreamAddr("localhost:0"),
+				GrpcPresharedKey("test-key"),
+				SecondaryUpstreamExprs(map[string]string{"check": expr}),
+			)
+			require.ErrorContains(t, err, "error parsing secondary dispatch expr")
+			require.ErrorContains(t, err, "for method `check`")
+		})
+	}
+}
+
+type testStrategy struct{}
+
+func (testStrategy) NewPolicy(secondary.Race) secondary.Policy { return secondary.BasePolicy{} }
+
+// TestNewDispatcher_SecondaryStrategies checks that strategy functions registered through
+// SecondaryStrategies can be called from dispatch expressions, and only then.
+func TestNewDispatcher_SecondaryStrategies(t *testing.T) {
+	options := []Option{
+		UpstreamAddr("localhost:0"),
+		GrpcPresharedKey("test-key"),
+		SecondaryUpstreamAddrs(map[string]string{"sec": "localhost:1"}),
+		SecondaryUpstreamExprs(map[string]string{"check": "registered(['sec'])"}),
+	}
+
+	_, err := NewDispatcher(options...)
+	require.ErrorContains(t, err, "error parsing secondary dispatch expr", "the function is not registered")
+
+	registered := secondary.Function{
+		Name:     "registered",
+		Strategy: testStrategy{},
+	}
+	dispatcher, err := NewDispatcher(append(options, SecondaryStrategies([]secondary.Function{registered}))...)
+	require.NoError(t, err)
+	require.NotNil(t, dispatcher)
+	t.Cleanup(func() { _ = dispatcher.Close() })
 }

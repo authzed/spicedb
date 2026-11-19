@@ -303,7 +303,9 @@ func (ts *TypeSystem) referencesWildcardTypeWithEncountered(ctx context.Context,
 		ts.wildcardCheckCache = make(map[string]*WildcardTypeReference, 1)
 	}
 
-	cached, isCached := ts.wildcardCheckCache[relationName]
+	// Relation names are only unique within a definition.
+	relString := tuple.JoinRelRef(def.nsDef.Name, relationName)
+	cached, isCached := ts.wildcardCheckCache[relString]
 	if isCached {
 		return cached, nil
 	}
@@ -313,7 +315,7 @@ func (ts *TypeSystem) referencesWildcardTypeWithEncountered(ctx context.Context,
 		return nil, err
 	}
 
-	ts.wildcardCheckCache[relationName] = computed
+	ts.wildcardCheckCache[relString] = computed
 	return computed, nil
 }
 

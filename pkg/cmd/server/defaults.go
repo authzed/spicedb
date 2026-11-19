@@ -447,24 +447,24 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	dl := datalayer.NewDataLayer(ds, dlOpts...)
 
 	return []grpc.UnaryServerInterceptor{
-			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
-			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, timestampFormatOption, traceIDFieldOption),
-			grpcMetricsUnaryInterceptor,
-			dispatchMemoryProtection.UnaryServerInterceptor(),
-			grpcauth.UnaryServerInterceptor(authFunc),
-			datalayer.UnaryServerInterceptor(dl),
-			servicespecific.UnaryServerInterceptor,
-		}, []grpc.StreamServerInterceptor{
-			// NOTE: the logging middlewares are not present here in streaming, to remove their significant overhead
-			// when returning streaming messages.
-			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
-			grpcMetricsStreamingInterceptor,
-			dispatchMemoryProtection.StreamServerInterceptor(),
-			grpcauth.StreamServerInterceptor(authFunc),
-			datalayer.StreamServerInterceptor(dl),
-			servicespecific.StreamServerInterceptor,
-		}
+		requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
+		logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
+		grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, timestampFormatOption, traceIDFieldOption),
+		grpcMetricsUnaryInterceptor,
+		dispatchMemoryProtection.UnaryServerInterceptor(),
+		grpcauth.UnaryServerInterceptor(authFunc),
+		datalayer.UnaryServerInterceptor(dl),
+		servicespecific.UnaryServerInterceptor,
+	}, []grpc.StreamServerInterceptor{
+		// NOTE: the logging middlewares are not present here in streaming, to remove their significant overhead
+		// when returning streaming messages.
+		requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
+		grpcMetricsStreamingInterceptor,
+		dispatchMemoryProtection.StreamServerInterceptor(),
+		grpcauth.StreamServerInterceptor(authFunc),
+		datalayer.StreamServerInterceptor(dl),
+		servicespecific.StreamServerInterceptor,
+	}
 }
 
 func InterceptorLogger(l zerolog.Logger) grpclog.Logger {

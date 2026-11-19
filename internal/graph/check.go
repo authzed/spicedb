@@ -339,18 +339,28 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// 1) Finding the target subject itself, as a direct lookup
 		// 2) Finding a wildcard for the subject type+relation
 		if allowedDirectRelation.GetNamespace() == crc.parentReq.Subject.Namespace {
+			// Only count caveat/expiration traits for allowed relations that are actually
+			// fetched by the direct-subject or wildcard query below.
 			if allowedDirectRelation.GetPublicWildcard() != nil {
 				totalWildcardSubjects++
+
+				if allowedDirectRelation.RequiredCaveat == nil {
+					directSubjectsAndWildcardsWithoutCaveats++
+				}
+
+				if allowedDirectRelation.RequiredExpiration == nil {
+					directSubjectsAndWildcardsWithoutExpiration++
+				}
 			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
 				totalDirectSubjects++
-			}
 
-			if allowedDirectRelation.RequiredCaveat == nil {
-				directSubjectsAndWildcardsWithoutCaveats++
-			}
+				if allowedDirectRelation.RequiredCaveat == nil {
+					directSubjectsAndWildcardsWithoutCaveats++
+				}
 
-			if allowedDirectRelation.RequiredExpiration == nil {
-				directSubjectsAndWildcardsWithoutExpiration++
+				if allowedDirectRelation.RequiredExpiration == nil {
+					directSubjectsAndWildcardsWithoutExpiration++
+				}
 			}
 		}
 
@@ -410,7 +420,8 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
-		it, err := dl.QueryRelationships(ctx, filter,
+		it, err := dl.QueryRelationships(
+			ctx, filter,
 			options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats),
 			options.WithSkipExpiration(!directSubjectOrWildcardCanHaveExpiration),
 			options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
@@ -461,7 +472,8 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		},
 	}
 
-	it, err := dl.QueryRelationships(ctx, filter,
+	it, err := dl.QueryRelationships(
+		ctx, filter,
 		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
 		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
 		options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects),
@@ -1049,6 +1061,21 @@ func run[T any, R withError](
 		return []R{handler(ctx, crc, children[0])}, nil
 	}
 
+	if concurrencyLimit == 1 {
+		results := make([]R, 0, len(children))
+		for _, child := range children {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			result := handler(ctx, crc, child)
+			results = append(results, result)
+			if result.ResultError() != nil {
+				return results, result.ResultError()
+			}
+		}
+		return results, nil
+	}
+
 	resultChan := make(chan R, len(children))
 	childCtx, cancelFn := context.WithCancel(ctx)
 	dispatchAllAsync(childCtx, crc, children, handler, resultChan, concurrencyLimit)
@@ -1083,6 +1110,10 @@ func union[T any](
 
 	if len(children) == 1 {
 		return withDistinctMetadata(handler(ctx, crc, children[0]))
+	}
+
+	if concurrencyLimit == 1 {
+		return reduceSerial(ctx, crc, children, handler, serialUnion)
 	}
 
 	resultChan := make(chan CheckResult, len(children))
@@ -1130,6 +1161,10 @@ func all[T any](
 
 	if len(children) == 1 {
 		return withDistinctMetadata(handler(ctx, crc, children[0]))
+	}
+
+	if concurrencyLimit == 1 {
+		return reduceSerial(ctx, crc, children, handler, serialIntersection)
 	}
 
 	responseMetadata := emptyMetadata
@@ -1185,6 +1220,10 @@ func difference[T any](
 
 	if len(children) == 1 {
 		return checkResultError(spiceerrors.MustBugf("difference requires more than a single child"), emptyMetadata)
+	}
+
+	if concurrencyLimit == 1 {
+		return reduceSerial(ctx, crc, children, handler, serialDifference)
 	}
 
 	childCtx, cancelFn := context.WithCancel(ctx)

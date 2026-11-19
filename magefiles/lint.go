@@ -66,14 +66,8 @@ func (l Lint) Go() error {
 	if err != nil {
 		return err
 	}
-	mg.Deps(l.Gofumpt, l.Golangcilint, l.Analyzers, l.Vulncheck)
+	mg.Deps(l.Golangcilint, l.Analyzers, l.Vulncheck)
 	return nil
-}
-
-// Gofumpt Run gofumpt
-func (Lint) Gofumpt() error {
-	fmt.Println("formatting go")
-	return buildAndRunTool("magefiles", "mvdan.cc/gofumpt", "-l", "-w", ".")
 }
 
 // Golangcilint Run golangci-lint
@@ -85,7 +79,8 @@ func (Lint) Golangcilint() error {
 // Analyzers Run all analyzers
 func (Lint) Analyzers() error {
 	fmt.Println("running analyzers")
-	return RunSh("go", WithDir("tools/analyzers"), WithV())("run", "./cmd/analyzers/main.go",
+	return RunSh("go", WithDir("tools/analyzers"), WithV())(
+		"run", "./cmd/analyzers/main.go",
 		"-nilvaluecheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1",
 		"-nilvaluecheck.disallowed-nil-return-type-paths=*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse",
 		"-exprstatementcheck.disallowed-expr-statement-types=*github.com/rs/zerolog.Event:MarshalZerologObject:missing Send or Msg on zerolog log Event",

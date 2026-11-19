@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -27,11 +28,16 @@ type optionState struct {
 	caveatTypeSet                *caveattypes.TypeSet
 	relationshipChunkCacheConfig *cache.Config
 	relationshipChunkCache       cache.Cache[cache.StringKey, any]
+	querySignals                 *signals.Owner
 	queryPlanMetadata            *query.QueryPlanMetadata
 }
 
-// QueryPlanMetadata sets the shared count-stats store for the receiver-side
-// query plan dispatcher built by NewClusterDispatcher.
+// QuerySignals shares the bounded signal owner with the permissions service.
+func QuerySignals(owner *signals.Owner) Option {
+	return func(state *optionState) { state.querySignals = owner }
+}
+
+// QueryPlanMetadata preserves the legacy advisor configuration option.
 func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
 	return func(state *optionState) {
 		state.queryPlanMetadata = m
@@ -101,6 +107,7 @@ func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
 // the dispatcher for the dispatch grpc server.
 func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (dispatch.Dispatcher, error) {
 	var opts optionState
+
 	for _, fn := range options {
 		fn(&opts)
 	}
@@ -140,6 +147,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		TypeSet:                cts,
 		DispatchChunkSize:      opts.dispatchChunkSize,
 		RelationshipChunkCache: relationshipChunkCache,
+		QuerySignals:           opts.querySignals,
 		QueryPlanMetadata:      opts.queryPlanMetadata,
 	}
 	clusterDispatch, err := graph.NewDispatcher(dispatch, params)
@@ -155,6 +163,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 	if err != nil {
 		return nil, err
 	}
+
 	cachingClusterDispatch.SetDelegate(clusterDispatch)
 	return cachingClusterDispatch, nil
 }

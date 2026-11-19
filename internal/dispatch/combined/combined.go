@@ -1,6 +1,7 @@
 package combined
 
 import (
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -18,8 +19,11 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/query"
+	"github.com/authzed/spicedb/pkg/query/signals"
+	"github.com/authzed/spicedb/pkg/x509util"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -37,17 +41,22 @@ type optionState struct {
 	secondaryUpstreamAddrs                       map[string]string
 	secondaryUpstreamExprs                       map[string]string
 	secondaryUpstreamMaximumPrimaryHedgingDelays map[string]string
+	secondaryStrategies                          []secondary.Function
 	dispatchChunkSize                            uint16
 	startingPrimaryHedgingDelay                  time.Duration
 	caveatTypeSet                                *caveattypes.TypeSet
 	relationshipChunkCacheConfig                 *cache.Config
 	relationshipChunkCache                       cache.Cache[cache.StringKey, any]
+	querySignals                                 *signals.Owner
 	queryPlanMetadata                            *query.QueryPlanMetadata
 }
 
-// QueryPlanMetadata sets the shared count-stats store used by the receiver-side
-// query plan dispatcher. Pass the same instance to the permissions service so
-// stats accumulate across both compile and dispatch boundaries.
+// QuerySignals shares the bounded signal owner with the permissions service.
+func QuerySignals(owner *signals.Owner) Option {
+	return func(state *optionState) { state.querySignals = owner }
+}
+
+// QueryPlanMetadata preserves the legacy advisor configuration option.
 func QueryPlanMetadata(m *query.QueryPlanMetadata) Option {
 	return func(state *optionState) {
 		state.queryPlanMetadata = m
@@ -90,6 +99,14 @@ func SecondaryUpstreamAddrs(addrs map[string]string) Option {
 func SecondaryUpstreamExprs(addrs map[string]string) Option {
 	return func(state *optionState) {
 		state.secondaryUpstreamExprs = addrs
+	}
+}
+
+// SecondaryStrategies adds strategy functions, registered by a program that embeds SpiceDB, to
+// those the secondary dispatch expressions may call.
+func SecondaryStrategies(functions []secondary.Function) Option {
+	return func(state *optionState) {
+		state.secondaryStrategies = functions
 	}
 }
 
@@ -182,9 +199,11 @@ func CaveatTypeSet(caveatTypeSet *caveattypes.TypeSet) Option {
 // newOptions applies the provided Options and returns the resulting state.
 func newOptions(options ...Option) optionState {
 	var opts optionState
+
 	for _, fn := range options {
 		fn(&opts)
 	}
+
 	return opts
 }
 
@@ -239,21 +258,26 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			TypeSet:                caveattypes.TypeSetOrDefault(opts.caveatTypeSet),
 			DispatchChunkSize:      chunkSize,
 			RelationshipChunkCache: relationshipChunkCache,
+			QuerySignals:           opts.querySignals,
 			QueryPlanMetadata:      opts.queryPlanMetadata,
 		}
 		redispatch, err = graph.NewDispatcher(cachingRedispatch, params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
+
 		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 	} else {
 		// If an upstream is specified, create a cluster dispatcher.
 		if opts.upstreamCAPath != "" {
-			customCertOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
+			// Read at handshake time so that rotating the CA on disk does not
+			// require restarting every node in the dispatch cluster.
+			caPool, err := x509util.NewCAPool(opts.upstreamCAPath)
 			if err != nil {
 				return nil, err
 			}
-			opts.grpcDialOpts = append(opts.grpcDialOpts, customCertOpt)
+			creds := x509util.NewReloadingTLSCreds(caPool, &tls.Config{MinVersion: tls.VersionTLS12})
+			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(creds))
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
 		} else {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithInsecureBearerToken(opts.grpcPresharedKey))
@@ -270,6 +294,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		}
 
 		secondaryClients := make(map[string]remote.SecondaryDispatch, len(opts.secondaryUpstreamAddrs))
+
 		for name, addr := range opts.secondaryUpstreamAddrs {
 			secondaryConn, err := grpc.NewClient(addr, opts.grpcDialOpts...)
 			if err != nil {
@@ -277,14 +302,17 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			}
 
 			maximumHedgingDelay := 5 * time.Millisecond
+
 			if maximumHedgingDelayStr, ok := opts.secondaryUpstreamMaximumPrimaryHedgingDelays[name]; ok {
 				mgd, err := time.ParseDuration(maximumHedgingDelayStr)
 				if err != nil {
 					return nil, fmt.Errorf("error parsing maximum primary hedging delay for secondary dispatch `%s`: %w", name, err)
 				}
+
 				if mgd <= 0 {
 					return nil, fmt.Errorf("maximum primary hedging delay for secondary dispatch `%s` must be greater than 0", name)
 				}
+
 				maximumHedgingDelay = mgd
 			}
 
@@ -296,21 +324,27 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		}
 
 		secondaryExprs := make(map[string]*remote.DispatchExpr, len(opts.secondaryUpstreamExprs))
+
 		for name, exprString := range opts.secondaryUpstreamExprs {
-			parsed, err := remote.ParseDispatchExpression(name, exprString)
+			parsed, err := remote.ParseDispatchExpression(name, exprString, opts.secondaryStrategies...)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing secondary dispatch expr `%s` for method `%s`: %w", exprString, name, err)
 			}
+
 			secondaryExprs[name] = parsed
 		}
 
 		re, err := remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
-			KeyHandler:             &keys.CanonicalKeyHandler{},
-			DispatchOverallTimeout: opts.remoteDispatchTimeout,
-		}, secondaryClients, secondaryExprs, opts.startingPrimaryHedgingDelay)
+			KeyHandler:                  &keys.CanonicalKeyHandler{},
+			DispatchOverallTimeout:      opts.remoteDispatchTimeout,
+			SecondaryDispatch:           secondaryClients,
+			SecondaryDispatchExprs:      secondaryExprs,
+			StartingPrimaryHedgingDelay: opts.startingPrimaryHedgingDelay,
+		})
 		if err != nil {
 			return nil, err
 		}
+
 		redispatch = singleflight.New(re, &keys.CanonicalKeyHandler{})
 	}
 

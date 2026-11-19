@@ -16,19 +16,29 @@ type recursiveSentinelInfo struct {
 }
 
 type outlineBuilder struct {
-	schema             *schema.Schema
-	building           map[string]bool              // Track what's currently being built (call stack)
-	collectedCaveats   []*core.ContextualizedCaveat // Collect caveats to combine with AND logic
-	recursiveSentinels []*recursiveSentinelInfo     // Track recursion points for wrapping in RecursiveIterator
+	preserveExecutionOrder bool
+	deferCaveats           bool
+	schema                 *schema.Schema
+	building               map[string]bool              // Track what's currently being built (call stack)
+	collectedCaveats       []*core.ContextualizedCaveat // Collect caveats to combine with AND logic
+	recursiveSentinels     []*recursiveSentinelInfo     // Track recursion points for wrapping in RecursiveIterator
 }
 
 // BuildOutlineFromSchema builds a canonical Outline tree from the schema.
-func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, relationName string) (CanonicalOutline, error) {
+func BuildOutlineFromSchema(
+	fullSchema *schema.Schema,
+	definitionName string,
+	relationName string,
+	opts ...BuildOption,
+) (CanonicalOutline, error) {
 	builder := &outlineBuilder{
 		schema:             fullSchema,
 		building:           make(map[string]bool),
 		collectedCaveats:   make([]*core.ContextualizedCaveat, 0),
 		recursiveSentinels: make([]*recursiveSentinelInfo, 0),
+	}
+	for _, opt := range opts {
+		opt(builder)
 	}
 	outline, err := builder.buildOutlineFromSchemaInternal(definitionName, relationName, true)
 	if err != nil {
@@ -38,6 +48,9 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 	// Apply collected caveats at top level as individual caveat iterators
 	result := outline
 	for _, caveat := range builder.collectedCaveats {
+		if builder.deferCaveats {
+			break
+		}
 		result = Outline{
 			Type:        CaveatIteratorType,
 			Args:        &IteratorArgs{Caveat: caveat},
@@ -52,10 +65,17 @@ func BuildOutlineFromSchema(fullSchema *schema.Schema, definitionName string, re
 		return CanonicalOutline{}, spiceerrors.MustBugf("unwrapped sentinels remaining: %d", len(builder.recursiveSentinels))
 	}
 
+	if builder.preserveExecutionOrder {
+		return canonicalizeForExecutionOrder(result)
+	}
 	return CanonicalizeOutline(result)
 }
 
-func (b *outlineBuilder) buildOutlineFromSchemaInternal(definitionName string, relationName string, withSubRelations bool) (Outline, error) {
+func (b *outlineBuilder) buildOutlineFromSchemaInternal(
+	definitionName string,
+	relationName string,
+	withSubRelations bool,
+) (Outline, error) {
 	id := fmt.Sprintf("%s#%s", definitionName, relationName)
 
 	// Check if we're currently building this (true recursion)
@@ -159,7 +179,7 @@ func (b *outlineBuilder) buildOutlineFromRelation(r *schema.Relation, withSubRel
 		}, nil
 	}
 	subIts := make([]Outline, 0, len(r.BaseRelations()))
-	for _, br := range r.BaseRelations() {
+	for _, br := range b.orderedBaseRelations(r) {
 		it, err := b.buildBaseDatastoreOutline(br, withSubRelations)
 		if err != nil {
 			return Outline{}, err
@@ -195,7 +215,13 @@ func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op sche
 	case *schema.ArrowReference:
 		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return Outline{}, fmt.Errorf("BuildOutlineFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`", perm.Left(), perm.Right(), p.Name(), parentDef.Name())
+			return Outline{}, fmt.Errorf(
+				"BuildOutlineFromSchema: couldn't find left-hand relation for arrow `%s->%s` for permission `%s` in definition `%s`",
+				perm.Left(),
+				perm.Right(),
+				p.Name(),
+				parentDef.Name(),
+			)
 		}
 		return b.buildArrowOutline(rel, perm.Right())
 
@@ -224,8 +250,9 @@ func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op sche
 			subIts = append(subIts, it)
 		}
 		return Outline{
-			Type:        UnionIteratorType,
-			SubOutlines: subIts,
+			Type:                     UnionIteratorType,
+			IndependentCheckBranches: true,
+			SubOutlines:              subIts,
 		}, nil
 
 	case *schema.IntersectionOperation:
@@ -238,8 +265,9 @@ func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op sche
 			subIts = append(subIts, it)
 		}
 		return Outline{
-			Type:        IntersectionIteratorType,
-			SubOutlines: subIts,
+			Type:                     IntersectionIteratorType,
+			IndependentCheckBranches: true,
+			SubOutlines:              subIts,
 		}, nil
 
 	case *schema.ExclusionOperation:
@@ -261,7 +289,15 @@ func (b *outlineBuilder) buildOutlineFromOperation(p *schema.Permission, op sche
 	case *schema.FunctionedArrowReference:
 		rel, ok := parentDef.GetRelation(perm.Left())
 		if !ok {
-			return Outline{}, fmt.Errorf("BuildOutlineFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`", perm.Left(), perm.Left(), functionTypeString(perm.Function()), perm.Right(), p.Name(), parentDef.Name())
+			return Outline{}, fmt.Errorf(
+				"BuildOutlineFromSchema: couldn't find arrow relation `%s` for functioned arrow `%s.%s(%s)` for permission `%s` in definition `%s`",
+				perm.Left(),
+				perm.Left(),
+				functionTypeString(perm.Function()),
+				perm.Right(),
+				p.Name(),
+				parentDef.Name(),
+			)
 		}
 
 		switch perm.Function() {
@@ -344,7 +380,7 @@ func (b *outlineBuilder) buildArrowOutline(rel *schema.Relation, rightSide strin
 	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
 	var lastNotFoundError error
 
-	for _, br := range rel.BaseRelations() {
+	for _, br := range b.orderedBaseRelations(rel) {
 		left, err := b.buildBaseDatastoreOutline(br, false)
 		if err != nil {
 			return Outline{}, err
@@ -382,45 +418,54 @@ func (b *outlineBuilder) buildArrowOutline(rel *schema.Relation, rightSide strin
 	}, nil
 }
 
-// buildIntersectionArrowOutline creates a union of intersection arrow iterators
+// buildIntersectionArrowOutline applies one universal quantifier to every actual
+// tupleset target. Splitting the quantifier by type and unioning its results
+// would let a successful type hide a failing target of another type.
 func (b *outlineBuilder) buildIntersectionArrowOutline(rel *schema.Relation, rightSide string) (Outline, error) {
-	subIts := make([]Outline, 0, len(rel.BaseRelations()))
-	hasMultipleBaseRelations := len(rel.BaseRelations()) > 1
-	var lastNotFoundError error
+	lefts := make([]Outline, 0, len(rel.BaseRelations()))
+	rights := make([]Outline, 0, len(rel.BaseRelations()))
 
-	for _, br := range rel.BaseRelations() {
+	for _, br := range b.orderedBaseRelations(rel) {
 		left, err := b.buildBaseDatastoreOutline(br, false)
 		if err != nil {
 			return Outline{}, err
 		}
+
+		// Retain this type's targets even when its computed permission is absent:
+		// an actual target with no matching right-hand result makes .all deny.
+		lefts = append(lefts, left)
 		right, err := b.buildOutlineFromSchemaInternal(br.Type(), rightSide, false)
 		if err != nil {
-			// If the right side doesn't exist on this type, the intersection arrow produces an empty set.
 			if errors.As(err, &RelationNotFoundError{}) {
-				if hasMultipleBaseRelations {
-					subIts = append(subIts, Outline{Type: FixedIteratorType})
-					continue
-				}
-				lastNotFoundError = err
 				continue
 			}
+
 			return Outline{}, err
 		}
-		intersectionArrow := Outline{
-			Type:        IntersectionArrowIteratorType,
-			SubOutlines: []Outline{left, right},
-		}
-		subIts = append(subIts, intersectionArrow)
+
+		rights = append(rights, right)
 	}
 
-	// If we have no sub-iterators and only have a not-found error, return that error
-	if len(subIts) == 0 && lastNotFoundError != nil {
-		return Outline{}, lastNotFoundError
+	// Preserve the single-type shape; heterogeneous inputs need a shared left
+	// enumeration and type-scoped right branches beneath the same quantifier.
+	left := Outline{Type: UnionIteratorType, SubOutlines: lefts}
+
+	if len(lefts) == 1 {
+		left = lefts[0]
+	}
+
+	right := Outline{Type: UnionIteratorType, SubOutlines: rights}
+
+	if len(rights) == 1 {
+		right = rights[0]
 	}
 
 	return Outline{
-		Type:        UnionIteratorType,
-		SubOutlines: subIts,
+		Type: UnionIteratorType,
+		SubOutlines: []Outline{{
+			Type:        IntersectionArrowIteratorType,
+			SubOutlines: []Outline{left, right},
+		}},
 	}, nil
 }
 
@@ -442,5 +487,9 @@ type RelationNotFoundError struct {
 }
 
 func (e RelationNotFoundError) Error() string {
-	return fmt.Sprintf("BuildOutlineFromSchema: couldn't find a relation or permission named `%s` in definition `%s`", e.relationName, e.definitionName)
+	return fmt.Sprintf(
+		"BuildOutlineFromSchema: couldn't find a relation or permission named `%s` in definition `%s`",
+		e.relationName,
+		e.definitionName,
+	)
 }

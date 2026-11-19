@@ -67,7 +67,11 @@ func computeCanonicalCacheKeys(typeDef *schema.ValidatedDefinition, aliasMap map
 		return map[string]string{}, nil
 	}
 
-	bdd, err := rudd.New(varMap.Len())
+	// The default operation cache holds 10,000 entries per cache, far more than the small
+	// expressions of a single definition need, and is allocated anew for every definition
+	// annotated. Instead, size the caches to match the node table and grow alongside it.
+	// The caches only memoize operations, so their size does not affect the resulting keys.
+	bdd, err := rudd.New(varMap.Len(), rudd.Cachesize(2*varMap.Len()+2), rudd.Cacheratio(100))
 	if err != nil {
 		return nil, err
 	}

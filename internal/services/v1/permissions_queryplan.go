@@ -10,6 +10,7 @@ import (
 
 	caveatsimpl "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/querysignals"
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -66,7 +67,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 	queryParams := queryopt.RequestParams{
 		Operation:       query.OperationCheck,
 		SubjectType:     req.Subject.Object.ObjectType,
-		SubjectRelation: req.Subject.OptionalRelation,
+		SubjectRelation: normalizeSubjectRelation(req.Subject),
 	}
 	optimized, err := queryopt.ApplyOptimizations(co, queryopt.OptimizersForRequest(queryParams), queryParams)
 	if err != nil {
@@ -80,8 +81,28 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Apply count-based advisor if stats have been accumulated from prior requests.
-	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
+	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	signalView, err := querysignals.Bind(ps.querySignals, sr, atRevision, string(schemaHash))
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	fields := []string{}
+
+	for _, caveat := range caveats {
+		for field := range caveat.Definition.ParameterTypes {
+			fields = append(fields, field)
+		}
+	}
+
+	querysignals.ObserveRequestContext(signalView, caveatContext, querysignals.ContextOptions{Fields: fields})
+	collector := querysignals.NewCollector(signalView, querysignals.CollectorOptions{})
+	defer collector.Flush()
+	optimized, err = querysignals.Plan(optimized, queryParams, signalView, true)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -91,20 +112,12 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	// Parse caveat context if provided
-	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
-	// Create count observer to track query execution statistics
-	countObserver := query.NewCountObserver()
-
 	// Create query context backed by a DispatchExecutor.
 	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
+
 	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, maximumAPIDepth, 0)
 	qctx := dispatch.NewQueryContext(
 		ctx,
@@ -113,7 +126,7 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
 		ps.config.DispatchChunkSize,
-		query.WithObserver(countObserver),
+		query.WithExecutionObserver(collector),
 	)
 
 	// Execute the check
@@ -135,10 +148,6 @@ func (ps *permissionServer) checkPermissionWithQueryPlan(ctx context.Context, re
 
 	// Convert result path to response
 	permissionship, partialCaveat := convertPathToPermissionship(path)
-
-	// Merge count statistics into metadata after query completes
-	countStats := countObserver.GetStats()
-	ps.queryPlanMetadata.MergeCountStats(countStats)
 
 	resp := &v1.CheckPermissionResponse{
 		CheckedAt:         checkedAt,
@@ -226,8 +235,28 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	// Apply count-based advisor if stats have been accumulated from prior requests.
-	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
+	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	signalView, err := querysignals.Bind(ps.querySignals, sr, atRevision, string(schemaHash))
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	fields := []string{}
+
+	for _, caveat := range caveats {
+		for field := range caveat.Definition.ParameterTypes {
+			fields = append(fields, field)
+		}
+	}
+
+	querysignals.ObserveRequestContext(signalView, caveatContext, querysignals.ContextOptions{Fields: fields})
+	collector := querysignals.NewCollector(signalView, querysignals.CollectorOptions{})
+	defer collector.Flush()
+	optimized, err = querysignals.Plan(optimized, queryParams, signalView, true)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -237,18 +266,11 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		return ps.rewriteError(ctx, err)
 	}
 
-	// Parse caveat context if provided
-	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	countObserver := query.NewCountObserver()
-
 	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
+
 	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, maximumAPIDepth, 0)
 	qctx := dispatch.NewQueryContext(
 		ctx,
@@ -257,7 +279,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
 		ps.config.DispatchChunkSize,
-		query.WithObserver(countObserver),
+		query.WithExecutionObserver(collector),
 	)
 
 	// Build the subject from the request
@@ -274,6 +296,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 	}
 
 	var totalCountPublished uint64
+
 	for path, err := range pathSeq {
 		if err != nil {
 			return ps.rewriteError(ctx, err)
@@ -281,6 +304,7 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 
 		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 		var partial *v1.PartialCaveatInfo
+
 		if path.Caveat != nil {
 			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 			partial = &v1.PartialCaveatInfo{
@@ -296,11 +320,9 @@ func (ps *permissionServer) lookupResourcesWithQueryPlan(req *v1.LookupResources
 		}); err != nil {
 			return err
 		}
+
 		totalCountPublished++
 	}
-
-	countStats := countObserver.GetStats()
-	ps.queryPlanMetadata.MergeCountStats(countStats)
 
 	return nil
 }
@@ -365,8 +387,28 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	// Apply count-based advisor if stats have been accumulated from prior requests.
-	optimized, err = ps.queryPlanMetadata.ApplyAdvisor(optimized)
+	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	signalView, err := querysignals.Bind(ps.querySignals, sr, atRevision, string(schemaHash))
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	fields := []string{}
+
+	for _, caveat := range caveats {
+		for field := range caveat.Definition.ParameterTypes {
+			fields = append(fields, field)
+		}
+	}
+
+	querysignals.ObserveRequestContext(signalView, caveatContext, querysignals.ContextOptions{Fields: fields})
+	collector := querysignals.NewCollector(signalView, querysignals.CollectorOptions{})
+	defer collector.Flush()
+	optimized, err = querysignals.Plan(optimized, queryParams, signalView, true)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
@@ -376,18 +418,11 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		return ps.rewriteError(ctx, err)
 	}
 
-	// Parse caveat context if provided
-	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
-	if err != nil {
-		return ps.rewriteError(ctx, err)
-	}
-
-	countObserver := query.NewCountObserver()
-
 	maximumAPIDepth, err := safecast.Convert[int32](ps.config.MaximumAPIDepth)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
+
 	planContext := dispatch.NewPlanContext(atRevision.String(), schemaHash, caveatContext, maximumAPIDepth, 0)
 	qctx := dispatch.NewQueryContext(
 		ctx,
@@ -396,7 +431,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		query.NewQueryDatastoreReader(reader),
 		caveatsimpl.NewCaveatRunner(ps.config.CaveatTypeSet),
 		ps.config.DispatchChunkSize,
-		query.WithObserver(countObserver),
+		query.WithExecutionObserver(collector),
 	)
 
 	// Build the resource object from the request
@@ -418,6 +453,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 	}
 
 	var totalCountPublished uint64
+
 	for path, err := range pathSeq {
 		if err != nil {
 			return ps.rewriteError(ctx, err)
@@ -425,6 +461,7 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 
 		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 		var partial *v1.PartialCaveatInfo
+
 		if path.Caveat != nil {
 			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 			partial = &v1.PartialCaveatInfo{
@@ -437,7 +474,6 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 			Permissionship:    permissionship,
 			PartialCaveatInfo: partial,
 		}
-
 		if err := resp.Send(&v1.LookupSubjectsResponse{
 			LookedUpAt:         revisionReadAt,
 			Subject:            subject,
@@ -449,11 +485,9 @@ func (ps *permissionServer) lookupSubjectsWithQueryPlan(req *v1.LookupSubjectsRe
 		}); err != nil {
 			return err
 		}
+
 		totalCountPublished++
 	}
-
-	countStats := countObserver.GetStats()
-	ps.queryPlanMetadata.MergeCountStats(countStats)
 
 	return nil
 }

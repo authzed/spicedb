@@ -28,6 +28,7 @@ linters:
     - "govet"
     - "importas"
     - "ineffassign"
+    - "lll"
     - "makezero"
     - "perfsprint"
     - "prealloc"
@@ -46,6 +47,9 @@ linters:
     - "whitespace"
     - "unused"
   settings:
+    lll:
+      line-length: 140
+      tab-width: 4
     depguard:
       rules:
         main:
@@ -74,6 +78,11 @@ linters:
       - "legacy"
       - "std-error-handling"
     rules:
+      # Enforce readable lines in the signal/hint pipeline without imposing
+      # a new limit on unrelated legacy code. Tests in these packages are included.
+      - linters:
+          - "lll"
+        path-except: '^(pkg/query/(signals/|planhint/|queryopt/(arrowdirection/|applybranchorder/|optimization/|pipeline[^/]*\.go$)|statistical_identity[^/]*\.go$|observer_execution[^/]*\.go$)|internal/(querysignals/|querysignalstest/|queryopttest/))'
       - linters:
           - "errcheck"
         text: "tx.Rollback()"
