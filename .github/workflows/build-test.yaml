@@ -181,12 +181,19 @@ jobs:
 
   datastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-arm-16"
+    runs-on: "${{ matrix.runner }}"
     needs: "paths-filter"
     strategy:
       fail-fast: false
       matrix:
         datastore: ["mysql", "spanner"]
+        # spanner is the slowest consistency suite and gates the run, so it keeps
+        # the 16-core runner; the rest finish well within it on 8 cores.
+        include:
+          - datastore: "mysql"
+            runner: "depot-ubuntu-24.04-arm-8"
+          - datastore: "spanner"
+            runner: "depot-ubuntu-24.04-arm-16"
     steps:
       - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         if: |
@@ -250,7 +257,7 @@ jobs:
 
   pgdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-arm-16"
+    runs-on: "depot-ubuntu-24.04-arm-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -324,7 +331,7 @@ jobs:
 
   crdbdatastoreconstest:
     name: "Datastore Consistency Tests"
-    runs-on: "depot-ubuntu-24.04-arm-16"
+    runs-on: "depot-ubuntu-24.04-arm-8"
     needs: "paths-filter"
     strategy:
       fail-fast: false
