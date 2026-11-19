@@ -143,7 +143,7 @@ validation: null
 
 	// Create middleware
 	caveatTypeSet := caveattypes.MustNewStandardTypeSet()
-	middleware := NewMiddleware([]string{configFile}, caveatTypeSet.TypeSet)
+	middleware := NewMiddleware([]string{configFile}, nil, caveatTypeSet.TypeSet)
 
 	s := &perTokenMiddlewareTestSuite{
 		InterceptorTestSuite: &testpb.InterceptorTestSuite{
@@ -158,6 +158,46 @@ validation: null
 		tempDir:    tempDir,
 	}
 	suite.Run(t, s)
+}
+
+func TestPerTokenMiddlewareWithConfigContents(t *testing.T) {
+	configContent := `---
+schema: >-
+  definition example/user {}
+
+  definition example/project {
+      relation reader: example/user
+      permission read = reader
+  }
+relationships: >-
+  example/project:pied_piper#reader@example/user:tarben
+assertions:
+  assertTrue: []
+  assertFalse: []
+validation: null
+`
+
+	caveatTypeSet := caveattypes.MustNewStandardTypeSet()
+	middleware := NewMiddleware(nil, map[string][]byte{"generated-demo.yaml": []byte(configContent)}, caveatTypeSet.TypeSet)
+
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "bearer sometoken")
+	_, err := middleware.getOrCreateDatastore(ctx)
+	require.NoError(t, err)
+
+	ds, err := middleware.getOrCreateDatastore(ctx)
+	require.NoError(t, err)
+
+	rev, err := ds.HeadRevision(context.Background())
+	require.NoError(t, err)
+
+	it, err := ds.SnapshotReader(rev.Revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		OptionalResourceType: "example/project",
+	})
+	require.NoError(t, err)
+
+	rels, err := datastore.IteratorToSlice(it)
+	require.NoError(t, err)
+	require.Len(t, rels, 1)
 }
 
 func (s *perTokenMiddlewareTestSuite) TestUnaryInterceptor_WithMissingToken() {
