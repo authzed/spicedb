@@ -33,9 +33,10 @@ const (
 
 	NodeTypeArrowExpression // A TTU in arrow form.
 
-	NodeTypeIdentifier     // An identifier under an expression.
-	NodeTypeNilExpression  // A nil keyword
-	NodeTypeSelfExpression // A self keyword
+	NodeTypeIdentifier              // An identifier under an expression.
+	NodeTypeNilExpression           // A nil keyword
+	NodeTypeSelfExpression          // A self keyword
+	NodeTypeParenthesizedExpression // A parenthesized expression wrapper.
 
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
 
@@ -222,6 +223,13 @@ const (
 	//
 	NodeExpressionPredicateLeftExpr  = "left-expr"
 	NodeExpressionPredicateRightExpr = "right-expr"
+
+	//
+	// NodeTypeParenthesizedExpression
+	//
+
+	// The inner expression wrapped by parentheses.
+	NodeParenthesizedExpressionPredicateInnerExpr = "inner-expr"
 
 	//
 	// NodeTypeImport
