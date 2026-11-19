@@ -38,6 +38,8 @@ func convertYamlError(err error) error {
 		return spiceerrors.NewWithSourceError(
 			errors.New(message),
 			source,
+			// TODO: this should point at the filename. is there a way to get that context here?
+			"",
 			lineNumber,
 			0,
 		)
