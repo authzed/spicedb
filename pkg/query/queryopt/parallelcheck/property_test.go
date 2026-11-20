@@ -1,6 +1,7 @@
 package parallelcheck_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -117,6 +118,13 @@ definition document {
 		},
 	}
 
-	config.ContextOptions = []query.ContextOption{query.WithCheckConcurrency(4)}
-	queryopttest.Check(t, config)
+	for _, batch := range []bool{false, true} {
+		t.Run(fmt.Sprintf("batch=%v", batch), func(t *testing.T) {
+			config.ContextOptions = []query.ContextOption{
+				query.WithCheckConcurrency(4),
+				query.WithCheckExecution(query.CheckExecutionOptions{BatchChecks: batch}),
+			}
+			queryopttest.Check(t, config)
+		})
+	}
 }

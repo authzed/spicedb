@@ -38,6 +38,7 @@ func (ctx *Context) forkForCheck(stdContext context.Context) *Context {
 		hintLedger:         ctx.hintLedger,
 		targetedRecursions: maps.Clone(ctx.targetedRecursions),
 		targetedDepth:      ctx.targetedDepth,
+		typedScans:         maps.Clone(ctx.typedScans),
 		executionState:     ctx.executionState,
 	}
 

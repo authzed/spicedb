@@ -17,18 +17,40 @@ import (
 // the comparison work concludes, these flags and their branches should be
 // removed.
 type CheckExecutionOptions struct {
-	TargetedRecursion            bool
-	BaseFirstExclusion           bool
-	StrictSubjectMatching        bool
+	// BatchSize caps local datastore batches; zero uses 100 targets.
+	BatchSize uint16
+
+	// BatchChecks preserves multi-checks through local reducers and datastore reads.
+	BatchChecks bool
+
+	// TargetedRecursion follows only recursion needed for the requested subject.
+	TargetedRecursion bool
+
+	// BaseFirstExclusion checks the base before visiting excluded branches.
+	BaseFirstExclusion bool
+
+	// StrictSubjectMatching rejects leaves with an incompatible subject form.
+	StrictSubjectMatching bool
+
+	// ExhaustiveIntersectionArrows requires every intermediate resource to match.
 	ExhaustiveIntersectionArrows bool
-	StopAfterDirectMatch         bool
-	CoalesceDirectWildcards      bool
-	UnfilteredSingleTypeReads    bool
-	// BroadSingleUsersetReads uses the classic non-ellipsis scan when exactly
-	// one indirect type/relation is allowed. Applies only to unpaged local reads.
+
+	// StopAfterDirectMatch stops a direct read when its target is found.
+	StopAfterDirectMatch bool
+
+	// CoalesceDirectWildcards combines concrete and public wildcard reads.
+	CoalesceDirectWildcards bool
+
+	// UnfilteredSingleTypeReads omits redundant subject filters and shares broad
+	// tupleset scans across multiple concrete target types.
+	UnfilteredSingleTypeReads bool
+
+	// BroadSingleUsersetReads uses the native non-ellipsis scan, sharing its
+	// rows across indirect type/relation groups. Applies to unpaged local reads.
 	BroadSingleUsersetReads bool
 }
 
+// WithCheckExecution selects the local check execution strategies for a context.
 func WithCheckExecution(options CheckExecutionOptions) ContextOption {
 	return func(ctx *Context) { ctx.checkExecution = options }
 }

@@ -49,6 +49,22 @@ func NewUnionIterator(subiterators ...Iterator) Iterator {
 }
 
 func (u *UnionIterator) CheckImpl(ctx *Context, resource Object, subject ObjectAndRelation) (*Path, error) {
+	// Native groups schema-owned target types only after direct membership has
+	// had the opportunity to grant. Preserve that phase boundary rather than
+	// parallelizing the entire relation and speculating on its direct forms.
+	if ctx.checkExecution.BatchChecks && u.checkConcurrency > 1 && sourceGroupCandidate(u.subIts) {
+		batch := resourceBatch([]Object{resource}, subject)
+		batch.mode = AllowSingleResult
+
+		if paths, handled, err := checkSourceGroups(ctx, u, batch); handled {
+			if err != nil {
+				return nil, err
+			}
+
+			return paths[0], nil
+		}
+	}
+
 	// Read the concurrency recommendation only for independent permission operands.
 	// Relation forms retain direct-before-indirect order so a direct grant can
 	// avoid indirect userset work. Observers/frontiers retain serial ownership too.
