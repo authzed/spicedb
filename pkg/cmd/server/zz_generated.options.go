@@ -102,6 +102,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxReadRelationshipsLimit = c.MaxReadRelationshipsLimit
 		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
+		to.MaxLookupResourcesResponseBatchSize = c.MaxLookupResourcesResponseBatchSize
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.ExperimentalLookupResourcesVersion = c.ExperimentalLookupResourcesVersion
@@ -372,6 +373,7 @@ func (c *Config) DebugMap() map[string]any {
 	debugMap["MaxReadRelationshipsLimit"] = c.MaxReadRelationshipsLimit
 	debugMap["MaxDeleteRelationshipsLimit"] = c.MaxDeleteRelationshipsLimit
 	debugMap["MaxLookupResourcesLimit"] = c.MaxLookupResourcesLimit
+	debugMap["MaxLookupResourcesResponseBatchSize"] = c.MaxLookupResourcesResponseBatchSize
 	debugMap["MaxBulkExportRelationshipsLimit"] = c.MaxBulkExportRelationshipsLimit
 	debugMap["EnableExperimentalLookupResources"] = c.EnableExperimentalLookupResources
 	if c.ExperimentalLookupResourcesVersion == "" {
@@ -934,6 +936,13 @@ func WithMaxDeleteRelationshipsLimit(maxDeleteRelationshipsLimit uint32) ConfigO
 func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
 	return func(c *Config) {
 		c.MaxLookupResourcesLimit = maxLookupResourcesLimit
+	}
+}
+
+// WithMaxLookupResourcesResponseBatchSize returns an option that can set MaxLookupResourcesResponseBatchSize on a Config
+func WithMaxLookupResourcesResponseBatchSize(maxLookupResourcesResponseBatchSize uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxLookupResourcesResponseBatchSize = maxLookupResourcesResponseBatchSize
 	}
 }
 

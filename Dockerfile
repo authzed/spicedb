@@ -1,5 +1,5 @@
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-FROM golang:1.27.3-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS spicedb-builder
+FROM golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS spicedb-builder
 WORKDIR /go/src/app
 # Dependencies come before the source so that editing source does not invalidate
 # the downloaded modules. This only pays off on a builder with a persistent cache

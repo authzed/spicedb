@@ -96,6 +96,11 @@ type PermissionsServerConfig struct {
 	// single LookupResources call.
 	MaxLookupResourcesLimit uint32
 
+	// MaxLookupResourcesResponseBatchSize is the maximum value honored for
+	// LookupResourcesRequest.optional_response_batch_size. Requests asking for a
+	// larger batch are clamped to this value rather than rejected.
+	MaxLookupResourcesResponseBatchSize uint32
+
 	// MaxBulkExportRelationshipsLimit defines the maximum number of relationships that can be
 	// exported in a single BulkExportRelationships call.
 	MaxBulkExportRelationshipsLimit uint32
@@ -147,27 +152,28 @@ func NewPermissionsServer(
 	validator protovalidate.Validator,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount:              defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:                 defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:                    defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:                defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:               defaultIfZero(config.MaxCaveatContextSize, 4096),
-		MaxRelationshipContextSize:         defaultIfZero(config.MaxRelationshipContextSize, 25_000),
-		MaxDatastoreReadPageSize:           defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
-		MaxReadRelationshipsLimit:          defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
-		MaxDeleteRelationshipsLimit:        defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
-		MaxLookupResourcesLimit:            defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
-		MaxBulkExportRelationshipsLimit:    defaultIfZero(config.MaxBulkExportRelationshipsLimit, 10_000),
-		DispatchChunkSize:                  defaultIfZero(config.DispatchChunkSize, 100),
-		MaxCheckBulkConcurrency:            defaultIfZero(config.MaxCheckBulkConcurrency, 50),
-		CaveatTypeSet:                      caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
-		ExpiringRelationshipsEnabled:       config.ExpiringRelationshipsEnabled,
-		PerformanceInsightMetricsEnabled:   config.PerformanceInsightMetricsEnabled,
-		EnableExperimentalLookupResources3: config.EnableExperimentalLookupResources3,
-		ExperimentalQueryPlan:              config.ExperimentalQueryPlan,
-		Metrics:                            config.Metrics,
-		QuerySignals:                       config.QuerySignals,
-		QueryPlanMetadata:                  config.QueryPlanMetadata,
+		MaxPreconditionsCount:               defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:                  defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:                     defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:                 defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:                defaultIfZero(config.MaxCaveatContextSize, 4096),
+		MaxRelationshipContextSize:          defaultIfZero(config.MaxRelationshipContextSize, 25_000),
+		MaxDatastoreReadPageSize:            defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
+		MaxReadRelationshipsLimit:           defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
+		MaxDeleteRelationshipsLimit:         defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
+		MaxLookupResourcesLimit:             defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
+		MaxLookupResourcesResponseBatchSize: defaultIfZero(config.MaxLookupResourcesResponseBatchSize, 1_000),
+		MaxBulkExportRelationshipsLimit:     defaultIfZero(config.MaxBulkExportRelationshipsLimit, 10_000),
+		DispatchChunkSize:                   defaultIfZero(config.DispatchChunkSize, 100),
+		MaxCheckBulkConcurrency:             defaultIfZero(config.MaxCheckBulkConcurrency, 50),
+		CaveatTypeSet:                       caveattypes.TypeSetOrDefault(config.CaveatTypeSet),
+		ExpiringRelationshipsEnabled:        config.ExpiringRelationshipsEnabled,
+		PerformanceInsightMetricsEnabled:    config.PerformanceInsightMetricsEnabled,
+		EnableExperimentalLookupResources3:  config.EnableExperimentalLookupResources3,
+		ExperimentalQueryPlan:               config.ExperimentalQueryPlan,
+		Metrics:                             config.Metrics,
+		QuerySignals:                        config.QuerySignals,
+		QueryPlanMetadata:                   config.QueryPlanMetadata,
 	}
 	if configWithDefaults.QuerySignals == nil {
 		configWithDefaults.QuerySignals = signals.NewDefaultOwner()

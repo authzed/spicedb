@@ -1,19 +1,19 @@
 module github.com/authzed/spicedb/e2e
 
-go 1.26.10
+go 1.27.4
 
 replace github.com/authzed/spicedb => ../
 
 require (
-	github.com/authzed/authzed-go v1.11.0
+	github.com/authzed/authzed-go v1.11.1-0.20261120130125-380614b108c9
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/authzed/spicedb v1.29.5
 	github.com/brianvoe/gofakeit/v6 v6.28.0
 	github.com/ecordell/optgen v0.2.6
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/tools v0.51.0
-	google.golang.org/grpc v1.83.2
+	golang.org/x/tools v0.52.0
+	google.golang.org/grpc v1.85.0
 	mvdan.cc/gofumpt v0.12.0
 )
 
@@ -76,13 +76,13 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260820142414-ca536658362e // indirect
-	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261110000943-09e21b237f2c // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	resenje.org/singleflight v0.4.3 // indirect
 )
