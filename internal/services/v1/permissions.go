@@ -559,12 +559,13 @@ func (ps *permissionServer) lookupResources3(req *v1.LookupResourcesRequest, res
 	// LookupResourcesResponse messages (up to batchSize each) instead of one
 	// message per result, cutting per-message overhead for high-cardinality
 	// lookups. batchSize == 0 preserves one-resource-per-message streaming.
-	batchSize := int(req.OptionalResponseBatchSize)
-	if maxBatch := int(ps.config.MaxLookupResourcesResponseBatchSize); maxBatch > 0 && batchSize > maxBatch {
-		// Clamp an over-large request to the server-side maximum rather than
-		// rejecting it (the API contract is "clamped, not rejected").
-		batchSize = maxBatch
+	//
+	// A request that exceeds the server-side maximum is rejected, mirroring how
+	// OptionalLimit over MaxLookupResourcesLimit is handled.
+	if maxBatch := ps.config.MaxLookupResourcesResponseBatchSize; maxBatch > 0 && req.OptionalResponseBatchSize > maxBatch {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalResponseBatchSize), uint64(maxBatch)))
 	}
+	batchSize := int(req.OptionalResponseBatchSize)
 	var batch []*v1.LookupResourcesResult
 	// A batched response carries one cursor for the whole message
 	// (LookupResourcesBatch.after_cursor), not one per result. The stream is

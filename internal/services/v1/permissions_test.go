@@ -1123,6 +1123,27 @@ func TestLookupResourcesBatched(t *testing.T) {
 		slices.Sort(all)
 		require.Equal(t, expected, all, "paginating with the batch cursor returns every resource exactly once")
 	})
+
+	// A request whose batch size exceeds the server maximum is rejected, not
+	// clamped. The test server's MaxLookupResourcesResponseBatchSize defaults to
+	// 1000, so a larger request must fail with InvalidArgument.
+	t.Run("exceeds maximum", func(t *testing.T) {
+		stream, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
+			ResourceObjectType:        "document",
+			Permission:                "view",
+			Subject:                   sub("user", "owner", ""),
+			OptionalResponseBatchSize: 1001,
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_AtLeastAsFresh{
+					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		require.Error(t, err)
+		require.Equal(t, codes.InvalidArgument, status.Code(err), "batch size over the maximum must be rejected, not clamped")
+	})
 }
 
 func TestExpand(t *testing.T) {

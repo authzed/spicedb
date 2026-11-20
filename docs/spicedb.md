@@ -652,7 +652,7 @@ spicedb serve [flags]
       --max-datastore-read-page-size uint                                               limit on the maximum page size that we will load into memory from the datastore at one time (default 1000)
       --max-delete-relationships-limit uint32                                           maximum number of relationships that can be deleted in a single request (default 1000)
       --max-lookup-resources-limit uint32                                               maximum number of resources that can be looked up in a single request (default 1000)
-      --max-lookup-resources-response-batch-size uint32                                 maximum number of resources packed into a single LookupResources response batch; requests asking for a larger optional_response_batch_size are clamped to this value (default 1000)
+      --max-lookup-resources-response-batch-size uint32                                 maximum number of resources packed into a single LookupResources response batch; a request asking for a larger optional_response_batch_size is rejected (default 1000)
       --max-read-relationships-limit uint32                                             maximum number of relationships that can be read in a single request (default 1000)
       --max-relationship-context-size int                                               maximum allowed size of the context to be stored in a relationship (default 25000)
       --metrics-addr string                                                             address to listen on to serve metrics (default ":9090")
