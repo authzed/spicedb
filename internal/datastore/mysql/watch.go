@@ -36,7 +36,8 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 		return updates, errs
 	}
 
-	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
+	if options.Content&datastore.WatchSchema == datastore.WatchSchema ||
+		options.Content&datastore.WatchStoredSchema == datastore.WatchStoredSchema {
 		close(updates)
 		errs <- errors.New("schema watch unsupported in MySQL")
 		return updates, errs
