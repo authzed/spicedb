@@ -15,7 +15,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -tags memoryprotection -buildvcs=false -v -ldflags=-checklinkname=0 -o spicedb ./cmd/spicedb
 
 # use `docker buildx imagetools inspect <image>` to get the multi-platform sha256
-FROM cgr.dev/chainguard/static@sha256:17367e4d3ae2b46c3290858e483fac09be085c92b372360fe3bf6a6150848fde
+FROM cgr.dev/chainguard/static@sha256:8658e9eaeb2294fa0e49b0667f7d66b4e21fa7690b8d2a4c30cd1d013ceb9eb7
 # NOTE: the copy target location differs from Dockerfile.release for historical reasons. It's referenced in
 # compose files and elsewhere so we're keeping it the way it is.
 COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.63 /ko-app/grpc-health-probe /bin/grpc_health_probe
