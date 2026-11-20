@@ -488,10 +488,15 @@ func sanityCheckNamespaceChanges(
 			}
 
 		case nsdiff.RelationAllowedTypeRemoved:
-			var optionalSubjectIds []string
+			// A wildcard type matches only `*` subjects, and a concrete type matches every
+			// subject except `*`: wildcard relationships belong to the wildcard type, which
+			// may remain on the relation.
+			var optionalSubjectIds, excludedSubjectIds []string
 			var optionalCaveatNameFilter datastore.CaveatNameFilter
 			if delta.AllowedType.GetPublicWildcard() != nil {
 				optionalSubjectIds = []string{tuple.PublicWildcard}
+			} else {
+				excludedSubjectIds = []string{tuple.PublicWildcard}
 			}
 
 			if delta.AllowedType.GetRequiredCaveat() != nil && delta.AllowedType.GetRequiredCaveat().CaveatName != "" {
@@ -512,9 +517,10 @@ func sanityCheckNamespaceChanges(
 					OptionalResourceRelation: delta.RelationName,
 					OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 						{
-							OptionalSubjectType: delta.AllowedType.Namespace,
-							OptionalSubjectIds:  optionalSubjectIds,
-							RelationFilter:      subjectRelationFilterForAllowedType(delta.AllowedType),
+							OptionalSubjectType:        delta.AllowedType.Namespace,
+							OptionalSubjectIds:         optionalSubjectIds,
+							OptionalExcludedSubjectIds: excludedSubjectIds,
+							RelationFilter:             subjectRelationFilterForAllowedType(delta.AllowedType),
 						},
 					},
 					OptionalCaveatNameFilter: optionalCaveatNameFilter,

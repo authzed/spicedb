@@ -409,6 +409,11 @@ type SubjectsSelector struct {
 	// OptionalSubjectIds are the IDs of the subjects to find. If nil or empty, any subject ID will be allowed.
 	OptionalSubjectIds []string
 
+	// OptionalExcludedSubjectIds are the IDs of subjects to exclude. If nil or empty, no subject
+	// ID is excluded. Applied in addition to OptionalSubjectIds. Exclusion is a filter and does
+	// not narrow the index range a datastore scans.
+	OptionalExcludedSubjectIds []string
+
 	// RelationFilter is the filter to use for the relation(s) of the subjects. If neither field
 	// is set, any relation is allowed.
 	RelationFilter SubjectRelationFilter
@@ -421,6 +426,10 @@ func (ss SubjectsSelector) Test(subject tuple.ObjectAndRelation) bool {
 	}
 
 	if len(ss.OptionalSubjectIds) > 0 && !slices.Contains(ss.OptionalSubjectIds, subject.ObjectID) {
+		return false
+	}
+
+	if slices.Contains(ss.OptionalExcludedSubjectIds, subject.ObjectID) {
 		return false
 	}
 

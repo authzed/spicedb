@@ -566,6 +566,52 @@ definition resource {
 			},
 		},
 		{
+			name: "delete a concrete subject type while wildcard remains",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation viewer: user | user:*
+					permission view = viewer
+				}
+			`,
+			relationships: []string{"document:firstdoc#viewer@user:*"},
+			endingSchema: `
+				definition user {}
+
+				definition document {
+					relation viewer: user:*
+					permission view = viewer
+				}
+			`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount: 2,
+			},
+		},
+		{
+			name: "delete a wildcard subject type while concrete remains",
+			startingSchema: `
+				definition user {}
+
+				definition document {
+					relation viewer: user | user:*
+					permission view = viewer
+				}
+			`,
+			relationships: []string{"document:firstdoc#viewer@user:tom"},
+			endingSchema: `
+				definition user {}
+
+				definition document {
+					relation viewer: user
+					permission view = viewer
+				}
+			`,
+			expectedAppliedSchemaChanges: AppliedSchemaChanges{
+				TotalOperationCount: 2,
+			},
+		},
+		{
 			name: "attempt to delete a referenced subject relation",
 			startingSchema: `definition document {
 				relation viewer: user | user#foo

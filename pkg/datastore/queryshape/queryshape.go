@@ -89,8 +89,8 @@ const (
 	// `group#member with somecaveat and expiration`.
 	//
 	// The query shape selects an allowed subject type for a specific relation on a specific
-	// resource type. All fields except resource ID are specified here, with subject ID only
-	// specified if a wildcard.
+	// resource type. All fields except resource ID are specified here. The subject ID is
+	// only ever the wildcard: selected for a wildcard type, and excluded for a concrete type.
 	//
 	// ✅ resource_type, *️⃣ resource_id, ✅ resource_relation, ✅ subject_type, 🅿️ subject_id, ✅ subject_relation, *️⃣ caveat, *️⃣ expiration
 	FindResourceRelationForSubjectRelation Shape = "find-resource-relation-for-subject-relation"
