@@ -23,12 +23,12 @@ jobs:
   changelog:
     runs-on: "depot-ubuntu-24.04-small"
     steps:
-      - uses: "dangoslen/changelog-enforcer@43d9d695c578fb444f2e5bd23c0e9ec7c97b1d37"
+      - uses: "dangoslen/changelog-enforcer@d8ac887514c8ddbb6fa82961f14106c3f80ad180"
         with:
           skipLabels: "Skip-Changelog,dependencies,tests"
           missingUpdateErrorMessage: "If your PR has a change that users might care about, please add an entry to CHANGELOG.md, run 'npx keep-a-changelog', and commit the changes. Otherwise, add the Skip-Changelog label to your PR."
       - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
-      - uses: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020" # v7.0.0
+      - uses: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1" # v7.1.0
       - run: "npx keep-a-changelog@2.8.0"
       - run: |
           files=$(git status --porcelain)
