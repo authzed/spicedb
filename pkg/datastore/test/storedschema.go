@@ -782,6 +782,78 @@ func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 		"OptimizedRevision schema hashes should differ after writing a different schema")
 }
 
+// OptimizedRevisionSchemaHashAfterRevertTest returns a test that checks that OptimizedRevision
+// returns the schema hash at the revision it returns, when a schema is written and then
+// reverted across a quantization boundary.
+//
+// The test writes schema A, then schema B, and waits for the next quantization boundary. Then
+// it reverts to schema A and calls OptimizedRevision. The optimized revision is that boundary,
+// so it is after the write of B and before the revert, and the schema at it is B. A datastore
+// that reads the schema hash at "now" and then quantizes the revision down returns hashA with
+// that revision.
+//
+// The datastore must be created with this quantization and with no follower read delay.
+func OptimizedRevisionSchemaHashAfterRevertTest(quantization time.Duration) func(*testing.T, datastore.Datastore) {
+	return func(t *testing.T, ds datastore.Datastore) {
+		require := require.New(t)
+		ctx := t.Context()
+
+		defsA := []compiler.SchemaDefinition{
+			ns.Namespace("user"),
+			ns.Namespace("document",
+				ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
+			),
+		}
+		defsB := []compiler.SchemaDefinition{
+			ns.Namespace("user"),
+			ns.Namespace("document",
+				ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
+				ns.MustRelation("editor", nil, ns.AllowedRelation("user", "...")),
+			),
+		}
+		textA, _, err := generator.GenerateSchema(ctx, defsA)
+		require.NoError(err)
+		textB, _, err := generator.GenerateSchema(ctx, defsB)
+		require.NoError(err)
+		hashA, err := generator.ComputeSchemaHash(defsA)
+		require.NoError(err)
+		hashB, err := generator.ComputeSchemaHash(defsB)
+		require.NoError(err)
+
+		writeSchema(ctx, t, ds, defsA, textA)
+		revB := writeSchema(ctx, t, ds, defsB, textB)
+
+		// Wait for the first quantization boundary after the write of B, plus a margin for clock
+		// differences between the test and the datastore.
+		tsRev, ok := revB.(interface{ TimestampNanoSec() int64 })
+		require.True(ok, "revision %T has no timestamp", revB)
+		q := quantization.Nanoseconds()
+		boundary := (tsRev.TimestampNanoSec()/q + 1) * q
+		time.Sleep(time.Until(time.Unix(0, boundary)) + quantization/10)
+
+		// Revert to schema A in the new window, then get the optimized revision.
+		revRevert := writeSchema(ctx, t, ds, defsA, textA)
+		result, err := ds.OptimizedRevision(ctx)
+		require.NoError(err)
+		optimized := result.Revision
+
+		// The timing above must put the optimized revision between the two writes. If it does
+		// not, the test cannot show anything.
+		require.True(optimized.GreaterThan(revB), "optimized revision %s is not after the write of B at %s", optimized, revB)
+		require.True(optimized.LessThan(revRevert), "optimized revision %s is not before the revert at %s", optimized, revRevert)
+
+		// The schema at the optimized revision is B.
+		stored, err := ds.SnapshotReader(optimized).ReadStoredSchema(ctx)
+		require.NoError(err)
+		require.Equal(hashB, stored.Get().GetV1().SchemaHash, "stored schema at the optimized revision is not B")
+
+		require.NotEqual(hashA, result.SchemaHash,
+			"OptimizedRevision returned the hash of the reverted schema (A) with a revision at which the schema is B")
+		require.Equal(hashB, result.SchemaHash,
+			"OptimizedRevision must return the hash of the schema at the revision it returns")
+	}
+}
+
 // StoredSchemaViaDataLayerTest exercises the DataLayer's ReadSchema inside write
 // transactions in both legacy (ReadLegacyWriteLegacy) and new (ReadNewWriteNew)
 // schema modes. In new mode, ReadSchema calls ReadStoredSchemaHash before fetching

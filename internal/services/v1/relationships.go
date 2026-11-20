@@ -436,7 +436,10 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	var schemaHash datalayer.SchemaHash
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+		schemaHash = rwt.SchemaHash()
+
 		// Extract schema reader for validation.
 		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
@@ -497,7 +500,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		ps.metrics.RecordWriteRelationshipsUpdates(kind, count)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, schemaHash, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -586,7 +589,10 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 
 	var deletedRelationshipCount uint64
 	var afterDeleteCursor options.Cursor
+	var schemaHash datalayer.SchemaHash
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+		schemaHash = rwt.SchemaHash()
+
 		// Extract schema reader for validation.
 		sr, err := rwt.ReadSchema(ctx)
 		if err != nil {
@@ -705,7 +711,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, err)
 	}
 
-	zedToken, err := zedtoken.NewFromRevision(ctx, revision, datalayer.NoSchemaHashInTransaction, dl)
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, schemaHash, dl)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
