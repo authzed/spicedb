@@ -34,6 +34,8 @@ func (r *pgReader) ReadStoredSchema(ctx context.Context) (*datastore.ReadOnlySto
 // exclusive=false acquires FOR SHARE (relationship writes): holds a shared lock until commit,
 // so schema writes (FOR UPDATE) are blocked until all in-flight rel writes release, guaranteeing
 // no relationship write commits against a schema it was not validated against.
+// Postgres grants a new FOR SHARE while a FOR UPDATE is waiting, so a schema write waits until no
+// rel write holds the lock at all, which overlapping rel writes can postpone indefinitely.
 func assertSchemaHash(ctx context.Context, tx pgx.Tx, expectedHash string, exclusive bool) error {
 	q := psql.Select("hash").
 		From("schema_revision").

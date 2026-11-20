@@ -1034,10 +1034,15 @@ func StoredSchemaConcurrentSchemaWinsTest(t *testing.T, tester DatastoreTester) 
 		"relationship write with stale hash should fail after schema write commits")
 }
 
-// StoredSchemaWriteSucceedsUnderRelWriteTrafficTest verifies that a schema write can complete
-// under continuous relationship write traffic. The DB's lock queue prevents starvation: once a
-// FOR UPDATE (schema write) is queued, new FOR SHARE (rel write) requests queue behind it, so
-// the schema write drains the current holders and proceeds in bounded time.
+// StoredSchemaWriteSucceedsUnderRelWriteTrafficTest verifies that a schema write completes under
+// moderate, continuous relationship write traffic.
+//
+// It does not show that the lock queue is fair. On Postgres, a new FOR SHARE (rel write) request
+// is granted while a FOR UPDATE (schema write) is waiting, so the schema write proceeds only when
+// no rel write holds FOR SHARE (see TestSchemaHashLockShareSkipsWaitingExclusive in the postgres
+// package). The writers here leave gaps between their transactions, and the schema write takes
+// the lock in one of them. Rel write traffic that holds FOR SHARE without gaps can starve a
+// schema write.
 func StoredSchemaWriteSucceedsUnderRelWriteTrafficTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
 	ctx, cancel := context.WithCancel(t.Context())
