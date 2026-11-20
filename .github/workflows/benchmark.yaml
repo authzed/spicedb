@@ -2,10 +2,19 @@
 ---
 name: "Main"
 on: # yamllint disable-line rule:truthy
-  # NOTE! Do NOT add any other "on", because this workflow has permission to write to the repo!
+  # NOTE! This workflow can write to the repository: it pushes to gh-pages.
+  # No trigger may cause that write from a context the repository does not
+  # control, so do NOT add a trigger that a fork or an unprivileged actor can
+  # fire (pull_request_target, issue_comment, and so on).
+  #
+  # workflow_dispatch is allowed because every step that writes anything is
+  # gated on `github.event_name == 'push'`: a manual run measures, reports to
+  # the job summary, and changes nothing. Keep it that way — if you add a step
+  # that writes to the repository, gate it the same way.
   push:
     branches:
       - "main"
+  workflow_dispatch:
 
 permissions:
   # permission to update benchmark contents in gh-pages branch
@@ -15,10 +24,14 @@ jobs:
   benchmarks:
     name: "Run Full Go benchmarks on Main"
     runs-on: "depot-ubuntu-24.04-arm-8" # same as build-test.yaml
-    timeout-minutes: 20
+    # `benchmark:compare` caps its own measurement phase with BENCH_BUDGET, so
+    # that is what bounds how long benchmarking takes. This timeout is only a
+    # backstop against a hang.
+    timeout-minutes: 40
     steps:
       - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         with:
+          # The comparison builds HEAD~1, so the history has to be here.
           fetch-depth: 0
 
       - uses: "authzed/actions/setup-go@main"
@@ -26,42 +39,42 @@ jobs:
           go-version-file: "./go.mod"
           cache-dependency-path: "./go.sum"
 
-      - name: "Get HEAD~1 SHA"
-        id: "prev-sha"
-        run: |
-          echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+      - name: "Install benchstat"
+        run: "go install golang.org/x/perf/cmd/benchstat@latest"
 
-      - name: "Restore benchmark from cache"
-        uses: "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
-        with:
-          path: "./cache/benchmark-data.json"
-          key: "${{ steps.prev-sha.outputs.sha }}-${{ runner.os }}-go-benchmark"
-
+      # Runs first, on an otherwise idle runner, exactly as it always has, so
+      # the numbers on the dashboard stay comparable with every point before
+      # this change.
       - name: "Run benchmark on Main"
         run: |
           set -o pipefail
           go run mage.go benchmark:all | tee bench_output.txt
 
-      - name: "Compare benchmark against HEAD~1"
-        uses: "benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc" # v1.22.2
-        with:
-          # What benchmark tool the output.txt came from
-          tool: "go"
-          # Where the output from the benchmark tool is stored
-          output-file-path: "bench_output.txt"
-          # Where we store the results
-          external-data-json-path: "./cache/benchmark-data.json"
-          save-data-file: true
-          # Alert when current run is >= 2x worse than HEAD~1
-          alert-threshold: "200%"
-          # Workflow will fail when an alert happens
-          fail-on-alert: true
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-          comment-on-alert: false
+      # The regression gate. Builds HEAD and HEAD~1 and, for the packages whose
+      # two binaries differ, runs them interleaved on this one runner and
+      # compares with benchstat. That replaces comparing today's measurement
+      # against a number cached from a different runner on a different day,
+      # which is what kept failing this job on commits that changed nothing.
+      - name: "Compare against HEAD~1 on this runner"
+        env:
+          BENCH_BASE_REF: "HEAD~1"
+          BENCH_COUNT: "6"
+          BENCH_TIME: "1s"
+          # Six rounds measured 2m30s each on this runner, so a healthy run
+          # finishes well inside this and the cap only bites when the runner is
+          # having a bad day, in which case it stops at a completed round.
+          BENCH_BUDGET: "20m"
+          # A push to main that genuinely regresses should fail and page, so
+          # unlike the pull request check this one gates. It counts a benchmark
+          # as regressed only when benchstat finds the difference significant at
+          # p<0.05, so a noisy pair cannot trip it however large it looks.
+          BENCH_FAIL_PCT: "25"
+        run: "go run mage.go benchmark:compare"
 
       - name: "Publish to gh-pages. See https://authzed.github.io/spicedb/dev/bench/"
-        # Run even if the compare step failed on a regression, so the dashboard reflects reality.
-        if: "${{ !cancelled() }}"
+        # Runs even if the comparison found a regression, so the dashboard
+        # reflects reality. Only on push: a manual run must not write.
+        if: "${{ github.event_name == 'push' && !cancelled() }}"
         uses: "benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc" # v1.22.2
         with:
           # What benchmark tool the output.txt came from
@@ -73,17 +86,9 @@ jobs:
           # auto-push requires token
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: "Save benchmark JSON"
-        # Run even if the compare step failed on a regression, so the next run has a baseline.
-        if: "${{ !cancelled() || failure() }}"
-        uses: "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
-        with:
-          path: "./cache/benchmark-data.json"
-          # Save with commit hash to avoid "cache already exists"
-          key: "${{ github.sha }}-${{ runner.os }}-go-benchmark"
-
       - name: "Notify in Slack if benchmark job failed"
-        if: "${{ failure() }}"
+        # Only on push: whoever started a manual run is already watching it.
+        if: "${{ github.event_name == 'push' && failure() }}"
         uses: "slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d" # v4.0.0
         with:
           webhook: "${{ secrets.SLACK_BUILDS_WEBHOOK_URL }}"
