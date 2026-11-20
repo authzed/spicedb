@@ -624,7 +624,7 @@ spicedb serve [flags]
       --experimental-full-relation-cache-max-cost string                                upper bound (in bytes or as a percent of available memory) of the cache for full relations (has no effect unless --experimental-full-relation-cache=enabled) (default "30%")
       --experimental-full-relation-cache-maximum-set-size uint                          maximum number of relationships in a materialized set; larger sets are memoized as too-big and served from the datastore (default 1024)
       --experimental-full-relation-cache-metrics                                        enable metrics for the cache for full relations (has no effect unless --experimental-full-relation-cache=enabled) (default true)
-      --experimental-lookup-resources-version lr3                                       if non-empty, the version of the experimental lookup resources API to use: lr3 or empty
+      --experimental-lookup-resources-version lr3                                       the version of the lookup resources API to use: lr3 (default) or empty to disable (default "lr3")
       --experimental-query-plan check                                                   comma-separated list of operations to route through the experimental query plan engine; valid values are check, `lr` (LookupResources), and `ls` (LookupSubjects)
       --experimental-schema-mode string                                                 schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new (default "read-legacy-write-legacy")
       --grpc-addr string                                                                address to listen on to serve gRPC (default ":50051")
@@ -652,6 +652,7 @@ spicedb serve [flags]
       --max-datastore-read-page-size uint                                               limit on the maximum page size that we will load into memory from the datastore at one time (default 1000)
       --max-delete-relationships-limit uint32                                           maximum number of relationships that can be deleted in a single request (default 1000)
       --max-lookup-resources-limit uint32                                               maximum number of resources that can be looked up in a single request (default 1000)
+      --max-lookup-resources-response-batch-size uint32                                 maximum number of resources packed into a single LookupResources response batch; requests asking for a larger optional_response_batch_size are clamped to this value (default 1000)
       --max-read-relationships-limit uint32                                             maximum number of relationships that can be read in a single request (default 1000)
       --max-relationship-context-size int                                               maximum allowed size of the context to be stored in a relationship (default 25000)
       --metrics-addr string                                                             address to listen on to serve metrics (default ":9090")
