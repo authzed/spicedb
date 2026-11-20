@@ -782,6 +782,158 @@ func OptimizedRevisionSchemaHashTest(t *testing.T, tester DatastoreTester) {
 		"OptimizedRevision schema hashes should differ after writing a different schema")
 }
 
+// OptimizedRevisionSchemaHashAfterRevertTest returns a test that checks that OptimizedRevision
+// returns the schema hash at the revision it returns, when a schema is written and then
+// reverted across a quantization boundary.
+//
+// Each attempt writes schema A, then schema B, and waits for the next quantization boundary on
+// the database's clock. In the new window it writes a relationship (a marker), reverts to
+// schema A, and calls OptimizedRevision. Datastores with timestamp revisions (CRDB, Spanner,
+// memdb) return the boundary. Datastores with transaction-ID revisions (Postgres, MySQL) return
+// the first transaction at or after the boundary, which is the marker. Either way, the
+// optimized revision is after the write of B and before the revert, and the schema at it is B.
+// A datastore that reads the schema hash at "now" and then quantizes the revision down returns
+// hashA with that revision.
+//
+// If the database's clock crosses into the next window before OptimizedRevision returns, or
+// the optimized revision is not between the two writes, the attempt cannot show anything and
+// the test retries. The last attempt fails on those conditions instead of retrying.
+//
+// The tester must create datastores with no follower read delay.
+func OptimizedRevisionSchemaHashAfterRevertTest(t *testing.T, tester DatastoreTester) {
+	const (
+		quantization = 2 * time.Second
+		maxAttempts  = 4
+	)
+
+	ds, err := tester.New(t, DefaultRevisionParameters().WithQuantization(quantization), 1)
+	require.NoError(t, err)
+
+	dbNow := databaseClock(t, ds)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if optimizedRevisionSchemaHashAfterRevertAttempt(t, ds, quantization, dbNow, attempt == maxAttempts) {
+			return
+		}
+		t.Logf("attempt %d: the timing did not put the optimized revision between the schema writes; retrying", attempt)
+	}
+}
+
+// databaseClock returns a function that reads the database's clock. The quantization windows
+// are on that clock, not the test's. memdb runs in this process, so it uses the local clock.
+// Postgres and MySQL read it with their garbage collector. CRDB and Spanner read it from
+// HeadRevision, which is the server's current time. (memdb's HeadRevision is its last write,
+// so it cannot be used as a clock.)
+func databaseClock(t *testing.T, ds datastore.Datastore) func(context.Context) time.Time {
+	t.Helper()
+
+	if eids := datastore.UnwrapAs[datastore.EngineIdentifiable](ds); eids != nil && eids.EngineName() == "memory" {
+		return func(context.Context) time.Time { return time.Now() }
+	}
+
+	if gcds := datastore.UnwrapAs[datastore.GarbageCollectableDatastore](ds); gcds != nil {
+		return func(ctx context.Context) time.Time {
+			// A garbage collector holds a pool connection until it is closed, so build one
+			// for each read. Holding one can starve the writes in a small test pool.
+			gc, err := gcds.BuildGarbageCollector(ctx)
+			require.NoError(t, err)
+			defer gc.Close()
+			now, err := gc.Now(ctx)
+			require.NoError(t, err)
+			return now
+		}
+	}
+
+	return func(ctx context.Context) time.Time {
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(t, err)
+		tsRev, ok := head.Revision.(interface{ TimestampNanoSec() int64 })
+		require.True(t, ok, "revision %T has no timestamp and the datastore has no garbage collector clock", head.Revision)
+		return time.Unix(0, tsRev.TimestampNanoSec())
+	}
+}
+
+// optimizedRevisionSchemaHashAfterRevertAttempt runs one attempt of
+// OptimizedRevisionSchemaHashAfterRevertTest. It returns false if the timing did not put the
+// optimized revision between the schema writes. If mustAssert is set, it fails instead.
+func optimizedRevisionSchemaHashAfterRevertAttempt(t *testing.T, ds datastore.Datastore, quantization time.Duration, dbNow func(context.Context) time.Time, mustAssert bool) bool {
+	t.Helper()
+	require := require.New(t)
+	ctx := t.Context()
+
+	defsA := []compiler.SchemaDefinition{
+		ns.Namespace("user"),
+		ns.Namespace("document",
+			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
+		),
+	}
+	defsB := []compiler.SchemaDefinition{
+		ns.Namespace("user"),
+		ns.Namespace("document",
+			ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
+			ns.MustRelation("editor", nil, ns.AllowedRelation("user", "...")),
+		),
+	}
+	textA, _, err := generator.GenerateSchema(ctx, defsA)
+	require.NoError(err)
+	textB, _, err := generator.GenerateSchema(ctx, defsB)
+	require.NoError(err)
+	hashA, err := generator.ComputeSchemaHash(defsA)
+	require.NoError(err)
+	hashB, err := generator.ComputeSchemaHash(defsB)
+	require.NoError(err)
+
+	writeSchema(ctx, t, ds, defsA, textA)
+	revB := writeSchema(ctx, t, ds, defsB, textB)
+
+	// Wait for the next quantization boundary on the database's clock, plus a margin. B has
+	// committed, so it is in the window before that boundary.
+	q := quantization.Nanoseconds()
+	window := func(now time.Time) int64 { return now.UnixNano() / q }
+	atB := dbNow(ctx)
+	time.Sleep(time.Duration(q-atB.UnixNano()%q) + quantization/10)
+	start := dbNow(ctx)
+	if window(start) <= window(atB) {
+		require.False(mustAssert, "database clock at %s is not past the boundary after %s", start, atB)
+		return false
+	}
+
+	// In the new window, write a marker relationship, then revert to schema A, then get the
+	// optimized revision.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("document:marker#viewer@user:marker")),
+		})
+	})
+	require.NoError(err)
+	revRevert := writeSchema(ctx, t, ds, defsA, textA)
+	result, err := ds.OptimizedRevision(ctx)
+	require.NoError(err)
+	optimized := result.Revision
+	end := dbNow(ctx)
+
+	// The timing above must put the optimized revision between the two writes. If it does
+	// not, this attempt cannot show anything.
+	inWindow := window(end) == window(start)
+	between := optimized.GreaterThan(revB) && optimized.LessThan(revRevert)
+	if !inWindow || !between {
+		require.False(mustAssert,
+			"timing: database clock went from %s to %s (quantization %s); optimized revision %s, write of B %s, revert %s",
+			start, end, quantization, optimized, revB, revRevert)
+		return false
+	}
+
+	// The schema at the optimized revision is B.
+	stored, err := ds.SnapshotReader(optimized).ReadStoredSchema(ctx)
+	require.NoError(err)
+	require.Equal(hashB, stored.Get().GetV1().SchemaHash, "stored schema at the optimized revision is not B")
+
+	require.NotEqual(hashA, result.SchemaHash,
+		"OptimizedRevision returned the hash of the reverted schema (A) with a revision at which the schema is B")
+	require.Equal(hashB, result.SchemaHash,
+		"OptimizedRevision must return the hash of the schema at the revision it returns")
+	return true
+}
+
 // StoredSchemaViaDataLayerTest exercises the DataLayer's ReadSchema inside write
 // transactions in both legacy (ReadLegacyWriteLegacy) and new (ReadNewWriteNew)
 // schema modes. In new mode, ReadSchema calls ReadStoredSchemaHash before fetching
