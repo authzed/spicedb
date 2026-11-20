@@ -35,8 +35,6 @@ type fakeGC struct {
 	metrics      gcMetrics // GUARDED_BY(lock)
 	deleter      gcDeleter // GUARDED_BY(lock)
 	lastRevision uint64    // GUARDED_BY(lock)
-	wasLocked    bool      // GUARDED_BY(lock)
-	wasUnlocked  bool      // GUARDED_BY(lock)
 }
 
 type gcMetrics struct {
@@ -85,20 +83,6 @@ func newFakeGCStore(deleter gcDeleter) *fakeGCStore {
 	}
 }
 
-func (gc *fakeGC) LockForGCRun(ctx context.Context) (bool, error) {
-	gc.lock.Lock()
-	defer gc.lock.Unlock()
-	gc.wasLocked = true
-	return true, nil
-}
-
-func (gc *fakeGC) UnlockAfterGCRun() error {
-	gc.lock.Lock()
-	defer gc.lock.Unlock()
-	gc.wasUnlocked = true
-	return nil
-}
-
 func (*fakeGC) Now(_ context.Context) (time.Time, error) {
 	return time.Now(), nil
 }
@@ -132,17 +116,6 @@ var _ GarbageCollector = &fakeGC{}
 type gcDeleter interface {
 	DeleteBeforeTx(revision uint64) (DeletionCounts, error)
 	DeleteExpiredRels() (int64, error)
-}
-
-// Always error trying to perform a delete
-type alwaysErrorDeleter struct{}
-
-func (alwaysErrorDeleter) DeleteBeforeTx(_ uint64) (DeletionCounts, error) {
-	return DeletionCounts{}, fmt.Errorf("delete error")
-}
-
-func (alwaysErrorDeleter) DeleteExpiredRels() (int64, error) {
-	return 0, fmt.Errorf("delete error")
 }
 
 // Only error on specific revisions
@@ -241,31 +214,134 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	require.Greater(t, gc.markedCompleteCount, 20, "Next interval was not reset with backoff")
 }
 
-func TestGCUnlockOnTimeout(t *testing.T) {
-	gc := newFakeGCStore(alwaysErrorDeleter{})
+// preemptingDeleter returns ErrGCPreempted from the selected methods.
+type preemptingDeleter struct {
+	preemptDeleteBeforeTx    bool
+	preemptDeleteExpiredRels bool
+}
 
-	errCh := make(chan error, 1)
-	hasRunChan := make(chan bool, 1)
-	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		t.Cleanup(func() {
-			cancel()
+func (d *preemptingDeleter) DeleteBeforeTx(_ uint64) (DeletionCounts, error) {
+	if d.preemptDeleteBeforeTx {
+		return DeletionCounts{}, ErrGCPreempted
+	}
+	return DeletionCounts{}, nil
+}
+
+func (d *preemptingDeleter) DeleteExpiredRels() (int64, error) {
+	if d.preemptDeleteExpiredRels {
+		return 0, ErrGCPreempted
+	}
+	return 0, nil
+}
+
+// erroringDeleter returns the configured errors from each method.
+type erroringDeleter struct {
+	deleteBeforeTxErr    error
+	deleteExpiredRelsErr error
+}
+
+func (d *erroringDeleter) DeleteBeforeTx(_ uint64) (DeletionCounts, error) {
+	return DeletionCounts{}, d.deleteBeforeTxErr
+}
+
+func (d *erroringDeleter) DeleteExpiredRels() (int64, error) {
+	return 0, d.deleteExpiredRelsErr
+}
+
+func TestGCRealErrorsAreNotMaskedByPreemption(t *testing.T) {
+	realErr := errors.New("delete error")
+
+	cases := []struct {
+		name                         string
+		deleteBeforeTxErr            error
+		deleteExpiredRelsErr         error
+		expectDeleteExpiredRelsCount int
+	}{
+		{
+			name:                         "real DeleteBeforeTx error is returned even when DeleteExpiredRels would be preempted",
+			deleteBeforeTxErr:            realErr,
+			deleteExpiredRelsErr:         ErrGCPreempted,
+			expectDeleteExpiredRelsCount: 0,
+		},
+		{
+			name:                         "any DeleteBeforeTx error skips DeleteExpiredRels",
+			deleteBeforeTxErr:            realErr,
+			expectDeleteExpiredRelsCount: 0,
+		},
+		{
+			name:                         "real DeleteExpiredRels error is returned",
+			deleteExpiredRelsErr:         realErr,
+			expectDeleteExpiredRelsCount: 1,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gc := newFakeGCStore(&erroringDeleter{
+				deleteBeforeTxErr:    tc.deleteBeforeTxErr,
+				deleteExpiredRelsErr: tc.deleteExpiredRelsErr,
+			})
+
+			err := RunGarbageCollection(t.Context(), gc, 10*time.Second)
+			require.ErrorIs(t, err, realErr, "the real error should be returned to the caller")
+
+			gc.lock.Lock()
+			defer gc.lock.Unlock()
+			require.Zero(t, gc.markedCompleteCount, "a failed GC run should not be marked as completed")
+
+			gc.fakeGC.lock.Lock()
+			defer gc.fakeGC.lock.Unlock()
+			require.Equal(t, 1, gc.fakeGC.metrics.deleteBeforeTxCount)
+			require.Equal(t, tc.expectDeleteExpiredRelsCount, gc.fakeGC.metrics.deleteExpiredRelsCount)
 		})
-		go func() {
-			errCh <- StartGarbageCollector(ctx, gc, 10*time.Millisecond, 10*time.Second, 1*time.Minute)
-		}()
-		time.Sleep(30 * time.Millisecond)
-		hasRunChan <- gc.HasGCRun()
-		cancel()
-		synctest.Wait()
-	})
-	require.Error(t, <-errCh)
-	require.False(t, <-hasRunChan, "GC should not have run because it should always be erroring.")
+	}
+}
 
-	// TODO: should this be inside the goroutine as well?
-	gc.fakeGC.lock.Lock()
-	defer gc.fakeGC.lock.Unlock()
+func TestGCPreemption(t *testing.T) {
+	cases := []struct {
+		name                         string
+		preemptDeleteBeforeTx        bool
+		preemptDeleteExpiredRels     bool
+		expectDeleteBeforeTxCount    int
+		expectDeleteExpiredRelsCount int
+	}{
+		{
+			name:                         "preempted on DeleteBeforeTx skips DeleteExpiredRels",
+			preemptDeleteBeforeTx:        true,
+			expectDeleteBeforeTxCount:    1,
+			expectDeleteExpiredRelsCount: 0,
+		},
+		{
+			name:                         "preempted on DeleteExpiredRels",
+			preemptDeleteExpiredRels:     true,
+			expectDeleteBeforeTxCount:    1,
+			expectDeleteExpiredRelsCount: 1,
+		},
+	}
 
-	require.True(t, gc.fakeGC.wasLocked, "GC should have been locked")
-	require.True(t, gc.fakeGC.wasUnlocked, "GC should have been unlocked")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gc := newFakeGCStore(&preemptingDeleter{
+				preemptDeleteBeforeTx:    tc.preemptDeleteBeforeTx,
+				preemptDeleteExpiredRels: tc.preemptDeleteExpiredRels,
+			})
+
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+				t.Cleanup(cancel)
+
+				err := RunGarbageCollection(ctx, gc, 10*time.Second)
+				require.NoError(t, err, "preemption should not be treated as an error")
+			})
+
+			gc.lock.Lock()
+			defer gc.lock.Unlock()
+			require.Positive(t, gc.markedCompleteCount, "preemption should still mark GC as completed")
+
+			gc.fakeGC.lock.Lock()
+			defer gc.fakeGC.lock.Unlock()
+			require.Equal(t, tc.expectDeleteBeforeTxCount, gc.fakeGC.metrics.deleteBeforeTxCount)
+			require.Equal(t, tc.expectDeleteExpiredRelsCount, gc.fakeGC.metrics.deleteExpiredRelsCount)
+		})
+	}
 }
