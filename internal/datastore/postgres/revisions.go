@@ -46,8 +46,9 @@ const (
 	schemaHashForSelectedXID = `
 	COALESCE(
 		(SELECT hash FROM schema_revision
-		 WHERE (selected.xid IS NOT NULL AND created_xid <= selected.xid AND deleted_xid > selected.xid)
-		    OR (selected.xid IS NULL AND deleted_xid = '9223372036854775807'::xid8)
+		 WHERE name = 'current' AND (
+		       (selected.xid IS NOT NULL AND created_xid <= selected.xid AND deleted_xid > selected.xid)
+		    OR (selected.xid IS NULL AND deleted_xid = '9223372036854775807'::xid8))
 		 ORDER BY created_xid DESC LIMIT 1),
 		''::bytea
 	)`

@@ -21,7 +21,9 @@ func TestFullRelationCacheServesChecks(t *testing.T) {
 	require.NoError(t, err)
 	ds, _ := testfixtures.StandardDatastoreWithData(t, rawDS)
 
+	// StandardDatastoreWithData writes legacy definitions directly.
 	conns := testserver.TestClusterWithDispatch(t, 1, ds,
+		server.WithExperimentalSchemaMode("read-legacy-write-legacy"),
 		server.WithExperimentalFullRelationCache(string(server.FullRelationCacheEnabled)),
 		server.WithFullRelationCacheMaterializeThreshold(1),
 	)

@@ -47,7 +47,7 @@ const (
 		)
 		SELECT selected.xid as revision,
 			%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos,
-			COALESCE((SELECT hash FROM %[6]s WHERE created_transaction <= selected.xid AND deleted_transaction > selected.xid ORDER BY created_transaction DESC LIMIT 1), '') as schema_hash
+			COALESCE((SELECT hash FROM %[6]s WHERE name = 'current' AND created_transaction <= selected.xid AND deleted_transaction > selected.xid ORDER BY created_transaction DESC LIMIT 1), '') as schema_hash
 		FROM selected;`
 
 	// queryValidTransaction will return a single row with two values, one boolean
@@ -113,7 +113,7 @@ func (mds *mysqlDatastore) loadSchemaHash(ctx context.Context, revisionID uint64
 	defer span.End()
 
 	query := fmt.Sprintf( //nolint:gosec // table name is from trusted internal config
-		"SELECT hash FROM %s WHERE created_transaction <= ? AND deleted_transaction > ? ORDER BY created_transaction DESC LIMIT 1",
+		"SELECT hash FROM %s WHERE name = 'current' AND created_transaction <= ? AND deleted_transaction > ? ORDER BY created_transaction DESC LIMIT 1",
 		mds.driver.SchemaRevision(),
 	)
 

@@ -84,6 +84,8 @@ func TestSchemaWatch(t *testing.T) {
 			spicedbEnvVars["SPICEDB_DATASTORE_GC_INTERVAL"] = "1s"
 			spicedbEnvVars["SPICEDB_LOG_LEVEL"] = "trace"
 			spicedbEnvVars["SPICEDB_ENABLE_EXPERIMENTAL_WATCHABLE_SCHEMA_CACHE"] = "true"
+			// The watchable namespace cache is used only by legacy schema reads.
+			spicedbEnvVars["SPICEDB_EXPERIMENTAL_SCHEMA_MODE"] = "read-legacy-write-both"
 
 			// Run a serve and immediately close, ensuring it shuts down gracefully.
 			// Consume logs so we can ensure schema watch has started before graceful shutdown.

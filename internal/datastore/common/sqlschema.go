@@ -11,6 +11,13 @@ import (
 )
 
 const (
+	// SchemaMigrationMarkerName records schema authority in the schema revision table.
+	SchemaMigrationMarkerName = "unified_schema_migration"
+	// SchemaMigrationSourceLegacy marks a refresh from legacy storage.
+	SchemaMigrationSourceLegacy = "legacy"
+	// SchemaMigrationSourceUnified preserves deployments already using unified-only storage.
+	SchemaMigrationSourceUnified = "unified"
+
 	// UnifiedSchemaName is the name used to store the unified schema in the schema table.
 	UnifiedSchemaName = "unified_schema"
 

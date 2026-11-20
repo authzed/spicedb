@@ -86,6 +86,8 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		// This ensure that we can call WriteSchema multiple times to progressively build the
 		// overall set of namespaces.
 		"--testing-only-schema-additive-writes=true",
+		// The new-enemy test places individual legacy namespace leases on specific nodes.
+		"--experimental-schema-mode=read-legacy-write-legacy",
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
