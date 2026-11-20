@@ -113,7 +113,7 @@ WHERE resource_type = 'document'
   AND permission = 'view'
   AND subject_type = 'user'
   AND subject_id = 'alice'
-  AND has_permission = true;
+  AND has_permission IS true;
 ```
 
 #### Lookup Subjects
@@ -126,7 +126,7 @@ WHERE resource_type = 'document'
   AND resource_id = 'readme'
   AND permission = 'view'
   AND subject_type = 'user'
-  AND has_permission = true;
+  AND has_permission IS true;
 ```
 
 #### Query Relationships
