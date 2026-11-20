@@ -33,7 +33,7 @@ func TestReadOnlyStoredSchemaEstimatedSize(t *testing.T) {
 	})
 	require.Positive(t, small.EstimatedSize())
 	require.Greater(t, large.EstimatedSize(), small.EstimatedSize())
-	require.Equal(t, int64(len(small.Get().GetV1().SchemaText)), small.EstimatedSize())
+	require.Equal(t, int64(len(small.Get().GetV1().SchemaText))+small.CompiledQueryPlanCacheBudget(), small.EstimatedSize())
 }
 
 func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
