@@ -133,6 +133,9 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 
 	span.AddEvent(otelconv.EventDatastoreIteratorCreate, trace.WithAttributes(attribute.Int(otelconv.AttrDatastoreColumnCount, len(colsToSelect))))
 	return func(yield func(tuple.Relationship, error) bool) {
+		// stopped records that the consumer asked to stop; yield must not be called again
+		// after that, even if QueryFunc reports an error while draining the remaining rows.
+		stopped := false
 		span.AddEvent(otelconv.EventDatastoreExecuteIssued)
 		err := tx.QueryFunc(ctx, func(ctx context.Context, rows R) error {
 			span.AddEvent(otelconv.EventDatastoreExecuteStarted)
@@ -203,6 +206,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 					OptionalExpiration: expiration,
 					OptionalIntegrity:  integrity,
 				}, nil) {
+					stopped = true
 					return nil
 				}
 			}
@@ -214,10 +218,8 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 
 			return nil
 		}, sqlString, args...)
-		if err != nil {
-			if !yield(tuple.Relationship{}, err) {
-				return
-			}
+		if err != nil && !stopped {
+			yield(tuple.Relationship{}, err)
 		}
 	}, nil
 }

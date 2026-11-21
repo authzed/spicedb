@@ -166,3 +166,77 @@ func TestRunExplainIfNecessary(t *testing.T) {
 		})
 	}
 }
+
+// twoRows simulates a result set with two rows still buffered and no error of its own.
+type twoRows struct{ remaining int }
+
+func (r *twoRows) Next() bool {
+	if r.remaining == 0 {
+		return false
+	}
+	r.remaining--
+	return true
+}
+func (*twoRows) Scan(dest ...any) error { return nil }
+func (*twoRows) Err() error             { return nil }
+
+// failsAfterCallbackQuerier mirrors pgxcommon.QuerierFuncs.QueryFunc when the query fails
+// (e.g. on statement_timeout) after the consumer has stopped reading: the closure returns
+// nil, then draining the remaining rows fails and QueryFunc returns rows.Err().
+type failsAfterCallbackQuerier struct{}
+
+func (failsAfterCallbackQuerier) QueryFunc(ctx context.Context, f func(context.Context, Rows) error, sql string, args ...any) error {
+	if err := f(ctx, &twoRows{remaining: 2}); err != nil {
+		return err
+	}
+	return context.Canceled
+}
+
+// Regression test for https://github.com/authzed/spicedb/issues/3520: when the consumer
+// stops ranging over the iterator (as ReadRelationships does when resp.Send fails) and
+// QueryFunc then returns an error, the iterator must not call yield again, or Go panics
+// with "range function continued iteration after function for loop body returned false".
+func TestQueryRelationshipsDoesNotYieldAfterConsumerStops(t *testing.T) {
+	schema := NewSchemaInformationWithOptions(
+		WithRelationshipTableName("relationtuples"),
+		WithColNamespace("ns"),
+		WithColObjectID("object_id"),
+		WithColRelation("relation"),
+		WithColUsersetNamespace("subject_ns"),
+		WithColUsersetObjectID("subject_object_id"),
+		WithColUsersetRelation("subject_relation"),
+		WithColCaveatName("caveat"),
+		WithColCaveatContext("caveat_context"),
+		WithColExpiration("expiration"),
+		WithPlaceholderFormat(sq.Question),
+		WithPaginationFilterType(TupleComparison),
+		WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+		WithNowFunction("NOW"),
+	)
+	filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100).FilterToResourceType("document")
+	builder := RelationshipsQueryBuilder{
+		Schema:           *schema,
+		filteringValues:  filterer.filteringColumnTracker,
+		baseQueryBuilder: filterer,
+	}
+
+	iterator, err := QueryRelationships[Rows, map[string]any](t.Context(), builder, failsAfterCallbackQuerier{}, nil)
+	require.NoError(t, err)
+
+	require.NotPanics(t, func() {
+		for _, err := range iterator {
+			require.NoError(t, err)
+			break
+		}
+	})
+
+	// A consumer that keeps reading still receives the error.
+	var errs []error
+	for _, err := range iterator {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	require.Len(t, errs, 1)
+	require.ErrorIs(t, errs[0], context.Canceled)
+}
