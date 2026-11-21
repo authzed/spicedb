@@ -292,6 +292,16 @@ func newPostgresDatastore(
 		)
 	}
 
+	var txnHeadRevisionQuery string
+	if config.stableHeadRevision {
+		txnHeadRevisionQuery = fmt.Sprintf(
+			queryHeadRevisionFromTxnTable,
+			schema.ColXID,
+			schema.TableTransaction,
+			schema.ColSnapshot,
+		)
+	}
+
 	validTransactionQuery := fmt.Sprintf(
 		queryValidTransaction,
 		schema.ColXID,
@@ -320,6 +330,7 @@ func newPostgresDatastore(
 		optimizedRevisionQuery:       revisionQuery,
 		validTransactionQuery:        validTransactionQuery,
 		revisionHeartbeatQuery:       revisionHeartbeatQuery,
+		txnHeadRevisionQuery:         txnHeadRevisionQuery,
 		gcWindow:                     config.gcWindow,
 		gcInterval:                   config.gcInterval,
 		gcTimeout:                    config.gcMaxOperationTime,
@@ -385,6 +396,7 @@ type pgDatastore struct {
 	optimizedRevisionQuery         string
 	validTransactionQuery          string
 	revisionHeartbeatQuery         string
+	txnHeadRevisionQuery           string
 	gcWindow                       time.Duration
 	gcInterval                     time.Duration
 	gcTimeout                      time.Duration

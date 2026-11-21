@@ -124,6 +124,41 @@ const (
 	SELECT selected.snapshot, ` + schemaHashForSelectedXID + `
 	FROM selected;`
 
+	// queryHeadRevisionFromTxnTable derives the head revision from the transaction
+	// table instead of pg_current_snapshot(). It returns the newest transaction row along
+	// with the committed SpiceDB transactions its snapshot does not yet see: those listed
+	// as in-progress in the snapshot, and those assigned an xid at or past its xmax. The
+	// caller marks all of them (and the head xid itself) complete, so the revision only
+	// moves when SpiceDB commits, not when any other database on the instance does.
+	//
+	// The two lookups are kept as separate index-only probes on the primary key; combined
+	// with OR, the planner answers them with a bitmap heap scan instead. The past-xmax
+	// lookup is bounded above by the head xid: with a one-sided range the planner
+	// estimates it at a third of the table, which on large tables pushes the query cost
+	// past jit_above_cost and makes every call pay for JIT compilation.
+	//
+	//   %[1] Name of xid column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of snapshot column
+	queryHeadRevisionFromTxnTable = `
+	WITH selected AS (
+		SELECT %[1]s AS xid, %[3]s AS snapshot
+		FROM %[2]s
+		ORDER BY %[1]s DESC
+		LIMIT 1
+	)
+	SELECT selected.xid, selected.snapshot,
+	ARRAY(
+		SELECT rtt.%[1]s FROM %[2]s rtt
+		WHERE rtt.%[1]s = ANY(ARRAY(SELECT pg_snapshot_xip(selected.snapshot)))
+	),
+	ARRAY(
+		SELECT rtt.%[1]s FROM %[2]s rtt
+		WHERE rtt.%[1]s >= pg_snapshot_xmax(selected.snapshot) AND rtt.%[1]s < selected.xid
+	),
+	` + schemaHashForSelectedXID + `
+	FROM selected;`
+
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
@@ -163,6 +198,16 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWit
 }
 
 func (pgd *pgDatastore) getHeadRevisionWithHash(ctx context.Context, querier common.Querier) (*postgresRevision, []byte, error) {
+	if pgd.txnHeadRevisionQuery != "" {
+		revision, schemaHash, err := pgd.getHeadRevisionFromTxnTable(ctx, querier)
+		if err != nil {
+			return nil, nil, err
+		}
+		if revision != nil {
+			return revision, schemaHash, nil
+		}
+	}
+
 	var snapshot pgSnapshot
 	var schemaHash []byte
 	if err := querier.QueryRow(ctx, queryCurrentSnapshotWithHash).Scan(&snapshot, &schemaHash); err != nil {
@@ -174,6 +219,33 @@ func (pgd *pgDatastore) getHeadRevisionWithHash(ctx context.Context, querier com
 	}
 
 	return &postgresRevision{snapshot: snapshot}, schemaHash, nil
+}
+
+// getHeadRevisionFromTxnTable returns nil when the transaction table is empty, in
+// which case the caller falls back to pg_current_snapshot().
+func (pgd *pgDatastore) getHeadRevisionFromTxnTable(ctx context.Context, querier common.Querier) (*postgresRevision, []byte, error) {
+	var headXID xid8
+	var snapshot pgSnapshot
+	var inProgressCommitted, pastXmaxCommitted []uint64
+	var schemaHash []byte
+	if err := querier.QueryRow(ctx, pgd.txnHeadRevisionQuery).
+		Scan(&headXID, &snapshot, &inProgressCommitted, &pastXmaxCommitted, &schemaHash); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil, nil
+		}
+
+		return nil, nil, fmt.Errorf(errRevision, err)
+	}
+
+	for _, committed := range inProgressCommitted {
+		snapshot = snapshot.markComplete(committed)
+	}
+	for _, committed := range pastXmaxCommitted {
+		snapshot = snapshot.markComplete(committed)
+	}
+	snapshot = snapshot.markComplete(headXID.Uint64)
+
+	return &postgresRevision{snapshot: snapshot, optionalTxID: headXID}, schemaHash, nil
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
