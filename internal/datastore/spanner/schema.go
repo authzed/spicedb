@@ -40,6 +40,8 @@ const (
 	colSchemaName       = "name"
 	colSchemaChunkIndex = "chunk_index"
 	colSchemaChunkData  = "chunk_data"
+
+	tableSchemaRevision = "schema_revision"
 )
 
 var allRelationshipCols = []string{

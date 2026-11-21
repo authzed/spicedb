@@ -17,14 +17,24 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const waitForChangesTimeout = 20 * time.Second // FIXME, for reasons unknown, tests against Spanner emulator time out if this is lower
+
+// Don't shorten this: at 10s the Spanner emulator times out even on writes that
+// have nothing to do with schema.
+const watchSchemaChangeTimeout = waitForChangesTimeout
 
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
@@ -568,7 +578,119 @@ func verifyNoUpdates(
 	}
 }
 
+// Every schema mode. Only some of them save the schema in the older format that
+// Watch reads, so running all four shows whether Watch works either way.
+var watchSchemaModes = []struct {
+	name string
+	mode datalayer.SchemaMode
+}{
+	{"read-legacy-write-legacy", datalayer.SchemaModeReadLegacyWriteLegacy},
+	{"read-legacy-write-both", datalayer.SchemaModeReadLegacyWriteBoth},
+	{"read-new-write-both", datalayer.SchemaModeReadNewWriteBoth},
+	{"read-new-write-new", datalayer.SchemaModeReadNewWriteNew},
+}
+
+// schemaState tracks the whole schema and writes it the way a running server
+// does. The old API took one change at a time; this one takes the full schema
+// and works out what changed, so each step here rewrites all of it.
+type schemaState struct {
+	t    *testing.T
+	ctx  context.Context
+	dl   datalayer.DataLayer
+	defs map[string]datastore.SchemaDefinition
+}
+
+// Writes the test setup's schema once up front. Without it, the next write
+// would look like every definition had just been created.
+func newSchemaState(t *testing.T, ctx context.Context, ds datastore.Datastore, mode datalayer.SchemaMode) *schemaState {
+	t.Helper()
+
+	s := &schemaState{
+		t:    t,
+		ctx:  ctx,
+		dl:   datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(mode)),
+		defs: make(map[string]datastore.SchemaDefinition, 4),
+	}
+
+	_, err := s.put(testGroupNS.CloneVT(), testResourceNS.CloneVT(), testUserNS.CloneVT())
+	require.NoError(t, err)
+	return s
+}
+
+// put adds or replaces definitions, then writes the whole schema.
+func (s *schemaState) put(defs ...datastore.SchemaDefinition) (datastore.Revision, error) {
+	for _, def := range defs {
+		s.defs[def.GetName()] = def
+	}
+	return s.write()
+}
+
+// remove drops definitions, then writes the whole schema. Leaving them out is
+// what turns into a delete.
+func (s *schemaState) remove(names ...string) (datastore.Revision, error) {
+	for _, name := range names {
+		delete(s.defs, name)
+	}
+	return s.write()
+}
+
+func (s *schemaState) write() (datastore.Revision, error) {
+	s.t.Helper()
+
+	names := make([]string, 0, len(s.defs))
+	for name := range s.defs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	defs := make([]datastore.SchemaDefinition, 0, len(names))
+	compilerDefs := make([]compiler.SchemaDefinition, 0, len(names))
+	for _, name := range names {
+		defs = append(defs, s.defs[name])
+		compilerDefs = append(compilerDefs, s.defs[name].(compiler.SchemaDefinition))
+	}
+
+	schemaText, _, err := generator.GenerateSchema(s.ctx, compilerDefs)
+	require.NoError(s.t, err)
+
+	return s.dl.ReadWriteTx(s.ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
+		_, err := rwt.WriteSchema(ctx, defs, schemaText, nil)
+		return err
+	})
+}
+
+// Builds a caveat that actually parses. The write path rejects ones that don't.
+func mustCaveatDefinition(t *testing.T, name string, expr string) *core.CaveatDefinition {
+	t.Helper()
+
+	env, err := caveats.EnvForVariablesWithDefaultTypeSet(map[string]caveattypes.VariableType{
+		"a": caveattypes.Default.IntType,
+		"b": caveattypes.Default.IntType,
+	})
+	require.NoError(t, err)
+
+	compiled, err := caveats.CompileCaveatWithName(env, expr, name)
+	require.NoError(t, err)
+
+	serialized, err := compiled.Serialize()
+	require.NoError(t, err)
+
+	return &core.CaveatDefinition{
+		Name:                 name,
+		SerializedExpression: serialized,
+		ParameterTypes:       env.EncodedParametersTypes(),
+	}
+}
+
 func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
+	for _, tc := range watchSchemaModes {
+		t.Run(tc.name, func(t *testing.T) {
+			watchSchemaTestForMode(t, tester, tc.mode)
+		})
+	}
+}
+
+func watchSchemaTestForMode(t *testing.T, tester DatastoreTester, mode datalayer.SchemaMode) {
 	require := require.New(t)
 
 	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
@@ -579,32 +701,26 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	state := newSchemaState(t, ctx, ds, mode)
+
 	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
+	// Watch through the DataLayer, as a running server does: it selects the schema
+	// storage from which schema changes are sourced, based on the schema mode.
+	changes, errchan := state.dl.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
 	require.Empty(errchan)
 
 	// Addition
 	// Write an updated schema and ensure the changes are returned.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{
-			Name: "somenewnamespace",
-		})
-		if err != nil {
-			return err
-		}
-
-		return rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{
-			{
-				Name: "somenewcaveat",
-			},
-		})
-	})
+	_, err = state.put(
+		&core.NamespaceDefinition{Name: "somenewnamespace"},
+		mustCaveatDefinition(t, "somenewcaveat", "a == b"),
+	)
 	require.NoError(err)
 
-	verifyMixedUpdates(require, [][]string{
+	verifyMixedUpdates(require, mode, [][]string{
 		{
 			"changed:somenewnamespace",
 			"changed:somenewcaveat",
@@ -612,29 +728,20 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	}, changes, errchan, false)
 
 	// Changed
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{
+	_, err = state.put(
+		&core.NamespaceDefinition{
 			Name: "somenewnamespace",
 			Relation: []*core.Relation{
 				{
 					Name: "anotherrelation",
 				},
 			},
-		})
-		if err != nil {
-			return err
-		}
-
-		return rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{
-			{
-				Name:                 "somenewcaveat",
-				SerializedExpression: []byte("123"),
-			},
-		})
-	})
+		},
+		mustCaveatDefinition(t, "somenewcaveat", "a != b"),
+	)
 	require.NoError(err)
 
-	verifyMixedUpdates(require, [][]string{
+	verifyMixedUpdates(require, mode, [][]string{
 		{
 			"changed:somenewnamespace",
 			"changed:somenewcaveat",
@@ -643,17 +750,10 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 
 	// Removed
 	// Delete some namespaces and caveats.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.LegacyDeleteNamespaces(ctx, []string{"somenewnamespace"}, datastore.DeleteNamespacesAndRelationships)
-		if err != nil {
-			return err
-		}
-
-		return rwt.LegacyDeleteCaveats(ctx, []string{"somenewcaveat"})
-	})
+	_, err = state.remove("somenewnamespace", "somenewcaveat")
 	require.NoError(err)
 
-	verifyMixedUpdates(require, [][]string{
+	verifyMixedUpdates(require, mode, [][]string{
 		{
 			"deleted-ns:somenewnamespace",
 			"deleted-caveat:somenewcaveat",
@@ -662,6 +762,14 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 }
 
 func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester) {
+	for _, tc := range watchSchemaModes {
+		t.Run(tc.name, func(t *testing.T) {
+			watchRelationshipsAndSchemaChangesTestForMode(t, tester, tc.mode)
+		})
+	}
+}
+
+func watchRelationshipsAndSchemaChangesTestForMode(t *testing.T, tester DatastoreTester, mode datalayer.SchemaMode) {
 	require := require.New(t)
 
 	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
@@ -672,33 +780,25 @@ func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	state := newSchemaState(t, ctx, ds, mode)
+
 	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
+	changes, errchan := state.dl.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content: datastore.WatchRelationships | datastore.WatchSchema,
 	})
 	require.Empty(errchan)
 
 	// Write an updated schema.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{
-			Name: "somenewnamespace",
-		})
-		if err != nil {
-			return err
-		}
-
-		return rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{
-			{
-				Name: "somenewcaveat",
-			},
-		})
-	})
+	_, err = state.put(
+		&core.NamespaceDefinition{Name: "somenewnamespace"},
+		mustCaveatDefinition(t, "somenewcaveat", "a == b"),
+	)
 	require.NoError(err)
 
-	verifyMixedUpdates(require, [][]string{
+	verifyMixedUpdates(require, mode, [][]string{
 		{
 			"changed:somenewnamespace",
 			"changed:somenewcaveat",
@@ -713,7 +813,7 @@ func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester
 	)
 	require.NoError(err)
 
-	verifyMixedUpdates(require, [][]string{
+	verifyMixedUpdates(require, mode, [][]string{
 		{
 			"rel:TOUCH(document:firstdoc#viewer@user:fred)",
 			"rel:TOUCH(document:firstdoc#viewer@user:sarah)",
@@ -722,17 +822,10 @@ func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester
 	}, changes, errchan, false)
 
 	// Delete some namespaces and caveats.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.LegacyDeleteNamespaces(ctx, []string{"somenewnamespace"}, datastore.DeleteNamespacesAndRelationships)
-		if err != nil {
-			return err
-		}
-
-		return rwt.LegacyDeleteCaveats(ctx, []string{"somenewcaveat"})
-	})
+	_, err = state.remove("somenewnamespace", "somenewcaveat")
 	require.NoError(err)
 
-	verifyMixedUpdates(require, [][]string{
+	verifyMixedUpdates(require, mode, [][]string{
 		{
 			"deleted-ns:somenewnamespace",
 			"deleted-caveat:somenewcaveat",
@@ -740,15 +833,27 @@ func WatchRelationshipsAndSchemaChangesTest(t *testing.T, tester DatastoreTester
 	}, changes, errchan, false)
 }
 
+// Explains a missing schema event, so a failure says why instead of just
+// timing out.
+func schemaModeFailureContext(mode datalayer.SchemaMode) string {
+	if mode.WritesToLegacy() {
+		return fmt.Sprintf("schema mode %q writes to legacy storage", mode)
+	}
+
+	return fmt.Sprintf("schema mode %q writes only the unified stored schema, so Watch schema events must be derived from it "+
+		"rather than from the legacy namespace/caveat tables", mode)
+}
+
 func verifyMixedUpdates(
 	require *require.Assertions,
+	mode datalayer.SchemaMode,
 	expectedUpdates [][]string,
 	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
 	for _, expected := range expectedUpdates {
-		changeWait := time.NewTimer(waitForChangesTimeout)
+		changeWait := time.NewTimer(watchSchemaChangeTimeout)
 		select {
 		case change, ok := <-changes:
 			if !ok {
@@ -784,10 +889,10 @@ func verifyMixedUpdates(
 			sort.Strings(expected)
 			sort.Strings(found)
 
-			require.Equal(expected, found, "found unexpected changes")
+			require.Equal(expected, found, "found unexpected changes; %s", schemaModeFailureContext(mode))
 			time.Sleep(1 * time.Millisecond)
 		case <-changeWait.C:
-			require.Fail("Timed out", "waited for changes: %s", expected)
+			require.Fail("Timed out", "waited %s for changes: %s; %s", watchSchemaChangeTimeout, expected, schemaModeFailureContext(mode))
 		}
 	}
 
@@ -795,6 +900,14 @@ func verifyMixedUpdates(
 }
 
 func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester DatastoreTester) {
+	for _, tc := range watchSchemaModes {
+		t.Run(tc.name, func(t *testing.T) {
+			watchRelationshipsAndSchemaAndCheckpointsTestForMode(t, tester, tc.mode)
+		})
+	}
+}
+
+func watchRelationshipsAndSchemaAndCheckpointsTestForMode(t *testing.T, tester DatastoreTester, mode datalayer.SchemaMode) {
 	require := require.New(t)
 
 	ds, err := tester.New(t, DefaultRevisionParameters(), 16)
@@ -805,11 +918,13 @@ func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester Datastor
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	state := newSchemaState(t, ctx, ds, mode)
+
 	lowestRevisionResult, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	lowestRevision := lowestRevisionResult.Revision
 
-	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
+	changes, errchan := state.dl.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships | datastore.WatchSchema,
 		CheckpointInterval: 100 * time.Millisecond,
 	})
@@ -820,14 +935,12 @@ func WatchRelationshipsAndSchemaAndCheckpointsTest(t *testing.T, tester Datastor
 	)
 	require.NoError(err)
 
-	verifyCheckpointUpdate(require, afterTouchRevision, changes)
+	verifyCheckpointUpdate(require, mode, afterTouchRevision, changes)
 
-	afterTouchRevision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{Name: "doesnotexist"})
-	})
+	afterTouchRevision, err = state.put(&core.NamespaceDefinition{Name: "doesnotexist"})
 	require.NoError(err)
 
-	verifyCheckpointUpdate(require, afterTouchRevision, changes)
+	verifyCheckpointUpdate(require, mode, afterTouchRevision, changes)
 }
 
 func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
@@ -1028,11 +1141,12 @@ func verifyWatchEmitsCheckpoint(
 
 func verifyCheckpointUpdate(
 	require *require.Assertions,
+	mode datalayer.SchemaMode,
 	expectedRevision datastore.Revision,
 	changes <-chan datastore.RevisionChanges,
 ) {
 	var relChangeEmitted, schemaChangeEmitted bool
-	changeWait := time.NewTimer(waitForChangesTimeout)
+	changeWait := time.NewTimer(watchSchemaChangeTimeout)
 	for {
 		select {
 		case change, ok := <-changes:
@@ -1045,14 +1159,198 @@ func verifyCheckpointUpdate(
 			}
 			if change.IsCheckpoint {
 				if change.Revision.Equal(expectedRevision) || change.Revision.GreaterThan(expectedRevision) {
-					require.True(relChangeEmitted || schemaChangeEmitted, "expected relationship/schema changes before checkpoint")
+					require.True(relChangeEmitted || schemaChangeEmitted,
+						"expected relationship/schema changes before checkpoint; %s", schemaModeFailureContext(mode))
 					return
 				}
 
 				// we received a past revision checkpoint, ignore
 			}
 		case <-changeWait.C:
-			require.Fail("Timed out", "waited for checkpoint")
+			require.Fail("Timed out", "waited %s for checkpoint; %s", watchSchemaChangeTimeout, schemaModeFailureContext(mode))
 		}
+	}
+}
+
+// WatchSchemaViaDataLayerTest verifies that schema changes emitted by the
+// DataLayer's Watch are sourced from the schema storage selected by the
+// DataLayer's schema mode: the legacy per-definition tables when reading from
+// legacy, and the unified stored schema when reading from new.
+//
+// To tell the two sources apart, each transaction writes differently named
+// definitions directly to each storage.
+func WatchSchemaViaDataLayerTest(t *testing.T, tester DatastoreTester) {
+	modes := []struct {
+		name         string
+		mode         datalayer.SchemaMode
+		readsFromNew bool
+	}{
+		{"ReadLegacyWriteLegacy", datalayer.SchemaModeReadLegacyWriteLegacy, false},
+		{"ReadLegacyWriteBoth", datalayer.SchemaModeReadLegacyWriteBoth, false},
+		{"ReadNewWriteBoth", datalayer.SchemaModeReadNewWriteBoth, true},
+		{"ReadNewWriteNew", datalayer.SchemaModeReadNewWriteNew, true},
+	}
+
+	for _, tc := range modes {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			ds, err := tester.New(t, DefaultRevisionParameters(), 16)
+			require.NoError(err)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(tc.mode))
+
+			lowestRevision, _, err := dl.HeadRevision(ctx)
+			require.NoError(err)
+
+			changes, errchan := dl.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
+			require.Empty(errchan)
+
+			writeStoredSchema := func(ctx context.Context, rwt datastore.ReadWriteTransaction, schemaText string) error {
+				compiled, err := compiler.Compile(compiler.InputSchema{
+					Source:       input.Source("schema"),
+					SchemaString: schemaText,
+				}, compiler.AllowUnprefixedObjectType())
+				if err != nil {
+					return err
+				}
+
+				_, _, err = datalayer.WriteSchemaViaStoredSchema(ctx, rwt, toSchemaDefinitions(compiled.OrderedDefinitions), schemaText)
+				return err
+			}
+
+			// Addition
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				if err := rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{Name: "legacyonly"}); err != nil {
+					return err
+				}
+
+				if err := rwt.LegacyWriteCaveats(ctx, []*core.CaveatDefinition{{Name: "legacycaveat"}}); err != nil {
+					return err
+				}
+
+				return writeStoredSchema(ctx, rwt, `caveat newcaveat(somevalue int) {
+	somevalue > 1
+}
+
+definition newonly {}`)
+			})
+			require.NoError(err)
+
+			expected := []string{"changed:legacyonly", "changed:legacycaveat"}
+			if tc.readsFromNew {
+				expected = []string{"changed:newonly", "changed:newcaveat"}
+			}
+			verifyMixedUpdates(require, tc.mode, [][]string{expected}, changes, errchan, false)
+
+			// Changed and removed
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				if err := rwt.LegacyDeleteNamespaces(ctx, []string{"legacyonly"}, datastore.DeleteNamespacesAndRelationships); err != nil {
+					return err
+				}
+
+				if err := rwt.LegacyDeleteCaveats(ctx, []string{"legacycaveat"}); err != nil {
+					return err
+				}
+
+				if err := rwt.LegacyWriteNamespaces(ctx, &core.NamespaceDefinition{Name: "legacyother"}); err != nil {
+					return err
+				}
+
+				return writeStoredSchema(ctx, rwt, `definition newother {}`)
+			})
+			require.NoError(err)
+
+			expected = []string{"changed:legacyother", "deleted-ns:legacyonly", "deleted-caveat:legacycaveat"}
+			if tc.readsFromNew {
+				expected = []string{"changed:newother", "deleted-ns:newonly", "deleted-caveat:newcaveat"}
+			}
+			verifyMixedUpdates(require, tc.mode, [][]string{expected}, changes, errchan, false)
+		})
+	}
+}
+
+// WatchSchemaEmissionStrategyViaDataLayerTest verifies that schema changes are emitted
+// immediately, in every schema mode, when watching through the DataLayer with the
+// EmitImmediatelyStrategy.
+func WatchSchemaEmissionStrategyViaDataLayerTest(t *testing.T, tester DatastoreTester) {
+	for _, tc := range watchSchemaModes {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			ds, err := tester.New(t, DefaultRevisionParameters(), 16)
+			require.NoError(err)
+
+			setupDatastore(t, ds)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			features, err := ds.Features(ctx)
+			require.NoError(err)
+
+			expectsWatchError := (features.WatchEmitsImmediately.Status != datastore.FeatureSupported)
+
+			state := newSchemaState(t, ctx, ds, tc.mode)
+
+			lowestRevisionResult, err := ds.HeadRevision(ctx)
+			require.NoError(err)
+			lowestRevision := lowestRevisionResult.Revision
+
+			changes, errchan := state.dl.Watch(ctx, lowestRevision, datastore.WatchOptions{
+				Content:            datastore.WatchCheckpoints | datastore.WatchSchema,
+				CheckpointInterval: 100 * time.Millisecond,
+				EmissionStrategy:   datastore.EmitImmediatelyStrategy,
+			})
+			if expectsWatchError {
+				select {
+				case err := <-errchan:
+					require.ErrorContains(err, "emit immediately strategy is unsupported")
+				case <-time.After(waitForChangesTimeout):
+					require.Fail("Timed out", "waited for emit immediately strategy error")
+				}
+				return
+			}
+			require.Empty(errchan)
+
+			targetRev, err := state.put(
+				&core.NamespaceDefinition{Name: "somenewnamespace"},
+				mustCaveatDefinition(t, "somenewcaveat", "a == b"),
+			)
+			require.NoError(err)
+
+			// Changes are not accumulated, so the definitions may arrive in separate changes.
+			foundChanges := mapz.NewSet[string]()
+			changeWait := time.NewTimer(watchSchemaChangeTimeout)
+			for {
+				select {
+				case change, ok := <-changes:
+					require.True(ok)
+					require.False(change.StoredSchemaChanged, "stored schema markers must not be emitted to callers")
+
+					for _, changedDef := range change.ChangedDefinitions {
+						require.True(targetRev.Equal(change.Revision))
+						foundChanges.Insert("changed:" + changedDef.GetName())
+					}
+					require.Empty(change.DeletedNamespaces)
+					require.Empty(change.DeletedCaveats)
+
+					if change.IsCheckpoint && (change.Revision.Equal(targetRev) || change.Revision.GreaterThan(targetRev)) {
+						found := foundChanges.AsSlice()
+						sort.Strings(found)
+						require.Equal([]string{"changed:somenewcaveat", "changed:somenewnamespace"}, found,
+							"expected schema changes before checkpoint; %s", schemaModeFailureContext(tc.mode))
+						return
+					}
+				case err := <-errchan:
+					require.Fail("Unexpected watch error", "%v; %s", err, schemaModeFailureContext(tc.mode))
+				case <-changeWait.C:
+					require.Fail("Timed out", "waited %s for checkpoint; %s", watchSchemaChangeTimeout, schemaModeFailureContext(tc.mode))
+				}
+			}
+		})
 	}
 }

@@ -244,7 +244,7 @@ func (sd *spannerDatastore) OptimizedRevision(ctx context.Context) (datastore.Re
 	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
-	nowRev, schemaHash, err := sd.staleHeadRevision(ctx)
+	nowRev, err := sd.nowOnly(ctx)
 	if err != nil {
 		return datastore.RevisionWithSchemaHashAndValidity{}, err
 	}
@@ -259,6 +259,13 @@ func (sd *spannerDatastore) OptimizedRevision(ctx context.Context) (datastore.Re
 	}
 
 	rev, validFor := revisions.Quantize(nowTS, sd.followerReadDelay, sd.revisionQuantization)
+
+	// Read the hash at the quantized revision, not at now. A schema written between the two
+	// would otherwise pair this revision with a schema that was not in effect at it.
+	schemaHash, err := sd.schemaHashAtRevision(ctx, rev)
+	if err != nil {
+		return datastore.RevisionWithSchemaHashAndValidity{}, err
+	}
 	return datastore.RevisionWithSchemaHashAndValidity{Revision: rev, ValidFor: validFor, SchemaHash: schemaHash}, nil
 }
 
