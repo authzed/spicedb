@@ -77,6 +77,16 @@ func TestPostgresDatastoreGC(t *testing.T) {
 			MigrationPhase(config.migrationPhase),
 			WithRevisionHeartbeat(false),
 		))
+
+		t.Run("GarbageCollectionWithoutStaleTransactions", createDatastoreTest(
+			b,
+			GarbageCollectionWithoutStaleTransactionsTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Hour),
+			GCInterval(disableBackgroundGC),
+			WatchBufferLength(1),
+			MigrationPhase(config.migrationPhase),
+		))
 	})
 }
 
