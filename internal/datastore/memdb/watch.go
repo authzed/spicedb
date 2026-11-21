@@ -120,13 +120,34 @@ func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64, opti
 	for changeRaw := it.Next(); changeRaw != nil; changeRaw = it.Next() {
 		change := changeRaw.(*changelog)
 
+		// The changelog holds everything that changed at the revision, so only emit the
+		// content that was requested.
+		filtered := datastore.RevisionChanges{
+			Revision:  change.changes.Revision,
+			Metadatas: change.changes.Metadatas,
+		}
+		hasRequestedContent := false
+
 		if options.Content&datastore.WatchRelationships == datastore.WatchRelationships && len(change.changes.RelationshipChanges) > 0 {
-			changes = append(changes, change.changes)
+			filtered.RelationshipChanges = change.changes.RelationshipChanges
+			hasRequestedContent = true
 		}
 
 		if options.Content&datastore.WatchSchema == datastore.WatchSchema &&
-			len(change.changes.ChangedDefinitions) > 0 || len(change.changes.DeletedCaveats) > 0 || len(change.changes.DeletedNamespaces) > 0 {
-			changes = append(changes, change.changes)
+			(len(change.changes.ChangedDefinitions) > 0 || len(change.changes.DeletedCaveats) > 0 || len(change.changes.DeletedNamespaces) > 0) {
+			filtered.ChangedDefinitions = change.changes.ChangedDefinitions
+			filtered.DeletedNamespaces = change.changes.DeletedNamespaces
+			filtered.DeletedCaveats = change.changes.DeletedCaveats
+			hasRequestedContent = true
+		}
+
+		if options.Content&datastore.WatchStoredSchema == datastore.WatchStoredSchema && change.changes.StoredSchemaChanged {
+			filtered.StoredSchemaChanged = true
+			hasRequestedContent = true
+		}
+
+		if hasRequestedContent {
+			changes = append(changes, filtered)
 		}
 
 		if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints && change.revisionNanos > lastRevision {

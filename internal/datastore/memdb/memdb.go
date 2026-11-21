@@ -280,7 +280,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			return mdb.headRevisionNoLock(), nil
 		}
 
-		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema|datastore.WatchStoredSchema, 0)
 		if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
 			if err := tracked.AddRevisionMetadata(ctx, newRevision, config.Metadata.AsMap()); err != nil {
 				return datastore.NoRevision, err
@@ -351,6 +351,10 @@ func (mdb *memdbDatastore) ReadWriteTx(
 					}
 				default:
 					return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
+				}
+			case tableSchema:
+				if err := tracked.AddStoredSchemaChange(ctx, newRevision); err != nil {
+					return datastore.NoRevision, err
 				}
 			}
 		}

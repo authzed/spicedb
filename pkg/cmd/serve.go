@@ -124,6 +124,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	apiFlags.Uint32Var(&config.MaxReadRelationshipsLimit, "max-read-relationships-limit", 1000, "maximum number of relationships that can be read in a single request")
 	apiFlags.Uint32Var(&config.MaxDeleteRelationshipsLimit, "max-delete-relationships-limit", 1000, "maximum number of relationships that can be deleted in a single request")
 	apiFlags.Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
+	apiFlags.Uint32Var(&config.MaxLookupResourcesResponseBatchSize, "max-lookup-resources-response-batch-size", 1000, "maximum number of resources packed into a single LookupResources response batch; a request asking for a larger optional_response_batch_size is rejected")
 	apiFlags.Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
 	apiFlags.BoolVar(&config.EnableRevisionHeartbeat, "enable-revision-heartbeat", true, "enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (Postgres driver only; always off when --datastore-readonly is set)")
 	apiFlags.BoolVar(&config.EnablePerformanceInsightMetrics, "enable-performance-insight-metrics", false, "enables performance insight metrics, which are used to track the latency of API calls by shape")
@@ -185,7 +186,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
 	// Flags for experimental features
 	experimentalFlags.StringSliceVar(&config.ExperimentalQueryPlan, "experimental-query-plan", nil, "comma-separated list of operations to route through the experimental query plan engine; valid values are `check`, `lr` (LookupResources), and `ls` (LookupSubjects)")
-	experimentalFlags.StringVar(&config.ExperimentalLookupResourcesVersion, "experimental-lookup-resources-version", "", "if non-empty, the version of the experimental lookup resources API to use: `lr3` or empty")
+	experimentalFlags.StringVar(&config.ExperimentalLookupResourcesVersion, "experimental-lookup-resources-version", "lr3", "the version of the lookup resources API to use: `lr3` (default) or empty to disable")
 	experimentalFlags.BoolVar(&config.EnableRelationshipExpiration, "enable-experimental-relationship-expiration", true, "enables experimental support for relationship expiration")
 	if err := experimentalFlags.MarkHidden("enable-experimental-relationship-expiration"); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)

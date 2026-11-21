@@ -278,6 +278,9 @@ func (sd *spannerDatastore) watch(
 								return err
 							}
 
+						case tableSchemaRevision:
+							// Nothing to do: the stored schema is only ever replaced.
+
 						default:
 							return spiceerrors.MustBugf("unknown table name %s in delete of change stream", dcr.TableName)
 						}
@@ -355,6 +358,12 @@ func (sd *spannerDatastore) watch(
 								return err
 							}
 
+						case tableSchemaRevision:
+							// The row is upserted by every write of the unified stored schema.
+							if err := tracked.AddStoredSchemaChange(ctx, changeRevision); err != nil {
+								return err
+							}
+
 						default:
 							return spiceerrors.MustBugf("unknown table name %s in delete of change stream", dcr.TableName)
 						}
@@ -386,7 +395,11 @@ func (sd *spannerDatastore) watch(
 				// When there are data changes written to the partition,
 				// data_change_record.commit_timestamp can be used instead of heartbeat_record.timestamp to tell
 				// that the reader is making forward progress in reading the partition.
-				if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+				//
+				// A transaction that writes to multiple tables is delivered as multiple records, whose
+				// changes are only sent once the last has been received, so the checkpoint must wait
+				// for it as well: otherwise, it would be emitted ahead of the changes it covers.
+				if dcr.IsLastRecordInTransactionInPartition && opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
 					if !sendChange(datastore.RevisionChanges{
 						Revision:     revisions.NewForTime(dcr.CommitTimestamp),
 						IsCheckpoint: true,

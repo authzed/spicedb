@@ -61,6 +61,11 @@ var (
 		schema.ColCreatedXid,
 		schema.ColDeletedXid,
 	).From(schema.TableCaveat)
+
+	// A row is added to schema_revision by every write of the unified stored schema.
+	queryChangedStoredSchema = psql.Select(
+		schema.ColCreatedXid,
+	).From("schema_revision")
 )
 
 func (pgd *pgDatastore) Watch(
@@ -302,6 +307,14 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 		}
 	}
 
+	// Load stored schema changes.
+	if options.Content&datastore.WatchStoredSchema == datastore.WatchStoredSchema {
+		err := pgd.loadStoredSchemaChanges(ctx, xmin, xmax, txidToRevision, filter, tracked)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Reconcile the changes.
 	return tracked.AsRevisionChanges(func(lhs, rhs uint64) bool {
 		return filter[lhs] < filter[rhs]
@@ -515,6 +528,40 @@ func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, xmin uint64, xmax
 		}
 	}
 	if changes.Err() != nil {
+		return fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+	return nil
+}
+
+func (pgd *pgDatastore) loadStoredSchemaChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
+	sql, args, err := queryChangedStoredSchema.Where(sq.And{
+		sq.LtOrEq{schema.ColCreatedXid: xmax},
+		sq.GtOrEq{schema.ColCreatedXid: xmin},
+	}).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to prepare changes SQL: %w", err)
+	}
+
+	changes, err := pgd.readPool.Query(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+
+	defer changes.Close()
+
+	for changes.Next() {
+		var createdXID xid8
+		if err := changes.Scan(&createdXID); err != nil {
+			return fmt.Errorf("unable to parse changed stored schema: %w", err)
+		}
+
+		if _, found := filter[createdXID.Uint64]; found {
+			if err := tracked.AddStoredSchemaChange(ctx, txidToRevision[createdXID.Uint64]); err != nil {
+				return err
+			}
+		}
+	}
+	if err := changes.Err(); err != nil {
 		return fmt.Errorf("unable to load changes for XID: %w", err)
 	}
 	return nil
