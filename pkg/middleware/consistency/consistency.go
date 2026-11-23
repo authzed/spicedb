@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/ctxkey"
 
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/cursor"
@@ -54,9 +55,7 @@ type hasConsistency interface{ GetConsistency() *v1.Consistency }
 
 type hasOptionalCursor interface{ GetOptionalCursor() *v1.Cursor }
 
-type ctxKeyType struct{}
-
-var revisionKey ctxKeyType = struct{}{}
+var revisionKey = ctxkey.New[*revisionHandle]()
 
 var errInvalidZedToken = status.Error(codes.InvalidArgument, "invalid revision requested")
 
@@ -68,14 +67,13 @@ type revisionHandle struct {
 // ContextWithHandle adds a placeholder to a context that will later be
 // filled by the revision
 func ContextWithHandle(ctx context.Context) context.Context {
-	return context.WithValue(ctx, revisionKey, &revisionHandle{})
+	return revisionKey.Set(ctx, &revisionHandle{})
 }
 
 // RevisionFromContext reads the selected revision and schema hash out of a context.Context,
 // computes a zedtoken from it, and returns an error if it has not been set on the context.
 func RevisionFromContext(ctx context.Context) (datastore.Revision, datalayer.SchemaHash, *v1.ZedToken, error) {
-	if c := ctx.Value(revisionKey); c != nil {
-		handle := c.(*revisionHandle)
+	if handle, ok := revisionKey.Value(ctx); ok {
 		rev := handle.revision
 		if rev != nil {
 			dl := datalayer.FromContext(ctx)
@@ -109,8 +107,8 @@ func AddRevisionToContext(ctx context.Context, req any, dl datalayer.DataLayer, 
 // addRevisionToContextFromConsistency adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
 func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency, dl datalayer.DataLayer, serviceLabel string, option MismatchingTokenOption) error {
-	handle := ctx.Value(revisionKey)
-	if handle == nil {
+	rh, ok := revisionKey.Value(ctx)
+	if !ok {
 		return nil
 	}
 
@@ -218,7 +216,6 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		return status.Errorf(codes.Internal, "missing handling of consistency case in %v", consistency)
 	}
 
-	rh := handle.(*revisionHandle)
 	rh.revision = revision
 	rh.schemaHash = schemaHash
 	return nil

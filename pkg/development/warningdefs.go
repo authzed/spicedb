@@ -51,7 +51,7 @@ var lintPermissionReferencingItself = computedUsersetCheck{
 		def *schema.Definition,
 		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
-		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
+		parentRelation := relationKey.MustValue(ctx)
 		permName := parentRelation.Name
 		if computedUserset.GetRelation() == permName {
 			return warningForPosition(
@@ -75,7 +75,7 @@ var lintArrowReferencingUnreachable = ttuCheck{
 		def *schema.Definition,
 		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
-		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
+		parentRelation := relationKey.MustValue(ctx)
 
 		referencedRelation, ok := def.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
@@ -133,7 +133,7 @@ var lintArrowOverSubRelation = ttuCheck{
 		def *schema.Definition,
 		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
-		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
+		parentRelation := relationKey.MustValue(ctx)
 
 		referencedRelation, ok := def.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
@@ -181,7 +181,7 @@ var lintArrowReferencingRelation = ttuCheck{
 		def *schema.Definition,
 		ts *schema.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
-		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
+		parentRelation := relationKey.MustValue(ctx)
 
 		referencedRelation, ok := def.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {

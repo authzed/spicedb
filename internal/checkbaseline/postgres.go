@@ -177,7 +177,7 @@ func openBaselineBackend(ctx context.Context, cfg AuditConfig) (*baselineBackend
 		return nil, err
 	}
 	defer driver.Close(context.Background())
-	err = migrations.DatabaseMigrations.Run(context.WithValue(ctx, migrate.BackfillBatchSize, uint64(1000)), driver, migrate.Head, migrate.LiveRun)
+	err = migrations.DatabaseMigrations.Run(migrate.BackfillBatchSize.Set(ctx, 1000), driver, migrate.Head, migrate.LiveRun)
 	closeErr := driver.Close(ctx)
 	if err != nil {
 		return nil, err

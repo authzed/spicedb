@@ -8,6 +8,8 @@ import (
 
 	"github.com/ccoveille/go-safecast/v2"
 
+	"github.com/authzed/ctxkey"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -80,9 +82,7 @@ func GetWarnings(ctx context.Context, devCtx *DevContext) ([]*devinterface.Devel
 	return warnings, nil
 }
 
-type contextKey string
-
-var relationKey = contextKey("relation")
+var relationKey = ctxkey.New[*corev1.Relation]()
 
 func AddDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinition, ts *schema.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
 	def, err := schema.NewDefinition(nsDef)
@@ -92,7 +92,7 @@ func AddDefinitionWarnings(ctx context.Context, nsDef *corev1.NamespaceDefinitio
 
 	warnings := []*devinterface.DeveloperWarning{}
 	for _, rel := range nsDef.Relation {
-		ctx = context.WithValue(ctx, relationKey, rel)
+		ctx = relationKey.Set(ctx, rel)
 
 		for _, check := range allChecks.relationChecks {
 			if shouldSkipCheck(rel.Metadata, check.name) {
