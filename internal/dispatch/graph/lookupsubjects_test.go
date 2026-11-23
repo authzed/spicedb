@@ -277,7 +277,58 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 	}
 }
 
+// sharedNestedGroupRelationships builds a graph where document:doc#viewer@group:top#member
+// fans out to `instances` shared groups, each reached via `parents` parent groups.
+// Each parent also has its own nested group at the same depth, so the shared group's
+// FoundSubjects are combined with each parent's own subjects during dispatch.
+// It returns the relationships and the expected FoundSubjects for document:doc#view.
+//
+//	document:doc#viewer
+//	  └── group:top
+//	        ├── group:shared{i}-parent{p}  (for each i in instances, p in parents)
+//	        │     ├── group:shared{i}      (shared across all parents of instance i)
+//	        │     │     ├── group:shared{i}-left   ──▶ 3 users
+//	        │     │     └── group:shared{i}-right  ──▶ 2 users
+//	        │     └── group:shared{i}-parent{p}-own
+//	        │           └── group:shared{i}-parent{p}-own-inner ──▶ 1 user
+func sharedNestedGroupRelationships(instances, parents int) ([]tuple.Relationship, []*v1.FoundSubject) {
+	rels := []tuple.Relationship{tuple.MustParse("document:doc#viewer@group:top#member")}
+	var expected []*v1.FoundSubject
+	addMember := func(group, member string) {
+		rels = append(rels, tuple.MustParse("group:"+group+"#member@"+member))
+	}
+	addUser := func(group, user string) {
+		addMember(group, "user:"+user)
+		expected = append(expected, &v1.FoundSubject{SubjectId: user})
+	}
+
+	for i := range instances {
+		shared := fmt.Sprintf("shared%d", i)
+		addMember(shared, "group:"+shared+"-left#member")
+		addMember(shared, "group:"+shared+"-right#member")
+		for u := range 3 {
+			addUser(shared+"-left", fmt.Sprintf("%s-left-user%d", shared, u))
+		}
+		for u := range 2 {
+			addUser(shared+"-right", fmt.Sprintf("%s-right-user%d", shared, u))
+		}
+
+		for p := range parents {
+			parent := fmt.Sprintf("%s-parent%d", shared, p)
+			own := parent + "-own"
+			addMember("top", "group:"+parent+"#member")
+			addMember(parent, "group:"+shared+"#member")
+			addMember(parent, "group:"+own+"#member")
+			addMember(own, "group:"+own+"-inner#member")
+			addUser(own+"-inner", own+"-user")
+		}
+	}
+	return rels, expected
+}
+
 func TestLookupSubjectsOverSchema(t *testing.T) {
+	sharedGroupRels, sharedGroupExpected := sharedNestedGroupRelationships(6, 8)
+
 	testCases := []struct {
 		name          string
 		schema        string
@@ -988,6 +1039,23 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 					SubjectId: "sarah",
 				},
 			},
+		},
+		{
+			"nested group shared by several parents",
+			`definition user {}
+
+			definition group {
+				relation member: user | group#member
+			}
+
+			definition document {
+				relation viewer: group#member
+				permission view = viewer
+			}`,
+			sharedGroupRels,
+			ONR("document", "doc", "view"),
+			RR("user", "..."),
+			sharedGroupExpected,
 		},
 	}
 
