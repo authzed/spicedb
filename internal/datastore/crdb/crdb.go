@@ -445,7 +445,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 
 	config := options.NewRWTOptionsWithOptions(opts...)
 	if config.DisableRetries {
-		ctx = context.WithValue(ctx, pool.CtxDisableRetries, true)
+		ctx = pool.CtxDisableRetries.Set(ctx, true)
 	}
 
 	err := cds.writePool.TryBeginFunc(ctx, cds.acquireTimeout, func(tx pgx.Tx) error {
