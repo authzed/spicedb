@@ -78,10 +78,11 @@ func ReorderMutation(order []int) OutlineMutation {
 			reordered[i] = outline.SubOutlines[idx]
 		}
 		return Outline{
-			Type:        outline.Type,
-			Args:        outline.Args,
-			SubOutlines: reordered,
-			ID:          outline.ID,
+			Type:                     outline.Type,
+			Args:                     outline.Args,
+			IndependentCheckBranches: outline.IndependentCheckBranches,
+			SubOutlines:              reordered,
+			ID:                       outline.ID,
 		}
 	}
 }
@@ -123,17 +124,19 @@ func RotateArrowMutation(rotateLeft bool) OutlineMutation {
 
 			// Build B->C (inner arrow on right)
 			innerArrow := Outline{
-				Type:        ArrowIteratorType,
-				Args:        outline.Args, // Preserve Args from parent
-				SubOutlines: []Outline{b, c},
+				Type:                     ArrowIteratorType,
+				Args:                     outline.Args, // Preserve Args from parent
+				IndependentCheckBranches: outline.IndependentCheckBranches,
+				SubOutlines:              []Outline{b, c},
 			}
 
 			// Build A->(B->C)
 			return Outline{
-				Type:        ArrowIteratorType,
-				Args:        outline.Args, // Preserve Args from parent
-				SubOutlines: []Outline{a, innerArrow},
-				ID:          outline.ID,
+				Type:                     ArrowIteratorType,
+				Args:                     outline.Args, // Preserve Args from parent
+				IndependentCheckBranches: outline.IndependentCheckBranches,
+				SubOutlines:              []Outline{a, innerArrow},
+				ID:                       outline.ID,
 			}
 		}
 
@@ -150,17 +153,19 @@ func RotateArrowMutation(rotateLeft bool) OutlineMutation {
 
 		// Build A->B (inner arrow on left)
 		innerArrow := Outline{
-			Type:        ArrowIteratorType,
-			Args:        outline.Args, // Preserve Args from parent
-			SubOutlines: []Outline{a, b},
+			Type:                     ArrowIteratorType,
+			Args:                     outline.Args, // Preserve Args from parent
+			IndependentCheckBranches: outline.IndependentCheckBranches,
+			SubOutlines:              []Outline{a, b},
 		}
 
 		// Build (A->B)->C
 		return Outline{
-			Type:        ArrowIteratorType,
-			Args:        outline.Args, // Preserve Args from parent
-			SubOutlines: []Outline{innerArrow, c},
-			ID:          outline.ID,
+			Type:                     ArrowIteratorType,
+			Args:                     outline.Args, // Preserve Args from parent
+			IndependentCheckBranches: outline.IndependentCheckBranches,
+			SubOutlines:              []Outline{innerArrow, c},
+			ID:                       outline.ID,
 		}
 	}
 }

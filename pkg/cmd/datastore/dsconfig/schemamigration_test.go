@@ -26,6 +26,8 @@ func TestApplySchemaMigrationPhase(t *testing.T) {
 			switch engine {
 			case MySQLEngine:
 				require.Contains(t, cfg.AllowedMigrations, "identifiers_case_sensitive")
+			case SpannerEngine:
+				require.Contains(t, cfg.AllowedMigrations, "add-schema-revision-to-change-stream")
 			case MemoryEngine:
 				require.Len(t, cfg.AllowedMigrations, 1)
 			default:

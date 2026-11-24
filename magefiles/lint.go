@@ -94,6 +94,8 @@ func (Lint) Analyzers() error {
 		// Skip our dispatch codec logic that explicitly calls MarshalVT with proto.Marshal as a fallback
 		// Skip our internal telemetry reporter which uses a prometheus proto definition that we don't control
 		"-protomarshalcheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1,github.com/authzed/spicedb/internal/telemetry",
+		// The consistent hashring balancer reads its request key from a context key that it owns
+		"-ctxkeycheck.allowed-key-types=github.com/authzed/consistent.ctxKey",
 		"github.com/authzed/spicedb/...",
 	)
 }

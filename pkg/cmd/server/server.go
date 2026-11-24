@@ -47,6 +47,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datalayer/schemamode"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/query"
@@ -131,29 +132,34 @@ type Config struct {
 	DispatchSecondaryMaximumPrimaryHedgingDelays map[string]string `debugmap:"visible"`
 	DispatchPrimaryDelayForTesting               time.Duration     `debugmap:"hidden"`
 
+	// DispatchSecondaryStrategies adds strategy functions that the secondary dispatch
+	// expressions (DispatchSecondaryUpstreamExprs) may call, for programs that embed SpiceDB.
+	DispatchSecondaryStrategies []secondary.Function `debugmap:"visible"`
+
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
 	LR3ResourceChunkCacheConfig CacheConfig `debugmap:"visible"`
 
 	// API Behavior
-	DisableV1SchemaAPI                 bool          `debugmap:"visible"`
-	V1SchemaAdditiveOnly               bool          `debugmap:"visible"`
-	MaximumUpdatesPerWrite             uint16        `debugmap:"visible" default:"1000"`
-	MaximumPreconditionCount           uint16        `debugmap:"visible" default:"1000"`
-	MaxDatastoreReadPageSize           uint64        `debugmap:"visible" default:"1000"`
-	StreamingAPITimeout                time.Duration `debugmap:"visible" default:"30s"`
-	WatchHeartbeat                     time.Duration `debugmap:"visible" default:"1s"`
-	MaxReadRelationshipsLimit          uint32        `debugmap:"visible" default:"1000"`
-	MaxDeleteRelationshipsLimit        uint32        `debugmap:"visible" default:"1000"`
-	MaxLookupResourcesLimit            uint32        `debugmap:"visible" default:"1000"`
-	MaxBulkExportRelationshipsLimit    uint32        `debugmap:"visible" default:"10000"`
-	EnableExperimentalLookupResources  bool          `debugmap:"visible"`
-	ExperimentalLookupResourcesVersion string        `debugmap:"visible"`
-	ExperimentalQueryPlan              []string      `debugmap:"visible"`
-	EnableRelationshipExpiration       bool          `debugmap:"visible" default:"true"`
-	EnableRevisionHeartbeat            bool          `debugmap:"visible" default:"true"`
-	EnablePerformanceInsightMetrics    bool          `debugmap:"visible"`
-	MismatchZedTokenBehavior           string        `debugmap:"visible" default:"full-consistency"`
+	DisableV1SchemaAPI                  bool          `debugmap:"visible"`
+	V1SchemaAdditiveOnly                bool          `debugmap:"visible"`
+	MaximumUpdatesPerWrite              uint16        `debugmap:"visible" default:"1000"`
+	MaximumPreconditionCount            uint16        `debugmap:"visible" default:"1000"`
+	MaxDatastoreReadPageSize            uint64        `debugmap:"visible" default:"1000"`
+	StreamingAPITimeout                 time.Duration `debugmap:"visible" default:"30s"`
+	WatchHeartbeat                      time.Duration `debugmap:"visible" default:"1s"`
+	MaxReadRelationshipsLimit           uint32        `debugmap:"visible" default:"1000"`
+	MaxDeleteRelationshipsLimit         uint32        `debugmap:"visible" default:"1000"`
+	MaxLookupResourcesLimit             uint32        `debugmap:"visible" default:"1000"`
+	MaxLookupResourcesResponseBatchSize uint32        `debugmap:"visible" default:"1000"`
+	MaxBulkExportRelationshipsLimit     uint32        `debugmap:"visible" default:"10000"`
+	EnableExperimentalLookupResources   bool          `debugmap:"visible"`
+	ExperimentalLookupResourcesVersion  string        `debugmap:"visible" default:"lr3"`
+	ExperimentalQueryPlan               []string      `debugmap:"visible"`
+	EnableRelationshipExpiration        bool          `debugmap:"visible" default:"true"`
+	EnableRevisionHeartbeat             bool          `debugmap:"visible" default:"true"`
+	EnablePerformanceInsightMetrics     bool          `debugmap:"visible"`
+	MismatchZedTokenBehavior            string        `debugmap:"visible" default:"full-consistency"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -421,6 +427,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.SecondaryMaximumPrimaryHedgingDelays(c.DispatchSecondaryMaximumPrimaryHedgingDelays),
+			combineddispatch.SecondaryStrategies(c.DispatchSecondaryStrategies),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
@@ -585,22 +592,23 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	}
 
 	permSysConfig := v1svc.PermissionsServerConfig{
-		MaxPreconditionsCount:              maxPreconditionCount,
-		MaxUpdatesPerWrite:                 c.MaximumUpdatesPerWrite,
-		MaximumAPIDepth:                    c.DispatchMaxDepth,
-		MaxCaveatContextSize:               c.MaxCaveatContextSize,
-		MaxRelationshipContextSize:         c.MaxRelationshipContextSize,
-		MaxDatastoreReadPageSize:           c.MaxDatastoreReadPageSize,
-		StreamingAPITimeout:                c.StreamingAPITimeout,
-		MaxReadRelationshipsLimit:          c.MaxReadRelationshipsLimit,
-		MaxDeleteRelationshipsLimit:        c.MaxDeleteRelationshipsLimit,
-		MaxLookupResourcesLimit:            c.MaxLookupResourcesLimit,
-		MaxBulkExportRelationshipsLimit:    c.MaxBulkExportRelationshipsLimit,
-		DispatchChunkSize:                  c.DispatchChunkSize,
-		ExpiringRelationshipsEnabled:       c.EnableRelationshipExpiration,
-		CaveatTypeSet:                      c.DatastoreConfig.CaveatTypeSet,
-		PerformanceInsightMetricsEnabled:   c.EnablePerformanceInsightMetrics,
-		EnableExperimentalLookupResources3: c.ExperimentalLookupResourcesVersion == "lr3",
+		MaxPreconditionsCount:               maxPreconditionCount,
+		MaxUpdatesPerWrite:                  c.MaximumUpdatesPerWrite,
+		MaximumAPIDepth:                     c.DispatchMaxDepth,
+		MaxCaveatContextSize:                c.MaxCaveatContextSize,
+		MaxRelationshipContextSize:          c.MaxRelationshipContextSize,
+		MaxDatastoreReadPageSize:            c.MaxDatastoreReadPageSize,
+		StreamingAPITimeout:                 c.StreamingAPITimeout,
+		MaxReadRelationshipsLimit:           c.MaxReadRelationshipsLimit,
+		MaxDeleteRelationshipsLimit:         c.MaxDeleteRelationshipsLimit,
+		MaxLookupResourcesLimit:             c.MaxLookupResourcesLimit,
+		MaxLookupResourcesResponseBatchSize: c.MaxLookupResourcesResponseBatchSize,
+		MaxBulkExportRelationshipsLimit:     c.MaxBulkExportRelationshipsLimit,
+		DispatchChunkSize:                   c.DispatchChunkSize,
+		ExpiringRelationshipsEnabled:        c.EnableRelationshipExpiration,
+		CaveatTypeSet:                       c.DatastoreConfig.CaveatTypeSet,
+		PerformanceInsightMetricsEnabled:    c.EnablePerformanceInsightMetrics,
+		EnableExperimentalLookupResources3:  c.ExperimentalLookupResourcesVersion == "lr3",
 		ExperimentalQueryPlan: v1svc.ExperimentalQueryPlanConfig{
 			Check:           slices.Contains(c.ExperimentalQueryPlan, "check"),
 			LookupResources: slices.Contains(c.ExperimentalQueryPlan, "lr"),

@@ -8,6 +8,7 @@ import (
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
+	secondary "github.com/authzed/spicedb/pkg/dispatch/secondary"
 	query "github.com/authzed/spicedb/pkg/query"
 	signals "github.com/authzed/spicedb/pkg/query/signals"
 	defaults "github.com/creasty/defaults"
@@ -87,6 +88,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchSecondaryMaximumPrimaryHedgingDelays = c.DispatchSecondaryMaximumPrimaryHedgingDelays
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
+		to.DispatchSecondaryStrategies = c.DispatchSecondaryStrategies
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
@@ -100,6 +102,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxReadRelationshipsLimit = c.MaxReadRelationshipsLimit
 		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
+		to.MaxLookupResourcesResponseBatchSize = c.MaxLookupResourcesResponseBatchSize
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.ExperimentalLookupResourcesVersion = c.ExperimentalLookupResourcesVersion
@@ -322,6 +325,11 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchSecondaryMaximumPrimaryHedgingDelays"] = fmt.Sprintf("(map of size %d)", len(c.DispatchSecondaryMaximumPrimaryHedgingDelays))
 	}
+	if c.DispatchSecondaryStrategies == nil {
+		debugMap["DispatchSecondaryStrategies"] = "nil"
+	} else {
+		debugMap["DispatchSecondaryStrategies"] = fmt.Sprintf("(slice of size %d)", len(c.DispatchSecondaryStrategies))
+	}
 	if dm, ok := any(&c.DispatchCacheConfig).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -365,6 +373,7 @@ func (c *Config) DebugMap() map[string]any {
 	debugMap["MaxReadRelationshipsLimit"] = c.MaxReadRelationshipsLimit
 	debugMap["MaxDeleteRelationshipsLimit"] = c.MaxDeleteRelationshipsLimit
 	debugMap["MaxLookupResourcesLimit"] = c.MaxLookupResourcesLimit
+	debugMap["MaxLookupResourcesResponseBatchSize"] = c.MaxLookupResourcesResponseBatchSize
 	debugMap["MaxBulkExportRelationshipsLimit"] = c.MaxBulkExportRelationshipsLimit
 	debugMap["EnableExperimentalLookupResources"] = c.EnableExperimentalLookupResources
 	if c.ExperimentalLookupResourcesVersion == "" {
@@ -825,6 +834,20 @@ func WithDispatchPrimaryDelayForTesting(dispatchPrimaryDelayForTesting time.Dura
 	}
 }
 
+// WithDispatchSecondaryStrategies returns an option that can append DispatchSecondaryStrategiess to Config.DispatchSecondaryStrategies
+func WithDispatchSecondaryStrategies(dispatchSecondaryStrategies secondary.Function) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryStrategies = append(c.DispatchSecondaryStrategies, dispatchSecondaryStrategies)
+	}
+}
+
+// SetDispatchSecondaryStrategies returns an option that can set DispatchSecondaryStrategies on a Config
+func SetDispatchSecondaryStrategies(dispatchSecondaryStrategies []secondary.Function) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryStrategies = dispatchSecondaryStrategies
+	}
+}
+
 // WithDispatchCacheConfig returns an option that can set DispatchCacheConfig on a Config
 func WithDispatchCacheConfig(dispatchCacheConfig CacheConfig) ConfigOption {
 	return func(c *Config) {
@@ -913,6 +936,13 @@ func WithMaxDeleteRelationshipsLimit(maxDeleteRelationshipsLimit uint32) ConfigO
 func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
 	return func(c *Config) {
 		c.MaxLookupResourcesLimit = maxLookupResourcesLimit
+	}
+}
+
+// WithMaxLookupResourcesResponseBatchSize returns an option that can set MaxLookupResourcesResponseBatchSize on a Config
+func WithMaxLookupResourcesResponseBatchSize(maxLookupResourcesResponseBatchSize uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxLookupResourcesResponseBatchSize = maxLookupResourcesResponseBatchSize
 	}
 }
 

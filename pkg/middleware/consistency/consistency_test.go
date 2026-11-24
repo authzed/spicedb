@@ -549,7 +549,7 @@ func TestRevisionFromContextEmitsTokenWithSchemaHash(t *testing.T) {
 	ctx = ContextWithHandle(ctx)
 
 	expectedHash := datalayer.SchemaHash("emit-test-hash")
-	handle := ctx.Value(revisionKey).(*revisionHandle)
+	handle := revisionKey.MustValue(ctx)
 	handle.revision = exact
 	handle.schemaHash = expectedHash
 

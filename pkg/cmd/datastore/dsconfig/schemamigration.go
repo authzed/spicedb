@@ -12,8 +12,10 @@ func (c *Config) ApplySchemaMigrationPhase() {
 	if mode == schemamode.SchemaModeReadLegacyWriteBoth {
 		var previous string
 		switch c.Engine {
-		case PostgresEngine, CockroachEngine, SpannerEngine:
+		case PostgresEngine, CockroachEngine:
 			previous = "populate-schema-tables"
+		case SpannerEngine:
+			previous = "add-schema-revision-to-change-stream"
 		case MySQLEngine:
 			previous = "identifiers_case_sensitive"
 		}

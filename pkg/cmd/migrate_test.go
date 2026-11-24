@@ -171,10 +171,12 @@ func TestMigrateRunPassesFlagsAsExtraConfig(t *testing.T) {
 	const flagName = "a-new-flag"
 
 	var received *MigrateConfig
-	var receivedMode any
+	var receivedMode schemamode.SchemaMode
+	var receivedConfigured bool
 	migration.RegisterMigratableEngine(engineName, migrate.NewManager[*nilDriver, any, any](), func(ctx context.Context, cfg *MigrateConfig) (*nilDriver, error) {
 		received = cfg
-		receivedMode = ctx.Value(migrate.SchemaMigrationMode)
+		receivedMode, _ = migrate.SchemaMigrationMode.Value(ctx)
+		receivedConfigured = migrate.SchemaModeConfigured(ctx)
 		return nil, errors.New("driver construction stops here")
 	}, "")
 	t.Cleanup(func() { migration.UnregisterMigratableEngineForTesting(engineName) })
@@ -194,6 +196,7 @@ func TestMigrateRunPassesFlagsAsExtraConfig(t *testing.T) {
 	require.Equal(t, "read-new-write-new", received.SchemaMode)
 	require.Equal(t, "schema-write-both-read-old", received.MigrationPhase)
 	require.Equal(t, schemamode.SchemaModeReadNewWriteNew, receivedMode)
+	require.True(t, receivedConfigured)
 	require.Equal(t, engineName, received.ExtraConfig["datastore-engine"])
 }
 

@@ -511,7 +511,11 @@ func (r *RecursiveIterator) replaceRecursiveSentinel(tree Iterator, replacement 
 // breadthFirstIterResources implements BFS traversal for IterResources operations.
 // It queries with a constant subject at each ply, replacing the RecursiveSentinel with
 // a Fixed iterator containing frontier paths from the previous ply.
-func (r *RecursiveIterator) breadthFirstIterResources(ctx *Context, subject ObjectAndRelation, filterResourceType ObjectType) (PathSeq, error) {
+func (r *RecursiveIterator) breadthFirstIterResources(
+	ctx *Context,
+	subject ObjectAndRelation,
+	filterResourceType ObjectType,
+) (PathSeq, error) {
 	if ctx.shouldTrace() {
 		ctx.TraceStep(r, "BFS IterResources with constant subject %s:%s#%s",
 			subject.ObjectType, subject.ObjectID, subject.Relation)
@@ -863,3 +867,7 @@ func deserializeRecursive(body io.Reader, key CanonicalKey, dctx *DeserializeCon
 	ri.canonicalKey = key
 	return ri, nil
 }
+
+// IsNamedCheckBranch identifies this complete named relation as an independent
+// sibling branch for batch Check scheduling.
+func (*RecursiveIterator) IsNamedCheckBranch() bool { return true }

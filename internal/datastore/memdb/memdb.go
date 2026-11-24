@@ -134,15 +134,15 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 	defer mdb.RUnlock()
 
 	if err := mdb.checkNotClosed(); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return newErrorReader(err)
 	}
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is not ready"), time.Now()}
+		return newErrorReader(errors.New("memdb datastore is not ready"))
 	}
 
 	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
-		return &memdbReader{nil, nil, err, time.Now()}
+		return newErrorReader(err)
 	}
 
 	// sort.Search finds the first snapshot newer than the requested revision,
@@ -160,7 +160,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, errors.New("memdb datastore is already closed"), time.Now()}
+		return newErrorReader(errors.New("memdb datastore is already closed"))
 	}
 
 	roTxn := rev.db.Txn(false)
@@ -280,7 +280,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			return mdb.headRevisionNoLock(), nil
 		}
 
-		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema|datastore.WatchStoredSchema, 0)
 		if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
 			if err := tracked.AddRevisionMetadata(ctx, newRevision, config.Metadata.AsMap()); err != nil {
 				return datastore.NoRevision, err
@@ -351,6 +351,10 @@ func (mdb *memdbDatastore) ReadWriteTx(
 					}
 				default:
 					return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
+				}
+			case tableSchema:
+				if err := tracked.AddStoredSchemaChange(ctx, newRevision); err != nil {
+					return datastore.NoRevision, err
 				}
 			}
 		}

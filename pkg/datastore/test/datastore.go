@@ -377,6 +377,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	if !except.Watch() && !except.WatchSchema() {
 		t.Run("TestWatchSchema", runner(tester, WatchSchemaTest))
 		t.Run("TestWatchRelationshipsAndSchemaChanges", runner(tester, WatchRelationshipsAndSchemaChangesTest))
+		t.Run("TestWatchSchemaViaDataLayer", runner(tester, WatchSchemaViaDataLayerTest))
 	}
 
 	if !except.Watch() && !except.WatchCheckpoints() {
@@ -386,6 +387,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 
 	if !except.Watch() && !except.WatchCheckpoints() && !except.WatchSchema() {
 		t.Run("TestWatchRelationshipsAndSchemaAndCheckpoints", runner(tester, WatchRelationshipsAndSchemaAndCheckpointsTest))
+		t.Run("TestWatchSchemaEmissionStrategyViaDataLayer", runner(tester, WatchSchemaEmissionStrategyViaDataLayerTest))
 	}
 
 	if !except.Transaction() {
@@ -422,6 +424,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	}
 	t.Run("TestHeadRevisionSchemaHash", runner(tester, HeadRevisionSchemaHashTest))
 	t.Run("TestOptimizedRevisionSchemaHash", runner(tester, OptimizedRevisionSchemaHashTest))
+	t.Run("TestOptimizedRevisionSchemaHashAfterRevert", runner(tester, OptimizedRevisionSchemaHashAfterRevertTest))
 
 	if !except.Migration() {
 		t.Run("TestMigration", runner(tester, MigrationTest))

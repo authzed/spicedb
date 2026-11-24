@@ -273,13 +273,10 @@ func (crr *CursoredLookupResources3) LookupResources3(req ValidatedLookupResourc
 		return err
 	}
 	ts := schema.NewTypeSystem(schema.ResolverFor(sr))
-	caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
-
 	refs := lr3refs{
 		req:              req,
 		reader:           reader,
 		ts:               ts,
-		caveatRunner:     caveatRunner,
 		concurrencyLimit: crr.concurrencyLimit,
 	}
 
@@ -361,9 +358,6 @@ type lr3refs struct {
 
 	// ts is the type system used to resolve types and relations for the lookup resources operation.
 	ts *schema.TypeSystem
-
-	// caveatRunner is the caveat runner used to run caveats for the lookup resources operation.
-	caveatRunner *caveats.CaveatRunner
 
 	// concurrencyLimit is the maximum number of concurrent operations that can be performed.
 	concurrencyLimit uint16
@@ -881,6 +875,11 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						return
 					}
 
+					// Producers run concurrently and CaveatRunner is not safe for concurrent use,
+					// so each producer gets its own runner. Compiled caveats are still shared via
+					// the schema-tied compiled caveat cache.
+					caveatRunner := caveats.NewCaveatRunner(crr.caveatTypeSet)
+
 					rm := newRelationshipsChunk(int(crr.dispatchChunkSize), dbCursor)
 					for rel, err := range relationships {
 						if err != nil {
@@ -892,7 +891,7 @@ func (crr *CursoredLookupResources3) relationshipsIter(
 						var missingContextParameters []string
 						if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
 							caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
-							runResult, err := refs.caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), caveatSR, caveats.RunCaveatExpressionNoDebugging)
+							runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, refs.req.Context.AsMap(), caveatSR, caveats.RunCaveatExpressionNoDebugging)
 							if err != nil {
 								yieldError(err)
 								return

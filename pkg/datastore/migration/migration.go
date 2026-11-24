@@ -108,7 +108,7 @@ func newMigratableEngine[D migrate.Driver[C, T], C any, T any](
 				return fmt.Errorf("unable to create migration driver for %s: %w", cfg.DatastoreEngine, err)
 			}
 			log.Ctx(ctx).Info().Str("targetRevision", revision).Msg("running migrations")
-			ctxWithBatch := context.WithValue(ctx, migrate.BackfillBatchSize, cfg.BatchSize)
+			ctxWithBatch := migrate.BackfillBatchSize.Set(ctx, cfg.BatchSize)
 			ctx, cancel := context.WithTimeout(ctxWithBatch, cfg.Timeout)
 			defer cancel()
 			if err := manager.Run(ctx, driver, revision, migrate.LiveRun); err != nil {
@@ -134,9 +134,9 @@ func Run(ctx context.Context, cfg *Config, revision string) error {
 	if err != nil {
 		return err
 	}
-	ctx = context.WithValue(ctx, migrate.SchemaMigrationMode, mode)
+	ctx = migrate.SchemaMigrationMode.Set(ctx, mode)
 	_, phased := schemamode.ModeForMigrationPhase(cfg.MigrationPhase)
-	ctx = context.WithValue(ctx, migrate.SchemaMigrationModeConfigured, cfg.SchemaMode != "" || phased)
+	ctx = migrate.SchemaMigrationModeConfigured.Set(ctx, cfg.SchemaMode != "" || phased)
 
 	e, ok := migratableEngines[cfg.DatastoreEngine]
 	if !ok {

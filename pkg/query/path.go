@@ -39,6 +39,7 @@ type Path struct {
 	// information through nested exclusion operations (e.g., view = viewer - (banned - unbanned)).
 	ExcludedSubjects []*Path
 
+	// Metadata carries JSON-shaped annotations. Opaque values must be immutable.
 	Metadata map[string]any
 }
 
@@ -108,7 +109,10 @@ func (p *Path) MergeAndNot(other *Path) (*Path, error) {
 	})
 }
 
-func (p *Path) mergeFrom(other *Path, caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression) (*Path, error) {
+func (p *Path) mergeFrom(
+	other *Path,
+	caveatMerger func(pCaveat, otherCaveat *core.CaveatExpression) *core.CaveatExpression,
+) (*Path, error) {
 	// Check if they have the same Resource and Subject types and IDs
 	if !p.Resource.Equals(other.Resource) {
 		return nil, fmt.Errorf("cannot merge paths with different resources: %v vs %v", p.Resource, other.Resource)

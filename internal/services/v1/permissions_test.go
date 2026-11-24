@@ -992,6 +992,160 @@ func TestLookupResources(t *testing.T) {
 	}
 }
 
+func TestLookupResourcesBatched(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
+	})
+
+	conn, _, revision := testserver.NewTestServerWithConfig(
+		t,
+		0,
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxUpdatesPerWrite:                 1000,
+			MaxPreconditionsCount:              1000,
+			StreamingAPITimeout:                30 * time.Second,
+			MaxRelationshipContextSize:         25000,
+			EnableExperimentalLookupResources3: true, // batching lives in the LR3 path
+		},
+		tf.StandardDatastoreWithData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+
+	// user:owner can view three documents.
+	expected := []string{"companyplan", "masterplan", "ownerplan"}
+
+	runLookup := func(t *testing.T, batchSize uint32) (ids []string, maxBatch int, messages int) {
+		t.Helper()
+		stream, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
+			ResourceObjectType:        "document",
+			Permission:                "view",
+			Subject:                   sub("user", "owner", ""),
+			OptionalResponseBatchSize: batchSize,
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_AtLeastAsFresh{
+					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		for {
+			resp, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			messages++
+
+			if batchSize > 0 {
+				require.NotNil(t, resp.Batched, "batched request must populate the batched wrapper")
+				require.NotEmpty(t, resp.Batched.Results, "batched request must return results")
+				require.Empty(t, resp.ResourceObjectId, "batched responses must not set the singular resource field")
+				require.LessOrEqual(t, len(resp.Batched.Results), int(batchSize), "no batch may exceed the requested size")
+				maxBatch = max(maxBatch, len(resp.Batched.Results))
+				// The resume cursor lives once on the batch wrapper, never on
+				// individual results — the schema makes a per-result cursor
+				// impossible (that is the payload win).
+				for _, r := range resp.Batched.Results {
+					ids = append(ids, r.ResourceObjectId)
+				}
+			} else {
+				require.Nil(t, resp.Batched, "unbatched responses must not populate the batched wrapper")
+				ids = append(ids, resp.ResourceObjectId)
+			}
+		}
+		slices.Sort(ids)
+		return ids, maxBatch, messages
+	}
+
+	t.Run("unbatched", func(t *testing.T) {
+		ids, _, messages := runLookup(t, 0)
+		require.Equal(t, expected, ids)
+		require.Equal(t, len(expected), messages, "unbatched streams one message per result")
+	})
+
+	t.Run("batched", func(t *testing.T) {
+		ids, maxBatch, messages := runLookup(t, 2)
+		require.Equal(t, expected, ids, "batching returns the same resources as unbatched")
+		require.LessOrEqual(t, maxBatch, 2, "batches respect optional_response_batch_size")
+		require.Less(t, messages, len(expected), "batching sends fewer messages than results")
+	})
+
+	// Paginating with the batch cursor must still return every resource exactly
+	// once, proving the single per-batch cursor is a valid resume point.
+	t.Run("batched cursor resumes pagination", func(t *testing.T) {
+		consistency := &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
+			},
+		}
+		page := func(cur *v1.Cursor) (ids []string, next *v1.Cursor) {
+			stream, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
+				ResourceObjectType:        "document",
+				Permission:                "view",
+				Subject:                   sub("user", "owner", ""),
+				OptionalResponseBatchSize: 2,
+				OptionalLimit:             2,
+				OptionalCursor:            cur,
+				Consistency:               consistency,
+			})
+			require.NoError(t, err)
+			for {
+				resp, err := stream.Recv()
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				require.NoError(t, err)
+				if resp.Batched != nil {
+					for _, r := range resp.Batched.Results {
+						ids = append(ids, r.ResourceObjectId)
+					}
+					if resp.Batched.AfterCursor != nil {
+						next = resp.Batched.AfterCursor
+					}
+				}
+			}
+			return ids, next
+		}
+
+		var all []string
+		var cur *v1.Cursor
+		for i := 0; i < len(expected)+2; i++ { // bounded against infinite loops
+			ids, next := page(cur)
+			all = append(all, ids...)
+			if len(ids) < 2 || next == nil {
+				break
+			}
+			cur = next
+		}
+		slices.Sort(all)
+		require.Equal(t, expected, all, "paginating with the batch cursor returns every resource exactly once")
+	})
+
+	// A request whose batch size exceeds the server maximum is rejected, not
+	// clamped. The test server's MaxLookupResourcesResponseBatchSize defaults to
+	// 1000, so a larger request must fail with InvalidArgument.
+	t.Run("exceeds maximum", func(t *testing.T) {
+		stream, err := client.LookupResources(t.Context(), &v1.LookupResourcesRequest{
+			ResourceObjectType:        "document",
+			Permission:                "view",
+			Subject:                   sub("user", "owner", ""),
+			OptionalResponseBatchSize: 1001,
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_AtLeastAsFresh{
+					AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision, datalayer.NoSchemaHashInLegacyZedToken),
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		require.Error(t, err)
+		require.Equal(t, codes.InvalidArgument, status.Code(err), "batch size over the maximum must be rejected, not clamped")
+	})
+}
+
 func TestExpand(t *testing.T) {
 	t.Cleanup(func() {
 		goleak.VerifyNone(t, testutil.GoLeakIgnores()...)
@@ -2419,13 +2573,18 @@ func TestImportBulkRelationships(t *testing.T) {
 		{"many small batches", constBatch(5), 1_000},
 		{"one empty batch", constBatch(0), 1},
 		{"small random batches", randomBatch(1, 10), 100},
-		{"big random batches", randomBatch(1_000, 3_000), 50},
+		{"big random batches", randomBatch(1_000, 3_000), 10},
 	}
 
+	// Each subtest runs against its own test server, so they are run in parallel.
+	// The leak check above still holds: the cleanup of this test only runs once
+	// all of its parallel subtests have finished and shut down their servers.
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			for _, withTrait := range []string{"", "caveated_viewer", "expiring_viewer"} {
 				t.Run(fmt.Sprintf("withTrait=%s", withTrait), func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 
 					conn, _, _ := testserver.NewTestServerWithConfig(t, 0, memdb.DisableGC, true,

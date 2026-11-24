@@ -31,10 +31,7 @@ func TestSchemaMigrationPhases(t *testing.T) {
 			pool := *dscfg.DefaultReadConnPool()
 			pool.MinOpenConns = 0
 			pool.MaxOpenConns = 2
-			previous := "populate-schema-tables"
-			if engine == "mysql" {
-				previous = "identifiers_case_sensitive"
-			}
+			previous := schemaRefreshPreviousMigration(engine)
 			t.Run("empty installation", func(t *testing.T) {
 				uri := running.NewDatabase(t)
 				cfg := &migration.Config{DatastoreEngine: engine, DatastoreURI: uri, Timeout: time.Minute, BatchSize: 1000}
@@ -159,6 +156,19 @@ func TestSchemaMigrationPhases(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+// schemaRefreshPreviousMigration is the migration the preparation phase runs at,
+// immediately before the schema refresh.
+func schemaRefreshPreviousMigration(engine string) string {
+	switch engine {
+	case "mysql":
+		return "identifiers_case_sensitive"
+	case "spanner":
+		return "add-schema-revision-to-change-stream"
+	default:
+		return "populate-schema-tables"
 	}
 }
 
@@ -477,10 +487,7 @@ func TestSchemaRefreshDoesNotBlockPreparationReads(t *testing.T) {
 			defer cancel()
 			running := testdatastore.RunDatastoreEngine(t, engine)
 			uri := running.NewDatabase(t)
-			previous := "populate-schema-tables"
-			if engine == "mysql" {
-				previous = "identifiers_case_sensitive"
-			}
+			previous := schemaRefreshPreviousMigration(engine)
 			cfg := &migration.Config{DatastoreEngine: engine, DatastoreURI: uri, Timeout: time.Minute, BatchSize: 1000}
 			require.NoError(t, migration.Run(ctx, cfg, previous))
 
@@ -581,10 +588,7 @@ func TestSchemaRefreshFollowsConfiguredMode(t *testing.T) {
 	for _, engine := range []string{"postgres", "mysql", "cockroachdb", "spanner"} {
 		t.Run(engine, func(t *testing.T) {
 			running := testdatastore.RunDatastoreEngine(t, engine)
-			previous := "populate-schema-tables"
-			if engine == "mysql" {
-				previous = "identifiers_case_sensitive"
-			}
+			previous := schemaRefreshPreviousMigration(engine)
 			for _, tc := range []struct {
 				name, schemaMode, phase string
 				unifiedOnly             bool

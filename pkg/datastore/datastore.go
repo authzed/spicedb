@@ -61,6 +61,12 @@ type RevisionChanges struct {
 	// DeletedCaveats are any caveats that were deleted.
 	DeletedCaveats []string
 
+	// StoredSchemaChanged, if true, indicates that the unified stored schema was
+	// written at this revision. Only set if WatchStoredSchema was requested. The
+	// definitions that changed are not included; callers must read the stored
+	// schema at the revision to determine them.
+	StoredSchemaChanged bool
+
 	// IsCheckpoint, if true, indicates that the datastore has reported all changes
 	// up until and including the Revision and that no additional schema updates can
 	// have occurred before this point.
@@ -91,6 +97,10 @@ func (rc RevisionChanges) DebugString() string {
 
 	for _, caveat := range rc.DeletedCaveats {
 		fmt.Fprintf(&debugString, "DeletedCaveat: %s\n", caveat)
+	}
+
+	if rc.StoredSchemaChanged {
+		debugString.WriteString("StoredSchemaChanged\n")
 	}
 
 	return debugString.String()
@@ -665,6 +675,14 @@ const (
 	WatchRelationships WatchContent = 1 << 0
 	WatchSchema        WatchContent = 1 << 1
 	WatchCheckpoints   WatchContent = 1 << 2
+
+	// WatchStoredSchema watches for writes to the unified stored schema, emitting
+	// changes with StoredSchemaChanged set. WatchSchema, by contrast, emits the
+	// definitions changed in the legacy per-definition schema storage.
+	//
+	// Callers should generally watch via the DataLayer with WatchSchema, which
+	// selects the correct source based on its schema mode.
+	WatchStoredSchema WatchContent = 1 << 3
 )
 
 // WatchOptions are options for a Watch call.

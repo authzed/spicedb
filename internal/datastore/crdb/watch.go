@@ -37,6 +37,9 @@ const (
 	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
 )
 
+// tableSchemaRevision is the table holding the hash of the unified stored schema.
+const tableSchemaRevision = "schema_revision"
+
 type changeDetails struct {
 	Resolved string
 	Updated  string
@@ -160,6 +163,9 @@ func (cds *crdbDatastore) watch(
 		tableNames = append(tableNames, schema.TableNamespace)
 		tableNames = append(tableNames, schema.TableCaveat)
 	}
+	if opts.Content&datastore.WatchStoredSchema == datastore.WatchStoredSchema {
+		tableNames = append(tableNames, tableSchemaRevision)
+	}
 
 	if len(tableNames) == 0 {
 		errs <- errors.New("at least relationships or schema must be specified")
@@ -234,6 +240,7 @@ type changeTracker[R datastore.Revision, K comparable] interface {
 	AddChangedDefinition(ctx context.Context, rev R, def datastore.SchemaDefinition) error
 	AddDeletedNamespace(ctx context.Context, rev R, namespaceName string) error
 	AddDeletedCaveat(ctx context.Context, rev R, caveatName string) error
+	AddStoredSchemaChange(ctx context.Context, rev R) error
 	AddRevisionMetadata(ctx context.Context, rev R, metadata common.TransactionMetadata) error
 }
 
@@ -315,6 +322,19 @@ func (s streamingChangeProvider) AddDeletedCaveat(_ context.Context, rev revisio
 	changes := datastore.RevisionChanges{
 		Revision:       rev,
 		DeletedCaveats: []string{caveatName},
+	}
+
+	return s.sendChange(changes)
+}
+
+func (s streamingChangeProvider) AddStoredSchemaChange(_ context.Context, rev revisions.HLCRevision) error {
+	if s.content&datastore.WatchStoredSchema != datastore.WatchStoredSchema {
+		return nil
+	}
+
+	changes := datastore.RevisionChanges{
+		Revision:            rev,
+		StoredSchemaChanged: true,
 	}
 
 	return s.sendChange(changes)
@@ -581,6 +601,21 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 			} else {
 				err = tracked.AddDeletedCaveat(ctx, rev, definitionName)
 				if err != nil {
+					sendError(err)
+					return
+				}
+			}
+
+		case tableSchemaRevision:
+			// The row is upserted by every write of the unified stored schema.
+			if details.After != nil {
+				rev, err := revisions.HLCRevisionFromString(details.Updated)
+				if err != nil {
+					sendError(fmt.Errorf("malformed update timestamp: %w", err))
+					return
+				}
+
+				if err := tracked.AddStoredSchemaChange(ctx, rev); err != nil {
 					sendError(err)
 					return
 				}

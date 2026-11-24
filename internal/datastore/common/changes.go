@@ -42,6 +42,10 @@ type changeRecord[R datastore.Revision] struct {
 	namespacesDeleted  map[string]struct{}
 	caveatsDeleted     map[string]struct{}
 	metadatas          []TransactionMetadata
+
+	// storedSchemaChanged is a pointer so that it can be set through the copies of the
+	// record handed out by recordForRevision, as with the maps above.
+	storedSchemaChanged *bool
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
@@ -92,6 +96,13 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 			}
 		}
 
+		// If the same tuple was already touched at this revision, the new touch replaces it.
+		if existing, ok := record.relTouches[key]; ok {
+			if err := ch.adjustByteSize(existing, -1); err != nil {
+				return err
+			}
+		}
+
 		record.relTouches[key] = rel
 		if err := ch.adjustByteSize(rel, 1); err != nil {
 			return err
@@ -100,6 +111,13 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 	case tuple.UpdateOperationDelete:
 		_, alreadyTouched := record.relTouches[key]
 		if !alreadyTouched {
+			// If the same tuple was already deleted at this revision, the new delete replaces it.
+			if existing, ok := record.relDeletes[key]; ok {
+				if err := ch.adjustByteSize(existing, -1); err != nil {
+					return err
+				}
+			}
+
 			record.relDeletes[key] = rel
 			if err := ch.adjustByteSize(rel, 1); err != nil {
 				return err
@@ -176,6 +194,7 @@ func (ch *Changes[R, K]) recordForRevision(rev R) changeRecord[R] {
 			make(map[string]struct{}),
 			make(map[string]struct{}),
 			make([]TransactionMetadata, 0),
+			new(bool),
 		}
 		ch.records[k] = revisionChanges
 	}
@@ -270,7 +289,7 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 	case *core.CaveatDefinition:
 		delete(record.caveatsDeleted, t.Name)
 
-		if existing, ok := record.definitionsChanged[nsPrefix+t.Name]; ok {
+		if existing, ok := record.definitionsChanged[caveatPrefix+t.Name]; ok {
 			if err := ch.adjustByteSize(existing, -1); err != nil {
 				return err
 			}
@@ -289,6 +308,20 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 	return nil
 }
 
+// AddStoredSchemaChange adds a change indicating that the unified stored schema was written.
+func (ch *Changes[R, K]) AddStoredSchemaChange(_ context.Context, rev R) error {
+	if ch.content&datastore.WatchStoredSchema != datastore.WatchStoredSchema {
+		return nil
+	}
+
+	ch.recordsMutex.Lock()
+	defer ch.recordsMutex.Unlock()
+
+	record := ch.recordForRevision(rev)
+	*record.storedSchemaChanged = true
+	return nil
+}
+
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
 func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) iter.Seq2[datastore.RevisionChanges, error] {
@@ -299,13 +332,17 @@ func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) i
 // and returning the filtered changes.
 func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) iter.Seq2[datastore.RevisionChanges, error] {
 	return func(yield func(datastore.RevisionChanges, error) bool) {
+		stopped := false
 		for change, err := range ch.revisionChanges(lessThanFunc, boundRev, true) {
 			if !yield(change, err) {
+				stopped = true
 				break
 			}
 		}
 
-		ch.removeAllChangesBefore(boundRev)
+		if err := ch.removeAllChangesBefore(boundRev); err != nil && !stopped {
+			yield(datastore.RevisionChanges{}, err)
+		}
 	}
 }
 
@@ -350,6 +387,7 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 			change.ChangedDefinitions = slices.Collect(maps.Values(revisionChangeRecord.definitionsChanged))
 			change.DeletedNamespaces = slices.Collect(maps.Keys(revisionChangeRecord.namespacesDeleted))
 			change.DeletedCaveats = slices.Collect(maps.Keys(revisionChangeRecord.caveatsDeleted))
+			change.StoredSchemaChanged = *revisionChangeRecord.storedSchemaChanged
 
 			if len(revisionChangeRecord.metadatas) > 0 {
 				metadatas := make([]*structpb.Struct, 0, len(revisionChangeRecord.metadatas))
@@ -367,13 +405,43 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 	}
 }
 
-func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) {
+// removeAllChangesBefore removes the records before the bound revision and releases their
+// size from the buffered byte count, so the maximum size bounds what is currently buffered
+// rather than everything the Changes has ever held.
+func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) error {
 	ch.recordsMutex.Lock()
 	defer ch.recordsMutex.Unlock()
 
 	for rk, cr := range ch.records {
 		if boundRev.GreaterThan(cr.rev) {
+			if err := ch.releaseRecordByteSize(cr); err != nil {
+				return err
+			}
 			delete(ch.records, rk)
 		}
 	}
+
+	return nil
+}
+
+// releaseRecordByteSize subtracts the size of everything the record holds that was counted
+// when it was added: relationship touches and deletes, and changed definitions.
+// NOTE assumes that the mutex has been acquired.
+func (ch *Changes[R, K]) releaseRecordByteSize(cr changeRecord[R]) error {
+	for _, rel := range cr.relTouches {
+		if err := ch.adjustByteSize(rel, -1); err != nil {
+			return err
+		}
+	}
+	for _, rel := range cr.relDeletes {
+		if err := ch.adjustByteSize(rel, -1); err != nil {
+			return err
+		}
+	}
+	for _, def := range cr.definitionsChanged {
+		if err := ch.adjustByteSize(def, -1); err != nil {
+			return err
+		}
+	}
+	return nil
 }

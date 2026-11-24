@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("refresh-schema-tables", "populate-schema-tables", nil, func(ctx context.Context, tx *spanner.ReadWriteTransaction) error {
+	if err := SpannerMigrations.Register("refresh-schema-tables", "add-schema-revision-to-change-stream", nil, func(ctx context.Context, tx *spanner.ReadWriteTransaction) error {
 		source := common.SchemaMigrationSourceUnified
 		if migrate.ShouldRefreshSchema(ctx) {
 			if err := populateSchemaTables(ctx, tx, true); err != nil {

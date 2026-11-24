@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -125,7 +126,11 @@ func init() {
 				}
 			}
 
-			batchSize := ctx.Value(migrate.BackfillBatchSize).(uint64)
+			batchSize, ok := migrate.BackfillBatchSize.Value(ctx)
+			if !ok {
+				return errors.New("backfill batch size not found in context")
+			}
+
 			for _, stmt := range backfills {
 				concreteStmt := fmt.Sprintf(stmt, batchSize)
 

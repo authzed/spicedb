@@ -2,6 +2,7 @@ package remote
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -38,6 +39,111 @@ func TestParseDispatchExpression(t *testing.T) {
 		{
 			"valid big expression",
 			"request.resource_relation.namespace == 'foo' ? ['prewarm'] : []",
+			"",
+		},
+		{
+			"hedged",
+			"hedged(['prewarm'])",
+			"",
+		},
+		{
+			"hedged with empty list",
+			"hedged([])",
+			"",
+		},
+		{
+			"hedged with maximum delay",
+			"hedged(['prewarm'], duration('5ms'))",
+			"",
+		},
+		{
+			"prefer_secondary",
+			"prefer_secondary(['prewarm'], duration('50ms'))",
+			"",
+		},
+		{
+			"strategies in both branches",
+			"request.resource_relation.namespace == 'foo' ? prefer_secondary(['prewarm'], duration('50ms')) : hedged(['prewarm'], duration('2ms'))",
+			"",
+		},
+		{
+			"unknown strategy",
+			"hedgd(['prewarm'])",
+			"undeclared reference to 'hedgd'",
+		},
+		{
+			"strategy in one branch only",
+			"request.resource_relation.namespace == 'foo' ? hedged(['prewarm']) : ['prewarm']",
+			"no matching overload",
+		},
+		{
+			"hedged with a string",
+			"hedged('prewarm')",
+			"no matching overload",
+		},
+		{
+			"hedged with a non-duration delay",
+			"hedged(['prewarm'], 5)",
+			"no matching overload",
+		},
+		{
+			"prefer_secondary without deadline",
+			"prefer_secondary(['prewarm'])",
+			"no matching overload",
+		},
+		{
+			"mismatched branches get a hint",
+			"request.resource_relation.namespace == 'foo' ? hedged(['prewarm']) : ['prewarm']",
+			"hint: both branches of a conditional must have the same type",
+		},
+		{
+			"bare empty list gets a hint",
+			"[]",
+			"use prefer_primary() to dispatch to the primary only",
+		},
+		{
+			"literal zero hedged delay",
+			"hedged(['prewarm'], duration('0s'))",
+			"hedged: maximum delay must be positive, got 0s",
+		},
+		{
+			"literal negative hedged delay",
+			"hedged(['prewarm'], duration('-1s'))",
+			"hedged: maximum delay must be positive, got -1s",
+		},
+		{
+			"literal zero deadline",
+			"prefer_secondary(['prewarm'], duration('0s'))",
+			"prefer_secondary: deadline must be positive, got 0s",
+		},
+		{
+			"literal negative deadline inside a conditional",
+			"request.resource_relation.namespace == 'foo' ? prefer_secondary(['prewarm'], duration('-1ms')) : hedged(['prewarm'])",
+			"prefer_secondary: deadline must be positive, got -1ms",
+		},
+		{
+			"malformed literal deadline",
+			"prefer_secondary(['prewarm'], duration('5'))",
+			"prefer_secondary: invalid deadline duration('5')",
+		},
+		{
+			"prefer_primary",
+			"prefer_primary()",
+			"",
+		},
+		{
+			"prefer_primary alongside prefer_secondary",
+			"request.resource_relation.namespace == 'foo' ? prefer_secondary(['prewarm'], duration('50ms')) : prefer_primary()",
+			"",
+		},
+		{
+			"prefer_primary takes no secondaries",
+			"prefer_primary(['prewarm'])",
+			"no matching overload",
+		},
+		{
+			"computed durations are only checked at evaluation",
+			"prefer_secondary(['prewarm'], duration('1s') - duration('1s'))",
 			"",
 		},
 	}
@@ -143,21 +249,130 @@ func TestRunCheckDispatchExpr(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, rar := range tc.requestAndResponses {
-				resp, err := RunDispatchExpr(parsed, rar.request)
+				resp, err := runDispatchExpr(parsed, rar.request)
 				if rar.expectedError != "" {
 					require.ErrorContains(t, err, rar.expectedError)
 				} else {
-					require.Equal(t, rar.expectedResult, resp)
+					require.Equal(t, rar.expectedResult, resp.secondaries)
+					require.Equal(t, hedgedStrategy{}, resp.strategy)
 				}
 
 				// Run again and ensure the same result.
-				resp, err = RunDispatchExpr(parsed, rar.request)
+				resp, err = runDispatchExpr(parsed, rar.request)
 				if rar.expectedError != "" {
 					require.ErrorContains(t, err, rar.expectedError)
 				} else {
-					require.Equal(t, rar.expectedResult, resp)
+					require.Equal(t, rar.expectedResult, resp.secondaries)
+					require.Equal(t, hedgedStrategy{}, resp.strategy)
 				}
 			}
+		})
+	}
+}
+
+func TestRunDispatchExprStrategies(t *testing.T) {
+	checkRequest := func(namespace string) *dispatchv1.DispatchCheckRequest {
+		return &dispatchv1.DispatchCheckRequest{
+			ResourceRelation: &corev1.RelationReference{Namespace: namespace, Relation: "view"},
+		}
+	}
+
+	for _, tc := range []struct {
+		name          string
+		expr          string
+		request       *dispatchv1.DispatchCheckRequest
+		expected      dispatchPlan
+		expectedError string
+	}{
+		{
+			name:     "plain list is hedged",
+			expr:     "['tiger']",
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: hedgedStrategy{}},
+		},
+		{
+			name:     "hedged",
+			expr:     "hedged(['tiger'])",
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: hedgedStrategy{}},
+		},
+		{
+			name:     "hedged with empty list",
+			expr:     "hedged([])",
+			expected: dispatchPlan{secondaries: []string{}, strategy: hedgedStrategy{}},
+		},
+		{
+			name:     "hedged with maximum delay",
+			expr:     "hedged(['tiger'], duration('5ms'))",
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: hedgedStrategy{maxDelay: 5 * time.Millisecond}},
+		},
+		{
+			// Literal durations are checked at parse time; computed ones only here.
+			name:          "hedged with computed zero delay",
+			expr:          "hedged(['tiger'], duration('1s') - duration('1s'))",
+			expectedError: "hedged: maximum delay must be positive, got 0s",
+		},
+		{
+			name:          "hedged with computed negative delay",
+			expr:          "hedged(['tiger'], duration('0s') - duration('1s'))",
+			expectedError: "hedged: maximum delay must be positive, got -1s",
+		},
+		{
+			name:          "hedged with a non-string element",
+			expr:          "hedged(dyn(['tiger', 1]))",
+			expectedError: "expected a list of strings",
+		},
+		{
+			name:     "prefer_secondary",
+			expr:     "prefer_secondary(['tiger', 'lion'], duration('50ms'))",
+			expected: dispatchPlan{secondaries: []string{"tiger", "lion"}, strategy: preferSecondaryStrategy{deadline: 50 * time.Millisecond}},
+		},
+		{
+			name:     "prefer_primary is hedged([])",
+			expr:     "prefer_primary()",
+			expected: dispatchPlan{secondaries: []string{}, strategy: hedgedStrategy{}},
+		},
+		{
+			name:          "prefer_secondary with computed zero deadline",
+			expr:          "prefer_secondary(['tiger'], duration('1s') - duration('1s'))",
+			expectedError: "prefer_secondary: deadline must be positive, got 0s",
+		},
+		{
+			name:          "prefer_secondary with computed negative deadline",
+			expr:          "prefer_secondary(['tiger'], duration('0s') - duration('1s'))",
+			expectedError: "prefer_secondary: deadline must be positive, got -1s",
+		},
+		{
+			name:     "strategy chosen by request, first branch",
+			expr:     "request.resource_relation.namespace == 'document' ? prefer_secondary(['tiger'], duration('50ms')) : hedged(['tiger'])",
+			request:  checkRequest("document"),
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: preferSecondaryStrategy{deadline: 50 * time.Millisecond}},
+		},
+		{
+			name:     "strategy chosen by request, second branch",
+			expr:     "request.resource_relation.namespace == 'document' ? prefer_secondary(['tiger'], duration('50ms')) : hedged(['tiger'])",
+			request:  checkRequest("folder"),
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: hedgedStrategy{}},
+		},
+		{
+			// A realistic expression must stay under the expression cost limit.
+			name: "realistic expression within cost limit",
+			expr: "request.resource_relation.namespace == 'document' && request.resource_relation.relation in ['view', 'edit'] " +
+				"? prefer_secondary(['tiger'], duration('50ms')) " +
+				": (request.resource_relation.namespace == 'folder' ? hedged(['tiger'], duration('2ms')) : hedged([]))",
+			request:  checkRequest("document"),
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: preferSecondaryStrategy{deadline: 50 * time.Millisecond}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parsed, err := ParseDispatchExpression("check", tc.expr)
+			require.NoError(t, err)
+
+			plan, err := runDispatchExpr(parsed, tc.request)
+			if tc.expectedError != "" {
+				require.ErrorContains(t, err, tc.expectedError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, plan)
 		})
 	}
 }
@@ -170,12 +385,31 @@ func BenchmarkRunDispatchExpression(b *testing.B) {
 		},
 	}
 
-	parsed, err := ParseDispatchExpression("check", "['tiger']")
-	require.NoError(b, err)
+	for _, expr := range []string{
+		"['tiger']",
+		"hedged(['tiger'])",
+		"prefer_secondary(['tiger'], duration('50ms'))",
+	} {
+		b.Run(expr, func(b *testing.B) {
+			parsed, err := ParseDispatchExpression("check", expr)
+			require.NoError(b, err)
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		_, _ = RunDispatchExpr(parsed, req)
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = runDispatchExpr(parsed, req)
+			}
+		})
 	}
+}
+
+func TestPreferPrimaryEqualsHedgedEmpty(t *testing.T) {
+	plans := make([]dispatchPlan, 0, 2)
+	for _, expr := range []string{"prefer_primary()", "hedged([])"} {
+		parsed, err := ParseDispatchExpression("check", expr)
+		require.NoError(t, err)
+		plan, err := runDispatchExpr(parsed, &dispatchv1.DispatchCheckRequest{})
+		require.NoError(t, err)
+		plans = append(plans, plan)
+	}
+	require.Equal(t, plans[1], plans[0])
 }
