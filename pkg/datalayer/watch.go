@@ -21,14 +21,33 @@ import (
 // This holds under the EmitImmediatelyStrategy as well: although changes to different rows
 // can then arrive out of revision order, every write of the stored schema changes the same
 // row, and changes to a single row are delivered in revision order.
+//
+// A watch that starts before the schema migration boundary follows schema reads: before
+// the boundary, legacy storage is authoritative, so its changes are passed through and
+// folded into the comparison baseline. The refresh at the boundary copies that same
+// schema into unified storage, so it emits nothing, and later changes come from the
+// stored schema alone.
 func watchViaStoredSchema(
 	ctx context.Context,
 	ds datastore.Datastore,
+	migration *schemaMigrationState,
 	afterRevision datastore.Revision,
 	opts datastore.WatchOptions,
 ) (<-chan datastore.RevisionChanges, <-chan error) {
+	// TODO: remove the legacy handling below with the legacy-to-unified schema
+	// migration, once no supported deployment can resume a watch from before its
+	// boundary.
+	boundary, err := migration.loadBoundary(ctx)
+	if err != nil {
+		return watchFailed(err)
+	}
+	legacyUntilBoundary := boundary != nil && !boundary.ContainsRevision(afterRevision)
+
 	dsOpts := opts
 	dsOpts.Content = (opts.Content &^ datastore.WatchSchema) | datastore.WatchStoredSchema
+	if legacyUntilBoundary {
+		dsOpts.Content |= datastore.WatchSchema
+	}
 
 	dsUpdates, dsErrs := ds.Watch(ctx, afterRevision, dsOpts)
 
@@ -41,7 +60,11 @@ func watchViaStoredSchema(
 
 		// Load the schema as of the starting revision now, rather than when the first change
 		// arrives, as the starting revision may have been garbage collected by then.
-		previous, err := readStoredSchemaForWatch(ctx, ds, afterRevision)
+		readSchema := readStoredSchemaForWatch
+		if legacyUntilBoundary {
+			readSchema = readLegacySchemaForWatch
+		}
+		previous, err := readSchema(ctx, ds, afterRevision)
 		if err != nil {
 			errs <- watchErrorFor(ctx, err)
 			return
@@ -62,6 +85,26 @@ func watchViaStoredSchema(
 						errs <- datastore.NewWatchCanceledErr()
 					}
 					return
+				}
+
+				if legacyUntilBoundary {
+					if !boundary.ContainsRevision(update.Revision) {
+						update.StoredSchemaChanged = false
+						applyLegacySchemaChanges(previous, update)
+						if isEmptyRevisionChanges(update) {
+							continue
+						}
+						select {
+						case updates <- update:
+						case <-ctx.Done():
+							errs <- datastore.NewWatchCanceledErr()
+							return
+						}
+						continue
+					}
+					// Write-both modes keep updating legacy storage after the boundary, but
+					// the stored schema is now authoritative.
+					update.ChangedDefinitions, update.DeletedNamespaces, update.DeletedCaveats = nil, nil, nil
 				}
 
 				if update.StoredSchemaChanged {
@@ -105,6 +148,49 @@ func watchViaStoredSchema(
 	}()
 
 	return updates, errs
+}
+
+func watchFailed(err error) (<-chan datastore.RevisionChanges, <-chan error) {
+	updates := make(chan datastore.RevisionChanges)
+	errs := make(chan error, 1)
+	close(updates)
+	errs <- err
+	close(errs)
+	return updates, errs
+}
+
+// readLegacySchemaForWatch reads the legacy definitions at the given revision in the
+// stored schema form used for comparison.
+func readLegacySchemaForWatch(ctx context.Context, ds datastore.Datastore, rev datastore.Revision) (*core.StoredSchema_V1StoredSchema, error) {
+	schema, err := legacyStoredSchema(ctx, ds.SnapshotReader(rev))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read legacy schema for watch: %w", err)
+	}
+	return schema, nil
+}
+
+// applyLegacySchemaChanges folds legacy definition changes into the comparison baseline.
+// The baseline no longer matches its stored hash, so the hash is cleared to force a
+// comparison of each definition.
+func applyLegacySchemaChanges(schema *core.StoredSchema_V1StoredSchema, update datastore.RevisionChanges) {
+	if len(update.ChangedDefinitions) == 0 && len(update.DeletedNamespaces) == 0 && len(update.DeletedCaveats) == 0 {
+		return
+	}
+	schema.SchemaHash = ""
+	for _, def := range update.ChangedDefinitions {
+		switch def := def.(type) {
+		case *core.NamespaceDefinition:
+			schema.NamespaceDefinitions[def.Name] = def
+		case *core.CaveatDefinition:
+			schema.CaveatDefinitions[def.Name] = def
+		}
+	}
+	for _, name := range update.DeletedNamespaces {
+		delete(schema.NamespaceDefinitions, name)
+	}
+	for _, name := range update.DeletedCaveats {
+		delete(schema.CaveatDefinitions, name)
+	}
 }
 
 func watchErrorFor(ctx context.Context, err error) error {

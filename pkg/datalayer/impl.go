@@ -225,7 +225,7 @@ func (d *defaultDataLayer) Watch(ctx context.Context, afterRevision datastore.Re
 	// The datastore's WatchSchema emits changes from the legacy schema storage. When reading
 	// schema from the unified stored schema, schema changes must be sourced from it instead.
 	if d.schemaMode.ReadsFromNew() && opts.Content&datastore.WatchSchema == datastore.WatchSchema {
-		return watchViaStoredSchema(ctx, d.ds, afterRevision, opts)
+		return watchViaStoredSchema(ctx, d.ds, d.migration, afterRevision, opts)
 	}
 
 	return d.ds.Watch(ctx, afterRevision, opts)

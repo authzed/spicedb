@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -642,6 +643,79 @@ func TestSchemaRefreshFollowsConfiguredMode(t *testing.T) {
 					require.Contains(t, definitions, tc.wantDefinition)
 				})
 			}
+		})
+	}
+}
+
+// A watch resumed across promotion from before the boundary must report each
+// schema change once, at the revision it happened, as a watch of legacy storage
+// did. The refresh itself changes nothing that watch has not already seen.
+func TestSchemaWatchAcrossRefresh(t *testing.T) {
+	// MySQL does not support schema watches.
+	for _, engine := range []string{"postgres", "cockroachdb", "spanner"} {
+		t.Run(engine, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+			running := testdatastore.RunDatastoreEngine(t, engine)
+			uri := running.NewDatabase(t)
+			cfg := &migration.Config{DatastoreEngine: engine, DatastoreURI: uri, Timeout: time.Minute, BatchSize: 1000}
+			require.NoError(t, migration.Run(ctx, cfg, schemaRefreshPreviousMigration(engine)))
+
+			pool := *dscfg.DefaultReadConnPool()
+			pool.MinOpenConns = 0
+			pool.MaxOpenConns = 4
+			open := func(phase string) datastore.Datastore {
+				ds, err := dscfg.NewDatastore(ctx, dscfg.WithEngine(engine), dscfg.WithURI(uri),
+					dscfg.WithMigrationPhase(phase), dscfg.WithReadConnPool(pool), dscfg.WithWriteConnPool(pool),
+					dscfg.WithEnableDatastoreMetrics(false), dscfg.WithRevisionQuantization(0), dscfg.WithWriteAcquisitionTimeout(5*time.Second))
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, ds.Close()) })
+				return ds
+			}
+			prepared := open("schema-write-both-read-old")
+
+			startRevision := writeMigrationSchema(t, prepared, datalayer.SchemaModeReadLegacyWriteBoth, "definition before {}")
+			legacyRevision := writeMigrationSchema(t, prepared, datalayer.SchemaModeReadLegacyWriteLegacy, "definition before {}\ndefinition legacy_only {}")
+
+			cfg.MigrationPhase = "schema-write-both-read-old"
+			require.NoError(t, migration.Run(ctx, cfg, migrate.Head))
+
+			promoted := open("schema-write-both-read-new")
+			promotedRevision := writeMigrationSchema(t, promoted, datalayer.SchemaModeReadNewWriteBoth, "definition before {}\ndefinition legacy_only {}\ndefinition after {}")
+
+			type schemaEvent struct {
+				revision datastore.Revision
+				changed  []string
+				deleted  []string
+			}
+			dl := datalayer.NewDataLayer(promoted, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth))
+			updates, errs := dl.Watch(ctx, startRevision, datastore.WatchOptions{Content: datastore.WatchSchema})
+			var events []schemaEvent
+			for !slices.ContainsFunc(events, func(e schemaEvent) bool { return e.revision.Equal(promotedRevision) }) {
+				select {
+				case update, ok := <-updates:
+					require.True(t, ok, "the watch ended early")
+					if len(update.ChangedDefinitions)+len(update.DeletedNamespaces)+len(update.DeletedCaveats) == 0 {
+						continue
+					}
+					event := schemaEvent{revision: update.Revision, deleted: append(update.DeletedNamespaces, update.DeletedCaveats...)}
+					for _, def := range update.ChangedDefinitions {
+						event.changed = append(event.changed, def.GetName())
+					}
+					events = append(events, event)
+				case err := <-errs:
+					require.NoError(t, err)
+				case <-ctx.Done():
+					require.FailNow(t, "timed out waiting for the promoted schema write", "events so far: %v", events)
+				}
+			}
+
+			require.Len(t, events, 2, "events: %v", events)
+			require.True(t, events[0].revision.Equal(legacyRevision), "the legacy change is reported at its own revision: %v", events)
+			require.Equal(t, []string{"legacy_only"}, events[0].changed)
+			require.Empty(t, events[0].deleted)
+			require.Equal(t, []string{"after"}, events[1].changed)
+			require.Empty(t, events[1].deleted)
 		})
 	}
 }

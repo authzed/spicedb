@@ -53,6 +53,9 @@ func (s *schemaMigrationState) historicalSchema(ctx context.Context, reader data
 }
 
 func (s *schemaMigrationState) loadBoundary(ctx context.Context) (datastore.SchemaMigrationBoundary, error) {
+	if s == nil || s.reader == nil {
+		return nil, nil
+	}
 	if cached := s.boundary.Load(); cached != nil {
 		return *cached, nil
 	}
@@ -65,14 +68,12 @@ func (s *schemaMigrationState) loadBoundary(ctx context.Context) (datastore.Sche
 }
 
 func (s *schemaMigrationState) useLegacy(ctx context.Context, rev datastore.Revision, hash SchemaHash) (bool, error) {
-	if s != nil && s.reader != nil {
-		boundary, err := s.loadBoundary(ctx)
-		if err != nil {
-			return false, err
-		}
-		if boundary != nil {
-			return !boundary.ContainsRevision(rev), nil
-		}
+	boundary, err := s.loadBoundary(ctx)
+	if err != nil {
+		return false, err
+	}
+	if boundary != nil {
+		return !boundary.ContainsRevision(rev), nil
 	}
 	// Stores without a marker can still receive tokens issued by legacy code.
 	switch hash {
@@ -87,6 +88,16 @@ func (s *schemaMigrationState) useLegacy(ctx context.Context, rev datastore.Revi
 // lazy legacy reader here would reintroduce schema reads while relationship
 // iterators hold connections, which the unified read path deliberately avoids.
 func newHistoricalSchemaReader(ctx context.Context, reader datastore.LegacySchemaReader, rev datastore.Revision) (SchemaReader, error) {
+	schema, err := legacyStoredSchema(ctx, reader)
+	if err != nil {
+		return nil, err
+	}
+	stored := datastore.NewReadOnlyStoredSchema(&core.StoredSchema{Version: 1, VersionOneof: &core.StoredSchema_V1{V1: schema}})
+	return &storedSchemaReaderAdapter{storedSchema: stored, lastWrittenRevision: rev}, nil
+}
+
+// legacyStoredSchema builds the stored schema form of the legacy definitions.
+func legacyStoredSchema(ctx context.Context, reader datastore.LegacySchemaReader) (*core.StoredSchema_V1StoredSchema, error) {
 	namespaces, err := reader.LegacyListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
@@ -115,8 +126,7 @@ func newHistoricalSchemaReader(ctx context.Context, reader datastore.LegacySchem
 	if err != nil {
 		return nil, err
 	}
-	stored := datastore.NewReadOnlyStoredSchema(&core.StoredSchema{Version: 1, VersionOneof: &core.StoredSchema_V1{V1: &core.StoredSchema_V1StoredSchema{
+	return &core.StoredSchema_V1StoredSchema{
 		SchemaText: text, SchemaHash: hash, NamespaceDefinitions: namespaceDefs, CaveatDefinitions: caveatDefs,
-	}}})
-	return &storedSchemaReaderAdapter{storedSchema: stored, lastWrittenRevision: rev}, nil
+	}, nil
 }
